@@ -36,6 +36,14 @@ public class AppDbContext : DbContext
         // ---------------------------------------------------------------------
         // 1. CẤU HÌNH BỘ LỌC TOÀN CỤC CÔ LẬP DỮ LIỆU MULTI-TENANT (GLOBAL QUERY FILTER)
         // Yêu cầu NFR-TENANT-01: Chỉ truy vấn dữ liệu thuộc về Tenant hiện tại.
+        // 
+        // LƯU Ý QUAN TRỌNG KHI SỬ DỤNG:
+        // - Mặc định mọi truy vấn LINQ/EF Core trên thực thể Multi-tenant sẽ tự động lọc theo TenantId hiện tại:
+        //     WHERE tenant_id = <CurrentTenantService.TenantId>
+        // - Đối với các tác vụ chưa có Tenant context hoặc vượt ngoài phạm vi 1 Tenant 
+        //   (ví dụ: API Đăng nhập/Login qua Email, SuperAdmin quản trị hệ thống, Jobs định kỳ),
+        //   BẮT BUỘC gọi .IgnoreQueryFilters() khi truy vấn.
+        //   Ví dụ: await _context.Users.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Email == email);
         // ---------------------------------------------------------------------
         modelBuilder.Entity<User>()
             .HasQueryFilter(e => e.TenantId == _currentTenantService.TenantId);
@@ -102,11 +110,12 @@ public class AppDbContext : DbContext
     }
 
     /// <summary>
-    /// Quét các thực thể trong ChangeTracker để tự động gán TenantId và thời gian khởi tạo/cập nhật
+    /// Quét các thực thể trong ChangeTracker để tự động gán TenantId và thời gian khởi tạo/cập nhật,
+    /// đồng thời bảo vệ các trường bất biến (CreatedAt, TenantId) không bị ghi đè khi sửa đổi (Modified).
     /// </summary>
     private void ApplyAuditAndTenantInfo()
     {
-        // 1. Quét các thực thể đang thêm mới (EntityState.Added) kế thừa IMustHaveTenant
+        // 1. Quét các thực thể kế thừa IMustHaveTenant
         foreach (var entry in ChangeTracker.Entries<IMustHaveTenant>())
         {
             if (entry.State == EntityState.Added)
@@ -116,6 +125,11 @@ public class AppDbContext : DbContext
                 {
                     entry.Entity.TenantId = _currentTenantService.TenantId.Value;
                 }
+            }
+            else if (entry.State == EntityState.Modified)
+            {
+                // Bảo vệ TenantId không bị thay đổi hoặc ghi đè khi cập nhật thực thể
+                entry.Property(nameof(IMustHaveTenant.TenantId)).IsModified = false;
             }
         }
 
@@ -132,6 +146,8 @@ public class AppDbContext : DbContext
             else if (entry.State == EntityState.Modified)
             {
                 entry.Entity.UpdatedAt = DateTimeOffset.UtcNow;
+                // Bảo vệ trường CreatedAt không bị vô tình ghi đè khi Update dữ liệu
+                entry.Property(nameof(BaseEntity.CreatedAt)).IsModified = false;
             }
         }
     }
