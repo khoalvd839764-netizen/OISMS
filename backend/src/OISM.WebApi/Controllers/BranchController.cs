@@ -3,6 +3,8 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using System.Linq;
 using OISM.Application.Features_Branches;
+using OISM.Infrastructure.Persistence;
+using OISM.Domain.Entities;
 
 namespace OISM.WebApi.Controllers
 {
@@ -45,7 +47,7 @@ namespace OISM.WebApi.Controllers
                     Id = b.Id,
                     Name = b.Name,
                     Address = b.Address,
-                    Phone = b.Phone
+                    Phone = b.Phone ?? ""
                 }).ToListAsync();
 
             return Ok(branches);

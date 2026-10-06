@@ -1,76 +1,93 @@
 using Microsoft.AspNetCore.Mvc;
-using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
-using System.Linq;
 using OISM.Application.Features_Auth.RegisterTenant;
-// (Lưu ý: Nếu chữ AppDbContext bị gạch đỏ, bạn bấm chuột vào nó rồi nhấn Cmd + Dấu chấm (.) để VS Code tự Import thư viện nhé)
+using OISM.Domain.Entities;
+using OISM.Infrastructure.Persistence;
 
-namespace OISM.WebApi.Controllers
+namespace OISM.WebApi.Controllers;
+
+[ApiController]
+[Route("api/auth")]
+public class AuthController : ControllerBase
 {
-    [ApiController]
-    [Route("api/auth")]
-    public class AuthController : ControllerBase
-    {
-        private readonly AppDbContext _context;
+    private readonly AppDbContext _context;
 
-        public AuthController(AppDbContext context)
+    public AuthController(AppDbContext context)
+    {
+        _context = context;
+    }
+
+    [HttpPost("register-tenant")]
+    public async Task<IActionResult> RegisterTenant([FromBody] RegisterTenantRequest request)
+    {
+        // 1. Kiểm tra Email trùng (BẮT BUỘC dùng IgnoreQueryFilters theo Quy tắc 1)
+        var emailExists = await _context.Users
+            .IgnoreQueryFilters()
+            .AnyAsync(u => u.Email == request.Email);
+
+        if (emailExists)
         {
-            _context = context;
+            return BadRequest(new { message = "Email này đã được sử dụng!" });
         }
 
-        [HttpPost("register-tenant")]
-        public async Task<IActionResult> RegisterTenant([FromBody] RegisterTenantRequest request)
+        // Kiểm tra TenantCode trùng (theo Quy tắc 3)
+        var tenantCodeFormatted = request.TenantCode.Trim().ToUpper();
+        var codeExists = await _context.Tenants.AnyAsync(t => t.Code == tenantCodeFormatted);
+        if (codeExists)
         {
-            // 1. Kiểm tra Email trùng
-            var emailExists = await _context.Users.AnyAsync(u => u.Email == request.Email);
-            if (emailExists) return BadRequest("Email này đã được sử dụng!");
+            return BadRequest(new { message = "Mã cửa hàng (TenantCode) đã tồn tại!" });
+        }
 
-            // 2. Bắt đầu Transaction
-            using var transaction = await _context.Database.BeginTransactionAsync();
+        // 2. Bắt đầu Database Transaction
+        using var transaction = await _context.Database.BeginTransactionAsync();
 
-            try
+        try
+        {
+            // Bước A: Tạo Cửa hàng (Tenant) với Code viết hoa
+            var newTenant = new Tenant
             {
-                // BƯỚC A: Tạo Cửa hàng (Tenant)
-                var newTenant = new Tenant { Name = request.TenantName };
-                _context.Tenants.Add(newTenant);
-                await _context.SaveChangesAsync(); // Lưu để sinh ra TenantId
+                Name = request.TenantName,
+                Code = tenantCodeFormatted,
+                IsActive = true
+            };
+            _context.Tenants.Add(newTenant);
+            await _context.SaveChangesAsync(); // Lưu để sinh ra newTenant.Id
 
-                // BƯỚC B: Tạo Tài khoản Chủ shop (User)
-                var newUser = new User
+            // Bước B: Tạo Tài khoản Chủ shop (User)
+            var newUser = new User
+            {
+                TenantId = newTenant.Id,
+                Email = request.Email,
+                FullName = request.FullName,
+                PhoneNumber = request.PhoneNumber,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+                IsActive = true
+            };
+            _context.Users.Add(newUser);
+            await _context.SaveChangesAsync();
+
+            // Bước C: Gán quyền Owner (theo Quy tắc 3: kiểm tra theo r.Code)
+            var ownerRole = await _context.Roles.FirstOrDefaultAsync(r => r.Code == "Owner");
+            if (ownerRole != null)
+            {
+                var userRole = new UserRole
                 {
-                    TenantId = newTenant.Id, // Gắn đúng mã shop vừa tạo
-                    Email = request.Email,
-                    FullName = request.FullName,
-                    PhoneNumber = request.PhoneNumber,
-                    // Băm mật khẩu để bảo mật
-                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password) 
+                    UserId = newUser.Id,
+                    RoleId = ownerRole.Id
                 };
-                _context.Users.Add(newUser);
+                _context.UserRoles.Add(userRole);
                 await _context.SaveChangesAsync();
-
-                // BƯỚC C: Gán quyền Owner (Chủ sở hữu)
-                var ownerRole = await _context.Roles.FirstOrDefaultAsync(r => r.Name == "Owner");
-                if (ownerRole != null)
-                {
-                    var userRole = new UserRole
-                    {
-                        UserId = newUser.Id,
-                        RoleId = ownerRole.Id
-                    };
-                    _context.UserRoles.Add(userRole);
-                    await _context.SaveChangesAsync();
-                }
-
-                // Hoàn tất Transaction
-                await transaction.CommitAsync();
-                
-                return Ok(new { message = "Đăng ký Cửa hàng thành công!" });
             }
-            catch (System.Exception ex)
-            {
-                await transaction.RollbackAsync(); // Có lỗi thì hủy hết
-                return StatusCode(500, "Lỗi hệ thống: " + ex.Message);
-            }
+
+            // Hoàn tất Transaction
+            await transaction.CommitAsync();
+
+            return Ok(new { message = "Đăng ký Cửa hàng thành công!" });
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            return StatusCode(500, new { message = "Lỗi hệ thống: " + ex.Message });
         }
     }
 }
