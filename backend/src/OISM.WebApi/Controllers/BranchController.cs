@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using System.Linq;
@@ -8,6 +9,7 @@ using OISM.Domain.Entities;
 
 namespace OISM.WebApi.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("api/branches")]
     public class BranchController : ControllerBase

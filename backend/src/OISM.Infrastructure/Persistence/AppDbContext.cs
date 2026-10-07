@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using OISM.Application.Common;
 using OISM.Domain.Common;
 using OISM.Domain.Entities;
+using OISM.Application.Common.Interfaces;
 
 namespace OISM.Infrastructure.Persistence;
 

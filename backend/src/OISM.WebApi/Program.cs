@@ -3,11 +3,10 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
-using OISM.Application.Common;
+using OISM.Application.Common.Interfaces;
 using OISM.Infrastructure.Persistence;
 using OISM.Infrastructure.Services;
 using OISM.WebApi;
-
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.

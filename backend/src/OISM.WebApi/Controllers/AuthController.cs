@@ -4,25 +4,12 @@ using OISM.Application.Features_Auth.RegisterTenant;
 using OISM.Domain.Entities;
 using OISM.Infrastructure.Persistence;
 using OISM.WebApi;
+using OISM.Application.Common.Interfaces;
+using OISM.Application.Features_Auth.Login;
 
 namespace OISM.WebApi.Controllers;
 
 // DTOs cho Login
-public class LoginRequest
-{
-    public string Email { get; set; } = string.Empty;
-    public string Password { get; set; } = string.Empty;
-}
-
-public class LoginResponse
-{
-    public string AccessToken { get; set; } = string.Empty;
-    public int ExpiresIn { get; set; }
-    public string FullName { get; set; } = string.Empty;
-    public string Role { get; set; } = string.Empty;
-    public Guid TenantId { get; set; }
-}
-
 [ApiController]
 [Route("api/auth")]
 public class AuthController : ControllerBase

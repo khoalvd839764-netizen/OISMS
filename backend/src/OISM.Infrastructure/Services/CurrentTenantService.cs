@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
-using OISM.Application.Common;
+using OISM.Application.Common.Interfaces;
 
 namespace OISM.Infrastructure.Services;
 

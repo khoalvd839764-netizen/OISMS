@@ -1,9 +1,11 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
+using OISM.Application.Common.Interfaces;
 
-namespace OISM.WebApi;
+namespace OISM.Infrastructure.Services;
 
 public class JwtTokenService : IJwtTokenService
 {

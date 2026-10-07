@@ -1,4 +1,4 @@
-namespace OISM.Application.Common;
+namespace OISM.Application.Common.Interfaces;
 
 /// <summary>
 /// Service cung cấp định danh TenantId của cửa hàng hiện tại đang gửi request.
