@@ -82,6 +82,7 @@ public class AppDbContext : DbContext
         // Đảm bảo mã Code vai trò là duy nhất
         modelBuilder.Entity<Role>(entity =>
         {
+            entity.Ignore(r => r.UpdatedAt);
             entity.HasIndex(r => r.Code).IsUnique();
         });
 
