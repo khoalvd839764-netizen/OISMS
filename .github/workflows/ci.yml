@@ -1,0 +1,53 @@
+name: OISM CI Pipeline
+
+on:
+  push:
+    branches: [ "main", "master", "develop" ]
+  pull_request:
+    branches: [ "main", "master", "develop" ]
+
+jobs:
+  build-and-test-backend:
+    name: Build & Test Backend (.NET 8)
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET 8 SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+
+    - name: Restore dependencies
+      run: dotnet restore src/backend/OISM.sln
+
+    - name: Build Solution
+      run: dotnet build src/backend/OISM.sln --no-restore -c Release
+
+    - name: Run Tests
+      run: dotnet test src/backend/OISM.sln --no-build -c Release --verbosity normal
+
+  build-frontend:
+    name: Build Frontend (Admin & POS)
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js 22
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Build Admin Dashboard
+      working-directory: src/frontend/admin-dashboard
+      run: |
+        npm install
+        npm run build
+
+    - name: Build POS App
+      working-directory: src/frontend/pos-app
+      run: |
+        npm install
+        npm run build

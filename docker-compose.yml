@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  # Database: PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    container_name: oism_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-oism_db}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - oism_network
+
+  # Cache & Message Broker: Redis
+  redis:
+    image: redis:7-alpine
+    container_name: oism_redis
+    restart: always
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - oism_network
+
+  # Database Admin UI (Optional)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: oism_pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@oism.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - oism_network
+
+  # Backend: .NET 8 Web API
+  backend:
+    build:
+      context: .
+      dockerfile: src/backend/Dockerfile
+    container_name: oism_backend
+    restart: always
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=oism_db;Username=postgres;Password=postgres"
+    ports:
+      - "${BACKEND_PORT:-5000}:8080"
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - oism_network
+
+  # Frontend: Admin Dashboard (React)
+  admin-dashboard:
+    build:
+      context: ./src/frontend/admin-dashboard
+      dockerfile: Dockerfile
+    container_name: oism_admin_dashboard
+    restart: always
+    ports:
+      - "${ADMIN_PORT:-5173}:80"
+    depends_on:
+      - backend
+    networks:
+      - oism_network
+
+  # Frontend: POS Application (React PWA)
+  pos-app:
+    build:
+      context: ./src/frontend/pos-app
+      dockerfile: Dockerfile
+    container_name: oism_pos_app
+    restart: always
+    ports:
+      - "${POS_PORT:-5174}:80"
+    depends_on:
+      - backend
+    networks:
+      - oism_network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  oism_network:
+    driver: bridge
