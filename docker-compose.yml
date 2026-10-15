@@ -35,8 +35,8 @@ services:
     container_name: oism_pgadmin
     restart: always
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@oism.local
-      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-hong@oism.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-hong}
     ports:
       - "5050:80"
     depends_on:

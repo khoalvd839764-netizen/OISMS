@@ -1,5 +1,7 @@
 # Omnichannel Inventory and Sales Management System (OISM)
 
+> **Yêu cầu từ đề bài:** Xem [docs/DE_BAI_OISM.md](docs/DE_BAI_OISM.md) để tra cứu FR/NFR, sản phẩm bàn giao, các điểm cần làm rõ và checklist nghiệm thu từ PDF đề bài. Đối chiếu tài liệu này khi thiết kế hoặc đánh giá phạm vi dự án.
+
 > **Cập nhật ngày:** 12/10/2026  
 > **Trạng thái:** Thiết lập môi trường và dựng khung sườn dự án (Scaffold & Environment Setup Only - **Chưa viết code nghiệp vụ**)
 
@@ -96,7 +98,7 @@ docker compose up -d
 - **Backend API (Swagger):** `http://localhost:5000/swagger`
 - **Admin Dashboard:** `http://localhost:5173`
 - **POS Web App:** `http://localhost:5174`
-- **PgAdmin:** `http://localhost:5050` (`admin@oism.local` / `admin`)
+- **PgAdmin:** `http://localhost:5050` (Tài khoản: `hong@oism.local` / Mật khẩu: `hong`)
 - **PostgreSQL:** `localhost:5432`
 
 ---
