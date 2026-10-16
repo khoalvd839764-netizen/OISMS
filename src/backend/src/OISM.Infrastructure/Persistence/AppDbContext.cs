@@ -82,6 +82,7 @@ public class AppDbContext : DbContext, IAppDbContext
             entity.HasOne(ur => ur.User)
                 .WithMany(u => u.UserRoles)
                 .HasForeignKey(ur => ur.UserId)
+                .IsRequired(false)
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne(ur => ur.Role)

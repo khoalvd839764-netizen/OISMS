@@ -96,10 +96,24 @@ public class CategoriesController : ControllerBase
             return NotFound(new { message = "Không tìm thấy danh mục." });
         }
 
-        // Chặn chọn chính nó làm cha
-        if (request.ParentId.HasValue && request.ParentId.Value == id)
+        // Chặn tạo vòng lặp quan hệ cha - con nhiều cấp
+        if (request.ParentId.HasValue)
         {
-            return BadRequest(new { message = "Không thể đặt danh mục làm cha của chính nó (vòng lặp quan hệ)." });
+            if (request.ParentId.Value == id)
+            {
+                return BadRequest(new { message = "Không thể đặt danh mục làm cha của chính nó (vòng lặp quan hệ)." });
+            }
+
+            var currentParentId = request.ParentId;
+            while (currentParentId.HasValue)
+            {
+                if (currentParentId.Value == id)
+                {
+                    return BadRequest(new { message = "Không thể đặt danh mục con/cháu làm danh mục cha (phát hiện vòng lặp đệ quy)." });
+                }
+                var parent = await _context.Categories.AsNoTracking().FirstOrDefaultAsync(c => c.Id == currentParentId.Value);
+                currentParentId = parent?.ParentId;
+            }
         }
 
         category.Name = request.Name.Trim();

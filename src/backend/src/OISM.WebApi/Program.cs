@@ -114,6 +114,7 @@ using (var scope = app.Services.CreateScope())
         // Chỉ seed khi DB đã kết nối được
         if (db.Database.CanConnect())
         {
+            db.Database.EnsureCreated();
             if (!db.Roles.Any())
             {
                 db.Roles.AddRange(
