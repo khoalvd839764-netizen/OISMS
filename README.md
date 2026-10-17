@@ -90,16 +90,73 @@ D:\CNPM workbase\
 
 ## 4. Hướng Dẫn Khởi Chạy Môi Trường
 
+### Chuẩn bị file biến môi trường (.env)
+Trước khi khởi chạy, copy file `.env.example` thành `.env` và cập nhật thông tin bảo mật (không commit mật khẩu thật lên Git):
+```powershell
+cp .env.example .env
+```
+
 ### Cách 1: Khởi chạy bằng Docker Compose (Khuyên dùng)
-Yêu cầu đã cài Docker Desktop:
+Yêu cầu đã cài Docker Desktop. Khởi chạy toàn bộ hệ thống:
 ```powershell
 docker compose up -d
 ```
+Hoặc dùng script có sẵn:
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\start-docker.ps1
+```
+
 - **Backend API (Swagger):** `http://localhost:5000/swagger`
+- **Backend Health Check:**
+  - Liveness: `http://localhost:5000/health/live`
+  - Readiness (Kiểm tra kết nối DB, đủ 29 bảng, trigger, quyền runtime): `http://localhost:5000/health/ready`
 - **Admin Dashboard:** `http://localhost:5173`
 - **POS Web App:** `http://localhost:5174`
-- **PgAdmin:** `http://localhost:5050` (Tài khoản: `hong@oism.local` / Mật khẩu: `hong`)
-- **PostgreSQL:** `localhost:5432`
+- **PgAdmin:** `http://localhost:5050` (Tài khoản mặc định: `admin@oisms.local` / cấu hình qua `PGADMIN_EMAIL` & `PGADMIN_PASSWORD` trong `.env`)
+- **PostgreSQL 16:** `localhost:5432` (Database: `oisms`)
+
+#### Cơ chế tự động hóa Database & Healthcheck trong Docker Compose
+1. **Khởi tạo lần đầu tự động:** Khi volume `postgres_data` trống, PostgreSQL thực thi script `docker/postgres/init-oisms.sh` cùng file schema bàn giao `docs/database/oisms_schema.sql`, tự động tạo đủ 29 bảng, ràng buộc, trigger sổ cái và nhóm quyền `oisms_runtime`.
+2. **Tách biệt tài khoản (Least Privilege) & Bảo mật:**
+   - **Admin / DBA (`postgres`)**: Dùng cho migration, backup/restore. Bắt buộc cung cấp qua `POSTGRES_PASSWORD`.
+   - **Runtime Backend (`oisms_app`)**: Thuộc nhóm `oisms_runtime`, chỉ có quyền đọc/ghi nghiệp vụ, bị trigger chặn sửa/xóa sổ cái `inventory_transactions`. Bắt buộc cung cấp qua `OISMS_APP_PASSWORD`.
+   - Script khởi tạo sử dụng cơ chế truyền tham số an toàn (không nội suy chuỗi SQL), hỗ trợ mật khẩu chứa dấu nháy và ký tự đặc biệt, không ghi mật khẩu ra log, và tự động kiểm tra chặn nếu tài khoản có đặc quyền quản trị hoặc sở hữu schema/bảng.
+3. **Chờ Database Healthy & Backend Readiness:**
+   - Docker Compose cấu hình `backend` và `pgadmin` chờ PostgreSQL vượt qua `healthcheck` (`pg_isready`).
+   - Backend cung cấp endpoint `/health/ready` thực hiện mở kết nối bằng tài khoản runtime `oisms_app`, kiểm tra đủ 29 bảng, trigger bảo vệ sổ cái và quyền hạn trước khi báo sẵn sàng (trả về HTTP 503 khi chưa sẵn sàng và không để lộ chuỗi kết nối hay mật khẩu).
+4. **Lưu ý về Volume đã có dữ liệu:**
+   - Docker chỉ chạy script khởi tạo khi volume `postgres_data` hoàn toàn trống.
+   - Việc đổi mật khẩu trong `.env` **không** tự động đổi mật khẩu của role trên volume đã tồn tại. Đối với volume cũ, quản trị viên sử dụng lệnh `ALTER ROLE` qua tài khoản `postgres`.
+
+#### Cấu hình kết nối Backend (.NET)
+Hệ thống hỗ trợ 2 cơ chế cấu hình kết nối database:
+1. **Biến môi trường riêng biệt (Mặc định trong Docker Compose - an toàn với mật khẩu có ký tự đặc biệt, dấu chấm phẩy):**
+   - Chạy Backend trong Docker: `Database__Host=postgres`, `Database__Port=5432`, `Database__Database=oisms`, `Database__Username=oisms_app`, `Database__Password=<OISMS_APP_PASSWORD>`
+   - Chạy Backend ở Host (Local Dev): `Database__Host=localhost`, `Database__Port=5432`, `Database__Database=oisms`, `Database__Username=oisms_app`, `Database__Password=<OISMS_APP_PASSWORD>`
+2. **Connection String tổng hợp (Fallback):**
+   - Docker: `ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=oisms;Username=oisms_app;Password=<giá_trị_OISMS_APP_PASSWORD_trong_.env>`
+   - Host: `ConnectionStrings__DefaultConnection=Host=localhost;Port=5432;Database=oisms;Username=oisms_app;Password=<giá_trị_OISMS_APP_PASSWORD_trong_.env>`
+
+#### Kiểm tra trạng thái & Log
+```powershell
+# Kiểm tra trạng thái các container
+docker compose ps
+
+# Theo dõi log PostgreSQL
+docker compose logs -f postgres
+
+# Theo dõi log Backend Web API
+docker compose logs -f backend
+
+# Kiểm tra kết nối và số lượng bảng (29 bảng)
+docker compose exec -it postgres psql -U oisms_app -d oisms -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';"
+
+# Kiểm tra readiness endpoint của backend
+curl http://localhost:5000/health/ready
+```
+
+> [!NOTE]
+> Chi tiết tài liệu kiến trúc cơ sở dữ liệu, từ điển 29 bảng và quy trình cập nhật/migration dữ liệu xem tại [docs/database/README.md](docs/database/README.md).
 
 ---
 

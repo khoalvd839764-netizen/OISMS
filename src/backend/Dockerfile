@@ -1,6 +1,6 @@
 # Build stage
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
-WORKDIR /src
+WORKDIR /workspace
 
 # Copy solution and csproj files for layer caching
 COPY ["src/backend/OISM.sln", "src/backend/"]
@@ -15,7 +15,7 @@ RUN dotnet restore "src/backend/OISM.sln"
 
 # Copy source code and build
 COPY src/backend/ src/backend/
-WORKDIR "/src/backend/src/OISM.WebApi"
+WORKDIR "/workspace/src/backend/src/OISM.WebApi"
 RUN dotnet build "OISM.WebApi.csproj" -c Release -o /app/build
 
 # Publish stage

@@ -28,8 +28,12 @@ appsettings.Production.json
 ## IDEs & OS
 .idea/
 .vscode/
+.codegraph/
 *.swp
 *.bak
 Thumbs.db
 Desktop.ini
 .DS_Store
+tmp/
+codegraph-viewer.html
+.agents/

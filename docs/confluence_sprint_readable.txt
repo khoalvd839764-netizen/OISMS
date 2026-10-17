@@ -1,0 +1,331 @@
+﻿
+## I. Ma tráº­n Äá»i chiáº¿u Toàn diá»n Yêu cáº§u Äá» bài (Requirements Traceability Matrix)
+Báº£ng dÆ°á»i Äây Äá»i chiáº¿u 100% các yêu cáº§u chá»©c nÄng và phi chá»©c nÄng tá»« Äá» bài vá»i ngÆ°á»i phá»¥ trách và Äá»£t bàn giao cá»¥ thá» (cáº­p nháº­t theo Káº¿ hoáº¡ch phân công má»i Sprint 2 – 5):
+Mã yêu cáº§u | Tên ná»i dung yêu cáº§u | Thành viên | Giai Äoáº¡n thá»±c hiá»n | ---
+FR-AUTH (01-04)
+ | ÄÄng ký cá»­a hàng, ÄÄng nháº­p báº£o máº­t, Phân quyá»n RBAC và Quáº£n lý chi nhánh
+ | Thành viên 2 & Khoa
+ | Sprint 2 (bá» sung Sprint 3)
+ | 
+---
+FR-PROD (01-04)
+ | Danh má»¥c, ThÆ°Æ¡ng hiá»u, Sáº£n pháº©m, Biáº¿n thá» SKU, Sinh mã váº¡ch và Báº£ng giá
+ | Thành viên 2, TV3 & TV5
+ | Sprint 2 (bá» sung Sprint 3)
+ | 
+---
+FR-INV (01-02) & COST (01)
+ | Sá» cái kho báº¥t biáº¿n chá» thêm, Nháº­p kho NCC và Tá»± Äá»ng tính giá vá»n bình quân WAC
+ | Khoa & Thành viên 3
+ | Sprint 2
+ | 
+---
+FR-INV (03-04)
+ | Chuyá»n kho ná»i bá» 2 bÆ°á»c (xuáº¥t gá»­i → nháº­n) và Kiá»m kê cân báº±ng kho
+ | Khoa, TV3 & TV5
+ | Sprint 3
+ | 
+---
+FR-COST-02 & FR-ORD (01-03)
+ | Chá»t giá vá»n vào ÄÆ¡n, Tiáº¿p nháº­n ÄÆ¡n Äa kênh Canonical Model, Máy tráº¡ng thái và Duyá»t ÄÆ¡n
+ | Khoa, TV2 & TV3
+ | Sprint 2 (ná»n), Sprint 3 (Äá»§)
+ | 
+---
+FR-RSE (01-03)
+ | Công thá»©c tá»n kháº£ dá»¥ng Äá»ng, Äá»ng cÆ¡ giá»¯ chá» và Khóa dá»¯ liá»u chá»ng bán vÆ°á»£t
+ | Khoa (TrÆ°á»ng nhóm)
+ | Sprint 2 (ná»n), Sprint 3 (Äá»§)
+ | 
+---
+FR-POS (01-04)
+ | Giao diá»n bán nhanh cáº£m á»©ng, Quét mã váº¡ch, Thanh toán giá» nguyên tá»­ và In hóa ÄÆ¡n
+ | Thành viên 4 & Khoa
+ | Sprint 2 (ná»n), Sprint 3 (Äá»§)
+ | 
+---
+FR-SIM (01-03)
+ | Trình giáº£ láº­p Webhook 3 sàn, Äáº©y tin SignalR thá»i gian thá»±c và Tác vá»¥ ná»n Hangfire
+ | Khoa & Thành viên 2
+ | Sprint 2, 3 & 4
+ | 
+---
+FR-REP (01-03)
+ | Báo cáo doanh thu thuáº§n, giá vá»n, lãi gá»p; Tá»c Äá» luân chuyá»n kho và Cáº£nh báo tá»n tháº¥p
+ | Thành viên 2, TV3 & Khoa
+ | Sprint 3 (cÆ¡ báº£n), Sprint 4 (Äá»§)
+ | 
+---
+AI (Gói 5 theo Äá»)
+ | Dá»± báo nhu cáº§u và gá»£i ý nháº­p hàng tá»± Äá»ng (Stock Reorder Recommendations)
+ | Khoa & Thành viên 2
+ | Sprint 3 (chá»t), Sprint 4 (cháº¡y)
+ | 
+---
+NFR-PERF, TENANT, SEC, MAINT
+ | Thá»­ táº£i 50 ÄÆ¡n Äá»ng thá»i Flash Sale, Cô láº­p Äa ngÆ°á»i thuê, Báº£o máº­t JWT/BCrypt, 80% coverage
+ | Khoa & Thành viên 5
+ | Sprint 2 – 3 (xây), Sprint 4 – 5 (Äo)
+ | 
+---
+
+## II. CÆ¡ cáº¥u Phân vai & 12 Quy táº¯c Làm viá»c Nhóm Äá»ng thá»i
+# | Quy táº¯c làm Äá»ng thá»i | Quy Äá»nh báº¯t buá»c | ---
+1
+ | Thá»ng nháº¥t UI tá»« sá»m
+ | Cáº£ nhóm tháº£o luáº­n và chá»t UI tá»« Figma Äã có. TV3 (Admin) và TV4 (POS) tá»± code và tá»± ná»i API trong á»©ng dá»¥ng cá»§a mình; Khoa không pháº£i ná»i toàn bá» giao diá»n.
+ | 
+---
+2
+ | Ký káº¿t Há»£p Äá»ng giao tiáº¿p (Contract First)
+ | Ngay D1 má»i Sprint, chá»t rõ session, DTO, endpoint, mã lá»i và interface giá»¯a Order / Reserve / Ledger. Quy Æ°á»c chung: toàn bá» dùng camelCase, format chuáº©n cho ID, thá»i gian và error.
+ | 
+---
+3
+ | Bàn giao theo lát cáº¯t nhá»
+ | Khoa bàn giao Entity và persistence theo tá»«ng nhóm nhá»: account/tenant → catalog/warehouse → ledger/receipt → order/reservation. TV2 không pháº£i Äá»£i toàn bá» schema xong má»i viáº¿t module.
+ | 
+---
+4
+ | Tá»± kiá»m thá»­ trÆ°á»c bàn giao
+ | Backend tá»± viáº¿t unit/integration test trÆ°á»c khi bàn giao endpoint. TV5 chuáº©n bá» testcase ngay tá»« contract, test trên Swagger khi có API và trên UI khi FE ná»i xong.
+ | 
+---
+5
+ | Ghép ná»i cuá»n chiáº¿u
+ | Má»t feature chia làm nhiá»u lát: Äá»c → táº¡o/sá»­a → action nghiá»p vá»¥. FE ná»i ngay endpoint nào ready, không dá»i toàn bá» viá»c ghép API sang Sprint sau.
+ | 
+---
+6
+ | Láº­p trình theo interface khi thiáº¿u phá»¥ thuá»c
+ | Náº¿u phá»¥ thuá»c chÆ°a có, viáº¿t theo interface Äã chá»t kèm test double; FE làm form/loading/error/print. Tuyá»t Äá»i không hardcode fake success vào á»©ng dá»¥ng tháº­t.
+ | 
+---
+7
+ | Dùng dá»¯ liá»u tháº­t 100%
+ | Báº£n chính thá»©c dùng API tháº­t; API lá»i/chÆ°a có hiá»n Äúng tráº¡ng thái không fallback sá» giáº£. Trình giáº£ láº­p Webhook gá»­i payload tháº­t vào backend và nháº­n káº¿t quáº£ tháº­t.
+ | 
+---
+8
+ | Trách nhiá»m phân táº§ng mã nguá»n
+ | Khoa giá»¯ Entity, DbContext và migration; TV2 Äá» xuáº¥t thay Äá»i cáº§n thiáº¿t qua PR review, tá»± viáº¿t DTO, validator, service cho module mình.
+ | 
+---
+9
+ | Yêu cáº§u gá»p mã nhá» gá»n (Small PRs)
+ | PR nhá», bàn giao hàng ngày hoáº·c khi lát chá»©c nÄng xong. Khoa dành khung review có giá»i háº¡n; các API blocking ÄÆ°á»£c Æ°u tiên sá» 1 thay vì làm tính nÄng phá»¥.
+ | 
+---
+10
+ | Äá»nh nghÄ©a Hoàn thành (Definition of Done)
+ | Done = code Äúng + endpoint/backend test Äáº¡t + FE ná»i + TV5 kiá»m thá»­ Äáº¡t + dá»¯ liá»u Äá»c láº¡i Äúng + testcase/docs ÄÆ°á»£c cáº­p nháº­t Äáº§y Äá»§.
+ | 
+---
+11
+ | Báº£o Äáº£m kiá»m thá»­ tá»± Äá»ng 80% lõi
+ | Automated tests/coverage ≥80% pháº§n lõi (Sá» kho, Giá»¯ chá», WAC) thuá»c trách nhiá»m backend, chá»§ yáº¿u Khoa phá»¥ trách. Swagger không thay tháº¿ cho automated test.
+ | 
+---
+12
+ | Há»p ngáº¯n blocker hàng ngày
+ | Má»i ngày trao Äá»i ngáº¯n blocker và API má»i; cáº£ nhóm review UI theo feature thay vì dá»«ng toàn bá» code Äá» cùng sá»­a má»t màn hình.
+ | 
+---
+
+## III. Phân công Chi tiáº¿t theo tá»«ng Sprint (Káº¿ hoáº¡ch Má»i Hoàn thiá»n)
+
+## 1. Sprint 1 (09/10/2026 – 12/10/2026): Khá»i táº¡o & Äáº·c táº£ yêu cáº§u
+Má»¥c tiêu: Thu tháº­p và tá»ng há»£p yêu cáº§u ngÆ°á»i dùng; hoàn thành tài liá»u Äáº·c táº£ yêu cáº§u pháº§n má»m và káº¿ hoáº¡ch quáº£n lý dá»± án; dá»±ng sáºµn khung sÆ°á»n mã nguá»n và môi trÆ°á»ng áº£o hóa khá»i cháº¡y; Äào táº¡o ná»i bá» và báo cáo giai Äoáº¡n 1.
+
+## 2. Sprint 2 (13/10/2026 – 17/10/2026 | D1 – D6): Ná»n táº£ng & Luá»ng Dá»¯ liá»u Äáº§u tiên
+Má»¥c tiêu: Hoàn thành database ná»n táº£ng và có luá»ng tháº­t: ÄÄng nháº­p → táº¡o SKU → láº­p/xác nháº­n nháº­p → xem tá»n/ledger/giá vá»n. ÄÆ¡n/POS có contract và báº¯t Äáº§u hiá»n thá»±c sá»m, không Äá» má»i pháº§n khó tá»i Sprint 3.
+Thành viên | Nhiá»m vá»¥ cá»¥ thá» | Káº¿t quáº£ bàn giao | ---
+Khoa 
+(Backend chính)
+ | • Schema, Entity, mapping, DbContext, migration và seed dá»¯ liá»u.
+• Chá»t cách pháº£n ánh onHand theo ledger, tenant scope và query filter cô láº­p dá»¯ liá»u.
+• Xây dá»±ng Sá» kho báº¥t biáº¿n (Append-Only Ledger), xác nháº­n nháº­p kho nguyên tá»­ (Atomic), tính giá vá»n WAC tá»± Äá»ng.
+• Lõi Order / Reservation và thá»­ nghiá»m khóa database sá»m.
+• Máº«u xá»­ lý HTTP, xác thá»±c, quáº£n lý giao dá»ch và Docker/CI ná»n táº£ng.
+ | Database tái táº¡o ÄÆ°á»£c hoàn toàn; API nháº­p/tá»n/sá» cháº¡y tháº­t; công thá»©c giá vá»n có test; interface ÄÆ¡n/giá»¯ chá» sáºµn sàng; ká»ch báº£n test khóa Äáº¡t.
+ | 
+---
+Thành viên 2
+(Backend phá»¥)
+ | • Module bÄm máº­t kháº©u, cáº¥p và refresh JWT token (login/logout/refresh/me) theo template cá»§a Khoa.
+• Chá»©c nÄng ÄÄng ký cá»­a hàng (Tenant registration) dÆ°á»i sá»± rà soát cá»§a Khoa.
+• Xây dá»±ng API CRUD và tra cá»©u: Cây danh má»¥c, ThÆ°Æ¡ng hiá»u, Sáº£n pháº©m, Biáº¿n thá» SKU, Báº£ng giá, Mã váº¡ch.
+• Tra cá»©u nhà cung cáº¥p, chi nhánh/kho cáº§n dùng; viáº¿t FluentValidation; phá»i há»£p Khoa bá» sung quyá»n/tenant guard.
+ | API auth/catalog và các DTO theo lát nhá»; bài test ÄÆ¡n vá» Äáº¡t; ràng buá»c duy nháº¥t và cô láº­p dá»¯ liá»u ÄÆ°á»£c báº£o Äáº£m.
+ | 
+---
+Thành viên 3
+(Frontend Admin)
+ | • Hoàn thiá»n Web Admin trên React 19, gá»¡ bá» toàn bá» dá»¯ liá»u cá»©ng/máº·c Äá»nh Owner.
+• Quáº£n lý tráº¡ng thái ÄÄng nháº­p, Äiá»u hÆ°á»ng phân quyá»n, hiá»n thá» rõ loading, lá»i máº¡ng, lá»i 403.
+• Xây dá»±ng các form Danh má»¥c, ThÆ°Æ¡ng hiá»u, Sáº£n pháº©m, Phiáº¿u nháº­p kho nhiá»u dòng, Sá» kho và tá»n kho.
+• Ná»i trá»±c tiáº¿p các API ngay khi ÄÆ°á»£c bàn giao.
+ | Admin thao tác và Äá»c láº¡i database ÄÆ°á»£c; loading/error/403 rõ ràng trên cá»ng 5173.
+ | 
+---
+Thành viên 4
+(Frontend POS)
+ | • Hoàn thiá»n Web POS PWA trên React 19, gá»¡ bá» giá» hàng máº«u.
+• Xây dá»±ng chá»©c nÄng tìm kiáº¿m và quét SKU tá»« API tháº­t, giá» hàng nhiá»u dòng, tiá»n khách nháº­p, mã QR và báº£n in hóa ÄÆ¡n.
+• Chuáº©n bá» checkout theo contract; thiáº¿t láº­p PWA ná»n táº£ng.
+ | POS tra cá»©u SKU tháº­t; checkout chÆ°a sáºµn sàng không báo thành công; báº£n in hóa ÄÆ¡n chuáº©n bá» sáºµn dùng dá»¯ liá»u API.
+ | 
+---
+Thành viên 5
+(Tester)
+ | • Viáº¿t testcase cho FR-AUTH, FR-PROD, FR-INV, FR-COST gá»m dá»¯ liá»u há»£p lá»/không há»£p lá», cô láº­p tenant và vai trò.
+• Kiá»m thá»­ tá»«ng API trên Swagger; kiá»m thá»­ giao diá»n luá»ng nháº­p/kho/giá vá»n.
+• Ghi nháº­t ký lá»i (bug log), xác nháº­n sá»­a lá»i và cáº­p nháº­t ma tráº­n RTM.
+ | Testcases kèm káº¿t quáº£ kiá»m thá»­ Swagger/UI; danh sách lá»i/retest; báº±ng chá»©ng luá»ng dá»¯ liá»u Äã cháº¡y tháº­t.
+ | 
+---
+
+## 3. Sprint 3 (18/10/2026 – 22/10/2026 | D7 – D12): Lõi Váº­n hành Hoàn chá»nh
+Má»¥c tiêu: Æ¯u tiên hoàn thành FR lõi: Order/POS/Reserve, kho chuyá»n/kiá»m kê, sàn giáº£ láº­p và thông báo. Báo cáo/cáº£nh báo cÆ¡ báº£n pháº£i báº¯t Äáº§u tráº£ dá»¯ liá»u tháº­t trong sprint này.
+Thành viên | Nhiá»m vá»¥ cá»¥ thá» | Tiêu chuáº©n nghiá»m thu | ---
+Khoa (TrÆ°á»ng nhóm)
+(Backend chính)
+ | • Xây dá»±ng máy tráº¡ng thái ÄÆ¡n hàng (State machine), các thao tác reserve/confirm/cancel/complete.
+• Thiáº¿t láº­p cÆ¡ cháº¿ khóa dá»¯ liá»u (Locking); checkout toàn giá» nguyên tá»­, idempotency và chá»t giá vá»n (cost snapshot).
+• Hiá»n thá»±c Chuyá»n kho ná»i bá» 2 bÆ°á»c và Kiá»m kê kho.
+• Lõi tiáº¿p nháº­n Webhook Äa kênh vào Canonical Order Model; cáº¥u hình SignalR events và Hangfire expire giá»¯ chá».
+• Viáº¿t automated core tests.
+ | Lõi ÄÆ¡n và kho liên kênh nháº¥t quán, không hai engine trá»« tá»n; vÆ°á»£t qua test tranh tá»n 50 reqs/1 SKU, rollback và expire tá»± Äá»ng.
+ | 
+---
+Thành viên 2
+(Backend phá»¥)
+ | • Hoàn thiá»n auth, quyá»n và catalog còn thiáº¿u.
+• Xây dá»±ng API list/detail/filter ÄÆ¡n hàng và chá»©ng tá»« kho theo thiáº¿t káº¿ cá»§a Khoa.
+• Viáº¿t câu truy váº¥n báo cáo net revenue, COGS, gross profit, inventory value, velocity, low-stock, threshold.
+• Xây dá»±ng công cá»¥ simulator gá»­i payload 3 kênh (Shopee, TikTok, Lazada) qua endpoint cá»§a Khoa.
+ | API Äá»c và báo cáo cÆ¡ báº£n có sá» liá»u tháº­t, ngÆ°á»¡ng và cáº£nh báo hoáº¡t Äá»ng; simulator cháº¡y tá»t; test queries báº£o Äáº£m cô láº­p dá»¯ liá»u.
+ | 
+---
+Thành viên 3
+(Frontend Admin)
+ | • Xây dá»±ng form táº¡o ÄÆ¡n trên Admin, duyá»t ÄÆ¡n online, in phiáº¿u giao hàng và há»§y ÄÆ¡n.
+• Xây dá»±ng giao diá»n Chuyá»n kho 2 bÆ°á»c và Kiá»m kê kho.
+• Ná»i các báo cáo cÆ¡ báº£n vào Dashboard Äúng session, filter và role.
+• Nháº­n SignalR popup thông báo và âm thanh chuông Äón ÄÆ¡n má»i.
+ | Admin quáº£n lý thá»±c táº¿ ÄÆ¡n hàng, kho bãi và báo cáo; không sá»­a state local làm giáº£ nghiá»p vá»¥.
+ | 
+---
+Thành viên 4
+(Frontend POS)
+ | • Hoàn thiá»n checkout API, thanh toán toàn giá» hàng và in hóa ÄÆ¡n.
+• Xá»­ lý triá»t Äá» thiáº¿u tá»n, lá»i máº¡ng, káº¿t quáº£ chÆ°a xác Äá»nh và chá»ng thao tác trùng (idempotency).
+• Tích há»£p SignalR; tá»i Æ°u PWA, bàn phím phím táº¯t, cáº£m á»©ng và in áº¥n.
+ | POS thanh toán tháº­t, báº£o vá» tá»n giá»¯ chá» cho ÄÆ¡n online, in Äúng dá»¯ liá»u hóa ÄÆ¡n thá»±c táº¿.
+ | 
+---
+Thành viên 5
+(Tester)
+ | • Swagger và UI test cho Order, POS, Inventory, Simulator, các ca phá»§ Äá»nh, trùng láº·p, expire, multi-tenant.
+• Cháº¡y công cá»¥ concurrency do backend cung cáº¥p, ghi káº¿t quáº£ và bugs.
+• Cáº­p nháº­t RTM kèm báº±ng chá»©ng kiá»m Äá»nh.
+ | Báo cáo luá»ng lõi hoàn chá»nh; RTM có testcase và evidence; danh sách lá»i ÄÆ°á»£c phân loáº¡i Æ°u tiên sá»­a chá»¯a.
+ | 
+---
+
+## 4. Sprint 4 (23/10/2026 – 27/10/2026 | D13 – D18): Trí tuá» Nhân táº¡o (AI), Hoàn thiá»n & Tá»i Æ°u Hóa
+Má»¥c tiêu: Phát triá»n AI theo Äá», hoàn thiá»n báo cáo và Äáº¡t các chá» tiêu NFR. Äóng toàn bá» tính nÄng má»i (Feature Freeze) vào cuá»i Sprint 4.
+Thành viên | Nhiá»m vá»¥ cá»¥ thá» | Tiêu chuáº©n nghiá»m thu | ---
+Khoa (TrÆ°á»ng nhóm)
+(Backend chính)
+ | • Thiáº¿t káº¿ và hiá»n thá»±c lõi AI forecasting & evaluation.
+• Tá»i Æ°u locking, queries, index và báº£o máº­t Äá» Äáº¡t NFR.
+• Hangfire daily reports và review toàn há» thá»ng.
+• Backend automated tests Äáº¡t tá»i thiá»u 80% coverage pháº§n lõi.
+• Docker, HTTPS, SignalR deployment và benchmark hiá»u nÄng chính thá»©c.
+ | AI tháº­t có Äánh giá Äá» tin cáº­y; NFR có sá» Äo báº±ng chá»©ng; báº£n tích há»£p sáºµn sàng Äóng tính nÄng.
+ | 
+---
+Thành viên 2
+(Backend phá»¥)
+ | • Chuáº©n bá» và kiá»m tra dá»¯ liá»u lá»ch sá»­; xây dá»±ng API recommendation/report theo model cá»§a Khoa.
+• Hoàn thiá»n các bá» lá»c filter, velocity, threshold cáº£nh báo tá»n tháº¥p.
+• Sá»­a lá»i CRUD, auth, query; hoàn thiá»n tài liá»u backend.
+ | API báo cáo và AI Äáº§y Äá»§, dá»¯ liá»u truy váº¿t ÄÆ°á»£c minh báº¡ch; tài liá»u Swagger Äá»ng bá».
+ | 
+---
+Thành viên 3
+(Frontend Admin)
+ | • Report filters, biá»u Äá» doanh thu/giá vá»n/lãi gá»p, tá»n kho, velocity.
+• Giao diá»n AI gá»£i ý nháº­p hàng (hiá»n thá» rõ khi thiáº¿u dá»¯ liá»u), cáº£nh báo tá»n tháº¥p.
+• Tá»i Æ°u giao diá»n thích á»©ng responsive.
+• Xây dá»±ng màn hình demo concurrency láº¥y káº¿t quáº£ Äo tháº­t phá»¥c vá»¥ há»i Äá»ng.
+ | Admin Äá»§ các view và tráº¡ng thái theo Äá» bài; sá» liá»u hiá»n thá» trá»±c quan và Äá»ng bá».
+ | 
+---
+Thành viên 4
+(Frontend POS)
+ | • Tá»i Æ°u toàn diá»n POS PWA, in áº¥n, phím táº¯t, giao diá»n trên thiáº¿t bá» di Äá»ng/cáº£m á»©ng.
+• Demo mã QR thanh toán rõ pháº¡m vi; xá»­ lý lá»i reconnect và lÆ°u ÄÆ¡n táº¡m ngoáº¡i tuyáº¿n.
+• Tá»i Æ°u hiá»u nÄng giao diá»n pháº£n há»i POS hoáº¡t Äá»ng trÆ¡n tru trên thiáº¿t bá» má»¥c tiêu; thao tác bán hàng siêu tá»c.
+ | 
+---
+Thành viên 5
+(Tester)
+ | • Äo và lÆ°u trá»¯ chá» sá» NFR theo ká»ch báº£n và môi trÆ°á»ng cá»¥ thá».
+• Swagger và UI kiá»m thá»­ há»i quy toàn diá»n; test role, tenant isolation.
+• Äá»i chiáº¿u sá» liá»u report và AI; thá»­ nghiá»m cài Äáº·t trên máy sáº¡ch và log chá» sá» uptime.
+ | Báo cáo cháº¥t lÆ°á»£ng, káº¿t quáº£ module AI, báº±ng chá»©ng NFR và ma tráº­n RTM Äã ÄÆ°á»£c kiá»m chá»©ng.
+ | 
+---
+
+## 5. Sprint 5 (28/10/2026 – 01/11/2026 | D19 – D21): Rà soát (Review), Há»i quy & Chá»t Bàn giao
+Má»¥c tiêu: Không má» module má»i. Review, kiá»m thá»­ há»i quy, sá»­a lá»i, Äóng gói và hoàn thiá»n bá» há» sÆ¡ nghiá»m thu. Náº¿u còn thiáº¿u chá»©c nÄng báº¯t buá»c, ghi nháº­n Äúng thá»±c tráº¡ng và Äiá»u chá»nh káº¿ hoáº¡ch.
+Thành viên | Nhiá»m vá»¥ cá»¥ thá» | Káº¿t quáº£ bàn giao | ---
+Khoa (TrÆ°á»ng nhóm)
+(Backend chính)
+ | • Review toàn bá» code và module lõi, sá»­a các lá»i cháº·n (blocker bugs).
+• Xác nháº­n automated tests, CI build trên GitHub Actions cháº¡y Äáº¡t 100%.
+• Äóng gói báº£n phát hành (Release tag), kiá»m tra Docker Compose, seed data, cáº¥u hình và tài liá»u API.
+ | Báº£n phát hành chính thá»©c trên Git; hÆ°á»ng dáº«n ká»¹ thuáº­t nháº¥t quán; khá»i cháº¡y Docker má»t lá»nh trên máy sáº¡ch.
+ | 
+---
+Thành viên 2
+(Backend phá»¥)
+ | • Review các module mình phá»¥ trách, sá»­a các bug còn láº¡i.
+• Rà soát toàn bá» endpoint auth, catalog, report, AI; hoàn thiá»n tài liá»u backend.
+ | Tài liá»u Backend/API docs hoàn chá»nh; các testcase liên quan ÄÆ°á»£c retest Äáº¡t.
+ | 
+---
+Thành viên 3
+(Frontend Admin)
+ | • Kiá»m thá»­ há»i quy và sá»­a lá»i trên Web Admin.
+• Chá»t toàn bá» áº£nh chá»¥p màn hình (screenshot) và hoàn thiá»n tài liá»u hÆ°á»ng dáº«n sá»­ dá»¥ng (User Guide).
+• Xây dá»±ng slide trình chiáº¿u pháº§n Web Admin.
+ | Web Admin hoáº¡t Äá»ng á»n Äá»nh; tài liá»u User Guide và slide trình chiáº¿u chu Äáo.
+ | 
+---
+Thành viên 4
+(Frontend POS)
+ | • Kiá»m thá»­ há»i quy và sá»­a lá»i trên Web POS.
+• Kiá»m tra in áº¥n, máy di Äá»ng, cài Äáº·t PWA trên thiáº¿t bá» tháº­t.
+• Hoàn thiá»n ká»ch báº£n trình diá»n demo luá»ng bán hàng POS.
+ | POS hoáº¡t Äá»ng á»n Äá»nh tuyá»t Äá»i; ká»ch báº£n demo trÆ¡n tru, hóa ÄÆ¡n in ra chuáº©n Äáº¹p.
+ | 
+---
+Thành viên 5
+(Tester)
+ | • Cháº¡y láº¡i các testcase, Swagger và UI quan trá»ng; retest các báº£n sá»­a lá»i.
+• Äá»i chiáº¿u Ma tráº­n truy váº¿t yêu cáº§u (RTM) láº§n cuá»i.
+• Kiá»m tra Äá»c láº­p bá» cài Äáº·t trên máy sáº¡ch và thu tháº­p báº±ng chá»©ng.
+ | Báo cáo kiá»m thá»­ cuá»i cùng (Test report) kèm danh sách các háº¡n cháº¿ còn láº¡i; RTM Äã kiá»m chá»©ng 100%.
+ | 
+---
+Toàn nhóm
+ | • Hoàn thiá»n trá»n váº¹n bá» há» sÆ¡ nghiá»m thu Äá» án: URS/RTM, Architecture Design, Detailed Design (UML Class, ERD, Sequence), Software Testing Document, Installation & User Guide, Source Code, Docker, GitHub Actions CI/CD.
+• Diá»n táº­p phân vai báº£o vá» Äá» án: trình bày slide và trình diá»n ká»ch báº£n demo.
+ | Bá» há» sÆ¡ nghiá»m thu Äá» án hoàn chá»nh 100%, sáºµn sàng báº£o vá» Äáº¡t káº¿t quáº£ xuáº¥t sáº¯c trÆ°á»c há»i Äá»ng cháº¥m thi.
+ | 
+---
+
+
