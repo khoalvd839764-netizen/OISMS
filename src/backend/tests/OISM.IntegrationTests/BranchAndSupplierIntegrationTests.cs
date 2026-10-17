@@ -176,4 +176,66 @@ public class BranchAndSupplierIntegrationTests : IClassFixture<CustomWebApplicat
         list.Should().NotBeNull();
         list!.Should().Contain(s => s.Name == "Công ty Dệt May Việt Tiến" && s.Email == "contact@viettien.vn");
     }
+
+    [Fact]
+    public async Task Warehouse_Create_GetByBranch_AndToggleStatus_ShouldWork_ForOwnerAndStaff()
+    {
+        // 1. Đăng ký Tenant và lấy token
+        var regRequest = new RegisterTenantRequest
+        {
+            TenantName = "Shop Kho Hàng",
+            TenantCode = "WAREHOUSE_SHOP",
+            FullName = "Chủ Shop Kho",
+            Email = "owner_wh@shop.com",
+            Password = "Password@123"
+        };
+        await _client.PostAsJsonAsync("/api/auth/register-tenant", regRequest);
+
+        var loginRes = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest
+        {
+            Email = "owner_wh@shop.com",
+            Password = "Password@123"
+        });
+        var authData = await loginRes.Content.ReadFromJsonAsync<AuthResponse>(_jsonOptions);
+        var ownerToken = authData!.AccessToken;
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
+
+        // 2. Tạo Chi nhánh
+        var branchRes = await _client.PostAsJsonAsync("/api/branches", new CreateBranchRequest
+        {
+            Name = "Chi nhánh Kho Tổng",
+            Address = "Số 1 Đường Kho Bãi"
+        });
+        branchRes.StatusCode.Should().Be(HttpStatusCode.Created);
+        var branch = await branchRes.Content.ReadFromJsonAsync<BranchResponse>(_jsonOptions);
+
+        // 3. Tạo Kho hàng gắn với BranchId
+        var createWhReq = new OISM.Application.Features.Warehouses.CreateWarehouseRequest
+        {
+            BranchId = branch!.Id,
+            Name = "Kho Lạnh 01"
+        };
+        var createWhRes = await _client.PostAsJsonAsync("/api/warehouses", createWhReq);
+        createWhRes.StatusCode.Should().Be(HttpStatusCode.Created);
+        var warehouse = await createWhRes.Content.ReadFromJsonAsync<OISM.Application.Features.Warehouses.WarehouseResponse>(_jsonOptions);
+        warehouse.Should().NotBeNull();
+        warehouse!.Name.Should().Be("Kho Lạnh 01");
+        warehouse.BranchId.Should().Be(branch.Id);
+        warehouse.IsActive.Should().BeTrue();
+
+        // 4. Lấy danh sách kho theo branchId
+        var getWhRes = await _client.GetAsync($"/api/warehouses?branchId={branch.Id}");
+        getWhRes.StatusCode.Should().Be(HttpStatusCode.OK);
+        var whList = await getWhRes.Content.ReadFromJsonAsync<List<OISM.Application.Features.Warehouses.WarehouseResponse>>(_jsonOptions);
+        whList.Should().Contain(w => w.Id == warehouse.Id && w.Name == "Kho Lạnh 01");
+
+        // 5. Bật/Tắt trạng thái hoạt động của kho
+        var toggleRes = await _client.PutAsync($"/api/warehouses/{warehouse.Id}/toggle-status", null);
+        toggleRes.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var getWhAfterRes = await _client.GetAsync($"/api/warehouses?branchId={branch.Id}");
+        var whListAfter = await getWhAfterRes.Content.ReadFromJsonAsync<List<OISM.Application.Features.Warehouses.WarehouseResponse>>(_jsonOptions);
+        whListAfter.Should().Contain(w => w.Id == warehouse.Id && !w.IsActive);
+    }
 }
+

@@ -104,4 +104,43 @@ public class BarcodeAndCatalogTests
         result.IsValid.Should().BeFalse();
         result.Errors.Should().Contain(e => e.PropertyName == nameof(request.SKU));
     }
+
+    [Fact]
+    public void CreateWarehouseValidator_ShouldPass_WhenInputIsValid()
+    {
+        // Arrange
+        var validator = new OISM.Application.Features.Warehouses.CreateWarehouseValidator();
+        var request = new OISM.Application.Features.Warehouses.CreateWarehouseRequest
+        {
+            BranchId = Guid.NewGuid(),
+            Name = "Kho Tổng Tân Bình"
+        };
+
+        // Act
+        var result = validator.Validate(request);
+
+        // Assert
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void CreateWarehouseValidator_ShouldFail_WhenNameOrBranchIdEmpty()
+    {
+        // Arrange
+        var validator = new OISM.Application.Features.Warehouses.CreateWarehouseValidator();
+        var request = new OISM.Application.Features.Warehouses.CreateWarehouseRequest
+        {
+            BranchId = Guid.Empty,
+            Name = ""
+        };
+
+        // Act
+        var result = validator.Validate(request);
+
+        // Assert
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.PropertyName == nameof(request.BranchId));
+        result.Errors.Should().Contain(e => e.PropertyName == nameof(request.Name));
+    }
 }
+
