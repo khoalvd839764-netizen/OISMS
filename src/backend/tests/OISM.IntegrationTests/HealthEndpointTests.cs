@@ -40,10 +40,28 @@ public class HealthEndpointTests : IClassFixture<WebApplicationFactory<Program>>
         content.Should().Contain("Live");
     }
 
+    private WebApplicationFactory<Program> CreateUnreachableFactory()
+    {
+        return _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureAppConfiguration((_, config) =>
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Database:Host"] = "127.0.0.1",
+                    ["Database:Port"] = "54399",
+                    ["Database:Username"] = "oisms_app",
+                    ["Database:Password"] = "oisms_runtime_secret"
+                });
+            });
+        });
+    }
+
     [Fact]
     public async Task HealthGeneralEndpoint_WhenDatabaseIsUnavailable_Returns503SameAsReady()
     {
-        var client = _factory.CreateClient();
+        var unreachableFactory = CreateUnreachableFactory();
+        var client = unreachableFactory.CreateClient();
         var response = await client.GetAsync("/health");
 
         response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
@@ -55,7 +73,8 @@ public class HealthEndpointTests : IClassFixture<WebApplicationFactory<Program>>
     public async Task HealthReadyEndpoint_WhenDatabaseIsUnavailable_Returns503WithoutLeakingSecrets()
     {
         // Arrange: Factory with unreachable database connection
-        var client = _factory.CreateClient();
+        var unreachableFactory = CreateUnreachableFactory();
+        var client = unreachableFactory.CreateClient();
 
         // Act
         var response = await client.GetAsync("/health/ready");
