@@ -9,6 +9,13 @@
 
 ---
 
+> [!TIP]
+> **TÀI LIỆU HƯỚNG DẪN TÍCH HỢP FIGMA:**  
+> Xem chi tiết kế hoạch từng bước di chuyển mã nguồn và nối API từ thư mục Figma (`C:\Users\Jacki Khoa\Downloads\Interactive Prototype for OISM`) vào phân hệ Admin tại:  
+> 👉 **[Kế Hoạch Tích Hợp Giao Diện Figma (KE_HOACH_TICH_HOP_FIGMA_PHUC_HUU.md)](./KE_HOACH_TICH_HOP_FIGMA_PHUC_HUU.md)**
+
+---
+
 ## 1. TỔNG QUAN PHẠM VI TRÁCH NHIỆM CỦA FRONTEND ADMIN (TV3)
 
 Theo Kế hoạch Phân công Công việc Chi tiết trên Confluence và quy định Sprint 2, Thành viên 3 (Phúc Hữu) chịu trách nhiệm chính về phân hệ **Web Admin Dashboard** với 4 trọng tâm kỹ thuật cốt lõi:
