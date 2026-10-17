@@ -34,28 +34,28 @@ public class PosCatalogController : ControllerBase
 
         var keyword = query.Trim().ToLower();
 
-        var results = await _context.ProductVariants
+        var variants = await _context.ProductVariants
             .AsNoTracking()
             .Include(v => v.Product)
             .Where(v => v.IsActive && v.Product != null && v.Product.IsActive &&
                        (v.SKU.ToLower().Contains(keyword) ||
-                        v.VariantName.ToLower().Contains(keyword) ||
                         v.Product.Name.ToLower().Contains(keyword) ||
                         (v.Barcode != null && v.Barcode.Contains(keyword))))
             .Take(20)
-            .Select(v => new PosProductSearchResponse
-            {
-                VariantId = v.Id,
-                ProductId = v.ProductId,
-                SKU = v.SKU,
-                ProductName = v.Product!.Name,
-                VariantName = v.VariantName,
-                Barcode = v.Barcode,
-                RetailPrice = v.RetailPrice,
-                Color = v.Color,
-                Size = v.Size
-            })
             .ToListAsync();
+
+        var results = variants.Select(v => new PosProductSearchResponse
+        {
+            VariantId = v.Id,
+            ProductId = v.ProductId,
+            SKU = v.SKU,
+            ProductName = v.Product!.Name,
+            VariantName = v.VariantName,
+            Barcode = v.Barcode,
+            RetailPrice = v.RetailPrice,
+            Color = v.Color,
+            Size = v.Size
+        }).ToList();
 
         return Ok(results);
     }
@@ -71,28 +71,29 @@ public class PosCatalogController : ControllerBase
             return BadRequest(new { message = "Mã vạch không được để trống." });
         }
 
-        var variant = await _context.ProductVariants
+        var v = await _context.ProductVariants
             .AsNoTracking()
             .Include(v => v.Product)
             .Where(v => v.IsActive && v.Product != null && v.Product.IsActive && v.Barcode == barcode.Trim())
-            .Select(v => new PosProductSearchResponse
-            {
-                VariantId = v.Id,
-                ProductId = v.ProductId,
-                SKU = v.SKU,
-                ProductName = v.Product!.Name,
-                VariantName = v.VariantName,
-                Barcode = v.Barcode,
-                RetailPrice = v.RetailPrice,
-                Color = v.Color,
-                Size = v.Size
-            })
             .FirstOrDefaultAsync();
 
-        if (variant == null)
+        if (v == null)
         {
             return NotFound(new { message = $"Không tìm thấy sản phẩm nào khớp với mã vạch '{barcode}'." });
         }
+
+        var variant = new PosProductSearchResponse
+        {
+            VariantId = v.Id,
+            ProductId = v.ProductId,
+            SKU = v.SKU,
+            ProductName = v.Product?.Name ?? string.Empty,
+            VariantName = v.VariantName,
+            Barcode = v.Barcode,
+            RetailPrice = v.RetailPrice,
+            Color = v.Color,
+            Size = v.Size
+        };
 
         return Ok(variant);
     }

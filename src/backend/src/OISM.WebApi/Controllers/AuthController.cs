@@ -48,84 +48,79 @@ public class AuthController : ControllerBase
             return Conflict(new { message = "Email này đã được sử dụng bởi một tài khoản khác trong hệ thống." });
         }
 
-        // 2. Kiểm tra TenantCode (mã cửa hàng)
+        // 2. Chuẩn hóa TenantCode và SĐT
         var codeNormalized = request.TenantCode.Trim().ToUpper();
-        var codeExists = await _context.Tenants
-            .AnyAsync(t => t.Code == codeNormalized);
-
-        if (codeExists)
+        string? phoneNormalized = null;
+        if (!string.IsNullOrWhiteSpace(request.PhoneNumber))
         {
-            return Conflict(new { message = "Mã cửa hàng (TenantCode) này đã tồn tại, vui lòng chọn mã khác." });
+            var rawPhone = request.PhoneNumber.Trim();
+            if (rawPhone.StartsWith("0"))
+            {
+                phoneNormalized = "+84" + rawPhone.Substring(1);
+            }
+            else if (!rawPhone.StartsWith("+"))
+            {
+                phoneNormalized = "+" + rawPhone;
+            }
+            else
+            {
+                phoneNormalized = rawPhone;
+            }
         }
 
-        // 3. Thực thi trong Database Transaction nguyên tử (ACID)
-        using var transaction = await _context.BeginTransactionAsync();
+        // 3. Thực thi trong Database Transaction nguyên tử (ACID) với Privileged Scope có kiểm soát và Execution Strategy
+        var strategy = _context.Database.CreateExecutionStrategy();
+        RegisterTenantResponse? response = null;
+
         try
         {
-            // Bước A: Tạo Cửa hàng
-            var tenant = new Tenant
+            await strategy.ExecuteAsync(async () =>
             {
-                Name = request.TenantName.Trim(),
-                Code = codeNormalized,
-                IsActive = true
-            };
-            _context.Tenants.Add(tenant);
-            await _context.SaveChangesAsync();
+                using var privilegedScope = _context.OpenPrivilegedScope();
+                await using var transaction = await _context.Database.BeginTransactionAsync();
 
-            // Bước B: Tạo Tài khoản Chủ shop
-            var user = new User
-            {
-                TenantId = tenant.Id,
-                Email = emailNormalized,
-                FullName = request.FullName.Trim(),
-                PhoneNumber = request.PhoneNumber?.Trim(),
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-                IsActive = true
-            };
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
-
-            // Bước C: Gán vai trò Owner (Chủ cửa hàng)
-            var ownerRole = await _context.Roles.FirstOrDefaultAsync(r => r.Code == "Owner");
-            if (ownerRole == null)
-            {
-                ownerRole = new Role
+                // Bước A: Tạo Cửa hàng
+                var tenant = new Tenant
                 {
-                    Name = "Chủ cửa hàng",
-                    Code = "Owner",
-                    Description = "Quyền quản trị toàn quyền trên cửa hàng"
+                    Name = request.TenantName.Trim(),
+                    Code = codeNormalized,
+                    IsActive = true
                 };
-                _context.Roles.Add(ownerRole);
+                _context.Tenants.Add(tenant);
                 await _context.SaveChangesAsync();
-            }
 
-            var userRole = new UserRole
-            {
-                UserId = user.Id,
-                RoleId = ownerRole.Id,
-                AssignedAt = DateTimeOffset.UtcNow
-            };
-            _context.UserRoles.Add(userRole);
-            await _context.SaveChangesAsync();
+                // Bước B: Tạo Tài khoản Chủ shop với vai trò Owner trực tiếp theo schema v0.5
+                var user = new User
+                {
+                    TenantId = tenant.Id,
+                    Email = emailNormalized,
+                    DisplayName = request.FullName.Trim(),
+                    Phone = phoneNormalized,
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+                    Role = "Owner",
+                    IsActive = true
+                };
+                _context.Users.Add(user);
+                await _context.SaveChangesAsync();
 
-            // Hoàn tất Transaction
-            await transaction.CommitAsync();
+                // Hoàn tất Transaction
+                await transaction.CommitAsync();
 
-            var response = new RegisterTenantResponse
-            {
-                TenantId = tenant.Id,
-                TenantCode = tenant.Code,
-                TenantName = tenant.Name,
-                UserId = user.Id,
-                Email = user.Email,
-                Message = "Đăng ký Cửa hàng và tài khoản Chủ shop thành công!"
-            };
+                response = new RegisterTenantResponse
+                {
+                    TenantId = tenant.Id,
+                    TenantCode = tenant.Code,
+                    TenantName = tenant.Name,
+                    UserId = user.Id,
+                    Email = user.Email,
+                    Message = "Đăng ký Cửa hàng và tài khoản Chủ shop thành công!"
+                };
+            });
 
             return StatusCode(201, response);
         }
         catch (Exception ex)
         {
-            await transaction.RollbackAsync();
             return StatusCode(500, new { message = "Lỗi trong quá trình đăng ký cửa hàng: " + ex.Message });
         }
     }
@@ -150,8 +145,6 @@ public class AuthController : ControllerBase
         var user = await _context.Users
             .IgnoreQueryFilters()
             .Include(u => u.Tenant)
-            .Include(u => u.UserRoles)
-                .ThenInclude(ur => ur.Role)
             .FirstOrDefaultAsync(u => u.Email.ToLower() == emailNormalized);
 
         if (user == null)
@@ -177,23 +170,18 @@ public class AuthController : ControllerBase
             return Unauthorized(new { message = "Cửa hàng của bạn hiện đang bị tạm ngưng." });
         }
 
-        // Lấy danh sách Roles
-        var roles = user.UserRoles
-            .Where(ur => ur.Role != null)
-            .Select(ur => ur.Role!.Code)
-            .ToList();
-
-        if (roles.Count == 0)
-        {
-            roles.Add("Staff"); // Mặc định nếu chưa gán role
-        }
+        // Lấy danh sách Roles từ user.Role
+        var roles = new List<string> { user.Role };
 
         // Sinh JWT Access Token và Refresh Token
         var accessToken = _jwtTokenService.GenerateAccessToken(user, roles);
         var refreshToken = _jwtTokenService.GenerateRefreshToken(user.TenantId, user.Id);
 
-        _context.RefreshTokens.Add(refreshToken);
-        await _context.SaveChangesAsync();
+        using (_context.OpenPrivilegedScope())
+        {
+            _context.RefreshTokens.Add(refreshToken);
+            await _context.SaveChangesAsync();
+        }
 
         var response = new AuthResponse
         {
@@ -228,14 +216,12 @@ public class AuthController : ControllerBase
             return BadRequest(new { message = "Refresh token không được để trống." });
         }
 
+        var tokenHash = Domain.Entities.RefreshToken.HashToken(request.RefreshToken);
         var existingToken = await _context.RefreshTokens
             .IgnoreQueryFilters()
             .Include(r => r.User)
                 .ThenInclude(u => u!.Tenant)
-            .Include(r => r.User)
-                .ThenInclude(u => u!.UserRoles)
-                    .ThenInclude(ur => ur.Role)
-            .FirstOrDefaultAsync(r => r.Token == request.RefreshToken);
+            .FirstOrDefaultAsync(r => r.TokenHash == tokenHash);
 
         if (existingToken == null || !existingToken.IsActive)
         {
@@ -249,20 +235,19 @@ public class AuthController : ControllerBase
         }
 
         // Thu hồi token cũ và sinh cặp token mới (Token Rotation)
-        existingToken.IsRevoked = true;
         existingToken.RevokedAt = DateTimeOffset.UtcNow;
 
-        var roles = user.UserRoles
-            .Where(ur => ur.Role != null)
-            .Select(ur => ur.Role!.Code)
-            .ToList();
+        var roles = new List<string> { user.Role };
 
         var newAccessToken = _jwtTokenService.GenerateAccessToken(user, roles);
         var newRefreshToken = _jwtTokenService.GenerateRefreshToken(user.TenantId, user.Id);
         existingToken.ReplacedByToken = newRefreshToken.Token;
 
-        _context.RefreshTokens.Add(newRefreshToken);
-        await _context.SaveChangesAsync();
+        using (_context.OpenPrivilegedScope())
+        {
+            _context.RefreshTokens.Add(newRefreshToken);
+            await _context.SaveChangesAsync();
+        }
 
         var response = new AuthResponse
         {
@@ -294,15 +279,18 @@ public class AuthController : ControllerBase
     {
         if (!string.IsNullOrWhiteSpace(request.RefreshToken))
         {
+            var tokenHash = Domain.Entities.RefreshToken.HashToken(request.RefreshToken);
             var token = await _context.RefreshTokens
                 .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(r => r.Token == request.RefreshToken);
+                .FirstOrDefaultAsync(r => r.TokenHash == tokenHash);
 
             if (token != null)
             {
-                token.IsRevoked = true;
-                token.RevokedAt = DateTimeOffset.UtcNow;
-                await _context.SaveChangesAsync();
+                using (_context.OpenPrivilegedScope())
+                {
+                    token.RevokedAt = DateTimeOffset.UtcNow;
+                    await _context.SaveChangesAsync();
+                }
             }
         }
 
@@ -324,8 +312,6 @@ public class AuthController : ControllerBase
 
         var user = await _context.Users
             .Include(u => u.Tenant)
-            .Include(u => u.UserRoles)
-                .ThenInclude(ur => ur.Role)
             .FirstOrDefaultAsync(u => u.Id == userId);
 
         if (user == null)
@@ -342,7 +328,7 @@ public class AuthController : ControllerBase
             Email = user.Email,
             FullName = user.FullName,
             PhoneNumber = user.PhoneNumber,
-            Roles = user.UserRoles.Where(ur => ur.Role != null).Select(ur => ur.Role!.Code).ToList()
+            Roles = new List<string> { user.Role }
         };
 
         return Ok(response);

@@ -6,7 +6,8 @@ namespace OISM.Infrastructure.Services;
 
 /// <summary>
 /// Quản lý và cung cấp TenantId hiện tại của phiên làm việc.
-/// Ưu tiên trích xuất từ JWT Claims ("tenantId" hoặc "TenantId"), sau đó kiểm tra Header ("X-Tenant-Id").
+/// Tuân thủ quy tắc bảo mật NFR-TENANT-01: Chỉ tin cậy JWT Claims từ token đã được ký và xác thực.
+/// Tuyệt đối KHÔNG đọc TenantId từ header hoặc body do client tự gửi lên.
 /// </summary>
 public class CurrentTenantService : ICurrentTenantService
 {
@@ -33,24 +34,20 @@ public class CurrentTenantService : ICurrentTenantService
                 return null;
             }
 
-            // 1. Kiểm tra trong Claims của JWT Token
-            var tenantClaim = httpContext.User.FindFirst("tenantId")?.Value 
-                              ?? httpContext.User.FindFirst("TenantId")?.Value;
-
-            if (!string.IsNullOrEmpty(tenantClaim) && Guid.TryParse(tenantClaim, out var claimGuid))
+            // Chỉ trích xuất từ Claims của JWT Token đã được xác thực (User.Identity.IsAuthenticated)
+            if (httpContext.User?.Identity?.IsAuthenticated == true)
             {
-                _tenantId = claimGuid;
-                return _tenantId;
+                var tenantClaim = httpContext.User.FindFirst("tenantId")?.Value 
+                                  ?? httpContext.User.FindFirst("TenantId")?.Value;
+
+                if (!string.IsNullOrEmpty(tenantClaim) && Guid.TryParse(tenantClaim, out var claimGuid))
+                {
+                    _tenantId = claimGuid;
+                    return _tenantId;
+                }
             }
 
-            // 2. Kiểm tra Header X-Tenant-Id (dành cho API test hoặc webhook có chữ ký)
-            if (httpContext.Request.Headers.TryGetValue("X-Tenant-Id", out var headerValue) 
-                && Guid.TryParse(headerValue, out var headerGuid))
-            {
-                _tenantId = headerGuid;
-                return _tenantId;
-            }
-
+            // Không tin cậy bất kỳ header nào (như X-Tenant-Id) cho các API nghiệp vụ
             return null;
         }
     }

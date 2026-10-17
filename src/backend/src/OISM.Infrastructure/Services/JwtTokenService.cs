@@ -65,11 +65,13 @@ public class JwtTokenService : IJwtTokenService
         using var rng = RandomNumberGenerator.Create();
         rng.GetBytes(randomNumber);
 
+        var rawToken = Convert.ToBase64String(randomNumber);
         return new RefreshToken
         {
             TenantId = tenantId,
             UserId = userId,
-            Token = Convert.ToBase64String(randomNumber),
+            Token = rawToken,
+            TokenHash = RefreshToken.HashToken(rawToken),
             ExpiresAt = DateTimeOffset.UtcNow.AddDays(7), // Refresh token có hiệu lực 7 ngày
             IsRevoked = false
         };

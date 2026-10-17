@@ -11,17 +11,17 @@ using OISM.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Cấu hình Cơ sở dữ liệu (PostgreSQL qua EF Core)
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
-    ?? "Host=localhost;Port=5432;Database=oism_db;Username=postgres;Password=postgres";
+// 1. Cấu hình Cơ sở dữ liệu (PostgreSQL qua EF Core & DatabaseConnectionHelper)
+var connectionStringBuilder = DatabaseConnectionHelper.BuildConnectionStringBuilder(builder.Configuration);
 
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
-    options.UseNpgsql(connectionString, npgsqlOptions =>
+    options.UseNpgsql(connectionStringBuilder.ConnectionString, npgsqlOptions =>
     {
         npgsqlOptions.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName);
         npgsqlOptions.EnableRetryOnFailure(3, TimeSpan.FromSeconds(5), null);
-    });
+    })
+    .UseSnakeCaseNamingConvention();
 });
 
 builder.Services.AddScoped<IAppDbContext>(provider => provider.GetRequiredService<AppDbContext>());
@@ -31,6 +31,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentTenantService, CurrentTenantService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddSingleton<IDatabaseReadinessService, NpgsqlDatabaseReadinessService>();
+builder.Services.AddScoped<IDatabaseMigrationService, DatabaseMigrationService>();
 
 // 3. Cấu hình Xác thực JWT Bearer (FR-AUTH-02, NFR-SEC-01)
 var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "SuperSecretKeyForOISMOmnichannelRetailSystem2026!#";
@@ -106,30 +107,45 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// 6. Tự động khởi tạo dữ liệu mẫu Roles nếu cơ sở dữ liệu đã sẵn sàng
-using (var scope = app.Services.CreateScope())
+// 6. Tự động khởi tạo dữ liệu mẫu theo chính sách bảo mật môi trường DemoSeedPolicy:
+// - Chỉ Development và Test được phép seed demo.
+// - Production, Staging và các môi trường khác TUYỆT ĐỐI không seed dù cấu hình bị bật nhầm.
+// - Mặc định không seed; phải bật chủ động 'Database:SeedDemoData' = true.
+// - Khi bật cấu hình nhưng thiếu 'Database:DemoSeedPassword', báo lỗi cấu hình và dừng seed; không fallback hardcode.
+var seedEnabledInConfig = builder.Configuration.GetValue<bool>("Database:SeedDemoData", false);
+var demoPassword = builder.Configuration["Database:DemoSeedPassword"];
+var seedResult = DemoSeedPolicy.Evaluate(app.Environment.EnvironmentName, seedEnabledInConfig, demoPassword);
+
+if (seedResult.ShouldSeed)
 {
+    using var scope = app.Services.CreateScope();
     var services = scope.ServiceProvider;
+    var logger = services.GetRequiredService<ILogger<Program>>();
     try
     {
         var db = services.GetRequiredService<AppDbContext>();
         if (db.Database.CanConnect())
         {
-            if (!db.Roles.Any())
-            {
-                db.Roles.AddRange(
-                    new Role { Name = "Chủ cửa hàng", Code = "Owner", Description = "Toàn quyền quản trị cửa hàng" },
-                    new Role { Name = "Quản lý / Nhân viên kho", Code = "Staff", Description = "Quản lý đơn hàng và nghiệp vụ kho" },
-                    new Role { Name = "Thu ngân POS", Code = "Cashier", Description = "Bán hàng và thu tiền tại quầy" }
-                );
-                db.SaveChanges();
-            }
+            logger.LogInformation("Khởi tạo dữ liệu mẫu cho môi trường {Environment}...", app.Environment.EnvironmentName);
+            await OismsDatabaseSeeder.SeedAsync(db, demoPassword!);
+            logger.LogInformation("Đã khởi tạo thành công dữ liệu mẫu cho môi trường {Environment}.", app.Environment.EnvironmentName);
         }
     }
-    catch
+    catch (Exception ex)
     {
-        // Bỏ qua nếu DB chưa được migrate trong lần khởi chạy đầu
+        logger.LogWarning(ex, "Bỏ qua seed dữ liệu khi khởi chạy.");
     }
+}
+else if (seedResult.IsConfigurationError)
+{
+    var logger = app.Services.GetRequiredService<ILogger<Program>>();
+    logger.LogError("Lỗi cấu hình khởi tạo dữ liệu mẫu: {Reason}", seedResult.Reason);
+}
+else if (seedEnabledInConfig && !DemoSeedPolicy.IsEnvironmentAllowed(app.Environment.EnvironmentName))
+{
+    var logger = app.Services.GetRequiredService<ILogger<Program>>();
+    logger.LogWarning("Phát hiện cấu hình 'Database:SeedDemoData' = true trong môi trường {Environment}. {Reason}", 
+        app.Environment.EnvironmentName, seedResult.Reason);
 }
 
 if (app.Environment.IsDevelopment())
@@ -226,47 +242,7 @@ public class NpgsqlDatabaseReadinessService : IDatabaseReadinessService
 
     public static NpgsqlConnectionStringBuilder BuildConnectionStringBuilder(IConfiguration configuration)
     {
-        var builder = new NpgsqlConnectionStringBuilder();
-
-        // Check dedicated Database configuration section or environment variables
-        var dbSection = configuration.GetSection("Database");
-        var host = dbSection["Host"] ?? configuration["DB_HOST"];
-        var portStr = dbSection["Port"] ?? configuration["DB_PORT"];
-        var database = dbSection["Database"] ?? dbSection["Name"] ?? configuration["DB_NAME"] ?? configuration["POSTGRES_DB"];
-        var username = dbSection["Username"] ?? configuration["DB_USER"] ?? configuration["OISMS_APP_USER"];
-        var password = dbSection["Password"] ?? configuration["DB_PASSWORD"] ?? configuration["OISMS_APP_PASSWORD"];
-
-        if (!string.IsNullOrWhiteSpace(host) && !string.IsNullOrWhiteSpace(username))
-        {
-            builder.Host = host;
-            if (int.TryParse(portStr, out var port))
-            {
-                builder.Port = port;
-            }
-            else
-            {
-                builder.Port = 5432;
-            }
-            builder.Database = !string.IsNullOrWhiteSpace(database) ? database : "oisms";
-            builder.Username = username;
-            // Direct assignment avoids corrupting passwords containing semicolons, quotes, etc.
-            builder.Password = password ?? string.Empty;
-            builder.Timeout = 5;
-            builder.CommandTimeout = 5;
-            return builder;
-        }
-
-        // Fallback to raw connection string if separate properties are not provided
-        var rawConnStr = configuration.GetConnectionString("DefaultConnection");
-        if (!string.IsNullOrWhiteSpace(rawConnStr))
-        {
-            var fallbackBuilder = new NpgsqlConnectionStringBuilder(rawConnStr);
-            if (fallbackBuilder.Timeout == 15) fallbackBuilder.Timeout = 5;
-            if (fallbackBuilder.CommandTimeout == 30) fallbackBuilder.CommandTimeout = 5;
-            return fallbackBuilder;
-        }
-
-        throw new InvalidOperationException("Database connection settings ('Database' section or 'DefaultConnection') are missing or unconfigured.");
+        return DatabaseConnectionHelper.BuildConnectionStringBuilder(configuration);
     }
 
     public async Task<ReadinessCheckResult> CheckReadinessAsync(CancellationToken ct = default)
