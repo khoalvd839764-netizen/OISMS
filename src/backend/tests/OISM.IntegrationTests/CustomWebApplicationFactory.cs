@@ -35,20 +35,10 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
             services.AddScoped<IAppDbContext>(provider => provider.GetRequiredService<AppDbContext>());
 
-            // Seed dữ liệu mẫu Roles vào In-Memory Db
             var sp = services.BuildServiceProvider();
             using var scope = sp.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             db.Database.EnsureCreated();
-            if (!db.Roles.Any())
-            {
-                db.Roles.AddRange(
-                    new Role { Name = "Chủ cửa hàng", Code = "Owner", Description = "Toàn quyền quản trị cửa hàng" },
-                    new Role { Name = "Quản lý / Nhân viên kho", Code = "Staff", Description = "Quản lý đơn hàng và nghiệp vụ kho" },
-                    new Role { Name = "Thu ngân POS", Code = "Cashier", Description = "Bán hàng và thu tiền tại quầy" }
-                );
-                db.SaveChanges();
-            }
         });
     }
 }

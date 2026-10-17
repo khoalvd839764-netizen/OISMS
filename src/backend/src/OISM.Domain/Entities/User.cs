@@ -11,9 +11,24 @@ public class User : BaseEntity, IMustHaveTenant
 
     public string Email { get; set; } = string.Empty;
 
-    public string FullName { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public string FullName
+    {
+        get => DisplayName;
+        set => DisplayName = value;
+    }
 
-    public string? PhoneNumber { get; set; }
+    public string? Phone { get; set; }
+    public string? PhoneNumber
+    {
+        get => Phone;
+        set => Phone = value;
+    }
+
+    /// <summary>
+    /// Vai trò người dùng theo schema v0.5: 'Owner', 'Staff', 'Cashier'.
+    /// </summary>
+    public string Role { get; set; } = "Staff";
 
     /// <summary>
     /// Chuỗi băm mật khẩu bảo mật BCrypt theo chuẩn NFR-SEC-01.

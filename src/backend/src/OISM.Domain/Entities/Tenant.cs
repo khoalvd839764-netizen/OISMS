@@ -10,8 +10,10 @@ public class Tenant : BaseEntity
     public string Name { get; set; } = string.Empty;
 
     /// <summary>
-    /// Mã định danh cửa hàng (viết liền không dấu, in hoa, duy nhất trên toàn hệ thống).
+    /// Mã định danh cửa hàng (viết liền không dấu, in hoa).
+    /// Lưu ý: Schema v0.5 lưu id (UUID) và name; Code được giữ ở DTO/logic nghiệp vụ.
     /// </summary>
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
     public string Code { get; set; } = string.Empty;
 
     public bool IsActive { get; set; } = true;

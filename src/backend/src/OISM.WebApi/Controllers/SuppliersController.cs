@@ -31,7 +31,7 @@ public class SuppliersController : ControllerBase
         {
             var searchLower = search.Trim().ToLower();
             query = query.Where(s => s.Name.ToLower().Contains(searchLower) ||
-                                     (s.Code != null && s.Code.ToLower().Contains(searchLower)) ||
+                                     (s.Email != null && s.Email.ToLower().Contains(searchLower)) ||
                                      (s.Phone != null && s.Phone.Contains(searchLower)));
         }
 

@@ -95,26 +95,21 @@ public class BranchAndSupplierIntegrationTests : IClassFixture<CustomWebApplicat
         using (var scope = _factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var cashierRole = await db.Roles.FirstOrDefaultAsync(r => r.Code == "Cashier");
 
             var cashierUser = new User
             {
                 TenantId = regData!.TenantId,
                 Email = "cashier@shop.com",
-                FullName = "Nhân viên Thu ngân",
+                DisplayName = "Nhân viên Thu ngân",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("Cashier@123"),
+                Role = "Cashier",
                 IsActive = true
             };
-            db.Users.Add(cashierUser);
-            await db.SaveChangesAsync();
-
-            db.UserRoles.Add(new UserRole
+            using (db.OpenPrivilegedScope())
             {
-                UserId = cashierUser.Id,
-                RoleId = cashierRole!.Id,
-                AssignedAt = DateTimeOffset.UtcNow
-            });
-            await db.SaveChangesAsync();
+                db.Users.Add(cashierUser);
+                await db.SaveChangesAsync();
+            }
         }
 
         // 2. Đăng nhập bằng tài khoản Cashier
@@ -179,6 +174,6 @@ public class BranchAndSupplierIntegrationTests : IClassFixture<CustomWebApplicat
 
         var list = await searchRes.Content.ReadFromJsonAsync<List<SupplierResponse>>(_jsonOptions);
         list.Should().NotBeNull();
-        list!.Should().Contain(s => s.Code == "NCC-VIETTIEN");
+        list!.Should().Contain(s => s.Name == "Công ty Dệt May Việt Tiến" && s.Email == "contact@viettien.vn");
     }
 }

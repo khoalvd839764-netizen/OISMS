@@ -50,34 +50,35 @@ public class ProductsController : ControllerBase
             query = query.Where(p => p.BrandId == brandId.Value);
         }
 
-        var products = await query
+        var productList = await query
             .OrderByDescending(p => p.CreatedAt)
-            .Select(p => new ProductResponse
-            {
-                Id = p.Id,
-                Name = p.Name,
-                Description = p.Description,
-                CategoryId = p.CategoryId,
-                CategoryName = p.Category != null ? p.Category.Name : null,
-                BrandId = p.BrandId,
-                BrandName = p.Brand != null ? p.Brand.Name : null,
-                IsActive = p.IsActive,
-                Variants = p.Variants.Select(v => new ProductVariantResponse
-                {
-                    Id = v.Id,
-                    ProductId = v.ProductId,
-                    SKU = v.SKU,
-                    VariantName = v.VariantName,
-                    Barcode = v.Barcode,
-                    RetailPrice = v.RetailPrice,
-                    WholesalePrice = v.WholesalePrice,
-                    CostPrice = v.CostPrice,
-                    Color = v.Color,
-                    Size = v.Size,
-                    IsActive = v.IsActive
-                }).ToList()
-            })
             .ToListAsync();
+
+        var products = productList.Select(p => new ProductResponse
+        {
+            Id = p.Id,
+            Name = p.Name,
+            Description = p.Description,
+            CategoryId = p.CategoryId,
+            CategoryName = p.Category != null ? p.Category.Name : null,
+            BrandId = p.BrandId,
+            BrandName = p.Brand != null ? p.Brand.Name : null,
+            IsActive = p.IsActive,
+            Variants = p.Variants.Select(v => new ProductVariantResponse
+            {
+                Id = v.Id,
+                ProductId = v.ProductId,
+                SKU = v.SKU,
+                VariantName = v.VariantName,
+                Barcode = v.Barcode,
+                RetailPrice = v.RetailPrice,
+                WholesalePrice = v.WholesalePrice,
+                CostPrice = v.CostPrice,
+                Color = v.Color,
+                Size = v.Size,
+                IsActive = v.IsActive
+            }).ToList()
+        }).ToList();
 
         return Ok(products);
     }
