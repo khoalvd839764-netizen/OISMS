@@ -21,6 +21,10 @@ public interface IAppDbContext
     DbSet<ProductVariant> Skus => ProductVariants;
     DbSet<Supplier> Suppliers { get; }
     DbSet<InventoryBalance> InventoryBalances { get; }
+    DbSet<WarehouseInventoryBalance> WarehouseInventoryBalances { get; }
+    DbSet<GoodsReceipt> GoodsReceipts { get; }
+    DbSet<GoodsReceiptItem> GoodsReceiptItems { get; }
+    DbSet<InventoryTransaction> InventoryTransactions { get; }
 
     int SaveChanges();
     int SaveChanges(bool acceptAllChangesOnSuccess);

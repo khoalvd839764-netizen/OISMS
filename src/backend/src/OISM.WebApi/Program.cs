@@ -11,17 +11,26 @@ using OISM.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Cấu hình Cơ sở dữ liệu (PostgreSQL qua EF Core & DatabaseConnectionHelper)
+// 1. Cấu hình Cơ sở dữ liệu (PostgreSQL qua EF Core & DatabaseConnectionHelper, hoặc InMemory cho Live Demo khi máy chưa cài PostgreSQL)
+var useInMemoryDb = builder.Configuration.GetValue<bool>("Database:UseInMemory", false);
 var connectionStringBuilder = DatabaseConnectionHelper.BuildConnectionStringBuilder(builder.Configuration);
 
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
-    options.UseNpgsql(connectionStringBuilder.ConnectionString, npgsqlOptions =>
+    if (useInMemoryDb)
     {
-        npgsqlOptions.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName);
-        npgsqlOptions.EnableRetryOnFailure(3, TimeSpan.FromSeconds(5), null);
-    })
-    .UseSnakeCaseNamingConvention();
+        options.UseInMemoryDatabase("OISM_LiveDemoDb")
+               .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning));
+    }
+    else
+    {
+        options.UseNpgsql(connectionStringBuilder.ConnectionString, npgsqlOptions =>
+        {
+            npgsqlOptions.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName);
+            npgsqlOptions.EnableRetryOnFailure(3, TimeSpan.FromSeconds(5), null);
+        })
+        .UseSnakeCaseNamingConvention();
+    }
 });
 
 builder.Services.AddScoped<IAppDbContext>(provider => provider.GetRequiredService<AppDbContext>());
