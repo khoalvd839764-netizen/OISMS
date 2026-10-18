@@ -74,6 +74,12 @@ public class ReservationService : IReservationService
                 throw new ArgumentException($"Kho '{dto.WarehouseId}' thuộc chi nhánh '{warehouse.BranchId}', không khớp với chi nhánh yêu cầu giữ chỗ '{dto.BranchId}'.");
             }
 
+            var branch = await _context.Branches.FirstOrDefaultAsync(b => b.Id == dto.BranchId && b.TenantId == tenantId, ct);
+            if (branch == null)
+            {
+                throw new KeyNotFoundException($"Không tìm thấy chi nhánh '{dto.BranchId}'.");
+            }
+
             // 1. Kiểm tra tồn kho tại Kho cụ thể
             var warehouseBalance = await _context.WarehouseInventoryBalances
                 .FirstOrDefaultAsync(w => w.WarehouseId == dto.WarehouseId && w.SkuId == dto.SkuId, ct);
@@ -103,8 +109,8 @@ public class ReservationService : IReservationService
             }
 
             // 4. Đảm bảo có Order và OrderItem tương ứng theo schema v0.5 FK constraints
-            Order order;
-            OrderItem orderItem;
+            Order order = null!;
+            OrderItem orderItem = null!;
 
             if (dto.OrderId.HasValue && dto.OrderItemId.HasValue)
             {
@@ -161,7 +167,29 @@ public class ReservationService : IReservationService
                     throw new InvalidOperationException($"Dòng đơn hàng '{dto.OrderItemId.Value}' đã có giữ chỗ tại kho '{dto.WarehouseId}' (Trạng thái: {existingReservation.Status}, Số lượng: {existingReservation.Quantity}).");
                 }
             }
-            else
+
+            // BE1-09 / A10: Kiểm tra trạng thái hoạt động của tài nguyên khi tạo reservation MỚI
+            if (!branch.IsActive)
+            {
+                throw new InvalidOperationException($"Chi nhánh '{branch.Name}' đã ngừng hoạt động.");
+            }
+
+            if (!warehouse.IsActive)
+            {
+                throw new InvalidOperationException($"Kho hàng '{warehouse.Name}' đã ngừng hoạt động.");
+            }
+
+            if (sku.Product == null || !sku.Product.IsActive)
+            {
+                throw new InvalidOperationException($"Sản phẩm '{sku.Product?.Name ?? sku.SKU}' đã ngừng hoạt động.");
+            }
+
+            if (!sku.IsActive)
+            {
+                throw new InvalidOperationException($"Biến thể SKU '{sku.SKU}' đã ngừng hoạt động.");
+            }
+
+            if (!dto.OrderId.HasValue || !dto.OrderItemId.HasValue)
             {
                 // Tự sinh đơn hàng nháp tối thiểu cho luồng giữ chỗ (POS hoặc Test harness)
                 var orderNumber = $"ORD-RES-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N")[..4].ToUpperInvariant()}";
