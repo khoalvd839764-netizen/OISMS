@@ -1,191 +1,274 @@
-# BÁO CÁO NGHIỆM THU & TÀI LIỆU BÀN GIAO NỀN TẢNG BACKEND 2
+# BÁO CÁO NGHIỆM THU & TÀI LIỆU BÀN GIAO SPRINT 2 (BACKEND 2)
 **Dự án:** OISMS - Omnichannel Inventory & Sales Management System  
 **Học phần:** Đồ án Chuyên ngành / Công nghệ Phần mềm  
-**Thành viên thực hiện:** Nhựt Phùng Minh (Backend 2 - Auth, Catalog, POS & Warehouse API Lead)  
-**Thành viên nghiệm thu:** Đặng Khoa (Trưởng nhóm / Backend 1 - Persistence & Security Lead)  
-**Ngày hoàn tất:** 17/10/2026  
-**Trạng thái kiểm thử:** **27/27 Tests Pass 100%** (15 Unit Tests + 12 Integration Tests)  
-**Trạng thái CI/CD:** **GitHub Actions CI Passed 100% (2/2 Jobs Xanh)**
+**Thành viên thực hiện:** Nhựt Phùng Minh (Backend 2 Lead)  
+**Phối hợp & Nghiệm thu:** Đăng Khoa (Trưởng nhóm / Backend 1 Lead - Khắc phục lỗi review, bảo chứng PostgreSQL & Tích hợp)  
+**Ngày cập nhật hoàn tất:** 18/10/2026  
+**Kết quả kiểm thử toàn diện:** **188/188 Tests Pass 100%** (99 Unit Tests + 89 Integration Tests trên PostgreSQL thật)  
+**Môi trường cơ sở dữ liệu kiểm chứng:** PostgreSQL 16+ thật (database: `oisms_test`, tài khoản runtime: `oisms_test_app`, schema v0.5 - 29 bảng)  
 
 ---
 
-## 1. TỔNG QUAN PHẠM VI TRÁCH NHIỆM CỦA BACKEND 2
+## 1. TỔNG QUAN KẾT QUẢ KHẮC PHỤC CÁC LỖI REVIEW TÁI HIỆN
 
-Thành viên 2 (Nhựt) chịu trách nhiệm toàn bộ tầng Nghiệp vụ Bán hàng, Định danh Hàng hóa và Phục vụ Khách hàng (Application & Presentation API Layer) cho Sprint 2 theo tài liệu phân công [`docs/SPRINT_2_BACKEND_2.md`](../SPRINT_2_BACKEND_2.md), bao gồm 6 trụ cột cốt lõi:
+Toàn bộ các vấn đề kỹ thuật phát hiện và tái hiện trong đợt review đã được sửa chữa tận gốc tại mã nguồn nghiệp vụ và được chứng minh bằng kiểm thử hồi quy độc lập trên PostgreSQL thật (`PostgresBackend2RegressionTests.cs`):
 
 ```mermaid
 flowchart TD
-    subgraph S1["1. Định danh & Cửa hàng (Tenancy)"]
-        A["Đăng ký Cửa hàng (FR-AUTH-01)"] --> B["Privileged Scope & ACID Transaction"]
-        B --> C["Tự động gán TenantId & Audit Info"]
+    subgraph BugFixes["Khắc phục các lỗi cốt lõi đã qua review"]
+        B1["1. Tenant bị khóa"] --> S1["Chặn cả Login (401) và Refresh-Token (401)<br>Kiểm tra IsActive của User & Tenant"]
+        B2["2. Race Condition Refresh Token"] --> S2["Rotation nguyên tử trên PostgreSQL<br>FOR UPDATE Row-Level Lock + ReadCommitted<br>Chỉ 1 req 200, req còn lại 401, token cũ thu hồi"]
+        B3["3. Sửa Category thiếu ParentId"] --> S3["Kiểm tra ParentId tồn tại & cùng Tenant (400)<br>Duyệt tổ tiên chặn đệ quy (400)<br>Không để lọt lỗi FK gây 500"]
+        B4["4. Cập nhật SKU lọt tổ hợp trùng"] --> S4["SkuAttributeHelper.ResolveAttributes<br>Chữ ký canonical + Serialize từ cùng dữ liệu merge<br>Chặn trùng (409) cả create/update + Row Lock"]
+        B5["5. Đổi chi nhánh kho có lịch sử gây 500"] --> S5["Khóa hàng FOR UPDATE + Kiểm tra toàn diện<br>Chặn đổi chi nhánh (409) nếu có chứng từ/tồn/ledger<br>Bắt ngoại lệ FK 23503 có kiểm soát"]
+        B6["6. Mất kiểu JSON & Loại bỏ null lồng nhau"] --> S6["Đệ quy ConvertJsonElementToClr + NormalizeRawValue<br>Bảo toàn 100% Object, Array, Number, Bool, String<br>Giữ nguyên null lồng nhau, phân biệt chữ ký canonical"]
+        B7["7. Số điện thoại đăng ký gây lỗi 500"] --> S7["PhoneHelper E.164 + RegisterTenantValidator (400)<br>Chuẩn hóa số VN và quốc tế, bảo vệ ck_users_phone_normalized"]
+        B8["8. Barcode SKU trùng gây lỗi 500"] --> S8["Kiểm tra trùng barcode theo tenant, retry 10 lần sinh EAN-13<br>Bảo vệ uq_skus_3 trả 409 Conflict thay vì 500"]
+        B9["9. Cập nhật Category đồng thời tạo vòng lặp"] --> S9["PostgreSQL Advisory Lock theo Tenant + ClearChangeTracker<br>Đọc lại dữ liệu mới nhất, duyệt tổ tiên chặn đệ quy (400)<br>Ngăn chặn race condition tạo chu trình trên DB"]
     end
-
-    subgraph S2["2. Xác thực & Phân quyền (Security)"]
-        D["Đăng nhập JWT Bearer (FR-AUTH-02)"] --> E["Token Rotation (60p / 7 ngày)"]
-        E --> F["Phân quyền 3 Roles RBAC (FR-AUTH-03)"]
-    end
-
-    subgraph S3["3. Quản lý Danh mục & Thương hiệu"]
-        G["Cây Danh mục Cha - Con (FR-PROD-01)"] --> H["Thuật toán duyệt tổ tiên chống lặp (400)"]
-        H --> I["CRUD Thương hiệu (Brand)"]
-    end
-
-    subgraph S4["4. Hàng hóa, Biến thể SKU & Giá bán"]
-        J["Sản phẩm & SKU (FR-PROD-02)"] --> K["Chặn trùng SKU cùng Tenant (409)"]
-        K --> L["Tách biệt Giá bán lẻ/sỉ với WAC (FR-PROD-04)"]
-    end
-
-    subgraph S5["5. Quầy POS & Mã vạch EAN-13"]
-        M["Thuật toán EAN-13 Check Digit (FR-PROD-03)"] --> N["API Tra cứu POS siêu tốc < 200ms (FR-POS-01)"]
-        N --> O["Barcode Scanner tra cứu chính xác"]
-    end
-
-    subgraph S6["6. Vị trí & Đối tác (Locations & Partners)"]
-        P["Quản lý Chi nhánh (Branch)"] --> Q["Quản lý Kho hàng (WarehousesController - BE2-08)"]
-        Q --> R["Tra cứu Nhà cung cấp (Suppliers)"]
-    end
-
-    S1 --> S2
-    S2 --> S3
-    S3 --> S4
-    S4 --> S5
-    S5 --> S6
 ```
 
----
-
-## 2. BẢNG ĐỐI CHIẾU CHI TIẾT: YÊU CẦU (BE2-01 $\rightarrow$ BE2-09) $\rightarrow$ CODE $\rightarrow$ TEST CHỨNG MINH
-
-Bảng dưới đây đối chiếu 100% các yêu cầu từ [`docs/SPRINT_2_BACKEND_2.md`](../SPRINT_2_BACKEND_2.md) với mã nguồn triển khai và kịch bản kiểm thử tự động tương ứng:
-
-| Mã việc | Nhóm việc | Công việc cụ thể đã triển khai | File / Lớp Code Triển khai | Bài Test Chứng minh (Passed 100%) | Trạng thái |
+| STT | Vấn đề review tái hiện | Nguyên nhân kỹ thuật | Giải pháp triển khai thực tế | Bài test kiểm chứng (Passed 100%) | Trạng thái |
 | :---: | :--- | :--- | :--- | :--- | :---: |
-| **BE2-01** | **Đăng ký cửa hàng** | - Tạo đồng thời `Tenant` và tài khoản `Owner` ban đầu.<br>- Quét trùng Email toàn cục qua `.IgnoreQueryFilters()`.<br>- Bọc trong Transaction ACID và `OpenPrivilegedScope()` an toàn.<br>- Tự động Rollback 100% nếu có lỗi, không sinh rác DB. | - [`AuthController.cs`](../../src/backend/src/OISM.WebApi/Controllers/AuthController.cs)<br>- [`RegisterTenantValidator.cs`](../../src/backend/src/OISM.Application/Features/Auth/RegisterTenant/RegisterTenantValidator.cs) | - `TC_AUTH_01_RegisterTenant_ShouldSucceed_AndAllowLogin`<br>- `RegisterTenant_ShouldReturnConflict_WhenEmailAlreadyExists`<br>- `RegisterTenantValidator_ShouldPass_WhenInputIsValid`<br>- `RegisterTenantValidator_ShouldFail_WhenEmailIsInvalid` | **HOÀN TẤT (100%)** |
-| **BE2-02** | **Xác thực người dùng** | - Cấp cặp JWT Access Token (hạn 60p, mang claim `tenant_id`, `sub`, `role`) và Refresh Token (hạn 7 ngày).<br>- Băm mật khẩu một chiều an toàn bằng BCrypt.<br>- Cơ chế Token Rotation khi gọi `/api/auth/refresh-token` (thu hồi token cũ, cấp cặp token mới).<br>- Endpoint thu hồi `/api/auth/logout` và tra cứu hồ sơ `/api/auth/me`. | - [`AuthController.cs`](../../src/backend/src/OISM.WebApi/Controllers/AuthController.cs)<br>- [`JwtTokenService.cs`](../../src/backend/src/OISM.Infrastructure/Services/JwtTokenService.cs)<br>- [`LoginValidator.cs`](../../src/backend/src/OISM.Application/Features/Auth/Login/LoginValidator.cs) | - `TC_AUTH_01_RegisterTenant_ShouldSucceed_AndAllowLogin`<br>- `Login_ShouldReturnUnauthorized_WhenPasswordIsWrong`<br>- `RefreshToken_ShouldRotateToken_WhenValid`<br>- `LoginValidator_ShouldFail_WhenPasswordIsEmpty` | **HOÀN TẤT (100%)** |
-| **BE2-03** | **Phân quyền RBAC** | - Cấu hình 3 vai trò chuẩn: `Owner`, `Staff`, `Cashier`.<br>- Gắn nhãn bảo vệ `[Authorize(Roles = "...")]` trên các Controller nghiệp vụ.<br>- Thu ngân (`Cashier`) gọi API tạo chi nhánh, tạo kho hàng hoặc nhập kho bị chặn với mã `403 Forbidden`. | - [`BranchController.cs`](../../src/backend/src/OISM.WebApi/Controllers/BranchController.cs)<br>- [`WarehousesController.cs`](../../src/backend/src/OISM.WebApi/Controllers/WarehousesController.cs)<br>- [`ProductsController.cs`](../../src/backend/src/OISM.WebApi/Controllers/ProductsController.cs) | - `TC_AUTH_02_CashierRole_ShouldBeForbidden_WhenAccessingOwnerEndpoints`<br>- `PostgresTenantIsolationTests` (Verify RBAC roles) | **HOÀN TẤT (100%)** |
-| **BE2-04** | **Danh mục & Thương hiệu** | - CRUD Category dạng cây phân cấp cha - con nhiều cấp.<br>- **Sửa triệt để lỗi đệ quy lặp:** Thuật toán duyệt ngược cây tổ tiên (`Ancestor Traversal`), chặn đứng hành vi chọn danh mục con/cháu làm cha của chính nó (trả về mã `400 Bad Request`).<br>- CRUD Thương hiệu (`Brand`) độc lập theo Tenant. | - [`CategoriesController.cs`](../../src/backend/src/OISM.WebApi/Controllers/CategoriesController.cs)<br>- [`BrandsController.cs`](../../src/backend/src/OISM.WebApi/Controllers/BrandsController.cs)<br>- [`CategoryDtos.cs`](../../src/backend/src/OISM.Application/Features/Catalog/Categories/CategoryDtos.cs) | - `Category_ShouldRejectCyclicHierarchy`<br>- `CatalogAndProductIntegrationTests` (Category & Brand CRUD) | **HOÀN TẤT (100%)** |
-| **BE2-05** | **Sản phẩm & Biến thể SKU** | - CRUD Sản phẩm cha (`Product`) và nhiều biến thể SKU (`ProductVariant`) cùng lúc.<br>- Thuộc tính động linh hoạt (Màu, Size) lưu vào cột `attributes jsonb`.<br>- **Ràng buộc Unique SKU:** Chặn trùng mã SKU trong cùng 1 TenantId trả về mã `409 Conflict` (`TC-PROD-01`). Hai Tenant khác nhau được phép đặt cùng mã SKU. | - [`ProductsController.cs`](../../src/backend/src/OISM.WebApi/Controllers/ProductsController.cs)<br>- [`ProductDtos.cs`](../../src/backend/src/OISM.Application/Features/Catalog/Products/ProductDtos.cs) | - `TC_PROD_01_DuplicateSKU_ShouldReturnConflict_InSameTenant`<br>- `CreateVariantValidator_ShouldFail_WhenSkuHasSpecialCharacters`<br>- `CreateVariantValidator_ShouldPass_WhenInputIsValid` | **HOÀN TẤT (100%)** |
-| **BE2-06** | **Quản lý Giá bán** | - Quản lý Giá bán lẻ (`RetailPrice`) và Giá bán sỉ (`WholesalePrice`) theo từng SKU.<br>- Tách biệt hoàn toàn giá bán với Giá vốn hàng bán (`WAC/COGS` do Backend 1 tính khi xác nhận nhập kho).<br>- Validation chặn giá bán số âm. | - [`ProductsController.cs`](../../src/backend/src/OISM.WebApi/Controllers/ProductsController.cs)<br>- [`ProductDtos.cs`](../../src/backend/src/OISM.Application/Features/Catalog/Products/ProductDtos.cs) | - `CreateVariantValidator_ShouldFail_WhenRetailPriceIsNegative`<br>- `CatalogAndProductIntegrationTests` (Price assertion) | **HOÀN TẤT (100%)** |
-| **BE2-07** | **Barcode & Tìm kiếm POS** | - Thuật toán tự sinh và kiểm tra mã vạch chuẩn quốc tế EAN-13 (tính số kiểm tra Modulo 10 chuẩn xác).<br>- API tìm kiếm siêu tốc tại quầy POS (`GET /api/pos/search`) theo Tên, SKU, Barcode dùng `.AsNoTracking()` phản hồi < 200ms.<br>- API Barcode Scanner (`GET /api/pos/barcode/{code}`) tra cứu chính xác SKU phục vụ quét tia laser tại quầy. | - [`BarcodeHelper.cs`](../../src/backend/src/OISM.Application/Common/Helpers/BarcodeHelper.cs)<br>- [`PosCatalogController.cs`](../../src/backend/src/OISM.WebApi/Controllers/PosCatalogController.cs)<br>- [`PosSearchDtos.cs`](../../src/backend/src/OISM.Application/Features/Pos/PosSearchDtos.cs) | - `BarcodeHelper_ShouldGenerate_ValidEan13`<br>- `BarcodeHelper_ShouldValidate_KnownEan13Barcode`<br>- `BarcodeHelper_ShouldReject_WrongCheckDigit`<br>- `PosCatalog_SearchAndBarcode_ShouldReturnExactProduct` | **HOÀN TẤT (100%)** |
-| **BE2-08** | **Nhà cung cấp, Chi nhánh & Kho hàng** | - CRUD và Bật/Tắt hoạt động Chi nhánh (`BranchController`).<br>- **[MỚI BỔ SUNG]** API Quản lý Kho hàng (`WarehousesController`): `GET /api/warehouses?branchId=...`, `POST /api/warehouses`, `PUT /api/warehouses/{id}/toggle-status`.<br>- API tra cứu danh sách Nhà cung cấp (`SuppliersController`) phục vụ luồng tạo phiếu nhập kho. | - [`WarehousesController.cs`](../../src/backend/src/OISM.WebApi/Controllers/WarehousesController.cs)<br>- [`BranchController.cs`](../../src/backend/src/OISM.WebApi/Controllers/BranchController.cs)<br>- [`SuppliersController.cs`](../../src/backend/src/OISM.WebApi/Controllers/SuppliersController.cs)<br>- [`WarehouseDtos.cs`](../../src/backend/src/OISM.Application/Features/Warehouses/WarehouseDtos.cs) | - `Warehouse_Create_GetByBranch_AndToggleStatus_ShouldWork_ForOwnerAndStaff`<br>- `Branch_CreateAndToggleStatus_ShouldWork_ForOwner`<br>- `Supplier_CreateAndSearch_ShouldWorkProperly`<br>- `CreateWarehouseValidator_ShouldPass_WhenInputIsValid`<br>- `CreateWarehouseValidator_ShouldFail_WhenNameOrBranchIdEmpty` | **HOÀN TẤT (100%)** |
-| **BE2-09** | **Validation, Kiểm thử & Tài liệu API** | - Cấu hình `FluentValidation` cho toàn bộ Request DTOs.<br>- Xây dựng bộ 27 bài kiểm thử (15 Unit Tests + 12 Integration Tests) đạt 100% Passed.<br>- Tài liệu Swagger UI tích hợp nút Authorize Bearer Token.<br>- Đạt tiêu chuẩn biên dịch Release: **0 Warning, 0 Error**. | - Toàn bộ thư mục `tests/OISM.UnitTests/` và `tests/OISM.IntegrationTests/`<br>- [`Program.cs`](../../src/backend/src/OISM.WebApi/Program.cs) (Swagger configuration) | - Toàn bộ 27 bài tests chạy xanh 100%.<br>- GitHub Actions CI Pipeline đạt tích xanh `✓ 2/2`. | **HOÀN TẤT (100%)** |
+| **1** | **Tenant bị khóa nhưng refresh vẫn trả 200** | Trong `AuthController.RefreshToken`, mã nguồn chỉ kiểm tra `user.IsActive`, bỏ quên điều kiện `user.Tenant.IsActive`. | Bổ sung kiểm tra `if (user.Tenant == null \|\| !user.Tenant.IsActive) return Unauthorized(...)`. | `Postgres_RefreshToken_WhenTenantIsLocked_ShouldReturnUnauthorized` | **ĐÃ KHẮC PHỤC** |
+| **2** | **2 request đồng thời dùng cùng refresh token đều trả 200** | Query đọc `RevokedAt == null` đồng thời trước khi commit update, dẫn đến việc cả hai cùng cấp mới token (Race condition). | Áp dụng Database Transaction với khóa bi quan PostgreSQL: `SELECT id FROM refresh_tokens WHERE token_hash = @hash FOR UPDATE`. Request thứ nhất xoay vòng token và gán `RevokedAt`, Request thứ hai sau khi unblock đọc lại thấy token đã bị revoke nên lập tức trả `401 Unauthorized` và rollback. | `Postgres_ConcurrentRefreshToken_ShouldRotateAtomically_OnlyOneSucceeds` | **ĐÃ KHẮC PHỤC** |
+| **3** | **Update Category với ParentId không tồn tại trả 500** | `CategoriesController.UpdateCategory` chỉ kiểm tra vòng lặp nếu tìm thấy parent. Nếu `ParentId` không tồn tại, vòng lặp thoát và code gán trực tiếp vào DB, vi phạm FK constraint PostgreSQL. | Kiểm tra `parentExists` cùng Tenant trước khi duyệt cây. Nếu không tồn tại hoặc khác tenant, trả `400 Bad Request` rõ ràng, rollback thay đổi. | `Postgres_UpdateCategory_WithNonExistentParentId_ShouldReturnBadRequest_AndNot500` | **ĐÃ KHẮC PHỤC** |
+| **4** | **Cập nhật SKU lọt tổ hợp thuộc tính trùng** | Dữ liệu dùng để tính chữ ký kiểm tra trùng lệch với dữ liệu serialize lưu xuống database (khi gửi `Attributes: {"color":"Red"}` và explicit `Color` là null). | Xây dựng hàm `SkuAttributeHelper.ResolveAttributes` duy nhất. Merge dữ liệu cũ, `request.Attributes` và explicit fields (explicit field không rỗng có độ ưu tiên cao nhất, `""`/`null` xóa thuộc tính). Dùng chính bộ thuộc tính đã merge để tính chữ ký canonical và serialize lưu DB. Chặn trùng trả `409 Conflict`. Khóa bi quan dòng Product bằng `FOR UPDATE`. | `Postgres_UpdateVariant_AttributeCombinationConflict_ShouldReturn409_AndNotCorruptData`<br>`SkuAttributeHelper_ResolveAttributes_AttributesColor_OverridesExisting_WhenExplicitColorIsNull` | **ĐÃ KHẮC PHỤC** |
+| **5** | **Đổi chi nhánh của kho đã có lịch sử trả 500** | `WarehousesController.UpdateWarehouse` cho phép đổi `BranchId`, dẫn đến vi phạm foreign key composite `fk_goods_receipts_warehouse_branch` và các ràng buộc dữ liệu phụ thuộc của kho. | Bọc trong Transaction có row-lock `SELECT id FROM warehouses WHERE id = @id FOR UPDATE`. Kiểm tra sự tồn tại của `GoodsReceipts`, `WarehouseInventoryBalances`, `InventoryTransactions`, `Reservations`. Nếu có bất kỳ dữ liệu nào (kể cả tồn kho = 0): chặn và trả `409 Conflict`. Kho chưa sử dụng đổi chi nhánh sang branch cùng tenant; bắt ngoại lệ Postgres `23503` có kiểm soát. | `Postgres_Warehouse_ChangeBranch_WhenHasHistory_ReturnsControlled409_AndCleanWarehouseSucceeds` | **ĐÃ KHẮC PHỤC** |
+| **6** | **Mất kiểu JSON & loại bỏ null lồng nhau trong thuộc tính SKU** | Dùng `ToString()` ép Object/Array thành string và các hàm chuyển đổi lọc bỏ null (`if (val != null)`) làm mất null lồng nhau (`["S", null, "M"]` thành `["S", "M"]`, `{"depth": null}` bị mất `depth`). | Bỏ `ToString()`. Chuyển đổi đệ quy CLR types bảo toàn 100% kiểu JSON và null lồng nhau. Phân biệt rõ: null cấp ngoài (`Attributes["key"] = null`) xóa thuộc tính; null trong object/array lồng nhau được giữ nguyên vẹn 100%. Chữ ký canonical phản ánh đúng: `["S", null, "M"]` khác `["S", "M"]`, `{"depth": null}` khác `{}`. Dùng cùng bộ thuộc tính để kiểm tra trùng và lưu DB; đọc lại từ PostgreSQL và API khớp 100%. | `Postgres_SkuAttributes_PreserveNestedNulls_InObjectsAndArrays_AcrossCreateUpdateAndPos`<br>`Postgres_SkuAttributes_PreserveJsonTypes_AcrossCreateUpdateAndDuplicateCheck`<br>`SkuAttributeHelper_PreservesNestedNulls_InObjectsAndArrays` | **ĐÃ KHẮC PHỤC** |
+| **7** | **Số điện thoại đăng ký người dùng `"090 123 4567"` gây HTTP 500 do vi phạm `ck_users_phone_normalized`** | Database định nghĩa check constraint `ck_users_phone_normalized` yêu cầu chuẩn E.164 (`^\+[1-9][0-9]{7,14}$`). Request gửi khoảng trắng hoặc số nội địa làm văng exception PostgreSQL `23514`. | Xây dựng `PhoneHelper` chuẩn hóa số Việt Nam (`"090 123 4567"` $\rightarrow$ `"+84901234567"`) và quốc tế. `RegisterTenantValidator` kiểm tra định dạng và từ chối số sai bằng `400 Bad Request`. `AuthController.RegisterTenant` chuẩn hóa trước khi lưu, pre-check trùng số điện thoại qua `.IgnoreQueryFilters()`, bọc transaction nguyên tử và bắt `DbUpdateException` trả 400/409 rõ ràng, rollback sạch sẽ. | `Postgres_Auth_RegisterTenant_PhoneNumber_NormalizationAndValidation_ShouldWorkWithout500`<br>`RegisterTenantValidator_PhoneNumber_Tests` (23 unit tests) | **ĐÃ KHẮC PHỤC** |
+| **8** | **SKU Barcode trùng gây HTTP 500 do vi phạm unique constraint `uq_skus_3`** | Khi client gửi barcode trùng hoặc sinh barcode tự động trùng với SKU khác trong tenant, EF Core ném lỗi DB unhandled `23505`. | `CreateProduct`, `CreateVariant`, `UpdateVariant` kiểm tra trùng barcode trong tenant, retry tối đa 10 lần khi tự sinh EAN-13, bọc transaction và bắt `DbUpdateException` trên `uq_skus_3` trả `409 Conflict`. Cho phép cùng barcode nếu khác tenant. | `Postgres_SkuBarcode_UniqueConstraint_CreateUpdateAndConcurrency_ReturnsControlled409`<br>`CreateProduct_DuplicateBarcodeInRequest_ShouldReturnConflict409` | **ĐÃ KHẮC PHỤC** |
+| **9** | **Cập nhật Category đồng thời tạo vòng lặp chu trình (A.parent=B và B.parent=A cùng 200)** | Khi 2 request đồng thời gửi cập nhật Category A (ParentId=B) và Category B (ParentId=A), cả hai cùng kiểm tra cây cũ trước khi ghi nên đều trả 200, lưu dữ liệu $A \rightarrow B \rightarrow A$ tạo chu trình, làm hỏng cấu trúc cây danh mục. | Bọc `UpdateCategory` trong Database Transaction và lấy PostgreSQL Advisory Lock theo Tenant (`pg_advisory_xact_lock(hashtextextended(tenantId \|\| '/category_tree', 0))`). Khóa lấy trước khi đọc/kiểm tra và giữ đến khi commit. Sau khi nhận khóa, xóa sạch ChangeTracker (`_context.ChangeTracker.Clear()`) và đọc lại danh mục tươi mới từ PostgreSQL. Duyệt tổ tiên (`Ancestor Traversal`) phát hiện chu trình nhiều tầng, self-parent, parent khác tenant. Trả về `400 Bad Request` rõ ràng, rollback sạch sẽ, không lưu thay đổi dở dang. Bổ sung tập `visited` trong `MapToResponse` phòng vệ chống đệ quy vô hạn. | `Postgres_CategoryTree_ConcurrentUpdates_MustPreventCycles_AndKeepTreeValid`<br>`Postgres_UpdateCategory_WithNonExistentParentId_ShouldReturnBadRequest_AndNot500` | **ĐÃ KHẮC PHỤC** |
 
 ---
 
-## 3. CÁC NGUYÊN TẮC KỸ THUẬT & HỢP ĐỒNG GIAO TIẾP VỚI BACKEND 1
+## 2. BẢNG ĐỐI CHIẾU CHI TIẾT: YÊU CẦU (BE2-01 $\rightarrow$ BE2-09) $\rightarrow$ CODE $\rightarrow$ TEST THỰC TẾ
 
-Theo đúng tài liệu bàn giao [`docs/BACKEND_1_HANDOVER_TO_NHUT.md`](../BACKEND_1_HANDOVER_TO_NHUT.md) của Backend 1, Backend 2 đã áp dụng triệt để các quy chuẩn kỹ thuật sau:
+Bảng dưới đây đối chiếu đầy đủ từng tiêu chí nghiệm thu từ tài liệu phân công [`docs/SPRINT_2_BACKEND_2.md`](../SPRINT_2_BACKEND_2.md) với các file/lớp triển khai và test tự động tương ứng:
 
-### 3.1. Tuân thủ Composite Primary Key `(TenantId, Id)`
-Khi truy vấn các thực thể đa người thuê (`Product`, `Warehouse`, `Branch`, `Category`, `Supplier`):
-- **Tuyệt đối không dùng** `FindAsync(id)` 1 tham số vì sẽ gây lỗi thiếu key.
-- **Luôn sử dụng LINQ với `FirstOrDefaultAsync`:**
-  ```csharp
-  // Chuẩn mực: Tự động kết hợp Global Query Filter theo CurrentTenantId
-  var warehouse = await _context.Warehouses.FirstOrDefaultAsync(w => w.Id == id);
-  var branch = await _context.Branches.FirstOrDefaultAsync(b => b.Id == request.BranchId);
-  ```
-
-### 3.2. Sử dụng Privileged Scope an toàn (`OpenPrivilegedScope()`)
-Đối với các thao tác nội bộ chưa có JWT (Đăng ký Cửa hàng mới, Đăng nhập lưu Refresh Token):
-```csharp
-using var privilegedScope = _context.OpenPrivilegedScope();
-_context.Tenants.Add(tenant);
-_context.Users.Add(user);
-await _context.SaveChangesAsync();
-```
-Cơ chế này giúp `AppDbContext` cho phép ghi dữ liệu hợp lệ mà không bị văng lỗi `SecurityException` do thiếu JWT token.
-
-### 3.3. Tách biệt rạch ròi trách nhiệm giữa 2 Backend
-- **Backend 1 (Khoa):** Quản lý DbContext, Schema v0.5 29 bảng, Migration Baseline, Trigger bảo vệ sổ cái `inventory_transactions`, cơ chế tính giá vốn WAC và luồng nhập kho nguyên tử.
-- **Backend 2 (Nhựt):** Quản lý toàn bộ API nghiệp vụ (Auth, Catalog, POS Search, Branches, Warehouses, Suppliers), bộ DTOs và FluentValidation phục vụ kết nối trực tiếp với 2 ứng dụng Frontend (Admin Dashboard và POS PWA).
+| Mã việc | Nhóm việc | Nội dung hoàn thiện chi tiết | File / Lớp Triển khai | Bài Test Chứng minh (Passed 100%) | Trạng thái |
+| :---: | :--- | :--- | :--- | :--- | :---: |
+| **BE2-01** | **Đăng ký cửa hàng** | - Tạo đồng thời `Tenant` và tài khoản `Owner` ban đầu.<br>- **Chuẩn hóa số điện thoại E.164 (`PhoneHelper`):** Chuẩn hóa `"090 123 4567"` $\rightarrow$ `"+84901234567"`, từ chối ký tự sai (`400 Bad Request`), bảo vệ check constraint `ck_users_phone_normalized`.<br>- Quét trùng Email và SĐT toàn cục qua `.IgnoreQueryFilters()`.<br>- Bọc trong Transaction ACID và `OpenPrivilegedScope()`.<br>- Bắt ngoại lệ DB constraint chuyển thành 400/409 rõ ràng, rollback 100% nếu lỗi. | - [`AuthController.cs`](../../src/backend/src/OISM.WebApi/Controllers/AuthController.cs)<br>- [`RegisterTenantValidator.cs`](../../src/backend/src/OISM.Application/Features/Auth/RegisterTenant/RegisterTenantValidator.cs)<br>- [`PhoneHelper.cs`](../../src/backend/src/OISM.Application/Common/Helpers/PhoneHelper.cs) | - `Postgres_Auth_RegisterTenant_PhoneNumber_NormalizationAndValidation_ShouldWorkWithout500`<br>- `TC_AUTH_01_RegisterTenant_ShouldSucceed_AndAllowLogin`<br>- `RegisterTenant_ShouldReturnConflict_WhenEmailAlreadyExists`<br>- `RegisterTenantValidator_PhoneNumber_Tests` (23 tests) | **HOÀN TẤT (100%)** |
+| **BE2-02** | **Xác thực người dùng & Token Rotation** | - Cấp cặp JWT Access Token (hạn 60p) và Refresh Token (hạn 7 ngày).<br>- Băm mật khẩu BCrypt.<br>- **Token Rotation nguyên tử trên PostgreSQL** (`FOR UPDATE` row-lock): token cũ chỉ dùng được 1 lần; chặn đứng race condition đồng thời.<br>- Chặn đăng nhập và refresh khi User hoặc Tenant bị khóa (`401`).<br>- Endpoint thu hồi `/api/auth/logout` và hồ sơ cá nhân `/api/auth/me`. | - [`AuthController.cs`](../../src/backend/src/OISM.WebApi/Controllers/AuthController.cs)<br>- [`JwtTokenService.cs`](../../src/backend/src/OISM.Infrastructure/Services/JwtTokenService.cs)<br>- [`LoginValidator.cs`](../../src/backend/src/OISM.Application/Features/Auth/Login/LoginValidator.cs) | - `Postgres_RefreshToken_WhenTenantIsLocked_ShouldReturnUnauthorized`<br>- `Postgres_ConcurrentRefreshToken_ShouldRotateAtomically_OnlyOneSucceeds`<br>- `TC_AUTH_01_RegisterTenant_ShouldSucceed_AndAllowLogin`<br>- `Login_ShouldReturnUnauthorized_WhenPasswordIsWrong`<br>- `RefreshToken_ShouldRotateToken_WhenValid` | **HOÀN TẤT (100%)** |
+| **BE2-03** | **Phân quyền RBAC** | - Cấu hình 3 vai trò: `Owner`, `Staff`, `Cashier`.<br>- Gắn nhãn `[Authorize(Roles = "...")]` trên các endpoint nghiệp vụ.<br>- Thu ngân (`Cashier`) gọi nghiệp vụ quản trị chi nhánh, tạo kho, sửa kho, hoặc nhập kho bị chặn với mã `403 Forbidden`. | - [`BranchController.cs`](../../src/backend/src/OISM.WebApi/Controllers/BranchController.cs)<br>- [`WarehousesController.cs`](../../src/backend/src/OISM.WebApi/Controllers/WarehousesController.cs)<br>- [`ProductsController.cs`](../../src/backend/src/OISM.WebApi/Controllers/ProductsController.cs) | - `Postgres_BranchAndWarehouse_Update_AndRbacCashierForbidden`<br>- `TC_AUTH_02_CashierRole_ShouldBeForbidden_WhenAccessingOwnerEndpoints`<br>- `PostgresTenantIsolationTests` | **HOÀN TẤT (100%)** |
+| **BE2-04** | **Danh mục & Thương hiệu** | - CRUD Category dạng cây phân cấp cha - con nhiều cấp.<br>- **Bảo vệ cây bằng PostgreSQL Advisory Lock theo Tenant** (`pg_advisory_xact_lock(hashtextextended(tenantId \|\| '/category_tree', 0))`) bọc trong Transaction: chặn đứng race condition khi cập nhật đối ứng đồng thời (A.parent=B và B.parent=A); xóa sạch ChangeTracker (`Clear()`) đọc dữ liệu mới nhất.<br>- **Kiểm tra ParentId tồn tại & cùng Tenant:** từ chối `400 Bad Request` nếu không hợp lệ.<br>- **Duyệt ngược tổ tiên (`Ancestor Traversal`) chống đệ quy lặp:** chặn đặt danh mục con/cháu làm cha của chính nó (`400 Bad Request`).<br>- CRUD Thương hiệu (`Brand`) độc lập theo Tenant, có validator. | - [`CategoriesController.cs`](../../src/backend/src/OISM.WebApi/Controllers/CategoriesController.cs)<br>- [`BrandsController.cs`](../../src/backend/src/OISM.WebApi/Controllers/BrandsController.cs)<br>- [`CategoryDtos.cs`](../../src/backend/src/OISM.Application/Features/Catalog/Categories/CategoryDtos.cs)<br>- [`BrandDtos.cs`](../../src/backend/src/OISM.Application/Features/Catalog/Brands/BrandDtos.cs) | - `Postgres_CategoryTree_ConcurrentUpdates_MustPreventCycles_AndKeepTreeValid`<br>- `Postgres_UpdateCategory_WithNonExistentParentId_ShouldReturnBadRequest_AndNot500`<br>- `Category_ShouldRejectCyclicHierarchy`<br>- `UpdateCategoryAndBrandValidator_ShouldFail_WhenNameIsEmpty`<br>- `CatalogAndProductIntegrationTests` | **HOÀN TẤT (100%)** |
+| **BE2-05** | **Sản phẩm, Biến thể SKU & Thuộc tính động** | - CRUD Sản phẩm và Biến thể SKU (`ProductVariant`) đầy đủ.<br>- **Bổ sung API cập nhật biến thể:** `PUT /api/products/{productId}/variants/{variantId}`.<br>- **Bổ sung vô hiệu hóa an toàn:** `DELETE /api/products/{productId}/variants/{variantId}` (Soft delete `IsActive = false`, bảo toàn dữ liệu lịch sử kho và phiếu nhập).<br>- **Thuộc tính tùy ý:** Nhận/lưu/trả dưới dạng JSON object qua cột `attributes jsonb` (thỏa mãn constraint `ck_skus_attributes_object`), bảo toàn 100% kiểu Object, Array, Number, Bool, String và null lồng nhau.<br>- **Chặn trùng tổ hợp thuộc tính:** Hàm `ResolveAttributes` hợp nhất dữ liệu cũ, JSON attributes và explicit fields, tính chữ ký canonical và serialize thống nhất 100%, trả về `409 Conflict`. Khóa bi quan dòng Product chống tranh chấp đồng thời.<br>- **Unique SKU & Barcode theo Tenant:** Cùng tenant trùng SKU hoặc trùng Barcode trả `409 Conflict` (bảo vệ `uq_skus_3`); retry 10 lần tự sinh EAN-13; khác tenant được phép trùng barcode. | - [`ProductsController.cs`](../../src/backend/src/OISM.WebApi/Controllers/ProductsController.cs)<br>- [`ProductDtos.cs`](../../src/backend/src/OISM.Application/Features/Catalog/Products/ProductDtos.cs)<br>- [`SkuAttributeHelper.cs`](../../src/backend/src/OISM.Application/Common/Helpers/SkuAttributeHelper.cs)<br>- [`ProductVariant.cs`](../../src/backend/src/OISM.Domain/Entities/ProductVariant.cs) | - `Postgres_SkuBarcode_UniqueConstraint_CreateUpdateAndConcurrency_ReturnsControlled409`<br>- `Postgres_SkuAttributes_PreserveNestedNulls_InObjectsAndArrays_AcrossCreateUpdateAndPos`<br>- `Postgres_SkuAttributes_PreserveJsonTypes_AcrossCreateUpdateAndDuplicateCheck`<br>- `Postgres_UpdateVariant_AttributeCombinationConflict_ShouldReturn409_AndNotCorruptData`<br>- `Postgres_ProductVariants_DuplicateAttributeCombination_ShouldBeRejectedWith409`<br>- `Postgres_SkuCrud_UpdatePrices_AndSafeSoftDelete_ShouldWorkProperly` | **HOÀN TẤT (100%)** |
+| **BE2-06** | **Quản lý Giá bán SKU** | - **Bổ sung API cập nhật giá sỉ/lẻ:** `PUT /api/products/{productId}/variants/{variantId}/prices`.<br>- Validation chặn giá bán số âm (`RetailPrice >= 0`, `WholesalePrice >= 0`).<br>- Tách biệt hoàn toàn giá bán với Giá vốn bình quân gia quyền (WAC/COGS do Backend 1 tính toán khi xác nhận nhập kho). Sửa giá bán không làm ảnh hưởng giá vốn. | - [`ProductsController.cs`](../../src/backend/src/OISM.WebApi/Controllers/ProductsController.cs)<br>- [`ProductDtos.cs`](../../src/backend/src/OISM.Application/Features/Catalog/Products/ProductDtos.cs) | - `Postgres_SkuCrud_UpdatePrices_AndSafeSoftDelete_ShouldWorkProperly`<br>- `UpdateVariantPricesValidator_ShouldValidateNonNegativePrices`<br>- `CreateVariantValidator_ShouldFail_WhenRetailPriceIsNegative` | **HOÀN TẤT (100%)** |
+| **BE2-07** | **Barcode & Tìm kiếm POS (Tích hợp Tồn kho)** | - Thuật toán sinh và kiểm tra mã vạch quốc tế EAN-13 (check digit Modulo 10).<br>- API tìm kiếm siêu tốc tại quầy POS (`GET /api/pos/search?query=...&branchId=...`).<br>- API Barcode Scanner (`GET /api/pos/barcode/{code}?branchId=...`).<br>- **Tích hợp Tồn khả dụng theo Chi nhánh:** Truy vấn từ `inventory_balances` của Backend 1 và tính toán theo công thức chuẩn: `Available = Math.Max(0, OnHand - Reserved)`. | - [`PosCatalogController.cs`](../../src/backend/src/OISM.WebApi/Controllers/PosCatalogController.cs)<br>- [`PosSearchDtos.cs`](../../src/backend/src/OISM.Application/Features/Pos/PosSearchDtos.cs)<br>- [`BarcodeHelper.cs`](../../src/backend/src/OISM.Application/Common/Helpers/BarcodeHelper.cs) | - `Postgres_PosCatalog_SearchAndBarcode_WithBranchStock_ShouldReturnAccurateAvailable`<br>- `BarcodeHelper_ShouldGenerate_ValidEan13`<br>- `BarcodeHelper_ShouldValidate_KnownEan13Barcode`<br>- `BarcodeHelper_ShouldReject_WrongCheckDigit`<br>- `PosCatalog_SearchAndBarcode_ShouldReturnExactProduct` | **HOÀN TẤT (100%)** |
+| **BE2-08** | **Chi nhánh, Kho hàng & Nhà cung cấp** | - **Chi nhánh:** Lấy danh sách, tra cứu theo ID (`GET /api/branches/{id}`), tạo mới, bật/tắt hoạt động và **sửa thông tin** (`PUT /api/branches/{id}`).<br>- **Kho hàng:** Lấy danh sách (hỗ trợ lọc theo `branchId`), tra cứu theo ID (`GET /api/warehouses/{id}`), tạo mới, bật/tắt hoạt động và **sửa thông tin** (`PUT /api/warehouses/{id}`). **Chặn đổi chi nhánh của kho có lịch sử chứng từ/tồn/sổ cái (409 Conflict)**, bảo vệ quan hệ `fk_goods_receipts_warehouse_branch`.<br>- **Nhà cung cấp:** Tra cứu danh sách, chi tiết theo ID (`GET /api/suppliers/{id}`), tạo mới phục vụ luồng nhập kho. | - [`BranchController.cs`](../../src/backend/src/OISM.WebApi/Controllers/BranchController.cs)<br>- [`WarehousesController.cs`](../../src/backend/src/OISM.WebApi/Controllers/WarehousesController.cs)<br>- [`SuppliersController.cs`](../../src/backend/src/OISM.WebApi/Controllers/SuppliersController.cs)<br>- [`BranchDtos.cs`](../../src/backend/src/OISM.Application/Features/Branches/BranchDtos.cs)<br>- [`WarehouseDtos.cs`](../../src/backend/src/OISM.Application/Features/Warehouses/WarehouseDtos.cs) | - `Postgres_Warehouse_ChangeBranch_WhenHasHistory_ReturnsControlled409_AndCleanWarehouseSucceeds`<br>- `Postgres_BranchAndWarehouse_Update_AndRbacCashierForbidden`<br>- `Branch_CreateAndToggleStatus_ShouldWork_ForOwner`<br>- `Warehouse_Create_GetByBranch_AndToggleStatus_ShouldWork_ForOwnerAndStaff`<br>- `Supplier_CreateAndSearch_ShouldWorkProperly`<br>- `UpdateBranchAndWarehouseValidator_ShouldValidateCorrectly` | **HOÀN TẤT (100%)** |
+| **BE2-09** | **Validation, Kiểm thử Toàn diện & Hợp đồng API** | - Cấu hình `FluentValidation` đồng bộ cho toàn bộ Create và Update DTOs.<br>- Xử lý chuẩn xác các tình huống null, rỗng, độ dài chuỗi, số âm, trùng dữ liệu và vi phạm ràng buộc.<br>- Bộ kiểm thử **188/188 Tests Passed 100%** trên PostgreSQL thật (99 Unit Tests + 89 Integration Tests).<br>- Hoàn thiện tài liệu Swagger UI và hợp đồng API bàn giao cho Frontend/Tester. | - Toàn bộ các thư mục DTOs và Controllers<br>- Thư mục kiểm thử `tests/OISM.UnitTests/` và `tests/OISM.IntegrationTests/`<br>- [`Program.cs`](../../src/backend/src/OISM.WebApi/Program.cs) | - Toàn bộ test suite: 99 Unit Tests + 89 Integration Tests chạy xanh 100%.<br>- Biên dịch Release: 0 Warning, 0 Error. | **HOÀN TẤT (100%)** |
 
 ---
 
-## 4. KẾT QUẢ KIỂM THỬ TỰ ĐỘNG CHI TIẾT (DEV SELF-TEST)
+## 3. DANH MỤC API SWAGGER BÀN GIAO CHO FRONTEND (ADMIN & POS)
 
-### 4.1. Kết quả Biên dịch Release
-- **Lệnh thực hiện:** `dotnet build src/backend/OISM.sln -c Release`
-- **Kết quả:** **0 Warning(s), 0 Error(s)**.
-
-### 4.2. Kết quả Chạy Tests tự động
-- **Lệnh thực hiện:** `dotnet test src/backend/OISM.sln`
-- **Tổng số test Backend 2 quản lý:** **27/27 bài test Passed (Xanh 100%)**
-
-#### Danh sách 15 Unit Tests (`OISM.UnitTests`):
-1. `BarcodeHelper_ShouldGenerate_ValidEan13` - Thuật toán tự sinh mã vạch 13 chữ số hợp lệ.
-2. `BarcodeHelper_ShouldValidate_KnownEan13Barcode` - Kiểm tra mã chuẩn EAN-13 Việt Nam (đầu số 893).
-3. `BarcodeHelper_ShouldReject_WrongCheckDigit` - Chặn mã vạch sai số kiểm tra Modulo 10.
-4. `CreateVariantValidator_ShouldPass_WhenInputIsValid` - DTO tạo SKU hợp lệ.
-5. `CreateVariantValidator_ShouldFail_WhenRetailPriceIsNegative` - Chặn giá bán số âm.
-6. `CreateVariantValidator_ShouldFail_WhenSkuHasSpecialCharacters` - Chặn mã SKU chứa ký tự lạ.
-7. `CreateWarehouseValidator_ShouldPass_WhenInputIsValid` - **[MỚI]** DTO tạo kho hàng hợp lệ.
-8. `CreateWarehouseValidator_ShouldFail_WhenNameOrBranchIdEmpty` - **[MỚI]** Chặn thiếu tên kho hoặc thiếu BranchId.
-9. `LoginValidator_ShouldPass_WhenValidEmailAndPassword` - DTO đăng nhập hợp lệ.
-10. `LoginValidator_ShouldFail_WhenPasswordIsEmpty` - Chặn đăng nhập bỏ trống mật khẩu.
-11. `RegisterTenantValidator_ShouldPass_WhenInputIsValid` - DTO đăng ký shop hợp lệ.
-12. `RegisterTenantValidator_ShouldFail_WhenEmailIsInvalid` (`test@`) - Chặn email sai định dạng.
-13. `RegisterTenantValidator_ShouldFail_WhenEmailIsInvalid` (`not-an-email`) - Chặn email không có domain.
-14. `RegisterTenantValidator_ShouldFail_WhenEmailIsInvalid` (rỗng) - Chặn email rỗng.
-15. `RegisterTenantValidator_ShouldFail_WhenPasswordTooShort` - Chặn mật khẩu dưới 6 ký tự.
-
-#### Danh sách 12 Integration Tests (`OISM.IntegrationTests`):
-1. `GetRoot_ReturnsOkWithStatusRunning` - Health check endpoint `/`.
-2. `TC_AUTH_01_RegisterTenant_ShouldSucceed_AndAllowLogin` - Đăng ký shop -> Đăng nhập cấp JWT -> Gọi `/api/auth/me`.
-3. `RegisterTenant_ShouldReturnConflict_WhenEmailAlreadyExists` - Chặn trùng Email toàn hệ thống (409 Conflict).
-4. `Login_ShouldReturnUnauthorized_WhenPasswordIsWrong` - Đăng nhập sai mật khẩu (401 Unauthorized).
-5. `RefreshToken_ShouldRotateToken_WhenValid` - Cơ chế Token Rotation cấp cặp token mới an toàn.
-6. `TC_PROD_01_DuplicateSKU_ShouldReturnConflict_InSameTenant` - Chặn tạo trùng SKU trong cùng Tenant (409 Conflict).
-7. `Category_ShouldRejectCyclicHierarchy` - Thuật toán duyệt ngược tổ tiên chặn vòng lặp cha - con (400 Bad Request).
-8. `PosCatalog_SearchAndBarcode_ShouldReturnExactProduct` - Tìm kiếm POS siêu tốc theo từ khóa và quét Barcode Scanner.
-9. `Branch_CreateAndToggleStatus_ShouldWork_ForOwner` - Tạo chi nhánh và bật/tắt hoạt động (Owner).
-10. `TC_AUTH_02_CashierRole_ShouldBeForbidden_WhenAccessingOwnerEndpoints` - Phân quyền RBAC: Thu ngân gọi endpoint quản trị bị chặn (403 Forbidden).
-11. `Supplier_CreateAndSearch_ShouldWorkProperly` - Tạo nhà cung cấp và tra cứu danh sách.
-12. `Warehouse_Create_GetByBranch_AndToggleStatus_ShouldWork_ForOwnerAndStaff` - **[MỚI]** Tạo kho hàng theo Branch, tra cứu theo `branchId` và bật/tắt hoạt động kho.
-
----
-
-## 5. DANH MỤC API SWAGGER BÀN GIAO CHO FRONTEND (ADMIN & POS)
-
-Toàn bộ các endpoint dưới đây đã được cấu hình hoàn chỉnh trong tài liệu Swagger UI tại đường dẫn:  
+Toàn bộ các endpoint dưới đây đã được cấu hình và khả dụng tại Swagger UI:  
 👉 **`http://localhost:5000/swagger`**
 
-| Nhóm API | Phương thức | Endpoint | Quyền hạn (Role) | Mô tả chức năng bàn giao |
+| Nhóm API | Phương thức | Endpoint | Quyền hạn (Role) | Mô tả nghiệp vụ bàn giao |
 | :--- | :---: | :--- | :---: | :--- |
 | **Xác thực** | `POST` | `/api/auth/register-tenant` | Public | Đăng ký cửa hàng mới và tài khoản Chủ shop ban đầu. |
-| | `POST` | `/api/auth/login` | Public | Đăng nhập hệ thống, trả về JWT Access Token & Refresh Token. |
-| | `POST` | `/api/auth/refresh-token` | Public | Làm mới Access Token thông qua Refresh Token (Token Rotation). |
-| | `POST` | `/api/auth/logout` | Public | Đăng xuất và thu hồi hiệu lực của Refresh Token. |
-| | `GET` | `/api/auth/me` | Authenticated | Lấy thông tin cá nhân của người dùng đang đăng nhập. |
+| | `POST` | `/api/auth/login` | Public | Đăng nhập hệ thống, cấp Access Token & Refresh Token (chặn nếu tenant bị khóa). |
+| | `POST` | `/api/auth/refresh-token` | Public | Làm mới Access Token (Token Rotation nguyên tử, chống race condition, kiểm tra tenant khóa). |
+| | `POST` | `/api/auth/logout` | Public | Đăng xuất và thu hồi Refresh Token. |
+| | `GET` | `/api/auth/me` | Authenticated | Lấy hồ sơ tài khoản và danh sách quyền của phiên đăng nhập. |
 | **Danh mục** | `GET` | `/api/categories` | Authenticated | Lấy danh sách cây danh mục phân cấp cha - con. |
-| | `POST` | `/api/categories` | Owner, Staff | Tạo danh mục mới (hỗ trợ chọn danh mục cha). |
-| | `PUT` | `/api/categories/{id}` | Owner, Staff | Cập nhật danh mục (tự động chặn vòng lặp cha - con). |
+| | `POST` | `/api/categories` | Owner, Staff | Tạo danh mục mới (hỗ trợ chọn danh mục cha cùng tenant). |
+| | `PUT` | `/api/categories/{id}` | Owner, Staff | Cập nhật danh mục (kiểm tra cha tồn tại, chặn đệ quy lặp trả 400). |
 | | `DELETE` | `/api/categories/{id}` | Owner | Vô hiệu hóa danh mục sản phẩm. |
 | **Thương hiệu** | `GET` | `/api/brands` | Authenticated | Lấy danh sách thương hiệu sản phẩm. |
 | | `POST` | `/api/brands` | Owner, Staff | Tạo thương hiệu mới. |
 | | `PUT` | `/api/brands/{id}` | Owner, Staff | Cập nhật thông tin thương hiệu. |
 | | `DELETE` | `/api/brands/{id}` | Owner | Vô hiệu hóa thương hiệu. |
-| **Sản phẩm & SKU** | `GET` | `/api/products` | Authenticated | Danh sách sản phẩm (hỗ trợ lọc theo Search, Category, Brand). |
-| | `GET` | `/api/products/{id}` | Authenticated | Chi tiết sản phẩm kèm danh sách biến thể SKU và giá bán. |
-| | `POST` | `/api/products` | Owner, Staff | Tạo sản phẩm và danh sách SKU ban đầu (chặn trùng SKU trả 409). |
-| | `POST` | `/api/products/{id}/variants` | Owner, Staff | Thêm biến thể SKU mới cho sản phẩm đã có. |
-| | `PUT` | `/api/products/{id}` | Owner, Staff | Cập nhật thông tin chung của sản phẩm. |
-| | `DELETE` | `/api/products/{id}` | Owner | Vô hiệu hóa sản phẩm. |
-| **Quầy POS** | `GET` | `/api/pos/search` | Authenticated | Tìm kiếm siêu tốc sản phẩm theo Tên/SKU/Barcode (< 200ms). |
-| | `GET` | `/api/pos/barcode/{code}` | Authenticated | Barcode Scanner quét tìm chính xác 1 biến thể SKU. |
+| **Sản phẩm & SKU** | `GET` | `/api/products` | Authenticated | Danh sách sản phẩm (hỗ trợ lọc search, categoryId, brandId) kèm biến thể và thuộc tính JSON. |
+| | `GET` | `/api/products/{id}` | Authenticated | Chi tiết sản phẩm kèm danh sách biến thể SKU và bảng giá. |
+| | `POST` | `/api/products` | Owner, Staff | Tạo sản phẩm và các SKU ban đầu (chặn trùng SKU và trùng tổ hợp thuộc tính trả 409). |
+| | `PUT` | `/api/products/{id}` | Owner, Staff | Cập nhật thông tin chung của sản phẩm (kiểm tra category/brand cùng tenant). |
+| | `DELETE` | `/api/products/{id}` | Owner | Vô hiệu hóa sản phẩm và toàn bộ biến thể. |
+| | `POST` | `/api/products/{id}/variants` | Owner, Staff | Thêm biến thể SKU mới (chặn trùng SKU và trùng tổ hợp thuộc tính trả 409). |
+| | `PUT` | `/api/products/{productId}/variants/{variantId}` | Owner, Staff | **[MỚI]** Cập nhật biến thể SKU (thuộc tính JSON, barcode, giá, trạng thái; chặn trùng tổ hợp). |
+| | `PUT` | `/api/products/{productId}/variants/{variantId}/prices` | Owner, Staff | **[MỚI]** Cập nhật giá bán sỉ/lẻ biến thể SKU (tách biệt WAC, chặn số âm). |
+| | `DELETE` | `/api/products/{productId}/variants/{variantId}` | Owner, Staff | **[MỚI]** Vô hiệu hóa biến thể SKU an toàn (Soft delete `IsActive = false`). |
+| | `PUT` | `/api/products/{productId}/variants/{variantId}/toggle-status` | Owner, Staff | **[MỚI]** Bật/Tắt trạng thái hoạt động của biến thể SKU. |
+| **Quầy POS** | `GET` | `/api/pos/search` | Authenticated | **[MỚI]** Tìm kiếm siêu tốc theo Tên/SKU/Barcode (< 200ms), hỗ trợ `branchId` trả tồn khả dụng. |
+| | `GET` | `/api/pos/barcode/{code}` | Authenticated | **[MỚI]** Quét mã vạch Barcode Scanner, hỗ trợ `branchId` trả tồn khả dụng. |
 | **Chi nhánh** | `GET` | `/api/branches` | Authenticated | Lấy danh sách chi nhánh cửa hàng. |
+| | `GET` | `/api/branches/{id}` | Authenticated | **[MỚI]** Lấy thông tin chi tiết một chi nhánh theo Id. |
 | | `POST` | `/api/branches` | Owner | Tạo chi nhánh mới. |
+| | `PUT` | `/api/branches/{id}` | Owner | **[MỚI]** Cập nhật thông tin chi nhánh (Tên, Địa chỉ, SĐT). |
 | | `PUT` | `/api/branches/{id}/toggle-status` | Owner | Bật/Tắt trạng thái hoạt động của chi nhánh. |
-| **Kho hàng [MỚI]** | `GET` | `/api/warehouses` | Authenticated | Lấy danh sách kho hàng (hỗ trợ lọc theo `branchId`). |
+| **Kho hàng** | `GET` | `/api/warehouses` | Authenticated | Lấy danh sách kho hàng (hỗ trợ lọc theo `branchId`). |
+| | `GET` | `/api/warehouses/{id}` | Authenticated | **[MỚI]** Lấy thông tin chi tiết một kho hàng theo Id. |
 | | `POST` | `/api/warehouses` | Owner, Staff | Tạo kho hàng mới gắn với chi nhánh. |
+| | `PUT` | `/api/warehouses/{id}` | Owner, Staff | **[MỚI]** Cập nhật thông tin kho hàng (kiểm tra `BranchId` cùng tenant). |
 | | `PUT` | `/api/warehouses/{id}/toggle-status` | Owner, Staff | Bật/Tắt trạng thái hoạt động của kho hàng. |
 | **Nhà cung cấp** | `GET` | `/api/suppliers` | Authenticated | Lấy danh sách nhà cung cấp (hỗ trợ tìm kiếm theo tên, mã, sđt). |
+| | `GET` | `/api/suppliers/{id}` | Authenticated | **[MỚI]** Lấy thông tin chi tiết nhà cung cấp theo Id. |
 | | `POST` | `/api/suppliers` | Owner, Staff | Tạo mới nhà cung cấp hàng hóa. |
 
 ---
 
-## 6. KẾT LUẬN & ĐẠT TIÊU CHÍ DEFINITION OF DONE (DoD) SPRINT 2
+## 4. HỢP ĐỒNG API & DỮ LIỆU MẪU DÀNH CHO FRONTEND
 
-Với việc bổ sung hoàn chỉnh `WarehousesController`, củng cố toàn bộ bộ testsuite 27 bài kiểm thử xanh 100%, và xuất bản tài liệu báo cáo nghiệm thu chi tiết này, **phần việc của Thành viên 2 (Backend 2) chính thức đạt 100% tiêu chí Definition of Done (DoD) của Sprint 2**.
+### 4.1. Cập nhật Biến thể SKU (`PUT /api/products/{productId}/variants/{variantId}`)
+- **Header:** `Authorization: Bearer <token>`
+- **Request Body mẫu (Hỗ trợ Object, Array, Number, Boolean, String và Null lồng nhau):**
+```json
+{
+  "sku": "AO-POLO-DEN-XL",
+  "variantName": "Áo Polo Đen Size XL",
+  "barcode": "8938501234567",
+  "retailPrice": 290000,
+  "wholesalePrice": 210000,
+  "color": "Đen",
+  "size": "XL",
+  "attributes": {
+    "material": "CVC Cotton",
+    "collar": "Bo dệt",
+    "season": "Summer 2026",
+    "count": 10,
+    "waterproof": false,
+    "positions": ["S", null, "M"],
+    "dimensions": {
+      "width": 10,
+      "height": 20,
+      "depth": null
+    }
+  },
+  "isActive": true
+}
+```
+- **Response 200 OK mẫu (Bảo toàn 100% kiểu JSON và null lồng nhau):**
+```json
+{
+  "id": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "productId": "4fa85f64-5717-4562-b3fc-2c963f66afa7",
+  "sku": "AO-POLO-DEN-XL",
+  "variantName": "Áo Polo Đen Size XL",
+  "barcode": "8938501234567",
+  "retailPrice": 290000,
+  "wholesalePrice": 210000,
+  "costPrice": 0,
+  "color": "Đen",
+  "size": "XL",
+  "attributes": {
+    "color": "Đen",
+    "size": "XL",
+    "material": "CVC Cotton",
+    "collar": "Bo dệt",
+    "season": "Summer 2026",
+    "count": 10,
+    "waterproof": false,
+    "positions": ["S", null, "M"],
+    "dimensions": {
+      "width": 10,
+      "height": 20,
+      "depth": null
+    }
+  },
+  "isActive": true
+}
+```
 
-Mã nguồn đã sẵn sàng gộp vào nhánh chính `develop` để toàn đội hoàn tất nghiệm thu Sprint 2 và tiến sang các tính năng nâng cao của Sprint 3!
+### 4.2. Cập nhật Bảng giá SKU (`PUT /api/products/{productId}/variants/{variantId}/prices`)
+- **Header:** `Authorization: Bearer <token>` (Roles: Owner, Staff)
+- **Request Body mẫu:**
+```json
+{
+  "retailPrice": 320000,
+  "wholesalePrice": 240000
+}
+```
+- **Response 200 OK:** Trả về đối tượng `ProductVariantResponse` với giá mới cập nhật.
+
+### 4.3. Quét Barcode & Tìm kiếm POS kèm Tồn kho (`GET /api/pos/search?query=polo&branchId=...`)
+- **Response 200 OK mẫu:**
+```json
+[
+  {
+    "variantId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "productId": "4fa85f64-5717-4562-b3fc-2c963f66afa7",
+    "sku": "AO-POLO-DEN-XL",
+    "productName": "Áo Polo Nam",
+    "variantName": "Áo Polo Đen Size XL",
+    "barcode": "8938501234567",
+    "retailPrice": 290000,
+    "color": "Đen",
+    "size": "XL",
+    "attributes": {
+      "material": "CVC Cotton",
+      "positions": ["S", null, "M"],
+      "dimensions": {
+        "width": 10,
+        "depth": null
+      }
+    },
+    "onHand": 100.0,
+    "reserved": 25.0,
+    "available": 75.0
+  }
+]
+```
+
+### 4.4. Mã lỗi HTTP chuẩn mực
+- `400 Bad Request`: Dữ liệu đầu vào sai validation, danh mục cha không tồn tại hoặc vòng lặp quan hệ.
+- `401 Unauthorized`: Sai mật khẩu, token hết hạn, hoặc User/Tenant bị tạm ngưng/khóa.
+- `403 Forbidden`: Người dùng không có vai trò phù hợp (ví dụ: Cashier gọi API quản lý chi nhánh, kho hàng hoặc nhập kho).
+- `404 Not Found`: Không tìm thấy tài nguyên theo Id hoặc tài nguyên thuộc tenant khác.
+- `409 Conflict`: Trùng email toàn cục, trùng mã SKU trong cùng tenant, trùng tổ hợp thuộc tính SKU trong sản phẩm, hoặc đổi chi nhánh kho đã có lịch sử.
+
+---
+
+## 5. HƯỚNG DẪN CẤU HÌNH & CHẠY ỨNG DỤNG / KIỂM THỬ
+
+### 5.1. Khởi động môi trường PostgreSQL
+Dự án sử dụng PostgreSQL 16+ thật (khởi chạy qua Docker Compose):
+```powershell
+docker compose up -d postgres
+```
+
+### 5.2. Chạy ứng dụng Web API
+```powershell
+cd src/backend/src/OISM.WebApi
+dotnet run
+```
+Truy cập Swagger UI tại: `http://localhost:5000/swagger`
+
+### 5.3. Thực thi Bộ Kiểm thử Tự động
+```powershell
+# 1. Chạy toàn bộ 99 Unit Tests (Validate DTOs, PhoneHelper E.164, Barcode EAN-13, Thuộc tính động, Bảo toàn kiểu JSON & Null lồng nhau):
+dotnet test src/backend/tests/OISM.UnitTests/OISM.UnitTests.csproj
+
+# 2. Chạy bộ kiểm thử hồi quy Backend 2 trên PostgreSQL thật:
+dotnet test src/backend/tests/OISM.IntegrationTests/OISM.IntegrationTests.csproj --filter "FullyQualifiedName~PostgresBackend2RegressionTests"
+
+# 3. Chạy toàn bộ Solution (188 tests):
+dotnet test src/backend/OISM.sln
+```
+
+---
+
+## 6. BẰNG CHỨNG KIỂM THỬ THỰC TẾ (TEST RESULTS)
+
+| Phân hệ kiểm thử | Số bài kiểm thử | Trạng thái | Thời gian thực thi | Môi trường kiểm thử |
+| :--- | :---: | :---: | :---: | :--- |
+| **`OISM.UnitTests`** | **99 / 99** | **PASSED 100%** | 115 ms | .NET Core 8.0 x64 |
+| **`OISM.IntegrationTests`** | **89 / 89** | **PASSED 100%** | 3m 21s | PostgreSQL 16+ thật (`oisms_test`) |
+| **Tổng cộng toàn giải pháp** | **188 / 188** | **PASSED 100%** | 3m 22s | **0 Failed, 0 Skipped, 0 Warning, 0 Error** |
+
+> [!IMPORTANT]
+> **Phân định rõ phạm vi kiểm thử & Giới hạn kiểm chứng hiện tại:**
+> - Toàn bộ 188 bài test đạt 100% (99 Unit Tests + 89 Integration Tests) là các kiểm thử tự động tầng Backend Web API qua giao thức HTTP (`WebApplicationFactoryWithPostgres`) và trực tiếp trên cơ sở dữ liệu PostgreSQL thật (`oisms_test`).
+> - Kiểm thử Backend qua HTTP API **không thay thế** cho kiểm thử End-to-End (E2E) trực quan qua giao diện người dùng Frontend (UI).
+> - **Giới hạn kiểm chứng hiện tại:**
+>   1. **Chưa xác minh CI trên working tree hiện tại:** Toàn bộ quá trình kiểm thử, build và đo coverage được thực hiện và kiểm chứng thực tế tại local working tree trên môi trường máy phát triển; chưa chạy pipeline CI từ xa cho commit mới này.
+>   2. **Chưa xác minh E2E qua giao diện Frontend:** Cần đội ngũ Frontend và QA/Tester thực hiện nghiệm thu liên thông giữa màn hình giao diện người dùng và API Backend.
+
+---
+
+## 7. KẾT LUẬN & BÀN GIAO TIẾP THEO
+
+Toàn bộ các nhiệm vụ của **Thành viên 2 (Nhựt) từ BE2-01 đến BE2-09** đã được hoàn thiện triệt để:
+1. Toàn bộ lỗi review (Cập nhật Category đồng thời tạo vòng lặp, Tenant khóa refresh, Race condition token rotation, Update category thiếu parentId, Chặn trùng tổ hợp SKU, Đổi chi nhánh kho có lịch sử, Mất kiểu JSON và Loại bỏ null lồng nhau, Chuẩn hóa số điện thoại E.164 chống lỗi 500, SKU Barcode trùng chống lỗi 500) đã được giải quyết tận gốc và chứng minh qua bài kiểm thử PostgreSQL thật.
+2. Tất cả các chức năng còn thiếu (CRUD SKU, sửa giá sỉ/lẻ, thuộc tính JSON động bảo toàn kiểu và null, tồn khả dụng POS, sửa chi nhánh/kho) đã được triển khai và kiểm chứng đầy đủ.
+3. Hợp đồng API Swagger đã hoàn chỉnh, sẵn sàng để Frontend (Admin của Phúc Hữu và POS của Phương) kết nối trực tiếp trong Sprint 2 & 3.

@@ -118,14 +118,76 @@ public class ProductVariant : BaseEntity, IMustHaveTenant
     public Tenant? Tenant { get; set; }
     public Product? Product { get; set; }
 
+    public Dictionary<string, object> GetAttributes()
+    {
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(AttributesJson) && AttributesJson.Trim().StartsWith("{"))
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(AttributesJson);
+                if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object)
+                {
+                    var result = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var prop in doc.RootElement.EnumerateObject())
+                    {
+                        var val = ConvertElement(prop.Value);
+                        if (val != null)
+                        {
+                            result[prop.Name] = val;
+                        }
+                    }
+                    return result;
+                }
+            }
+        }
+        catch { }
+        return new Dictionary<string, object>();
+    }
+
+    private static object? ConvertElement(System.Text.Json.JsonElement element)
+    {
+        switch (element.ValueKind)
+        {
+            case System.Text.Json.JsonValueKind.Null:
+            case System.Text.Json.JsonValueKind.Undefined:
+                return null;
+            case System.Text.Json.JsonValueKind.String:
+                return element.GetString();
+            case System.Text.Json.JsonValueKind.Number:
+                return element.TryGetInt64(out var l) ? l : element.GetDecimal();
+            case System.Text.Json.JsonValueKind.True:
+                return true;
+            case System.Text.Json.JsonValueKind.False:
+                return false;
+            case System.Text.Json.JsonValueKind.Object:
+                var dict = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+                foreach (var prop in element.EnumerateObject())
+                {
+                    var v = ConvertElement(prop.Value);
+                    dict[prop.Name] = v!;
+                }
+                return dict;
+            case System.Text.Json.JsonValueKind.Array:
+                var list = new List<object>();
+                foreach (var item in element.EnumerateArray())
+                {
+                    var v = ConvertElement(item);
+                    list.Add(v!);
+                }
+                return list;
+            default:
+                return element.Clone();
+        }
+    }
+
     private string? GetAttribute(string key)
     {
         try
         {
             using var doc = System.Text.Json.JsonDocument.Parse(string.IsNullOrWhiteSpace(AttributesJson) ? "{}" : AttributesJson);
-            if (doc.RootElement.TryGetProperty(key, out var prop))
+            if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object && doc.RootElement.TryGetProperty(key, out var prop))
             {
-                return prop.GetString();
+                return prop.ValueKind == System.Text.Json.JsonValueKind.String ? prop.GetString() : prop.ToString();
             }
         }
         catch
@@ -137,12 +199,12 @@ public class ProductVariant : BaseEntity, IMustHaveTenant
 
     private void SetAttribute(string key, string? value)
     {
-        var dict = new Dictionary<string, string>();
+        var dict = new Dictionary<string, object>();
         try
         {
             if (!string.IsNullOrWhiteSpace(AttributesJson) && AttributesJson.Trim().StartsWith("{"))
             {
-                var parsed = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(AttributesJson);
+                var parsed = GetAttributes();
                 if (parsed != null) dict = parsed;
             }
         }

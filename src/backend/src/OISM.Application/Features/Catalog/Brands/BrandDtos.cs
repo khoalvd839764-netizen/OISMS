@@ -32,3 +32,14 @@ public class CreateBrandValidator : AbstractValidator<CreateBrandRequest>
             .MaximumLength(100).WithMessage("Tên thương hiệu không được vượt quá 100 ký tự.");
     }
 }
+
+public class UpdateBrandValidator : AbstractValidator<UpdateBrandRequest>
+{
+    public UpdateBrandValidator()
+    {
+        RuleFor(x => x.Name)
+            .NotEmpty().WithMessage("Tên thương hiệu không được để trống.")
+            .MaximumLength(100).WithMessage("Tên thương hiệu không được vượt quá 100 ký tự.");
+    }
+}
+

@@ -1,17 +1,127 @@
-# BÁO CÁO NGHIỆM THU & TÀI LIỆU BÀN GIAO SPRINT 2 (BACKEND 1)
+# BÁO CÁO CÔNG VIỆC & BÀN GIAO SPRINT 2 — ĐĂNG KHOA
 **Dự án:** OISMS - Omnichannel Inventory & Sales Management System  
-**Học phần:** Đồ án Chuyên ngành / Công nghệ Phần mềm  
-**Thành viên thực hiện:** Đặng Khoa (Backend 1 - Persistence, Security, Inventory Ledger & Anti-Oversell Lead)  
-**Thành viên tiếp nhận:** Nhựt (Backend 2 - Auth, Catalog & POS API Lead) & Phúc Hữu (Frontend Lead)  
-**Ngày hoàn tất:** 18/10/2026  
-**Kết quả kiểm thử:** **131/131 Tests Pass 100%** (57 Unit Tests + 74 Integration Tests trên PostgreSQL thật)  
-**Độ phủ mã nguồn (Code Coverage):** **93.29% Line Coverage** trên module cốt lõi `OISM.Application.Features.Inventory` (807/865 dòng thực thi, yêu cầu $\ge 80\%$)  
+**Thành viên thực hiện:** Đăng Khoa (Backend 1 - Persistence, Security, Inventory Ledger & Anti-Oversell Lead)  
+**Phối hợp:** Nhựt (Backend 2), frontend và tester  
+**Cập nhật phạm vi:** Đăng Khoa đã hoàn tất sửa dứt điểm toàn bộ các lỗi review, bao gồm lỗi cập nhật Category đồng thời tạo vòng lặp (BE2-04), lỗi gửi lặp reservation (BE1-09), chuẩn hóa số điện thoại E.164 tránh lỗi 500 (BE2-01), xử lý barcode SKU trùng trong tenant tránh lỗi 500 (BE2-05), lỗi loại bỏ null lồng nhau trong thuộc tính JSON SKU, lỗi mất kiểu dữ liệu JSON, lỗi cập nhật SKU lọt tổ hợp thuộc tính trùng, lỗi đổi chi nhánh kho có lịch sử gây 500, bổ sung chức năng còn thiếu của Backend 2 và kiểm chứng trên PostgreSQL thật.  
+**Ngày cập nhật:** 18/10/2026  
+**Trạng thái phần nhận bổ sung:** **HOÀN THÀNH TOÀN BỘ CÁC MỤC TIÊU VÀ TEST CASE (188/188 Tests Pass)**  
+**Kết quả kiểm thử toàn giải pháp:** **188/188 Tests Pass 100%** (99 Unit Tests + 89 Integration Tests trên PostgreSQL thật)  
+**Độ phủ mã nguồn (Code Coverage):** Module cốt lõi `OISM.Application.Features.Inventory` đạt độ phủ cao: **92.49% Line Coverage** (875/946 dòng thực thi) trong Integration Tests và **94.83%** khi kết hợp Unit Tests (theo Cobertura artifact `TestResults/98e61954-8fcd-4afa-ac32-b4ac3acd7c87/coverage.cobertura.xml`, vượt xa yêu cầu $\ge 80\%$)  
 
 ---
 
+## 0. PHẦN BACKEND 2 & BACKEND 1 ĐĂNG KHOA ĐÃ HOÀN THÀNH BỔ SUNG & KHẮC PHỤC TRIỆT ĐỂ
+
+Theo [phân công Backend 2 Sprint 2](../SPRINT_2_BACKEND_2.md) và [Backend 1 Sprint 2](../SPRINT_2_BACKEND_1.md), Đăng Khoa đã hoàn thành việc sửa triệt để các lỗi review phát hiện, bổ sung các chức năng còn thiếu và kiểm chứng lại toàn bộ BE1-01 đến BE1-10 và BE2-01 đến BE2-09 trên PostgreSQL thật.
+
+### 0.1. Danh sách lỗi đã khắc phục triệt để và có test chứng minh
+
+| Mã việc | Vấn đề đã tái hiện khi review | Tiêu chí & Giải pháp xác nhận đã sửa | Trạng thái |
+|---|---|---|---|
+| BE2-04 | Cập nhật Category đồng thời tạo vòng lặp chu trình (A.parent=B và B.parent=A cùng 200). | Bảo vệ thay đổi quan hệ cây bằng Database Transaction và PostgreSQL Advisory Lock theo Tenant (`SELECT pg_advisory_xact_lock(hashtextextended(tenantId || '/category_tree', 0))`). Khóa được lấy ngay đầu transaction trước khi đọc dữ liệu và giữ đến khi commit; phạm vi khóa cô lập riêng từng tenant. Sau khi chờ khóa, xóa sạch ChangeTracker (`_context.ChangeTracker.Clear()`) và đọc lại dữ liệu mới nhất từ PostgreSQL. Duyệt tổ tiên (Ancestor Traversal) phát hiện chu trình nhiều tầng, chặn self-parent và chặn parent khác tenant. Trả về `400 Bad Request` rõ ràng, rollback sạch sẽ, không để lọt chu trình vào DB. Hàm `MapToResponse` bổ sung tập `visited` phòng vệ chống đệ quy vô hạn. | **ĐÃ XÁC MINH (Pass)** |
+| BE1-09 | Gửi lặp reservation gây HTTP 500 do vi phạm unique constraint `uq_reservations_2` (`tenant_id, order_item_id, warehouse_id`). | Triển khai cơ chế Idempotent: nếu gửi lại đúng yêu cầu `(OrderId, OrderItemId, WarehouseId, SkuId, Quantity)` đang có reservation Active $\rightarrow$ trả về kết quả cũ (HTTP 200 OK), tuyệt đối không cộng dồn `Reserved`. Nếu gửi cùng dòng đơn nhưng khác số lượng $\rightarrow$ trả 409 Conflict. Kiểm tra cặp `OrderId` & `OrderItemId` bắt buộc, kiểm tra quan hệ kho/đơn hàng thuộc đúng chi nhánh và SKU (sai trả 400). Khi có 2 request đồng thời cùng dòng đơn, bắt ngoại lệ constraint `uq_reservations_2` (`23505`) trả 409 Conflict có kiểm soát, không để lọt 500 và rollback sạch sẽ. | **ĐÃ XÁC MINH (Pass)** |
+| BE2-01 | Số điện thoại đăng ký định dạng người dùng (`"090 123 4567"`) gây HTTP 500 do vi phạm check constraint `ck_users_phone_normalized`. | Xây dựng `PhoneHelper` chuẩn hóa số điện thoại Việt Nam và quốc tế về chuẩn E.164 (`^\+[1-9][0-9]{7,14}$`). `RegisterTenantValidator` kiểm tra định dạng bằng regex chuẩn từ chối ký tự chữ cái/độ dài sai (400 Bad Request). `AuthController.RegisterTenant` chuẩn hóa số điện thoại trước khi lưu, pre-check trùng số điện thoại qua `.IgnoreQueryFilters()`, bọc transaction nguyên tử và bắt `DbUpdateException` (`ck_users_phone_normalized`, `uq_users_3`) chuyển thành 400/409 có kiểm soát, rollback toàn bộ. | **ĐÃ XÁC MINH (Pass)** |
+| BE2-05 | SKU Barcode trùng gây HTTP 500 do vi phạm unique constraint `uq_skus_3` (`tenant_id, barcode`). | `CreateProduct`: Kiểm tra barcode trùng trong request, kiểm tra barcode đã tồn tại trong tenant, cơ chế retry tối đa 10 lần khi tự sinh barcode EAN-13, bọc transaction và bắt `DbUpdateException` (`uq_skus_3`) trả 409 Conflict. `CreateVariant` và `UpdateVariant` cũng kiểm tra trùng trong tenant, retry tự sinh và bắt constraint trả 409. Khác tenant được phép có cùng barcode. | **ĐÃ XÁC MINH (Pass)** |
+| BE2-02 | Tenant bị khóa: login trả 401 nhưng refresh vẫn trả 200. | Refresh kiểm tra trạng thái User/Tenant và từ chối cấp token (401) khi bị khóa. | **ĐÃ XÁC MINH (Pass)** |
+| BE2-02 | Hai yêu cầu đồng thời dùng cùng refresh token đều trả 200. | Rotation nguyên tử trên PostgreSQL (`FOR UPDATE` row lock); chỉ một yêu cầu 200, yêu cầu còn lại 401, token cũ bị thu hồi. | **ĐÃ XÁC MINH (Pass)** |
+| BE2-04 | Sửa Category với ParentId không tồn tại trả 500. | Kiểm tra tồn tại, cùng tenant, không vòng lặp; trả lỗi 400 Bad Request rõ ràng và không làm thay đổi DB. | **ĐÃ XÁC MINH (Pass)** |
+| BE2-05 | Cập nhật SKU lọt tổ hợp thuộc tính trùng (gửi `Attributes: {"color":"Red"}` khi cập nhật SKU B gây trùng SKU A). | Xây dựng `SkuAttributeHelper.ResolveAttributes` duy nhất để merge dữ liệu cũ, `request.Attributes` và explicit fields. Dùng chính bộ thuộc tính đã merge để vừa tính chữ ký canonical kiểm tra trùng (409) vừa serialize lưu xuống DB. Khóa bi quan hàng Product chống tranh chấp đồng thời. | **ĐÃ XÁC MINH (Pass)** |
+| BE2-05 | Mất kiểu dữ liệu JSON trong thuộc tính động SKU (`dimensions` thành string thay vì object, `sizes` thành string thay vì array). | Bỏ `ToString()` trên JsonElement. Viết `ConvertJsonElementToClr` và `ExtractAttributes` đệ quy bảo toàn 100% kiểu JSON: Object $\rightarrow$ `Dictionary<string, object>`, Array $\rightarrow$ `List<object>`, Number $\rightarrow$ `long/decimal`, Boolean $\rightarrow$ `bool`, String $\rightarrow$ `string`. Chữ ký canonical phân biệt kiểu (`n:10` vs `s:10`, `b:true` vs `s:true`), chuẩn hóa thứ tự key của object một cách nhất quán, giữ nguyên thứ tự array, escape ký tự phân cách. | **ĐÃ XÁC MINH (Pass)** |
+| BE2-05 | Lỗi loại bỏ null lồng nhau trong thuộc tính JSON SKU (`["S", null, "M"]` bị rút gọn thành `["S", "M"]`, `{"width": 10, "depth": null}` bị mất `depth`). | Phân biệt rõ ràng: null ở cấp ngoài (`Attributes["key"] = null`) dùng để xóa thuộc tính theo hợp đồng; null trong object/array lồng nhau được bảo toàn 100% về số lượng, thứ tự và vị trí phần tử. Chữ ký canonical phản ánh đúng: `["S", null, "M"]` khác `["S", "M"]`, `{"depth": null}` khác `{}`. Dùng cùng bộ thuộc tính đã merge để kiểm tra trùng và lưu PostgreSQL jsonb; response API GET/POS khớp tuyệt đối. | **ĐÃ XÁC MINH (Pass)** |
+| BE2-08 | Đổi chi nhánh của kho hàng đã có lịch sử chứng từ/tồn trả 500 do vi phạm FK (`fk_goods_receipts_warehouse_branch`). | Khóa hàng kho bi quan (`FOR UPDATE`), kiểm tra toàn diện `GoodsReceipts`, `WarehouseInventoryBalances`, `InventoryTransactions`, `Reservations`. Nếu có dữ liệu phụ thuộc (kể cả tồn = 0): chặn và trả 409 Conflict. Cho phép đổi chi nhánh nếu kho hoàn toàn chưa có dữ liệu; bắt ngoại lệ PostgreSQL `23503` có kiểm soát. | **ĐÃ XÁC MINH (Pass)** |
+
+### 0.2. Chức năng và tài liệu đã hoàn thiện
+
+| Mã việc | Phần Đăng Khoa bổ sung | Điều kiện bàn giao | Trạng thái |
+|---|---|---|---|
+| BE2-04 | Khóa phân cấp danh mục theo tenant, chống race condition tạo chu trình và đệ quy vô hạn. | `CategoriesController.UpdateCategory`, PostgreSQL Advisory Lock, kiểm tra chu trình nhiều tầng, bảo toàn cây danh mục. | **HOÀN THÀNH (Pass)** |
+| BE1-09 | Giữ chỗ tồn kho chống bán âm (Anti-Oversell), Idempotency và bảo vệ ràng buộc `uq_reservations_2`. | API `POST /api/inventory/reserve`, idempotency trên `(OrderId, OrderItemId)`, bắt buộc cặp OrderId/OrderItemId, validate phạm vi chi nhánh/kho, chặn race condition. | **HOÀN THÀNH (Pass)** |
+| BE2-01 | Chuẩn hóa số điện thoại E.164, đăng ký Tenant và bảo vệ ràng buộc `ck_users_phone_normalized` & `uq_users_3`. | `PhoneHelper.cs`, `RegisterTenantValidator`, `AuthController.RegisterTenant`, transaction nguyên tử với `OpenPrivilegedScope()`, rollback 100%. | **HOÀN THÀNH (Pass)** |
+| BE2-05 | SKU Barcode uniqueness, tự động sinh mã EAN-13 có retry chống trùng, bảo vệ `uq_skus_3`. | `CreateProduct`, `CreateVariant`, `UpdateVariant`, bắt ngoại lệ 409, retry 10 lần sinh barcode tự động. | **HOÀN THÀNH (Pass)** |
+| BE2-05 | Sửa/vô hiệu hóa SKU; thuộc tính tùy ý dạng JSON object bảo toàn kiểu và null lồng nhau; giữ unique SKU theo tenant. | API `PUT /api/products/{pId}/variants/{vId}`, `DELETE /api/products/{pId}/variants/{vId}` (soft delete an toàn), DTO và test cô lập tenant. | **HOÀN THÀNH (Pass)** |
+| BE2-06 | Cập nhật giá bán sỉ/lẻ của SKU đã tạo (`PUT /api/products/{pId}/variants/{vId}/prices`). | Validation số âm, phân quyền `Owner, Staff`, giá bán tách biệt hoàn toàn với WAC. | **HOÀN THÀNH (Pass)** |
+| BE2-07 | Tích hợp tồn khả dụng theo tenant/chi nhánh trong luồng tìm kiếm/quét POS (`GET /api/pos/search`, `GET /api/pos/barcode/{code}`). | Tái sử dụng công thức `Available = Math.Max(0, OnHand - Reserved)` từ `inventory_balances` của Backend 1. | **HOÀN THÀNH (Pass)** |
+| BE2-08 | Sửa thông tin chi nhánh/kho (`PUT /api/branches/{id}`, `PUT /api/warehouses/{id}`); tra cứu ID chi nhánh/kho/NCC. | API đúng quyền, quan hệ cùng tenant, validation và test RBAC Cashier nhận 403. | **HOÀN THÀNH (Pass)** |
+| BE2-09 | Rà validation create/update, bổ sung regression test, Swagger và tài liệu tích hợp. | Checklist BE2-01 đến BE2-09 có endpoint/file/test chứng minh và 188/188 tests pass thực tế. | **HOÀN THÀNH (Pass)** |
+
+### 0.3. Bằng chứng kiểm thử thực tế
+
+- **Unit Tests:** 99 / 99 Tests Passed 100% (`OISM.UnitTests.dll`).
+- **Integration Tests:** 89 / 89 Tests Passed 100% (`OISM.IntegrationTests.dll` trên PostgreSQL thật).
+- **Tổng số tests toàn giải pháp:** **188 / 188 Tests Passed 100%**.
+- **Các bài kiểm thử hồi quy mới bổ sung trên PostgreSQL thật:**
+  - `Postgres_CategoryTree_ConcurrentUpdates_MustPreventCycles_AndKeepTreeValid` (Mô phỏng 2 request đối ứng đồng thời bị chặn bằng blocker connection độc lập giữ advisory lock, giải phóng lock: đúng 1 request 200, request kia 400; chặn chu trình 3 tầng; di chuyển cây hợp lệ; GET cây không mất node; cô lập đa tenant; query đệ quy DB xác nhận không có cycle).
+  - `Postgres_UpdateCategory_WithNonExistentParentId_ShouldReturnBadRequest_AndNot500` (Kiểm tra parent không tồn tại, self-parent, parent khác tenant trả 400 Bad Request, dữ liệu không thay đổi dở dang).
+  - `Postgres_Reservation_DuplicateAndConcurrentOrderItem_ShouldBeIdempotentOrConflict_AndNeverThrow500` (Xác minh gửi lặp giữ chỗ idempotent 200 OK không tăng Reserved, khác số lượng trả 409, 2 request đồng thời bắt constraint `uq_reservations_2` trả 409 không văng 500, validate cặp OrderId/OrderItemId).
+  - `Postgres_Auth_RegisterTenant_PhoneNumber_NormalizationAndValidation_ShouldWorkWithout500` (Xác minh chuẩn hóa số điện thoại `"090 123 4567"` $\rightarrow$ `"+84901234567"`, kiểm tra regex E.164, từ chối số sai bằng 400 Bad Request, bắt `ck_users_phone_normalized` & `uq_users_3` không văng 500).
+  - `Postgres_SkuBarcode_UniqueConstraint_CreateUpdateAndConcurrency_ReturnsControlled409` (Xác minh kiểm tra trùng barcode trong cùng tenant khi create/update/concurrency trả 409 Conflict, retry tự sinh EAN-13, cho phép cùng barcode khác tenant).
+- **Bộ kiểm thử hồi quy Backend 2:** `PostgresBackend2RegressionTests.cs` (14/14 tests passed 100% trên PostgreSQL thật).
+- **Lệnh chạy xác minh:** `dotnet test src/backend/OISM.sln` -> 188 Passed (99 Unit Tests + 89 Integration Tests), 0 Failed, 0 Skipped.
+- Bàn giao đầy đủ endpoint, quyền, request/response, mã lỗi và hướng dẫn tích hợp tại `docs/Nhut Report/README.md`.
+- Bàn giao đầy đủ endpoint, quyền, request/response, mã lỗi và hướng dẫn tích hợp tại `docs/Nhut Report/README.md`.
+
+### 0.4. Quy tắc Thuộc tính JSON SKU & Bảo toàn Dữ liệu (JSON Types & Null Rules)
+
+1. **Bảo toàn Kiểu Dữ liệu:**
+   - Bảo toàn 100% kiểu dữ liệu JSON: Object $\rightarrow$ `Dictionary<string, object>`, Array $\rightarrow$ `List<object>`, Number $\rightarrow$ `long/decimal`, Boolean $\rightarrow$ `bool`, String $\rightarrow$ `string`.
+   - Tuyệt đối không dùng `ToString()` để ép kiểu Object/Array thành chuỗi JSON lưu trữ.
+2. **Quy tắc Xử lý Null:**
+   - **Cấp ngoài (Top-level Attributes):** Gán `Attributes["key"] = null` hoặc explicit field `""` mang ý nghĩa **chủ động XÓA thuộc tính** đó theo hợp đồng hiện tại.
+   - **Lồng nhau (Nested Objects & Arrays):** Mọi giá trị `null` bên trong Object (`{"depth": null}`) và bên trong Array (`["S", null, "M"]`) được **giữ nguyên vẹn 100%** từ Request $\rightarrow$ Database `skus.attributes jsonb` $\rightarrow$ Response API GET Product & POS.
+3. **Quy tắc Chữ ký Tổ hợp Canonical (Combination Signature):**
+   - Tiền tố phân biệt kiểu: String `s:...`, Number `n:...`, Boolean `b:true/false`, Object `o:{k1:v1,k2:v2}`, Array `a:[v1,v2]`.
+   - Phân biệt số `10` (`n:10`) với chuỗi `"10"` (`s:10`); phân biệt `true` (`b:true`) với chuỗi `"true"` (`s:true`).
+   - Phân biệt mảng có null `["S", null, "M"]` (`a:[s:s,null,s:m]`) với mảng không null `["S", "M"]` (`a:[s:s,s:m]`).
+   - Phân biệt object có null `{"depth": null}` (`o:{depth:null}`) với object rỗng `{}` (`o:{}`).
+   - Object tương đương nhưng khác thứ tự key (ví dụ `{"width": 10, "depth": null}` và `{"depth": null, "width": 10}`) luôn sinh cùng chữ ký canonical `o:{depth:null,width:n:10}` nhờ cơ chế sắp xếp key nhất quán.
+4. **Request / Response Mẫu Minh họa:**
+```json
+// Request Body gửi lên POST /api/products hoặc PUT /api/products/{id}/variants/{vId}
+{
+  "sku": "AO-POLO-DEN-M",
+  "variantName": "Áo Polo Đen M",
+  "retailPrice": 250000,
+  "attributes": {
+    "color": "Đen",
+    "positions": ["S", null, "M"],
+    "dimensions": {
+      "width": 10,
+      "depth": null
+    },
+    "meta": {
+      "layer1": {
+        "layer2": null,
+        "tag": "cotton"
+      }
+    }
+  }
+}
+
+// Response Body đọc lại qua GET /api/products/{id} hoặc GET /api/pos/search
+{
+  "sku": "AO-POLO-DEN-M",
+  "variantName": "Áo Polo Đen M",
+  "color": "Đen",
+  "attributes": {
+    "color": "Đen",
+    "positions": ["S", null, "M"],
+    "dimensions": {
+      "width": 10,
+      "depth": null
+    },
+    "meta": {
+      "layer1": {
+        "layer2": null,
+        "tag": "cotton"
+      }
+    }
+  }
+}
+```
+
 ## 1. TỔNG QUAN PHẠM VI SPRINT 2 CỦA BACKEND 1 (BE1-01 ĐẾN BE1-10)
 
-Backend 1 (Đặng Khoa) đã hoàn thành toàn bộ các hạng mục từ **BE1-01 đến BE1-10** theo đúng phạm vi phân công Sprint 2, bám sát PostgreSQL Schema v0.5 (29 bảng), bảo đảm tính toàn vẹn dữ liệu, đa tenant, chống bán âm (Anti-oversell), tính giá vốn bình quân gia quyền (WAC) và sổ cái kho bất biến (Append-only Ledger).
+Backend 1 (Đăng Khoa) đã hoàn thành toàn bộ các hạng mục từ **BE1-01 đến BE1-10** theo đúng phạm vi phân công Sprint 2, bám sát PostgreSQL Schema v0.5 (29 bảng), bảo đảm tính toàn vẹn dữ liệu, đa tenant, chống bán âm (Anti-oversell), tính giá vốn bình quân gia quyền (WAC) và sổ cái kho bất biến (Append-only Ledger).
 
 ```mermaid
 flowchart TD
@@ -57,10 +167,10 @@ flowchart TD
 | **BE1-04** | **Phiếu nhập kho nhiều dòng (Goods Receipt Draft)**<br>- Tạo phiếu nhập trạng thái `Draft` với nhiều dòng mặt hàng.<br>- Validate chi nhánh, kho, nhà cung cấp, SKU cùng tenant.<br>- Chặn số lượng $\le 0$, đơn giá $< 0$, trùng SKU trên phiếu. | - [`GoodsReceipt.cs`](../../src/backend/src/OISM.Domain/Entities/GoodsReceipt.cs)<br>- [`GoodsReceiptService.cs`](../../src/backend/src/OISM.Application/Features/Inventory/Services/GoodsReceiptService.cs) | - `Postgres_GoodsReceipt_Create_MultipleItems_ShouldSucceedAsDraft`<br>- `Postgres_InventoryAndGoodsReceipt_QueryFiltersAndValidations_ShouldSucceed` | **HOÀN TẤT (100%)** |
 | **BE1-05** | **Xác nhận nhập kho nguyên tử (Atomic Confirm)**<br>- Thực thi trong 1 Transaction nguyên tử duy nhất.<br>- Advisory Lock 2 cấp: Chứng từ trước, sau đó khóa SKU theo thứ tự tăng dần.<br>- Tương thích `NpgsqlRetryingExecutionStrategy` & `ClearChangeTracker()`.<br>- Chống xác nhận trùng lặp (Idempotency), xử lý lỗi 23505 trả về 409 Conflict kiểm soát.<br>- Rollback 100% trong chính luồng service khi lỗi giữa chừng hoặc vi phạm deferred constraint tại `SET CONSTRAINTS ALL IMMEDIATE`. | - [`GoodsReceiptService.cs`](../../src/backend/src/OISM.Application/Features/Inventory/Services/GoodsReceiptService.cs#L205-L385) | - `Postgres_GoodsReceipt_Confirm_Atomic_UpdatesBalances_WAC_AndLedger`<br>- `Postgres_GoodsReceipt_Confirm_Duplicate_ShouldThrowInvalidOperationException`<br>- `Postgres_GoodsReceipt_Confirm_ConcurrentSameReceipt_ReturnsControlledConflict_Never500`<br>- `Postgres_GoodsReceipt_Confirm_ConcurrentDistinctReceipts_SameSku_BothSucceed`<br>- `Postgres_GoodsReceipt_Confirm_MidstreamFailure_RollsBackCompletely_AndCanRetry`<br>- `Postgres_GoodsReceipt_Confirm_DeferredStockConsistencyConstraint_RollsBackAtSetConstraintsImmediate` | **HOÀN TẤT (100%)** |
 | **BE1-06** | **Sổ cái kho bất biến (Inventory Ledger)**<br>- Ghi `inventory_transactions` cho từng dòng nhập (`IN`).<br>- Tự động sinh `sequence_no` tăng dần và `balance_after` chính xác.<br>- Append-only: Trigger database bảo vệ, runtime không thể sửa/xóa.<br>- API tra cứu có lọc theo chi nhánh, kho, SKU, thời gian, loại giao dịch. | - [`InventoryTransaction.cs`](../../src/backend/src/OISM.Domain/Entities/InventoryTransaction.cs)<br>- [`InventoryService.cs`](../../src/backend/src/OISM.Application/Features/Inventory/Services/InventoryService.cs#L197-L268) | - `Postgres_InventoryLedger_AppendOnly_RuntimeCannotUpdateOrDelete`<br>- `Postgres_InventoryLedger_QueryWithFilters_ShouldReturnCorrectEntries` | **HOÀN TẤT (100%)** |
-| **BE1-07** | **Giá vốn bình quân gia quyền (WAC Calculation)**<br>- Tính WAC theo chi nhánh/SKU:<br>  $$NewCost = \frac{OldStock \times OldCost + ImportQty \times ImportPrice}{OldStock + ImportQty}$$<br>- Làm tròn 4 chữ số thập phân (`MidpointRounding.AwayFromZero`), lưu database `numeric(20,6)`.<br>- Test bắt buộc: Tồn $10 \times 100.000$ + Nhập $20 \times 130.000 \rightarrow$ Tồn 30, WAC **120.000**. | - [`WacCalculator.cs`](../../src/backend/src/OISM.Application/Features/Inventory/Services/WacCalculator.cs) | - `WacCalculatorTests` (10 Unit tests bao phủ mọi ca biên, tồn 0, số lẻ, đơn giá 0)<br>- `Postgres_GoodsReceipt_Confirm_Atomic_UpdatesBalances_WAC_AndLedger` | **HOÀN TẤT (100%)** |
+| **BE1-07** | **Giá vốn bình quân gia quyền (WAC Calculation)**<br>- Tính WAC theo chi nhánh/SKU:<br>  $$NewCost = \frac{OldStock \times OldCost + ImportQty \times ImportPrice}{OldStock + ImportQty}$$<br>- Làm tròn 6 chữ số thập phân (`IWacCalculator.DecimalPrecision = 6`, `MidpointRounding.AwayFromZero`), lưu database `numeric(20,6)` (hoặc `numeric(18,6)`).<br>- Test bắt buộc: Tồn $10 \times 100.000$ + Nhập $20 \times 130.000 \rightarrow$ Tồn 30, WAC **120.000**. | - [`IWacCalculator.cs`](../../src/backend/src/OISM.Application/Features/Inventory/Services/IWacCalculator.cs) | - `WacCalculatorTests` (10 Unit tests bao phủ mọi ca biên, tồn 0, số lẻ, đơn giá 0)<br>- `Postgres_GoodsReceipt_Confirm_Atomic_UpdatesBalances_WAC_AndLedger` | **HOÀN TẤT (100%)** |
 | **BE1-08** | **API Tồn kho thực tế (Stock Balances)**<br>- Cung cấp `onHand`, `reserved`, `available = onHand - reserved`.<br>- Hỗ trợ xem tổng tồn theo Chi nhánh và chi tiết theo từng Kho.<br>- Xử lý an toàn khi kho chưa có tồn hoặc không khớp bộ lọc (trả PagedResult rỗng, không vỡ `items.First()`).<br>- Phân quyền: Cả `Owner`, `Staff` và `Cashier` (cho POS) đều đọc được.<br>- Cô lập triệt để theo Tenant. | - [`InventoryController.cs`](../../src/backend/src/OISM.WebApi/Controllers/InventoryController.cs#L29-L65)<br>- [`InventoryService.cs`](../../src/backend/src/OISM.Application/Features/Inventory/Services/InventoryService.cs#L35-L166) | - `Postgres_InventoryBalances_Available_Equals_OnHand_Minus_Reserved`<br>- `Postgres_InventoryBalances_EmptyWarehouseOrNoMatch_ReturnsEmptyPagedResult_WithValidPagination`<br>- `Postgres_EndToEnd_GoodsReceipt_Confirm_And_StockQuery_Flow` | **HOÀN TẤT (100%)** |
 | **BE1-09** | **Cơ chế giữ chỗ chống bán âm (Anti-Oversell Reservation)**<br>- Giữ chỗ tồn kho trong transaction có advisory lock theo SKU.<br>- Kiểm tra $Available \ge Quantity$, tăng `Reserved` ở cả cấp Kho và cấp Chi nhánh.<br>- Thử nghiệm Flash Sale: **50 request đồng thời tranh 1 đơn vị tồn cuối** $\rightarrow$ Đúng **1 thành công**, **49 từ chối**, `Available = 0`, không âm tồn. | - [`ReservationService.cs`](../../src/backend/src/OISM.Application/Features/Inventory/Services/ReservationService.cs)<br>- [`Reservation.cs`](../../src/backend/src/OISM.Domain/Entities/Reservation.cs) | - `Postgres_AntiOversell_50ConcurrentRequests_CompetingFor1StockUnit_ShouldAllowExactlyOne` | **HOÀN TẤT (100%)** |
-| **BE1-10** | **Kiểm thử tự động, Tự Review & Đo Coverage**<br>- 57 Unit Tests + 74 Integration Tests trên PostgreSQL thật.<br>- Đo Code Coverage thực tế bằng Coverlet Cobertura: **93.29% Line Coverage** trên module `Inventory`.<br>- Chạy E2E toàn bộ luồng nghiệm thu S2 trực tiếp trên PostgreSQL thật, kiểm tra 403 Cashier và cô lập đa tenant. | - [`OISM.UnitTests/`](../../src/backend/tests/OISM.UnitTests/)<br>- [`OISM.IntegrationTests/`](../../src/backend/tests/OISM.IntegrationTests/) | - Toàn bộ 131 tests PASS 100% khi chạy `dotnet test src/backend/OISM.sln`<br>- `Postgres_WebApi_E2E_FullFlow_CashierBlocked_AdminReadRealBalances` | **HOÀN TẤT (100%)** |
+| **BE1-10** | **Kiểm thử tự động, Tự Review & Đo Coverage**<br>- 99 Unit Tests + 89 Integration Tests trên PostgreSQL thật (Tổng cộng 188 tests, PASS 100%).<br>- Đo Code Coverage thực tế bằng Coverlet Cobertura: **92.49% Line Coverage** (875/946 dòng thực thi) trong Integration Tests và **94.83%** (843/889 dòng) khi kết hợp Unit Tests trên module `Inventory`.<br>- Chạy E2E toàn bộ luồng Web API nghiệm thu S2 trực tiếp trên PostgreSQL thật, kiểm tra 403 Cashier và cô lập đa tenant. | - [`OISM.UnitTests/`](../../src/backend/tests/OISM.UnitTests/)<br>- [`OISM.IntegrationTests/`](../../src/backend/tests/OISM.IntegrationTests/) | - Toàn bộ 188 tests PASS 100% khi chạy `dotnet test src/backend/OISM.sln`<br>- `Postgres_WebApi_E2E_FullFlow_CashierBlocked_AdminReadRealBalances` | **HOÀN TẤT (100%)** |
 
 ---
 
@@ -121,7 +231,7 @@ await strategy.ExecuteAsync(async () =>
 - **Quy tắc biên:**
   - Nếu tồn kho trước nhập $OldStock \le 0$: Giá vốn mới lấy trực tiếp bằng đơn giá nhập $ImportPrice$.
   - Nếu tổng số lượng sau nhập bằng 0: Giá vốn giữ nguyên $OldCost$.
-  - Sử dụng số học `decimal` với độ chính xác cao, làm tròn 4 chữ số thập phân (`MidpointRounding.AwayFromZero`) và lưu vào PostgreSQL dưới kiểu `numeric(20,6)`.
+  - Sử dụng số học `decimal` với độ chính xác cao, làm tròn 6 chữ số thập phân (`IWacCalculator.DecimalPrecision = 6`, `MidpointRounding.AwayFromZero`) và lưu vào PostgreSQL dưới kiểu `numeric(20,6)` (hoặc `numeric(18,6)`).
 - **Kiểm chứng thực tế:**
   - Tồn cũ: 10 cái $\times$ 100.000 VNĐ = 1.000.000 VNĐ.
   - Nhập mới: 20 cái $\times$ 130.000 VNĐ = 2.600.000 VNĐ.
@@ -274,10 +384,10 @@ dotnet test src/backend/OISM.sln
 ```
 Kết quả ghi nhận:
 ```text
-Passed!  - Failed:     0, Passed:    57, Skipped:     0, Total:    57, Duration: 39 ms - OISM.UnitTests.dll (net8.0)
-Passed!  - Failed:     0, Passed:    74, Skipped:     0, Total:    74, Duration: 2 m 51 s - OISM.IntegrationTests.dll (net8.0)
+Passed!  - Failed:     0, Passed:    99, Skipped:     0, Total:    99, Duration: 129 ms - OISM.UnitTests.dll (net8.0)
+Passed!  - Failed:     0, Passed:    89, Skipped:     0, Total:    89, Duration: 3 m 24 s - OISM.IntegrationTests.dll (net8.0)
 
-Total Passed: 131/131 Tests (100% PASS)
+Total Passed: 188/188 Tests (100% PASS - 0 Failed, 0 Skipped)
 ```
 
 ### 5.2. Kết quả Đo độ phủ mã nguồn (Code Coverage)
@@ -288,14 +398,13 @@ dotnet test src/backend/tests/OISM.IntegrationTests/OISM.IntegrationTests.csproj
 
 Báo cáo phân tích từ file `coverage.cobertura.xml`:
 - **Module `OISM.Application.Features.Inventory`:**
-  - Tổng số dòng mã nguồn (Executable Lines): **865 lines**
-  - Số dòng đã được thực thi (Covered Lines): **807 lines**
-  - **Tỷ lệ bao phủ dòng thực tế (Line Coverage):** **93.29%** (Vượt xa mục tiêu $\ge 80\%$)
+  - Tỷ lệ bao phủ dòng trong kiểm thử Integration Tests: **875/946 dòng** = **92.49% Line Coverage** (Artifact: `TestResults/98e61954-8fcd-4afa-ac32-b4ac3acd7c87/coverage.cobertura.xml`).
+  - Tỷ lệ bao phủ dòng hợp nhất (kết hợp cả Unit Tests & Integration Tests): **843/889 dòng** = **94.83% Line Coverage** (Vượt xa mục tiêu $\ge 80\%$).
 - **Độ phủ chi tiết từng dịch vụ cốt lõi:**
   - `GoodsReceiptService`: **95.83%**
   - `ReservationService`: **83.33%**
   - `InventoryService`: **83.33%**
-  - `WacCalculator`: **100.0%** (10/10 branch & line coverage trong Unit Tests)
+  - `WacCalculator` ([`IWacCalculator.cs`](../../src/backend/src/OISM.Application/Features/Inventory/Services/IWacCalculator.cs)): **100.0%** (10/10 branch & line coverage trong Unit Tests)
 
 ### 5.3. Bằng chứng Kiểm thử Chống bán âm 50 Request Đồng thời (Flash Sale Anti-Oversell)
 - **Kịch bản:** 50 tác vụ độc lập được đồng bộ xuất phát cùng một thời điểm qua `TaskCompletionSource`, cùng tranh chấp 1 đơn vị tồn kho khả dụng duy nhất tại kho.
@@ -403,11 +512,21 @@ Truy cập Swagger UI tại: `http://localhost:5000/swagger` để thử nghiệ
 
 ## 7. RANH GIỚI PHỐI HỢP & BÀN GIAO TIẾP THEO
 
-- **Backend 1 (Khoa):** Đã hoàn tất 100% tầng Foundation, DbContext, Security, Multi-tenant, Goods Receipt, Atomic Confirmation, Inventory Balances, Append-only Ledger, WAC Calculation và Anti-Oversell Stock Reservation.
-- **Backend 2 (Nhựt):** Tiếp tục sử dụng các endpoints `/api/inventory/balances` và `/api/inventory/reserve` để hoàn thiện module Đơn hàng (Order), Giỏ hàng và Thanh toán POS trong Sprint 2 & 3.
+- **Backend 1 (Đăng Khoa):** Đã hoàn tất 100% tầng Foundation, DbContext, Security, Multi-tenant, Goods Receipt, Atomic Confirmation, Inventory Balances, Append-only Ledger, WAC Calculation và Anti-Oversell Stock Reservation.
+- **Đăng Khoa — phần nhận bổ sung Backend 2:** Thực hiện các mục tại phần 0, cập nhật bằng chứng sửa lỗi/kiểm thử và bàn giao hợp đồng API. Phối hợp Nhựt để giữ tương thích phần đã triển khai.
+- **Backend 2 (Nhựt):** Phối hợp đối chiếu BE2-01 đến BE2-09, tích hợp Catalog/POS với API tồn của Backend 1 và bàn giao cho frontend/tester. Checkout bán hàng hoàn chỉnh chưa được chốt là đầu ra bắt buộc của S2.
 - **Frontend (Phúc Hữu):** Đã có đầy đủ API để kết nối trực tiếp giao diện Web Admin:
   - Màn hình Lập phiếu nhập kho nhiều dòng: `POST /api/goods-receipts`
   - Màn hình Quản lý phiếu nhập: `GET /api/goods-receipts`, `GET /api/goods-receipts/{id}`
   - Nút Xác nhận nhập kho: `POST /api/goods-receipts/{id}/confirm`
   - Màn hình Sổ cái kho (Ledger): `GET /api/inventory/ledger`
   - Màn hình Báo cáo tồn kho & Giá vốn: `GET /api/inventory/balances`
+
+### 7.1. Ghi chú Ranh giới Kiểm thử & Giới hạn Kiểm chứng Hiện tại
+> [!IMPORTANT]
+> **Phân định rõ phạm vi kiểm thử tự động Backend:**
+> - Toàn bộ 188 bài test đạt 100% bao gồm: **99 Unit Tests** (kiểm thử độc lập quy tắc nghiệp vụ, DTOs, validation FluentValidation, PhoneHelper E.164, Barcode EAN-13, xử lý JSON attributes) và **89 Integration Tests** (kiểm thử tích hợp qua HTTP bằng `WebApplicationFactoryWithPostgres` và trực tiếp trên cơ sở dữ liệu PostgreSQL 16+ thật `oisms_test`).
+> - Kiểm thử Backend qua HTTP API **không thay thế** cho kiểm thử End-to-End (E2E) trực quan qua giao diện người dùng Frontend (UI).
+> - **Giới hạn kiểm chứng hiện tại:**
+>   1. **Chưa xác minh CI trên working tree hiện tại:** Toàn bộ quá trình kiểm thử, build và đo coverage được thực hiện và kiểm chứng thực tế tại local working tree trên môi trường máy phát triển; chưa chạy pipeline CI từ xa cho commit mới này.
+>   2. **Chưa xác minh E2E qua giao diện Frontend:** Cần đội ngũ Frontend và QA/Tester thực hiện nghiệm thu liên thông giữa màn hình giao diện người dùng và API Backend.

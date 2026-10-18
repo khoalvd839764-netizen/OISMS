@@ -208,7 +208,7 @@ public class AppDbContext : DbContext, IAppDbContext
 
             foreach (var entry in ChangeTracker.Entries<IMustHaveTenant>())
             {
-                if (currentTenantId.HasValue)
+                if (currentTenantId.HasValue && !IsPrivilegedScopeActive)
                 {
                     var expectedTenantId = currentTenantId.Value;
 

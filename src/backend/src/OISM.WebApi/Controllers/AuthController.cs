@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using OISM.Application.Common.Helpers;
 using OISM.Application.Common.Interfaces;
 using OISM.Application.Features.Auth.CurrentUser;
 using OISM.Application.Features.Auth.Login;
@@ -37,34 +38,38 @@ public class AuthController : ControllerBase
             return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
         }
 
-        // 1. Kiểm tra Email đã dùng chưa (BẮT BUỘC dùng IgnoreQueryFilters để quét toàn hệ thống)
-        var emailNormalized = request.Email.Trim().ToLower();
+        // 1. Chuẩn hóa Email và SĐT
+        var emailNormalized = request.Email.Trim().ToLowerInvariant();
+        string? phoneNormalized = null;
+        if (!string.IsNullOrWhiteSpace(request.PhoneNumber))
+        {
+            if (!PhoneHelper.TryNormalizePhoneNumber(request.PhoneNumber, out phoneNormalized))
+            {
+                return BadRequest(new { errors = new[] { "Định dạng số điện thoại không hợp lệ. Hỗ trợ số điện thoại Việt Nam (ví dụ 0901234567) hoặc chuẩn quốc tế E.164 (ví dụ +84901234567)." } });
+            }
+        }
+
+        var codeNormalized = request.TenantCode.Trim().ToUpperInvariant();
+
+        // 2. Pre-check Email và Phone đã dùng chưa (BẮT BUỘC dùng IgnoreQueryFilters để quét toàn hệ thống)
         var emailExists = await _context.Users
             .IgnoreQueryFilters()
-            .AnyAsync(u => u.Email.ToLower() == emailNormalized);
+            .AnyAsync(u => u.Email != null && u.Email.ToLower() == emailNormalized);
 
         if (emailExists)
         {
             return Conflict(new { message = "Email này đã được sử dụng bởi một tài khoản khác trong hệ thống." });
         }
 
-        // 2. Chuẩn hóa TenantCode và SĐT
-        var codeNormalized = request.TenantCode.Trim().ToUpper();
-        string? phoneNormalized = null;
-        if (!string.IsNullOrWhiteSpace(request.PhoneNumber))
+        if (phoneNormalized != null)
         {
-            var rawPhone = request.PhoneNumber.Trim();
-            if (rawPhone.StartsWith("0"))
+            var phoneExists = await _context.Users
+                .IgnoreQueryFilters()
+                .AnyAsync(u => u.Phone == phoneNormalized);
+
+            if (phoneExists)
             {
-                phoneNormalized = "+84" + rawPhone.Substring(1);
-            }
-            else if (!rawPhone.StartsWith("+"))
-            {
-                phoneNormalized = "+" + rawPhone;
-            }
-            else
-            {
-                phoneNormalized = rawPhone;
+                return Conflict(new { message = "Số điện thoại này đã được sử dụng bởi một tài khoản khác trong hệ thống." });
             }
         }
 
@@ -79,49 +84,80 @@ public class AuthController : ControllerBase
                 using var privilegedScope = _context.OpenPrivilegedScope();
                 await using var transaction = await _context.Database.BeginTransactionAsync();
 
-                // Bước A: Tạo Cửa hàng
-                var tenant = new Tenant
+                try
                 {
-                    Name = request.TenantName.Trim(),
-                    Code = codeNormalized,
-                    IsActive = true
-                };
-                _context.Tenants.Add(tenant);
-                await _context.SaveChangesAsync();
+                    // Bước A: Tạo Cửa hàng
+                    var tenant = new Tenant
+                    {
+                        Name = request.TenantName.Trim(),
+                        Code = codeNormalized,
+                        IsActive = true
+                    };
+                    _context.Tenants.Add(tenant);
+                    await _context.SaveChangesAsync();
 
-                // Bước B: Tạo Tài khoản Chủ shop với vai trò Owner trực tiếp theo schema v0.5
-                var user = new User
+                    // Bước B: Tạo Tài khoản Chủ shop với vai trò Owner trực tiếp theo schema v0.5
+                    var user = new User
+                    {
+                        TenantId = tenant.Id,
+                        Email = emailNormalized,
+                        DisplayName = request.FullName.Trim(),
+                        Phone = phoneNormalized,
+                        PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
+                        Role = "Owner",
+                        IsActive = true
+                    };
+                    _context.Users.Add(user);
+                    await _context.SaveChangesAsync();
+
+                    // Hoàn tất Transaction
+                    await transaction.CommitAsync();
+
+                    response = new RegisterTenantResponse
+                    {
+                        TenantId = tenant.Id,
+                        TenantCode = tenant.Code,
+                        TenantName = tenant.Name,
+                        UserId = user.Id,
+                        Email = user.Email,
+                        Message = "Đăng ký Cửa hàng và tài khoản Chủ shop thành công!"
+                    };
+                }
+                catch
                 {
-                    TenantId = tenant.Id,
-                    Email = emailNormalized,
-                    DisplayName = request.FullName.Trim(),
-                    Phone = phoneNormalized,
-                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-                    Role = "Owner",
-                    IsActive = true
-                };
-                _context.Users.Add(user);
-                await _context.SaveChangesAsync();
-
-                // Hoàn tất Transaction
-                await transaction.CommitAsync();
-
-                response = new RegisterTenantResponse
-                {
-                    TenantId = tenant.Id,
-                    TenantCode = tenant.Code,
-                    TenantName = tenant.Name,
-                    UserId = user.Id,
-                    Email = user.Email,
-                    Message = "Đăng ký Cửa hàng và tài khoản Chủ shop thành công!"
-                };
+                    await transaction.RollbackAsync();
+                    throw;
+                }
             });
 
             return StatusCode(201, response);
         }
-        catch (Exception ex)
+        catch (DbUpdateException ex)
         {
-            return StatusCode(500, new { message = "Lỗi trong quá trình đăng ký cửa hàng: " + ex.Message });
+            if (ex.InnerException is Npgsql.PostgresException pgEx)
+            {
+                if (pgEx.SqlState == "23505")
+                {
+                    if (pgEx.ConstraintName == "uq_users_2" || pgEx.Message.Contains("uq_users_2"))
+                    {
+                        return Conflict(new { message = "Email này đã được sử dụng bởi một tài khoản khác trong hệ thống." });
+                    }
+                    if (pgEx.ConstraintName == "uq_users_3" || pgEx.Message.Contains("uq_users_3"))
+                    {
+                        return Conflict(new { message = "Số điện thoại này đã được sử dụng bởi một tài khoản khác trong hệ thống." });
+                    }
+                    return Conflict(new { message = "Dữ liệu đăng ký bị trùng lặp trong hệ thống." });
+                }
+                if (pgEx.SqlState == "23514")
+                {
+                    return BadRequest(new { message = "Dữ liệu không thỏa mãn ràng buộc hệ thống." });
+                }
+            }
+            return StatusCode(500, new { message = "Đã xảy ra lỗi khi lưu thông tin đăng ký vào cơ sở dữ liệu." });
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, new { message = "Đã xảy ra lỗi trong quá trình xử lý đăng ký." });
         }
     }
 
@@ -206,7 +242,7 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// Làm mới Access Token bằng Refresh Token (Token Rotation).
+    /// Làm mới Access Token bằng Refresh Token (Token Rotation nguyên tử, chống race condition trên PostgreSQL).
     /// </summary>
     [HttpPost("refresh-token")]
     public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request)
@@ -217,58 +253,80 @@ public class AuthController : ControllerBase
         }
 
         var tokenHash = Domain.Entities.RefreshToken.HashToken(request.RefreshToken);
-        var existingToken = await _context.RefreshTokens
-            .IgnoreQueryFilters()
-            .Include(r => r.User)
-                .ThenInclude(u => u!.Tenant)
-            .FirstOrDefaultAsync(r => r.TokenHash == tokenHash);
 
-        if (existingToken == null || !existingToken.IsActive)
+        var strategy = _context.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync<IActionResult>(async () =>
         {
-            return Unauthorized(new { message = "Refresh token không hợp lệ hoặc đã hết hạn/bị thu hồi." });
-        }
+            using var privilegedScope = _context.OpenPrivilegedScope();
+            await using var tx = await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted);
 
-        var user = existingToken.User;
-        if (user == null || !user.IsActive)
-        {
-            return Unauthorized(new { message = "Tài khoản không tồn tại hoặc đã bị khóa." });
-        }
+            // Trên PostgreSQL: Khóa bi quan hàng refresh_token bằng FOR UPDATE để bảo đảm rotation nguyên tử
+            if (_context.Database.IsNpgsql())
+            {
+                await _context.Database.ExecuteSqlInterpolatedAsync(
+                    $"SELECT id FROM refresh_tokens WHERE token_hash = {tokenHash} FOR UPDATE");
+            }
 
-        // Thu hồi token cũ và sinh cặp token mới (Token Rotation)
-        existingToken.RevokedAt = DateTimeOffset.UtcNow;
+            var existingToken = await _context.RefreshTokens
+                .IgnoreQueryFilters()
+                .Include(r => r.User)
+                    .ThenInclude(u => u!.Tenant)
+                .FirstOrDefaultAsync(r => r.TokenHash == tokenHash);
 
-        var roles = new List<string> { user.Role };
+            if (existingToken == null || !existingToken.IsActive)
+            {
+                await tx.RollbackAsync();
+                return Unauthorized(new { message = "Refresh token không hợp lệ hoặc đã hết hạn/bị thu hồi." });
+            }
 
-        var newAccessToken = _jwtTokenService.GenerateAccessToken(user, roles);
-        var newRefreshToken = _jwtTokenService.GenerateRefreshToken(user.TenantId, user.Id);
-        existingToken.ReplacedByToken = newRefreshToken.Token;
+            var user = existingToken.User;
+            if (user == null || !user.IsActive)
+            {
+                await tx.RollbackAsync();
+                return Unauthorized(new { message = "Tài khoản không tồn tại hoặc đã bị khóa." });
+            }
 
-        using (_context.OpenPrivilegedScope())
-        {
+            if (user.Tenant == null || !user.Tenant.IsActive)
+            {
+                await tx.RollbackAsync();
+                return Unauthorized(new { message = "Cửa hàng của bạn hiện đang bị tạm ngưng." });
+            }
+
+            // Thu hồi token cũ và sinh cặp token mới (Token Rotation)
+            existingToken.RevokedAt = DateTimeOffset.UtcNow;
+
+            var roles = new List<string> { user.Role };
+
+            var newAccessToken = _jwtTokenService.GenerateAccessToken(user, roles);
+            var newRefreshToken = _jwtTokenService.GenerateRefreshToken(user.TenantId, user.Id);
+            existingToken.ReplacedByToken = newRefreshToken.Token;
+
             _context.RefreshTokens.Add(newRefreshToken);
             await _context.SaveChangesAsync();
-        }
 
-        var response = new AuthResponse
-        {
-            AccessToken = newAccessToken,
-            RefreshToken = newRefreshToken.Token,
-            TokenType = "Bearer",
-            ExpiresIn = 3600,
-            User = new UserProfileDto
+            await tx.CommitAsync();
+
+            var response = new AuthResponse
             {
-                Id = user.Id,
-                TenantId = user.TenantId,
-                TenantCode = user.Tenant?.Code ?? string.Empty,
-                TenantName = user.Tenant?.Name ?? string.Empty,
-                Email = user.Email,
-                FullName = user.FullName,
-                PhoneNumber = user.PhoneNumber,
-                Roles = roles
-            }
-        };
+                AccessToken = newAccessToken,
+                RefreshToken = newRefreshToken.Token,
+                TokenType = "Bearer",
+                ExpiresIn = 3600,
+                User = new UserProfileDto
+                {
+                    Id = user.Id,
+                    TenantId = user.TenantId,
+                    TenantCode = user.Tenant?.Code ?? string.Empty,
+                    TenantName = user.Tenant?.Name ?? string.Empty,
+                    Email = user.Email,
+                    FullName = user.FullName,
+                    PhoneNumber = user.PhoneNumber,
+                    Roles = roles
+                }
+            };
 
-        return Ok(response);
+            return Ok(response);
+        });
     }
 
     /// <summary>

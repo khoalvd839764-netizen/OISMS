@@ -20,7 +20,7 @@ public class BranchController : ControllerBase
     }
 
     /// <summary>
-    /// Lấy danh sách chi nhánh/kho hàng thuộc về Cửa hàng của phiên đăng nhập (FR-AUTH-04).
+    /// Lấy danh sách chi nhánh thuộc về Cửa hàng của phiên đăng nhập (FR-AUTH-04).
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetBranches()
@@ -40,15 +40,39 @@ public class BranchController : ControllerBase
     }
 
     /// <summary>
-    /// Tạo chi nhánh / kho hàng mới (Chỉ dành cho Owner - FR-AUTH-04).
+    /// Lấy thông tin chi tiết một chi nhánh theo Id.
+    /// </summary>
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetBranchById(Guid id)
+    {
+        var branch = await _context.Branches.FirstOrDefaultAsync(b => b.Id == id);
+        if (branch == null)
+        {
+            return NotFound(new { message = "Không tìm thấy chi nhánh." });
+        }
+
+        return Ok(new BranchResponse
+        {
+            Id = branch.Id,
+            Name = branch.Name,
+            Address = branch.Address,
+            Phone = branch.Phone,
+            IsActive = branch.IsActive
+        });
+    }
+
+    /// <summary>
+    /// Tạo chi nhánh mới (Chỉ dành cho Owner - FR-AUTH-04, BE2-08).
     /// </summary>
     [HttpPost]
     [Authorize(Roles = "Owner")]
     public async Task<IActionResult> CreateBranch([FromBody] CreateBranchRequest request)
     {
-        if (string.IsNullOrWhiteSpace(request.Name))
+        var validator = new CreateBranchValidator();
+        var validationResult = await validator.ValidateAsync(request);
+        if (!validationResult.IsValid)
         {
-            return BadRequest(new { message = "Tên chi nhánh không được để trống." });
+            return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
         }
 
         var branch = new Branch
@@ -76,7 +100,44 @@ public class BranchController : ControllerBase
     }
 
     /// <summary>
-    /// Bật/Tắt trạng thái hoạt động của chi nhánh/kho hàng (FR-AUTH-04).
+    /// Cập nhật thông tin chi nhánh (Chỉ dành cho Owner - BE2-08).
+    /// </summary>
+    [HttpPut("{id}")]
+    [Authorize(Roles = "Owner")]
+    public async Task<IActionResult> UpdateBranch(Guid id, [FromBody] UpdateBranchRequest request)
+    {
+        var validator = new UpdateBranchValidator();
+        var validationResult = await validator.ValidateAsync(request);
+        if (!validationResult.IsValid)
+        {
+            return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
+        }
+
+        var branch = await _context.Branches.FirstOrDefaultAsync(b => b.Id == id);
+        if (branch == null)
+        {
+            return NotFound(new { message = "Không tìm thấy chi nhánh." });
+        }
+
+        branch.Name = request.Name.Trim();
+        branch.Address = request.Address?.Trim();
+        branch.Phone = request.Phone?.Trim();
+        branch.IsActive = request.IsActive;
+
+        await _context.SaveChangesAsync();
+
+        return Ok(new BranchResponse
+        {
+            Id = branch.Id,
+            Name = branch.Name,
+            Address = branch.Address,
+            Phone = branch.Phone,
+            IsActive = branch.IsActive
+        });
+    }
+
+    /// <summary>
+    /// Bật/Tắt trạng thái hoạt động của chi nhánh (FR-AUTH-04).
     /// </summary>
     [HttpPut("{id}/toggle-status")]
     [Authorize(Roles = "Owner")]

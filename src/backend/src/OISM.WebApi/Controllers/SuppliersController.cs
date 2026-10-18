@@ -54,6 +54,31 @@ public class SuppliersController : ControllerBase
     }
 
     /// <summary>
+    /// Lấy chi tiết thông tin một Nhà cung cấp theo Id.
+    /// </summary>
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetSupplierById(Guid id)
+    {
+        var s = await _context.Suppliers.FirstOrDefaultAsync(s => s.Id == id);
+        if (s == null)
+        {
+            return NotFound(new { message = "Không tìm thấy nhà cung cấp." });
+        }
+
+        return Ok(new SupplierResponse
+        {
+            Id = s.Id,
+            Name = s.Name,
+            Code = s.Code,
+            ContactName = s.ContactName,
+            Phone = s.Phone,
+            Email = s.Email,
+            Address = s.Address,
+            IsActive = s.IsActive
+        });
+    }
+
+    /// <summary>
     /// Tạo mới Nhà cung cấp.
     /// </summary>
     [HttpPost]

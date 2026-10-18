@@ -79,6 +79,13 @@ public class BrandsController : ControllerBase
     [Authorize(Roles = "Owner,Staff")]
     public async Task<IActionResult> UpdateBrand(Guid id, [FromBody] UpdateBrandRequest request)
     {
+        var validator = new UpdateBrandValidator();
+        var validationResult = await validator.ValidateAsync(request);
+        if (!validationResult.IsValid)
+        {
+            return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
+        }
+
         var brand = await _context.Brands.FirstOrDefaultAsync(b => b.Id == id);
         if (brand == null)
         {

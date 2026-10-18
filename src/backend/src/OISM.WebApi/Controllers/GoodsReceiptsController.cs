@@ -45,6 +45,11 @@ public class GoodsReceiptsController : ControllerBase
             return BadRequest(ModelState);
         }
 
+        if (dto.Items != null && dto.Items.Any(i => i == null))
+        {
+            return BadRequest(new { message = "Danh sách mặt hàng không được chứa phần tử rỗng (null)." });
+        }
+
         try
         {
             var userId = GetCurrentUserId();
@@ -58,6 +63,10 @@ public class GoodsReceiptsController : ControllerBase
         catch (InvalidOperationException ex)
         {
             return Conflict(new { message = ex.Message });
+        }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException pgEx && pgEx.SqlState == "23505")
+        {
+            return Conflict(new { message = $"Mã phiếu nhập '{dto.Number}' đã tồn tại trong gian hàng." });
         }
         catch (ArgumentException ex)
         {

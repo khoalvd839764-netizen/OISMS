@@ -37,3 +37,14 @@ public class CreateCategoryValidator : AbstractValidator<CreateCategoryRequest>
             .MaximumLength(100).WithMessage("Tên danh mục không được vượt quá 100 ký tự.");
     }
 }
+
+public class UpdateCategoryValidator : AbstractValidator<UpdateCategoryRequest>
+{
+    public UpdateCategoryValidator()
+    {
+        RuleFor(x => x.Name)
+            .NotEmpty().WithMessage("Tên danh mục không được để trống.")
+            .MaximumLength(100).WithMessage("Tên danh mục không được vượt quá 100 ký tự.");
+    }
+}
+

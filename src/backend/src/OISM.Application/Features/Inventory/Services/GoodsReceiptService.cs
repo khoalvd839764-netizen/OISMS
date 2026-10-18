@@ -70,6 +70,10 @@ public class GoodsReceiptService : IGoodsReceiptService
         {
             throw new InvalidOperationException("Phiếu nhập phải có ít nhất 1 dòng mặt hàng.");
         }
+        if (dto.Items.Any(i => i == null))
+        {
+            throw new ArgumentException("Danh sách mặt hàng không được chứa phần tử rỗng (null).");
+        }
 
         var skuIds = dto.Items.Select(i => i.SkuId).Distinct().ToList();
         var existingSkus = await _context.ProductVariants
@@ -135,8 +139,15 @@ public class GoodsReceiptService : IGoodsReceiptService
             });
         }
 
-        _context.GoodsReceipts.Add(receipt);
-        await _context.SaveChangesAsync(ct);
+        try
+        {
+            _context.GoodsReceipts.Add(receipt);
+            await _context.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("23505") == true || ex.InnerException?.Message.Contains("uq_goods_receipts_2") == true)
+        {
+            throw new InvalidOperationException($"Mã phiếu nhập '{number}' đã tồn tại trong gian hàng.");
+        }
 
         return await MapToResponseDtoAsync(receipt.Id, ct);
     }

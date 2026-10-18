@@ -54,6 +54,32 @@ public class WarehousesController : ControllerBase
     }
 
     /// <summary>
+    /// Lấy chi tiết thông tin một kho hàng theo Id.
+    /// </summary>
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetWarehouseById(Guid id)
+    {
+        var warehouse = await _context.Warehouses
+            .Include(w => w.Branch)
+            .FirstOrDefaultAsync(w => w.Id == id);
+
+        if (warehouse == null)
+        {
+            return NotFound(new { message = "Không tìm thấy kho hàng." });
+        }
+
+        return Ok(new WarehouseResponse
+        {
+            Id = warehouse.Id,
+            BranchId = warehouse.BranchId,
+            BranchName = warehouse.Branch != null ? warehouse.Branch.Name : string.Empty,
+            Name = warehouse.Name,
+            IsActive = warehouse.IsActive,
+            CreatedAt = warehouse.CreatedAt
+        });
+    }
+
+    /// <summary>
     /// Tạo kho hàng mới gắn với Chi nhánh (Yêu cầu quyền Owner hoặc Staff).
     /// </summary>
     [HttpPost]
@@ -96,6 +122,116 @@ public class WarehousesController : ControllerBase
         };
 
         return StatusCode(201, response);
+    }
+
+    /// <summary>
+    /// Cập nhật thông tin kho hàng (Yêu cầu quyền Owner hoặc Staff - BE2-08).
+    /// Quy tắc:
+    /// 1. Nếu thay đổi BranchId:
+    ///    - Bắt buộc kiểm tra dữ liệu phụ thuộc (phiếu nhập kho, số dư tồn kho, sổ cái giao dịch, giữ chỗ tồn kho).
+    ///    - Nếu kho đã có bất kỳ dữ liệu phụ thuộc nào (kể cả khi tồn kho hiện tại đã về 0): CHẶN và trả 409 Conflict,
+    ///      không cho phép đổi chi nhánh để bảo vệ tính toàn vẹn dữ liệu lịch sử và ràng buộc foreign key (fk_goods_receipts_warehouse_branch).
+    ///    - Nếu kho hoàn toàn chưa phát sinh dữ liệu: Cho phép đổi chi nhánh sang chi nhánh đích cùng tenant.
+    /// 2. Nếu BranchId không đổi: Cho phép cập nhật tên kho và trạng thái hoạt động (IsActive) bình thường.
+    /// 3. Khóa bi quan kho hàng trên PostgreSQL chống tranh chấp đồng thời và bắt ngoại lệ FK có kiểm soát.
+    /// </summary>
+    [HttpPut("{id}")]
+    [Authorize(Roles = "Owner,Staff")]
+    public async Task<IActionResult> UpdateWarehouse(Guid id, [FromBody] UpdateWarehouseRequest request)
+    {
+        var validator = new UpdateWarehouseValidator();
+        var validationResult = await validator.ValidateAsync(request);
+        if (!validationResult.IsValid)
+        {
+            return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
+        }
+
+        var strategy = _context.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync<IActionResult>(async () =>
+        {
+            await using var tx = await _context.Database.BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted);
+
+            if (_context.Database.IsNpgsql())
+            {
+                // Khóa bi quan hàng kho hàng trên PostgreSQL để chống xung đột đồng thời
+                await _context.Database.ExecuteSqlInterpolatedAsync(
+                    $"SELECT id FROM warehouses WHERE id = {id} FOR UPDATE");
+            }
+
+            var warehouse = await _context.Warehouses
+                .Include(w => w.Branch)
+                .FirstOrDefaultAsync(w => w.Id == id);
+
+            if (warehouse == null)
+            {
+                await tx.RollbackAsync();
+                return NotFound(new { message = "Không tìm thấy kho hàng." });
+            }
+
+            var branch = warehouse.Branch;
+
+            // Nếu người dùng yêu cầu đổi Chi nhánh của kho
+            if (request.BranchId != warehouse.BranchId)
+            {
+                // 1. Kiểm tra toàn diện các dữ liệu phụ thuộc lịch sử
+                var hasReceipts = await _context.GoodsReceipts.AnyAsync(g => g.WarehouseId == id);
+                var hasBalances = await _context.WarehouseInventoryBalances.AnyAsync(b => b.WarehouseId == id);
+                var hasTransactions = await _context.InventoryTransactions.AnyAsync(t => t.WarehouseId == id);
+                var hasReservations = await _context.Reservations.AnyAsync(r => r.WarehouseId == id);
+
+                if (hasReceipts || hasBalances || hasTransactions || hasReservations)
+                {
+                    await tx.RollbackAsync();
+                    return Conflict(new
+                    {
+                        message = "Không thể thay đổi chi nhánh của kho hàng đã có lịch sử chứng từ, tồn kho hoặc giao dịch liên kết."
+                    });
+                }
+
+                // 2. Nếu kho chưa có dữ liệu phụ thuộc: Xác minh chi nhánh đích tồn tại và cùng Tenant
+                var targetBranch = await _context.Branches.FirstOrDefaultAsync(b => b.Id == request.BranchId);
+                if (targetBranch == null)
+                {
+                    await tx.RollbackAsync();
+                    return BadRequest(new { message = "Chi nhánh được chọn không tồn tại hoặc không thuộc cửa hàng của bạn." });
+                }
+
+                warehouse.BranchId = request.BranchId;
+                branch = targetBranch;
+            }
+
+            warehouse.Name = request.Name.Trim();
+            warehouse.IsActive = request.IsActive;
+
+            try
+            {
+                await _context.SaveChangesAsync();
+                await tx.CommitAsync();
+            }
+            catch (DbUpdateException ex)
+            {
+                await tx.RollbackAsync();
+                // Bắt chính xác lỗi vi phạm khóa ngoại PostgreSQL 23503 liên quan đến đổi chi nhánh của kho
+                if (ex.InnerException is Npgsql.PostgresException pgEx && pgEx.SqlState == "23503")
+                {
+                    return Conflict(new
+                    {
+                        message = "Không thể thay đổi chi nhánh của kho hàng do vi phạm ràng buộc dữ liệu liên kết."
+                    });
+                }
+                throw;
+            }
+
+            return Ok(new WarehouseResponse
+            {
+                Id = warehouse.Id,
+                BranchId = warehouse.BranchId,
+                BranchName = branch?.Name ?? string.Empty,
+                Name = warehouse.Name,
+                IsActive = warehouse.IsActive,
+                CreatedAt = warehouse.CreatedAt
+            });
+        });
     }
 
     /// <summary>

@@ -33,7 +33,7 @@ public class RegisterTenantValidator : AbstractValidator<RegisterTenantRequest>
             .MinimumLength(6).WithMessage("Mật khẩu phải có độ dài tối thiểu 6 ký tự.");
 
         RuleFor(x => x.PhoneNumber)
-            .Matches(@"^[0-9+() -]*$").When(x => !string.IsNullOrEmpty(x.PhoneNumber))
-            .WithMessage("Số điện thoại chứa ký tự không hợp lệ.");
+            .Must(phone => string.IsNullOrWhiteSpace(phone) || OISM.Application.Common.Helpers.PhoneHelper.IsValidPhoneNumber(phone))
+            .WithMessage("Định dạng số điện thoại không hợp lệ. Hỗ trợ số điện thoại Việt Nam (ví dụ 0901234567) hoặc chuẩn quốc tế E.164 (ví dụ +84901234567).");
     }
 }
