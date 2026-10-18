@@ -1,0 +1,76 @@
+name: OISM CI Pipeline
+
+on:
+  push:
+    branches: [ "main", "master", "develop" ]
+  pull_request:
+    branches: [ "main", "master", "develop" ]
+
+jobs:
+  build-and-test-backend:
+    name: Build & Test Backend (.NET 8)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: admin123
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      OISM_TEST_HOST: localhost
+      OISM_TEST_PORT: 5432
+      OISM_TEST_ADMIN_USER: postgres
+      OISM_TEST_ADMIN_PASSWORD: admin123
+      OISM_TEST_APP_USER: oisms_test_app
+      OISM_TEST_APP_PASSWORD: TestPassword_2026!#$
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET 8 SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+
+    - name: Restore dependencies
+      run: dotnet restore src/backend/OISM.sln
+
+    - name: Build Solution
+      run: dotnet build src/backend/OISM.sln --no-restore -c Release
+
+    - name: Run Tests
+      run: dotnet test src/backend/OISM.sln --no-build -c Release --verbosity normal
+
+  build-frontend:
+    name: Build Frontend (Admin & POS)
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Node.js 22
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Build Admin Dashboard
+      working-directory: src/frontend/admin-dashboard
+      run: |
+        npm install
+        npm run build
+
+    - name: Build POS App
+      working-directory: src/frontend/pos-app
+      run: |
+        npm install
+        npm run build
