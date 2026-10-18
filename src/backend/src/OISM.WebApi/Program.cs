@@ -32,6 +32,10 @@ builder.Services.AddScoped<ICurrentTenantService, CurrentTenantService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddSingleton<IDatabaseReadinessService, NpgsqlDatabaseReadinessService>();
 builder.Services.AddScoped<IDatabaseMigrationService, DatabaseMigrationService>();
+builder.Services.AddSingleton<OISM.Application.Features.Inventory.Services.IWacCalculator, OISM.Application.Features.Inventory.Services.WacCalculator>();
+builder.Services.AddScoped<OISM.Application.Features.Inventory.Services.IGoodsReceiptService, OISM.Application.Features.Inventory.Services.GoodsReceiptService>();
+builder.Services.AddScoped<OISM.Application.Features.Inventory.Services.IInventoryService, OISM.Application.Features.Inventory.Services.InventoryService>();
+builder.Services.AddScoped<OISM.Application.Features.Inventory.Services.IReservationService, OISM.Application.Features.Inventory.Services.ReservationService>();
 
 // 3. Cấu hình Xác thực JWT Bearer (FR-AUTH-02, NFR-SEC-01)
 var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "SuperSecretKeyForOISMOmnichannelRetailSystem2026!#";

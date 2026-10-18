@@ -35,10 +35,34 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<ProductVariant> Skus => ProductVariants;
     public DbSet<Supplier> Suppliers { get; set; } = null!;
     public DbSet<InventoryBalance> InventoryBalances { get; set; } = null!;
+    public DbSet<WarehouseInventoryBalance> WarehouseInventoryBalances { get; set; } = null!;
+    public DbSet<GoodsReceipt> GoodsReceipts { get; set; } = null!;
+    public DbSet<GoodsReceiptItem> GoodsReceiptItems { get; set; } = null!;
+    public DbSet<InventoryTransaction> InventoryTransactions { get; set; } = null!;
+    public DbSet<Order> Orders { get; set; } = null!;
+    public DbSet<OrderItem> OrderItems { get; set; } = null!;
+    public DbSet<Reservation> Reservations { get; set; } = null!;
+
+    public bool IsRelationalDatabase => Database.IsRelational();
 
     public Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
     {
         return Database.BeginTransactionAsync(cancellationToken);
+    }
+
+    public IExecutionStrategy CreateExecutionStrategy()
+    {
+        return Database.CreateExecutionStrategy();
+    }
+
+    public Task<int> ExecuteSqlRawAsync(string sql, object[] parameters, CancellationToken cancellationToken = default)
+    {
+        return Database.ExecuteSqlRawAsync(sql, parameters, cancellationToken);
+    }
+
+    public void ClearChangeTracker()
+    {
+        ChangeTracker.Clear();
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -81,6 +105,27 @@ public class AppDbContext : DbContext, IAppDbContext
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
 
         modelBuilder.Entity<InventoryBalance>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<WarehouseInventoryBalance>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<GoodsReceipt>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<GoodsReceiptItem>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<InventoryTransaction>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<Order>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<OrderItem>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<Reservation>()
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
     }
 
