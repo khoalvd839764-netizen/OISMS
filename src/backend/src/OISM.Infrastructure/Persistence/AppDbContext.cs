@@ -39,10 +39,33 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<GoodsReceipt> GoodsReceipts { get; set; } = null!;
     public DbSet<GoodsReceiptItem> GoodsReceiptItems { get; set; } = null!;
     public DbSet<InventoryTransaction> InventoryTransactions { get; set; } = null!;
+<<<<<<< HEAD
+=======
+    public DbSet<Order> Orders { get; set; } = null!;
+    public DbSet<OrderItem> OrderItems { get; set; } = null!;
+    public DbSet<Reservation> Reservations { get; set; } = null!;
+
+    public bool IsRelationalDatabase => Database.IsRelational();
+>>>>>>> 2cc35c255b5ed4a5ecafb66a14f858702cf6e168
 
     public Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
     {
         return Database.BeginTransactionAsync(cancellationToken);
+    }
+
+    public IExecutionStrategy CreateExecutionStrategy()
+    {
+        return Database.CreateExecutionStrategy();
+    }
+
+    public Task<int> ExecuteSqlRawAsync(string sql, object[] parameters, CancellationToken cancellationToken = default)
+    {
+        return Database.ExecuteSqlRawAsync(sql, parameters, cancellationToken);
+    }
+
+    public void ClearChangeTracker()
+    {
+        ChangeTracker.Clear();
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -98,6 +121,18 @@ public class AppDbContext : DbContext, IAppDbContext
 
         modelBuilder.Entity<InventoryTransaction>()
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+<<<<<<< HEAD
+=======
+
+        modelBuilder.Entity<Order>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<OrderItem>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<Reservation>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+>>>>>>> 2cc35c255b5ed4a5ecafb66a14f858702cf6e168
     }
 
     private readonly AsyncLocal<bool> _isPrivilegedScopeActive = new();

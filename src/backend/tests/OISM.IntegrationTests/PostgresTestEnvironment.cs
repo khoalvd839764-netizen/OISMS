@@ -1,5 +1,6 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using OISM.Application.Common.Interfaces;
@@ -392,7 +393,7 @@ SET session_replication_role = 'origin';";
         return $"'{((literal ?? string.Empty).Replace("'", "''"))}'";
     }
 
-    public static AppDbContext CreateRuntimeDbContext(ICurrentTenantService tenantService)
+    public static AppDbContext CreateRuntimeDbContext(ICurrentTenantService tenantService, params IInterceptor[] interceptors)
     {
         var services = new ServiceCollection();
         services.AddSingleton(tenantService);
@@ -403,6 +404,11 @@ SET session_replication_role = 'origin';";
                 npgsqlOptions.EnableRetryOnFailure(3, TimeSpan.FromSeconds(5), null);
             })
             .UseSnakeCaseNamingConvention();
+
+            if (interceptors != null && interceptors.Length > 0)
+            {
+                options.AddInterceptors(interceptors);
+            }
         });
 
         var sp = services.BuildServiceProvider();

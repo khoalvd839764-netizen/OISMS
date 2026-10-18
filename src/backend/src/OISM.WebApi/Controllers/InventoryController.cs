@@ -1,4 +1,5 @@
 using System.Security.Claims;
+<<<<<<< HEAD
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -6,18 +7,30 @@ using Microsoft.EntityFrameworkCore;
 using OISM.Application.Features.Inventory;
 using OISM.Domain.Entities;
 using OISM.Infrastructure.Persistence;
+=======
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using OISM.Application.Features.Inventory.Dtos;
+using OISM.Application.Features.Inventory.Services;
+>>>>>>> 2cc35c255b5ed4a5ecafb66a14f858702cf6e168
 
 namespace OISM.WebApi.Controllers;
 
 /// <summary>
+<<<<<<< HEAD
 /// API Quản lý Tồn kho, Phiếu nhập kho nhiều dòng (Multi-line Goods Receipt),
 /// Tính giá vốn bình quân gia quyền (WAC) và Sổ kho bất biến (Append-Only Ledger).
+=======
+/// API Quản lý Tồn kho, Sổ cái kho và Giữ chỗ (BE1-06, BE1-08, BE1-09).
+/// Phục vụ cả Web Admin (Quản trị) và Quầy POS (Bán lẻ).
+>>>>>>> 2cc35c255b5ed4a5ecafb66a14f858702cf6e168
 /// </summary>
 [ApiController]
 [Route("api/inventory")]
 [Authorize]
 public class InventoryController : ControllerBase
 {
+<<<<<<< HEAD
     private readonly AppDbContext _context;
 
     public InventoryController(AppDbContext context)
@@ -651,5 +664,100 @@ public class InventoryController : ControllerBase
             ConfirmedAt = r.ConfirmedAt,
             Lines = lines
         };
+=======
+    private readonly IInventoryService _inventoryService;
+    private readonly IReservationService _reservationService;
+
+    public InventoryController(
+        IInventoryService inventoryService,
+        IReservationService reservationService)
+    {
+        _inventoryService = inventoryService;
+        _reservationService = reservationService;
+    }
+
+    private Guid? GetCurrentUserId()
+    {
+        var claim = User.FindFirst("userId")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (Guid.TryParse(claim, out var userId))
+        {
+            return userId;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Tra cứu danh sách tồn kho theo Chi nhánh hoặc Kho (BE1-08).
+    /// Hỗ trợ cả 3 vai trò: Owner, Staff, Cashier (POS tra cứu tồn khả dụng).
+    /// </summary>
+    [HttpGet("balances")]
+    [Authorize(Roles = "Owner,Staff,Cashier")]
+    public async Task<IActionResult> GetBalances([FromQuery] InventoryBalanceFilterDto filter, CancellationToken ct)
+    {
+        var result = await _inventoryService.GetBalancesAsync(filter, ct);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Tra cứu tồn kho chi tiết của một SKU tại một Chi nhánh cụ thể (BE1-08, phục vụ POS).
+    /// </summary>
+    [HttpGet("balances/sku/{skuId}/branch/{branchId}")]
+    [Authorize(Roles = "Owner,Staff,Cashier")]
+    public async Task<IActionResult> GetSkuBalanceAtBranch(Guid skuId, Guid branchId, CancellationToken ct)
+    {
+        var balance = await _inventoryService.GetSkuBalanceAtBranchAsync(branchId, skuId, ct);
+        if (balance == null)
+        {
+            return NotFound(new { message = $"Không tìm thấy số dư cho SKU '{skuId}' tại chi nhánh '{branchId}'." });
+        }
+        return Ok(balance);
+    }
+
+    /// <summary>
+    /// Tra cứu lịch sử Sổ cái kho bất biến (Inventory Ledger - BE1-06).
+    /// Chỉ dành cho vai trò Quản lý: Owner và Staff. Thu ngân (Cashier) bị từ chối (403 Forbidden).
+    /// Không hỗ trợ API Sửa hoặc Xóa (Append-Only).
+    /// </summary>
+    [HttpGet("ledger")]
+    [Authorize(Roles = "Owner,Staff")]
+    public async Task<IActionResult> GetLedger([FromQuery] InventoryLedgerFilterDto filter, CancellationToken ct)
+    {
+        var result = await _inventoryService.GetLedgerAsync(filter, ct);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Giữ chỗ tồn kho chống bán âm / Overselling (BE1-09).
+    /// Khóa giao dịch đồng thời (Advisory Lock), kiểm tra Available, cập nhật Reserved ở 2 cấp và sinh Reservation Active.
+    /// Hỗ trợ Owner, Staff, Cashier.
+    /// </summary>
+    [HttpPost("reserve")]
+    [Authorize(Roles = "Owner,Staff,Cashier")]
+    public async Task<IActionResult> Reserve([FromBody] ReserveStockRequestDto dto, CancellationToken ct)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        try
+        {
+            var userId = GetCurrentUserId();
+            var result = await _reservationService.ReserveStockAsync(dto, userId, ct);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+>>>>>>> 2cc35c255b5ed4a5ecafb66a14f858702cf6e168
     }
 }
