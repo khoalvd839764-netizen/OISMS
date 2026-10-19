@@ -67,12 +67,10 @@ jobs:
       working-directory: src/frontend/admin-dashboard
       run: |
         npm install
-        npm install @rolldown/binding-linux-x64-gnu --no-save
         npm run build
 
     - name: Build POS App
       working-directory: src/frontend/pos-app
       run: |
         npm install
-        npm install @rolldown/binding-linux-x64-gnu --no-save
         npm run build
