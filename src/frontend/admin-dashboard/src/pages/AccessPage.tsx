@@ -1,4 +1,4 @@
-import { Clock3, LockKeyhole, LogOut, Store, ShieldAlert, ArrowLeft } from "lucide-react";
+import { Clock3, LockKeyhole, LogOut, ShieldAlert, ArrowLeft } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Badge, Button } from "../components/ui";
@@ -62,11 +62,7 @@ export function AccessPage({ type }: { type: "forbidden" | "expired" }) {
         <div style={{ display: "flex", gap: "10px", justifyContent: "center", flexWrap: "wrap", marginTop: "8px" }}>
           {forbidden ? (
             <>
-              {user?.role === "Cashier" ? (
-                <Link className="button button--primary" to="/pos">
-                  <Store size={16} /> Mở Quầy bán hàng POS
-                </Link>
-              ) : (
+              {user?.role !== "Cashier" && (
                 <Link className="button button--primary" to="/">
                   <ArrowLeft size={16} /> Về trang tổng quan
                 </Link>
@@ -81,6 +77,10 @@ export function AccessPage({ type }: { type: "forbidden" | "expired" }) {
             </Link>
           )}
         </div>
+
+        {forbidden && user?.role === "Cashier" && (
+          <p>Tài khoản thu ngân dùng ứng dụng POS riêng. Vui lòng truy cập địa chỉ POS do quản trị viên cung cấp.</p>
+        )}
 
         <small style={{ display: "block", marginTop: "16px" }}>
           Ẩn menu trên giao diện không thay thế việc kiểm tra phân quyền RBAC tại Route Guard và Backend.

@@ -217,7 +217,7 @@ export function DashboardPage() {
               ) : ordersList.length === 0 ? (
                 <tr>
                   <td colSpan={6} style={{ textAlign: "center", padding: "28px 0", color: "#64748b" }}>
-                    Chưa có đơn hàng nào phát sinh hôm nay. Bạn có thể tạo đơn tại trang Đơn hàng hoặc Quầy POS.
+                    Chưa có đơn hàng nào phát sinh hôm nay. Bạn có thể tạo đơn tại trang Đơn hàng.
                   </td>
                 </tr>
               ) : (

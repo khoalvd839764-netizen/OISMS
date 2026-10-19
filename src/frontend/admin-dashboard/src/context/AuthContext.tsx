@@ -106,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           tenantName: data.tenantName || "Cửa hàng của tôi",
           tenantCode: data.tenantCode || "",
           branchName: "Chi nhánh chính",
-          landingPath: role === "Cashier" ? "/pos" : "/admin",
+          landingPath: role === "Cashier" ? "/403" : "/admin",
         };
         setUser(accountData);
       } catch (err: any) {
@@ -155,7 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         tenantName: userData.tenantName || "Cửa hàng của tôi",
         tenantCode: userData.tenantCode || "",
         branchName: "Chi nhánh chính",
-        landingPath: role === "Cashier" ? "/pos" : "/admin",
+        landingPath: role === "Cashier" ? "/403" : "/admin",
       };
 
       setUser(accountData);
