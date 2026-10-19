@@ -1,4 +1,4 @@
-import { ArrowRight, Boxes, CircleAlert, Clock3, PackageCheck, ShoppingCart, TrendingUp, WalletCards } from "lucide-react";
+import { AlertCircle, ArrowRight, Boxes, CircleAlert, Clock3, PackageCheck, RefreshCw, ShoppingCart, TrendingUp, WalletCards } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Badge, Button, PageTitle, StatCard } from "../components/ui";
@@ -12,21 +12,31 @@ export function DashboardPage() {
   const { account } = useAuth();
   const [ordersList, setOrdersList] = useState<Order[]>([]);
   const [skusList, setSkusList] = useState<Sku[]>([]);
+  const [branchBalances, setBranchBalances] = useState<Sku[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const fetchDashboard = async () => {
+    setLoading(true);
+    setLoadError(null);
+    const [ordRes, skuRes, balRes] = await Promise.all([
+      apiAdapter.getOrders(account.tenantId),
+      apiAdapter.getSkus(),
+      apiAdapter.getBalances(),
+    ]);
+
+    if (skuRes.error || balRes.error) {
+      setLoadError(skuRes.error?.message || balRes.error?.message || "Lỗi kết nối máy chủ khi tải dữ liệu tổng quan.");
+    }
+    if (ordRes.data) setOrdersList(ordRes.data);
+    if (skuRes.data) setSkusList(skuRes.data);
+    if (balRes.data) setBranchBalances(balRes.data);
+    setLoading(false);
+  };
 
   useEffect(() => {
-    async function fetchDashboard() {
-      setLoading(true);
-      const [ordRes, skuRes] = await Promise.all([
-        apiAdapter.getOrders(),
-        apiAdapter.getSkus(),
-      ]);
-      if (ordRes.data) setOrdersList(ordRes.data);
-      if (skuRes.data) setSkusList(skuRes.data);
-      setLoading(false);
-    }
     fetchDashboard();
-  }, []);
+  }, [account.tenantId]);
 
   const activeOrders = ordersList.filter((o) => o.status !== "Cancelled");
   const totalRevenue = activeOrders.reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
@@ -37,9 +47,14 @@ export function DashboardPage() {
     (sum, o) => sum + (o.items?.reduce((s, i) => s + i.quantity, 0) || 1),
     0
   );
-  const lowStockSkus = skusList.filter((s) => s.onHand - s.reserved <= s.threshold);
+  const lowStockSkus = skusList.filter((s) => s.isActive !== false && s.onHand - s.reserved <= s.threshold);
   const reservedOrders = ordersList.filter((o) => o.status === "Pending" || o.status === "Reserved");
-  const totalInventoryValue = skusList.reduce((sum, s) => sum + s.onHand * s.averageCost, 0);
+
+  // [A02] Tính tổng giá trị tồn kho chính xác theo từng Chi nhánh: TotalValue = sum(OnHand_branch * AverageCost_branch)
+  const totalInventoryValue =
+    branchBalances.length > 0
+      ? branchBalances.reduce((sum, b) => sum + (Number(b.onHand) || 0) * (Number(b.averageCost) || 0), 0)
+      : skusList.reduce((sum, s) => sum + (s.totalInventoryValue ?? s.onHand * s.averageCost), 0);
 
   return (
     <>
@@ -49,33 +64,65 @@ export function DashboardPage() {
         description={`Tình hình bán hàng và tồn kho thực tế của ${account.tenantName || "Doanh nghiệp"} hôm nay.`}
         actions={
           <>
-            <Button variant="secondary"><Clock3 size={17} />Thời gian thực</Button>
+            <Button variant="secondary" onClick={fetchDashboard} disabled={loading}>
+              <RefreshCw size={17} />{loading ? "Đang tải..." : "Làm mới"}
+            </Button>
             <Link className="button button--primary" to="/orders">Tạo đơn Admin</Link>
           </>
         }
       />
+
+      {/* [A09] Hiển thị rõ lỗi kết nối API thay vì biến thành mảng rỗng = 0 */}
+      {loadError && (
+        <div
+          style={{
+            background: "#fef2f2",
+            border: "1px solid #ef4444",
+            color: "#b91c1c",
+            padding: "14px 18px",
+            borderRadius: "10px",
+            marginBottom: "18px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <AlertCircle size={20} />
+            <div>
+              <strong>Không thể tải dữ liệu từ máy chủ Backend:</strong>
+              <div style={{ fontSize: "13px" }}>{loadError}</div>
+            </div>
+          </div>
+          <Button variant="secondary" onClick={fetchDashboard}>
+            <RefreshCw size={15} /> Tải lại trang
+          </Button>
+        </div>
+      )}
+
       <div className="stats-grid">
         <StatCard
           label="Doanh thu ghi nhận"
-          value={`${totalRevenue.toLocaleString("vi-VN")} ₫`}
-          change={`Giá trị tồn kho: ${totalInventoryValue.toLocaleString("vi-VN")} ₫`}
+          value={loadError ? "—" : `${totalRevenue.toLocaleString("vi-VN")} ₫`}
+          change={loadError ? "Lỗi kết nối API" : `Giá trị tồn kho: ${totalInventoryValue.toLocaleString("vi-VN")} ₫`}
           icon={<WalletCards size={19} />}
         />
         <StatCard
           label="Đơn hàng"
-          value={String(ordersList.length)}
+          value={loadError ? "—" : String(ordersList.length)}
           change={`${reservedOrders.length} đơn đang giữ chỗ`}
           icon={<ShoppingCart size={19} />}
         />
         <StatCard
           label="Danh mục SKU"
-          value={`${skusList.length} SKU`}
+          value={loadError ? "—" : `${skusList.length} SKU`}
           change={`Đã xuất/giữ chỗ: ${totalUnitsSold} SP`}
           icon={<PackageCheck size={19} />}
         />
         <StatCard
           label="Lợi nhuận gộp"
-          value={`${grossProfit.toLocaleString("vi-VN")} ₫`}
+          value={loadError ? "—" : `${grossProfit.toLocaleString("vi-VN")} ₫`}
           change={`Biên lợi nhuận ${marginPct}%`}
           icon={<TrendingUp size={19} />}
         />
@@ -87,7 +134,10 @@ export function DashboardPage() {
               <h2>Biểu đồ vận hành & lưu chuyển hàng hóa</h2>
               <p>Đã trừ đơn hủy · Đồng bộ trực tiếp từ tồn kho & đơn hàng</p>
             </div>
-            <Badge tone="success">{skusList.length} SKU đang quản lý</Badge>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <Badge tone="neutral">[Sprint 3 Preview]</Badge>
+              <Badge tone="success">{skusList.length} SKU đang quản lý</Badge>
+            </div>
           </div>
           <div className="chart">
             <div className="chart-y"><span>20</span><span>15</span><span>10</span><span>5</span><span>0</span></div>
@@ -129,7 +179,7 @@ export function DashboardPage() {
             <Link to="/inventory">
               <span className="attention-icon info"><Boxes size={19} /></span>
               <div>
-                <strong>Tổng giá trị tồn kho (WAC)</strong>
+                <strong>Tổng giá trị tồn kho (WAC theo chi nhánh)</strong>
                 <p>{totalInventoryValue.toLocaleString("vi-VN")} ₫</p>
               </div>
               <ArrowRight size={18} />
@@ -141,7 +191,7 @@ export function DashboardPage() {
         <div className="card-head">
           <div>
             <h2>Đơn hàng gần đây</h2>
-            <p>Cập nhật theo thời gian thực</p>
+            <p>Cập nhật theo phiên Tenant hiện tại ({account.tenantName})</p>
           </div>
           <Link className="text-link" to="/orders">Xem tất cả <ArrowRight size={16} /></Link>
         </div>

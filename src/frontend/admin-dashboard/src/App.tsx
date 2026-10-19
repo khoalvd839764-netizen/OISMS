@@ -23,29 +23,36 @@ export default function App() {
           <Route path="/403" element={<AccessPage type="forbidden" />} />
           <Route path="/session-expired" element={<AccessPage type="expired" />} />
 
-          {/* POS Route - Cho phép Owner, Staff và Cashier đã xác thực */}
+          {/* POS Route (http://localhost:5173/pos) - Cho phép Owner, Staff và Cashier đã xác thực */}
           <Route element={<ProtectedRoute allowedRoles={["Owner", "Staff", "Cashier"]} />}>
             <Route path="/pos" element={<PosPage />} />
           </Route>
 
-          {/* Protected Admin Routes */}
+          {/* Protected Admin Routes (Hỗ trợ cả http://localhost:5173/admin và /) */}
           <Route element={<ProtectedRoute />}>
             <Route element={<AdminShell />}>
               <Route path="/" element={<DashboardPage />} />
+              <Route path="/admin" element={<DashboardPage />} />
               <Route path="/products" element={<ProductsPage />} />
+              <Route path="/admin/products" element={<ProductsPage />} />
               <Route path="/inventory" element={<InventoryPage />} />
+              <Route path="/admin/inventory" element={<InventoryPage />} />
               <Route path="/orders" element={<OrdersPage />} />
-              <Route path="/reports" element={<ReportsPage />} />
+              <Route path="/admin/orders" element={<OrdersPage />} />
               <Route path="/handoff" element={<HandoffPage />} />
-              {/* Chỉ Owner được truy cập trang Quản lý Chi nhánh & Tổ chức */}
+              <Route path="/admin/handoff" element={<HandoffPage />} />
+              {/* Chỉ Owner được truy cập trang Báo cáo & Quản lý Chi nhánh / Tổ chức */}
               <Route element={<ProtectedRoute allowedRoles={["Owner"]} />}>
+                <Route path="/reports" element={<ReportsPage />} />
+                <Route path="/admin/reports" element={<ReportsPage />} />
                 <Route path="/organization" element={<OrganizationPage />} />
+                <Route path="/admin/organization" element={<OrganizationPage />} />
               </Route>
             </Route>
           </Route>
 
           {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/admin" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

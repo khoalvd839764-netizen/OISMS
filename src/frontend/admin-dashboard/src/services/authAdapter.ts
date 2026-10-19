@@ -1,4 +1,4 @@
-import { httpClient } from "./httpClient";
+import { clearAuthSession, clearSessionOrdersStorage, httpClient, refreshAccessToken } from "./httpClient";
 
 export interface LoginCredentials {
   identity?: string;
@@ -20,9 +20,15 @@ export const authAdapter = {
       });
 
       const { accessToken, refreshToken, expiresIn, user } = res.data;
+      // [A01] Khi đăng nhập phiên mới, luôn dọn sạch đơn hàng tạm của phiên/tenant trước
+      clearSessionOrdersStorage();
+
       localStorage.setItem("oism_access_token", accessToken);
       if (refreshToken) {
         localStorage.setItem("oism_refresh_token", refreshToken);
+      }
+      if (user?.tenantId) {
+        localStorage.setItem("oism_tenant_id", user.tenantId);
       }
 
       return {
@@ -41,22 +47,16 @@ export const authAdapter = {
   },
 
   async refresh() {
-    const refreshToken = localStorage.getItem("oism_refresh_token");
-    if (!refreshToken) {
+    if (!localStorage.getItem("oism_refresh_token")) {
       return { error: { code: "SESSION_EXPIRED", message: "Phiên đăng nhập đã hết hạn." } };
     }
 
     try {
-      const res = await httpClient.post("/api/auth/refresh-token", { refreshToken });
-      const { accessToken, refreshToken: newRefreshToken, expiresIn } = res.data;
-      localStorage.setItem("oism_access_token", accessToken);
-      if (newRefreshToken) {
-        localStorage.setItem("oism_refresh_token", newRefreshToken);
-      }
-      return { data: { expiresAt: Date.now() + (expiresIn || 3600) * 1000 } };
+      // [A06] Dùng chung khóa single-flight của httpClient để không phát sinh 2 lượt refresh song song
+      await refreshAccessToken();
+      return { data: { expiresAt: Date.now() + 3600 * 1000 } };
     } catch {
-      localStorage.removeItem("oism_access_token");
-      localStorage.removeItem("oism_refresh_token");
+      clearAuthSession();
       return { error: { code: "REFRESH_FAILED", message: "Không thể làm mới phiên đăng nhập." } };
     }
   },
@@ -68,8 +68,9 @@ export const authAdapter = {
         await httpClient.post("/api/auth/logout", { refreshToken }).catch(() => {});
       }
     } finally {
-      localStorage.removeItem("oism_access_token");
-      localStorage.removeItem("oism_refresh_token");
+      // [A01] Bắt buộc dọn sạch token và đơn hàng lưu tạm trong sessionStorage khi đăng xuất
+      sessionStorage.removeItem("oism_session_orders");
+      clearAuthSession();
     }
     return { data: true };
   },
@@ -77,6 +78,9 @@ export const authAdapter = {
   async getMe() {
     try {
       const res = await httpClient.get("/api/auth/me");
+      if (res.data?.tenantId) {
+        localStorage.setItem("oism_tenant_id", res.data.tenantId);
+      }
       return { data: res.data };
     } catch (err: any) {
       return { error: { code: "ME_FAILED", message: err?.message || "Không thể lấy thông tin người dùng." } };

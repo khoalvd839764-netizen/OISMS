@@ -2,10 +2,10 @@
 **Dự án:** OISMS - Omnichannel Inventory & Sales Management System  
 **Thành viên thực hiện:** Đăng Khoa (Backend 1 - Persistence, Security, Inventory Ledger & Anti-Oversell Lead)  
 **Phối hợp:** Nhựt (Backend 2), frontend và tester  
-**Cập nhật phạm vi:** Đăng Khoa đã hoàn tất sửa dứt điểm toàn bộ các lỗi review, bao gồm lỗi cập nhật Category đồng thời tạo vòng lặp (BE2-04), lỗi gửi lặp reservation (BE1-09), chuẩn hóa số điện thoại E.164 tránh lỗi 500 (BE2-01), xử lý barcode SKU trùng trong tenant tránh lỗi 500 (BE2-05), lỗi loại bỏ null lồng nhau trong thuộc tính JSON SKU, lỗi mất kiểu dữ liệu JSON, lỗi cập nhật SKU lọt tổ hợp thuộc tính trùng, lỗi đổi chi nhánh kho có lịch sử gây 500, bổ sung chức năng còn thiếu của Backend 2 và kiểm chứng trên PostgreSQL thật.  
+**Cập nhật phạm vi:** Đăng Khoa đã hoàn tất sửa dứt điểm toàn bộ các lỗi review và bổ sung validation trạng thái hoạt động (A10) cho API Reservation (`POST /api/inventory/reserve` và `ReservationService.cs`), bao gồm kiểm tra `IsActive` cho Chi nhánh, Kho hàng, Sản phẩm, Biến thể SKU khi tạo mới reservation, giữ nguyên hành vi idempotent retry 200 OK cho reservation cũ kể cả khi tài nguyên bị tắt sau đó; đồng thời bảo vệ toàn vẹn lỗi Category chu trình (BE2-04), gửi lặp reservation (BE1-09), chuẩn hóa số điện thoại E.164 (BE2-01), barcode SKU trùng (BE2-05), JSON attributes null lồng nhau & kiểu dữ liệu, đổi chi nhánh kho (BE2-08) trên PostgreSQL thật.  
 **Ngày cập nhật:** 18/10/2026  
-**Trạng thái phần nhận bổ sung:** **HOÀN THÀNH TOÀN BỘ CÁC MỤC TIÊU VÀ TEST CASE (188/188 Tests Pass)**  
-**Kết quả kiểm thử toàn giải pháp:** **188/188 Tests Pass 100%** (99 Unit Tests + 89 Integration Tests trên PostgreSQL thật)  
+**Trạng thái phần nhận bổ sung:** **HOÀN THÀNH TOÀN BỘ CÁC MỤC TIÊU VÀ TEST CASE (193/193 Tests Pass)**  
+**Kết quả kiểm thử toàn giải pháp:** **193/193 Tests Pass 100%** (103 Unit Tests + 90 Integration Tests trên PostgreSQL thật)  
 **Độ phủ mã nguồn (Code Coverage):** Module cốt lõi `OISM.Application.Features.Inventory` đạt độ phủ cao: **92.49% Line Coverage** (875/946 dòng thực thi) trong Integration Tests và **94.83%** khi kết hợp Unit Tests (theo Cobertura artifact `TestResults/98e61954-8fcd-4afa-ac32-b4ac3acd7c87/coverage.cobertura.xml`, vượt xa yêu cầu $\ge 80\%$)  
 
 ---
@@ -29,6 +29,7 @@ Theo [phân công Backend 2 Sprint 2](../SPRINT_2_BACKEND_2.md) và [Backend 1 S
 | BE2-05 | Mất kiểu dữ liệu JSON trong thuộc tính động SKU (`dimensions` thành string thay vì object, `sizes` thành string thay vì array). | Bỏ `ToString()` trên JsonElement. Viết `ConvertJsonElementToClr` và `ExtractAttributes` đệ quy bảo toàn 100% kiểu JSON: Object $\rightarrow$ `Dictionary<string, object>`, Array $\rightarrow$ `List<object>`, Number $\rightarrow$ `long/decimal`, Boolean $\rightarrow$ `bool`, String $\rightarrow$ `string`. Chữ ký canonical phân biệt kiểu (`n:10` vs `s:10`, `b:true` vs `s:true`), chuẩn hóa thứ tự key của object một cách nhất quán, giữ nguyên thứ tự array, escape ký tự phân cách. | **ĐÃ XÁC MINH (Pass)** |
 | BE2-05 | Lỗi loại bỏ null lồng nhau trong thuộc tính JSON SKU (`["S", null, "M"]` bị rút gọn thành `["S", "M"]`, `{"width": 10, "depth": null}` bị mất `depth`). | Phân biệt rõ ràng: null ở cấp ngoài (`Attributes["key"] = null`) dùng để xóa thuộc tính theo hợp đồng; null trong object/array lồng nhau được bảo toàn 100% về số lượng, thứ tự và vị trí phần tử. Chữ ký canonical phản ánh đúng: `["S", null, "M"]` khác `["S", "M"]`, `{"depth": null}` khác `{}`. Dùng cùng bộ thuộc tính đã merge để kiểm tra trùng và lưu PostgreSQL jsonb; response API GET/POS khớp tuyệt đối. | **ĐÃ XÁC MINH (Pass)** |
 | BE2-08 | Đổi chi nhánh của kho hàng đã có lịch sử chứng từ/tồn trả 500 do vi phạm FK (`fk_goods_receipts_warehouse_branch`). | Khóa hàng kho bi quan (`FOR UPDATE`), kiểm tra toàn diện `GoodsReceipts`, `WarehouseInventoryBalances`, `InventoryTransactions`, `Reservations`. Nếu có dữ liệu phụ thuộc (kể cả tồn = 0): chặn và trả 409 Conflict. Cho phép đổi chi nhánh nếu kho hoàn toàn chưa có dữ liệu; bắt ngoại lệ PostgreSQL `23503` có kiểm soát. | **ĐÃ XÁC MINH (Pass)** |
+| A10 (BE1-09) | `ReservationService` thiếu kiểm tra trạng thái hoạt động của Product/SKU/Chi nhánh/Kho khi tạo reservation mới; nguy cơ giữ chỗ cho tài nguyên đã ngừng hoạt động. | Bổ sung kiểm tra `branch.IsActive`, `warehouse.IsActive`, `sku.Product.IsActive`, `sku.IsActive` khi tạo reservation MỚI trong `ReservationService.cs`. Nếu bất kỳ tài nguyên nào ngừng hoạt động, ném `InvalidOperationException` trả mã **HTTP 409 Conflict** với thông báo chỉ rõ tài nguyên vi phạm (`Chi nhánh '{Name}' đã ngừng hoạt động.`, `Kho hàng '{Name}' đã ngừng hoạt động.`, `Sản phẩm '{Name}' đã ngừng hoạt động.`, `Biến thể SKU '{SKU}' đã ngừng hoạt động.`). Toàn bộ transaction bị rollback sạch sẽ, không tạo Order nháp, OrderItem hay Reservation dở dang và không làm thay đổi số dư tồn / Reserved hai cấp. Bảo vệ tính Idempotent: Nếu gửi lại cùng yêu cầu reservation đã thành công trước đó (Active), hệ thống vẫn trả về `200 OK` với thông tin reservation cũ ngay cả khi Product/SKU/Branch/Warehouse bị tắt sau đó; không làm mất reservation đang có và không tăng `Reserved` lần hai. Giả định chi nhánh/kho: Không cho phép tạo mới reservation tại Chi nhánh hoặc Kho đã tắt `IsActive` để đảm bảo chuỗi cung ứng nhất quán. | **ĐÃ XÁC MINH (Pass)** |
 
 ### 0.2. Chức năng và tài liệu đã hoàn thiện
 
@@ -36,28 +37,29 @@ Theo [phân công Backend 2 Sprint 2](../SPRINT_2_BACKEND_2.md) và [Backend 1 S
 |---|---|---|---|
 | BE2-04 | Khóa phân cấp danh mục theo tenant, chống race condition tạo chu trình và đệ quy vô hạn. | `CategoriesController.UpdateCategory`, PostgreSQL Advisory Lock, kiểm tra chu trình nhiều tầng, bảo toàn cây danh mục. | **HOÀN THÀNH (Pass)** |
 | BE1-09 | Giữ chỗ tồn kho chống bán âm (Anti-Oversell), Idempotency và bảo vệ ràng buộc `uq_reservations_2`. | API `POST /api/inventory/reserve`, idempotency trên `(OrderId, OrderItemId)`, bắt buộc cặp OrderId/OrderItemId, validate phạm vi chi nhánh/kho, chặn race condition. | **HOÀN THÀNH (Pass)** |
+| A10 | Validation trạng thái hoạt động (`IsActive`) cho Product, SKU, Branch, Warehouse khi tạo reservation mới. | `ReservationService.cs`, kiểm tra 4 cấp tài nguyên, trả HTTP 409 Conflict kiểm soát, bảo toàn idempotent retry cho reservation cũ. | **HOÀN THÀNH (Pass)** |
 | BE2-01 | Chuẩn hóa số điện thoại E.164, đăng ký Tenant và bảo vệ ràng buộc `ck_users_phone_normalized` & `uq_users_3`. | `PhoneHelper.cs`, `RegisterTenantValidator`, `AuthController.RegisterTenant`, transaction nguyên tử với `OpenPrivilegedScope()`, rollback 100%. | **HOÀN THÀNH (Pass)** |
 | BE2-05 | SKU Barcode uniqueness, tự động sinh mã EAN-13 có retry chống trùng, bảo vệ `uq_skus_3`. | `CreateProduct`, `CreateVariant`, `UpdateVariant`, bắt ngoại lệ 409, retry 10 lần sinh barcode tự động. | **HOÀN THÀNH (Pass)** |
 | BE2-05 | Sửa/vô hiệu hóa SKU; thuộc tính tùy ý dạng JSON object bảo toàn kiểu và null lồng nhau; giữ unique SKU theo tenant. | API `PUT /api/products/{pId}/variants/{vId}`, `DELETE /api/products/{pId}/variants/{vId}` (soft delete an toàn), DTO và test cô lập tenant. | **HOÀN THÀNH (Pass)** |
 | BE2-06 | Cập nhật giá bán sỉ/lẻ của SKU đã tạo (`PUT /api/products/{pId}/variants/{vId}/prices`). | Validation số âm, phân quyền `Owner, Staff`, giá bán tách biệt hoàn toàn với WAC. | **HOÀN THÀNH (Pass)** |
 | BE2-07 | Tích hợp tồn khả dụng theo tenant/chi nhánh trong luồng tìm kiếm/quét POS (`GET /api/pos/search`, `GET /api/pos/barcode/{code}`). | Tái sử dụng công thức `Available = Math.Max(0, OnHand - Reserved)` từ `inventory_balances` của Backend 1. | **HOÀN THÀNH (Pass)** |
 | BE2-08 | Sửa thông tin chi nhánh/kho (`PUT /api/branches/{id}`, `PUT /api/warehouses/{id}`); tra cứu ID chi nhánh/kho/NCC. | API đúng quyền, quan hệ cùng tenant, validation và test RBAC Cashier nhận 403. | **HOÀN THÀNH (Pass)** |
-| BE2-09 | Rà validation create/update, bổ sung regression test, Swagger và tài liệu tích hợp. | Checklist BE2-01 đến BE2-09 có endpoint/file/test chứng minh và 188/188 tests pass thực tế. | **HOÀN THÀNH (Pass)** |
+| BE2-09 | Rà validation create/update, bổ sung regression test, Swagger và tài liệu tích hợp. | Checklist BE2-01 đến BE2-09 có endpoint/file/test chứng minh và 193/193 tests pass thực tế. | **HOÀN THÀNH (Pass)** |
 
 ### 0.3. Bằng chứng kiểm thử thực tế
 
-- **Unit Tests:** 99 / 99 Tests Passed 100% (`OISM.UnitTests.dll`).
-- **Integration Tests:** 89 / 89 Tests Passed 100% (`OISM.IntegrationTests.dll` trên PostgreSQL thật).
-- **Tổng số tests toàn giải pháp:** **188 / 188 Tests Passed 100%**.
+- **Unit Tests:** 103 / 103 Tests Passed 100% (`OISM.UnitTests.dll`).
+- **Integration Tests:** 90 / 90 Tests Passed 100% (`OISM.IntegrationTests.dll` trên PostgreSQL thật).
+- **Tổng số tests toàn giải pháp:** **193 / 193 Tests Passed 100%**.
 - **Các bài kiểm thử hồi quy mới bổ sung trên PostgreSQL thật:**
+  - `Postgres_Reservation_A10_IsActiveValidation_ResourcesDeactivation_AndIdempotentResend_Regressions` (Bao phủ 7 ca kiểm thử hồi quy nghiêm ngặt: Product active & SKU inactive trả 409; Product inactive & SKU active trả 409; Chi nhánh inactive trả 409; Kho hàng inactive trả 409; Các tài nguyên active giữ chỗ 200 OK; Gửi lặp reservation cũ sau khi Product/SKU bị tắt vẫn 200 OK idempotent không mất reservation và không tăng Reserved; POS gửi giữ chỗ cho SKU inactive không tạo Order nháp dở dang trong DB).
   - `Postgres_CategoryTree_ConcurrentUpdates_MustPreventCycles_AndKeepTreeValid` (Mô phỏng 2 request đối ứng đồng thời bị chặn bằng blocker connection độc lập giữ advisory lock, giải phóng lock: đúng 1 request 200, request kia 400; chặn chu trình 3 tầng; di chuyển cây hợp lệ; GET cây không mất node; cô lập đa tenant; query đệ quy DB xác nhận không có cycle).
   - `Postgres_UpdateCategory_WithNonExistentParentId_ShouldReturnBadRequest_AndNot500` (Kiểm tra parent không tồn tại, self-parent, parent khác tenant trả 400 Bad Request, dữ liệu không thay đổi dở dang).
   - `Postgres_Reservation_DuplicateAndConcurrentOrderItem_ShouldBeIdempotentOrConflict_AndNeverThrow500` (Xác minh gửi lặp giữ chỗ idempotent 200 OK không tăng Reserved, khác số lượng trả 409, 2 request đồng thời bắt constraint `uq_reservations_2` trả 409 không văng 500, validate cặp OrderId/OrderItemId).
   - `Postgres_Auth_RegisterTenant_PhoneNumber_NormalizationAndValidation_ShouldWorkWithout500` (Xác minh chuẩn hóa số điện thoại `"090 123 4567"` $\rightarrow$ `"+84901234567"`, kiểm tra regex E.164, từ chối số sai bằng 400 Bad Request, bắt `ck_users_phone_normalized` & `uq_users_3` không văng 500).
   - `Postgres_SkuBarcode_UniqueConstraint_CreateUpdateAndConcurrency_ReturnsControlled409` (Xác minh kiểm tra trùng barcode trong cùng tenant khi create/update/concurrency trả 409 Conflict, retry tự sinh EAN-13, cho phép cùng barcode khác tenant).
 - **Bộ kiểm thử hồi quy Backend 2:** `PostgresBackend2RegressionTests.cs` (14/14 tests passed 100% trên PostgreSQL thật).
-- **Lệnh chạy xác minh:** `dotnet test src/backend/OISM.sln` -> 188 Passed (99 Unit Tests + 89 Integration Tests), 0 Failed, 0 Skipped.
-- Bàn giao đầy đủ endpoint, quyền, request/response, mã lỗi và hướng dẫn tích hợp tại `docs/Nhut Report/README.md`.
+- **Lệnh chạy xác minh:** `dotnet test src/backend/OISM.sln` -> 193 Passed (103 Unit Tests + 90 Integration Tests), 0 Failed, 0 Skipped.
 - Bàn giao đầy đủ endpoint, quyền, request/response, mã lỗi và hướng dẫn tích hợp tại `docs/Nhut Report/README.md`.
 
 ### 0.4. Quy tắc Thuộc tính JSON SKU & Bảo toàn Dữ liệu (JSON Types & Null Rules)
@@ -373,6 +375,47 @@ await strategy.ExecuteAsync(async () =>
 }
 ```
 
+#### 4b. Hợp đồng Lỗi Nghiệp vụ & Trạng thái Hoạt động cho Frontend (A10 - IsActive Validation Contract)
+Khi giao diện Admin hoặc Quầy POS gửi yêu cầu tạo giữ chỗ mới (`POST /api/inventory/reserve`), hệ thống backend sẽ tự động kiểm tra trạng thái hoạt động (`IsActive`) của 4 cấp tài nguyên theo thứ tự: Chi nhánh $\rightarrow$ Kho hàng $\rightarrow$ Sản phẩm $\rightarrow$ Biến thể SKU.
+Nếu bất kỳ tài nguyên nào đã bị vô hiệu hóa (`IsActive = false`), API sẽ từ chối và phản hồi mã **HTTP 409 Conflict** với cấu trúc lỗi chuẩn:
+
+- **1. Chi nhánh ngừng hoạt động:**
+```json
+// HTTP 409 Conflict
+{
+  "message": "Chi nhánh 'Chi nhánh Quận 1' đã ngừng hoạt động."
+}
+```
+
+- **2. Kho hàng ngừng hoạt động:**
+```json
+// HTTP 409 Conflict
+{
+  "message": "Kho hàng 'Kho Phụ 2' đã ngừng hoạt động."
+}
+```
+
+- **3. Sản phẩm ngừng hoạt động:**
+```json
+// HTTP 409 Conflict
+{
+  "message": "Sản phẩm 'Áo Polo Nam Classic' đã ngừng hoạt động."
+}
+```
+
+- **4. Biến thể SKU ngừng hoạt động:**
+```json
+// HTTP 409 Conflict
+{
+  "message": "Biến thể SKU 'POLO-NAM-DEN-M' đã ngừng hoạt động."
+}
+```
+
+> [!NOTE]
+> **Quy tắc Idempotent Retry cho Frontend:**
+> - Nếu Frontend gửi lại cùng một yêu cầu giữ chỗ đã có bản ghi `Reservation` ở trạng thái `Active` trước đó (cùng `OrderId`, `OrderItemId`, `WarehouseId`, `SkuId`, `Quantity`), hệ thống **vẫn trả về HTTP 200 OK** kèm thông tin reservation cũ ngay cả khi Sản phẩm/SKU/Chi nhánh/Kho bị tắt sau đó.
+> - Cơ chế này bảo vệ người dùng không bị mất phiên thanh toán và đảm bảo an toàn tuyệt đối cho các đơn hàng đang xử lý dở dang.
+
 ---
 
 ## 5. BẰNG CHỨNG KIỂM THỬ THỰC TẾ & ĐỘ PHỦ MÃ NGUỒN
@@ -380,14 +423,14 @@ await strategy.ExecuteAsync(async () =>
 ### 5.1. Kết quả chạy toàn bộ Solution Test Suite
 Lệnh thực thi trên môi trường máy chủ phát triển:
 ```powershell
-dotnet test src/backend/OISM.sln
+dotnet test src/backend/OISM.sln -c Release
 ```
 Kết quả ghi nhận:
 ```text
-Passed!  - Failed:     0, Passed:    99, Skipped:     0, Total:    99, Duration: 129 ms - OISM.UnitTests.dll (net8.0)
-Passed!  - Failed:     0, Passed:    89, Skipped:     0, Total:    89, Duration: 3 m 24 s - OISM.IntegrationTests.dll (net8.0)
+Passed!  - Failed:     0, Passed:   103, Skipped:     0, Total:   103, Duration: 318 ms - OISM.UnitTests.dll (net8.0)
+Passed!  - Failed:     0, Passed:    90, Skipped:     0, Total:    90, Duration: 3 m 22 s - OISM.IntegrationTests.dll (net8.0)
 
-Total Passed: 188/188 Tests (100% PASS - 0 Failed, 0 Skipped)
+Total Passed: 193/193 Tests (100% PASS - 0 Failed, 0 Skipped)
 ```
 
 ### 5.2. Kết quả Đo độ phủ mã nguồn (Code Coverage)
@@ -525,8 +568,14 @@ Truy cập Swagger UI tại: `http://localhost:5000/swagger` để thử nghiệ
 ### 7.1. Ghi chú Ranh giới Kiểm thử & Giới hạn Kiểm chứng Hiện tại
 > [!IMPORTANT]
 > **Phân định rõ phạm vi kiểm thử tự động Backend:**
-> - Toàn bộ 188 bài test đạt 100% bao gồm: **99 Unit Tests** (kiểm thử độc lập quy tắc nghiệp vụ, DTOs, validation FluentValidation, PhoneHelper E.164, Barcode EAN-13, xử lý JSON attributes) và **89 Integration Tests** (kiểm thử tích hợp qua HTTP bằng `WebApplicationFactoryWithPostgres` và trực tiếp trên cơ sở dữ liệu PostgreSQL 16+ thật `oisms_test`).
+> - Toàn bộ 193 bài test đạt 100% bao gồm: **103 Unit Tests** (kiểm thử độc lập quy tắc nghiệp vụ, DTOs, validation FluentValidation, PhoneHelper E.164, Barcode EAN-13, xử lý JSON attributes) và **90 Integration Tests** (kiểm thử tích hợp qua HTTP bằng `WebApplicationFactoryWithPostgres` và trực tiếp trên cơ sở dữ liệu PostgreSQL 16+ thật `oisms_test`).
 > - Kiểm thử Backend qua HTTP API **không thay thế** cho kiểm thử End-to-End (E2E) trực quan qua giao diện người dùng Frontend (UI).
 > - **Giới hạn kiểm chứng hiện tại:**
 >   1. **Chưa xác minh CI trên working tree hiện tại:** Toàn bộ quá trình kiểm thử, build và đo coverage được thực hiện và kiểm chứng thực tế tại local working tree trên môi trường máy phát triển; chưa chạy pipeline CI từ xa cho commit mới này.
 >   2. **Chưa xác minh E2E qua giao diện Frontend:** Cần đội ngũ Frontend và QA/Tester thực hiện nghiệm thu liên thông giữa màn hình giao diện người dùng và API Backend.
+
+> [!WARNING]
+> **Không tuyên bố toàn bộ Admin S2 Done chỉ vì phần backend này đạt:**
+> - Đăng Khoa chỉ cam kết và nghiệm thu các hạng mục Backend Sprint 2 và việc bổ sung kiểm tra trạng thái hoạt động (A10) cho API Reservation (`POST /api/inventory/reserve` và `ReservationService.cs`).
+> - Phía Web Admin Frontend vẫn còn các mục rà soát từ A01 đến A11 theo tài liệu `docs/Dang Khoa report/ADMIN_INTEGRATION_REVIEW_2026-10-18.md` (bao gồm lỗi cache đơn sót giữa tenant A01, lệch WAC A02, form chọn kho/chi nhánh chưa lọc A04, phân trang 20 dòng A05, race refresh token A06, retry confirm A07, hiển thị tồn lệch kho A08, nuốt lỗi API A09, và các thao tác UI demo A11).
+> - Toàn bộ các vấn đề frontend này cần đội ngũ Frontend (Phúc Hữu) và Tester tiếp tục hoàn thiện và nghiệm thu liên thông; tuyệt đối không tuyên bố toàn bộ Admin S2 đã Done chỉ dựa vào kết quả hoàn thành của backend.

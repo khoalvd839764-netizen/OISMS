@@ -1,47 +1,60 @@
-import { BrainCircuit, CalendarDays, Download, PackageX, Sparkles, TrendingUp } from "lucide-react";
+import { AlertCircle, BrainCircuit, CalendarDays, Download, PackageX, RefreshCw, Sparkles, TrendingUp } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Badge, Button, PageTitle, StatCard } from "../components/ui";
 import { apiAdapter } from "../services/apiAdapter";
+import { useAuth } from "../context/AuthContext";
 import type { Order, Sku } from "../types/domain";
 
 export function ReportsPage() {
+  const { account } = useAuth();
   const [skus, setSkus] = useState<Sku[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const loadReports = async () => {
+    setLoading(true);
+    setLoadError(null);
+    const [sRes, oRes] = await Promise.all([
+      apiAdapter.getSkus(),
+      apiAdapter.getOrders(account.tenantId),
+    ]);
+    if (sRes.error) {
+      setLoadError(sRes.error.message);
+    }
+    if (sRes.data) setSkus(sRes.data);
+    if (oRes.data) setOrders(oRes.data);
+    setLoading(false);
+  };
 
   useEffect(() => {
-    async function loadReports() {
-      setLoading(true);
-      const [sRes, oRes] = await Promise.all([
-        apiAdapter.getSkus(),
-        apiAdapter.getOrders(),
-      ]);
-      if (sRes.data) setSkus(sRes.data);
-      if (oRes.data) setOrders(oRes.data);
-      setLoading(false);
-    }
     loadReports();
-  }, []);
+  }, [account.tenantId]);
 
   // Tổng hợp hiệu quả P&L theo từng SKU thực tế
   const skuPerformance = skus.map((sku) => {
-    const soldFromOrders = orders
-      .filter((o) => o.status !== "Cancelled")
-      .reduce((acc, o) => {
-        const matched = o.items?.filter((i) => i.skuCode === sku.code) || [];
-        return acc + matched.reduce((s, i) => s + i.quantity, 0);
-      }, 0);
+    const activeOrders = orders.filter((o) => o.status !== "Cancelled");
+    let soldFromOrders = 0;
+    let cogsFromOrders = 0;
 
-    // Số lượng giao dịch (ưu tiên đơn đã tạo hoặc số lượng giữ chỗ thực tế)
+    activeOrders.forEach((o) => {
+      const matched = o.items?.filter((i) => i.skuCode === sku.code) || [];
+      matched.forEach((i) => {
+        soldFromOrders += i.quantity;
+        cogsFromOrders += (i.costSnapshot || sku.averageCost) * i.quantity;
+      });
+    });
+
     const soldQty = soldFromOrders > 0 ? soldFromOrders : sku.reserved;
     const revenue = soldQty * sku.sellingPrice;
-    const cogs = soldQty * sku.averageCost;
+    const cogs = soldFromOrders > 0 ? cogsFromOrders : soldQty * sku.averageCost;
     const grossProfit = revenue - cogs;
     return {
       id: sku.id,
       name: `${sku.name}${sku.variant ? ` (${sku.variant})` : ""}`,
       code: sku.code,
+      isActive: sku.isActive !== false,
       soldQty,
       revenue,
       cogs,
@@ -55,8 +68,10 @@ export function ReportsPage() {
   const totalCogs = skuPerformance.reduce((sum, r) => sum + r.cogs, 0);
   const totalGrossProfit = totalRevenue - totalCogs;
 
-  // Chọn SKU có tồn khả dụng thấp nhất để gợi ý nhập hàng
-  const prioritySku = [...skuPerformance].sort((a, b) => a.available - b.available)[0];
+  // Chọn SKU đang hoạt động có tồn khả dụng thấp nhất để gợi ý nhập hàng
+  const prioritySku = [...skuPerformance]
+    .filter((r) => r.isActive)
+    .sort((a, b) => a.available - b.available)[0];
 
   return (
     <>
@@ -66,28 +81,61 @@ export function ReportsPage() {
         description="Số liệu doanh thu, giá vốn (WAC) và khuyến nghị nhập hàng trực tiếp từ dữ liệu thực tế cho Owner."
         actions={
           <>
-            <Button variant="secondary"><CalendarDays size={17} />Kỳ hiện tại</Button>
-            <Button variant="secondary" onClick={() => window.print()}><Download size={17} />Xuất báo cáo</Button>
+            <Button variant="secondary" onClick={loadReports} disabled={loading}>
+              <CalendarDays size={17} />Kỳ hiện tại
+            </Button>
+            <Button variant="secondary" onClick={() => window.print()}>
+              <Download size={17} />Xuất báo cáo <Badge tone="neutral">[Sprint 3 Preview]</Badge>
+            </Button>
           </>
         }
       />
 
+      {/* [A09] Báo lỗi kết nối API thay vì hiển thị dữ liệu = 0 */}
+      {loadError && (
+        <div
+          style={{
+            background: "#fef2f2",
+            border: "1px solid #ef4444",
+            color: "#b91c1c",
+            padding: "14px 18px",
+            borderRadius: "10px",
+            marginBottom: "18px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <AlertCircle size={20} />
+            <div>
+              <strong>Không thể tải dữ liệu báo cáo từ máy chủ:</strong>
+              <div style={{ fontSize: "13px" }}>{loadError}</div>
+            </div>
+          </div>
+          <Button variant="secondary" onClick={loadReports}>
+            <RefreshCw size={15} /> Tải lại trang
+          </Button>
+        </div>
+      )}
+
       <div className="stats-grid stats-grid--three">
         <StatCard
           label="Doanh thu thuần"
-          value={`${totalRevenue.toLocaleString("vi-VN")} ₫`}
+          value={loadError ? "—" : `${totalRevenue.toLocaleString("vi-VN")} ₫`}
           change="Đã loại trừ đơn hủy"
           icon={<TrendingUp size={19} />}
         />
         <StatCard
           label="Tổng giá vốn (COGS)"
-          value={`${totalCogs.toLocaleString("vi-VN")} ₫`}
-          change="Tính theo giá vốn bình quân WAC"
+          value={loadError ? "—" : `${totalCogs.toLocaleString("vi-VN")} ₫`}
+          change="Tính theo giá vốn bình quân WAC từng chi nhánh"
           icon={<PackageX size={19} />}
         />
         <StatCard
           label="Lợi nhuận gộp"
-          value={`${totalGrossProfit.toLocaleString("vi-VN")} ₫`}
+          value={loadError ? "—" : `${totalGrossProfit.toLocaleString("vi-VN")} ₫`}
           change={`${totalRevenue.toLocaleString("vi-VN")} ₫ − ${totalCogs.toLocaleString("vi-VN")} ₫`}
           icon={<Sparkles size={19} />}
         />
@@ -130,7 +178,10 @@ export function ReportsPage() {
                   skuPerformance.map((row) => (
                     <tr key={row.id}>
                       <td>
-                        <strong>{row.name}</strong>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <strong>{row.name}</strong>
+                          {!row.isActive && <Badge tone="neutral">[Ngừng hoạt động]</Badge>}
+                        </div>
                         <span className="table-sub">{row.code}</span>
                       </td>
                       <td>{row.soldQty}</td>
@@ -149,11 +200,15 @@ export function ReportsPage() {
           </div>
         </section>
 
+        {/* [A11] Gắn nhãn [Sprint 3 Preview] cho thẻ AI Dự báo nhập hàng */}
         <aside className="card ai-card">
           <div className="ai-head">
             <span><BrainCircuit size={23} /></span>
             <div>
-              <h2>Gợi ý nhập hàng</h2>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <h2>Gợi ý nhập hàng</h2>
+                <Badge tone="neutral">[Sprint 3 Preview]</Badge>
+              </div>
               <p>Phân tích từ số dư khả dụng thực tế</p>
             </div>
           </div>

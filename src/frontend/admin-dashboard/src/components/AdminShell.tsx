@@ -23,7 +23,7 @@ import { useAuth } from "../context/AuthContext";
 import { NotificationCenter } from "./NotificationCenter";
 
 const nav = [
-  { to: "/", label: "Tổng quan", icon: LayoutDashboard },
+  { to: "/admin", label: "Tổng quan", icon: LayoutDashboard },
   { to: "/products", label: "Sản phẩm", icon: PackageSearch },
   { to: "/inventory", label: "Kho & sổ kho", icon: Boxes },
   { to: "/orders", label: "Đơn đa kênh", icon: ShoppingBag },
@@ -46,7 +46,7 @@ export function AdminShell() {
     tenantName: "Cửa hàng của tôi",
     tenantCode: "",
     branchName: "Chi nhánh chính",
-    landingPath: "/",
+    landingPath: "/admin",
   };
 
   const visibleNav = nav.filter(
@@ -54,6 +54,8 @@ export function AdminShell() {
   );
 
   const secondaryTitles: Record<string, string> = {
+    "/": "Tổng quan",
+    "/admin": "Tổng quan",
     "/demo-tools": "Công cụ demo",
     "/handoff": "Handoff",
     "/organization": "Nhân viên & chi nhánh",

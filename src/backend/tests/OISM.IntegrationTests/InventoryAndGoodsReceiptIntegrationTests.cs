@@ -1968,4 +1968,457 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
             }
         }
     }
+
+    // =========================================================================
+    // 17. BE1-09 / A10: BỔ SUNG VALIDATION TRẠNG THÁI HOẠT ĐỘNG (ISACTIVE)
+    // - Product inactive, SKU active -> 409 Conflict ("Sản phẩm '...' đã ngừng hoạt động.").
+    // - Product active, SKU inactive -> 409 Conflict ("Biến thể SKU '...' đã ngừng hoạt động.").
+    // - Branch inactive -> 409 Conflict ("Chi nhánh '...' đã ngừng hoạt động.").
+    // - Warehouse inactive -> 409 Conflict ("Kho hàng '...' đã ngừng hoạt động.").
+    // - Các tài nguyên hợp lệ và active vẫn giữ chỗ thành công (200 OK).
+    // - Request bị từ chối không để lại dữ liệu dở dang (Order, OrderItem, Reservation) và không đổi số dư Reserved.
+    // - Gửi lặp reservation cũ sau khi Product/SKU bị tắt: Idempotent 200 OK, không mất reservation, không tăng Reserved.
+    // - Non-OrderId/OrderItemId request với SKU/Product inactive: Từ chối 409 Conflict, không tạo Order nháp dở dang.
+    // =========================================================================
+    [Fact]
+    public async Task Postgres_Reservation_A10_IsActiveValidation_ResourcesDeactivation_AndIdempotentResend_Regressions()
+    {
+        var runCode = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+
+        // 1. Đăng ký & Đăng nhập Chủ shop
+        var regOwner = new RegisterTenantRequest
+        {
+            TenantName = $"Shop A10 Res {runCode}",
+            TenantCode = $"A10_{runCode}",
+            FullName = "Chủ Shop A10",
+            Email = $"a10_{runCode}@shop.com",
+            Password = "Password@123"
+        };
+        await _client.PostAsJsonAsync("/api/auth/register-tenant", regOwner);
+
+        var loginRes = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest
+        {
+            Email = regOwner.Email,
+            Password = regOwner.Password
+        });
+        var auth = await loginRes.Content.ReadFromJsonAsync<AuthResponse>(_jsonOptions);
+        var token = auth!.AccessToken;
+        var tenantId = auth.User.TenantId;
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        // 2. Tạo Branch1, Warehouse1, Supplier
+        var branchRes1 = await _client.PostAsJsonAsync("/api/branches", new { Name = $"Chi nhánh A10 {runCode}" });
+        var branch1 = await branchRes1.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        var branch1Id = branch1.GetProperty("id").GetGuid();
+
+        var whRes1 = await _client.PostAsJsonAsync("/api/warehouses", new { BranchId = branch1Id, Name = $"Kho A10 {runCode}" });
+        var wh1 = await whRes1.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        var wh1Id = wh1.GetProperty("id").GetGuid();
+
+        var supplierRes = await _client.PostAsJsonAsync("/api/suppliers", new { Name = $"NCC A10 {runCode}", Phone = "0901234567" });
+        var supplier = await supplierRes.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        var supplierId = supplier.GetProperty("id").GetGuid();
+
+        // 3. Tạo Product 1 (Active) với 2 SKU: SKU 1 (Active) và SKU 2 (sẽ deactivated)
+        var prodRes1 = await _client.PostAsJsonAsync("/api/products", new
+        {
+            Name = $"Áo A10 Active {runCode}",
+            Variants = new[]
+            {
+                new { Sku = $"SKU-ACT-{runCode}", VariantName = "Màu Xanh", RetailPrice = 150000m, WholesalePrice = 100000m },
+                new { Sku = $"SKU-INACT-{runCode}", VariantName = "Màu Đỏ", RetailPrice = 160000m, WholesalePrice = 110000m }
+            }
+        });
+        var prod1 = await prodRes1.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        var product1Id = prod1.GetProperty("productId").GetGuid();
+
+        var getProd1 = await _client.GetAsync($"/api/products/{product1Id}");
+        var prod1Doc = await getProd1.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        var sku1Id = prod1Doc.GetProperty("variants")[0].GetProperty("id").GetGuid();
+        var sku2Id = prod1Doc.GetProperty("variants")[1].GetProperty("id").GetGuid();
+
+        // 4. Tạo Product 2 (sẽ deactivated) với SKU 3 (Active)
+        var prodRes2 = await _client.PostAsJsonAsync("/api/products", new
+        {
+            Name = $"Quần A10 Discontinued {runCode}",
+            Variants = new[]
+            {
+                new { Sku = $"SKU-DISC-{runCode}", VariantName = "Size L", RetailPrice = 250000m, WholesalePrice = 180000m }
+            }
+        });
+        var prod2 = await prodRes2.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        var product2Id = prod2.GetProperty("productId").GetGuid();
+
+        var getProd2 = await _client.GetAsync($"/api/products/{product2Id}");
+        var prod2Doc = await getProd2.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        var sku3Id = prod2Doc.GetProperty("variants")[0].GetProperty("id").GetGuid();
+
+        // 5. Nhập kho 10 chiếc cho mỗi SKU vào Warehouse1
+        var grRes = await _client.PostAsJsonAsync("/api/goods-receipts", new CreateGoodsReceiptDto
+        {
+            BranchId = branch1Id,
+            WarehouseId = wh1Id,
+            SupplierId = supplierId,
+            Items = new List<CreateGoodsReceiptItemDto>
+            {
+                new() { SkuId = sku1Id, Quantity = 10m, UnitPrice = 80000m },
+                new() { SkuId = sku2Id, Quantity = 10m, UnitPrice = 90000m },
+                new() { SkuId = sku3Id, Quantity = 10m, UnitPrice = 120000m }
+            }
+        });
+        var gr = await grRes.Content.ReadFromJsonAsync<GoodsReceiptResponseDto>(_jsonOptions);
+        await _client.PostAsync($"/api/goods-receipts/{gr!.Id}/confirm", null);
+
+        // 6. Tạo Order và OrderItems trong DB
+        Guid orderId;
+        Guid orderItemId1;
+        Guid orderItemId2;
+        Guid orderItemId3;
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            using (db.OpenPrivilegedScope())
+            {
+                var order = new Order
+                {
+                    TenantId = tenantId,
+                    Number = $"ORD-A10-{runCode}",
+                    BranchId = branch1Id,
+                    Channel = "POS",
+                    Status = "Draft",
+                    TotalAmount = 1000000m,
+                    RequestKey = Guid.NewGuid(),
+                    CreatedAt = DateTimeOffset.UtcNow
+                };
+                db.Orders.Add(order);
+
+                var item1 = new OrderItem
+                {
+                    TenantId = tenantId,
+                    Order = order,
+                    SkuId = sku1Id,
+                    SkuCodeSnapshot = $"SKU-ACT-{runCode}",
+                    SkuNameSnapshot = "Màu Xanh",
+                    Quantity = 2m,
+                    UnitPrice = 150000m,
+                    CreatedAt = DateTimeOffset.UtcNow
+                };
+                db.OrderItems.Add(item1);
+
+                var item2 = new OrderItem
+                {
+                    TenantId = tenantId,
+                    Order = order,
+                    SkuId = sku2Id,
+                    SkuCodeSnapshot = $"SKU-INACT-{runCode}",
+                    SkuNameSnapshot = "Màu Đỏ",
+                    Quantity = 2m,
+                    UnitPrice = 160000m,
+                    CreatedAt = DateTimeOffset.UtcNow
+                };
+                db.OrderItems.Add(item2);
+
+                var item3 = new OrderItem
+                {
+                    TenantId = tenantId,
+                    Order = order,
+                    SkuId = sku3Id,
+                    SkuCodeSnapshot = $"SKU-DISC-{runCode}",
+                    SkuNameSnapshot = "Size L",
+                    Quantity = 2m,
+                    UnitPrice = 250000m,
+                    CreatedAt = DateTimeOffset.UtcNow
+                };
+                db.OrderItems.Add(item3);
+
+                await db.SaveChangesAsync();
+                orderId = order.Id;
+                orderItemId1 = item1.Id;
+                orderItemId2 = item2.Id;
+                orderItemId3 = item3.Id;
+            }
+        }
+
+        // CA 1: Các tài nguyên hợp lệ và active -> Giữ chỗ thành công (200 OK)
+        var validReq = new ReserveStockRequestDto
+        {
+            BranchId = branch1Id,
+            WarehouseId = wh1Id,
+            SkuId = sku1Id,
+            Quantity = 2m,
+            OrderId = orderId,
+            OrderItemId = orderItemId1
+        };
+        var validRes = await _client.PostAsJsonAsync("/api/inventory/reserve", validReq);
+        validRes.StatusCode.Should().Be(HttpStatusCode.OK, "Tài nguyên hợp lệ và active phải giữ chỗ thành công 200 OK");
+        var validResult = await validRes.Content.ReadFromJsonAsync<ReserveStockResponseDto>(_jsonOptions);
+        validResult!.Status.Should().Be("Active");
+        validResult.RemainingAvailableStock.Should().Be(8m);
+
+        // CA 2: Product active nhưng SKU inactive -> 409 Conflict
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            using (db.OpenPrivilegedScope())
+            {
+                var sku2 = await db.ProductVariants.IgnoreQueryFilters().FirstAsync(v => v.Id == sku2Id);
+                sku2.IsActive = false;
+                await db.SaveChangesAsync();
+            }
+        }
+
+        var inactiveSkuReq = new ReserveStockRequestDto
+        {
+            BranchId = branch1Id,
+            WarehouseId = wh1Id,
+            SkuId = sku2Id,
+            Quantity = 2m,
+            OrderId = orderId,
+            OrderItemId = orderItemId2
+        };
+        var inactiveSkuRes = await _client.PostAsJsonAsync("/api/inventory/reserve", inactiveSkuReq);
+        inactiveSkuRes.StatusCode.Should().Be(HttpStatusCode.Conflict, "SKU bị tắt phải trả về 409 Conflict");
+        var inactiveSkuErr = await inactiveSkuRes.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        inactiveSkuErr.GetProperty("message").GetString().Should().Contain("Biến thể SKU").And.Contain("đã ngừng hoạt động");
+
+        // Kiểm tra tính toàn vẹn: Không sinh reservation, không thay đổi Reserved của SKU 2
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            using (db.OpenPrivilegedScope())
+            {
+                var countRes = await db.Reservations.IgnoreQueryFilters().CountAsync(r => r.OrderItemId == orderItemId2);
+                countRes.Should().Be(0, "Không được tạo bản ghi Reservation dở dang khi bị từ chối");
+
+                var whBal = await db.WarehouseInventoryBalances.IgnoreQueryFilters().FirstAsync(w => w.WarehouseId == wh1Id && w.SkuId == sku2Id);
+                whBal.Reserved.Should().Be(0m, "Reserved kho của SKU 2 không được tăng");
+
+                var branchBal = await db.InventoryBalances.IgnoreQueryFilters().FirstAsync(b => b.BranchId == branch1Id && b.SkuId == sku2Id);
+                branchBal.Reserved.Should().Be(0m, "Reserved chi nhánh của SKU 2 không được tăng");
+            }
+        }
+
+        // CA 3: Product inactive, SKU active -> 409 Conflict
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            using (db.OpenPrivilegedScope())
+            {
+                var prod2Entity = await db.Products.IgnoreQueryFilters().FirstAsync(p => p.Id == product2Id);
+                prod2Entity.IsActive = false;
+                await db.SaveChangesAsync();
+            }
+        }
+
+        var inactiveProdReq = new ReserveStockRequestDto
+        {
+            BranchId = branch1Id,
+            WarehouseId = wh1Id,
+            SkuId = sku3Id,
+            Quantity = 2m,
+            OrderId = orderId,
+            OrderItemId = orderItemId3
+        };
+        var inactiveProdRes = await _client.PostAsJsonAsync("/api/inventory/reserve", inactiveProdReq);
+        inactiveProdRes.StatusCode.Should().Be(HttpStatusCode.Conflict, "Product bị tắt phải trả về 409 Conflict");
+        var inactiveProdErr = await inactiveProdRes.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        inactiveProdErr.GetProperty("message").GetString().Should().Contain("Sản phẩm").And.Contain("đã ngừng hoạt động");
+
+        // Kiểm tra tính toàn vẹn: Không sinh reservation, không thay đổi Reserved của SKU 3
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            using (db.OpenPrivilegedScope())
+            {
+                var countRes = await db.Reservations.IgnoreQueryFilters().CountAsync(r => r.OrderItemId == orderItemId3);
+                countRes.Should().Be(0, "Không được tạo bản ghi Reservation khi Product inactive");
+
+                var whBal = await db.WarehouseInventoryBalances.IgnoreQueryFilters().FirstAsync(w => w.WarehouseId == wh1Id && w.SkuId == sku3Id);
+                whBal.Reserved.Should().Be(0m);
+
+                var branchBal = await db.InventoryBalances.IgnoreQueryFilters().FirstAsync(b => b.BranchId == branch1Id && b.SkuId == sku3Id);
+                branchBal.Reserved.Should().Be(0m);
+            }
+        }
+
+        // CA 4: Chi nhánh inactive -> 409 Conflict
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            using (db.OpenPrivilegedScope())
+            {
+                var branchEntity = await db.Branches.IgnoreQueryFilters().FirstAsync(b => b.Id == branch1Id);
+                branchEntity.IsActive = false;
+                await db.SaveChangesAsync();
+            }
+        }
+
+        Guid orderIdB;
+        Guid orderItemIdB;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            using (db.OpenPrivilegedScope())
+            {
+                var ord = new Order
+                {
+                    TenantId = tenantId,
+                    Number = $"ORD-B-{runCode}",
+                    BranchId = branch1Id,
+                    Channel = "POS",
+                    Status = "Draft",
+                    TotalAmount = 300000m,
+                    RequestKey = Guid.NewGuid(),
+                    CreatedAt = DateTimeOffset.UtcNow
+                };
+                db.Orders.Add(ord);
+
+                var itm = new OrderItem
+                {
+                    TenantId = tenantId,
+                    Order = ord,
+                    SkuId = sku1Id,
+                    SkuCodeSnapshot = $"SKU-ACT-{runCode}",
+                    SkuNameSnapshot = "Màu Xanh",
+                    Quantity = 1m,
+                    UnitPrice = 150000m,
+                    CreatedAt = DateTimeOffset.UtcNow
+                };
+                db.OrderItems.Add(itm);
+                await db.SaveChangesAsync();
+                orderIdB = ord.Id;
+                orderItemIdB = itm.Id;
+            }
+        }
+
+        var inactiveBranchReq = new ReserveStockRequestDto
+        {
+            BranchId = branch1Id,
+            WarehouseId = wh1Id,
+            SkuId = sku1Id,
+            Quantity = 1m,
+            OrderId = orderIdB,
+            OrderItemId = orderItemIdB
+        };
+        var inactiveBranchRes = await _client.PostAsJsonAsync("/api/inventory/reserve", inactiveBranchReq);
+        inactiveBranchRes.StatusCode.Should().Be(HttpStatusCode.Conflict, "Chi nhánh inactive phải trả về 409 Conflict");
+        var inactiveBranchErr = await inactiveBranchRes.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        inactiveBranchErr.GetProperty("message").GetString().Should().Contain("Chi nhánh").And.Contain("đã ngừng hoạt động");
+
+        // Phục hồi Branch1 hoạt động
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            using (db.OpenPrivilegedScope())
+            {
+                var branchEntity = await db.Branches.IgnoreQueryFilters().FirstAsync(b => b.Id == branch1Id);
+                branchEntity.IsActive = true;
+                await db.SaveChangesAsync();
+            }
+        }
+
+        // CA 5: Kho hàng inactive -> 409 Conflict
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            using (db.OpenPrivilegedScope())
+            {
+                var whEntity = await db.Warehouses.IgnoreQueryFilters().FirstAsync(w => w.Id == wh1Id);
+                whEntity.IsActive = false;
+                await db.SaveChangesAsync();
+            }
+        }
+
+        var inactiveWhReq = new ReserveStockRequestDto
+        {
+            BranchId = branch1Id,
+            WarehouseId = wh1Id,
+            SkuId = sku1Id,
+            Quantity = 1m,
+            OrderId = orderIdB,
+            OrderItemId = orderItemIdB
+        };
+        var inactiveWhRes = await _client.PostAsJsonAsync("/api/inventory/reserve", inactiveWhReq);
+        inactiveWhRes.StatusCode.Should().Be(HttpStatusCode.Conflict, "Kho hàng inactive phải trả về 409 Conflict");
+        var inactiveWhErr = await inactiveWhRes.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        inactiveWhErr.GetProperty("message").GetString().Should().Contain("Kho hàng").And.Contain("đã ngừng hoạt động");
+
+        // Phục hồi Warehouse1 hoạt động
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            using (db.OpenPrivilegedScope())
+            {
+                var whEntity = await db.Warehouses.IgnoreQueryFilters().FirstAsync(w => w.Id == wh1Id);
+                whEntity.IsActive = true;
+                await db.SaveChangesAsync();
+            }
+        }
+
+        // CA 6: Gửi lặp reservation cũ sau khi Product/SKU bị tắt -> Idempotent thành công 200 OK, không mất reservation, không tăng Reserved
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            using (db.OpenPrivilegedScope())
+            {
+                var prod1Entity = await db.Products.IgnoreQueryFilters().FirstAsync(p => p.Id == product1Id);
+                prod1Entity.IsActive = false;
+
+                var sku1Entity = await db.ProductVariants.IgnoreQueryFilters().FirstAsync(v => v.Id == sku1Id);
+                sku1Entity.IsActive = false;
+
+                await db.SaveChangesAsync();
+            }
+        }
+
+        // Gửi lặp lại đúng reservation CA 1 (validReq cho OrderItem 1)
+        var dupAfterDeactRes = await _client.PostAsJsonAsync("/api/inventory/reserve", validReq);
+        dupAfterDeactRes.StatusCode.Should().Be(HttpStatusCode.OK, "Gửi lặp reservation cũ đã Active vẫn phải thành công 200 OK dù Product/SKU bị tắt sau đó");
+        var dupAfterDeactResult = await dupAfterDeactRes.Content.ReadFromJsonAsync<ReserveStockResponseDto>(_jsonOptions);
+        dupAfterDeactResult!.ReservationId.Should().Be(validResult!.ReservationId, "Phải trả về đúng ID của reservation cũ");
+        dupAfterDeactResult.Quantity.Should().Be(2m);
+
+        // Xác minh trong DB: Reserved vẫn là 2m (không bị cộng dồn thành 4m), reservation vẫn Active
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            using (db.OpenPrivilegedScope())
+            {
+                var branchBal = await db.InventoryBalances.IgnoreQueryFilters().FirstAsync(b => b.BranchId == branch1Id && b.SkuId == sku1Id);
+                branchBal.Reserved.Should().Be(2m, "Reserved chi nhánh không được cộng dồn khi gửi lặp");
+
+                var whBal = await db.WarehouseInventoryBalances.IgnoreQueryFilters().FirstAsync(w => w.WarehouseId == wh1Id && w.SkuId == sku1Id);
+                whBal.Reserved.Should().Be(2m, "Reserved kho không được cộng dồn khi gửi lặp");
+
+                var resEntity = await db.Reservations.IgnoreQueryFilters().FirstAsync(r => r.Id == validResult.ReservationId);
+                resEntity.Status.Should().Be("Active", "Reservation cũ không được phép bị hủy hay mất trạng thái Active");
+            }
+        }
+
+        // CA 7: Tạo reservation mới không truyền OrderId/OrderItemId (luồng POS) cho SKU bị tắt -> 409 Conflict, KHÔNG tạo Order dở dang
+        var posInactiveReq = new ReserveStockRequestDto
+        {
+            BranchId = branch1Id,
+            WarehouseId = wh1Id,
+            SkuId = sku1Id, // Đang inactive
+            Quantity = 1m
+        };
+        var posInactiveRes = await _client.PostAsJsonAsync("/api/inventory/reserve", posInactiveReq);
+        posInactiveRes.StatusCode.Should().Be(HttpStatusCode.Conflict, "POS giữ chỗ cho SKU inactive phải bị từ chối 409 Conflict");
+
+        // Kiểm tra không có Order/OrderItem hay Reservation rác phát sinh trong DB
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            using (db.OpenPrivilegedScope())
+            {
+                var ordersCount = await db.Orders.IgnoreQueryFilters().CountAsync(o => o.TenantId == tenantId && o.Status == "Draft" && o.Number.StartsWith("ORD-RES-"));
+                ordersCount.Should().Be(0, "Không được tự sinh Order nháp dở dang khi bị từ chối giữ chỗ");
+
+                var resCount = await db.Reservations.IgnoreQueryFilters().CountAsync(r => r.TenantId == tenantId && r.SkuId == sku1Id);
+                resCount.Should().Be(1, "Chỉ có duy nhất 1 bản ghi reservation ban đầu của OrderItem 1");
+            }
+        }
+    }
 }

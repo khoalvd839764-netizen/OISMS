@@ -9,6 +9,17 @@ export interface Session {
   warehouseIds: string[];
 }
 
+export interface BranchStockBreakdown {
+  branchId: string;
+  branchName: string;
+  warehouseId?: string;
+  warehouseName?: string;
+  onHand: number;
+  reserved: number;
+  available: number;
+  averageCost: number;
+}
+
 export interface Sku {
   id: string;
   productId: string;
@@ -23,6 +34,8 @@ export interface Sku {
   reserved: number;
   threshold: number;
   image: string;
+  isActive?: boolean;
+  productIsActive?: boolean;
   categoryId?: string | null;
   categoryName?: string | null;
   brandId?: string | null;
@@ -31,13 +44,21 @@ export interface Sku {
   branchName?: string;
   warehouseId?: string;
   warehouseName?: string;
+  /** Tổng giá trị tồn kho của SKU cộng dồn theo đúng từng chi nhánh: sum(OnHand_branch * AverageCost_branch) */
+  totalInventoryValue?: number;
+  /** Số dư chi tiết theo từng Chi nhánh / Kho */
+  branchBalances?: BranchStockBreakdown[];
 }
 
 export interface Order {
   id: string;
   code: string;
+  tenantId?: string;
   channel: "POS" | "Admin" | "Shopee" | "TikTok" | "Lazada";
+  branchId?: string;
   branch?: string;
+  warehouseId?: string;
+  warehouse?: string;
   createdAt: string;
   amount: number;
   cogs?: number;
@@ -57,19 +78,32 @@ export interface Order {
 export interface LedgerEntry {
   id: string;
   createdAt: string;
+  branchId?: string;
+  branchName?: string;
+  warehouseId?: string;
   warehouse: string;
+  skuId?: string;
   sku: string;
   direction: "IN" | "OUT";
   transaction: string;
   quantity: number;
+  unitCost?: number;
   balanceAfter: number;
   reference: string;
 }
 
+export interface PagedMeta {
+  pageIndex: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+}
+
 export interface ApiResult<T> {
   data?: T;
+  meta?: PagedMeta;
   error?: {
-    code: "INSUFFICIENT_STOCK" | "SKU_ALREADY_EXISTS" | "INVALID_STATE" | "ALREADY_PROCESSED";
+    code: "INSUFFICIENT_STOCK" | "SKU_ALREADY_EXISTS" | "INVALID_STATE" | "ALREADY_PROCESSED" | "NETWORK_ERROR";
     message: string;
   };
 }

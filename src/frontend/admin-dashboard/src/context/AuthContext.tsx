@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Role } from "../types/domain";
-import { httpClient } from "../services/httpClient";
+import { clearAuthSession, clearSessionOrdersStorage, httpClient } from "../services/httpClient";
 
 export interface UserAccount {
   id: string;
@@ -85,6 +85,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const res = await httpClient.get("/api/auth/me");
         const data = res.data;
         const role = (data.roles?.[0] || "Staff") as Role;
+        // [A01] Nếu tenant của phiên khôi phục khác tenant đã lưu → dọn sạch dữ liệu tạm của tenant cũ
+        const storedTenantId = localStorage.getItem("oism_tenant_id");
+        if (storedTenantId && data.tenantId && storedTenantId !== data.tenantId) {
+          clearSessionOrdersStorage();
+        }
+        if (data.tenantId) {
+          localStorage.setItem("oism_tenant_id", data.tenantId);
+        }
+        // Dọn khóa cũ không có tiền tố tenantId
+        sessionStorage.removeItem("oism_session_orders");
+
         const accountData: UserAccount = {
           id: data.id,
           name: data.fullName || data.email,
@@ -95,15 +106,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           tenantName: data.tenantName || "Cửa hàng của tôi",
           tenantCode: data.tenantCode || "",
           branchName: "Chi nhánh chính",
-          landingPath: role === "Cashier" ? "/pos" : "/",
+          landingPath: role === "Cashier" ? "/pos" : "/admin",
         };
         setUser(accountData);
       } catch (err: any) {
         console.warn("Không thể tải thông tin phiên người dùng:", err?.message);
-        // Nếu lỗi 401 hoặc token hỏng thì xóa token
         if (err?.response?.status === 401) {
-          localStorage.removeItem("oism_access_token");
-          localStorage.removeItem("oism_refresh_token");
+          clearAuthSession();
         }
       } finally {
         setIsLoading(false);
@@ -122,9 +131,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       const { accessToken, refreshToken, user: userData } = res.data;
+
+      // [A01] Xóa sạch dữ liệu đơn hàng phiên cũ (mọi tenant) trước khi khởi tạo phiên mới
+      sessionStorage.removeItem("oism_session_orders");
+      clearSessionOrdersStorage();
+
       localStorage.setItem("oism_access_token", accessToken);
       if (refreshToken) {
         localStorage.setItem("oism_refresh_token", refreshToken);
+      }
+      if (userData?.tenantId) {
+        localStorage.setItem("oism_tenant_id", userData.tenantId);
       }
 
       const role = (userData.roles?.[0] || "Staff") as Role;
@@ -138,7 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         tenantName: userData.tenantName || "Cửa hàng của tôi",
         tenantCode: userData.tenantCode || "",
         branchName: "Chi nhánh chính",
-        landingPath: role === "Cashier" ? "/pos" : "/",
+        landingPath: role === "Cashier" ? "/pos" : "/admin",
       };
 
       setUser(accountData);
@@ -165,8 +182,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await httpClient.post("/api/auth/logout", { refreshToken }).catch(() => {});
       }
     } finally {
-      localStorage.removeItem("oism_access_token");
-      localStorage.removeItem("oism_refresh_token");
+      // [A01 — Blocking] Bắt buộc xóa sạch sessionStorage ("oism_session_orders" và "oism_orders_${tenantId}") khi logout
+      sessionStorage.removeItem("oism_session_orders");
+      clearAuthSession();
       setUser(null);
     }
   };
@@ -181,8 +199,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }) => {
     try {
       setNetworkError(null);
-      // Sinh mã TenantCode hợp lệ theo chuẩn backend (3-30 ký tự chữ số/gạch nối)
-      const rawCode = payload.tenantCode?.trim() || 
+      const rawCode =
+        payload.tenantCode?.trim() ||
         payload.tenantName
           .trim()
           .toLowerCase()
@@ -191,7 +209,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .replace(/[^a-z0-9]/g, "-")
           .replace(/-+/g, "-")
           .replace(/^-|-$/g, "");
-      const finalCode = (rawCode.length >= 3 ? rawCode : `${rawCode || "shop"}-${Date.now().toString().slice(-4)}`).slice(0, 30).toUpperCase();
+      const finalCode = (rawCode.length >= 3 ? rawCode : `${rawCode || "shop"}-${Date.now().toString().slice(-4)}`)
+        .slice(0, 30)
+        .toUpperCase();
 
       await httpClient.post("/api/auth/register-tenant", {
         tenantName: payload.tenantName.trim(),
@@ -202,7 +222,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password: payload.ownerPassword,
       });
 
-      // Đăng nhập tự động sau khi đăng ký
       return await login({ email: payload.ownerEmail, password: payload.ownerPassword });
     } catch (err: any) {
       if (!err?.response) {
@@ -220,7 +239,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const selectAccount = (accountId: string) => {
-    // Không gán dữ liệu cứng: Phiên làm việc phụ thuộc 100% vào Token và API /api/auth/me thực tế
     console.info("selectAccount gọi với ID:", accountId);
     return user || fallbackGuest;
   };
@@ -250,7 +268,6 @@ export function useAuth() {
   return context;
 }
 
-// Giữ lại hook alias tương thích để không break các file figma cũ
 export function useDemoSession() {
   return useAuth();
 }
