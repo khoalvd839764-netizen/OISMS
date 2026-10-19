@@ -1,4 +1,4 @@
-﻿
+
 ## I. Ma tráº­n Äá»i chiáº¿u Toàn diá»n Yêu cáº§u Äá» bài (Requirements Traceability Matrix)
 Báº£ng dÆ°á»i Äây Äá»i chiáº¿u 100% các yêu cáº§u chá»©c nÄng và phi chá»©c nÄng tá»« Äá» bài vá»i ngÆ°á»i phá»¥ trách và Äá»£t bàn giao cá»¥ thá» (cáº­p nháº­t theo Káº¿ hoáº¡ch phân công má»i Sprint 2 – 5):
 Mã yêu cáº§u | Tên ná»i dung yêu cáº§u | Thành viên | Giai Äoáº¡n thá»±c hiá»n | ---
@@ -329,3 +329,29 @@ Toàn nhóm
 ---
 
 
+
+
+## IV. Quy tắc Chuẩn mực Làm việc với GitHub (Git Workflow Guidelines)
+
+Áp dụng bắt buộc cho toàn bộ 5 thành viên trong tất cả các phiên làm việc và bàn giao Sprint:
+
+### 1. Phân định Nhánh (Branching Strategy)
+- main: Bản phát hành chính thức. Cấm commit/push trực tiếp. Chỉ nhận merge từ develop sau nghiệm thu.
+- develop: Nhánh tích hợp trung tâm của Sprint. Cấm commit trực tiếp. Mọi thay đổi phải thông qua Pull Request.
+- feature/OISMS-<mã_task>-<tên_chức_năng>: Tách từ develop mới nhất để phát triển tính năng mới.
+- bugfix/OISMS-<mã_task>-<tên_lỗi>: Tách từ develop để sửa lỗi theo phản hồi của Tester/Reviewer.
+
+### 2. Chu trình 6 bước của một phiên làm việc chuẩn:
+1. Đồng bộ develop mới nhất: git checkout develop && git pull origin develop
+2. Tạo nhánh riêng: git checkout -b feature/OISMS-xx-<tên>
+3. Code & Tự kiểm tra: Chạy 'npm run build' (Frontend) hoặc 'dotnet test' (Backend) trước khi commit.
+4. Đóng gói commit: Chỉ add đúng thư mục phụ trách (vd: git add src/frontend/admin-dashboard/). Commit theo cú pháp: [Mã-Task] feat/fix(phạm-vi): Nội dung.
+5. Đẩy lên GitHub & Tạo PR: git push -u origin <tên-nhánh>. Vào GitHub tạo Pull Request trỏ vào nhánh 'develop'.
+6. Cập nhật khi Reviewer yêu cầu: Tiếp tục sửa trên chính nhánh đó, commit và git push bình thường. TUYỆT ĐỐI KHÔNG đóng PR cũ tạo PR mới.
+
+### 3. 5 Điều cấm kỵ:
+1. Cấm code trực tiếp trên main hoặc develop.
+2. Cấm đứng ở thư mục cha bên ngoài dự án rồi gõ 'git add .' (nguyên nhân gây lồng thư mục OISMS/).
+3. Cấm dùng 'git push --force' trên các nhánh chung (main, develop).
+4. Cấm commit file rác, file nhị phân (node_modules, bin, obj, file .env bí mật).
+5. Cấm tự ý xóa hoặc di chuyển file thuộc phân hệ của thành viên khác.

@@ -10,7 +10,35 @@ export function getTenantOrdersStorageKey(tenantId?: string): string {
   return `oism_orders_${tid}`;
 }
 
+export function getPendingReceiptStorageKey(tenantId?: string): string {
+  const tid = tenantId || getActiveTenantId();
+  return `oism_pending_receipt_${tid}`;
+}
+
+export function getPendingReservationStorageKey(tenantId?: string): string {
+  const tid = tenantId || getActiveTenantId();
+  return `oism_pending_reservation_${tid}`;
+}
+
+export function getPendingOrderStorageKey(tenantId?: string): string {
+  const tid = tenantId || getActiveTenantId();
+  return `oism_pending_order_${tid}`;
+}
+
+// [F2] Trình sinh UUID RFC4122 chuẩn cho ClientRequestId / Idempotency-Key
+export function generateUuid(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 // Tải toàn bộ các trang từ endpoint có phân trang (tối đa 100 bản ghi/trang của Backend)
+// [F6] Loại bỏ giới hạn cứng 10 trang (1.000 bản ghi), phân trang đầy đủ qua toàn bộ totalPages
 async function fetchAllPages<T>(
   endpoint: string,
   baseParams: Record<string, string | number | undefined> = {}
@@ -48,19 +76,24 @@ async function fetchAllPages<T>(
   }
 
   const allItems: T[] = [...firstItems];
-  const pagePromises: Promise<any>[] = [];
-  for (let page = 2; page <= Math.min(totalPages, 10); page++) {
-    const p = new URLSearchParams();
-    Object.entries({ ...baseParams, pageIndex: page, pageSize }).forEach(([k, v]) => {
-      if (v !== undefined && String(v).trim() !== "") p.set(k, String(v));
-    });
-    pagePromises.push(httpClient.get(`${endpoint}?${p.toString()}`));
-  }
+  // [F6] Tải toàn bộ trang theo batch (kích thước 5) để không nghẽn connection pool và không bỏ sót dòng nào
+  const BATCH_SIZE = 5;
+  for (let page = 2; page <= totalPages; page += BATCH_SIZE) {
+    const batchPromises: Promise<any>[] = [];
+    const endPage = Math.min(page + BATCH_SIZE - 1, totalPages);
+    for (let pIdx = page; pIdx <= endPage; pIdx++) {
+      const p = new URLSearchParams();
+      Object.entries({ ...baseParams, pageIndex: pIdx, pageSize }).forEach(([k, v]) => {
+        if (v !== undefined && String(v).trim() !== "") p.set(k, String(v));
+      });
+      batchPromises.push(httpClient.get(`${endpoint}?${p.toString()}`));
+    }
 
-  const remainingResponses = await Promise.all(pagePromises);
-  for (const r of remainingResponses) {
-    const pageItems: T[] = Array.isArray(r.data?.items) ? r.data.items : [];
-    allItems.push(...pageItems);
+    const batchResponses = await Promise.all(batchPromises);
+    for (const r of batchResponses) {
+      const pageItems: T[] = Array.isArray(r.data?.items) ? r.data.items : [];
+      allItems.push(...pageItems);
+    }
   }
 
   return {
@@ -72,6 +105,15 @@ async function fetchAllPages<T>(
 export const apiAdapter = {
   getOrdersStorageKey(tenantId?: string) {
     return getTenantOrdersStorageKey(tenantId);
+  },
+  getPendingReceiptStorageKey(tenantId?: string) {
+    return getPendingReceiptStorageKey(tenantId);
+  },
+  getPendingReservationStorageKey(tenantId?: string) {
+    return getPendingReservationStorageKey(tenantId);
+  },
+  getPendingOrderStorageKey(tenantId?: string) {
+    return getPendingOrderStorageKey(tenantId);
   },
 
   // --- CATALOG & PRODUCTS ---
@@ -553,21 +595,36 @@ export const apiAdapter = {
     }
   },
 
+  // [F2] Hỗ trợ Idempotency-Key và requestKey (UUID) chống giữ chỗ trùng lặp khi retry
   async reserveStock(payload: {
     branchId: string;
     warehouseId: string;
     skuId: string;
     quantity: number;
     durationMinutes?: number;
+    idempotencyKey?: string;
   }) {
     try {
-      const res = await httpClient.post("/api/inventory/reserve", {
+      const headers: Record<string, string> = {};
+      if (payload.idempotencyKey) {
+        headers["Idempotency-Key"] = payload.idempotencyKey;
+        headers["X-Request-Key"] = payload.idempotencyKey;
+      }
+      const body: Record<string, any> = {
         branchId: payload.branchId,
         warehouseId: payload.warehouseId,
         skuId: payload.skuId,
         quantity: Number(payload.quantity) || 1,
         durationMinutes: payload.durationMinutes || 15,
-      });
+      };
+      if (payload.idempotencyKey) {
+        body.requestKey = payload.idempotencyKey;
+      }
+      const res = await httpClient.post(
+        "/api/inventory/reserve",
+        body,
+        { headers }
+      );
       return { data: res.data };
     } catch (err: any) {
       return {
@@ -626,6 +683,25 @@ export const apiAdapter = {
       return {
         error: {
           message: err?.response?.data?.message || "Không thể tải danh sách phiếu nhập kho.",
+        },
+      };
+    }
+  },
+
+  // [F1] Truy vấn chi tiết phiếu nhập kho để đối soát trạng thái (Draft / Confirmed)
+  async getGoodsReceiptById(id: string) {
+    try {
+      const res = await httpClient.get(`/api/goods-receipts/${id}`);
+      return { data: res.data };
+    } catch (err: any) {
+      return {
+        error: {
+          code: err?.response?.status === 404 ? "NOT_FOUND" : "API_ERROR",
+          status: err?.response?.status,
+          message:
+            err?.response?.data?.message ||
+            err?.response?.data?.errors?.[0] ||
+            "Không thể tải thông tin chi tiết phiếu nhập kho.",
         },
       };
     }
@@ -846,7 +922,7 @@ export const apiAdapter = {
     sessionStorage.setItem(storageKey, JSON.stringify(tagged));
   },
 
-  // [A08 & A10] Hỗ trợ chọn rõ Chi nhánh & Kho cụ thể khi giữ chỗ (Reserve) và chặn SKU ngừng hoạt động (isActive === false)
+  // [A08 & A10 & F2] Hỗ trợ chọn rõ Chi nhánh & Kho cụ thể khi giữ chỗ (Reserve), idempotencyKey chống giữ trùng và chặn SKU ngừng hoạt động
   async checkout(
     sku: Sku,
     quantity: number,
@@ -858,6 +934,8 @@ export const apiAdapter = {
       warehouseId?: string;
       warehouseName?: string;
       tenantId?: string;
+      idempotencyKey?: string;
+      isRetry?: boolean;
     }
   ): Promise<ApiResult<{ orderCode: string }>> {
     if (sku.isActive === false) {
@@ -896,18 +974,22 @@ export const apiAdapter = {
       }
 
       if (branchId && warehouseId) {
-        // Kiểm tra tồn khả dụng thực tế tại đúng Kho được chọn trước khi gọi Reserve
-        const whBalRes = await this.getBalances({ branchId, warehouseId });
-        if (whBalRes.data) {
-          const whSkuBal = whBalRes.data.find((item) => item.id === sku.id);
-          const whAvailable = whSkuBal ? whSkuBal.onHand - whSkuBal.reserved : 0;
-          if (whAvailable < quantity) {
-            return {
-              error: {
-                code: "INSUFFICIENT_STOCK",
-                message: `Kho "${warehouseName || warehouseId}" (${branchName || branchId}) chỉ còn khả dụng ${whAvailable} sản phẩm cho mã ${sku.code} (yêu cầu: ${quantity}). Vui lòng chọn kho khác hoặc nhập thêm hàng.`,
-              },
-            };
+        // [F2] Kiểm tra tồn khả dụng thực tế tại đúng Kho được chọn trước khi gọi Reserve
+        // CHÚ Ý: Nếu đây là thao tác RETRY (options?.isRetry), không dùng whAvailable phía client để chặn,
+        // vì lần gọi trước có thể backend đã trừ khả dụng và tạo reservation thành công rồi!
+        if (!options?.isRetry) {
+          const whBalRes = await this.getBalances({ branchId, warehouseId });
+          if (whBalRes.data) {
+            const whSkuBal = whBalRes.data.find((item) => item.id === sku.id);
+            const whAvailable = whSkuBal ? whSkuBal.onHand - whSkuBal.reserved : 0;
+            if (whAvailable < quantity) {
+              return {
+                error: {
+                  code: "INSUFFICIENT_STOCK",
+                  message: `Kho "${warehouseName || warehouseId}" (${branchName || branchId}) chỉ còn khả dụng ${whAvailable} sản phẩm cho mã ${sku.code} (yêu cầu: ${quantity}). Vui lòng chọn kho khác hoặc nhập thêm hàng.`,
+                },
+              };
+            }
           }
         }
 
@@ -917,6 +999,7 @@ export const apiAdapter = {
           skuId: sku.id,
           quantity,
           durationMinutes: 15,
+          idempotencyKey: options?.idempotencyKey,
         });
 
         if (res.error) {

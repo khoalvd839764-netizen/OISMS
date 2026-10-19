@@ -80,14 +80,29 @@ public class InventoryController : ControllerBase
     /// Giữ chỗ tồn kho chống bán âm / Overselling (BE1-09).
     /// Khóa giao dịch đồng thời (Advisory Lock), kiểm tra Available, cập nhật Reserved ở 2 cấp và sinh Reservation Active.
     /// Hỗ trợ Owner, Staff, Cashier.
+    /// Hỗ trợ Idempotency chống giữ chỗ lặp khi thử lại qua thuộc tính RequestKey trong Body hoặc Header 'Idempotency-Key' / 'X-Request-Key'.
     /// </summary>
     [HttpPost("reserve")]
     [Authorize(Roles = "Owner,Staff,Cashier")]
-    public async Task<IActionResult> Reserve([FromBody] ReserveStockRequestDto dto, CancellationToken ct)
+    public async Task<IActionResult> Reserve(
+        [FromBody] ReserveStockRequestDto dto,
+        [FromHeader(Name = "Idempotency-Key")] string? idempotencyKeyHeader,
+        [FromHeader(Name = "X-Request-Key")] string? xRequestKeyHeader,
+        CancellationToken ct)
     {
         if (!ModelState.IsValid)
         {
             return BadRequest(ModelState);
+        }
+
+        // Ưu tiên RequestKey từ Body; nếu chưa có thì đọc từ Header Idempotency-Key hoặc X-Request-Key
+        if (!dto.RequestKey.HasValue)
+        {
+            var rawHeaderKey = !string.IsNullOrWhiteSpace(idempotencyKeyHeader) ? idempotencyKeyHeader : xRequestKeyHeader;
+            if (!string.IsNullOrWhiteSpace(rawHeaderKey) && Guid.TryParse(rawHeaderKey.Trim(), out var parsedHeaderGuid))
+            {
+                dto.RequestKey = parsedHeaderGuid;
+            }
         }
 
         try
