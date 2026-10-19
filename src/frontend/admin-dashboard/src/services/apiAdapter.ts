@@ -862,34 +862,6 @@ export const apiAdapter = {
     }
   },
 
-  // --- POS SEARCH & BARCODE ---
-  async posSearch(query: string, branchId?: string) {
-    try {
-      const params = new URLSearchParams({ query });
-      if (branchId) params.set("branchId", branchId);
-      const res = await httpClient.get(`/api/pos/search?${params.toString()}`);
-      return { data: Array.isArray(res.data) ? res.data : [] };
-    } catch (err: any) {
-      return {
-        error: { message: err?.response?.data?.message || "Lỗi tìm kiếm POS" },
-      };
-    }
-  },
-
-  async posGetByBarcode(barcode: string, branchId?: string) {
-    try {
-      const url = branchId
-        ? `/api/pos/barcode/${encodeURIComponent(barcode)}?branchId=${branchId}`
-        : `/api/pos/barcode/${encodeURIComponent(barcode)}`;
-      const res = await httpClient.get(url);
-      return { data: res.data };
-    } catch (err: any) {
-      return {
-        error: { message: err?.response?.data?.message || "Không tìm thấy sản phẩm theo mã vạch" },
-      };
-    }
-  },
-
   // --- ORDERS & RESERVATIONS ---
   // [A01] Đọc/lưu đơn hàng gắn chặt theo khóa có tiền tố tenantId: oism_orders_${tenantId}
   async getOrders(tenantId?: string): Promise<ApiResult<Order[]>> {
