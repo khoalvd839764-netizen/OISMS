@@ -13,7 +13,8 @@
     "lucide-react": "^1.57.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.18.4"
+    "react-router-dom": "^7.18.4",
+    "@rolldown/binding-win32-x64-msvc": "^1.2.14"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",
