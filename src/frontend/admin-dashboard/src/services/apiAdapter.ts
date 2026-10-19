@@ -10,7 +10,13 @@ export function getTenantOrdersStorageKey(tenantId?: string): string {
   return `oism_orders_${tid}`;
 }
 
+export function getPendingReceiptStorageKey(tenantId?: string): string {
+  const tid = tenantId || getActiveTenantId();
+  return `oism_pending_receipt_${tid}`;
+}
+
 // Tải toàn bộ các trang từ endpoint có phân trang (tối đa 100 bản ghi/trang của Backend)
+// [F6] Loại bỏ giới hạn cứng 10 trang (1.000 bản ghi), phân trang đầy đủ qua toàn bộ totalPages
 async function fetchAllPages<T>(
   endpoint: string,
   baseParams: Record<string, string | number | undefined> = {}
@@ -48,19 +54,24 @@ async function fetchAllPages<T>(
   }
 
   const allItems: T[] = [...firstItems];
-  const pagePromises: Promise<any>[] = [];
-  for (let page = 2; page <= Math.min(totalPages, 10); page++) {
-    const p = new URLSearchParams();
-    Object.entries({ ...baseParams, pageIndex: page, pageSize }).forEach(([k, v]) => {
-      if (v !== undefined && String(v).trim() !== "") p.set(k, String(v));
-    });
-    pagePromises.push(httpClient.get(`${endpoint}?${p.toString()}`));
-  }
+  // [F6] Tải toàn bộ trang theo batch (kích thước 5) để không nghẽn connection pool và không bỏ sót dòng nào
+  const BATCH_SIZE = 5;
+  for (let page = 2; page <= totalPages; page += BATCH_SIZE) {
+    const batchPromises: Promise<any>[] = [];
+    const endPage = Math.min(page + BATCH_SIZE - 1, totalPages);
+    for (let pIdx = page; pIdx <= endPage; pIdx++) {
+      const p = new URLSearchParams();
+      Object.entries({ ...baseParams, pageIndex: pIdx, pageSize }).forEach(([k, v]) => {
+        if (v !== undefined && String(v).trim() !== "") p.set(k, String(v));
+      });
+      batchPromises.push(httpClient.get(`${endpoint}?${p.toString()}`));
+    }
 
-  const remainingResponses = await Promise.all(pagePromises);
-  for (const r of remainingResponses) {
-    const pageItems: T[] = Array.isArray(r.data?.items) ? r.data.items : [];
-    allItems.push(...pageItems);
+    const batchResponses = await Promise.all(batchPromises);
+    for (const r of batchResponses) {
+      const pageItems: T[] = Array.isArray(r.data?.items) ? r.data.items : [];
+      allItems.push(...pageItems);
+    }
   }
 
   return {
@@ -72,6 +83,9 @@ async function fetchAllPages<T>(
 export const apiAdapter = {
   getOrdersStorageKey(tenantId?: string) {
     return getTenantOrdersStorageKey(tenantId);
+  },
+  getPendingReceiptStorageKey(tenantId?: string) {
+    return getPendingReceiptStorageKey(tenantId);
   },
 
   // --- CATALOG & PRODUCTS ---
@@ -553,21 +567,33 @@ export const apiAdapter = {
     }
   },
 
+  // [F2] Hỗ trợ Idempotency-Key và clientRequestId chống giữ chỗ trùng lặp khi retry
   async reserveStock(payload: {
     branchId: string;
     warehouseId: string;
     skuId: string;
     quantity: number;
     durationMinutes?: number;
+    idempotencyKey?: string;
   }) {
     try {
-      const res = await httpClient.post("/api/inventory/reserve", {
-        branchId: payload.branchId,
-        warehouseId: payload.warehouseId,
-        skuId: payload.skuId,
-        quantity: Number(payload.quantity) || 1,
-        durationMinutes: payload.durationMinutes || 15,
-      });
+      const headers: Record<string, string> = {};
+      if (payload.idempotencyKey) {
+        headers["Idempotency-Key"] = payload.idempotencyKey;
+      }
+      const res = await httpClient.post(
+        "/api/inventory/reserve",
+        {
+          branchId: payload.branchId,
+          warehouseId: payload.warehouseId,
+          skuId: payload.skuId,
+          quantity: Number(payload.quantity) || 1,
+          durationMinutes: payload.durationMinutes || 15,
+          clientRequestId: payload.idempotencyKey,
+          idempotencyKey: payload.idempotencyKey,
+        },
+        { headers }
+      );
       return { data: res.data };
     } catch (err: any) {
       return {
@@ -626,6 +652,25 @@ export const apiAdapter = {
       return {
         error: {
           message: err?.response?.data?.message || "Không thể tải danh sách phiếu nhập kho.",
+        },
+      };
+    }
+  },
+
+  // [F1] Truy vấn chi tiết phiếu nhập kho để đối soát trạng thái (Draft / Confirmed)
+  async getGoodsReceiptById(id: string) {
+    try {
+      const res = await httpClient.get(`/api/goods-receipts/${id}`);
+      return { data: res.data };
+    } catch (err: any) {
+      return {
+        error: {
+          code: err?.response?.status === 404 ? "NOT_FOUND" : "API_ERROR",
+          status: err?.response?.status,
+          message:
+            err?.response?.data?.message ||
+            err?.response?.data?.errors?.[0] ||
+            "Không thể tải thông tin chi tiết phiếu nhập kho.",
         },
       };
     }

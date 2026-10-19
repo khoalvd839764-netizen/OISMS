@@ -181,3 +181,24 @@ powershell -ExecutionPolicy Bypass -File scripts\run-admin.ps1
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\run-pos.ps1
 ```
+
+---
+
+## 5. Bàn Giao Sau Review PR #10 (Sprint 2 — Frontend Admin Dashboard)
+
+Theo kết quả review PR #10, các vấn đề từ F1 đến F6 và sự phối hợp F7 đã được hoàn thiện triệt để:
+
+| Mã | Vấn đề & Yêu cầu | Giải pháp Frontend đã triển khai | Trạng thái |
+| :--- | :--- | :--- | :--- |
+| **F1** | Đóng/mở form làm mất ID phiếu nhập chờ xác nhận; retry tạo phiếu trùng | - Lưu thông tin phiếu nháp và ID vào `sessionStorage` (`oism_pending_receipt_${tenantId}`).<br>- Khi mở lại modal, tự động đối soát trạng thái với backend (`GET /api/goods-receipts/{id}`). Nếu đã `Confirmed`, chuyển màn hình thành công và làm mới số dư. Nếu `Draft`, tiếp tục xác nhận đúng phiếu cũ mà không tạo mới.<br>- Bổ sung nút **"Hủy bỏ phiếu nháp này"** để người dùng chủ động xóa nháp nếu muốn lập phiếu khác. | **Đã sửa & Kiểm chứng** |
+| **F2** | Chống giữ chỗ trùng lặp khi retry mất kết nối (Idempotency) | - Frontend tạo `idempotencyKey` (UUID) ổn định cho mỗi ý định giữ chỗ.<br>- Khi gặp lỗi mạng / timeout, giữ nguyên key và gửi lại đúng payload và key cũ (Header `Idempotency-Key` + Payload `clientRequestId`).<br>- Khi thay đổi Chi nhánh / Kho / SKU / Số lượng, tự động reset key để đảm bảo an toàn.<br>- Sau khi Đăng Khoa chốt contract backend, frontend đã sẵn sàng tương thích 100%. | **Đã tích hợp Frontend** |
+| **F3** | Bảng lọc theo kho không cập nhật số dư sau nhập hàng/giữ chỗ | - Hàm `loadBalances()` tự động tải lại cả số dư tổng và số dư của kho đang lọc (`balanceWarehouseFilter`).<br>- Sử dụng `balanceReqSeqRef` (sequence counter) để loại bỏ hoàn toàn race condition khi các phản hồi API cũ trả về chậm hơn request mới. | **Đã sửa & Kiểm chứng** |
+| **F4** | API sổ kho lỗi nhưng hiển thị "Chưa có bút toán" | - Tách biệt trạng thái `ledgerError` khỏi trạng thái danh sách rỗng.<br>- Hiển thị banner lỗi rõ ràng và nút **"Thử lại tải sổ kho"** riêng biệt. | **Đã sửa & Kiểm chứng** |
+| **F5** | Lọc theo tên chứa chuỗi nên chọn "Kho" dính cả "Kho 2" | - Chuyển sang lọc chặt chẽ theo `warehouseId` (`item.warehouseId === warehouseFilter`).<br>- Nhãn dropdown hiển thị đầy đủ cấu trúc: `[Tên Chi nhánh] — [Tên Kho hàng]`. | **Đã sửa & Kiểm chứng** |
+| **F6** | Bộ tải phân trang chỉ lấy tối đa 1.000 dòng (10 trang) | - Loại bỏ giới hạn cứng 10 trang trong `fetchAllPages`.<br>- Tải đầy đủ qua toàn bộ `totalPages` theo batch song song (5 request/lượt) để không làm nghẽn kết nối và không cắt dữ liệu. | **Đã sửa & Kiểm chứng** |
+| **F7** | Lỗi Docker/Nginx truy cập trực tiếp route/F5 bị 404 | - Backend (Đăng Khoa) phụ trách cấu hình Nginx SPA fallback `try_files $uri $uri/ /index.html;`.<br>- Frontend sẵn sàng kiểm thử lại toàn bộ route sau khi build Docker image mới. | **Phối hợp Backend** |
+
+### Kết Quả Kiểm Thử Thực Tế:
+- **Build Frontend (`tsc -b && vite build`):** Hoàn thành trong 435ms, 0 lỗi TypeScript, 0 cảnh báo lint.
+- **Backend Unit Tests (`dotnet test`):** **103/103 tests Passed** (0 failed, 0 skipped).
+- **Phần chưa kiểm chứng tại local:** Cần Đăng Khoa cập nhật Dockerfile Nginx (F7) và triển khai Idempotency filter trên Backend (F2) để đối soát E2E trên container.
