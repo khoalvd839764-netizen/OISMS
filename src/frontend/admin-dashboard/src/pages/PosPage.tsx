@@ -16,10 +16,10 @@ import {
   ShoppingBag,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Badge, Button, Input, Modal, Select } from "../components/ui";
-import { apiAdapter } from "../services/apiAdapter";
+import { apiAdapter, generateUuid } from "../services/apiAdapter";
 import type { Sku } from "../types/domain";
 import { useAuth } from "../context/AuthContext";
 import { NotificationCenter } from "../components/NotificationCenter";
@@ -40,7 +40,12 @@ export function PosPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [usingOfflineCache, setUsingOfflineCache] = useState(false);
 
-  const [cart, setCart] = useState<{ sku: Sku; quantity: number }[]>([]);
+  const [cart, setCart] = useState<{ sku: Sku; quantity: number; idempotencyKey?: string }[]>([]);
+  const [isRetryingCheckout, setIsRetryingCheckout] = useState(false);
+  const isCheckingOutRef = useRef(false);
+  const posWhReqSeqRef = useRef(0);
+  const [posWhError, setPosWhError] = useState<string | null>(null);
+  const [loadingPosWh, setLoadingPosWh] = useState(false);
   const [query, setQuery] = useState("");
   const [payment, setPayment] = useState<"cash" | "qr">("cash");
   const [processing, setProcessing] = useState(false);
@@ -106,19 +111,30 @@ export function PosPage() {
     loadPosCatalog();
   }, [user?.tenantId]);
 
-  // [A08] Nạp tồn khả dụng tại đúng Kho bán hàng được chọn trên POS
+  // [A08 & F3] Nạp tồn khả dụng tại đúng Kho bán hàng được chọn trên POS (chống stale data)
   useEffect(() => {
     async function loadActiveWarehouseBalances() {
       if (!posBranchId || !posWarehouseId) {
         setWarehouseBalances([]);
+        setPosWhError(null);
         return;
       }
+      const seq = ++posWhReqSeqRef.current;
+      setWarehouseBalances([]); // Reset ngay lập tức để không hiển thị số dư của kho cũ
+      setPosWhError(null);
+      setLoadingPosWh(true);
       const res = await apiAdapter.getBalances({
         branchId: posBranchId,
         warehouseId: posWarehouseId,
       });
-      if (res.data) {
-        setWarehouseBalances(res.data);
+      if (seq !== posWhReqSeqRef.current) return;
+      setLoadingPosWh(false);
+      if (res.error) {
+        setWarehouseBalances([]);
+        setPosWhError(res.error.message || "Không thể tải số dư kho");
+      } else {
+        setWarehouseBalances(res.data || []);
+        setPosWhError(null);
       }
     }
     loadActiveWarehouseBalances();
@@ -162,7 +178,7 @@ export function PosPage() {
           item.sku.id === sku.id ? { ...item, quantity: Math.min(item.quantity + 1, avail) } : item
         );
       }
-      return [...current, { sku, quantity: 1 }];
+      return [...current, { sku, quantity: 1, idempotencyKey: generateUuid() }];
     });
   };
 
@@ -189,48 +205,67 @@ export function PosPage() {
   };
 
   const checkout = async () => {
-    if (!cart.length) return;
+    if (!cart.length || isCheckingOutRef.current) return;
+    isCheckingOutRef.current = true;
     setProcessing(true);
     setCheckoutErrorMsg("");
 
     const selectedBrObj = branches.find((b) => b.id === posBranchId);
     const selectedWhObj = warehouses.find((w) => w.id === posWarehouseId);
 
+    // [F2] Gán định danh UUID cho từng dòng trong giỏ để tránh giữ lặp khi retry
+    const preparedCart = cart.map((line) => ({
+      ...line,
+      idempotencyKey: line.idempotencyKey || generateUuid(),
+    }));
+    setCart(preparedCart);
+
     let lastCode = "";
-    for (const line of cart) {
-      const response = await apiAdapter.checkout(
-        line.sku,
-        line.quantity,
-        "POS",
-        "Khách lẻ tại quầy POS",
-        {
-          branchId: posBranchId || undefined,
-          branchName: selectedBrObj?.name,
-          warehouseId: posWarehouseId || undefined,
-          warehouseName: selectedWhObj?.name,
-          tenantId: user?.tenantId,
+    try {
+      for (const line of preparedCart) {
+        const response = await apiAdapter.checkout(
+          line.sku,
+          line.quantity,
+          "POS",
+          "Khách lẻ tại quầy POS",
+          {
+            branchId: posBranchId || undefined,
+            branchName: selectedBrObj?.name,
+            warehouseId: posWarehouseId || undefined,
+            warehouseName: selectedWhObj?.name,
+            tenantId: user?.tenantId,
+            idempotencyKey: line.idempotencyKey,
+            isRetry: isRetryingCheckout,
+          }
+        );
+
+        if (response.error) {
+          setProcessing(false);
+          setCheckoutErrorMsg(response.error.message);
+          setIsRetryingCheckout(true);
+          setResult("error");
+          return;
         }
-      );
-
-      if (response.error) {
-        setProcessing(false);
-        setCheckoutErrorMsg(response.error.message);
-        setResult("error");
-        return;
+        lastCode = response.data?.orderCode || lastCode;
       }
-      lastCode = response.data?.orderCode || lastCode;
-    }
 
-    setProcessing(false);
-    setLastOrderCode(lastCode || `POS-${Date.now().toString().slice(-6)}`);
-    setResult("success");
-    await loadPosCatalog();
-    if (posBranchId && posWarehouseId) {
-      const updatedWh = await apiAdapter.getBalances({
-        branchId: posBranchId,
-        warehouseId: posWarehouseId,
-      });
-      if (updatedWh.data) setWarehouseBalances(updatedWh.data);
+      setProcessing(false);
+      setIsRetryingCheckout(false);
+      setLastOrderCode(lastCode || `POS-${Date.now().toString().slice(-6)}`);
+      setResult("success");
+      await loadPosCatalog();
+      if (posBranchId && posWarehouseId) {
+        const seq = ++posWhReqSeqRef.current;
+        const updatedWh = await apiAdapter.getBalances({
+          branchId: posBranchId,
+          warehouseId: posWarehouseId,
+        });
+        if (seq === posWhReqSeqRef.current && updatedWh.data) {
+          setWarehouseBalances(updatedWh.data);
+        }
+      }
+    } finally {
+      isCheckingOutRef.current = false;
     }
   };
 
@@ -345,6 +380,56 @@ export function PosPage() {
             </div>
           )}
 
+          {posWhError && (
+            <div
+              style={{
+                background: "#fef2f2",
+                border: "1px solid #f87171",
+                color: "#991b1b",
+                padding: "10px 14px",
+                borderRadius: "10px",
+                marginBottom: "12px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "10px",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <AlertCircle size={18} />
+                <span>
+                  <strong>Lỗi tải tồn kho kho bán:</strong> Không thể tải số dư của kho đang chọn ({posWhError}).
+                </span>
+              </div>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  if (posBranchId && posWarehouseId) {
+                    const seq = ++posWhReqSeqRef.current;
+                    setWarehouseBalances([]);
+                    setPosWhError(null);
+                    setLoadingPosWh(true);
+                    apiAdapter
+                      .getBalances({ branchId: posBranchId, warehouseId: posWarehouseId })
+                      .then((res) => {
+                        if (seq !== posWhReqSeqRef.current) return;
+                        setLoadingPosWh(false);
+                        if (res.error) {
+                          setWarehouseBalances([]);
+                          setPosWhError(res.error.message || "Không thể tải số dư kho");
+                        } else {
+                          setWarehouseBalances(res.data || []);
+                          setPosWhError(null);
+                        }
+                      });
+                  }
+                }}
+              >
+                <RefreshCw size={15} /> Thử lại
+              </Button>
+            </div>
+          )}
+
           <label className="pos-search">
             <Search size={22} />
             <Input
@@ -423,7 +508,13 @@ export function PosPage() {
               <h2>Đơn hiện tại</h2>
               <Badge tone="info">{cart.length}</Badge>
             </div>
-            <Button variant="ghost" onClick={() => setCart([])}>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setCart([]);
+                setIsRetryingCheckout(false);
+              }}
+            >
               Xóa giỏ
             </Button>
           </div>
@@ -518,7 +609,11 @@ export function PosPage() {
               </span>
             </div>
           )}
-          <Button className="checkout" disabled={!cart.length || processing} onClick={checkout}>
+          <Button
+            className="checkout"
+            disabled={!cart.length || processing || loadingPosWh || Boolean(posWhError)}
+            onClick={checkout}
+          >
             {processing
               ? "Đang khóa tồn kho & ghi nhận đơn..."
               : `Thanh toán & Giữ chỗ · ${total.toLocaleString("vi-VN")} ₫`}

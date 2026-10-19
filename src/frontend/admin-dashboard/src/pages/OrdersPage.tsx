@@ -1,11 +1,46 @@
 import { AlertCircle, ChevronRight, Filter, Plus, Printer, RefreshCw, Search } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Button, Input, Modal, PageTitle, Select } from "../components/ui";
-import { apiAdapter } from "../services/apiAdapter";
+import { apiAdapter, generateUuid, getPendingOrderStorageKey } from "../services/apiAdapter";
 import { realtimeAdapter, type RealtimeEvent } from "../services/realtimeAdapter";
 import { useAuth } from "../context/AuthContext";
 import { OrderBadge } from "./DashboardPage";
 import type { Order, Sku } from "../types/domain";
+
+interface PendingOrderState {
+  idempotencyKey: string;
+  branchId: string;
+  warehouseId: string;
+  skuId: string;
+  quantity: number;
+  channel: Order["channel"];
+  customer: string;
+}
+
+function loadSavedPendingOrder(tenantId?: string): PendingOrderState | null {
+  try {
+    const key = getPendingOrderStorageKey(tenantId);
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function savePendingOrder(data: PendingOrderState, tenantId?: string) {
+  try {
+    const key = getPendingOrderStorageKey(tenantId);
+    sessionStorage.setItem(key, JSON.stringify(data));
+  } catch {}
+}
+
+function clearSavedPendingOrder(tenantId?: string) {
+  try {
+    const key = getPendingOrderStorageKey(tenantId);
+    sessionStorage.removeItem(key);
+  } catch {}
+}
 
 export function OrdersPage() {
   const { account } = useAuth();
@@ -35,6 +70,13 @@ export function OrdersPage() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [warehouseStockList, setWarehouseStockList] = useState<Sku[]>([]);
   const [loadingWhStock, setLoadingWhStock] = useState(false);
+  const [whStockError, setWhStockError] = useState<string | null>(null);
+  const isCreatingOrderRef = useRef(false);
+  const whStockReqSeqRef = useRef(0);
+
+  // [F2] Duy trì Idempotency-Key UUID cho luồng tạo đơn & giữ chỗ
+  const [orderIdempotencyKey, setOrderIdempotencyKey] = useState<string | null>(null);
+  const [isRetryingOrder, setIsRetryingOrder] = useState(false);
 
   const loadOrders = async () => {
     setLoading(true);
@@ -86,20 +128,31 @@ export function OrdersPage() {
     loadOrders();
   }, [account.tenantId]);
 
-  // [A08] Khi mở Modal Tạo đơn và đổi Chi nhánh / Kho, tải số dư thực tế tại đúng Kho đó
+  // [A08 & F3] Khi mở Modal Tạo đơn và đổi Chi nhánh / Kho, tải số dư thực tế tại đúng Kho đó (chống stale data)
   useEffect(() => {
     async function loadSelectedWarehouseStock() {
       if (!createModal || !newBranchId || !newWarehouseId) {
         setWarehouseStockList([]);
+        setWhStockError(null);
         return;
       }
+      const seq = ++whStockReqSeqRef.current;
+      setWarehouseStockList([]); // Reset ngay lập tức để không hiển thị số dư của kho cũ
+      setWhStockError(null);
       setLoadingWhStock(true);
       const res = await apiAdapter.getBalances({
         branchId: newBranchId,
         warehouseId: newWarehouseId,
       });
-      setWarehouseStockList(res.data || []);
+      if (seq !== whStockReqSeqRef.current) return;
       setLoadingWhStock(false);
+      if (res.error) {
+        setWarehouseStockList([]);
+        setWhStockError(res.error.message || "Không thể tải số dư kho");
+      } else {
+        setWarehouseStockList(res.data || []);
+        setWhStockError(null);
+      }
     }
     loadSelectedWarehouseStock();
   }, [createModal, newBranchId, newWarehouseId]);
@@ -140,53 +193,127 @@ export function OrdersPage() {
     apiAdapter.saveSessionOrders(nextList, account.tenantId);
   };
 
-  const handleCreateOrder = async () => {
+  // [F2] Mở modal tạo đơn & khôi phục thao tác dở dang nếu có
+  const openCreateModal = () => {
     setCreateError(null);
-    const chosenSku = skusList.find((s) => s.id === newSkuId);
-    if (!chosenSku) {
-      setCreateError("Vui lòng chọn một sản phẩm / SKU hợp lệ.");
-      return;
+    const pending = loadSavedPendingOrder(account.tenantId);
+    if (pending && pending.idempotencyKey) {
+      setOrderIdempotencyKey(pending.idempotencyKey);
+      if (pending.branchId) setNewBranchId(pending.branchId);
+      if (pending.warehouseId) setNewWarehouseId(pending.warehouseId);
+      if (pending.skuId) setNewSkuId(pending.skuId);
+      if (pending.quantity) setNewQuantity(pending.quantity);
+      if (pending.channel) setNewChannel(pending.channel);
+      if (pending.customer) setNewCustomer(pending.customer);
+      setIsRetryingOrder(true);
+    } else {
+      const freshKey = generateUuid();
+      setOrderIdempotencyKey(freshKey);
+      setIsRetryingOrder(false);
     }
-    // [A10] Chặn chọn SKU đã ngừng hoạt động
-    if (chosenSku.isActive === false) {
-      setCreateError(`Mã SKU ${chosenSku.code} đang ở trạng thái [Ngừng hoạt động], không thể tạo đơn bán.`);
-      return;
-    }
-    if (!newBranchId || !newWarehouseId) {
-      setCreateError("Vui lòng chọn Chi nhánh và Kho xuất hàng để giữ chỗ tồn kho.");
-      return;
-    }
-    if (newQuantity <= 0) {
-      setCreateError("Số lượng đặt hàng phải lớn hơn 0.");
-      return;
-    }
+    setCreateModal(true);
+  };
 
-    const selectedBranchObj = branches.find((b) => b.id === newBranchId);
-    const selectedWarehouseObj = warehouses.find((w) => w.id === newWarehouseId);
+  // [F2] Hủy thao tác dở dang và sinh key mới để tạo đơn mới
+  const handleDiscardPendingOrder = () => {
+    if (isRetryingOrder) {
+      const confirmDiscard = window.confirm(
+        "Thao tác tạo đơn / giữ chỗ trước đó có thể đã được tiếp nhận một phần trên máy chủ. " +
+          "Bỏ thao tác dở dang sẽ dừng theo dõi và sinh định danh mới cho đơn tiếp theo. Bạn có chắc chắn muốn bỏ qua?"
+      );
+      if (!confirmDiscard) return;
+    }
+    clearSavedPendingOrder(account.tenantId);
+    const freshKey = generateUuid();
+    setOrderIdempotencyKey(freshKey);
+    setIsRetryingOrder(false);
+    setCreateError(null);
+  };
 
-    setLoading(true);
-    const res = await apiAdapter.checkout(
-      chosenSku,
-      newQuantity,
-      newChannel,
-      newCustomer.trim() || "Khách lẻ",
-      {
-        branchId: newBranchId,
-        branchName: selectedBranchObj?.name,
-        warehouseId: newWarehouseId,
-        warehouseName: selectedWarehouseObj?.name,
-        tenantId: account.tenantId,
+  // [F2] Khi người dùng thay đổi dữ liệu đặt hàng, sinh UUID mới cho ý định mới
+  const handleFormChange = () => {
+    if (isRetryingOrder) {
+      clearSavedPendingOrder(account.tenantId);
+      setIsRetryingOrder(false);
+    }
+    setOrderIdempotencyKey(generateUuid());
+    setCreateError(null);
+  };
+
+  const handleCreateOrder = async () => {
+    if (isCreatingOrderRef.current) return;
+    isCreatingOrderRef.current = true;
+    try {
+      setCreateError(null);
+      const chosenSku = skusList.find((s) => s.id === newSkuId);
+      if (!chosenSku) {
+        setCreateError("Vui lòng chọn một sản phẩm / SKU hợp lệ.");
+        return;
       }
-    );
-    setLoading(false);
+      // [A10] Chặn chọn SKU đã ngừng hoạt động
+      if (chosenSku.isActive === false) {
+        setCreateError(`Mã SKU ${chosenSku.code} đang ở trạng thái [Ngừng hoạt động], không thể tạo đơn bán.`);
+        return;
+      }
+      if (!newBranchId || !newWarehouseId) {
+        setCreateError("Vui lòng chọn Chi nhánh và Kho xuất hàng để giữ chỗ tồn kho.");
+        return;
+      }
+      if (newQuantity <= 0) {
+        setCreateError("Số lượng đặt hàng phải lớn hơn 0.");
+        return;
+      }
 
-    if (res.error) {
-      setCreateError(res.error.message);
-      return;
+      const selectedBranchObj = branches.find((b) => b.id === newBranchId);
+      const selectedWarehouseObj = warehouses.find((w) => w.id === newWarehouseId);
+
+      // [F2] Giữ UUID ổn định theo ý định tạo đơn để tránh giữ lặp khi retry
+      const key = orderIdempotencyKey || generateUuid();
+      setOrderIdempotencyKey(key);
+
+      const pendingPayload: PendingOrderState = {
+        idempotencyKey: key,
+        branchId: newBranchId,
+        warehouseId: newWarehouseId,
+        skuId: chosenSku.id,
+        quantity: newQuantity,
+        channel: newChannel,
+        customer: newCustomer.trim() || "Khách lẻ",
+      };
+      savePendingOrder(pendingPayload, account.tenantId);
+
+      setLoading(true);
+      const res = await apiAdapter.checkout(
+        chosenSku,
+        newQuantity,
+        newChannel,
+        newCustomer.trim() || "Khách lẻ",
+        {
+          branchId: newBranchId,
+          branchName: selectedBranchObj?.name,
+          warehouseId: newWarehouseId,
+          warehouseName: selectedWarehouseObj?.name,
+          tenantId: account.tenantId,
+          idempotencyKey: key,
+          isRetry: isRetryingOrder,
+        }
+      );
+      setLoading(false);
+
+      if (res.error) {
+        setCreateError(`${res.error.message} (Định danh: ${key.slice(0, 8)}...)`);
+        setIsRetryingOrder(true);
+        return;
+      }
+
+      clearSavedPendingOrder(account.tenantId);
+      setOrderIdempotencyKey(null);
+      setIsRetryingOrder(false);
+      setCreateModal(false);
+      await loadOrders();
+    } finally {
+      isCreatingOrderRef.current = false;
     }
-
-    setCreateModal(false);
-    await loadOrders();
   };
 
   const filteredOrders = ordersList.filter((o) => {
@@ -208,12 +335,7 @@ export function OrdersPage() {
             <Button variant="secondary" onClick={loadOrders} disabled={loading}>
               <RefreshCw size={17} />{loading ? "Đang đồng bộ..." : "Đồng bộ"}
             </Button>
-            <Button
-              onClick={() => {
-                setCreateError(null);
-                setCreateModal(true);
-              }}
-            >
+            <Button onClick={openCreateModal}>
               <Plus size={17} />Tạo đơn & Giữ chỗ kho
             </Button>
           </>
@@ -420,7 +542,7 @@ export function OrdersPage() {
         )}
       </div>
 
-      {/* [A04, A08, A10] Modal Tạo đơn & Giữ chỗ tồn kho hiển thị rõ tồn khả dụng theo đúng Chi nhánh / Kho cụ thể */}
+      {/* [A04, A08, A10 & F2] Modal Tạo đơn & Giữ chỗ tồn kho hiển thị rõ tồn khả dụng theo đúng Chi nhánh / Kho cụ thể */}
       {createModal && (
         <Modal title="Tạo đơn hàng đa kênh & Giữ chỗ tồn kho (Advisory Lock)" onClose={() => setCreateModal(false)}>
           {createError && (
@@ -429,14 +551,101 @@ export function OrdersPage() {
               <span>{createError}</span>
             </div>
           )}
+
+          {orderIdempotencyKey && (
+            <div
+              style={{
+                background: "#f8fafc",
+                border: "1px solid #94a3b8",
+                color: "#334155",
+                padding: "8px 12px",
+                borderRadius: "6px",
+                fontSize: "12px",
+                marginBottom: "12px",
+              }}
+            >
+              <strong>Định danh giữ chỗ (F2 - Idempotency Key):</strong> <code>{orderIdempotencyKey}</code>
+              {isRetryingOrder && (
+                <div style={{ marginTop: "4px", color: "#b45309" }}>
+                  Thao tác trước đó đang chờ kết quả hoặc gặp lỗi mạng. Khi bấm <strong>"Thử lại Tạo đơn & Giữ chỗ"</strong>, hệ thống sẽ gửi cùng định danh và payload để tránh tạo đơn lặp hoặc giữ chỗ hai lần.
+                </div>
+              )}
+            </div>
+          )}
+
+          {whStockError && (
+            <div
+              style={{
+                background: "#fef2f2",
+                border: "1px solid #f87171",
+                color: "#991b1b",
+                padding: "8px 12px",
+                borderRadius: "6px",
+                fontSize: "12px",
+                marginBottom: "12px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <span>
+                <strong>Lỗi nạp tồn kho kho xuất hàng:</strong> Không thể tải số dư của kho đang chọn ({whStockError}).
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (newBranchId && newWarehouseId) {
+                    const seq = ++whStockReqSeqRef.current;
+                    setLoadingWhStock(true);
+                    setWhStockError(null);
+                    setWarehouseStockList([]);
+                    apiAdapter.getBalances({ branchId: newBranchId, warehouseId: newWarehouseId }).then((res) => {
+                      if (seq !== whStockReqSeqRef.current) return;
+                      setLoadingWhStock(false);
+                      if (res.error) {
+                        setWhStockError(res.error.message || "Không thể tải số dư kho");
+                      } else {
+                        setWarehouseStockList(res.data || []);
+                      }
+                    });
+                  }
+                }}
+                style={{
+                  background: "#dc2626",
+                  color: "#fff",
+                  border: "none",
+                  padding: "4px 8px",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  fontSize: "11px",
+                }}
+              >
+                Thử lại
+              </button>
+            </div>
+          )}
+
           <div className="form-grid">
             <label>
               <span>Tên khách hàng *</span>
-              <Input value={newCustomer} onChange={(e) => setNewCustomer(e.target.value)} required />
+              <Input
+                value={newCustomer}
+                onChange={(e) => {
+                  setNewCustomer(e.target.value);
+                  handleFormChange();
+                }}
+                required
+              />
             </label>
             <label>
               <span>Kênh bán hàng *</span>
-              <Select value={newChannel} onChange={(e) => setNewChannel(e.target.value as Order["channel"])}>
+              <Select
+                value={newChannel}
+                onChange={(e) => {
+                  setNewChannel(e.target.value as Order["channel"]);
+                  handleFormChange();
+                }}
+              >
                 <option value="Shopee">Shopee</option>
                 <option value="TikTok">TikTok Shop</option>
                 <option value="Lazada">Lazada</option>
@@ -453,6 +662,7 @@ export function OrdersPage() {
                   setNewBranchId(nextBr);
                   const matchingWhs = warehouses.filter((w) => w.branchId === nextBr);
                   setNewWarehouseId(matchingWhs[0]?.id || "");
+                  handleFormChange();
                 }}
               >
                 {branches.map((b) => (
@@ -464,7 +674,10 @@ export function OrdersPage() {
               <span>Kho giữ chỗ (Thuộc chi nhánh) *</span>
               <Select
                 value={newWarehouseId}
-                onChange={(e) => setNewWarehouseId(e.target.value)}
+                onChange={(e) => {
+                  setNewWarehouseId(e.target.value);
+                  handleFormChange();
+                }}
                 disabled={modalBranchWarehouses.length === 0}
               >
                 {modalBranchWarehouses.length === 0 ? (
@@ -478,7 +691,13 @@ export function OrdersPage() {
             </label>
             <label>
               <span>Chọn SKU đặt hàng *</span>
-              <Select value={newSkuId} onChange={(e) => setNewSkuId(e.target.value)}>
+              <Select
+                value={newSkuId}
+                onChange={(e) => {
+                  setNewSkuId(e.target.value);
+                  handleFormChange();
+                }}
+              >
                 {skusList.map((s) => {
                   const whBal = warehouseStockList.find((wb) => wb.id === s.id);
                   const whAvail = whBal ? Math.max(0, whBal.onHand - whBal.reserved) : 0;
@@ -496,7 +715,10 @@ export function OrdersPage() {
                 type="number"
                 min="1"
                 value={newQuantity}
-                onChange={(e) => setNewQuantity(Math.max(1, Number(e.target.value)))}
+                onChange={(e) => {
+                  setNewQuantity(Math.max(1, Number(e.target.value)));
+                  handleFormChange();
+                }}
               />
             </label>
           </div>
@@ -552,9 +774,23 @@ export function OrdersPage() {
             <strong>Chi nhánh & Kho</strong> đã chọn ở trên để khóa số dư khả dụng (<code>Reserved += SL</code>) trong 15 phút chống bán vượt tồn (Overselling).
           </div>
           <div className="modal-actions">
-            <Button variant="secondary" onClick={() => setCreateModal(false)}>Hủy</Button>
-            <Button onClick={handleCreateOrder} disabled={loading || loadingWhStock}>
-              {loading ? "Đang giữ chỗ..." : "Tạo đơn & Giữ chỗ kho"}
+            <Button variant="secondary" onClick={() => setCreateModal(false)}>Đóng</Button>
+            {isRetryingOrder && (
+              <Button
+                variant="secondary"
+                onClick={handleDiscardPendingOrder}
+                disabled={loading || loadingWhStock}
+                style={{ color: "#dc2626", borderColor: "#fca5a5" }}
+              >
+                Bỏ thao tác dở dang / Tạo mới
+              </Button>
+            )}
+            <Button onClick={handleCreateOrder} disabled={loading || loadingWhStock || Boolean(whStockError)}>
+              {loading
+                ? "Đang giữ chỗ..."
+                : isRetryingOrder
+                ? "Thử lại Tạo đơn & Giữ chỗ (Cùng định danh)"
+                : "Tạo đơn & Giữ chỗ kho"}
             </Button>
           </div>
         </Modal>

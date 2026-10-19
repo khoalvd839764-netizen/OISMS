@@ -158,19 +158,65 @@ src/frontend/admin-dashboard/
 
 ---
 
-## 5. BÀN GIAO SAU REVIEW PR #10 (SPRINT 2 — FRONTEND ADMIN)
+## 5. BÀN GIAO CÁC LỖI REVIEW F1 – F7 (SPRINT 2 — FRONTEND ADMIN)
 
-| Mã | Vấn đề & Yêu cầu | Giải pháp Frontend đã triển khai | Trạng thái |
-| :--- | :--- | :--- | :--- |
-| **F1** | Đóng/mở form làm mất ID phiếu nhập chờ xác nhận; retry tạo phiếu trùng | - Lưu thông tin phiếu nháp và ID vào sessionStorage (oism_pending_receipt_ + tenantId).<br>- Khi mở lại modal, tự động đối soát trạng thái với backend (GET /api/goods-receipts/{id}). Nếu đã Confirmed, chuyển màn hình thành công và làm mới số dư. Nếu Draft, tiếp tục xác nhận đúng phiếu cũ mà không tạo mới.<br>- Bổ sung nút 'Hủy bỏ phiếu nháp này' để người dùng chủ động xóa nháp nếu muốn lập phiếu khác. | **Đã sửa & Kiểm chứng** |
-| **F2** | Chống giữ chỗ trùng lặp khi retry mất kết nối (Idempotency) | - Frontend tạo idempotencyKey (UUID) ổn định cho mỗi ý định giữ chỗ.<br>- Khi gặp lỗi mạng / timeout, giữ nguyên key và gửi lại đúng payload và key cũ (Header Idempotency-Key + Payload clientRequestId).<br>- Khi thay đổi Chi nhánh / Kho / SKU / Số lượng, tự động reset key để đảm bảo an toàn.<br>- Sau khi Đăng Khoa chốt contract backend, frontend đã sẵn sàng tương thích 100%. | **Đã tích hợp Frontend** |
-| **F3** | Bảng lọc theo kho không cập nhật số dư sau nhập hàng/giữ chỗ | - Hàm loadBalances() tự động tải lại cả số dư tổng và số dư của kho đang lọc (alanceWarehouseFilter).<br>- Sử dụng alanceReqSeqRef (sequence counter) để loại bỏ hoàn toàn race condition khi các phản hồi API cũ trả về chậm hơn request mới. | **Đã sửa & Kiểm chứng** |
-| **F4** | API sổ kho lỗi nhưng hiển thị "Chưa có bút toán" | - Tách biệt trạng thái ledgerError khỏi trạng thái danh sách rỗng.<br>- Hiển thị banner lỗi rõ ràng và nút 'Thử lại tải sổ kho' riêng biệt. | **Đã sửa & Kiểm chứng** |
-| **F5** | Lọc theo tên chứa chuỗi nên chọn "Kho" dính cả "Kho 2" | - Chuyển sang lọc chặt chẽ theo warehouseId (item.warehouseId === warehouseFilter).<br>- Nhãn dropdown hiển thị đầy đủ cấu trúc: [Tên Chi nhánh] — [Tên Kho hàng]. | **Đã sửa & Kiểm chứng** |
-| **F6** | Bộ tải phân trang chỉ lấy tối đa 1.000 dòng (10 trang) | - Loại bỏ giới hạn cứng 10 trang trong etchAllPages.<br>- Tải đầy đủ qua toàn bộ 	otalPages theo batch song song (5 request/lượt) để không làm nghẽn kết nối và không cắt dữ liệu. | **Đã sửa & Kiểm chứng** |
-| **F7** | Lỗi Docker/Nginx truy cập trực tiếp route/F5 bị 404 | - Backend (Đăng Khoa) phụ trách cấu hình Nginx SPA fallback 	ry_files $uri $uri/ /index.html;.<br>- Frontend sẵn sàng kiểm thử lại toàn bộ route sau khi build Docker image mới. | **Phối hợp Backend** |
+### 5.1. Bảng đối chiếu chi tiết 7 vấn đề kỹ thuật và giải pháp triển khai
 
-### Kết Quả Kiểm Thử Thực Tế:
-- **Build Frontend (tsc -b && vite build):** Hoàn thành trong 435ms, 0 lỗi TypeScript, 0 cảnh báo lint.
-- **Backend Unit Tests (dotnet test):** 103/103 tests Passed (0 failed, 0 skipped).
-- **Phần chưa kiểm chứng tại local:** Cần Đăng Khoa cập nhật Dockerfile Nginx (F7) và triển khai Idempotency filter trên Backend (F2) để đối soát E2E trên container.
+| Mã | Vấn đề & Yêu cầu | Giải pháp Frontend đã triển khai hoàn tất | File & Hàm đã chỉnh sửa | Trạng thái |
+| :--- | :--- | :--- | :--- | :---: |
+| **F1** | Đóng/mở form làm mất ID phiếu nhập chờ xác nhận; retry tạo phiếu trùng | - Lưu thông tin phiếu nháp và ID vào `sessionStorage` (`oism_pending_receipt_${tenantId}`).<br>- Khi mở lại modal, tự động đối soát trạng thái với backend (`GET /api/goods-receipts/{id}`). Nếu đã `Confirmed`, chuyển màn hình thành công và làm mới số dư kho. Nếu `Draft`, tiếp tục xác nhận đúng phiếu cũ mà không tạo mới.<br>- **Đổi nhãn nút:** Đổi nhãn thành `"Bỏ theo dõi phiếu này / Tạo phiếu mới"` kèm tooltip giải thích rõ ràng: thao tác này chỉ xóa bộ nhớ tạm local, chứng từ phiếu nhập trên Backend vẫn lưu ở trạng thái Draft. | - `InventoryPage.tsx` (`handleOpenCreateReceiptModal`, `handleDiscardPendingReceipt`, `confirmDraftReceipt`) | **ĐÃ SỬA & KIỂM CHỨNG** |
+| **F2** | Chống giữ chỗ trùng lặp khi retry mất kết nối (Idempotency) | - **Chuẩn hóa UUID:** Sử dụng `generateUuid()` chuẩn RFC4122 (loại bỏ hoàn toàn fallback tiền tố `resv-...`).<br>- **Đồng bộ Contract Swagger:** Gửi đúng body `requestKey: payload.idempotencyKey || null` và 2 HTTP Headers chuẩn: `Idempotency-Key` và `X-Request-Key`. Loại bỏ các trường suy đoán không có trong Swagger (`clientRequestId`, `idempotencyKey` trong body).<br>- **Bảo toàn thao tác dở dang:** Lưu trạng thái giữ chỗ chưa đối soát vào `sessionStorage` (`oism_pending_reservation_${tenantId}`). Mở lại modal giữ chỗ khôi phục đúng key và form cũ, không xóa mù quáng.<br>- **Áp dụng cho cả luồng Checkout OrdersPage:** `OrdersPage.tsx` quản lý `orderIdempotencyKey` (UUID) lưu trong `sessionStorage` (`oism_pending_order_${tenantId}`). Truyền `idempotencyKey` và cờ `isRetry` vào `apiAdapter.checkout()`.<br>- **Bỏ qua kiểm tra tồn client khi retry:** Trong `apiAdapter.reserveStock` và `apiAdapter.checkout`, khi `options.isRetry === true`, bỏ qua bước kiểm tra tồn khả dụng phía client (`whAvailable < quantity`) để không chặn request của thao tác đã commit thành công ở backend nhưng client mất mạng. | - `apiAdapter.ts` (`reserveStock`, `checkout`, `generateUuid`, `getPendingReservationStorageKey`, `getPendingOrderStorageKey`)<br>- `InventoryPage.tsx` (`openReserveModal`, `handleDiscardPendingReserve`, `executeReserve`)<br>- `OrdersPage.tsx` (`handleOpenCreateModal`, `handleDiscardPendingOrder`, `handleCreateOrder`) | **ĐÃ SỬA & KIỂM CHỨNG** |
+| **F3** | Bảng lọc theo kho giữ số dư cũ khi lỗi request kho hoặc chuyển kho | - Hàm `loadBalances()` tự động tải lại cả số dư tổng và số dư kho đang chọn (`balanceWarehouseFilter`).<br>- **Xử lý lỗi riêng của kho đang lọc:** Bổ sung kiểm tra `whRes?.error`: nếu request tải kho bị lỗi, ngay lập tức reset `warehouseBalances = []` (không giữ lại số dư của kho cũ hiển thị nhầm cho kho mới), đồng thời lưu `warehouseBalanceError` hiển thị banner cảnh báo và nút `"Thử lại tải kho"`.<br>- Dùng `balanceReqSeqRef` (sequence counter) để loại bỏ race condition khi phản hồi API cũ trả về chậm hơn request mới. | - `InventoryPage.tsx` (`loadBalances`, `warehouseBalanceError`, banner hiển thị lỗi kho) | **ĐÃ SỬA & KIỂM CHỨNG** |
+| **F4** | API sổ kho lỗi nhưng hiển thị "Chưa có bút toán" | - Tách biệt rõ ràng 3 trạng thái: `ledgerLoading`, `ledgerError`, và `ledgerEntries.length === 0` (empty state).<br>- Hiển thị banner lỗi màu đỏ kèm nút `"Thử lại tải sổ kho"` độc lập khi API trả lỗi. | - `InventoryPage.tsx` (`loadLedger`, `ledgerError`, `handleRetryLedger`) | **ĐÃ SỬA & KIỂM CHỨNG** |
+| **F5** | Lọc theo tên chứa chuỗi nên chọn "Kho" dính cả "Kho 2" | - Chuyển sang so sánh chính xác theo ID (`item.warehouseId === warehouseFilter`).<br>- Nhãn dropdown hiển thị đầy đủ cấu trúc: `[Tên Chi nhánh] — [Tên Kho hàng]`. | - `InventoryPage.tsx` (dropdown filter và hàm lọc `filteredLedgerEntries`) | **ĐÃ SỬA & KIỂM CHỨNG** |
+| **F6** | Bộ tải phân trang chỉ lấy tối đa 1.000 dòng (10 trang) | - Loại bỏ giới hạn cứng 10 trang trong `fetchAllPages`.<br>- Tải đầy đủ qua toàn bộ `totalPages` theo batch song song (5 request/lượt) để không làm nghẽn kết nối và không cắt dữ liệu. | - `apiAdapter.ts` (`fetchAllPages`) | **ĐÃ SỬA & KIỂM CHỨNG** |
+| **F7** | Lỗi Docker/Nginx truy cập trực tiếp route/F5 bị 404 | - Phối hợp Đăng Khoa: Thêm `nginx.conf` với cấu hình SPA fallback `try_files $uri $uri/ /index.html;` và rule chặn file tĩnh thiếu `try_files $uri =404;`.<br>- Cập nhật Dockerfile của `admin-dashboard` và `pos-app` với lệnh `COPY nginx.conf /etc/nginx/conf.d/default.conf`. Rebuild và chạy kiểm thử live trên container. | - `src/frontend/admin-dashboard/nginx.conf`<br>- `src/frontend/admin-dashboard/Dockerfile`<br>- `src/frontend/pos-app/nginx.conf`<br>- `src/frontend/pos-app/Dockerfile` | **ĐÃ PHỐI HỢP & HOÀN TẤT** |
+
+---
+
+## 6. KẾT QUẢ KIỂM THỬ THỰC TẾ & PHÂN ĐỊNH RANH GIỚI BÀN GIAO
+
+### 6.1. Bằng chứng kiểm thử tự động & Build thực tế
+1. **Kiểm tra biên dịch Frontend Admin (`src/frontend/admin-dashboard`):**
+   - Lệnh: `npm run build` (`tsc -b && vite build`)
+   - Kết quả: **PASS 100%**, hoàn thành trong ~300ms, chuyển hóa 134 modules, **0 lỗi TypeScript, 0 lỗi build**.
+2. **Kiểm tra biên dịch POS App (`src/frontend/pos-app`):**
+   - Lệnh: `npm run build` (`tsc -b && vite build`)
+   - Kết quả: **PASS 100%**, hoàn thành trong ~250ms, **0 lỗi TypeScript, 0 lỗi build**.
+3. **Kiểm thử Logic Frontend độc lập (`scratch/verify_frontend_logic.js`):**
+   - Kết quả: **12/12 Tests PASS 100%**:
+     + Chuẩn hóa UUID RFC4122 (36 ký tự hex chuẩn, không dùng tiền tố mock).
+     + Lưu và khôi phục pending reservation qua `sessionStorage`.
+     + Lưu và khôi phục pending order checkout qua `sessionStorage`.
+     + Khôi phục form đúng khi đóng/mở modal và F5.
+     + Sinh UUID mới khi người dùng chủ động sửa form / đổi SKU.
+     + Bỏ qua kiểm tra tồn client (`whAvailable < qty`) khi `isRetry: true`.
+     + Chặn request khi không phải retry và tồn khả dụng không đủ (`whAvailable < qty`).
+     + Phân lập lỗi tải kho riêng: Reset `warehouseBalances = []` và bật cờ `warehouseBalanceError`, không hiển thị số dư kho cũ.
+     + Contract body gửi đúng `requestKey` và headers `Idempotency-Key` / `X-Request-Key`.
+4. **Kiểm thử Liên thông API Backend & PostgreSQL thật (`scratch/verify_s2_fixes.js`):**
+   - Kết quả: **21/21 Tests PASS 100%** trên database thật (chống giữ lặp, idempotency retry, conflict 409 khi khác payload, 5 concurrent requests nguyên tử giữ Reserved = 9).
+5. **Kiểm thử Docker / Nginx Container Routes:**
+   - Admin `/`, `/login`, `/inventory`, `/products`, `/403` trả `200 OK` SPA HTML.
+   - Asset tĩnh không tồn tại (`/assets/missing.js`) trả `404 Not Found` chuẩn.
+
+### 6.2. Phân định Ranh giới Kiểm thử & Giới hạn Kiểm chứng Hiện tại
+> [!IMPORTANT]
+> **Tuyên bố minh bạch về giới hạn kiểm chứng:**
+> - **Đã kiểm chứng đạt:** Biên dịch tĩnh (TypeScript compilation), đóng gói ứng dụng (Vite build), kiểm thử logic state & adapter, kiểm thử gọi API trực tiếp và kiểm thử routing container bằng HTTP request.
+> - **Trạng thái đối với Giao diện Trực quan Trình duyệt (E2E Browser):** **`CHỜ XÁC MINH UI BROWSER`**.
+>   Do công cụ browser tự động bị đóng / ngắt kết nối trong phiên làm việc, đội ngũ chưa tiến hành click tương tác trực quan trên trình duyệt đối với toàn bộ các màn hình responsive/layout. Đội ngũ ghi nhận trung thực hiện trạng này và không tuyên bố hoàn thành toàn diện UI khi chưa có vòng nghiệm thu trực tiếp trên browser.
+
+### 6.3. Phân định Trách nhiệm Thành viên
+- **Thành viên 3 — Phúc Hữu (Frontend Admin Lead):**
+  - Chịu trách nhiệm toàn bộ mã nguồn Web Admin (`src/frontend/admin-dashboard/`).
+  - Quản lý state form, `sessionStorage` chống mất dữ liệu khi mất mạng hoặc reload.
+  - Xử lý bypass kiểm tra tồn phía client khi retry.
+  - Phân tách loading, error và empty state của sổ kho và tồn kho.
+  - Tuân thủ nghiêm ngặt hợp đồng Swagger API Backend.
+- **Thành viên 1 — Đăng Khoa (Backend Lead & DevOps):**
+  - Chịu trách nhiệm cơ sở dữ liệu PostgreSQL, Advisory Lock chống race condition, tính nguyên tử của Idempotency backend (F2).
+  - Cấu hình Nginx SPA fallback và Dockerfile container (F7).
+  - Nghiệm thu kỹ thuật các PR và tài liệu tích hợp liên thông.
+- **Thành viên 2 — Nhựt (Backend 2):**
+  - Phụ trách danh mục Catalog, Brand, tìm kiếm sản phẩm POS.

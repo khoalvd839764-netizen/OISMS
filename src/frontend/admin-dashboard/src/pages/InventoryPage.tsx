@@ -18,7 +18,8 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Button, Input, Modal, PageTitle, Select } from "../components/ui";
-import { apiAdapter } from "../services/apiAdapter";
+import { apiAdapter, generateUuid } from "../services/apiAdapter";
+import { useAuth } from "../context/AuthContext";
 import type { LedgerEntry, Sku } from "../types/domain";
 
 // [F1] Cấu trúc lưu tạm phiếu nhập nháp đang chờ xác nhận qua các lần đóng/mở form hoặc refresh
@@ -37,9 +38,9 @@ interface PendingReceiptState {
   }>;
 }
 
-function loadSavedPendingReceipt(): PendingReceiptState | null {
+function loadSavedPendingReceipt(tenantId?: string): PendingReceiptState | null {
   try {
-    const key = apiAdapter.getPendingReceiptStorageKey();
+    const key = apiAdapter.getPendingReceiptStorageKey(tenantId);
     const raw = sessionStorage.getItem(key);
     if (!raw) return null;
     return JSON.parse(raw);
@@ -48,21 +49,58 @@ function loadSavedPendingReceipt(): PendingReceiptState | null {
   }
 }
 
-function savePendingReceipt(data: PendingReceiptState) {
+function savePendingReceipt(data: PendingReceiptState, tenantId?: string) {
   try {
-    const key = apiAdapter.getPendingReceiptStorageKey();
+    const key = apiAdapter.getPendingReceiptStorageKey(tenantId);
     sessionStorage.setItem(key, JSON.stringify(data));
   } catch {}
 }
 
-function clearSavedPendingReceipt() {
+function clearSavedPendingReceipt(tenantId?: string) {
   try {
-    const key = apiAdapter.getPendingReceiptStorageKey();
+    const key = apiAdapter.getPendingReceiptStorageKey(tenantId);
+    sessionStorage.removeItem(key);
+  } catch {}
+}
+
+// [F2] Cấu trúc lưu tạm thao tác giữ chỗ đang chờ xử lý qua các lần đóng/mở form hoặc reload
+interface PendingReservationState {
+  idempotencyKey: string;
+  branchId: string;
+  warehouseId: string;
+  skuId: string;
+  quantity: number;
+}
+
+function loadSavedPendingReservation(tenantId?: string): PendingReservationState | null {
+  try {
+    const key = apiAdapter.getPendingReservationStorageKey(tenantId);
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function savePendingReservation(data: PendingReservationState, tenantId?: string) {
+  try {
+    const key = apiAdapter.getPendingReservationStorageKey(tenantId);
+    sessionStorage.setItem(key, JSON.stringify(data));
+  } catch {}
+}
+
+function clearSavedPendingReservation(tenantId?: string) {
+  try {
+    const key = apiAdapter.getPendingReservationStorageKey(tenantId);
     sessionStorage.removeItem(key);
   } catch {}
 }
 
 export function InventoryPage() {
+  const { account } = useAuth();
+  const currentTenantId = account?.tenantId;
+
   const [tab, setTab] = useState<"balance" | "ledger">("balance");
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -97,7 +135,20 @@ export function InventoryPage() {
   const [reserveSuccess, setReserveSuccess] = useState<string | null>(null);
   const [reserveWhBalances, setReserveWhBalances] = useState<Sku[]>([]);
   const [loadingReserveWh, setLoadingReserveWh] = useState(false);
+  const [reserveWhError, setReserveWhError] = useState<string | null>(null);
   const [reserveIdempotencyKey, setReserveIdempotencyKey] = useState<string | null>(null);
+  const [isRetryingReserve, setIsRetryingReserve] = useState(false);
+  const reserveWhReqSeqRef = useRef(0);
+  const isReservingRef = useRef(false);
+
+  // [F3] Trạng thái lỗi tải số dư của riêng kho đang chọn trên Toolbar
+  const [warehouseBalanceError, setWarehouseBalanceError] = useState<string | null>(null);
+
+  // [F3] Modal Nhập kho: thứ tự request và lỗi tải số dư kho phục vụ WAC
+  const modalWhReqSeqRef = useRef(0);
+  const [loadingModalWhStock, setLoadingModalWhStock] = useState(false);
+  const [modalWhError, setModalWhError] = useState<string | null>(null);
+  const isConfirmingReceiptRef = useRef(false);
 
   // Bộ lọc Bảng Tồn kho & Sổ kho
   const [searchQuery, setSearchQuery] = useState("");
@@ -194,11 +245,17 @@ export function InventoryPage() {
       setAvailableSkus(pRes.data);
     }
     if (targetWarehouse !== "all") {
-      if (whRes?.data) {
+      if (whRes?.error) {
+        // [F3] Khi API kho đang chọn bị lỗi, xóa dữ liệu kho cũ ngay để không hiển thị sai lệch dưới nhãn kho mới
+        setWarehouseBalances([]);
+        setWarehouseBalanceError(whRes.error?.message || "Không thể tải số dư tồn kho của kho đã chọn.");
+      } else if (whRes?.data) {
         setWarehouseBalances(whRes.data);
+        setWarehouseBalanceError(null);
       }
     } else {
       setWarehouseBalances([]);
+      setWarehouseBalanceError(null);
     }
   };
 
@@ -254,36 +311,69 @@ export function InventoryPage() {
     loadBalances(branchFilter, balanceWarehouseFilter);
   }, [branchFilter, balanceWarehouseFilter]);
 
-  // [A03] Khi mở Modal Nhập kho và chọn Chi nhánh / Kho, tải số dư thực tế tại đúng Kho đó để mô phỏng WAC chuẩn xác
-  useEffect(() => {
-    async function loadModalWhStock() {
-      if (!receiptModal || !selectedBranch || !selectedWarehouse) return;
-      const res = await apiAdapter.getBalances({
-        branchId: selectedBranch,
-        warehouseId: selectedWarehouse,
-      });
-      if (res.data) {
-        setModalWarehouseBalances(res.data);
-      }
+  // [A03 & F3] Khi mở Modal Nhập kho và chọn Chi nhánh / Kho, tải số dư thực tế tại đúng Kho đó để mô phỏng WAC chuẩn xác
+  const loadModalWhStock = async (branch = selectedBranch, warehouse = selectedWarehouse) => {
+    if (!receiptModal || !branch || !warehouse) {
+      setModalWarehouseBalances([]);
+      setModalWhError(null);
+      return;
     }
+    const seq = ++modalWhReqSeqRef.current;
+    setLoadingModalWhStock(true);
+    setModalWarehouseBalances([]); // Ngay lập tức làm rỗng để không lấy số dư kho cũ tính WAC
+    setModalWhError(null);
+
+    const res = await apiAdapter.getBalances({
+      branchId: branch,
+      warehouseId: warehouse,
+    });
+
+    if (seq !== modalWhReqSeqRef.current) return;
+
+    if (res.error) {
+      setModalWarehouseBalances([]);
+      setModalWhError(res.error.message || "Không thể tải số dư tồn kho tiếp nhận để tính WAC.");
+    } else if (res.data) {
+      setModalWarehouseBalances(res.data);
+      setModalWhError(null);
+    }
+    setLoadingModalWhStock(false);
+  };
+
+  useEffect(() => {
     loadModalWhStock();
   }, [receiptModal, selectedBranch, selectedWarehouse]);
 
-  // [A08] Khi mở Modal Giữ chỗ (Reserve), tải số dư khả dụng của đúng Chi nhánh & Kho được chọn
-  useEffect(() => {
-    async function loadReserveWhStock() {
-      if (!reserveModalOpen || !reserveBranchId || !reserveWarehouseId) {
-        setReserveWhBalances([]);
-        return;
-      }
-      setLoadingReserveWh(true);
-      const res = await apiAdapter.getBalances({
-        branchId: reserveBranchId,
-        warehouseId: reserveWarehouseId,
-      });
-      setReserveWhBalances(res.data || []);
-      setLoadingReserveWh(false);
+  // [A08 & F3] Khi mở Modal Giữ chỗ (Reserve), tải số dư khả dụng của đúng Chi nhánh & Kho được chọn
+  const loadReserveWhStock = async (branch = reserveBranchId, warehouse = reserveWarehouseId) => {
+    if (!reserveModalOpen || !branch || !warehouse) {
+      setReserveWhBalances([]);
+      setReserveWhError(null);
+      return;
     }
+    const seq = ++reserveWhReqSeqRef.current;
+    setLoadingReserveWh(true);
+    setReserveWhBalances([]); // Ngay lập tức làm rỗng để không hiển thị số dư kho cũ
+    setReserveWhError(null);
+
+    const res = await apiAdapter.getBalances({
+      branchId: branch,
+      warehouseId: warehouse,
+    });
+
+    if (seq !== reserveWhReqSeqRef.current) return;
+
+    if (res.error) {
+      setReserveWhBalances([]);
+      setReserveWhError(res.error.message || "Không thể tải số dư tồn kho giữ chỗ.");
+    } else if (res.data) {
+      setReserveWhBalances(res.data);
+      setReserveWhError(null);
+    }
+    setLoadingReserveWh(false);
+  };
+
+  useEffect(() => {
     loadReserveWhStock();
   }, [reserveModalOpen, reserveBranchId, reserveWarehouseId]);
 
@@ -394,8 +484,8 @@ export function InventoryPage() {
     setConfirmedSuccess(false);
     setReceiptError(null);
 
-    // Kiểm tra phiếu nháp lưu tạm trong sessionStorage
-    const pending = loadSavedPendingReceipt();
+    // Kiểm tra phiếu nháp lưu tạm trong sessionStorage theo đúng tenant
+    const pending = loadSavedPendingReceipt(currentTenantId);
     if (pending && pending.receiptId) {
       setCreatedReceiptId(pending.receiptId);
       if (pending.branchId) setSelectedBranch(pending.branchId);
@@ -412,7 +502,7 @@ export function InventoryPage() {
       if (verifyRes.data) {
         if (verifyRes.data.status === "Confirmed") {
           // Phiếu đã xác nhận thành công trên backend trước đó
-          clearSavedPendingReceipt();
+          clearSavedPendingReceipt(currentTenantId);
           setCreatedReceiptId(null);
           setConfirmedSuccess(true);
           await Promise.all([loadBalances(), loadLedger()]);
@@ -420,7 +510,7 @@ export function InventoryPage() {
         }
       } else if (verifyRes.error?.status === 404) {
         // Không tìm thấy phiếu nháp trên backend -> xóa cache nháp
-        clearSavedPendingReceipt();
+        clearSavedPendingReceipt(currentTenantId);
         setCreatedReceiptId(null);
       } else if (verifyRes.error) {
         setReceiptError(
@@ -473,9 +563,19 @@ export function InventoryPage() {
     }
   };
 
-  // [F1] Người dùng chủ động hủy bỏ phiếu nháp đang chờ để tạo mới từ đầu
+  // [F1] Người dùng chủ động bỏ theo dõi phiếu nháp đang chờ để tạo mới từ đầu (chứng từ cũ vẫn lưu Draft trên server)
   const handleDiscardPendingReceipt = () => {
-    clearSavedPendingReceipt();
+    if (createdReceiptId) {
+      const confirmDiscard = window.confirm(
+        `Phiếu nhập nháp (Mã: ${createdReceiptId.slice(
+          0,
+          8
+        )}...) đã được tạo và lưu ở trạng thái Draft trên máy chủ. ` +
+          "Thao tác này chỉ dừng theo dõi trên trình duyệt để lập phiếu mới, không xóa phiếu trên server. Bạn có chắc chắn muốn bỏ theo dõi phiếu này?"
+      );
+      if (!confirmDiscard) return;
+    }
+    clearSavedPendingReceipt(currentTenantId);
     setCreatedReceiptId(null);
     setReceiptError(null);
 
@@ -535,6 +635,7 @@ export function InventoryPage() {
 
   // [A07 & F1] Xử lý tạo và xác nhận phiếu nhập kho an toàn, idempotent retry
   const handleConfirmReceipt = async () => {
+    if (isConfirmingReceiptRef.current) return;
     setReceiptError(null);
     if (!selectedBranch || !selectedWarehouse) {
       setReceiptError("Vui lòng chọn Chi nhánh và Kho hàng tiếp nhận thuộc chi nhánh đó.");
@@ -567,6 +668,7 @@ export function InventoryPage() {
       return;
     }
 
+    isConfirmingReceiptRef.current = true;
     setLoading(true);
     let receiptIdToConfirm = createdReceiptId;
 
@@ -596,15 +698,18 @@ export function InventoryPage() {
         receiptIdToConfirm = res.data.id;
         setCreatedReceiptId(receiptIdToConfirm);
 
-        // [F1] Lưu thông tin phiếu nháp vào sessionStorage để không bị mất khi đóng/mở form
-        savePendingReceipt({
-          receiptId: receiptIdToConfirm,
-          branchId: selectedBranch,
-          warehouseId: selectedWarehouse,
-          supplierId: selectedSupplier,
-          notes: receiptNotes,
-          items: receiptItems,
-        });
+        // [F1] Lưu thông tin phiếu nháp vào sessionStorage theo tenant để không bị mất khi đóng/mở form
+        savePendingReceipt(
+          {
+            receiptId: receiptIdToConfirm,
+            branchId: selectedBranch,
+            warehouseId: selectedWarehouse,
+            supplierId: selectedSupplier,
+            notes: receiptNotes,
+            items: receiptItems,
+          },
+          currentTenantId
+        );
       }
 
       // Bước 2: Xác nhận và ghi sổ kho nguyên tử (Atomic Confirm)
@@ -613,7 +718,7 @@ export function InventoryPage() {
         if (confirmRes.error) {
           // Trường hợp timeout ở lượt gọi trước nhưng backend đã kịp xác nhận
           if (confirmRes.error.message?.includes("đã được xác nhận")) {
-            clearSavedPendingReceipt();
+            clearSavedPendingReceipt(currentTenantId);
             setLoading(false);
             setCreatedReceiptId(null);
             setConfirmedSuccess(true);
@@ -633,7 +738,7 @@ export function InventoryPage() {
         }
       }
 
-      clearSavedPendingReceipt();
+      clearSavedPendingReceipt(currentTenantId);
       setLoading(false);
       setCreatedReceiptId(null);
       setConfirmedSuccess(true);
@@ -642,6 +747,8 @@ export function InventoryPage() {
     } catch (err: any) {
       setLoading(false);
       setReceiptError(err?.message || "Đã xảy ra lỗi khi xử lý phiếu nhập kho. Vui lòng bấm thử lại.");
+    } finally {
+      isConfirmingReceiptRef.current = false;
     }
   };
 
@@ -649,26 +756,104 @@ export function InventoryPage() {
   const openReserveModal = (sku?: Sku) => {
     setReserveError(null);
     setReserveSuccess(null);
-    setReserveIdempotencyKey(null); // Tạo mới thao tác giữ chỗ -> sinh key mới
-    const targetBranchId = sku?.branchId || (branchFilter !== "all" ? branchFilter : branches[0]?.id || "");
-    setReserveBranchId(targetBranchId);
-    const branchWhs = warehouses.filter((w) => w.branchId === targetBranchId);
-    const targetWhId =
-      sku?.warehouseId && branchWhs.some((w) => w.id === sku.warehouseId)
-        ? sku.warehouseId
-        : branchWhs[0]?.id || "";
-    setReserveWarehouseId(targetWhId);
-    const defaultSku =
-      sku?.id ||
-      availableSkus.find((s) => s.isActive !== false)?.id ||
-      skus.find((s) => s.isActive !== false)?.id ||
-      "";
-    setReserveSkuId(defaultSku);
-    setReserveQty(1);
+
+    // [F2] Khôi phục thao tác giữ chỗ dở dang nếu có lưu trong sessionStorage
+    const pending = loadSavedPendingReservation(currentTenantId);
+    if (pending && pending.idempotencyKey) {
+      // Nếu người dùng bấm Giữ chỗ trên một SKU KHÁC với SKU đang dở dang
+      if (sku && sku.id !== pending.skuId) {
+        const pendingSkuName =
+          availableSkus.find((s) => s.id === pending.skuId)?.name ||
+          skus.find((s) => s.id === pending.skuId)?.name ||
+          pending.skuId;
+        const confirmDiscard = window.confirm(
+          `Bạn đang có một thao tác giữ chỗ dở dang chưa hoàn tất cho sản phẩm "${pendingSkuName}" (Định danh: ${pending.idempotencyKey.slice(
+            0,
+            8
+          )}...). ` +
+            `Bạn có muốn hủy theo dõi thao tác cũ để tạo giữ chỗ mới cho sản phẩm "${sku.name}" không?`
+        );
+        if (confirmDiscard) {
+          clearSavedPendingReservation(currentTenantId);
+          const freshKey = generateUuid();
+          setReserveIdempotencyKey(freshKey);
+          setIsRetryingReserve(false);
+          const targetBranchId = sku.branchId || (branchFilter !== "all" ? branchFilter : branches[0]?.id || "");
+          setReserveBranchId(targetBranchId);
+          const branchWhs = warehouses.filter((w) => w.branchId === targetBranchId);
+          const targetWhId =
+            sku.warehouseId && branchWhs.some((w) => w.id === sku.warehouseId)
+              ? sku.warehouseId
+              : branchWhs[0]?.id || "";
+          setReserveWarehouseId(targetWhId);
+          setReserveSkuId(sku.id);
+          setReserveQty(1);
+          setReserveModalOpen(true);
+          return;
+        }
+      }
+      setReserveIdempotencyKey(pending.idempotencyKey);
+      if (pending.branchId) setReserveBranchId(pending.branchId);
+      if (pending.warehouseId) setReserveWarehouseId(pending.warehouseId);
+      if (pending.skuId) setReserveSkuId(pending.skuId);
+      if (pending.quantity) setReserveQty(pending.quantity);
+      setIsRetryingReserve(true);
+    } else {
+      const freshKey = generateUuid();
+      setReserveIdempotencyKey(freshKey);
+      setIsRetryingReserve(false);
+
+      const targetBranchId = sku?.branchId || (branchFilter !== "all" ? branchFilter : branches[0]?.id || "");
+      setReserveBranchId(targetBranchId);
+      const branchWhs = warehouses.filter((w) => w.branchId === targetBranchId);
+      const targetWhId =
+        sku?.warehouseId && branchWhs.some((w) => w.id === sku.warehouseId)
+          ? sku.warehouseId
+          : branchWhs[0]?.id || "";
+      setReserveWarehouseId(targetWhId);
+      const defaultSku =
+        sku?.id ||
+        availableSkus.find((s) => s.isActive !== false)?.id ||
+        skus.find((s) => s.isActive !== false)?.id ||
+        "";
+      setReserveSkuId(defaultSku);
+      setReserveQty(1);
+    }
     setReserveModalOpen(true);
   };
 
+  // [F2] Bỏ thao tác giữ chỗ dở dang và sinh UUID mới cho ý định mới
+  const handleDiscardPendingReservation = () => {
+    if (isRetryingReserve && reserveIdempotencyKey) {
+      const confirmDiscard = window.confirm(
+        `Thao tác giữ chỗ này (Định danh: ${reserveIdempotencyKey.slice(
+          0,
+          8
+        )}...) có thể đã được giữ chỗ trên máy chủ. Bạn có chắc chắn muốn bỏ theo dõi để tạo giữ chỗ mới?`
+      );
+      if (!confirmDiscard) return;
+    }
+    clearSavedPendingReservation(currentTenantId);
+    const freshKey = generateUuid();
+    setReserveIdempotencyKey(freshKey);
+    setIsRetryingReserve(false);
+    setReserveError(null);
+    setReserveSuccess(null);
+  };
+
+  // [F2] Khi người dùng thay đổi chi nhánh/kho/SKU/số lượng, sinh key mới cho ý định mới
+  const handleReserveFormChange = () => {
+    if (isRetryingReserve) {
+      clearSavedPendingReservation(currentTenantId);
+      setIsRetryingReserve(false);
+    }
+    setReserveIdempotencyKey(generateUuid());
+    setReserveError(null);
+    setReserveSuccess(null);
+  };
+
   const handleReserveStock = async () => {
+    if (isReservingRef.current) return;
     setReserveError(null);
     setReserveSuccess(null);
     if (!reserveBranchId || !reserveWarehouseId || !reserveSkuId) {
@@ -687,55 +872,68 @@ export function InventoryPage() {
       setReserveError("Số lượng giữ chỗ phải lớn hơn 0.");
       return;
     }
-    if (reserveQty > whAvailable) {
+
+    // [F2] Nếu KHÔNG PHẢI là thao tác retry (lần gọi mới), kiểm tra tồn khả dụng phía client
+    // Nếu là RETRY của key đã gửi trước đó, không dùng whAvailable để chặn vì backend có thể đã trừ tồn rồi!
+    if (!isRetryingReserve && reserveQty > whAvailable) {
       setReserveError(
         `Kho đang chọn chỉ có ${whAvailable} sản phẩm khả dụng (Yêu cầu: ${reserveQty}). Vui lòng chọn kho khác hoặc giảm số lượng.`
       );
       return;
     }
 
-    // [F2] Duy trì Idempotency-Key ổn định cho một thao tác giữ chỗ, không sinh key mới khi bấm thử lại
-    let key = reserveIdempotencyKey;
-    if (!key) {
-      key =
-        typeof crypto !== "undefined" && crypto.randomUUID
-          ? crypto.randomUUID()
-          : `resv-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-      setReserveIdempotencyKey(key);
-    }
+    // [F2] Duy trì Idempotency-Key UUID RFC4122 chuẩn, không dùng fallback chuỗi tự do
+    const key = reserveIdempotencyKey || generateUuid();
+    setReserveIdempotencyKey(key);
 
-    setLoading(true);
-    const res = await apiAdapter.reserveStock({
-      branchId: reserveBranchId,
-      warehouseId: reserveWarehouseId,
-      skuId: reserveSkuId,
-      quantity: reserveQty,
-      durationMinutes: 15,
-      idempotencyKey: key,
-    });
-    setLoading(false);
-
-    if (res.error) {
-      // Giữ nguyên reserveIdempotencyKey để khi người dùng bấm Thử lại sẽ gửi cùng định danh
-      setReserveError(`${res.error.message} (Định danh: ${key.slice(0, 8)}...)`);
-      return;
-    }
-
-    // Thành công: xóa Idempotency Key
-    setReserveIdempotencyKey(null);
-    setReserveSuccess(
-      `Đã khóa giữ chỗ thành công ${reserveQty} SP tại kho đã chọn (Hiệu lực 15 phút - Advisory Lock).`
+    // Lưu thao tác pending vào sessionStorage trước khi gọi API
+    savePendingReservation(
+      {
+        idempotencyKey: key,
+        branchId: reserveBranchId,
+        warehouseId: reserveWarehouseId,
+        skuId: reserveSkuId,
+        quantity: reserveQty,
+      },
+      currentTenantId
     );
 
-    // [F3] Tải lại số dư tổng và số dư kho đang chọn trên bảng chính
-    await Promise.all([loadBalances(), loadLedger()]);
+    isReservingRef.current = true;
+    setLoading(true);
+    try {
+      const res = await apiAdapter.reserveStock({
+        branchId: reserveBranchId,
+        warehouseId: reserveWarehouseId,
+        skuId: reserveSkuId,
+        quantity: reserveQty,
+        durationMinutes: 15,
+        idempotencyKey: key,
+      });
 
-    // Nạp lại tồn kho của kho vừa giữ chỗ trong modal
-    const updatedWh = await apiAdapter.getBalances({
-      branchId: reserveBranchId,
-      warehouseId: reserveWarehouseId,
-    });
-    if (updatedWh.data) setReserveWhBalances(updatedWh.data);
+      if (res.error) {
+        // Giữ nguyên reserveIdempotencyKey để khi người dùng bấm Thử lại sẽ gửi cùng định danh
+        setReserveError(`${res.error.message} (Định danh: ${key.slice(0, 8)}...)`);
+        setIsRetryingReserve(true);
+        return;
+      }
+
+      // Thành công: xóa Idempotency Key khỏi state và sessionStorage
+      clearSavedPendingReservation(currentTenantId);
+      setReserveIdempotencyKey(null);
+      setIsRetryingReserve(false);
+      setReserveSuccess(
+        `Đã khóa giữ chỗ thành công ${reserveQty} SP tại kho đã chọn (Hiệu lực 15 phút - Advisory Lock).`
+      );
+
+      // [F3] Tải lại số dư tổng và số dư kho đang chọn trên bảng chính
+      await Promise.all([loadBalances(), loadLedger()]);
+
+      // Nạp lại tồn kho của kho vừa giữ chỗ trong modal
+      await loadReserveWhStock(reserveBranchId, reserveWarehouseId);
+    } finally {
+      isReservingRef.current = false;
+      setLoading(false);
+    }
   };
 
   return (
@@ -905,6 +1103,37 @@ export function InventoryPage() {
                 <option value="low">Chỉ hiển thị dưới ngưỡng ({lowStock.length})</option>
               </Select>
             </div>
+
+            {/* [F3] Hiển thị rõ lỗi khi tải số dư của riêng kho đang lọc kèm nút Thử lại */}
+            {warehouseBalanceError && balanceWarehouseFilter !== "all" && (
+              <div
+                style={{
+                  background: "#fef2f2",
+                  border: "1px solid #fca5a5",
+                  color: "#b91c1c",
+                  padding: "12px 16px",
+                  borderRadius: "8px",
+                  marginBottom: "16px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "12px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <AlertCircle size={18} />
+                  <span>
+                    <strong>Lỗi tải dữ liệu kho đã chọn:</strong> {warehouseBalanceError}
+                  </span>
+                </div>
+                <Button
+                  variant="secondary"
+                  onClick={() => loadBalances(branchFilter, balanceWarehouseFilter)}
+                >
+                  <RefreshCw size={14} /> Thử lại tải kho
+                </Button>
+              </div>
+            )}
 
             <div className="table-wrap">
               <table>
@@ -1383,8 +1612,48 @@ export function InventoryPage() {
                     Phiếu nhập nháp đang chờ xác nhận: #{createdReceiptId.slice(0, 8)}
                   </div>
                   <div>
-                    [F1] Hệ thống giữ nguyên mã phiếu kể cả khi đóng/mở lại modal hoặc tải lại trang. Khi bạn bấm <strong>"Thử lại Xác nhận & Ghi sổ kho"</strong>, hệ thống sẽ xác nhận đúng phiếu này mà không tạo phiếu mới gây trùng hàng. Bấm <strong>"Hủy bỏ phiếu nháp"</strong> nếu bạn muốn xóa nháp và lập phiếu khác.
+                    [F1] Hệ thống giữ nguyên mã phiếu kể cả khi đóng/mở lại modal hoặc tải lại trang. Khi bạn bấm <strong>"Thử lại Xác nhận & Ghi sổ kho"</strong>, hệ thống sẽ xác nhận đúng phiếu này mà không tạo phiếu mới gây trùng hàng. Lưu ý: Phiếu cũ trên backend vẫn lưu ở trạng thái Draft. Bấm <strong>"Bỏ theo dõi phiếu này / Tạo phiếu mới"</strong> nếu bạn muốn bỏ qua phiếu nháp này và lập phiếu khác.
                   </div>
+                </div>
+              )}
+
+              {modalWhError && (
+                <div
+                  style={{
+                    background: "#fef2f2",
+                    border: "1px solid #f87171",
+                    color: "#991b1b",
+                    padding: "8px 12px",
+                    borderRadius: "6px",
+                    fontSize: "12px",
+                    marginBottom: "12px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <span>
+                    <strong>Lỗi tải tồn kho kho tiếp nhận:</strong> Không thể tải số dư của kho đang chọn ({modalWhError}).
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedWarehouse) {
+                        loadModalWhStock(selectedWarehouse);
+                      }
+                    }}
+                    style={{
+                      background: "#dc2626",
+                      color: "#fff",
+                      border: "none",
+                      padding: "4px 8px",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                      fontSize: "11px",
+                    }}
+                  >
+                    Thử lại
+                  </button>
                 </div>
               )}
 
@@ -1670,11 +1939,15 @@ export function InventoryPage() {
                     onClick={handleDiscardPendingReceipt}
                     disabled={loading || verifyingPendingReceipt}
                     style={{ color: "#dc2626", borderColor: "#fca5a5" }}
+                    title="Bỏ theo dõi phiếu này trên giao diện và tạo phiếu mới (phiếu cũ vẫn lưu ở trạng thái Draft trên máy chủ)"
                   >
-                    Hủy bỏ phiếu nháp này
+                    Bỏ theo dõi phiếu này / Tạo phiếu mới
                   </Button>
                 )}
-                <Button onClick={handleConfirmReceipt} disabled={loading || verifyingPendingReceipt}>
+                <Button
+                  onClick={handleConfirmReceipt}
+                  disabled={loading || verifyingPendingReceipt || loadingModalWhStock || Boolean(modalWhError)}
+                >
                   {loading
                     ? "Đang xử lý..."
                     : verifyingPendingReceipt
@@ -1743,9 +2016,55 @@ export function InventoryPage() {
               }}
             >
               <strong>Định danh giao dịch (F2 - Idempotency Key):</strong> <code>{reserveIdempotencyKey}</code>
-              <div style={{ marginTop: "2px" }}>
-                Khi bấm <strong>"Thử lại thao tác giữ chỗ"</strong>, hệ thống gửi nguyên định danh và payload cũ để tránh cộng dồn giữ chỗ lặp khi mất phản hồi mạng.
-              </div>
+              {isRetryingReserve ? (
+                <div style={{ marginTop: "4px", color: "#b45309" }}>
+                  Thao tác giữ chỗ trước đó chưa hoàn tất hoặc gặp lỗi mạng. Khi bấm <strong>"Thử lại thao tác giữ chỗ"</strong>, hệ thống sẽ gửi cùng định danh UUID và payload để tránh tạo thêm giữ chỗ ngoài ý muốn.
+                </div>
+              ) : (
+                <div style={{ marginTop: "2px", color: "#64748b" }}>
+                  Mã UUID chuẩn được gán tự động cho ý định giữ chỗ này.
+                </div>
+              )}
+            </div>
+          )}
+
+          {reserveWhError && (
+            <div
+              style={{
+                background: "#fef2f2",
+                border: "1px solid #f87171",
+                color: "#991b1b",
+                padding: "8px 12px",
+                borderRadius: "6px",
+                fontSize: "12px",
+                marginBottom: "12px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <span>
+                <strong>Lỗi tải tồn kho kho giữ chỗ:</strong> Không thể tải số dư của kho đang chọn ({reserveWhError}).
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (reserveWarehouseId) {
+                    loadReserveWhStock(reserveWarehouseId);
+                  }
+                }}
+                style={{
+                  background: "#dc2626",
+                  color: "#fff",
+                  border: "none",
+                  padding: "4px 8px",
+                  borderRadius: "4px",
+                  cursor: "pointer",
+                  fontSize: "11px",
+                }}
+              >
+                Thử lại
+              </button>
             </div>
           )}
 
@@ -1759,8 +2078,7 @@ export function InventoryPage() {
                   setReserveBranchId(nextBr);
                   const matchingWhs = warehouses.filter((w) => w.branchId === nextBr);
                   setReserveWarehouseId(matchingWhs[0]?.id || "");
-                  setReserveIdempotencyKey(null);
-                  setReserveError(null);
+                  handleReserveFormChange();
                 }}
               >
                 {branches.map((b) => (
@@ -1776,8 +2094,7 @@ export function InventoryPage() {
                 value={reserveWarehouseId}
                 onChange={(e) => {
                   setReserveWarehouseId(e.target.value);
-                  setReserveIdempotencyKey(null);
-                  setReserveError(null);
+                  handleReserveFormChange();
                 }}
               >
                 {reserveBranchWarehouses.map((w) => (
@@ -1793,8 +2110,7 @@ export function InventoryPage() {
                 value={reserveSkuId}
                 onChange={(e) => {
                   setReserveSkuId(e.target.value);
-                  setReserveIdempotencyKey(null);
-                  setReserveError(null);
+                  handleReserveFormChange();
                 }}
               >
                 {(availableSkus.length > 0 ? availableSkus : skus).map((s) => (
@@ -1812,8 +2128,7 @@ export function InventoryPage() {
                 value={reserveQty}
                 onChange={(e) => {
                   setReserveQty(Math.max(1, Number(e.target.value)));
-                  setReserveIdempotencyKey(null);
-                  setReserveError(null);
+                  handleReserveFormChange();
                 }}
               />
             </label>
@@ -1876,10 +2191,20 @@ export function InventoryPage() {
             <Button variant="secondary" onClick={() => setReserveModalOpen(false)}>
               Đóng
             </Button>
-            <Button onClick={handleReserveStock} disabled={loading || loadingReserveWh}>
+            {isRetryingReserve && (
+              <Button
+                variant="secondary"
+                onClick={handleDiscardPendingReservation}
+                disabled={loading || loadingReserveWh}
+                style={{ color: "#dc2626", borderColor: "#fca5a5" }}
+              >
+                Bỏ thao tác dở dang / Tạo mới
+              </Button>
+            )}
+            <Button onClick={handleReserveStock} disabled={loading || loadingReserveWh || Boolean(reserveWhError)}>
               {loading
                 ? "Đang khóa tồn..."
-                : reserveIdempotencyKey
+                : isRetryingReserve
                 ? "Thử lại thao tác giữ chỗ (Gửi cùng định danh)"
                 : "Xác nhận Giữ chỗ tại Kho này"}
             </Button>
