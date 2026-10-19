@@ -110,10 +110,17 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin
             <div className="flex flex-wrap gap-1.5">
               <button
                 type="button"
-                onClick={() => handleQuickFill('owner@tenant1.com', 'Abc@123')}
+                onClick={() => handleQuickFill('cashier@shopa.local', 'YourStrongDemoPassword123!')}
                 className="px-2 py-1 text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-mono transition-colors"
               >
-                owner@tenant1.com
+                cashier@shopa.local
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickFill('owner@shopa.local', 'YourStrongDemoPassword123!')}
+                className="px-2 py-1 text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-mono transition-colors"
+              >
+                owner@shopa.local
               </button>
             </div>
           </div>
