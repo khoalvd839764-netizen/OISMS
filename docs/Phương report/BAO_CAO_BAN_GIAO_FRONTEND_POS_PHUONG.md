@@ -9,8 +9,13 @@
 
 ## I. TỔNG QUAN KẾT QUẢ THEO TIÊU CHÍ DoD & FEEDBACK NHÓM TRƯỞNG
 
-Nhiệm vụ được hoàn thiện theo đúng tinh thần trung thực kỹ thuật và tiêu chí nghiệm thu (Definition of Done) của Sprint 2:
-> **"POS tra cứu SKU và tồn khả dụng theo dữ liệu API thật; khi checkout chưa có endpoint hoặc thất bại thì giữ nguyên giỏ hàng và không báo thành công giả; bản in xem trước tách biệt và ghi rõ 'Chưa thanh toán'."**
+### 1. Phản hồi từ Nhóm trưởng (Review Feedback)
+> *"Đề nghị sửa trước khi merge. POS đã nằm đúng trong pos-app; các endpoint đăng nhập, chi nhánh, tìm SKU và barcode khớp backend. Tuy nhiên, các lỗi dưới đây chưa đáp ứng yêu cầu Sprint 2 về dữ liệu thật và xử lý checkout chưa sẵn sàng."*
+
+### 2. Tinh thần giải quyết & Nghiệm thu Sprint 2
+Toàn bộ các nội dung phản hồi của Nhóm trưởng đã được rà soát, khắc phục triệt để và kiểm chứng bằng test tự động trước khi merge vào nhánh `develop`:
+- **Đã xác nhận:** Cấu trúc thư mục `pos-app` độc lập, các endpoint Backend (`POST /api/auth/login`, `GET /api/branches`, `GET /api/pos/search`, `GET /api/pos/barcode/{code}`) kết nối chuẩn xác.
+- **Đã khắc phục 100%:** Bỏ dữ liệu mẫu/fallback, không fake success khi checkout chưa sẵn sàng, bản in tạm tính phân tách rõ ràng và bảo toàn giỏ hàng, kiểm soát tồn khả dụng nghiêm ngặt theo đúng yêu cầu Sprint 2.
 
 ```mermaid
 flowchart TD
