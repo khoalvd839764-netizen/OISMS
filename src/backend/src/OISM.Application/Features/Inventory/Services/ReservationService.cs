@@ -61,6 +61,14 @@ public class ReservationService : IReservationService
                     "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/' || {1}::text || '/' || {2}::text, 0));",
                     new object[] { tenantId.ToString(), dto.BranchId.ToString(), dto.SkuId.ToString() },
                     ct);
+
+                if (dto.RequestKey.HasValue)
+                {
+                    await _context.ExecuteSqlRawAsync(
+                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/request_key/' || {1}::text, 0));",
+                        new object[] { tenantId.ToString(), dto.RequestKey.Value.ToString() },
+                        ct);
+                }
             }
 
             // Kiểm tra kho hợp lệ và thuộc chi nhánh yêu cầu
@@ -168,6 +176,58 @@ public class ReservationService : IReservationService
                 }
             }
 
+            // 4.1. Kiểm tra Idempotency theo RequestKey (khi client gửi định danh RequestKey)
+            if (dto.RequestKey.HasValue)
+            {
+                var existingOrderByKey = await _context.Orders
+                    .Include(o => o.Items)
+                    .FirstOrDefaultAsync(o => o.TenantId == tenantId && o.RequestKey == dto.RequestKey.Value, ct);
+
+                if (existingOrderByKey != null)
+                {
+                    var existingResByKey = await _context.Reservations
+                        .FirstOrDefaultAsync(r => r.TenantId == tenantId && r.OrderId == existingOrderByKey.Id && r.WarehouseId == dto.WarehouseId, ct);
+
+                    if (existingResByKey != null)
+                    {
+                        // Kiểm tra payload có khớp chính xác không
+                        bool isSamePayload = existingResByKey.BranchId == dto.BranchId &&
+                                             existingResByKey.WarehouseId == dto.WarehouseId &&
+                                             existingResByKey.SkuId == dto.SkuId &&
+                                             existingResByKey.Quantity == dto.Quantity;
+
+                        if (!isSamePayload)
+                        {
+                            throw new InvalidOperationException($"Khóa yêu cầu '{dto.RequestKey}' đã được sử dụng cho một thao tác giữ chỗ khác với thông số không trùng khớp.");
+                        }
+
+                        // Payload khớp -> kiểm tra trạng thái
+                        var nowUtc = DateTimeOffset.UtcNow;
+                        if (existingResByKey.Status == "Active" && existingResByKey.ExpiresAt > nowUtc)
+                        {
+                            // Trả về kết quả cũ, KHÔNG tạo Order, KHÔNG tăng Reserved
+                            await transaction.CommitAsync(ct);
+                            return new ReserveStockResponseDto
+                            {
+                                ReservationId = existingResByKey.Id,
+                                OrderId = existingResByKey.OrderId,
+                                OrderItemId = existingResByKey.OrderItemId,
+                                BranchId = existingResByKey.BranchId,
+                                WarehouseId = existingResByKey.WarehouseId,
+                                SkuId = existingResByKey.SkuId,
+                                Quantity = existingResByKey.Quantity,
+                                Status = existingResByKey.Status,
+                                ExpiresAt = existingResByKey.ExpiresAt,
+                                RemainingAvailableStock = branchBalance.OnHand - branchBalance.Reserved
+                            };
+                        }
+
+                        // Nếu reservation đã hết hạn hoặc không còn Active -> Báo lỗi có kiểm soát, KHÔNG tự tạo thêm giữ chỗ
+                        throw new InvalidOperationException($"Yêu cầu giữ chỗ với mã '{dto.RequestKey}' đã kết thúc hiệu lực (Trạng thái: {existingResByKey.Status}). Không thể tái sử dụng mã yêu cầu này để tạo giữ chỗ mới.");
+                    }
+                }
+            }
+
             // BE1-09 / A10: Kiểm tra trạng thái hoạt động của tài nguyên khi tạo reservation MỚI
             if (!branch.IsActive)
             {
@@ -201,7 +261,7 @@ public class ReservationService : IReservationService
                     Channel = "POS",
                     Status = "Draft",
                     TotalAmount = dto.Quantity * sku.RetailPrice,
-                    RequestKey = Guid.NewGuid(),
+                    RequestKey = dto.RequestKey ?? Guid.NewGuid(),
                     CreatedBy = userId,
                     CreatedAt = DateTimeOffset.UtcNow
                 };
