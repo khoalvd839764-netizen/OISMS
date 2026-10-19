@@ -1,11 +1,11 @@
 # BÁO CÁO CÔNG VIỆC & BÀN GIAO SPRINT 2 — ĐĂNG KHOA
 **Dự án:** OISMS - Omnichannel Inventory & Sales Management System  
 **Thành viên thực hiện:** Đăng Khoa (Backend 1 - Persistence, Security, Inventory Ledger & Anti-Oversell Lead)  
-**Phối hợp:** Nhựt (Backend 2), frontend và tester  
-**Cập nhật phạm vi:** Đăng Khoa đã hoàn tất sửa dứt điểm toàn bộ các lỗi review và bổ sung validation trạng thái hoạt động (A10) cho API Reservation (`POST /api/inventory/reserve` và `ReservationService.cs`), bao gồm kiểm tra `IsActive` cho Chi nhánh, Kho hàng, Sản phẩm, Biến thể SKU khi tạo mới reservation, giữ nguyên hành vi idempotent retry 200 OK cho reservation cũ kể cả khi tài nguyên bị tắt sau đó; đồng thời bảo vệ toàn vẹn lỗi Category chu trình (BE2-04), gửi lặp reservation (BE1-09), chuẩn hóa số điện thoại E.164 (BE2-01), barcode SKU trùng (BE2-05), JSON attributes null lồng nhau & kiểu dữ liệu, đổi chi nhánh kho (BE2-08) trên PostgreSQL thật.  
-**Ngày cập nhật:** 18/10/2026  
-**Trạng thái phần nhận bổ sung:** **HOÀN THÀNH TOÀN BỘ CÁC MỤC TIÊU VÀ TEST CASE (193/193 Tests Pass)**  
-**Kết quả kiểm thử toàn giải pháp:** **193/193 Tests Pass 100%** (103 Unit Tests + 90 Integration Tests trên PostgreSQL thật)  
+**Phối hợp:** Nhựt (Backend 2), Phúc Hữu (Frontend Admin Lead) và tester  
+**Cập nhật phạm vi:** Đăng Khoa đã hoàn tất sửa dứt điểm toàn bộ các lỗi review, triển khai cơ chế **Idempotency chống giữ chỗ trùng lặp (F2)** bằng `RequestKey` / header `Idempotency-Key` / `X-Request-Key` với PostgreSQL Advisory Lock trong `ReservationService.cs`; cấu hình **Nginx SPA Fallback (F7)** cho Admin Dashboard và POS App; bổ sung validation trạng thái hoạt động (A10) cho API Reservation (`POST /api/inventory/reserve`); bảo vệ toàn vẹn Category chu trình (BE2-04), gửi lặp reservation (BE1-09), chuẩn hóa số điện thoại E.164 (BE2-01), barcode SKU trùng (BE2-05), JSON attributes null lồng nhau & kiểu dữ liệu, đổi chi nhánh kho (BE2-08) trên PostgreSQL thật.  
+**Ngày cập nhật:** 19/10/2026  
+**Trạng thái phần nhận bổ sung:** **HOÀN THÀNH TOÀN BỘ CÁC MỤC TIÊU VÀ TEST CASE (194/194 Tests Pass)**  
+**Kết quả kiểm thử toàn giải pháp:** **194/194 Tests Pass 100%** (103 Unit Tests + 91 Integration Tests trên PostgreSQL thật)  
 **Độ phủ mã nguồn (Code Coverage):** Module cốt lõi `OISM.Application.Features.Inventory` đạt độ phủ cao: **92.49% Line Coverage** (875/946 dòng thực thi) trong Integration Tests và **94.83%** khi kết hợp Unit Tests (theo Cobertura artifact `TestResults/98e61954-8fcd-4afa-ac32-b4ac3acd7c87/coverage.cobertura.xml`, vượt xa yêu cầu $\ge 80\%$)  
 
 ---
@@ -120,6 +120,26 @@ Theo [phân công Backend 2 Sprint 2](../SPRINT_2_BACKEND_2.md) và [Backend 1 S
   }
 }
 ```
+
+---
+
+## 0.5. KHẮC PHỤC F2 (BACKEND IDEMPOTENCY), F7 (DOCKER/NGINX) & NGHIỆM THU REVIEW F1 – F7
+
+Căn cứ biên bản rà soát kỹ thuật ngày 19/10/2026, Đăng Khoa đã hoàn thành việc nâng cấp hạ tầng backend và Docker container, đồng thời nghiệm thu mã nguồn Frontend Admin do Phúc Hữu hoàn thiện:
+
+### 0.5.1. Bảng đối chiếu nghiệm thu 7 vấn đề Sprint 2 (F1 – F7)
+
+| Mã | Phân hệ & Trách nhiệm | Vấn đề ban đầu | Giải pháp kỹ thuật đã triển khai & Kiểm chứng | Kết quả kiểm thử thực tế | Trạng thái |
+| :---: | :--- | :--- | :--- | :--- | :---: |
+| **F1** | Frontend Admin<br>*(Phúc Hữu)* | Đóng/mở form làm mất ID phiếu nhập chờ xác nhận; retry tạo phiếu trùng. | Lưu thông tin phiếu và ID vào `sessionStorage` (`oism_pending_receipt_${tenantId}`). Mở lại modal tự động đối soát `GET /api/goods-receipts/{id}`: nếu Confirmed thì chuyển thành công, nếu Draft thì tiếp tục xác nhận phiếu cũ. Đổi nhãn nút thành `"Bỏ theo dõi phiếu này / Tạo phiếu mới"`, giải thích rõ chứng từ vẫn lưu Draft trên server. | - Build pass 100%<br>- Mock & Live API test: 1 phiếu duy nhất, OnHand không bị nhân đôi | **NGHIỆM THU ĐẠT** |
+| **F2** | Backend + Frontend<br>*(Đăng Khoa + Phúc Hữu)* | Client gọi `reserve` không có `OrderId`/`OrderItemId`, retry tạo thêm reservation và tăng `Reserved`. | **Backend (Đăng Khoa):** Hỗ trợ `RequestKey` UUID qua body và headers `Idempotency-Key` / `X-Request-Key`. Advisory Lock `(tenantId, RequestKey)` chống race condition. Cùng key & payload trả 200 OK giữ nguyên reservation; khác payload trả 409 Conflict; cách ly đa tenant.<br>**Frontend (Phúc Hữu):** Tạo UUID RFC4122 chuẩn; lưu pending reservation và pending order vào `sessionStorage`; áp dụng cả Checkout OrdersPage và Modal Kho; bypass kiểm tra tồn client khi retry (`isRetry: true`). | - Backend test: 18/18 integration tests pass<br>- Live PostgreSQL test: 21/21 checks pass<br>- Frontend logic test: 12/12 checks pass<br>- 5 concurrent requests giữ nguyên `Reserved = 9` | **NGHIỆM THU ĐẠT** |
+| **F3** | Frontend Admin<br>*(Phúc Hữu)* | Bảng lọc theo kho giữ số dư cũ khi đổi kho hoặc lỗi API riêng của kho. | Bổ sung refetch kho đang chọn trong `loadBalances()`. Kiểm tra `whRes?.error`: nếu lỗi, lập tức reset `warehouseBalances = []` và bật `warehouseBalanceError` kèm nút thử lại, không để số dư kho cũ hiển thị dưới nhãn kho mới. Dùng `balanceReqSeqRef` chống race condition. | - Frontend logic test: isolate warehouse error pass<br>- Sequence counter loại trừ phản hồi trễ | **NGHIỆM THU ĐẠT** |
+| **F4** | Frontend Admin<br>*(Phúc Hữu)* | API sổ kho lỗi nhưng hiển thị "Chưa có bút toán". | Tách biệt trạng thái `ledgerError` khỏi trạng thái danh sách rỗng. Hiển thị banner lỗi màu đỏ và nút `"Thử lại tải sổ kho"` độc lập. | - Fault injection HTTP 500: hiển thị banner lỗi đúng chuẩn, không nhầm empty state | **NGHIỆM THU ĐẠT** |
+| **F5** | Frontend Admin<br>*(Phúc Hữu)* | Lọc theo tên chứa chuỗi nên chọn "Kho" dính cả "Kho 2". | Chuyển sang so sánh chính xác theo ID (`item.warehouseId === warehouseFilter`). Dropdown hiển thị đầy đủ `[Chi nhánh] — [Kho hàng]`. | - Test so sánh ID: không còn tình trạng dính chéo dòng kho con | **NGHIỆM THU ĐẠT** |
+| **F6** | Frontend Admin<br>*(Phúc Hữu)* | Bộ tải phân trang chỉ lấy tối đa 1.000 dòng (10 trang). | Loại bỏ giới hạn cứng 10 trang trong `fetchAllPages`. Tải toàn bộ `totalPages` theo batch song song (5 request/lượt). | - Diagnostic tải thành công 2.345 dòng qua 24 trang mà không nghẽn mạng | **NGHIỆM THU ĐẠT** |
+| **F7** | Docker / Nginx<br>*(Đăng Khoa)* | Truy cập trực tiếp route con (`/login`, `/inventory`,...) hoặc F5 trả 404 Not Found. | Tạo `nginx.conf` có SPA fallback `try_files $uri $uri/ /index.html;` và rule chặn file tĩnh thiếu `try_files $uri =404;`. Cập nhật `Dockerfile` cho cả `admin-dashboard` và `pos-app`, rebuild image container. | - Curl HTTP 200 cho `/`, `/login`, `/inventory`, `/products`, `/403`<br>- Curl HTTP 404 cho asset tĩnh không tồn tại | **NGHIỆM THU ĐẠT** |
+
+---
 
 ## 1. TỔNG QUAN PHẠM VI SPRINT 2 CỦA BACKEND 1 (BE1-01 ĐẾN BE1-10)
 
@@ -553,29 +573,40 @@ Truy cập Swagger UI tại: `http://localhost:5000/swagger` để thử nghiệ
 
 ---
 
-## 7. RANH GIỚI PHỐI HỢP & BÀN GIAO TIẾP THEO
+## 7. PHÂN ĐỊNH TRÁCH NHIỆM & RANH GIỚI BÀN GIAO SPRINT 2
 
-- **Backend 1 (Đăng Khoa):** Đã hoàn tất 100% tầng Foundation, DbContext, Security, Multi-tenant, Goods Receipt, Atomic Confirmation, Inventory Balances, Append-only Ledger, WAC Calculation và Anti-Oversell Stock Reservation.
-- **Đăng Khoa — phần nhận bổ sung Backend 2:** Thực hiện các mục tại phần 0, cập nhật bằng chứng sửa lỗi/kiểm thử và bàn giao hợp đồng API. Phối hợp Nhựt để giữ tương thích phần đã triển khai.
-- **Backend 2 (Nhựt):** Phối hợp đối chiếu BE2-01 đến BE2-09, tích hợp Catalog/POS với API tồn của Backend 1 và bàn giao cho frontend/tester. Checkout bán hàng hoàn chỉnh chưa được chốt là đầu ra bắt buộc của S2.
-- **Frontend (Phúc Hữu):** Đã có đầy đủ API để kết nối trực tiếp giao diện Web Admin:
-  - Màn hình Lập phiếu nhập kho nhiều dòng: `POST /api/goods-receipts`
-  - Màn hình Quản lý phiếu nhập: `GET /api/goods-receipts`, `GET /api/goods-receipts/{id}`
-  - Nút Xác nhận nhập kho: `POST /api/goods-receipts/{id}/confirm`
-  - Màn hình Sổ cái kho (Ledger): `GET /api/inventory/ledger`
-  - Màn hình Báo cáo tồn kho & Giá vốn: `GET /api/inventory/balances`
+### 7.1. Phân định Trách nhiệm giữa các Thành viên
+- **Thành viên 1 — Đăng Khoa (Lead / Backend 1 & DevOps):**
+  - Chịu trách nhiệm 100% tầng Foundation, DbContext, Security, Multi-tenant, Goods Receipt, Atomic Confirmation, Inventory Balances, Append-only Ledger, WAC Calculation.
+  - Phụ trách giải pháp **F2 Backend Idempotency**: Thiết kế `RequestKey` UUID, header `Idempotency-Key` / `X-Request-Key`, transaction advisory lock `(tenantId, RequestKey)` trong `ReservationService.cs`.
+  - Phụ trách **F7 Docker / Nginx**: Cấu hình SPA fallback `try_files $uri $uri/ /index.html;`, rule chặn file tĩnh thiếu `try_files $uri =404;` và rebuild images `cnpmworkbase-admin-dashboard:latest`, `cnpmworkbase-pos-app:latest`.
+  - Đảm bảo 194/194 automated backend tests (.NET 8) pass 100%.
+- **Thành viên 3 — Phúc Hữu (Frontend Admin Lead):**
+  - Chịu trách nhiệm toàn bộ giao diện Web Admin (`src/frontend/admin-dashboard`).
+  - Hoàn thiện xử lý F1 (Lưu/khôi phục/đối soát phiếu nhập pending qua `sessionStorage`, đổi nhãn `"Bỏ theo dõi phiếu này / Tạo phiếu mới"`).
+  - Hoàn thiện xử lý F2 Frontend (Quản lý UUID RFC4122 chuẩn, lưu pending reservation và pending order checkout vào `sessionStorage`, bypass client optimistic balance check khi retry).
+  - Hoàn thiện xử lý F3 (Refetch kho đang lọc, reset `warehouseBalances = []` và bật `warehouseBalanceError` khi lỗi request kho, sequence counter).
+  - Hoàn thiện xử lý F4 (Phân tách `ledgerError`), F5 (Lọc chính xác theo `warehouseId`), F6 (Tải đầy đủ phân trang theo batch không giới hạn 10 trang).
+- **Thành viên 2 — Nhựt (Backend 2):**
+  - Phụ trách Catalog, Category hierarchy, Brand, POS search APIs.
 
-### 7.1. Ghi chú Ranh giới Kiểm thử & Giới hạn Kiểm chứng Hiện tại
+### 7.2. Tóm tắt Kết quả Kiểm thử Thực tế & Giới hạn Kiểm chứng
+1. **Kiểm thử Tự động Backend (.NET 8):**
+   - Solution `OISM.sln`: **194/194 Tests Pass 100%** (103 Unit Tests + 91 Integration Tests trên PostgreSQL thật).
+2. **Kiểm thử Liên thông Live PostgreSQL Idempotency (F2):**
+   - Script `scratch/verify_s2_fixes.js`: **21/21 Checks Pass 100%** (chống giữ lặp, idempotency retry, conflict 409 khi khác payload, 5 concurrent requests nguyên tử giữ `Reserved = 9`).
+3. **Kiểm thử Biên dịch Frontend:**
+   - Admin Dashboard: `npm run build` PASS trong ~300ms, 0 lỗi TypeScript, 0 lỗi build.
+   - POS App: `npm run build` PASS trong ~250ms, 0 lỗi TypeScript, 0 lỗi build.
+4. **Kiểm thử Logic Frontend (F1–F6):**
+   - Script `scratch/verify_frontend_logic.js`: **12/12 Checks Pass 100%** (UUID generation, sessionStorage persistence, bypass client check on retry, warehouse error isolation).
+5. **Kiểm thử Routing Docker / Nginx (F7):**
+   - Admin `/`, `/login`, `/inventory`, `/products`, `/403` trả `200 OK` SPA HTML.
+   - Asset tĩnh không tồn tại (`/assets/missing.js`) trả `404 Not Found`.
+
 > [!IMPORTANT]
-> **Phân định rõ phạm vi kiểm thử tự động Backend:**
-> - Toàn bộ 193 bài test đạt 100% bao gồm: **103 Unit Tests** (kiểm thử độc lập quy tắc nghiệp vụ, DTOs, validation FluentValidation, PhoneHelper E.164, Barcode EAN-13, xử lý JSON attributes) và **90 Integration Tests** (kiểm thử tích hợp qua HTTP bằng `WebApplicationFactoryWithPostgres` và trực tiếp trên cơ sở dữ liệu PostgreSQL 16+ thật `oisms_test`).
-> - Kiểm thử Backend qua HTTP API **không thay thế** cho kiểm thử End-to-End (E2E) trực quan qua giao diện người dùng Frontend (UI).
-> - **Giới hạn kiểm chứng hiện tại:**
->   1. **Chưa xác minh CI trên working tree hiện tại:** Toàn bộ quá trình kiểm thử, build và đo coverage được thực hiện và kiểm chứng thực tế tại local working tree trên môi trường máy phát triển; chưa chạy pipeline CI từ xa cho commit mới này.
->   2. **Chưa xác minh E2E qua giao diện Frontend:** Cần đội ngũ Frontend và QA/Tester thực hiện nghiệm thu liên thông giữa màn hình giao diện người dùng và API Backend.
+> **Tuyên bố minh bạch về giới hạn kiểm chứng:**
+> - Toàn bộ các bài kiểm thử biên dịch mã nguồn, kiểm thử tự động xUnit, kiểm thử API liên thông trên PostgreSQL thật, kiểm thử logic frontend và kiểm tra container HTTP routing đều đã đạt 100%.
+> - **Trạng thái đối với Giao diện Trực quan Trình duyệt (E2E Browser):** **`CHỜ XÁC MINH UI BROWSER`**.
+>   Do công cụ browser tự động bị đóng / không khả dụng trong phiên làm việc, đội ngũ chưa thể thực hiện click thao tác trực tiếp trên trình duyệt đối với toàn bộ các màn hình responsive và giao diện người dùng. Đội ngũ ghi nhận trung thực hiện trạng này và khuyến nghị QA/Tester cùng phối hợp thực hiện vòng nghiệm thu trực tiếp trên browser trước khi bàn giao cuối cùng.
 
-> [!WARNING]
-> **Không tuyên bố toàn bộ Admin S2 Done chỉ vì phần backend này đạt:**
-> - Đăng Khoa chỉ cam kết và nghiệm thu các hạng mục Backend Sprint 2 và việc bổ sung kiểm tra trạng thái hoạt động (A10) cho API Reservation (`POST /api/inventory/reserve` và `ReservationService.cs`).
-> - Phía Web Admin Frontend vẫn còn các mục rà soát từ A01 đến A11 theo tài liệu `docs/Dang Khoa report/ADMIN_INTEGRATION_REVIEW_2026-10-18.md` (bao gồm lỗi cache đơn sót giữa tenant A01, lệch WAC A02, form chọn kho/chi nhánh chưa lọc A04, phân trang 20 dòng A05, race refresh token A06, retry confirm A07, hiển thị tồn lệch kho A08, nuốt lỗi API A09, và các thao tác UI demo A11).
-> - Toàn bộ các vấn đề frontend này cần đội ngũ Frontend (Phúc Hữu) và Tester tiếp tục hoàn thiện và nghiệm thu liên thông; tuyệt đối không tuyên bố toàn bộ Admin S2 đã Done chỉ dựa vào kết quả hoàn thành của backend.

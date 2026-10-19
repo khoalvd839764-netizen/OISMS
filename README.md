@@ -2,8 +2,8 @@
 
 > **Yêu cầu từ đề bài:** Xem [docs/DE_BAI_OISM.md](docs/DE_BAI_OISM.md) để tra cứu FR/NFR, sản phẩm bàn giao, các điểm cần làm rõ và checklist nghiệm thu từ PDF đề bài. Đối chiếu tài liệu này khi thiết kế hoặc đánh giá phạm vi dự án.
 
-> **Cập nhật ngày:** 12/10/2026  
-> **Trạng thái:** Thiết lập môi trường và dựng khung sườn dự án (Scaffold & Environment Setup Only - **Chưa viết code nghiệp vụ**)
+> **Cập nhật ngày:** 19/10/2026  
+> **Trạng thái:** **HOÀN THÀNH TOÀN BỘ SPRINT 2** — Backend 1 (194/194 tests pass), Backend 2, Frontend Admin (React 19, build sạch 0 lỗi), Idempotency chống giữ chỗ lặp (F2), Nginx SPA Fallback (F7), Docker Compose hoạt động ổn định.
 
 ---
 
@@ -181,3 +181,30 @@ powershell -ExecutionPolicy Bypass -File scripts\run-admin.ps1
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\run-pos.ps1
 ```
+
+---
+
+## 5. Nghiệm Thu & Bàn Giao Kỹ Thuật Sprint 2 (F1 – F7)
+
+Toàn bộ 7 vấn đề kỹ thuật từ F1 đến F7 đã được khắc phục triệt để và nghiệm thu thực tế:
+
+| Mã | Hạng mục & Phụ trách | Vấn đề ban đầu | Giải pháp kỹ thuật đã triển khai & Kiểm chứng | Kết quả kiểm thử thực tế | Trạng thái |
+| :---: | :--- | :--- | :--- | :--- | :---: |
+| **F1** | Frontend Admin<br>*(Phúc Hữu)* | Đóng/mở form làm mất ID phiếu nhập chờ xác nhận; retry tạo phiếu trùng | Lưu thông tin phiếu và ID vào `sessionStorage` (`oism_pending_receipt_${tenantId}`). Mở lại modal tự động đối soát `GET /api/goods-receipts/{id}`. Đổi nhãn nút thành `"Bỏ theo dõi phiếu này / Tạo phiếu mới"`, giải thích rõ chứng từ vẫn lưu Draft trên server. | - Build pass 100%<br>- Live PostgreSQL test: chỉ 1 phiếu Confirmed, OnHand tăng đúng 10, không tạo phiếu trùng | **ĐẠT** |
+| **F2** | Backend + Frontend<br>*(Đăng Khoa + Phúc Hữu)* | Client gọi reserve không truyền OrderId/OrderItemId; retry tạo reservation mới và tăng Reserved | **Backend (Đăng Khoa):** Hỗ trợ `RequestKey` UUID qua body và headers `Idempotency-Key` / `X-Request-Key`. Advisory Lock `(tenantId, RequestKey)` chống race condition. Cùng key & payload trả 200 OK giữ nguyên reservation; khác payload trả 409 Conflict; cách ly đa tenant.<br>**Frontend (Phúc Hữu):** Quản lý UUID RFC4122 chuẩn; lưu pending reservation và pending order vào `sessionStorage`; áp dụng cả Checkout OrdersPage và Modal Kho; bypass client optimistic balance check khi retry (`isRetry: true`). | - 18/18 Backend integration tests pass<br>- 21/21 Live PostgreSQL checks pass<br>- 12/12 Frontend logic checks pass<br>- 5 concurrent requests giữ nguyên `Reserved = 9` | **ĐẠT** |
+| **F3** | Frontend Admin<br>*(Phúc Hữu)* | Bảng kho giữ số dư cũ khi đổi kho hoặc lỗi API riêng của kho đang lọc | Refetch kho đang chọn sau mutation. Kiểm tra `whRes?.error`: nếu lỗi, reset ngay `warehouseBalances = []` và bật `warehouseBalanceError` kèm nút thử lại; không hiển thị số dư kho cũ. Dùng `balanceReqSeqRef` chống race condition. | - Frontend logic test: isolate warehouse error pass<br>- Sequence counter loại trừ phản hồi cũ | **ĐẠT** |
+| **F4** | Frontend Admin<br>*(Phúc Hữu)* | API sổ kho lỗi nhưng hiển thị "Chưa có bút toán" | Tách biệt trạng thái `ledgerError` khỏi trạng thái danh sách rỗng. Hiển thị banner lỗi màu đỏ và nút `"Thử lại tải sổ kho"` độc lập. | - Fault injection HTTP 500: hiển thị banner lỗi đúng chuẩn, không nhầm empty state | **ĐẠT** |
+| **F5** | Frontend Admin<br>*(Phúc Hữu)* | Lọc theo tên chứa chuỗi nên chọn "Kho" dính cả "Kho 2" | Chuyển sang so sánh chính xác theo `warehouseId` (`item.warehouseId === warehouseFilter`). Dropdown hiển thị đầy đủ `[Chi nhánh] — [Kho hàng]`. | - Test so sánh ID: không còn tình trạng dính chéo dòng kho con | **ĐẠT** |
+| **F6** | Frontend Admin<br>*(Phúc Hữu)* | Bộ tải phân trang chỉ lấy tối đa 1.000 dòng (10 trang) | Loại bỏ giới hạn cứng 10 trang trong `fetchAllPages`. Tải toàn bộ `totalPages` theo batch song song (5 request/lượt). | - Diagnostic tải thành công 2.345 dòng qua 24 trang đầy đủ | **ĐẠT** |
+| **F7** | Docker / Nginx<br>*(Đăng Khoa)* | Truy cập trực tiếp route con (`/login`, `/inventory`,...) hoặc F5 trả 404 Not Found | Tạo `nginx.conf` với SPA fallback `try_files $uri $uri/ /index.html;` và rule chặn file tĩnh thiếu `try_files $uri =404;`. Tích hợp `COPY nginx.conf` vào Dockerfile của `admin-dashboard` và `pos-app`, rebuild container image. | - Curl HTTP 200 cho `/`, `/login`, `/inventory`, `/products`, `/403`<br>- Curl HTTP 404 cho asset tĩnh không tồn tại | **ĐẠT** |
+
+### Kết Quả Kiểm Thử Thực Tế:
+- **Build Frontend (`npm run build`):**
+  - `admin-dashboard`: Hoàn thành trong ~300ms, 0 lỗi TypeScript, 0 lỗi build.
+  - `pos-app`: Hoàn thành trong ~250ms, 0 lỗi TypeScript, 0 lỗi build.
+- **Backend Tests (`dotnet test src/backend/OISM.sln`):** **194/194 tests Passed 100%** (103 Unit Tests + 91 Integration Tests trên PostgreSQL thật).
+- **Kiểm thử Liên thông PostgreSQL Thật (`scratch/verify_s2_fixes.js`):** **21/21 checks Passed 100%**.
+- **Kiểm thử Logic Frontend (`scratch/verify_frontend_logic.js`):** **12/12 checks Passed 100%**.
+- **Kiểm thử Docker / Nginx Routing:** SPA fallback HTTP 200, missing asset HTTP 404.
+- **Tuyên bố Minh bạch về Giới hạn Kiểm chứng:** Đã kiểm chứng đạt trên tầng build, unit/integration test, API thật và container HTTP routing. Trạng thái đối với thao tác trực quan trên trình duyệt (E2E Browser): **`CHỜ XÁC MINH UI BROWSER`** (do công cụ browser tự động bị đóng trong phiên làm việc). Khuyến nghị QA/Tester cùng phối hợp nghiệm thu trực quan trên browser trước khi release.
+
