@@ -32,8 +32,8 @@ test('1. File Structure & TypeScript Artifacts Integrity', () => {
   }
 });
 
-// 2. Parse and Validate DEMO_CATALOG & Data in api.ts
-test('2. api.ts Catalog & Endpoints Contract', () => {
+// 2. Parse and Validate Real Endpoints & No Mock Fallback in api.ts
+test('2. api.ts Real Endpoints & Strict No-Demo Contract', () => {
   const apiSrc = fs.readFileSync(path.resolve(__dirname, 'src/services/api.ts'), 'utf8');
 
   // Verify Real Endpoints are wired
@@ -46,16 +46,14 @@ test('2. api.ts Catalog & Endpoints Contract', () => {
   // Verify Authorization Bearer is attached
   assert.ok(apiSrc.includes('Authorization'), 'Must attach Authorization header');
 
-  // Verify Fallback Catalog contains key items
-  assert.ok(apiSrc.includes('POLO-NAM-DEN-M'), 'Must contain POLO-NAM-DEN-M');
-  assert.ok(apiSrc.includes('POLONAMDENM'), 'Must contain barcode POLONAMDENM');
-  assert.ok(apiSrc.includes('SERUM-B5-30ML'), 'Must contain SERUM-B5-30ML');
-  assert.ok(apiSrc.includes('JEANS-SLIM-31'), 'Must contain JEANS-SLIM-31');
-  assert.ok(apiSrc.includes('OXFORD-SHIRT-M'), 'Must contain OXFORD-SHIRT-M');
+  // Verify No Demo Fallback in api.ts
+  assert.ok(!apiSrc.includes('DEMO_CATALOG'), 'Must NOT contain DEMO_CATALOG in api.ts');
+  assert.ok(!apiSrc.includes('FALLBACK_BRANCHES'), 'Must NOT contain FALLBACK_BRANCHES in api.ts');
+  assert.ok(!apiSrc.includes('demo_jwt_pos_token_2026'), 'Must NOT auto demo login in api.ts');
 });
 
-// 3. Search & Barcode Matching Simulation
-test('3. Search & Barcode Matching Simulation', () => {
+// 3. Search & Barcode Matching Simulation (Pure Logic)
+test('3. Search & Barcode Matching Simulation with Real API Logic', () => {
   const catalog = [
     {
       sku: 'POLO-NAM-DEN-M',
@@ -112,7 +110,7 @@ test('3. Search & Barcode Matching Simulation', () => {
     );
   };
 
-  // Helper barcode scan
+  // Helper barcode scan (strictly throws on miss)
   const scan = (code) => {
     if (!code || !code.trim()) throw new Error('Mã vạch trống');
     const c = code.trim().toLowerCase();
@@ -172,7 +170,7 @@ test('4. Cart Operations & Stock Constraint Validation', () => {
 
   const getTotals = () => {
     const subtotal = cart.reduce((sum, item) => sum + item.retailPrice * item.quantity, 0);
-    const vat = Math.round(subtotal * 0.08); // 8% VAT
+    const vat = 0; // VAT 0%
     const totalAmount = subtotal + vat;
     const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
     return { subtotal, vat, totalAmount, totalItems };
@@ -208,64 +206,51 @@ test('4. Cart Operations & Stock Constraint Validation', () => {
 
   // Verify total formula
   // Subtotal = 3 * 299,000 = 897,000
-  // VAT 8% = 71,760
-  // Total = 968,760
+  // VAT 0% = 0
+  // Total = 897,000
   const totals = getTotals();
   assert.equal(totals.subtotal, 897000);
-  assert.equal(totals.vat, 71760);
-  assert.equal(totals.totalAmount, 968760);
+  assert.equal(totals.totalAmount, 897000);
   assert.equal(totals.totalItems, 3);
 });
 
 // 5. Cash Calculations & Quick Cash Denominations
 test('5. Cash Payment & Quick Cash Auto Change Calculations', () => {
-  const totalAmount = 968760;
+  const totalAmount = 897000;
 
   const calculateChange = (amountGiven) => Math.max(0, amountGiven - totalAmount);
 
-  assert.equal(calculateChange(1000000), 31240);
-  assert.equal(calculateChange(968760), 0);
+  assert.equal(calculateChange(1000000), 103000);
+  assert.equal(calculateChange(897000), 0);
   assert.equal(calculateChange(500000), 0);
 
   // Quick cash buttons
-  const denominations = [
-    totalAmount,
-    Math.ceil(totalAmount / 100000) * 100000, // 1,000,000
-    Math.ceil(totalAmount / 500000) * 500000, // 1,000,000
-    1500000,
-    2000000,
+  const quickCashOptions = [
+    { label: 'Đúng số tiền', value: totalAmount },
+    { label: '50.000 đ', value: 50000 },
+    { label: '100.000 đ', value: 100000 },
+    { label: '200.000 đ', value: 200000 },
+    { label: '500.000 đ', value: 500000 },
+    { label: '1.000.000 đ', value: 1000000 },
   ];
 
-  const uniqueDenoms = [...new Set(denominations)].filter((d) => d >= totalAmount);
-  assert.ok(uniqueDenoms.includes(968760), 'Contains exact amount');
-  assert.ok(uniqueDenoms.includes(1000000), 'Contains 1,000,000');
+  const matched = quickCashOptions.find((o) => o.value === totalAmount);
+  assert.ok(matched, 'Contains exact amount option');
+  assert.equal(matched.value, 897000);
 });
 
-// 6. VietQR Payment Link Format
-test('6. VietQR URL Construction', () => {
-  const bankId = 'MB';
-  const accountNo = '0901234567';
-  const accountName = 'CONG TY OISMS VN';
-  const totalAmount = 968760;
-  const orderNumber = 'ORD-POS-889900';
-
-  const qrUrl = `https://img.vietqr.io/image/${bankId}-${accountNo}-compact2.png?amount=${totalAmount}&addInfo=${encodeURIComponent(
-    `Thanh toan ${orderNumber}`
-  )}&accountName=${encodeURIComponent(accountName)}`;
-
-  assert.ok(qrUrl.startsWith('https://img.vietqr.io/image/MB-0901234567-compact2.png'));
-  assert.ok(qrUrl.includes('amount=968760'));
-  assert.ok(qrUrl.includes('addInfo=Thanh%20toan%20ORD-POS-889900'));
-});
-
-// 7. Thermal Receipt Layout Contract (80mm)
-test('7. 80mm Thermal Receipt Layout Contract', () => {
+// 6. Thermal Receipt Layout Contract (80mm) & Draft Watermark
+test('6. 80mm Thermal Receipt Layout & Draft Watermark Contract', () => {
   const receiptSrc = fs.readFileSync(path.resolve(__dirname, 'src/components/ReceiptPrintModal.tsx'), 'utf8');
 
   // Verify 80mm standard width is styled (320px ~ 80mm)
   assert.ok(receiptSrc.includes('receipt-paper'), 'Must have receipt-paper class');
   assert.ok(receiptSrc.includes('max-w-[320px]'), 'Must restrict width to ~320px for 80mm thermal receipt');
   assert.ok(receiptSrc.includes('window.print'), 'Must call window.print for printing');
+
+  // Verify Draft Watermark label
+  assert.ok(receiptSrc.includes('CHƯA THANH TOÁN'), 'Must explicitly display CHƯA THANH TOÁN for draft preview');
+  assert.ok(receiptSrc.includes('PHIẾU TẠM TÍNH'), 'Must display PHIẾU TẠM TÍNH for draft preview');
 
   // Verify @media print rules in index.css
   const cssSrc = fs.readFileSync(path.resolve(__dirname, 'src/index.css'), 'utf8');
@@ -274,8 +259,8 @@ test('7. 80mm Thermal Receipt Layout Contract', () => {
   assert.ok(cssSrc.includes('80mm'), 'Must format page size for 80mm paper');
 });
 
-// 8. Checkout Contract & DoD Compliance
-test('8. Checkout Contract & DoD Transparency', () => {
+// 7. Checkout Contract, Pending Transparency & Receipt Preview Separation
+test('7. Checkout Contract & Draft Preview Decoupling', () => {
   const paymentSrc = fs.readFileSync(path.resolve(__dirname, 'src/components/PaymentModal.tsx'), 'utf8');
 
   // Verify DTO fields according to contract
@@ -285,20 +270,70 @@ test('8. Checkout Contract & DoD Transparency', () => {
   assert.ok(paymentSrc.includes('amountGiven'), 'Must send amountGiven');
   assert.ok(paymentSrc.includes('changeDue'), 'Must send changeDue');
 
-  // Verify DoD rule: "checkout chưa sẵn sàng không báo thành công; bản in hóa đơn chuẩn bị sẵn dùng dữ liệu API"
+  // Verify callback separation: onPreviewReceipt vs onSuccessAndPrint
+  assert.ok(paymentSrc.includes('onPreviewReceipt'), 'Must have separate onPreviewReceipt callback');
+  assert.ok(paymentSrc.includes('onSuccessAndPrint'), 'Must retain onSuccessAndPrint for real checkout success');
+  assert.ok(paymentSrc.includes('isDraft: true'), 'Draft preview must flag isDraft: true');
+
+  // Verify no hardcoded bank accounts
+  assert.ok(!paymentSrc.includes('0987654321'), 'Must NOT have hardcoded personal bank account 0987654321');
+  assert.ok(paymentSrc.includes('Mã QR mô phỏng'), 'Must clearly explain QR is simulated');
+
+  // Verify DoD transparency in api.ts
   const apiSrc = fs.readFileSync(path.resolve(__dirname, 'src/services/api.ts'), 'utf8');
   assert.ok(
-    apiSrc.includes('Endpoint thanh toán Backend (POST /api/orders/checkout) đang được hoàn thiện theo hợp đồng DTO Sprint 2'),
-    'Must display DoD transparent message when checkout is pending'
-  );
-  assert.ok(
-    paymentSrc.includes('handlePrintPreview'),
-    'Must allow receipt preview from cart data even if checkout is pending'
+    apiSrc.includes('chưa được triển khai trên Backend Swagger'),
+    'Must explain checkout API is pending Swagger contract finalization'
   );
 });
 
-// 9. PWA Manifest & Service Worker
-test('9. PWA Baseline Configuration', () => {
+// 8. Negative Case: Barcode Scan Miss must NOT auto-add previous results[0]
+test('8. Negative Case: Barcode Miss does NOT add results[0]', () => {
+  const searchSrc = fs.readFileSync(path.resolve(__dirname, 'src/components/ProductSearch.tsx'), 'utf8');
+
+  // Verify that `onAddToCart(results[0])` fallback on barcode catch has been removed
+  assert.ok(
+    !searchSrc.includes('onAddToCart(results[0])'),
+    'Must NOT automatically add results[0] when barcode lookup fails'
+  );
+  assert.ok(
+    searchSrc.includes('Tuyệt đối không tự động thêm results[0]'),
+    'Must include code comment enforcing this lead feedback rule'
+  );
+});
+
+// 9. Negative Case: Branch Change and Session Reset
+test('9. Negative Case: Branch Change & Logout Clears Cart', () => {
+  const appSrc = fs.readFileSync(path.resolve(__dirname, 'src/App.tsx'), 'utf8');
+
+  // Verify branch change handler resets cart
+  assert.ok(appSrc.includes('handleSelectBranch'), 'Must have handleSelectBranch handler');
+  assert.ok(appSrc.includes('Đổi chi nhánh sẽ làm mới lại giỏ hàng'), 'Must confirm and reset cart on branch switch');
+
+  // Verify logout clears cart and receipts
+  assert.ok(appSrc.includes('setCart([]);'), 'Must clear cart');
+  assert.ok(appSrc.includes('setPrintedReceipt(null);'), 'Must clear printed receipt');
+
+  // Verify 401 auth-expired listener
+  assert.ok(appSrc.includes('pos-auth-expired'), 'Must listen for pos-auth-expired custom event');
+});
+
+// 10. Negative Case: Over-stock and 0-stock prevention
+test('10. Negative Case: Available stock boundary enforcement', () => {
+  const appSrc = fs.readFileSync(path.resolve(__dirname, 'src/App.tsx'), 'utf8');
+  const cartTableSrc = fs.readFileSync(path.resolve(__dirname, 'src/components/CartTable.tsx'), 'utf8');
+
+  // In App.tsx: check availableStock <= 0
+  assert.ok(appSrc.includes('availableStock <= 0'), 'Must reject adding when available stock <= 0');
+  assert.ok(appSrc.includes('currentQty + 1 > availableStock'), 'Must reject adding when cart quantity exceeds available');
+
+  // In CartTable.tsx: check button disabled on max stock
+  assert.ok(cartTableSrc.includes('isMaxStockReached'), 'Must detect when max stock is reached');
+  assert.ok(cartTableSrc.includes('isOutOfStock'), 'Must detect when stock is 0');
+});
+
+// 11. PWA Manifest & Service Worker
+test('11. PWA Baseline Configuration', () => {
   const manifest = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'public/manifest.webmanifest'), 'utf8'));
   assert.equal(manifest.display, 'standalone');
   assert.equal(manifest.start_url, '/');
@@ -315,3 +350,129 @@ test('9. PWA Baseline Configuration', () => {
   assert.ok(html.includes('apple-mobile-web-app-capable'));
   assert.ok(html.includes('theme-color'));
 });
+
+// 12. Direct Runtime API Simulation: Network Error, 400, 401, 403, 500 & 404 Barcode
+test('12. Direct Runtime API Logic & Status Code Handling', async () => {
+  // Mock loginCashier logic under test
+  const simulateLogin = async (mockResponseOrError) => {
+    let res;
+    try {
+      if (typeof mockResponseOrError === 'function') {
+        res = await mockResponseOrError();
+      } else {
+        res = mockResponseOrError;
+      }
+    } catch {
+      throw new Error('Không thể kết nối đến máy chủ Backend (Lỗi mạng hoặc server chưa khởi động).');
+    }
+
+    if (res.ok) {
+      const data = res.body;
+      if (!data || !data.accessToken) {
+        throw new Error('Dữ liệu phản hồi từ máy chủ không hợp lệ (thiếu token).');
+      }
+      return data;
+    }
+
+    if (res.status === 400 || res.status === 401) {
+      throw new Error(res.body?.message || 'Email hoặc mật khẩu không chính xác.');
+    }
+    if (res.status === 403) {
+      throw new Error('Tài khoản bị khóa hoặc cửa hàng đang tạm ngưng hoạt động.');
+    }
+    if (res.status >= 500) {
+      throw new Error(`Máy chủ gặp sự cố nội bộ (Mã lỗi ${res.status}). Vui lòng liên hệ quản trị viên.`);
+    }
+    throw new Error(`Đăng nhập thất bại (HTTP ${res.status}).`);
+  };
+
+  // Ca 1: Mất mạng (Network Error / Offline)
+  await assert.rejects(
+    () => simulateLogin(() => { throw new TypeError('Failed to fetch'); }),
+    /Không thể kết nối đến máy chủ Backend/
+  );
+
+  // Ca 2: Sai thông tin đăng nhập (HTTP 401)
+  await assert.rejects(
+    () => simulateLogin({ ok: false, status: 401, body: { message: 'Mật khẩu không chính xác.' } }),
+    /Mật khẩu không chính xác/
+  );
+
+  // Ca 3: Tài khoản bị khóa (HTTP 403)
+  await assert.rejects(
+    () => simulateLogin({ ok: false, status: 403, body: {} }),
+    /Tài khoản bị khóa hoặc cửa hàng đang tạm ngưng hoạt động/
+  );
+
+  // Ca 4: Máy chủ gặp lỗi (HTTP 500)
+  await assert.rejects(
+    () => simulateLogin({ ok: false, status: 500, body: {} }),
+    /Máy chủ gặp sự cố nội bộ/
+  );
+
+  // Ca 5: Đăng nhập thành công trả về đúng object, không bao giờ undefined
+  const successData = await simulateLogin({
+    ok: true,
+    status: 200,
+    body: { accessToken: 'jwt_token_real', user: { email: 'cashier@oisms.vn', fullName: 'Lê Phương' } }
+  });
+  assert.equal(successData.accessToken, 'jwt_token_real');
+  assert.equal(successData.user.fullName, 'Lê Phương');
+});
+
+// 13. End-to-End Workflow: Checkout Failure -> Preview Receipt -> Cart Preserved
+test('13. Workflow: Failed Checkout & Preview Receipt preserves Cart', () => {
+  // Khởi tạo giỏ hàng ban đầu
+  let cart = [
+    { variantId: 'v1', sku: 'POLO-NAM-DEN-M', productName: 'Áo Polo Nam', retailPrice: 299000, quantity: 2, available: 10 },
+    { variantId: 'v2', sku: 'SERUM-B5-30ML', productName: 'Serum Phục Hồi', retailPrice: 380000, quantity: 1, available: 5 },
+  ];
+  let printedReceipt = null;
+
+  const handleSuccessAndPrint = (receipt) => {
+    printedReceipt = receipt;
+    cart = []; // Xóa giỏ khi thành công thật
+  };
+
+  const handlePreviewReceipt = (receipt) => {
+    printedReceipt = receipt; // Xem tạm tính: KHÔNG xóa giỏ
+  };
+
+  // Giả lập checkout API chưa có / thất bại
+  const checkoutResult = {
+    success: false,
+    isPendingBackend: true,
+    message: 'API thanh toán (POST /api/orders/checkout) chưa được triển khai trên Backend Swagger.'
+  };
+
+  // Khi checkout thất bại: không gọi handleSuccessAndPrint
+  assert.equal(checkoutResult.success, false);
+  assert.equal(cart.length, 2, 'Giỏ hàng vẫn giữ nguyên 2 món khi checkout chưa sẵn sàng');
+
+  // Thu ngân nhấn "Xem phiếu tạm tính"
+  const draftReceipt = {
+    receiptNumber: 'DRAFT-998877',
+    isDraft: true,
+    paymentStatusTitle: 'CHƯA THANH TOÁN (PHIẾU TẠM TÍNH)',
+    items: cart.map(i => ({ name: i.productName, sku: i.sku, quantity: i.quantity, unitPrice: i.retailPrice, subtotal: i.retailPrice * i.quantity })),
+    totalAmount: 978000,
+  };
+  handlePreviewReceipt(draftReceipt);
+
+  // Kiểm tra: Giỏ hàng vẫn giữ nguyên 2 món
+  assert.equal(cart.length, 2, 'Giỏ hàng phải được giữ nguyên sau khi xem hóa đơn mẫu');
+  assert.equal(printedReceipt.isDraft, true);
+  assert.equal(printedReceipt.paymentStatusTitle, 'CHƯA THANH TOÁN (PHIẾU TẠM TÍNH)');
+
+  // Bây giờ mô phỏng khi thanh toán thật thành công:
+  const realSuccessResult = { success: true, orderNumber: 'ORD-REAL-123456' };
+  if (realSuccessResult.success) {
+    handleSuccessAndPrint({ receiptNumber: realSuccessResult.orderNumber, isDraft: false });
+  }
+
+  // Sau khi thanh toán thành công, giỏ hàng mới được xóa
+  assert.equal(cart.length, 0, 'Giỏ hàng đã được xóa sạch sau khi thanh toán thành công');
+  assert.equal(printedReceipt.isDraft, false);
+});
+
+

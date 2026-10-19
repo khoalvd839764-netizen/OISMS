@@ -9,9 +9,12 @@ interface PaymentModalProps {
   items: CartItem[];
   branchId: string;
   branchName: string;
+  branchAddress?: string;
+  branchPhone?: string;
   tenantName: string;
   cashierName: string;
   onSuccessAndPrint: (receipt: ReceiptData) => void;
+  onPreviewReceipt: (receipt: ReceiptData) => void;
 }
 
 export const PaymentModal: React.FC<PaymentModalProps> = ({
@@ -20,9 +23,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   items,
   branchId,
   branchName,
+  branchAddress,
+  branchPhone,
   tenantName,
   cashierName,
   onSuccessAndPrint,
+  onPreviewReceipt,
 }) => {
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'BANK_TRANSFER_QR'>('CASH');
   const [customerName, setCustomerName] = useState('');
@@ -30,7 +36,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [userGivenAmount, setUserGivenAmount] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiNotice, setApiNotice] = useState<{ type: 'warning' | 'error' | 'success'; text: string; details?: any } | null>(null);
-  const [transferCode] = useState(() => Math.floor(100000 + Math.random() * 900000).toString());
 
   const totalAmount = items.reduce((sum, item) => sum + item.retailPrice * item.quantity, 0);
   const amountGiven = userGivenAmount !== null ? userGivenAmount : totalAmount;
@@ -92,8 +97,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       createdAt: new Date().toLocaleString('vi-VN'),
       tenantName: tenantName || 'CỬA HÀNG OISMS',
       branchName: branchName || 'Chi nhánh mặc định',
-      branchAddress: 'Chi nhánh bán lẻ POS',
-      branchPhone: '1900 6868',
+      branchAddress: branchAddress || 'Chi nhánh bán lẻ POS',
+      branchPhone: branchPhone || '1900 6868',
       cashierName: cashierName || 'Thu ngân',
       customerName: customerName.trim() || undefined,
       customerPhone: customerPhone.trim() || undefined,
@@ -108,6 +113,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       paymentMethod,
       amountGiven: paymentMethod === 'CASH' ? amountGiven : totalAmount,
       changeDue: paymentMethod === 'CASH' ? changeDue : 0,
+      isDraft: false,
     };
 
     try {
@@ -118,8 +124,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         onSuccessAndPrint(receiptData);
         onClose();
       } else {
-        // Theo tiêu chí DoD Sprint 2:
-        // "checkout chưa sẵn sàng không báo thành công; bản in hóa đơn chuẩn bị sẵn dùng dữ liệu API"
+        // Checkout thất bại hoặc API chưa sẵn sàng: Giữ nguyên giỏ hàng, thông báo rõ ràng
         setApiNotice({
           type: 'warning',
           text: result.message,
@@ -137,13 +142,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   };
 
   const handlePrintPreview = () => {
-    const receiptData: ReceiptData = {
-      receiptNumber: `ORD-POS-${Date.now().toString().slice(-6)}`,
+    // Phiếu xem trước / tạm tính: tách biệt hoàn toàn khỏi thanh toán thành công, không xóa giỏ
+    const draftReceipt: ReceiptData = {
+      receiptNumber: `DRAFT-${Date.now().toString().slice(-6)}`,
       createdAt: new Date().toLocaleString('vi-VN'),
       tenantName: tenantName || 'CỬA HÀNG OISMS',
       branchName: branchName || 'Chi nhánh mặc định',
-      branchAddress: 'Chi nhánh bán lẻ POS',
-      branchPhone: '1900 6868',
+      branchAddress: branchAddress || 'Chi nhánh bán lẻ POS',
+      branchPhone: branchPhone || '1900 6868',
       cashierName: cashierName || 'Thu ngân',
       customerName: customerName.trim() || undefined,
       customerPhone: customerPhone.trim() || undefined,
@@ -158,8 +164,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       paymentMethod,
       amountGiven: paymentMethod === 'CASH' ? amountGiven : totalAmount,
       changeDue: paymentMethod === 'CASH' ? changeDue : 0,
+      isDraft: true,
+      paymentStatusTitle: 'CHƯA THANH TOÁN (PHIẾU TẠM TÍNH)',
     };
-    onSuccessAndPrint(receiptData);
+    onPreviewReceipt(draftReceipt);
     onClose();
   };
 
@@ -339,16 +347,19 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 </svg>
               </div>
 
-              <div className="space-y-1 text-xs text-slate-600">
-                <p className="font-bold text-slate-800 text-sm">
-                  Chuyển đúng số tiền: <span className="text-indigo-600">{formatCurrency(totalAmount)}</span>
-                </p>
-                <p>Ngân hàng: <strong>MB Bank (Ngân hàng Quân Đội)</strong></p>
-                <p>Số tài khoản: <strong className="font-mono text-slate-900">0987654321</strong></p>
-                <p>Chủ TK: <strong>{tenantName || 'OISMS STORE'}</strong></p>
-                <p className="text-[11px] text-slate-400">
-                  Nội dung CK: <strong className="font-mono text-slate-700">POS {transferCode}</strong>
-                </p>
+              <div className="space-y-2 text-xs text-slate-600 max-w-sm">
+                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-left">
+                  <div className="font-bold flex items-center gap-1.5 text-xs text-amber-800 mb-1">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+                    <span>Mã QR mô phỏng (Tính năng đang phát triển)</span>
+                  </div>
+                  <p className="text-[11px] leading-relaxed text-amber-700 m-0">
+                    Cổng VietQR động và Webhook đối soát ngân hàng đang được đội Backend hoàn thiện. <strong>Vui lòng KHÔNG chuyển tiền thật</strong> vì hệ thống chưa thể tự động ghi nhận thanh toán.
+                  </p>
+                </div>
+                <div className="pt-1 text-slate-500 text-[11px]">
+                  Số tiền cần thanh toán: <span className="font-bold text-slate-800 text-sm">{formatCurrency(totalAmount)}</span>
+                </div>
               </div>
             </div>
           )}
@@ -395,7 +406,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 <div className="font-semibold">{apiNotice.text}</div>
               </div>
               <p className="text-[11px] text-slate-600">
-                (Theo tiêu chí DoD Sprint 2: POS tra cứu SKU thật; checkout chưa sẵn sàng không báo thành công; bản in hóa đơn chuẩn bị sẵn dùng dữ liệu API).
+                (Đề xuất DTO Checkout POS: Đang chờ Backend thống nhất hợp đồng API Swagger. Trong lúc này, giỏ hàng vẫn được giữ nguyên).
               </p>
               <div className="pt-2 flex gap-2">
                 <button
@@ -404,7 +415,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold text-xs transition-colors"
                 >
                   <Printer className="w-3.5 h-3.5" />
-                  <span>Xem & In hóa đơn mẫu với dữ liệu thật</span>
+                  <span>Xem phiếu tạm tính (Chưa thanh toán - Giữ nguyên giỏ)</span>
                 </button>
               </div>
             </div>
@@ -418,7 +429,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             onClick={onClose}
             className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors"
           >
-            Hủy bỏ (Esc)
+            Đóng lại (Esc)
           </button>
 
           <button
@@ -432,11 +443,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             }`}
           >
             {isSubmitting ? (
-              <span>Đang gửi DTO...</span>
+              <span>Đang gửi Checkout API...</span>
             ) : (
               <>
                 <ShieldCheck className="w-4 h-4" />
-                <span>Xác nhận Thanh toán & In (F4)</span>
+                <span>Gửi Checkout đơn hàng (F4)</span>
               </>
             )}
           </button>

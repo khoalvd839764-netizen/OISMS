@@ -80,7 +80,9 @@ export const CartTable: React.FC<CartTableProps> = ({
           </thead>
           <tbody className="divide-y divide-slate-100 text-sm">
             {items.map((item, index) => {
+              const isOutOfStock = item.available <= 0;
               const isOverStock = item.available > 0 && item.quantity > item.available;
+              const isMaxStockReached = item.available > 0 && item.quantity >= item.available;
               const subtotal = item.retailPrice * item.quantity;
 
               return (
@@ -102,6 +104,12 @@ export const CartTable: React.FC<CartTableProps> = ({
                       {item.variantName && <span>Biến thể: {item.variantName}</span>}
                       {item.barcode && <span className="text-slate-400">Barcode: {item.barcode}</span>}
                     </div>
+                    {isOutOfStock && (
+                      <div className="flex items-center gap-1 text-[11px] text-rose-600 font-bold mt-1">
+                        <AlertTriangle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                        <span>Hết hàng tại chi nhánh này (Tồn: 0)</span>
+                      </div>
+                    )}
                     {isOverStock && (
                       <div className="flex items-center gap-1 text-[11px] text-amber-600 font-medium mt-1">
                         <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
@@ -129,20 +137,27 @@ export const CartTable: React.FC<CartTableProps> = ({
                       <input
                         type="number"
                         min="1"
+                        max={item.available > 0 ? item.available : 1}
                         value={item.quantity}
                         onChange={(e) => {
                           const val = parseInt(e.target.value, 10);
                           if (!isNaN(val) && val >= 1) {
-                            onSetQuantity(item.variantId, val);
+                            const maxLimit = item.available > 0 ? item.available : 1;
+                            onSetQuantity(item.variantId, Math.min(val, maxLimit));
                           }
                         }}
                         className="w-12 text-center font-bold text-slate-800 text-sm focus:outline-none"
                       />
                       <button
                         type="button"
+                        disabled={isMaxStockReached || isOutOfStock}
                         onClick={() => onUpdateQuantity(item.variantId, 1)}
-                        className="w-7 h-7 flex items-center justify-center text-slate-600 hover:bg-slate-100 rounded-md transition-colors"
-                        title="Tăng 1"
+                        className={`w-7 h-7 flex items-center justify-center rounded-md transition-colors ${
+                          isMaxStockReached || isOutOfStock
+                            ? 'text-slate-300 cursor-not-allowed bg-slate-50'
+                            : 'text-slate-600 hover:bg-slate-100'
+                        }`}
+                        title={isMaxStockReached ? `Đã đạt giới hạn tồn khả dụng (${item.available})` : 'Tăng 1'}
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>

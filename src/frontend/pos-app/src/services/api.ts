@@ -40,137 +40,67 @@ function getHeaders(): HeadersInit {
   return headers;
 }
 
-export const FALLBACK_BRANCHES: Branch[] = [
-  { id: '11111111-0000-0000-0001-000000000001', name: 'Chi nhánh Quận 1 (TP.HCM)', isActive: true },
-  { id: '22222222-0000-0000-0001-000000000001', name: 'Chi nhánh Đống Đa (Hà Nội)', isActive: true },
-];
-
-export const DEMO_CATALOG: PosProductSearchResponse[] = [
-  {
-    variantId: '11111111-0000-0000-0006-000000000001',
-    productId: '11111111-0000-0000-0005-000000000001',
-    sku: 'POLO-NAM-DEN-M',
-    productName: 'Áo Polo Nam Thể Thao',
-    variantName: 'Đen / Size M',
-    barcode: 'POLONAMDENM',
-    retailPrice: 299000,
-    color: 'Đen',
-    size: 'M',
-    onHand: 50,
-    reserved: 5,
-    available: 45,
-  },
-  {
-    variantId: '11111111-0000-0000-0006-000000000002',
-    productId: '11111111-0000-0000-0005-000000000001',
-    sku: 'POLO-NAM-TRANG-L',
-    productName: 'Áo Polo Nam Thể Thao',
-    variantName: 'Trắng / Size L',
-    barcode: '8935001100025',
-    retailPrice: 299000,
-    color: 'Trắng',
-    size: 'L',
-    onHand: 30,
-    reserved: 0,
-    available: 30,
-  },
-  {
-    variantId: '22222222-0000-0000-0006-000000000001',
-    productId: '22222222-0000-0000-0005-000000000001',
-    sku: 'SERUM-B5-30ML',
-    productName: 'Serum Phục Hồi Da B5',
-    variantName: 'Chai 30ml',
-    barcode: '8935002100017',
-    retailPrice: 380000,
-    color: 'Trong suốt',
-    size: '30ml',
-    onHand: 25,
-    reserved: 3,
-    available: 22,
-  },
-  {
-    variantId: '11111111-0000-0000-0006-000000000003',
-    productId: '11111111-0000-0000-0005-000000000002',
-    sku: 'JEANS-SLIM-31',
-    productName: 'Quần Jeans Slimfit Nam',
-    variantName: 'Xanh Đậm / Size 31',
-    barcode: '8935003100016',
-    retailPrice: 450000,
-    color: 'Xanh Đậm',
-    size: '31',
-    onHand: 18,
-    reserved: 2,
-    available: 16,
-  },
-  {
-    variantId: '11111111-0000-0000-0006-000000000004',
-    productId: '11111111-0000-0000-0005-000000000003',
-    sku: 'OXFORD-SHIRT-M',
-    productName: 'Áo Sơ Mi Oxford Dài Tay',
-    variantName: 'Trắng / Size M',
-    barcode: '8935004100015',
-    retailPrice: 350000,
-    color: 'Trắng',
-    size: 'M',
-    onHand: 0,
-    reserved: 0,
-    available: 0,
-  },
-];
+// Real API client - No mock or demo fallback in production logic
 
 /**
  * Đăng nhập thu ngân / nhân viên
+ * Xử lý đầy đủ các mã lỗi HTTP 400, 401, 403, 500, lỗi mạng.
+ * Không trả về undefined; không tự động fallback đăng nhập demo.
  */
 export async function loginCashier(email: string, password: string) {
+  let res: Response;
   try {
-    const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    res = await fetch(`${API_BASE_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
-
-    if (res.ok) {
-      const data = await res.json();
-      if (data.accessToken) {
-        setAuthToken(data.accessToken);
-        if (data.user) {
-          setStoredUser({
-            fullName: data.user.fullName || data.user.email,
-            email: data.user.email,
-            tenantName: data.user.tenantName,
-          });
-        }
-      }
-      return data;
-    }
-
-    // Nếu mật khẩu sai từ server trả về
-    if (res.status === 400 || res.status === 401) {
-      const errorData = await res.json().catch(() => ({}));
-      throw new Error(errorData.message || (errorData.errors ? errorData.errors.join(', ') : 'Email hoặc mật khẩu không chính xác.'));
-    }
-  } catch (err: any) {
-    // Nếu lỗi do server 500 hoặc offline (chưa chạy DB), cho phép đăng nhập thu ngân demo
-    if (!err.message?.includes('không chính xác')) {
-      const mockToken = 'demo_jwt_pos_token_2026';
-      setAuthToken(mockToken);
-      const user = {
-        fullName: email.includes('owner') ? 'Chủ Shop Thời Trang (Demo)' : 'Thu Ngân Quầy 01 (Lê Phương)',
-        email: email,
-        tenantName: 'Cửa hàng Thời trang ABC (OISM Demo)',
-      };
-      setStoredUser(user);
-      return {
-        accessToken: mockToken,
-        user,
-      };
-    }
-    throw err;
+  } catch (_netErr: any) {
+    throw new Error('Không thể kết nối đến máy chủ Backend (Lỗi mạng hoặc server chưa khởi động).');
   }
+
+  if (res.ok) {
+    const data = await res.json().catch(() => null);
+    if (!data || !data.accessToken) {
+      throw new Error('Dữ liệu phản hồi từ máy chủ không hợp lệ (thiếu token).');
+    }
+    setAuthToken(data.accessToken);
+    if (data.user) {
+      setStoredUser({
+        fullName: data.user.fullName || data.user.email || email,
+        email: data.user.email || email,
+        tenantName: data.user.tenantName,
+      });
+    } else {
+      setStoredUser({
+        fullName: email,
+        email: email,
+      });
+    }
+    return data;
+  }
+
+  // Xử lý các mã lỗi HTTP cụ thể
+  if (res.status === 400 || res.status === 401) {
+    const errData = await res.json().catch(() => ({}));
+    const msg = errData.message || (errData.errors ? (Array.isArray(errData.errors) ? errData.errors.join(', ') : JSON.stringify(errData.errors)) : 'Email hoặc mật khẩu không chính xác.');
+    throw new Error(msg);
+  }
+
+  if (res.status === 403) {
+    throw new Error('Tài khoản bị khóa hoặc cửa hàng đang tạm ngưng hoạt động.');
+  }
+
+  if (res.status >= 500) {
+    throw new Error(`Máy chủ gặp sự cố nội bộ (Mã lỗi ${res.status}). Vui lòng liên hệ quản trị viên.`);
+  }
+
+  throw new Error(`Đăng nhập thất bại (HTTP ${res.status}).`);
 }
 
 /**
  * Lấy danh sách Chi nhánh trực thuộc cửa hàng
+ * Bỏ fallback dữ liệu mẫu; trả về danh sách thật hoặc mảng rỗng nếu lỗi.
  */
 export async function fetchBranches(): Promise<Branch[]> {
   try {
@@ -179,104 +109,125 @@ export async function fetchBranches(): Promise<Branch[]> {
       headers: getHeaders(),
     });
 
+    if (res.status === 401) {
+      removeAuthToken();
+      window.dispatchEvent(new CustomEvent('pos-auth-expired'));
+      return [];
+    }
+
     if (res.ok) {
       const data = await res.json();
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         return data;
       }
     }
   } catch (err) {
-    console.warn('Không thể kết nối đến Backend để lấy danh sách chi nhánh (sử dụng fallback):', err);
+    console.error('Lỗi kết nối khi lấy danh sách chi nhánh:', err);
   }
 
-  return FALLBACK_BRANCHES;
+  return [];
 }
 
 /**
  * Tìm kiếm nhanh sản phẩm tại quầy POS theo Tên / SKU / Barcode kèm tồn khả dụng
  * Endpoint: GET /api/pos/search?query={keyword}&branchId={branchId}
+ * Không dùng dữ liệu mẫu; trả về dữ liệu thật từ database.
  */
 export async function searchPosProducts(query: string, branchId?: string): Promise<PosProductSearchResponse[]> {
   if (!query || query.trim().length === 0) {
     return [];
   }
 
-  try {
-    const params = new URLSearchParams();
-    params.append('query', query.trim());
-    if (branchId) {
-      params.append('branchId', branchId);
-    }
+  const params = new URLSearchParams();
+  params.append('query', query.trim());
+  if (branchId) {
+    params.append('branchId', branchId);
+  }
 
+  try {
     const res = await fetch(`${API_BASE_URL}/api/pos/search?${params.toString()}`, {
       method: 'GET',
       headers: getHeaders(),
     });
 
-    if (res.ok) {
-      return await res.json();
+    if (res.status === 401) {
+      removeAuthToken();
+      window.dispatchEvent(new CustomEvent('pos-auth-expired'));
+      throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
     }
-  } catch (err) {
-    console.warn('Tra cứu Real API gặp sự cố, tự động dùng Catalog dự phòng:', err);
-  }
 
-  // Graceful fallback cho tra cứu nhanh khi DB chưa chạy
-  const q = query.trim().toLowerCase();
-  return DEMO_CATALOG.filter(
-    (item) =>
-      item.sku.toLowerCase().includes(q) ||
-      item.productName.toLowerCase().includes(q) ||
-      (item.barcode && item.barcode.toLowerCase().includes(q)) ||
-      (item.variantName && item.variantName.toLowerCase().includes(q))
-  );
+    if (res.ok) {
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    }
+
+    if (res.status === 404) {
+      return [];
+    }
+
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || `Lỗi máy chủ khi tra cứu (HTTP ${res.status})`);
+  } catch (err: any) {
+    if (err.message?.includes('Phiên đăng nhập đã hết hạn')) {
+      throw err;
+    }
+    console.error('Lỗi tra cứu sản phẩm:', err);
+    throw new Error(err.message || 'Không thể kết nối đến máy chủ để tìm kiếm sản phẩm.');
+  }
 }
 
 /**
  * Quét mã vạch (Barcode Scanner) tìm chính xác một SKU kèm tồn khả dụng
  * Endpoint: GET /api/pos/barcode/{barcode}?branchId={branchId}
+ * Không dùng dữ liệu mẫu; ném lỗi khi không tìm thấy.
  */
 export async function scanPosBarcode(barcode: string, branchId?: string): Promise<PosProductSearchResponse> {
   if (!barcode || barcode.trim().length === 0) {
     throw new Error('Mã vạch không được để trống.');
   }
 
+  const params = new URLSearchParams();
+  if (branchId) {
+    params.append('branchId', branchId);
+  }
+
+  const url = `${API_BASE_URL}/api/pos/barcode/${encodeURIComponent(barcode.trim())}${params.toString() ? '?' + params.toString() : ''}`;
+
+  let res: Response;
   try {
-    const params = new URLSearchParams();
-    if (branchId) {
-      params.append('branchId', branchId);
-    }
-
-    const url = `${API_BASE_URL}/api/pos/barcode/${encodeURIComponent(barcode.trim())}${params.toString() ? '?' + params.toString() : ''}`;
-
-    const res = await fetch(url, {
+    res = await fetch(url, {
       method: 'GET',
       headers: getHeaders(),
     });
-
-    if (res.ok) {
-      return await res.json();
-    }
-  } catch (err) {
-    console.warn('Tra cứu Barcode Real API gặp sự cố, tự động dùng Catalog dự phòng:', err);
+  } catch (_err: any) {
+    throw new Error('Không thể kết nối đến máy chủ khi quét mã vạch.');
   }
 
-  const code = barcode.trim().toLowerCase();
-  const matched = DEMO_CATALOG.find(
-    (item) => item.barcode?.toLowerCase() === code || item.sku.toLowerCase() === code
-  );
-
-  if (matched) {
-    return matched;
+  if (res.status === 401) {
+    removeAuthToken();
+    window.dispatchEvent(new CustomEvent('pos-auth-expired'));
+    throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
   }
 
-  throw new Error(`Không tìm thấy sản phẩm nào khớp với mã "${barcode}".`);
+  if (res.ok) {
+    const data = await res.json();
+    return data;
+  }
+
+  if (res.status === 404) {
+    throw new Error(`Không tìm thấy sản phẩm nào khớp với mã vạch "${barcode}".`);
+  }
+
+  const err = await res.json().catch(() => ({}));
+  throw new Error(err.message || `Lỗi máy chủ khi quét mã (HTTP ${res.status}).`);
 }
 
 /**
- * Gửi yêu cầu Checkout thanh toán theo hợp đồng DTO Sprint 2
- * Theo tiêu chí bàn giao: "checkout chưa sẵn sàng không báo thành công; bản in hóa đơn chuẩn bị sẵn dùng dữ liệu API"
+ * Gửi yêu cầu Checkout thanh toán theo đề xuất DTO POS
+ * Ghi rõ: DTO đang đề xuất/chờ backend thống nhất contract.
+ * Không giả lập thành công khi Backend chưa có endpoint hoặc trả lỗi.
  */
-export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{ success: boolean; message: string; orderNumber?: string; contractReady: boolean }> {
+export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{ success: boolean; message: string; orderNumber?: string; isPendingBackend?: boolean }> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/orders/checkout`, {
       method: 'POST',
@@ -285,37 +236,33 @@ export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{ s
     });
 
     if (res.ok) {
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       return {
         success: true,
         message: 'Thanh toán đơn hàng thành công!',
-        orderNumber: data.orderNumber || data.number || `ORD-${Date.now().toString().slice(-6)}`,
-        contractReady: true,
+        orderNumber: data.orderNumber || data.number,
       };
     }
 
     if (res.status === 404 || res.status === 405 || res.status === 501) {
-      // Backend chưa có endpoint Checkout (theo tiến độ Sprint 2)
+      // Backend chưa có endpoint POST /api/orders/checkout
       return {
         success: false,
-        contractReady: true,
-        message: `Endpoint thanh toán Backend (POST /api/orders/checkout) đang được hoàn thiện theo hợp đồng DTO Sprint 2. Dữ liệu đơn đã được đóng gói chuẩn DTO sẵn sàng kết nối!`,
-        orderNumber: `ORD-POS-${Date.now().toString().slice(-6)}`,
+        isPendingBackend: true,
+        message: 'API thanh toán (POST /api/orders/checkout) chưa được triển khai trên Backend Swagger. DTO checkout đề xuất đã được chuẩn bị đầy đủ và đang chờ thống nhất hợp đồng API giữa 2 bên.',
       };
     }
 
     const err = await res.json().catch(() => ({}));
     return {
       success: false,
-      contractReady: true,
-      message: err.message || `Backend trả về mã lỗi ${res.status}.`,
+      message: err.message || `Thanh toán thất bại (Mã lỗi ${res.status}).`,
     };
   } catch (err: any) {
     return {
       success: false,
-      contractReady: true,
-      message: `Không thể kết nối đến máy chủ Backend (${err.message || 'Lỗi mạng'}). Dữ liệu giỏ hàng và hợp đồng DTO đã được chuẩn bị đầy đủ!`,
-      orderNumber: `ORD-PREVIEW-${Date.now().toString().slice(-6)}`,
+      message: `Không thể kết nối đến máy chủ để thực hiện thanh toán (${err.message || 'Lỗi mạng'}). Giỏ hàng được giữ nguyên.`,
     };
   }
 }
+
