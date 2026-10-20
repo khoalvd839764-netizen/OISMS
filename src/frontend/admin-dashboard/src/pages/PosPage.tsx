@@ -38,6 +38,12 @@ export function PosPage() {
   // Search input ref for F2 keyboard shortcut
   const searchInputRef = useRef<HTMLInputElement>(null);
 
+  // Cập nhật tiêu đề thẻ trình duyệt cho giao diện POS
+  useEffect(() => {
+    const storeSuffix = user?.tenantName ? ` - ${user.tenantName}` : '';
+    document.title = `OISMS POS · Quầy Bán Hàng${storeSuffix}`;
+  }, [user?.tenantName]);
+
   // Load initial branches and online listener
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);

@@ -1,5 +1,5 @@
 import { ArrowRight, Check, Eye, EyeOff, LockKeyhole, Mail, Phone, ShieldCheck, Store, User, AlertCircle } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, Input } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
@@ -19,6 +19,12 @@ export function AuthPage() {
 
   const { login, registerTenant } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    document.title = register
+      ? "Đăng ký Doanh nghiệp | OISMS Hệ thống Đa kênh"
+      : "Đăng nhập | OISMS Hệ thống Đa kênh";
+  }, [register]);
 
   const handleLogin = async () => {
     setErrorMessage(null);
