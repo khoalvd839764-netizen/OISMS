@@ -44,7 +44,7 @@ services:
     container_name: oism_pgadmin
     restart: always
     environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@oisms.local}
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@oisms.com}
       PGADMIN_DEFAULT_PASSWORD: "${PGADMIN_PASSWORD:?Error: PGADMIN_PASSWORD must be set in .env}"
     ports:
       - "${PGADMIN_PORT:-5050}:80"

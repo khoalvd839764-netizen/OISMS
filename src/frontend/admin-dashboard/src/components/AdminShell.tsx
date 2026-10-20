@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Boxes,
@@ -56,15 +56,33 @@ export function AdminShell() {
   const secondaryTitles: Record<string, string> = {
     "/": "Tổng quan",
     "/admin": "Tổng quan",
+    "/products": "Sản phẩm",
+    "/admin/products": "Sản phẩm",
+    "/inventory": "Kho & sổ kho",
+    "/admin/inventory": "Kho & sổ kho",
+    "/orders": "Đơn đa kênh",
+    "/admin/orders": "Đơn đa kênh",
+    "/reports": "Báo cáo",
+    "/admin/reports": "Báo cáo",
     "/demo-tools": "Công cụ demo",
-    "/handoff": "Handoff",
+    "/handoff": "Handoff kỹ thuật",
+    "/admin/handoff": "Handoff kỹ thuật",
     "/organization": "Nhân viên & chi nhánh",
+    "/admin/organization": "Nhân viên & chi nhánh",
   };
 
   const current =
     nav.find((item) => item.to === location.pathname)?.label ||
     secondaryTitles[location.pathname] ||
-    "OISM";
+    "OISMS";
+
+  useEffect(() => {
+    const portalLabel =
+      account.role === "Staff"
+        ? "OISMS Staff · Kho & Vận hành"
+        : "OISMS Admin · Quản trị Cửa hàng";
+    document.title = `${current} | ${portalLabel}`;
+  }, [current, account.role]);
 
   return (
     <div className="app-shell">

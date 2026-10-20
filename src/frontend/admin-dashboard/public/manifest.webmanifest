@@ -1,8 +1,8 @@
 {
-  "name": "OISM Admin - Quản trị bán hàng và tồn kho",
-  "short_name": "OISM Admin",
-  "description": "Ứng dụng quản trị bán hàng và tồn kho đa kênh.",
-  "start_url": "/admin",
+  "name": "OISM - Quản lý bán hàng và tồn kho",
+  "short_name": "OISM POS",
+  "description": "Prototype quản lý bán hàng và tồn kho đa kênh.",
+  "start_url": "/pos",
   "display": "standalone",
   "background_color": "#f6f7f9",
   "theme_color": "#1769e0",

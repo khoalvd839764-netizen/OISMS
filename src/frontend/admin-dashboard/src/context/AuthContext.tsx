@@ -22,7 +22,7 @@ interface AuthContextValue {
   isLoading: boolean;
   networkError: string | null;
   setNetworkError: (err: string | null) => void;
-  login: (credentials: { email: string; password: string }) => Promise<{ success: boolean; error?: string }>;
+  login: (credentials: { email: string; password: string }) => Promise<{ success: boolean; user?: UserAccount; error?: string }>;
   logout: () => Promise<void>;
   registerTenant: (payload: {
     tenantName: string;
@@ -31,7 +31,7 @@ interface AuthContextValue {
     ownerPassword: string;
     ownerFullName: string;
     ownerPhone?: string;
-  }) => Promise<{ success: boolean; error?: string }>;
+  }) => Promise<{ success: boolean; user?: UserAccount; error?: string }>;
   selectAccount: (accountId: string) => UserAccount;
 }
 
@@ -106,7 +106,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           tenantName: data.tenantName || "Cửa hàng của tôi",
           tenantCode: data.tenantCode || "",
           branchName: "Chi nhánh chính",
-          landingPath: role === "Cashier" ? "/403" : "/admin",
+          landingPath: role === "Cashier" ? "/pos" : "/admin",
         };
         setUser(accountData);
       } catch (err: any) {
@@ -155,11 +155,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         tenantName: userData.tenantName || "Cửa hàng của tôi",
         tenantCode: userData.tenantCode || "",
         branchName: "Chi nhánh chính",
-        landingPath: role === "Cashier" ? "/403" : "/admin",
+        landingPath: role === "Cashier" ? "/pos" : "/admin",
       };
 
       setUser(accountData);
-      return { success: true };
+      return { success: true, user: accountData };
     } catch (err: any) {
       if (!err?.response) {
         return {
