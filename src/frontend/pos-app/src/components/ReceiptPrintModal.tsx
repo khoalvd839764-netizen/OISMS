@@ -22,59 +22,73 @@ export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({ receipt, o
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in no-print-bg">
       <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden flex flex-col max-h-[95vh] no-print-border">
         {/* Header Modal Bar (hidden on print) */}
-        <div className="px-5 py-3.5 bg-slate-900 text-white flex items-center justify-between no-print">
+        <div className={`px-5 py-3.5 text-white flex items-center justify-between no-print ${receipt.isDraft ? 'bg-amber-900' : 'bg-slate-900'}`}>
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-            <span className="font-bold text-sm">Hóa Đơn Bán Lẻ Khổ 80mm</span>
+            <CheckCircle2 className={`w-5 h-5 ${receipt.isDraft ? 'text-amber-400' : 'text-emerald-400'}`} />
+            <span className="font-bold text-sm">
+              {receipt.isDraft ? 'Phiếu Tạm Tính (Chưa thanh toán)' : 'Hóa Đơn Bán Lẻ Khổ 80mm'}
+            </span>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-1 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Action Button Strip (hidden on print) */}
-        <div className="p-3 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between no-print">
-          <span className="text-xs text-indigo-900 font-semibold">
-            Bản in đã sẵn sàng với dữ liệu API
+        <div className={`p-3 border-b flex items-center justify-between no-print ${receipt.isDraft ? 'bg-amber-50 border-amber-200' : 'bg-indigo-50 border-indigo-100'}`}>
+          <span className={`text-xs font-semibold ${receipt.isDraft ? 'text-amber-900' : 'text-indigo-900'}`}>
+            {receipt.isDraft ? 'Bản in tạm tính - Đơn hàng chưa ghi nhận thanh toán' : 'Bản in hóa đơn chính thức'}
           </span>
           <button
             type="button"
             onClick={handlePrint}
-            className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs shadow-md shadow-indigo-600/30 transition-all"
+            className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-white rounded-xl font-bold text-xs shadow-md transition-all ${receipt.isDraft ? 'bg-amber-700 hover:bg-amber-800' : 'bg-indigo-600 hover:bg-indigo-700'}`}
           >
             <Printer className="w-4 h-4" />
-            <span>In Hóa Đơn (Ctrl + P)</span>
+            <span>In Phiếu (Ctrl + P)</span>
           </button>
         </div>
 
         {/* Printable Receipt Paper Container */}
         <div className="p-6 overflow-y-auto bg-slate-100/50 flex justify-center print-container">
-          <div className="receipt-paper bg-white w-full max-w-[320px] p-4 border border-dashed border-slate-300 text-slate-900 font-sans text-xs shadow-sm">
+          <div className="receipt-paper bg-white w-full max-w-[320px] p-4 border border-dashed border-slate-300 text-slate-900 font-sans text-xs shadow-sm relative">
+            {/* Draft Watermark banner if draft */}
+            {receipt.isDraft && (
+              <div className="mb-2 p-1.5 text-center bg-amber-100 border border-amber-300 text-amber-900 font-black tracking-wider text-[11px] uppercase rounded">
+                *** CHƯA THANH TOÁN ***
+              </div>
+            )}
+
             {/* Store Branding Header */}
             <div className="text-center pb-3 border-b border-dashed border-slate-300">
               <h2 className="text-base font-extrabold tracking-tight uppercase text-slate-900 m-0">
-                {receipt.tenantName}
+                {receipt.tenantName || 'CỬA HÀNG OISMS'}
               </h2>
               <div className="text-[11px] text-slate-600 font-medium mt-0.5">
-                {receipt.branchName}
+                {receipt.branchName || 'Chi nhánh POS'}
               </div>
               <div className="text-[10px] text-slate-500 mt-0.5">
-                Đ/c: {receipt.branchAddress}
+                Đ/c: {receipt.branchAddress || 'Địa chỉ chi nhánh đang cập nhật'}
               </div>
               <div className="text-[10px] text-slate-500">
-                Hotline: {receipt.branchPhone}
+                Hotline: {receipt.branchPhone || 'Đang cập nhật'}
               </div>
             </div>
 
             {/* Receipt Title & Meta */}
             <div className="py-2.5 text-center border-b border-dashed border-slate-300">
               <div className="text-sm font-black tracking-wider uppercase text-slate-900">
-                HÓA ĐƠN BÁN HÀNG
+                {receipt.isDraft ? 'PHIẾU TẠM TÍNH' : 'HÓA ĐƠN BÁN HÀNG'}
               </div>
+              {receipt.isDraft && (
+                <div className="text-[10px] font-bold text-rose-600 uppercase mt-0.5">
+                  (Chưa thanh toán - Không có giá trị khấu trừ thuế)
+                </div>
+              )}
               <div className="text-[10px] text-slate-500 mt-0.5">
                 Số HĐ: <span className="font-mono font-bold text-slate-800">{receipt.receiptNumber}</span>
               </div>

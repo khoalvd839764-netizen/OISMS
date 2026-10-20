@@ -42,9 +42,21 @@ export function App() {
       }
     });
 
+    // Lắng nghe sự kiện phiên đăng nhập hết hạn từ API client
+    const handleAuthExpired = () => {
+      setCurrentUser(null);
+      setCart([]);
+      setPrintedReceipt(null);
+      setIsPaymentOpen(false);
+      setIsLoginOpen(true);
+      alert('Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại để tiếp tục.');
+    };
+    window.addEventListener('pos-auth-expired', handleAuthExpired);
+
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('pos-auth-expired', handleAuthExpired);
     };
   }, []);
 
@@ -81,15 +93,26 @@ export function App() {
     }
   };
 
-  // Cart operations
+  // Cart operations với kiểm tra tồn khả dụng nghiêm ngặt
   const handleAddToCart = (product: PosProductSearchResponse) => {
+    const availableStock = product.available ?? 0;
+    if (availableStock <= 0) {
+      alert(`Sản phẩm "${product.productName}" đã hết hàng trong kho chi nhánh (Tồn khả dụng = 0).`);
+      return;
+    }
+
     setCart((prevCart) => {
       const existingIndex = prevCart.findIndex((i) => i.variantId === product.variantId);
       if (existingIndex > -1) {
+        const currentQty = prevCart[existingIndex].quantity;
+        if (currentQty + 1 > availableStock) {
+          alert(`Không thể thêm. Số lượng trong giỏ (${currentQty}) đã đạt mức tồn khả dụng tối đa (${availableStock}) của chi nhánh.`);
+          return prevCart;
+        }
         const next = [...prevCart];
         next[existingIndex] = {
           ...next[existingIndex],
-          quantity: next[existingIndex].quantity + 1,
+          quantity: currentQty + 1,
         };
         return next;
       } else {
@@ -104,7 +127,7 @@ export function App() {
             barcode: product.barcode,
             retailPrice: product.retailPrice,
             quantity: 1,
-            available: product.available ?? 0,
+            available: availableStock,
             color: product.color,
             size: product.size,
           },
@@ -119,6 +142,10 @@ export function App() {
         .map((item) => {
           if (item.variantId === variantId) {
             const nextQty = item.quantity + delta;
+            if (delta > 0 && nextQty > item.available) {
+              alert(`Số lượng không được vượt quá tồn khả dụng (${item.available}) của mặt hàng này.`);
+              return item;
+            }
             return nextQty > 0 ? { ...item, quantity: nextQty } : null;
           }
           return item;
@@ -129,7 +156,14 @@ export function App() {
 
   const handleSetQuantity = (variantId: string, quantity: number) => {
     setCart((prevCart) =>
-      prevCart.map((item) => (item.variantId === variantId ? { ...item, quantity } : item))
+      prevCart.map((item) => {
+        if (item.variantId === variantId) {
+          const maxAllowed = item.available > 0 ? item.available : 1;
+          const clamped = Math.min(Math.max(1, quantity), maxAllowed);
+          return { ...item, quantity: clamped };
+        }
+        return item;
+      })
     );
   };
 
@@ -144,9 +178,26 @@ export function App() {
     }
   };
 
+  // Đổi chi nhánh: Xóa giỏ hàng để tránh bán vượt tồn hoặc sai kho của chi nhánh khác
+  const handleSelectBranch = (branchId: string) => {
+    if (branchId === selectedBranchId) return;
+    if (cart.length > 0) {
+      if (window.confirm('Đổi chi nhánh sẽ làm mới lại giỏ hàng vì tồn kho các chi nhánh là khác nhau. Bạn có muốn tiếp tục?')) {
+        setCart([]);
+        setSelectedBranchId(branchId);
+      }
+    } else {
+      setSelectedBranchId(branchId);
+    }
+  };
+
+  // Đăng xuất: Xóa toàn bộ giỏ, hóa đơn, trạng thái phiên cũ
   const handleLogout = () => {
     removeAuthToken();
     setCurrentUser(null);
+    setCart([]);
+    setPrintedReceipt(null);
+    setIsPaymentOpen(false);
   };
 
   // Calculations
@@ -165,7 +216,7 @@ export function App() {
       <PosHeader
         branches={branches}
         selectedBranchId={selectedBranchId}
-        onSelectBranch={setSelectedBranchId}
+        onSelectBranch={handleSelectBranch}
         currentUser={currentUser}
         onOpenLogin={() => setIsLoginOpen(true)}
         onLogout={handleLogout}
@@ -244,8 +295,8 @@ export function App() {
               <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-500 flex items-start gap-2">
                 <Sparkles className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
                 <div>
-                  <span className="font-semibold text-slate-700">Dữ liệu thật 100%: </span>
-                  Tra cứu tồn khả dụng và giá bán trực tiếp từ PostgreSQL thông qua API Backend.
+                  <span className="font-semibold text-slate-700">Kết nối API OISMS Backend: </span>
+                  Tra cứu sản phẩm và tồn khả dụng theo chi nhánh thật. DTO Checkout đề xuất đang chờ Backend hoàn thiện endpoint.
                 </div>
               </div>
             </div>
@@ -293,6 +344,8 @@ export function App() {
                       paymentMethod: 'CASH',
                       amountGiven: totalAmount,
                       changeDue: 0,
+                      isDraft: true,
+                      paymentStatusTitle: 'CHƯA THANH TOÁN (PHIẾU TẠM TÍNH)',
                     };
                     setPrintedReceipt(tempReceipt);
                   }}
@@ -325,11 +378,16 @@ export function App() {
         items={cart}
         branchId={selectedBranchId}
         branchName={selectedBranch?.name || 'Chi nhánh mặc định'}
+        branchAddress={selectedBranch?.address}
+        branchPhone={selectedBranch?.phone}
         tenantName={currentUser?.tenantName || 'CỬA HÀNG OISMS'}
         cashierName={currentUser?.fullName || 'Thu ngân'}
         onSuccessAndPrint={(receipt) => {
           setPrintedReceipt(receipt);
-          setCart([]); // Clear cart after successful transaction
+          setCart([]); // Chỉ xóa giỏ khi thanh toán thành công
+        }}
+        onPreviewReceipt={(receipt) => {
+          setPrintedReceipt(receipt); // Xem tạm tính: Giữ nguyên giỏ hàng
         }}
       />
 
@@ -345,6 +403,9 @@ export function App() {
         onClose={() => setIsLoginOpen(false)}
         onLoginSuccess={(user) => {
           setCurrentUser(user);
+          setCart([]); // Xóa giỏ hàng của phiên trước khi đăng nhập tài khoản mới
+          setPrintedReceipt(null);
+          setIsPaymentOpen(false);
           fetchBranches().then((data) => {
             setBranches(data);
             if (data.length > 0) setSelectedBranchId(data[0].id);

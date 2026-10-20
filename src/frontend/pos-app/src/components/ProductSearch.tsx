@@ -57,24 +57,20 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({
       setIsSearching(true);
       setErrorMessage(null);
 
-      // Thử tra cứu barcode chính xác trước
+      // Tra cứu barcode chính xác từ API
       try {
         const item = await scanPosBarcode(code, branchId);
+        if ((item.available ?? 0) <= 0) {
+          setErrorMessage(`Sản phẩm "${item.productName}" (${item.sku}) đã hết hàng trong kho chi nhánh (tồn khả dụng = 0).`);
+          return;
+        }
         onAddToCart(item);
         triggerSuccess(`Đã thêm: ${item.productName} (${item.sku})`);
         setSearchTerm('');
         setShowDropdown(false);
-        return;
-      } catch {
-        // Nếu không khớp mã vạch, xem kết quả tìm kiếm đầu tiên
-        if (results.length > 0) {
-          onAddToCart(results[0]);
-          triggerSuccess(`Đã thêm: ${results[0].productName} (${results[0].sku})`);
-          setSearchTerm('');
-          setShowDropdown(false);
-        } else {
-          setErrorMessage(`Không tìm thấy sản phẩm có mã hoặc tên: "${code}"`);
-        }
+      } catch (err: any) {
+        // Tuyệt đối không tự động thêm results[0] từ lần tìm kiếm trước khi quét barcode thất bại
+        setErrorMessage(err.message || `Không tìm thấy sản phẩm nào khớp với mã "${code}".`);
       } finally {
         setIsSearching(false);
       }
@@ -89,6 +85,10 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({
   };
 
   const handleSelectProduct = (product: PosProductSearchResponse) => {
+    if ((product.available ?? 0) <= 0) {
+      setErrorMessage(`Sản phẩm "${product.productName}" (${product.sku}) đã hết hàng trong kho chi nhánh (tồn khả dụng = 0).`);
+      return;
+    }
     onAddToCart(product);
     triggerSuccess(`Đã thêm: ${product.productName} (${product.sku})`);
     setSearchTerm('');
@@ -150,19 +150,23 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({
         <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl border border-slate-200 shadow-2xl z-40 max-h-96 overflow-y-auto divide-y divide-slate-100">
           <div className="px-3 py-2 bg-slate-50 text-xs font-semibold text-slate-500 flex justify-between items-center sticky top-0 border-b border-slate-100">
             <span>Tìm thấy {results.length} sản phẩm từ API</span>
-            <span className="text-[11px] text-slate-400">Nhấn Enter để chọn món đầu tiên</span>
+            <span className="text-[11px] text-slate-400">Chọn sản phẩm còn tồn để thêm vào giỏ</span>
           </div>
           {results.map((item) => {
             const isOutOfStock = (item.available ?? 0) <= 0;
             return (
               <div
                 key={item.variantId}
-                onClick={() => handleSelectProduct(item)}
-                className="px-4 py-3 flex items-center justify-between hover:bg-indigo-50/70 cursor-pointer transition-colors group"
+                onClick={() => !isOutOfStock && handleSelectProduct(item)}
+                className={`px-4 py-3 flex items-center justify-between transition-colors ${
+                  isOutOfStock
+                    ? 'opacity-60 bg-slate-50/50 cursor-not-allowed'
+                    : 'hover:bg-indigo-50/70 cursor-pointer group'
+                }`}
               >
                 <div className="flex-1 pr-4">
                   <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-800 text-sm group-hover:text-indigo-600 transition-colors">
+                    <span className={`font-bold text-sm transition-colors ${isOutOfStock ? 'text-slate-500' : 'text-slate-800 group-hover:text-indigo-600'}`}>
                       {item.productName}
                     </span>
                     {item.variantName && (
@@ -181,7 +185,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({
 
                 <div className="text-right flex items-center gap-4">
                   <div>
-                    <div className="text-base font-bold text-indigo-600">
+                    <div className={`text-base font-bold ${isOutOfStock ? 'text-slate-400' : 'text-indigo-600'}`}>
                       {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.retailPrice)}
                     </div>
                     <div className="text-xs mt-0.5">
@@ -199,8 +203,13 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({
 
                   <button
                     type="button"
-                    className="p-2 rounded-lg bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors shadow-xs"
-                    title="Thêm vào giỏ"
+                    disabled={isOutOfStock}
+                    className={`p-2 rounded-lg transition-colors shadow-xs ${
+                      isOutOfStock
+                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                        : 'bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white'
+                    }`}
+                    title={isOutOfStock ? 'Hết tồn kho' : 'Thêm vào giỏ'}
                   >
                     <Plus className="w-4 h-4" />
                   </button>

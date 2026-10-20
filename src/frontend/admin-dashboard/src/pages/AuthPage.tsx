@@ -32,7 +32,7 @@ export function AuthPage() {
     setLoading(false);
 
     if (result.success) {
-      navigate("/");
+      navigate(result.user?.landingPath || (result.user?.role === "Cashier" ? "/pos" : "/admin"));
     } else {
       setErrorMessage(result.error || "Đăng nhập thất bại.");
     }
@@ -62,7 +62,7 @@ export function AuthPage() {
     setLoading(false);
 
     if (result.success) {
-      navigate("/");
+      navigate(result.user?.landingPath || "/admin");
     } else {
       setErrorMessage(result.error || "Đăng ký doanh nghiệp thất bại.");
     }

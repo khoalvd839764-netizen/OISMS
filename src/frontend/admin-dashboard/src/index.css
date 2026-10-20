@@ -539,10 +539,82 @@ td strong { color: var(--ink); }
   .threshold-scope { grid-template-columns: 1fr; }
 }
 
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.18s ease-out forwards;
+}
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ==========================================================================
+   PRINT STYLES FOR THERMAL PRINTER (80mm & 58mm)
+   ========================================================================== */
 @media print {
-  body { background: #fff; }
-  .pos-header, .pos-catalog, .cart-panel { display: none !important; }
-  .modal-backdrop { position: static; background: #fff; padding: 0; }
-  .modal { box-shadow: none; width: 100%; }
-  .modal-head, .modal-actions { display: none; }
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 80mm !important;
+  }
+
+  /* Hide everything except the receipt paper */
+  .no-print,
+  .no-print-bg,
+  header,
+  nav,
+  footer,
+  button {
+    display: none !important;
+  }
+
+  /* Make modal container transparent and top-level */
+  .print-container {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 80mm !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+  }
+
+  .receipt-paper {
+    width: 80mm !important;
+    max-width: 80mm !important;
+    margin: 0 !important;
+    padding: 2mm 3mm !important;
+    border: none !important;
+    box-shadow: none !important;
+    font-size: 11px !important;
+    color: #000000 !important;
+    background: #ffffff !important;
+  }
+
+  .receipt-paper * {
+    color: #000000 !important;
+  }
+
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
 }

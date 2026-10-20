@@ -7,6 +7,7 @@ import { InventoryPage } from "./pages/InventoryPage";
 import { OrdersPage } from "./pages/OrdersPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { HandoffPage } from "./pages/HandoffPage";
+import { PosPage } from "./pages/PosPage";
 import { AccessPage } from "./pages/AccessPage";
 import { AuthPage } from "./pages/AuthPage";
 import { OrganizationPage } from "./pages/OrganizationPage";
@@ -21,6 +22,11 @@ export default function App() {
           <Route path="/login" element={<AuthPage />} />
           <Route path="/403" element={<AccessPage type="forbidden" />} />
           <Route path="/session-expired" element={<AccessPage type="expired" />} />
+
+          {/* POS Route (http://localhost:5173/pos) - Cho phép Owner, Staff và Cashier đã xác thực */}
+          <Route element={<ProtectedRoute allowedRoles={["Owner", "Staff", "Cashier"]} />}>
+            <Route path="/pos" element={<PosPage />} />
+          </Route>
 
           {/* Protected Admin Routes (Hỗ trợ cả http://localhost:5173/admin và /) */}
           <Route element={<ProtectedRoute />}>

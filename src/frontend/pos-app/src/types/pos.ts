@@ -81,4 +81,6 @@ export interface ReceiptData {
   paymentMethod: "CASH" | "BANK_TRANSFER_QR";
   amountGiven: number;
   changeDue: number;
+  isDraft?: boolean;
+  paymentStatusTitle?: string;
 }

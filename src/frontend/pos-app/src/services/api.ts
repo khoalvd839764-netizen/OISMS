@@ -40,37 +40,67 @@ function getHeaders(): HeadersInit {
   return headers;
 }
 
+// Real API client - No mock or demo fallback in production logic
+
 /**
  * Đăng nhập thu ngân / nhân viên
+ * Xử lý đầy đủ các mã lỗi HTTP 400, 401, 403, 500, lỗi mạng.
+ * Không trả về undefined; không tự động fallback đăng nhập demo.
  */
 export async function loginCashier(email: string, password: string) {
-  const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  });
-
-  if (!res.ok) {
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.message || (errorData.errors ? errorData.errors.join(', ') : 'Đăng nhập không thành công.'));
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+  } catch (_netErr: any) {
+    throw new Error('Không thể kết nối đến máy chủ Backend (Lỗi mạng hoặc server chưa khởi động).');
   }
 
-  const data = await res.json();
-  if (data.accessToken) {
+  if (res.ok) {
+    const data = await res.json().catch(() => null);
+    if (!data || !data.accessToken) {
+      throw new Error('Dữ liệu phản hồi từ máy chủ không hợp lệ (thiếu token).');
+    }
     setAuthToken(data.accessToken);
     if (data.user) {
       setStoredUser({
-        fullName: data.user.fullName || data.user.email,
-        email: data.user.email,
+        fullName: data.user.fullName || data.user.email || email,
+        email: data.user.email || email,
         tenantName: data.user.tenantName,
       });
+    } else {
+      setStoredUser({
+        fullName: email,
+        email: email,
+      });
     }
+    return data;
   }
-  return data;
+
+  // Xử lý các mã lỗi HTTP cụ thể
+  if (res.status === 400 || res.status === 401) {
+    const errData = await res.json().catch(() => ({}));
+    const msg = errData.message || (errData.errors ? (Array.isArray(errData.errors) ? errData.errors.join(', ') : JSON.stringify(errData.errors)) : 'Email hoặc mật khẩu không chính xác.');
+    throw new Error(msg);
+  }
+
+  if (res.status === 403) {
+    throw new Error('Tài khoản bị khóa hoặc cửa hàng đang tạm ngưng hoạt động.');
+  }
+
+  if (res.status >= 500) {
+    throw new Error(`Máy chủ gặp sự cố nội bộ (Mã lỗi ${res.status}). Vui lòng liên hệ quản trị viên.`);
+  }
+
+  throw new Error(`Đăng nhập thất bại (HTTP ${res.status}).`);
 }
 
 /**
  * Lấy danh sách Chi nhánh trực thuộc cửa hàng
+ * Bỏ fallback dữ liệu mẫu; trả về danh sách thật hoặc mảng rỗng nếu lỗi.
  */
 export async function fetchBranches(): Promise<Branch[]> {
   try {
@@ -79,23 +109,29 @@ export async function fetchBranches(): Promise<Branch[]> {
       headers: getHeaders(),
     });
 
-    if (!res.ok) {
-      if (res.status === 401) {
-        console.warn('Chưa đăng nhập hoặc token hết hạn khi tải chi nhánh.');
-      }
+    if (res.status === 401) {
+      removeAuthToken();
+      window.dispatchEvent(new CustomEvent('pos-auth-expired'));
       return [];
     }
 
-    return await res.json();
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        return data;
+      }
+    }
   } catch (err) {
-    console.warn('Không thể kết nối đến Backend để lấy danh sách chi nhánh:', err);
-    return [];
+    console.error('Lỗi kết nối khi lấy danh sách chi nhánh:', err);
   }
+
+  return [];
 }
 
 /**
  * Tìm kiếm nhanh sản phẩm tại quầy POS theo Tên / SKU / Barcode kèm tồn khả dụng
  * Endpoint: GET /api/pos/search?query={keyword}&branchId={branchId}
+ * Không dùng dữ liệu mẫu; trả về dữ liệu thật từ database.
  */
 export async function searchPosProducts(query: string, branchId?: string): Promise<PosProductSearchResponse[]> {
   if (!query || query.trim().length === 0) {
@@ -108,25 +144,42 @@ export async function searchPosProducts(query: string, branchId?: string): Promi
     params.append('branchId', branchId);
   }
 
-  const res = await fetch(`${API_BASE_URL}/api/pos/search?${params.toString()}`, {
-    method: 'GET',
-    headers: getHeaders(),
-  });
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/pos/search?${params.toString()}`, {
+      method: 'GET',
+      headers: getHeaders(),
+    });
 
-  if (!res.ok) {
     if (res.status === 401) {
-      throw new Error('Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.');
+      removeAuthToken();
+      window.dispatchEvent(new CustomEvent('pos-auth-expired'));
+      throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
     }
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.message || `Lỗi tìm kiếm sản phẩm (HTTP ${res.status}).`);
-  }
 
-  return await res.json();
+    if (res.ok) {
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    }
+
+    if (res.status === 404) {
+      return [];
+    }
+
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || `Lỗi máy chủ khi tra cứu (HTTP ${res.status})`);
+  } catch (err: any) {
+    if (err.message?.includes('Phiên đăng nhập đã hết hạn')) {
+      throw err;
+    }
+    console.error('Lỗi tra cứu sản phẩm:', err);
+    throw new Error(err.message || 'Không thể kết nối đến máy chủ để tìm kiếm sản phẩm.');
+  }
 }
 
 /**
  * Quét mã vạch (Barcode Scanner) tìm chính xác một SKU kèm tồn khả dụng
  * Endpoint: GET /api/pos/barcode/{barcode}?branchId={branchId}
+ * Không dùng dữ liệu mẫu; ném lỗi khi không tìm thấy.
  */
 export async function scanPosBarcode(barcode: string, branchId?: string): Promise<PosProductSearchResponse> {
   if (!barcode || barcode.trim().length === 0) {
@@ -140,30 +193,41 @@ export async function scanPosBarcode(barcode: string, branchId?: string): Promis
 
   const url = `${API_BASE_URL}/api/pos/barcode/${encodeURIComponent(barcode.trim())}${params.toString() ? '?' + params.toString() : ''}`;
 
-  const res = await fetch(url, {
-    method: 'GET',
-    headers: getHeaders(),
-  });
-
-  if (!res.ok) {
-    if (res.status === 404) {
-      throw new Error(`Không tìm thấy sản phẩm nào khớp với mã vạch "${barcode}".`);
-    }
-    if (res.status === 401) {
-      throw new Error('Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.');
-    }
-    const errorData = await res.json().catch(() => ({}));
-    throw new Error(errorData.message || `Lỗi tra cứu mã vạch (HTTP ${res.status}).`);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'GET',
+      headers: getHeaders(),
+    });
+  } catch (_err: any) {
+    throw new Error('Không thể kết nối đến máy chủ khi quét mã vạch.');
   }
 
-  return await res.json();
+  if (res.status === 401) {
+    removeAuthToken();
+    window.dispatchEvent(new CustomEvent('pos-auth-expired'));
+    throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+  }
+
+  if (res.ok) {
+    const data = await res.json();
+    return data;
+  }
+
+  if (res.status === 404) {
+    throw new Error(`Không tìm thấy sản phẩm nào khớp với mã vạch "${barcode}".`);
+  }
+
+  const err = await res.json().catch(() => ({}));
+  throw new Error(err.message || `Lỗi máy chủ khi quét mã (HTTP ${res.status}).`);
 }
 
 /**
- * Gửi yêu cầu Checkout thanh toán theo hợp đồng DTO Sprint 2
- * Theo tiêu chí bàn giao: "checkout chưa sẵn sàng không báo thành công; bản in hóa đơn chuẩn bị sẵn dùng dữ liệu API"
+ * Gửi yêu cầu Checkout thanh toán theo đề xuất DTO POS
+ * Ghi rõ: DTO đang đề xuất/chờ backend thống nhất contract.
+ * Không giả lập thành công khi Backend chưa có endpoint hoặc trả lỗi.
  */
-export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{ success: boolean; message: string; orderNumber?: string; contractReady: boolean }> {
+export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{ success: boolean; message: string; orderNumber?: string; isPendingBackend?: boolean }> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/orders/checkout`, {
       method: 'POST',
@@ -172,37 +236,33 @@ export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{ s
     });
 
     if (res.ok) {
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       return {
         success: true,
         message: 'Thanh toán đơn hàng thành công!',
-        orderNumber: data.orderNumber || data.number || `ORD-${Date.now().toString().slice(-6)}`,
-        contractReady: true,
+        orderNumber: data.orderNumber || data.number,
       };
     }
 
     if (res.status === 404 || res.status === 405 || res.status === 501) {
-      // Backend chưa có endpoint Checkout (theo tiến độ Sprint 2)
+      // Backend chưa có endpoint POST /api/orders/checkout
       return {
         success: false,
-        contractReady: true,
-        message: `Endpoint thanh toán Backend (POST /api/orders/checkout) đang được hoàn thiện theo hợp đồng DTO Sprint 2. Dữ liệu đơn đã được đóng gói chuẩn DTO sẵn sàng kết nối!`,
-        orderNumber: `ORD-POS-${Date.now().toString().slice(-6)}`,
+        isPendingBackend: true,
+        message: 'API thanh toán (POST /api/orders/checkout) chưa được triển khai trên Backend Swagger. DTO checkout đề xuất đã được chuẩn bị đầy đủ và đang chờ thống nhất hợp đồng API giữa 2 bên.',
       };
     }
 
     const err = await res.json().catch(() => ({}));
     return {
       success: false,
-      contractReady: true,
-      message: err.message || `Backend trả về mã lỗi ${res.status}.`,
+      message: err.message || `Thanh toán thất bại (Mã lỗi ${res.status}).`,
     };
   } catch (err: any) {
     return {
       success: false,
-      contractReady: true,
-      message: `Không thể kết nối đến máy chủ Backend (${err.message || 'Lỗi mạng'}). Dữ liệu giỏ hàng và hợp đồng DTO đã được chuẩn bị đầy đủ!`,
-      orderNumber: `ORD-PREVIEW-${Date.now().toString().slice(-6)}`,
+      message: `Không thể kết nối đến máy chủ để thực hiện thanh toán (${err.message || 'Lỗi mạng'}). Giỏ hàng được giữ nguyên.`,
     };
   }
 }
+
