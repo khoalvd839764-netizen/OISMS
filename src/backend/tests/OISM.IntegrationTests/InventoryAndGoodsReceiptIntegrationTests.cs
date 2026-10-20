@@ -2421,4 +2421,371 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
             }
         }
     }
+
+    // =========================================================================
+    // F2: Regression Test Suite cho Cơ chế Idempotency Giữ chỗ (RequestKey & Idempotency-Key)
+    // - Cùng key và payload gửi lại nhiều lần chỉ tạo 1 thao tác (không tăng Reserved).
+    // - Header Idempotency-Key được ánh xạ chuẩn xác và idempotent.
+    // - 5 request đồng thời cùng key chỉ tăng Reserved 1 lần (Advisory Lock + Unique Index).
+    // - Cùng key nhưng payload khác bị từ chối 409 Conflict và dữ liệu không đổi.
+    // - Hai tenant dùng cùng RequestKey vẫn hoàn toàn cách ly.
+    // - Retry khi reservation đã hết hạn bị từ chối 409 Conflict, không sinh thêm giữ chỗ ngoài ý muốn.
+    // =========================================================================
+    [Fact]
+    public async Task Postgres_Reservation_F2_Idempotency_RequestKey_Retry_Concurrency_And_TenantIsolation_Regressions()
+    {
+        var runCode = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+
+        // 1. Đăng ký & Đăng nhập Tenant A
+        var regOwnerA = new RegisterTenantRequest
+        {
+            TenantName = $"Shop F2 A {runCode}",
+            TenantCode = $"F2A_{runCode}",
+            FullName = "Chủ Shop F2 A",
+            Email = $"f2a_{runCode}@shop.com",
+            Password = "Password@123"
+        };
+        await _client.PostAsJsonAsync("/api/auth/register-tenant", regOwnerA);
+
+        var loginResA = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest
+        {
+            Email = regOwnerA.Email,
+            Password = regOwnerA.Password
+        });
+        var authA = await loginResA.Content.ReadFromJsonAsync<AuthResponse>(_jsonOptions);
+        var tokenA = authA!.AccessToken;
+        var tenantAId = authA.User.TenantId;
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokenA);
+
+        // Tạo Branch, Warehouse, Supplier, Product và SKU cho Tenant A
+        var brResA = await _client.PostAsJsonAsync("/api/branches", new { Name = $"CN F2 A {runCode}" });
+        var brA = await brResA.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        var branchAId = brA.GetProperty("id").GetGuid();
+
+        var whResA = await _client.PostAsJsonAsync("/api/warehouses", new { BranchId = branchAId, Name = $"Kho F2 A {runCode}" });
+        var whA = await whResA.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        var whAId = whA.GetProperty("id").GetGuid();
+
+        var supResA = await _client.PostAsJsonAsync("/api/suppliers", new { Name = $"NCC F2 A {runCode}" });
+        var supA = await supResA.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        var supAId = supA.GetProperty("id").GetGuid();
+
+        var prodResA = await _client.PostAsJsonAsync("/api/products", new
+        {
+            Name = $"Sản phẩm F2 A {runCode}",
+            Variants = new[]
+            {
+                new { Sku = $"SKU-F2A-{runCode}", VariantName = "Tiêu chuẩn", RetailPrice = 200000m, WholesalePrice = 120000m }
+            }
+        });
+        var prodA = await prodResA.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        var productAId = prodA.GetProperty("productId").GetGuid();
+
+        var getProdA = await _client.GetAsync($"/api/products/{productAId}");
+        var prodADoc = await getProdA.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        var skuAId = prodADoc.GetProperty("variants")[0].GetProperty("id").GetGuid();
+
+        // Nhập kho 20 cái cho Tenant A
+        var createReceiptA = await _client.PostAsJsonAsync("/api/goods-receipts", new CreateGoodsReceiptDto
+        {
+            BranchId = branchAId,
+            WarehouseId = whAId,
+            SupplierId = supAId,
+            Items = new List<CreateGoodsReceiptItemDto>
+            {
+                new() { SkuId = skuAId, Quantity = 20m, UnitPrice = 120000m }
+            }
+        });
+        var receiptADoc = await createReceiptA.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        var receiptAId = receiptADoc.GetProperty("id").GetGuid();
+        await _client.PostAsync($"/api/goods-receipts/{receiptAId}/confirm", null);
+
+        // ---------------------------------------------------------------------
+        // CA 1: Gửi lần đầu với RequestKey = key1 (Body)
+        // ---------------------------------------------------------------------
+        var key1 = Guid.NewGuid();
+        var req1 = new ReserveStockRequestDto
+        {
+            BranchId = branchAId,
+            WarehouseId = whAId,
+            SkuId = skuAId,
+            Quantity = 3m,
+            RequestKey = key1
+        };
+
+        var res1 = await _client.PostAsJsonAsync("/api/inventory/reserve", req1);
+        res1.StatusCode.Should().Be(HttpStatusCode.OK, "Lần đầu giữ chỗ với RequestKey phải thành công 200 OK");
+        var result1 = await res1.Content.ReadFromJsonAsync<ReserveStockResponseDto>(_jsonOptions);
+        result1!.Quantity.Should().Be(3m);
+        result1.RemainingAvailableStock.Should().Be(17m);
+
+        // Kiểm tra database Tenant A
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            using (db.OpenPrivilegedScope())
+            {
+                var brBal = await db.InventoryBalances.IgnoreQueryFilters().FirstAsync(b => b.BranchId == branchAId && b.SkuId == skuAId);
+                brBal.Reserved.Should().Be(3m);
+
+                var whBal = await db.WarehouseInventoryBalances.IgnoreQueryFilters().FirstAsync(w => w.WarehouseId == whAId && w.SkuId == skuAId);
+                whBal.Reserved.Should().Be(3m);
+
+                var orderCount = await db.Orders.IgnoreQueryFilters().CountAsync(o => o.TenantId == tenantAId && o.RequestKey == key1);
+                orderCount.Should().Be(1, "Chỉ tạo đúng 1 Order nháp cho RequestKey");
+
+                var resCount = await db.Reservations.IgnoreQueryFilters().CountAsync(r => r.TenantId == tenantAId && r.OrderId == result1.OrderId);
+                resCount.Should().Be(1, "Chỉ tạo đúng 1 Reservation");
+            }
+        }
+
+        // ---------------------------------------------------------------------
+        // CA 2: Gửi lại lần 2 với cùng RequestKey và cùng payload (Idempotent Retry)
+        // ---------------------------------------------------------------------
+        var res1Retry = await _client.PostAsJsonAsync("/api/inventory/reserve", req1);
+        res1Retry.StatusCode.Should().Be(HttpStatusCode.OK, "Gửi lại cùng RequestKey phải trả về 200 OK idempotent");
+        var result1Retry = await res1Retry.Content.ReadFromJsonAsync<ReserveStockResponseDto>(_jsonOptions);
+        result1Retry!.ReservationId.Should().Be(result1.ReservationId, "Phải trả về đúng ReservationId cũ");
+        result1Retry.OrderId.Should().Be(result1.OrderId);
+
+        // Xác minh database: Reserved TUYỆT ĐỐI KHÔNG TĂNG LÊN 6! Vẫn là 3!
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            using (db.OpenPrivilegedScope())
+            {
+                var brBal = await db.InventoryBalances.IgnoreQueryFilters().FirstAsync(b => b.BranchId == branchAId && b.SkuId == skuAId);
+                brBal.Reserved.Should().Be(3m, "Reserved chi nhánh không được cộng dồn khi retry");
+
+                var whBal = await db.WarehouseInventoryBalances.IgnoreQueryFilters().FirstAsync(w => w.WarehouseId == whAId && w.SkuId == skuAId);
+                whBal.Reserved.Should().Be(3m, "Reserved kho không được cộng dồn khi retry");
+
+                var orderCount = await db.Orders.IgnoreQueryFilters().CountAsync(o => o.TenantId == tenantAId && o.RequestKey == key1);
+                orderCount.Should().Be(1, "Không được tạo thêm Order");
+            }
+        }
+
+        // ---------------------------------------------------------------------
+        // CA 3: Gửi lại lần 3 qua Header 'Idempotency-Key' (RequestKey trong body = null)
+        // ---------------------------------------------------------------------
+        var reqHeader = new ReserveStockRequestDto
+        {
+            BranchId = branchAId,
+            WarehouseId = whAId,
+            SkuId = skuAId,
+            Quantity = 3m,
+            RequestKey = null
+        };
+        var httpRequest = new HttpRequestMessage(HttpMethod.Post, "/api/inventory/reserve")
+        {
+            Content = JsonContent.Create(reqHeader)
+        };
+        httpRequest.Headers.Add("Idempotency-Key", key1.ToString());
+
+        var resHeader = await _client.SendAsync(httpRequest);
+        resHeader.StatusCode.Should().Be(HttpStatusCode.OK, "Gửi Idempotency-Key qua header phải được nhận diện và trả về 200 OK");
+        var resultHeader = await resHeader.Content.ReadFromJsonAsync<ReserveStockResponseDto>(_jsonOptions);
+        resultHeader!.ReservationId.Should().Be(result1.ReservationId, "Header Idempotency-Key phải khớp với ReservationId ban đầu");
+
+        // ---------------------------------------------------------------------
+        // CA 4: Request đồng thời cùng key (Concurrent duplicate requests)
+        // 5 request đồng thời chỉ được tăng Reserved 1 lần duy nhất
+        // ---------------------------------------------------------------------
+        var keyConcurrent = Guid.NewGuid();
+        var reqConcurrent = new ReserveStockRequestDto
+        {
+            BranchId = branchAId,
+            WarehouseId = whAId,
+            SkuId = skuAId,
+            Quantity = 2m,
+            RequestKey = keyConcurrent
+        };
+
+        var tasks = Enumerable.Range(0, 5)
+            .Select(_ => _client.PostAsJsonAsync("/api/inventory/reserve", reqConcurrent))
+            .ToList();
+
+        var concurrentResponses = await Task.WhenAll(tasks);
+
+        // Tất cả 5 request đều phải 200 OK, KHÔNG có request nào bị văng 500 do vi phạm Unique Constraint
+        foreach (var resp in concurrentResponses)
+        {
+            resp.StatusCode.Should().Be(HttpStatusCode.OK, "Mọi request đồng thời cùng key đều phải trả về 200 OK");
+            var resData = await resp.Content.ReadFromJsonAsync<ReserveStockResponseDto>(_jsonOptions);
+            resData!.Quantity.Should().Be(2m);
+        }
+
+        // Xác minh database: Reserved chỉ được tăng thêm 2m (từ 3m lên 5m, tuyệt đối không thành 13m!)
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            using (db.OpenPrivilegedScope())
+            {
+                var brBal = await db.InventoryBalances.IgnoreQueryFilters().FirstAsync(b => b.BranchId == branchAId && b.SkuId == skuAId);
+                brBal.Reserved.Should().Be(5m, "5 request đồng thời cùng key chỉ được tăng Reserved đúng 1 lần duy nhất (= 2m)");
+
+                var orderCount = await db.Orders.IgnoreQueryFilters().CountAsync(o => o.TenantId == tenantAId && o.RequestKey == keyConcurrent);
+                orderCount.Should().Be(1, "Chỉ có duy nhất 1 Order được tạo cho key đồng thời");
+
+                var orderConcurrent = await db.Orders.IgnoreQueryFilters().FirstAsync(o => o.RequestKey == keyConcurrent);
+                var resCount = await db.Reservations.IgnoreQueryFilters().CountAsync(r => r.TenantId == tenantAId && r.OrderId == orderConcurrent.Id);
+                resCount.Should().Be(1, "Chỉ có duy nhất 1 Reservation được tạo");
+            }
+        }
+
+        // ---------------------------------------------------------------------
+        // CA 5: Cùng key nhưng payload khác (Quantity khác) -> 409 Conflict, dữ liệu không đổi
+        // ---------------------------------------------------------------------
+        var conflictReq = new ReserveStockRequestDto
+        {
+            BranchId = branchAId,
+            WarehouseId = whAId,
+            SkuId = skuAId,
+            Quantity = 10m, // Khác số lượng 3m ban đầu của key1
+            RequestKey = key1
+        };
+
+        var conflictRes = await _client.PostAsJsonAsync("/api/inventory/reserve", conflictReq);
+        conflictRes.StatusCode.Should().Be(HttpStatusCode.Conflict, "Cùng RequestKey nhưng khác số lượng phải bị từ chối 409 Conflict");
+
+        // Xác minh database: Reserved vẫn là 5m, không đổi
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            using (db.OpenPrivilegedScope())
+            {
+                var brBal = await db.InventoryBalances.IgnoreQueryFilters().FirstAsync(b => b.BranchId == branchAId && b.SkuId == skuAId);
+                brBal.Reserved.Should().Be(5m, "Dữ liệu tồn kho không được thay đổi khi request bị từ chối 409");
+            }
+        }
+
+        // ---------------------------------------------------------------------
+        // CA 6: Tenant Isolation - Tenant B dùng CÙNG RequestKey = key1 vẫn độc lập
+        // ---------------------------------------------------------------------
+        _client.DefaultRequestHeaders.Authorization = null;
+
+        var regOwnerB = new RegisterTenantRequest
+        {
+            TenantName = $"Shop F2 B {runCode}",
+            TenantCode = $"F2B_{runCode}",
+            FullName = "Chủ Shop F2 B",
+            Email = $"f2b_{runCode}@shop.com",
+            Password = "Password@123"
+        };
+        var regResB = await _client.PostAsJsonAsync("/api/auth/register-tenant", regOwnerB);
+        regResB.EnsureSuccessStatusCode();
+
+        var loginResB = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest
+        {
+            Email = regOwnerB.Email,
+            Password = regOwnerB.Password
+        });
+        loginResB.EnsureSuccessStatusCode();
+        var authB = await loginResB.Content.ReadFromJsonAsync<AuthResponse>(_jsonOptions);
+        var tokenB = authB!.AccessToken;
+        var tenantBId = authB.User.TenantId;
+
+        // Đổi header sang Tenant B
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokenB);
+
+        var brResB = await _client.PostAsJsonAsync("/api/branches", new { Name = $"CN F2 B {runCode}" });
+        var brB = await brResB.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        var branchBId = brB.GetProperty("id").GetGuid();
+
+        var whResB = await _client.PostAsJsonAsync("/api/warehouses", new { BranchId = branchBId, Name = $"Kho F2 B {runCode}" });
+        var whB = await whResB.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        var whBId = whB.GetProperty("id").GetGuid();
+
+        var supResB = await _client.PostAsJsonAsync("/api/suppliers", new { Name = $"NCC F2 B {runCode}" });
+        var supB = await supResB.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        var supBId = supB.GetProperty("id").GetGuid();
+
+        var prodResB = await _client.PostAsJsonAsync("/api/products", new
+        {
+            Name = $"Sản phẩm F2 B {runCode}",
+            Variants = new[]
+            {
+                new { Sku = $"SKU-F2B-{runCode}", VariantName = "Tiêu chuẩn", RetailPrice = 300000m, WholesalePrice = 180000m }
+            }
+        });
+        var prodB = await prodResB.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        var productBId = prodB.GetProperty("productId").GetGuid();
+
+        var getProdB = await _client.GetAsync($"/api/products/{productBId}");
+        var prodBDoc = await getProdB.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        var skuBId = prodBDoc.GetProperty("variants")[0].GetProperty("id").GetGuid();
+
+        // Nhập kho 15 cái cho Tenant B
+        var createReceiptB = await _client.PostAsJsonAsync("/api/goods-receipts", new CreateGoodsReceiptDto
+        {
+            BranchId = branchBId,
+            WarehouseId = whBId,
+            SupplierId = supBId,
+            Items = new List<CreateGoodsReceiptItemDto>
+            {
+                new() { SkuId = skuBId, Quantity = 15m, UnitPrice = 180000m }
+            }
+        });
+        var receiptBDoc = await createReceiptB.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
+        var receiptBId = receiptBDoc.GetProperty("id").GetGuid();
+        await _client.PostAsync($"/api/goods-receipts/{receiptBId}/confirm", null);
+
+        // Tenant B gửi request với CÙNG key1
+        var reqTenantB = new ReserveStockRequestDto
+        {
+            BranchId = branchBId,
+            WarehouseId = whBId,
+            SkuId = skuBId,
+            Quantity = 4m,
+            RequestKey = key1 // Cùng RequestKey với Tenant A!
+        };
+
+        var resTenantB = await _client.PostAsJsonAsync("/api/inventory/reserve", reqTenantB);
+        resTenantB.StatusCode.Should().Be(HttpStatusCode.OK, "Tenant B dùng cùng RequestKey vẫn phải thành công 200 OK do có cách ly tenant");
+        var resultTenantB = await resTenantB.Content.ReadFromJsonAsync<ReserveStockResponseDto>(_jsonOptions);
+        resultTenantB!.Quantity.Should().Be(4m);
+        resultTenantB.RemainingAvailableStock.Should().Be(11m);
+
+        // Kiểm tra database: Cả Tenant A và Tenant B đều có Order với key1 riêng biệt
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            using (db.OpenPrivilegedScope())
+            {
+                var orderA = await db.Orders.IgnoreQueryFilters().FirstAsync(o => o.TenantId == tenantAId && o.RequestKey == key1);
+                var orderB = await db.Orders.IgnoreQueryFilters().FirstAsync(o => o.TenantId == tenantBId && o.RequestKey == key1);
+                orderA.Id.Should().NotBe(orderB.Id, "Hai tenant phải có hai Order riêng biệt hoàn toàn dù trùng RequestKey");
+            }
+        }
+
+        // ---------------------------------------------------------------------
+        // CA 7: Retry sau khi reservation hết hạn (Expired) -> 409 Conflict, không tự tạo thêm
+        // ---------------------------------------------------------------------
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tokenA);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            using (db.OpenPrivilegedScope())
+            {
+                await db.Database.ExecuteSqlInterpolatedAsync(
+                    $"UPDATE reservations SET created_at = NOW() - INTERVAL '30 minutes', expires_at = NOW() - INTERVAL '10 minutes' WHERE id = {result1.ReservationId}");
+            }
+        }
+
+        var resExpiredRetry = await _client.PostAsJsonAsync("/api/inventory/reserve", req1);
+        resExpiredRetry.StatusCode.Should().Be(HttpStatusCode.Conflict, "Thử lại reservation đã hết hạn phải trả về 409 Conflict");
+
+        // Kiểm tra database: Không sinh thêm Order hay Reservation mới
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            using (db.OpenPrivilegedScope())
+            {
+                var orderCount = await db.Orders.IgnoreQueryFilters().CountAsync(o => o.TenantId == tenantAId && o.RequestKey == key1);
+                orderCount.Should().Be(1, "Không được tự tạo thêm Order khi reservation hết hạn");
+            }
+        }
+    }
 }
+

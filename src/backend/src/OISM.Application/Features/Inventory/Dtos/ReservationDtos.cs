@@ -27,6 +27,12 @@ public class ReserveStockRequestDto
     public Guid? OrderItemId { get; set; }
 
     /// <summary>
+    /// Khóa định danh thao tác (Idempotency Key). Nếu client gửi lại cùng RequestKey cho cùng một yêu cầu giữ chỗ,
+    /// hệ thống sẽ trả lại kết quả thao tác cũ mà không tạo thêm Order, OrderItem, Reservation hoặc tăng Reserved.
+    /// </summary>
+    public Guid? RequestKey { get; set; }
+
+    /// <summary>
     /// Thời gian giữ chỗ (phút), mặc định 15 phút.
     /// </summary>
     [Range(1, 1440, ErrorMessage = "Thời hạn giữ chỗ từ 1 đến 1440 phút.")]
