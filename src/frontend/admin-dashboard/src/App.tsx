@@ -1,122 +1,60 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { AdminShell } from "./components/AdminShell";
+import { ProtectedRoute } from "./components/ProtectedRoute";
+import { DashboardPage } from "./pages/DashboardPage";
+import { ProductsPage } from "./pages/ProductsPage";
+import { InventoryPage } from "./pages/InventoryPage";
+import { OrdersPage } from "./pages/OrdersPage";
+import { ReportsPage } from "./pages/ReportsPage";
+import { HandoffPage } from "./pages/HandoffPage";
+import { PosPage } from "./pages/PosPage";
+import { AccessPage } from "./pages/AccessPage";
+import { AuthPage } from "./pages/AuthPage";
+import { OrganizationPage } from "./pages/OrganizationPage";
+import { AuthProvider } from "./context/AuthContext";
 
-function App() {
-  const [count, setCount] = useState(0)
-
+export default function App() {
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/login" element={<AuthPage />} />
+          <Route path="/403" element={<AccessPage type="forbidden" />} />
+          <Route path="/session-expired" element={<AccessPage type="expired" />} />
 
-      <div className="ticks"></div>
+          {/* POS Route (http://localhost:5173/pos) - Cho phép Owner, Staff và Cashier đã xác thực */}
+          <Route element={<ProtectedRoute allowedRoles={["Owner", "Staff", "Cashier"]} />}>
+            <Route path="/pos" element={<PosPage />} />
+          </Route>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+          {/* Protected Admin Routes (Hỗ trợ cả http://localhost:5173/admin và /) */}
+          <Route element={<ProtectedRoute />}>
+            <Route element={<AdminShell />}>
+              <Route path="/" element={<DashboardPage />} />
+              <Route path="/admin" element={<DashboardPage />} />
+              <Route path="/products" element={<ProductsPage />} />
+              <Route path="/admin/products" element={<ProductsPage />} />
+              <Route path="/inventory" element={<InventoryPage />} />
+              <Route path="/admin/inventory" element={<InventoryPage />} />
+              <Route path="/orders" element={<OrdersPage />} />
+              <Route path="/admin/orders" element={<OrdersPage />} />
+              <Route path="/handoff" element={<HandoffPage />} />
+              <Route path="/admin/handoff" element={<HandoffPage />} />
+              {/* Chỉ Owner được truy cập trang Báo cáo & Quản lý Chi nhánh / Tổ chức */}
+              <Route element={<ProtectedRoute allowedRoles={["Owner"]} />}>
+                <Route path="/reports" element={<ReportsPage />} />
+                <Route path="/admin/reports" element={<ReportsPage />} />
+                <Route path="/organization" element={<OrganizationPage />} />
+                <Route path="/admin/organization" element={<OrganizationPage />} />
+              </Route>
+            </Route>
+          </Route>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/admin" replace />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
+  );
 }
-
-export default App

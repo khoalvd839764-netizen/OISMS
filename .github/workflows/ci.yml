@@ -11,6 +11,29 @@ jobs:
     name: Build & Test Backend (.NET 8)
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: admin123
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      OISM_TEST_HOST: localhost
+      OISM_TEST_PORT: 5432
+      OISM_TEST_ADMIN_USER: postgres
+      OISM_TEST_ADMIN_PASSWORD: admin123
+      OISM_TEST_APP_USER: oisms_test_app
+      OISM_TEST_APP_PASSWORD: TestPassword_2026!#$
+
     steps:
     - uses: actions/checkout@v4
 

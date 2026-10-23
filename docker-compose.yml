@@ -1,19 +1,28 @@
-version: '3.8'
 
 services:
-  # Database: PostgreSQL
+  # Database: PostgreSQL 16+
   postgres:
     image: postgres:16-alpine
     container_name: oism_postgres
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-oism_db}
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Error: POSTGRES_PASSWORD must be set in .env}"
+      POSTGRES_DB: ${POSTGRES_DB:-oisms}
+      OISMS_APP_USER: ${OISMS_APP_USER:-oisms_app}
+      OISMS_APP_PASSWORD: "${OISMS_APP_PASSWORD:?Error: OISMS_APP_PASSWORD must be set in .env}"
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init-oisms.sh:/docker-entrypoint-initdb.d/01-init-oisms.sh:ro
+      - ./docs/database/oisms_schema.sql:/docker/postgres/oisms_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-oisms}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - oism_network
 
@@ -35,12 +44,13 @@ services:
     container_name: oism_pgadmin
     restart: always
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@oism.local
-      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@oisms.com}
+      PGADMIN_DEFAULT_PASSWORD: "${PGADMIN_PASSWORD:?Error: PGADMIN_PASSWORD must be set in .env}"
     ports:
-      - "5050:80"
+      - "${PGADMIN_PORT:-5050}:80"
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     networks:
       - oism_network
 
@@ -52,13 +62,19 @@ services:
     container_name: oism_backend
     restart: always
     environment:
-      ASPNETCORE_ENVIRONMENT: Development
-      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=oism_db;Username=postgres;Password=postgres"
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Development}
+      Database__Host: postgres
+      Database__Port: "5432"
+      Database__Database: ${POSTGRES_DB:-oisms}
+      Database__Username: ${OISMS_APP_USER:-oisms_app}
+      Database__Password: "${OISMS_APP_PASSWORD:?Error: OISMS_APP_PASSWORD must be set in .env}"
     ports:
       - "${BACKEND_PORT:-5000}:8080"
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     networks:
       - oism_network
 
