@@ -1,0 +1,40 @@
+# 04. Đặc Tả Hợp Đồng API Đơn Hàng Đa Kênh, Webhook & Báo Cáo (Order, Webhook & Report Endpoints)
+
+| Thông tin kiểm soát tài liệu | Chi tiết |
+| :--- | :--- |
+| **Mã tài liệu (Document ID)** | `DOC-API-04` |
+| **Phiên bản (Version)** | `v1.0.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-10-22` |
+| **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-ORD-01..03`, `FR-SIM-01`, `FR-REP-01..03`, `FR-AI` (Trang 2, 3, 6) |
+| **Phạm vi áp dụng** | Trung tâm Đơn hàng (`Orders`), Trình giả lập Webhook (`Simulator`), Báo cáo (`Reports`) & Dự báo AI |
+
+---
+
+## Lịch sử Phiên bản (Version History)
+
+| Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả thay đổi | Mã tham chiếu |
+| :---: | :---: | :--- | :--- | :--- |
+| `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả hợp đồng API cho Trung tâm Đơn hàng đa kênh, Webhook Simulator, Báo cáo lãi gộp và Gợi ý AI. | `INIT-API-04` |
+
+---
+
+## 1. Danh Mục Endpoints Đơn Hàng Đa Kênh & Webhook (`FR-ORD-01..03`, `FR-SIM-01`)
+
+| Method | Endpoint | Quyền (RBAC) | Mã FR | Mô tả & Quy tắc xử lý |
+| :---: | :--- | :---: | :---: | :--- |
+| `GET` | `/api/orders` | `Owner, Staff` | `FR-ORD-03` | Lấy danh sách đơn hàng hợp nhất (`Canonical Orders`), lọc theo Trạng thái, Kênh bán, Chi nhánh và Thời gian. |
+| `POST` | `/api/orders` | `Owner, Staff` | `FR-ORD-01..02` | Tạo đơn hàng thủ công trên Admin và thực hiện giữ chỗ tồn kho (`Draft -> Reserved`). |
+| `POST` | `/api/orders/{id}/confirm` | `Owner, Staff` | `FR-ORD-02..03`, `FR-RSE-03`, `FR-COST-02` | Duyệt đơn hàng (`Reserved -> Confirmed`): Trừ `on_hand`, giảm `reserved`, ghi Sổ cái `OUT` và chụp `OrderItem.CostPrice`. |
+| `POST` | `/api/orders/{id}/cancel` | `Owner, Staff` | `FR-ORD-02..03`, `FR-RSE-03` | Hủy đơn hàng (`Reserved -> Cancelled`): Giải phóng `reserved` về lại quỹ `available`. |
+| `POST` | `/api/webhooks/simulator/{channel}` | `Owner, Staff / Sim` | `FR-SIM-01`, `FR-ORD-01` | Giả lập nhận đơn hàng từ `Shopee` / `TikTok` / `Lazada`, chuẩn hóa đơn, giữ chỗ tồn kho và phát thông báo SignalR (`FR-SIM-02`). |
+
+---
+
+## 2. Danh Mục Endpoints Báo Cáo & Dự Báo AI (`FR-REP-01..03`, `FR-AI-01`)
+
+| Method | Endpoint | Quyền (RBAC) | Mã FR | Mô tả & Quy tắc xử lý |
+| :---: | :--- | :---: | :---: | :--- |
+| `GET` | `/api/reports/revenue-profit` | `Owner` | `FR-REP-01` | Báo cáo Doanh thu thuần, Tổng giá vốn (`COGS`) và Lợi nhuận gộp (`Gross Profit = Revenue - COGS`). |
+| `GET` | `/api/reports/inventory-velocity` | `Owner, Staff` | `FR-REP-02` | Báo cáo giá trị tồn kho theo giá vốn, top hàng bán chạy và hàng luân chuyển chậm. |
+| `GET` | `/api/reports/stock-alerts` | `Owner, Staff` | `FR-REP-03` | Danh sách cảnh báo các SKU có `available <= MinStockLevel`. |
+| `GET` | `/api/ai/reorder-recommendations` | `Owner, Staff` | `FR-AI-01` | Dự báo nhu cầu tiêu thụ và gợi ý số lượng đặt hàng nhập kho theo từng SKU. |
