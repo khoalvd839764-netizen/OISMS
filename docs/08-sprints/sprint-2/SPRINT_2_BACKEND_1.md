@@ -70,4 +70,4 @@ Các mốc là thứ tự phụ thuộc, chưa gán ngày cụ thể. Tài liệ
 - Sprint tập trung nhập kho. Ledger có thể được thiết kế hỗ trợ xuất/bán/trả, nhưng cần chốt riêng việc triển khai các nghiệp vụ đó trong sprint này.
 - Sai sót ledger phải có hướng điều chỉnh bằng giao dịch bù; không sửa/xóa bản ghi cũ.
 
-> Database v0.5 có guard tồn/ledger và kiểm tra snapshot tại COMMIT. Hai thành viên tích hợp theo [Quy ước database](database/README.md); các nhiệm vụ API/nghiệp vụ chưa được coi là hoàn thành bởi bản SQL này.
+> Database v0.5 có guard tồn/ledger và kiểm tra snapshot tại COMMIT. Hai thành viên tích hợp theo [Quy ước database](../../database/README.md); các nhiệm vụ API/nghiệp vụ chưa được coi là hoàn thành bởi bản SQL này.

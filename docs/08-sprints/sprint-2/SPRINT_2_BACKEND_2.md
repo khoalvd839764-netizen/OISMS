@@ -73,4 +73,4 @@ Các mốc là thứ tự phụ thuộc, chưa gán ngày cụ thể. Tài liệ
 - “Gỡ bỏ tài khoản Owner mặc định” ở frontend có nghĩa loại bỏ trạng thái đăng nhập giả; không loại bỏ tài khoản Owner thật tạo khi đăng ký tenant.
 - Checkout bán hàng hoàn chỉnh chưa được chốt là đầu ra bắt buộc; Backend 2 tập trung dữ liệu catalog, giá bán và tra cứu phục vụ POS.
 
-> Database v0.5 có guard tồn/ledger và kiểm tra snapshot tại COMMIT. Hai thành viên tích hợp theo [Quy ước database](database/README.md); các nhiệm vụ API/nghiệp vụ chưa được coi là hoàn thành bởi bản SQL này.
+> Database v0.5 có guard tồn/ledger và kiểm tra snapshot tại COMMIT. Hai thành viên tích hợp theo [Quy ước database](../../database/README.md); các nhiệm vụ API/nghiệp vụ chưa được coi là hoàn thành bởi bản SQL này.
