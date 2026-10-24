@@ -43,4 +43,5 @@ public class InventoryTransaction : BaseEntity, IMustHaveTenant
     public Warehouse? Warehouse { get; set; }
     public ProductVariant? Sku { get; set; }
     public GoodsReceiptItem? ReceiptItem { get; set; }
+    public OrderItem? OrderItem { get; set; }
 }

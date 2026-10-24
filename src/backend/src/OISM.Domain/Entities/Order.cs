@@ -48,4 +48,5 @@ public class Order : BaseEntity, IMustHaveTenant
 
     public ICollection<OrderItem> Items { get; set; } = new List<OrderItem>();
     public ICollection<Reservation> Reservations { get; set; } = new List<Reservation>();
+    public Payment? Payment { get; set; }
 }

@@ -167,7 +167,8 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         new("fk_orders_branch_id", "orders", ["tenant_id", "branch_id"], "branches", ["tenant_id", "id"]),
         new("fk_order_items_tenant_id", "order_items", ["tenant_id"], "tenants", ["id"]),
         new("fk_order_items_order_id", "order_items", ["tenant_id", "order_id"], "orders", ["tenant_id", "id"]),
-        new("fk_order_items_sku_id", "order_items", ["tenant_id", "sku_id"], "skus", ["tenant_id", "id"])
+        new("fk_order_items_sku_id", "order_items", ["tenant_id", "sku_id"], "skus", ["tenant_id", "id"]),
+        new("fk_stock_counts_generated_adjustment", "stock_counts", ["tenant_id", "generated_adjustment_id", "branch_id", "warehouse_id"], "inventory_adjustments", ["tenant_id", "id", "branch_id", "warehouse_id"])
     ];
 
     public static readonly ExpectedConstraint[] ExpectedCriticalConstraints =
@@ -214,9 +215,85 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         new("ck_orders_total_amount_nonnegative", 'c', "orders", ExpectedNormalizedExpression: "(total_amount >= (0)::numeric)"),
         new("ck_order_items_quantity_positive", 'c', "order_items", ExpectedNormalizedExpression: "(quantity > (0)::numeric)"),
         new("ck_order_items_unit_price_nonnegative", 'c', "order_items", ExpectedNormalizedExpression: "(unit_price >= (0)::numeric)"),
-        new("ck_order_items_cost_price_nonnegative", 'c', "order_items", ExpectedNormalizedExpression: "(cost_price >= (0)::numeric)")
+        new("ck_order_items_cost_price_nonnegative", 'c', "order_items", ExpectedNormalizedExpression: "(cost_price >= (0)::numeric)"),
+        new("uq_stock_transfers_3", 'u', "stock_transfers", Columns: ["tenant_id", "request_key"]),
+        new("uq_stock_counts_3", 'u', "stock_counts", Columns: ["tenant_id", "request_key"]),
+        new("uq_stock_counts_4", 'u', "stock_counts", Columns: ["tenant_id", "generated_adjustment_id"]),
+        new("uq_inventory_adjustments_3", 'u', "inventory_adjustments", Columns: ["tenant_id", "id", "branch_id", "warehouse_id"])
     ];
 
+
+    public async Task<MigrationExecutionResult> UpgradeDatabaseSchemaAsync(
+        string adminConnectionString,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = new NpgsqlConnection(adminConnectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var tx = await connection.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            const string upgradeSql = @"
+ALTER TABLE stock_transfers ADD COLUMN IF NOT EXISTS request_key uuid;
+ALTER TABLE stock_transfers ADD COLUMN IF NOT EXISTS payload_signature varchar(128);
+ALTER TABLE stock_counts ADD COLUMN IF NOT EXISTS request_key uuid;
+ALTER TABLE stock_counts ADD COLUMN IF NOT EXISTS payload_signature varchar(128);
+ALTER TABLE stock_counts ADD COLUMN IF NOT EXISTS generated_adjustment_id uuid;
+DO $$ 
+BEGIN 
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'uq_stock_transfers_3'
+    ) THEN 
+        ALTER TABLE stock_transfers ADD CONSTRAINT uq_stock_transfers_3 UNIQUE (tenant_id, request_key); 
+    END IF; 
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'uq_stock_counts_3'
+    ) THEN 
+        ALTER TABLE stock_counts ADD CONSTRAINT uq_stock_counts_3 UNIQUE (tenant_id, request_key); 
+    END IF; 
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'uq_stock_counts_4'
+    ) THEN 
+        ALTER TABLE stock_counts ADD CONSTRAINT uq_stock_counts_4 UNIQUE (tenant_id, generated_adjustment_id); 
+    END IF; 
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'uq_inventory_adjustments_3'
+    ) THEN 
+        ALTER TABLE inventory_adjustments ADD CONSTRAINT uq_inventory_adjustments_3 UNIQUE (tenant_id, id, branch_id, warehouse_id); 
+    END IF; 
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_stock_counts_generated_adjustment'
+    ) THEN 
+        ALTER TABLE stock_counts ADD CONSTRAINT fk_stock_counts_generated_adjustment 
+        FOREIGN KEY (tenant_id, generated_adjustment_id, branch_id, warehouse_id) 
+        REFERENCES inventory_adjustments (tenant_id, id, branch_id, warehouse_id) 
+        ON DELETE RESTRICT ON UPDATE NO ACTION; 
+    END IF; 
+END $$;
+";
+            await using (var cmd = new NpgsqlCommand(upgradeSql, connection, tx))
+            {
+                await cmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+            await tx.CommitAsync(cancellationToken);
+            return new MigrationExecutionResult(
+                Success: true,
+                IsFreshInstall: false,
+                IsBaselineAdopted: false,
+                TableCount: RequiredTables.Length,
+                Message: "Nâng cấp schema v0.5 stock_transfers thành công.");
+        }
+        catch (Exception ex)
+        {
+            await tx.RollbackAsync(cancellationToken);
+            return new MigrationExecutionResult(
+                Success: false,
+                IsFreshInstall: false,
+                IsBaselineAdopted: false,
+                TableCount: 0,
+                Message: $"Lỗi khi nâng cấp schema: {ex.Message}",
+                Errors: new[] { ex.ToString() });
+        }
+    }
 
     public async Task<MigrationExecutionResult> InitializeOrBaselineDatabaseAsync(
         string adminConnectionString,
@@ -702,17 +779,18 @@ WHERE n.nspname = 'public';";
 
         // 6. Kiểm tra các cột trọng yếu của schema v0.5
         const string checkColumnsSql = @"
-SELECT table_name, column_name 
+SELECT table_name, column_name, data_type, COALESCE(character_maximum_length, 0)
 FROM information_schema.columns 
 WHERE table_schema = 'public';";
 
-        var columnMap = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var columnMap = new Dictionary<string, (string DataType, int MaxLength)>(StringComparer.OrdinalIgnoreCase);
         await using (var cmd = new NpgsqlCommand(checkColumnsSql, connection, tx))
         await using (var reader = await cmd.ExecuteReaderAsync(ct))
         {
             while (await reader.ReadAsync(ct))
             {
-                columnMap.Add($"{reader.GetString(0)}.{reader.GetString(1)}");
+                var key = $"{reader.GetString(0)}.{reader.GetString(1)}";
+                columnMap[key] = (reader.GetString(2), reader.GetInt32(3));
             }
         }
 
@@ -720,13 +798,55 @@ WHERE table_schema = 'public';";
             "users.role", "users.tenant_id", "users.display_name", "users.phone",
             "skus.code", "skus.attributes", "skus.retail_price", "skus.wholesale_price",
             "inventory_transactions.sequence_no", "inventory_transactions.balance_after", "inventory_transactions.type",
-            "inventory_balances.on_hand", "inventory_balances.reserved", "inventory_balances.average_cost", "inventory_balances.last_sequence"
+            "inventory_balances.on_hand", "inventory_balances.reserved", "inventory_balances.average_cost", "inventory_balances.last_sequence",
+            "stock_transfers.request_key", "stock_transfers.payload_signature",
+            "stock_counts.request_key", "stock_counts.payload_signature", "stock_counts.generated_adjustment_id"
         ];
         foreach (var col in crucialColumns)
         {
-            if (!columnMap.Contains(col))
+            if (!columnMap.ContainsKey(col))
             {
-                errors.Add($"Thiếu cột trọng yếu '{col}' của schema v0.5.");
+                errors.Add($"Thiếu cột trọng yếu '{col}' của schema.");
+            }
+        }
+
+        if (columnMap.TryGetValue("stock_transfers.request_key", out var reqKeyCol))
+        {
+            if (!string.Equals(reqKeyCol.DataType, "uuid", StringComparison.OrdinalIgnoreCase))
+            {
+                errors.Add($"Cột 'stock_transfers.request_key' sai kiểu dữ liệu (thực tế='{reqKeyCol.DataType}', kỳ vọng='uuid').");
+            }
+        }
+
+        if (columnMap.TryGetValue("stock_transfers.payload_signature", out var sigCol))
+        {
+            if (!string.Equals(sigCol.DataType, "character varying", StringComparison.OrdinalIgnoreCase) || sigCol.MaxLength < 64)
+            {
+                errors.Add($"Cột 'stock_transfers.payload_signature' sai kiểu dữ liệu hoặc độ dài (thực tế='{sigCol.DataType}({sigCol.MaxLength})', kỳ vọng='character varying(128)').");
+            }
+        }
+
+        if (columnMap.TryGetValue("stock_counts.request_key", out var scReqKeyCol))
+        {
+            if (!string.Equals(scReqKeyCol.DataType, "uuid", StringComparison.OrdinalIgnoreCase))
+            {
+                errors.Add($"Cột 'stock_counts.request_key' sai kiểu dữ liệu (thực tế='{scReqKeyCol.DataType}', kỳ vọng='uuid').");
+            }
+        }
+
+        if (columnMap.TryGetValue("stock_counts.payload_signature", out var scSigCol))
+        {
+            if (!string.Equals(scSigCol.DataType, "character varying", StringComparison.OrdinalIgnoreCase) || scSigCol.MaxLength < 64)
+            {
+                errors.Add($"Cột 'stock_counts.payload_signature' sai kiểu dữ liệu hoặc độ dài (thực tế='{scSigCol.DataType}({scSigCol.MaxLength})', kỳ vọng='character varying(128)').");
+            }
+        }
+
+        if (columnMap.TryGetValue("stock_counts.generated_adjustment_id", out var scAdjCol))
+        {
+            if (!string.Equals(scAdjCol.DataType, "uuid", StringComparison.OrdinalIgnoreCase))
+            {
+                errors.Add($"Cột 'stock_counts.generated_adjustment_id' sai kiểu dữ liệu (thực tế='{scAdjCol.DataType}', kỳ vọng='uuid').");
             }
         }
 

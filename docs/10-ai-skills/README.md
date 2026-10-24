@@ -3,8 +3,8 @@
 | Thông tin kiểm soát thư mục | Chi tiết |
 | :--- | :--- |
 | **Mã phân hệ (Module ID)** | `MOD-SKL-10` |
-| **Phiên bản hiện hành** | `v1.0.0` |
-| **Ngày cập nhật gần nhất** | `2026-10-23` |
+| **Phiên bản hiện hành** | `v1.1.0` |
+| **Ngày cập nhật gần nhất** | `2026-10-24` |
 | **Thư mục lưu trữ skill vật lý** | `D:\OISMS\skills\` |
 | **Nguồn repository kỹ năng** | [`https://github.com/rmyndharis/antigravity-skills`](https://github.com/rmyndharis/antigravity-skills) |
 
@@ -26,10 +26,13 @@ Phân hệ **10-ai-skills** tài liệu hóa toàn diện hệ thống kỹ năn
 | :---: | :---: | :--- | :---: | :--- |
 | **1** | `DOC-SKL-01` | [`01-skills-catalog-and-mapping.md`](./01-skills-catalog-and-mapping.md) | `v1.0.0` | Bảng đặc tả chi tiết 12 AI Skills, phân nhóm nghiệp vụ kỹ thuật, ánh xạ tương ứng vào từng thành phần mã nguồn và tài liệu kiến trúc OISMS. |
 | **2** | `DOC-SKL-02` | [`02-antigravity-integration-guide.md`](./02-antigravity-integration-guide.md) | `v1.0.0` | Hướng dẫn cơ chế Discovery của Antigravity, thiết lập NTFS Junction `.agent/skills`, cách kích hoạt tự động (Progressive Disclosure) và chủ động (Proactive prompt). |
+| **3** | `DOC-SKL-03` | [`03-codex-antigravity-workflow.md`](./03-codex-antigravity-workflow.md) | `v1.0.0` | Skill điều phối nội bộ: Codex phân tích/giao việc/review; Antigravity code và báo cáo; kiểm soát phạm vi và vòng fix. |
 
 ---
 
 ## 3. Tổng Hợp Nhanh 12 AI Skills Đã Cài Đặt
+
+Ngoài 12 skill kỹ thuật bên dưới, repo có [skill điều phối Codex–Antigravity](../../skills/codex-antigravity-workflow/SKILL.md) do dự án duy trì. Xem [hướng dẫn sử dụng](./03-codex-antigravity-workflow.md).
 
 | Nhóm lĩnh vực | Tên Skill | Vị trí thư mục | Trọng tâm hỗ trợ OISMS |
 | :--- | :--- | :--- | :--- |

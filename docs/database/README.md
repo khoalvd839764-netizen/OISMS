@@ -837,18 +837,21 @@ Kiểm kê SKU tại kho; đối chiếu số dư và sequence của kho, cập 
 |---|---|---|---|
 | `id` (PK) | `uuid` | Có | `gen_random_uuid()` |
 | `tenant_id` | `uuid` | Có | Backend phải cung cấp |
-| `number` | `varchar(50)` | Có | Backend phải cung cấp |
+| `number` | `varchar(50)` | Có | Backend phải cung cấp (`CNT-yyyyMMdd-XXXXX`) |
+| `request_key` | `uuid` | Không | Backend cung cấp cho tạo mới (UUID) |
+| `payload_signature` | `varchar(128)` | Không | Hash SHA-256 canonical payload kiểm soát Idempotency |
 | `branch_id` | `uuid` | Có | Backend phải cung cấp |
 | `warehouse_id` | `uuid` | Có | Backend phải cung cấp |
 | `status` | `varchar(20)` | Có | `'Draft'` |
 | `created_by` | `uuid` | Có | Backend phải cung cấp |
 | `confirmed_by` | `uuid` | Không | Backend cung cấp khi có giá trị |
 | `confirmed_at` | `timestamptz` | Không | Backend cung cấp khi có giá trị |
+| `generated_adjustment_id` | `uuid` | Không | Liên kết 1-1 với `inventory_adjustments` sinh ra khi chốt |
 | `note` | `text` | Không | Backend cung cấp khi có giá trị |
 | `created_at` | `timestamptz` | Có | `now()` |
 | `updated_at` | `timestamptz` | Không | Backend cung cấp khi có giá trị |
 
-**UNIQUE:** `(tenant_id, id)`; `(tenant_id, number)`.
+**UNIQUE:** `(tenant_id, id)`; `(tenant_id, number)`; `(tenant_id, request_key)` (khi không null); `(tenant_id, generated_adjustment_id)` (khi không null).
 
 **Quan hệ FK:**
 
@@ -857,6 +860,7 @@ Kiểm kê SKU tại kho; đối chiếu số dư và sequence của kho, cập 
 - `(tenant_id, warehouse_id, branch_id)` → `warehouses(tenant_id, id, branch_id)`.
 - `(tenant_id, created_by)` → `users(tenant_id, id)`.
 - `(tenant_id, confirmed_by)` → `users(tenant_id, id)`.
+- `(tenant_id, generated_adjustment_id, branch_id, warehouse_id)` → `inventory_adjustments(tenant_id, id, branch_id, warehouse_id)`.
 
 **CHECK:**
 
@@ -903,7 +907,7 @@ Chứng từ tối thiểu cho bút toán bù/số dư đầu kỳ chi nhánh th
 |---|---|---|---|
 | `id` (PK) | `uuid` | Có | `gen_random_uuid()` |
 | `tenant_id` | `uuid` | Có | Backend phải cung cấp |
-| `number` | `varchar(50)` | Có | Backend phải cung cấp |
+| `number` | `varchar(50)` | Có | Backend phải cung cấp (`ADJ-yyyyMMdd-XXXXX`) |
 | `branch_id` | `uuid` | Có | Backend phải cung cấp |
 | `warehouse_id` | `uuid` | Có | Backend phải cung cấp |
 | `reason` | `text` | Có | Backend phải cung cấp |
@@ -914,7 +918,7 @@ Chứng từ tối thiểu cho bút toán bù/số dư đầu kỳ chi nhánh th
 | `created_at` | `timestamptz` | Có | `now()` |
 | `updated_at` | `timestamptz` | Không | Backend cung cấp khi có giá trị |
 
-**UNIQUE:** `(tenant_id, id)`; `(tenant_id, number)`.
+**UNIQUE:** `(tenant_id, id)`; `(tenant_id, number)`; `(tenant_id, id, branch_id, warehouse_id)`.
 
 **Quan hệ FK:**
 

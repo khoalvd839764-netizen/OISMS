@@ -248,6 +248,8 @@ CREATE TABLE "stock_transfers" (
   "id" uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
   "tenant_id" uuid NOT NULL,
   "number" varchar(50) NOT NULL,
+  "request_key" uuid,
+  "payload_signature" varchar(128),
   "from_branch_id" uuid NOT NULL,
   "to_branch_id" uuid NOT NULL,
   "from_warehouse_id" uuid NOT NULL,
@@ -262,6 +264,7 @@ CREATE TABLE "stock_transfers" (
   "updated_at" timestamptz,
   CONSTRAINT "uq_stock_transfers_1" UNIQUE ("tenant_id", "id"),
   CONSTRAINT "uq_stock_transfers_2" UNIQUE ("tenant_id", "number"),
+  CONSTRAINT "uq_stock_transfers_3" UNIQUE ("tenant_id", "request_key"),
   CONSTRAINT "ck_stock_transfers_status_values" CHECK (status IN ('Draft', 'InTransit', 'Received', 'Cancelled')),
   CONSTRAINT "ck_stock_transfers_different_warehouses" CHECK (from_warehouse_id <> to_warehouse_id),
   CONSTRAINT "ck_stock_transfers_dispatch_time" CHECK ((status IN ('InTransit','Received')) = (dispatched_at IS NOT NULL)),
@@ -298,8 +301,13 @@ CREATE TABLE "stock_counts" (
   "note" text,
   "created_at" timestamptz DEFAULT now() NOT NULL,
   "updated_at" timestamptz,
+  "request_key" uuid,
+  "payload_signature" varchar(128),
+  "generated_adjustment_id" uuid,
   CONSTRAINT "uq_stock_counts_1" UNIQUE ("tenant_id", "id"),
   CONSTRAINT "uq_stock_counts_2" UNIQUE ("tenant_id", "number"),
+  CONSTRAINT "uq_stock_counts_3" UNIQUE ("tenant_id", "request_key"),
+  CONSTRAINT "uq_stock_counts_4" UNIQUE ("tenant_id", "generated_adjustment_id"),
   CONSTRAINT "ck_stock_counts_status_values" CHECK (status IN ('Draft', 'Counting', 'Confirmed', 'Cancelled')),
   CONSTRAINT "ck_stock_counts_confirmed" CHECK ((status = 'Confirmed') = (confirmed_at IS NOT NULL) AND (confirmed_at IS NULL) = (confirmed_by IS NULL))
 );
@@ -340,6 +348,7 @@ CREATE TABLE "inventory_adjustments" (
   "updated_at" timestamptz,
   CONSTRAINT "uq_inventory_adjustments_1" UNIQUE ("tenant_id", "id"),
   CONSTRAINT "uq_inventory_adjustments_2" UNIQUE ("tenant_id", "number"),
+  CONSTRAINT "uq_inventory_adjustments_3" UNIQUE ("tenant_id", "id", "branch_id", "warehouse_id"),
   CONSTRAINT "ck_inventory_adjustments_status_values" CHECK (status IN ('Draft', 'Confirmed', 'Cancelled')),
   CONSTRAINT "ck_inventory_adjustments_reason_required" CHECK (length(btrim(reason)) > 0),
   CONSTRAINT "ck_inventory_adjustments_confirmed" CHECK ((status = 'Confirmed') = (confirmed_at IS NOT NULL) AND (confirmed_at IS NULL) = (confirmed_by IS NULL))
@@ -634,6 +643,7 @@ ALTER TABLE "stock_counts" ADD CONSTRAINT "fk_stock_counts_branch_id" FOREIGN KE
 ALTER TABLE "stock_counts" ADD CONSTRAINT "fk_stock_counts_warehouse_branch" FOREIGN KEY ("tenant_id", "warehouse_id", "branch_id") REFERENCES "warehouses" ("tenant_id", "id", "branch_id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 ALTER TABLE "stock_counts" ADD CONSTRAINT "fk_stock_counts_created_by" FOREIGN KEY ("tenant_id", "created_by") REFERENCES "users" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 ALTER TABLE "stock_counts" ADD CONSTRAINT "fk_stock_counts_confirmed_by" FOREIGN KEY ("tenant_id", "confirmed_by") REFERENCES "users" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "stock_counts" ADD CONSTRAINT "fk_stock_counts_generated_adjustment" FOREIGN KEY ("tenant_id", "generated_adjustment_id", "branch_id", "warehouse_id") REFERENCES "inventory_adjustments" ("tenant_id", "id", "branch_id", "warehouse_id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 ALTER TABLE "stock_count_items" ADD CONSTRAINT "fk_stock_count_items_tenant_id" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 ALTER TABLE "stock_count_items" ADD CONSTRAINT "fk_stock_count_items_stock_count_id" FOREIGN KEY ("tenant_id", "stock_count_id") REFERENCES "stock_counts" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 ALTER TABLE "stock_count_items" ADD CONSTRAINT "fk_stock_count_items_sku_id" FOREIGN KEY ("tenant_id", "sku_id") REFERENCES "skus" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;

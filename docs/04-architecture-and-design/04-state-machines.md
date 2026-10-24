@@ -49,6 +49,6 @@ stateDiagram-v2
 stateDiagram-v2
     [*] --> Draft : Lập phiếu yêu cầu chuyển kho (Branch A -> Branch B)
     Draft --> InTransit : Bước 1 - Xuất kho gửi (Ghi Ledger OUT tại Kho A, giảm on_hand Kho A)
-    InTransit --> Completed : Bước 2 - Xác nhận nhập tại Kho B (Ghi Ledger IN tại Kho B, tăng on_hand Kho B)
+    InTransit --> Received : Bước 2 - Xác nhận nhập tại Kho B (Ghi Ledger IN tại Kho B, tăng on_hand Kho B)
     Draft --> Cancelled : Hủy phiếu khi chưa xuất kho
 ```
