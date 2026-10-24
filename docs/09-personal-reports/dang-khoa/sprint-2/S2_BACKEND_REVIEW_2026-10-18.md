@@ -1,6 +1,6 @@
 # Rà soát backend S2 trước bàn giao — 18/10/2026
 
-Người nhận: Đăng Khoa. Phạm vi đối chiếu: `docs/SPRINT_2_BACKEND_1.md` và `docs/SPRINT_2_BACKEND_2.md`.
+Người nhận: Đăng Khoa. Phạm vi đối chiếu: [`docs/08-sprints/sprint-2/SPRINT_2_BACKEND_1.md`](../../../08-sprints/sprint-2/SPRINT_2_BACKEND_1.md) và [`docs/08-sprints/sprint-2/SPRINT_2_BACKEND_2.md`](../../../08-sprints/sprint-2/SPRINT_2_BACKEND_2.md).
 
 **Kết luận: đã triển khai đủ các nhóm chức năng chính của BE1/BE2, nhưng chưa nên chốt nghiệm thu backend S2 vì còn 5 nhóm lỗi đã tái hiện.** Đây là lỗi trong các chức năng hiện có, không phải yêu cầu mở rộng sprint.
 
@@ -17,10 +17,10 @@ Bản kiểm tra là working tree trên HEAD `2cc35c2`, bao gồm các thay đ�
 
 Bằng chứng cục bộ:
 
-- [Log toàn bộ test](../../tmp/s2-handover-audit/tests.log).
-- [Log các ca API bổ sung](../../tmp/s2-handover-audit/api-final.log).
-- [Mã harness tái hiện](../../tmp/s2-handover-audit/Program.cs).
-- [Project harness](../../tmp/s2-handover-audit/Review.csproj).
+- Log toàn bộ test (`tmp/s2-handover-audit/tests.log`).
+- Log các ca API bổ sung (`tmp/s2-handover-audit/api-final.log`).
+- Mã harness tái hiện (`tmp/s2-handover-audit/Program.cs`).
+- Project harness (`tmp/s2-handover-audit/Review.csproj`).
 - Coverage: `tmp/s2-handover-audit/test-results/`.
 - Dấu vân tay source đã review: `tmp/s2-handover-audit/backend-source-manifest.json`.
 
