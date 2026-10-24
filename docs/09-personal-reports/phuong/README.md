@@ -10,7 +10,7 @@ Directory of technical reports and acceptance handovers by **Phuong (Frontend PO
   - Smart RBAC routing via centralized login and full POS interface sign-off.
 
 ## Application Resources
-* **Application Source Code:** [`src/frontend/pos-app`](../../src/frontend/pos-app)
+* **Application Source Code:** [`src/frontend/pos-app`](../../../src/frontend/pos-app)
 * **Application Port:** `http://localhost:5174`
 * **Startup Script:** `scripts/run-pos.ps1`
 

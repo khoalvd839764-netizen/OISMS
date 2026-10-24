@@ -2,7 +2,7 @@
 
 Ngày 16/10/2026. Thay thế v0.4. Đối chiếu đề gốc và cập nhật theo lựa chọn của Khoa: WAC theo chi nhánh, tồn riêng từng kho, thuộc tính biến thể tùy ý, đăng nhập email hoặc SĐT, QR chưa chốt.
 
-[SQL](database/oisms_schema.sql) · [Tài liệu bàn giao](database/README.md) · [Yêu cầu dự án](DE_BAI_OISM.md)
+[SQL](../../database/oisms_schema.sql) · [Tài liệu bàn giao](../../database/README.md) · [Yêu cầu dự án](DE_BAI_OISM.md)
 
 ## 1. Quyết định và phạm vi
 
@@ -40,7 +40,7 @@ Ledger giữ các trường đề yêu cầu và thêm WarehouseId để truy v�
 
 Ledger có đúng một dòng nguồn. ReferenceId được sinh từ FK nguồn. Dòng bán có thể phát sinh một OUT tại mỗi kho phân bổ; unique theo dòng bán/kho chống ghi lặp. Các nguồn còn lại giữ một bút toán mỗi dòng; chuyển có một OUT và một IN. Service phải kiểm tra SKU, vị trí, lượng nguồn và tổng phân bổ: FK không tự chứng minh tất cả quan hệ nghiệp vụ này.
 
-Mọi thao tác tồn/giữ chỗ/WAC/ledger/trạng thái phải nguyên tử, chống retry và cạnh tranh. Ledger cấm UPDATE/DELETE, sửa sai bằng bút toán bù. v0.5 đã có append-only trigger, constraint kiểm tra tồn ở COMMIT, khóa giao dịch và quyền runtime tích hợp trong SQL bàn giao. Posting service/WAC vẫn thuộc phần triển khai backend. Xem [hợp đồng tích hợp](database/README.md).
+Mọi thao tác tồn/giữ chỗ/WAC/ledger/trạng thái phải nguyên tử, chống retry và cạnh tranh. Ledger cấm UPDATE/DELETE, sửa sai bằng bút toán bù. v0.5 đã có append-only trigger, constraint kiểm tra tồn ở COMMIT, khóa giao dịch và quyền runtime tích hợp trong SQL bàn giao. Posting service/WAC vẫn thuộc phần triển khai backend. Xem [hợp đồng tích hợp](../../database/README.md).
 
 ## 4. Biến thể tùy ý
 
