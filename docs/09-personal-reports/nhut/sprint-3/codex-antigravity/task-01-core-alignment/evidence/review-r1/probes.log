@@ -1,0 +1,32 @@
+  ReviewerProbes -> D:\OISMS\tmp\codex-be2-t01-review\probe\bin\Release\net8.0\ReviewerProbes.dll
+Test run for D:\OISMS\tmp\codex-be2-t01-review\probe\bin\Release\net8.0\ReviewerProbes.dll (.NETCoreApp,Version=v8.0)
+A total of 1 test files matched the specified pattern.
+[xUnit.net 00:00:14.32]     ReviewerProbes.SimulatorAdapter_SameTotalChangedItems_MustRejectPayloadMismatch [FAIL]
+  Failed ReviewerProbes.SimulatorAdapter_SameTotalChangedItems_MustRejectPayloadMismatch [293 ms]
+  Error Message:
+   Assert.NotNull() Failure: Value is null
+  Stack Trace:
+     at ReviewerProbes.SimulatorAdapter_SameTotalChangedItems_MustRejectPayloadMismatch() in D:\OISMS\tmp\codex-be2-t01-review\probe\ReviewerProbes.cs:line 140
+   at ReviewerProbes.SimulatorAdapter_SameTotalChangedItems_MustRejectPayloadMismatch() in D:\OISMS\tmp\codex-be2-t01-review\probe\ReviewerProbes.cs:line 140
+--- End of stack trace from previous location ---
+  Standard Output Messages:
+ {"provider":"PostgreSQL","configuredShop":false,"sameOrderReturned":true,"requestedQuantity":2,"returnedQuantity":1.000,"requestedUnitPrice":50,"returnedUnitPrice":100.00,"actualErrorType":null}
+
+
+[xUnit.net 00:00:18.69]     ReviewerProbes.ProcessEndpoint_OnRealPostgres_MustNotReturn500OrPartiallyConfirm [FAIL]
+  Failed ReviewerProbes.ProcessEndpoint_OnRealPostgres_MustNotReturn500OrPartiallyConfirm [440 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: OK
+Actual:   InternalServerError
+  Stack Trace:
+     at ReviewerProbes.ProcessEndpoint_OnRealPostgres_MustNotReturn500OrPartiallyConfirm() in D:\OISMS\tmp\codex-be2-t01-review\probe\ReviewerProbes.cs:line 113
+   at ReviewerProbes.ProcessEndpoint_OnRealPostgres_MustNotReturn500OrPartiallyConfirm() in D:\OISMS\tmp\codex-be2-t01-review\probe\ReviewerProbes.cs:line 113
+--- End of stack trace from previous location ---
+  Standard Output Messages:
+ {"httpStatus":500,"persistedStatus":"Confirmed","OnHand":8.000,"Reserved":0.000,"outRows":1,"schemaConstraintInBody":true,"bodyStart":"Microsoft.EntityFrameworkCore.DbUpdateException: An error occurred while saving the entity changes. See the inner exception for details.\r\n ---\u003E Npgsql.PostgresException (0x80004005): 23514: new row for relation \u0022orders\u0022 violates check constraint \u0022ck_orders_status_values\u0022\r\n\r\nDETAIL: Detail redacted as it may contain sensitive data. Specify \u0027Include Error Detail\u0027 in the connection string to include this information.\r\n   at Npgsql.Internal.NpgsqlConnector.ReadMessageLong(Boolean async, DataRowLoadingMode dataRowLoadingMode, Boolean readingNotifications, Boolean isReadingPrependedMessage)\r\n   at System.Runtime.CompilerServices.PoolingAsyncValueTaskMethodBuilder\u00601.StateMachineBox\u00601.System.Threading.Tasks.Sources.IValueTaskSource\u003CTResult\u003E.GetResult(Int16 token)\r\n   at Npgsql.NpgsqlDataReader.Nex"}
+
+
+Results File: D:\OISMS\tmp\codex-be2-t01-review\probe-results\Jacki_Khoa_KHOA_LE_2026-10-26_18_42_52_net8.0.trx
+
+Failed!  - Failed:     2, Passed:     0, Skipped:     0, Total:     2, Duration: 4 s - ReviewerProbes.dll (net8.0)

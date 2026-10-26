@@ -1,3 +1,4 @@
+using OISM.Application.Features.Inventory.Dtos;
 using OISM.Application.Features.Orders.Dtos;
 
 namespace OISM.Application.Features.Orders.Services;
@@ -61,4 +62,15 @@ public interface IOrderService
     /// Thống kê chi tiết kết quả xử lý batch của lượt quét hết hạn gần nhất trên instance hiện tại.
     /// </summary>
     BatchExecutionStats LastExecutionStats { get; }
+
+    // ======================================================================================
+    // Phương thức tương thích cho BE2 Query và Simulator (sẽ hoàn thiện tại T02)
+    // ======================================================================================
+    Task<PagedResult<OrderSummaryDto>> GetOrdersAsync(OrderFilterDto filter, CancellationToken ct = default);
+    Task<OrderDetailDto?> GetOrderDetailByIdAsync(Guid id, CancellationToken ct = default);
+    Task<OrderDetailDto> CreateOrderAsync(CreateOrderDto dto, Guid? userId, CancellationToken ct = default);
+    Task<OrderDetailDto> ConfirmOrderAsync(Guid id, Guid? userId, CancellationToken ct = default);
+    Task<OrderDetailDto> ProcessOrderAsync(Guid id, Guid? userId, CancellationToken ct = default);
+    Task<OrderDetailDto> CompleteOrderAsync(Guid id, Guid? userId, CancellationToken ct = default);
+    Task<OrderDetailDto> CancelOrderAsync(Guid id, Guid? userId, CancellationToken ct = default);
 }

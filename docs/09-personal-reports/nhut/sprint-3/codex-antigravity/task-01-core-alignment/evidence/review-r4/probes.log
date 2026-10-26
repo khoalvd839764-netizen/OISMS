@@ -1,0 +1,9 @@
+  Determining projects to restore...
+  Restored D:\OISMS\tmp\codex-be2-t01-review-r4\probe\ReviewerProbes.csproj (in 3.66 sec).
+  5 of 6 projects are up-to-date for restore.
+  ReviewerProbes -> D:\OISMS\tmp\codex-be2-t01-review-r4\probe\bin\Release\net8.0\ReviewerProbes.dll
+Test run for D:\OISMS\tmp\codex-be2-t01-review-r4\probe\bin\Release\net8.0\ReviewerProbes.dll (.NETCoreApp,Version=v8.0)
+A total of 1 test files matched the specified pattern.
+Results File: D:\OISMS\tmp\codex-be2-t01-review-r4\probe-results\Jacki_Khoa_KHOA_LE_2026-10-26_22_20_14_net8.0.trx
+
+Passed!  - Failed:     0, Passed:     6, Skipped:     0, Total:     6, Duration: 30 s - ReviewerProbes.dll (net8.0)

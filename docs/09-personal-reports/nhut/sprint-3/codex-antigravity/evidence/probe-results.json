@@ -1,0 +1,66 @@
+[
+  {
+    "probe": "reserve-over-stock",
+    "provider": "EF InMemory",
+    "Status": "Reserved",
+    "requestedQuantity": 2,
+    "OnHand": 1,
+    "Reserved": 0,
+    "reservationRows": 0,
+    "expected": "Reject insufficient stock; no Reserved order without real reservations"
+  },
+  {
+    "probe": "confirm-over-stock",
+    "provider": "EF InMemory",
+    "Status": "Confirmed",
+    "OnHand": 0,
+    "outQuantity": 2,
+    "emptyWarehouseLedgerRows": 1,
+    "expected": "Reject invalid/insufficient allocation, never clamp stock and write invalid warehouse ledger"
+  },
+  {
+    "probe": "shop-idempotency",
+    "provider": "EF InMemory",
+    "sameOrderReturned": true,
+    "requestedShop": "SHOP-B",
+    "returnedShop": "SHOP-A",
+    "expected": "Different shops have distinct canonical order identities"
+  },
+  {
+    "probe": "payload-mismatch",
+    "provider": "EF InMemory",
+    "requestedQuantity": 3,
+    "returnedQuantity": 1,
+    "expected": "Same key with different payload must fail with payload mismatch"
+  },
+  {
+    "probe": "batch-without-stock",
+    "provider": "EF InMemory",
+    "TotalRequests": 50,
+    "SuccessCount": 50,
+    "FailedConflictCount": 0,
+    "reservationRows": 0,
+    "note": "Service-level sequential batch; not a PostgreSQL concurrency experiment",
+    "expected": "No successful reservation when no stock exists"
+  },
+  {
+    "probe": "velocity-multibranch-channel",
+    "provider": "EF InMemory",
+    "totalOnHand": 10,
+    "bestSellerOnHand": 3,
+    "bestSellerSold": 3,
+    "slowMovingRowsForSameSku": 2,
+    "slowMovingDays": [
+      30,
+      30
+    ],
+    "expected": "SKU aggregate: OnHand=10, Shopee sold=1, one row per SKU, elapsed days from real sale time"
+  },
+  {
+    "probe": "revenue-status",
+    "provider": "EF InMemory",
+    "TotalNetRevenue": 130,
+    "TotalOrders": 3,
+    "expectedUnderFrRep01": "Completed orders only: revenue=30, orders=2; confirm accounting policy before implementation"
+  }
+]

@@ -39,6 +39,8 @@ builder.Services.AddScoped<OISM.Application.Features.Inventory.Services.IInvento
 builder.Services.AddScoped<OISM.Application.Features.Inventory.Services.IReservationService, OISM.Application.Features.Inventory.Services.ReservationService>();
 builder.Services.AddScoped<OISM.Application.Features.Orders.Services.IPosCheckoutService, OISM.Application.Features.Orders.Services.OrderService>();
 builder.Services.AddScoped<OISM.Application.Features.Orders.Services.IOrderService, OISM.Application.Features.Orders.Services.OrderService>();
+builder.Services.AddScoped<OISM.Application.Features.Reports.Services.IReportService, OISM.Application.Features.Reports.Services.ReportService>();
+builder.Services.AddScoped<OISM.Application.Features.Simulator.Services.ISimulatorService, OISM.Application.Features.Simulator.Services.SimulatorService>();
 builder.Services.AddScoped<OISM.Application.Features.StockTransfers.Services.IStockTransferService, OISM.Application.Features.StockTransfers.Services.StockTransferService>();
 builder.Services.AddScoped<OISM.Application.Features.StockCounts.Services.IStockCountService, OISM.Application.Features.StockCounts.Services.StockCountService>();
 builder.Services.AddScoped<OISM.Application.Features.Realtime.IRealtimeNotifier, OISM.WebApi.Services.RealtimeNotifier>();

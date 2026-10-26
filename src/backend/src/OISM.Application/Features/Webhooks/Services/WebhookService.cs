@@ -49,202 +49,9 @@ public class WebhookService : IWebhookService
         ClaimsPrincipal? user,
         CancellationToken ct = default)
     {
-        // 1. Chuẩn hóa và xác thực kênh bán từ URL
-        if (string.IsNullOrWhiteSpace(pathChannel))
-        {
-            throw new OismException("VALIDATION_ERROR", "Kênh bán trên đường dẫn URL không được để trống.", 400);
-        }
-
-        var normalizedPathChannel = pathChannel.Trim().ToLowerInvariant() switch
-        {
-            "shopee" => "Shopee",
-            "tiktok" => "TikTok",
-            "lazada" => "Lazada",
-            _ => null
-        };
-
-        if (normalizedPathChannel == null)
-        {
-            throw new OismException("VALIDATION_ERROR", $"Kênh bán '{pathChannel}' không được hỗ trợ. Chỉ hỗ trợ 'Shopee', 'TikTok', 'Lazada'.", 400);
-        }
-
-        // 2. Kiểm tra Payload cơ bản & Validation cấu trúc
-        if (dto == null)
-        {
-            throw new OismException("VALIDATION_ERROR", "Nội dung Webhook payload không được để trống.", 400);
-        }
-
-        if (string.IsNullOrWhiteSpace(dto.Channel))
-        {
-            throw new OismException("VALIDATION_ERROR", "Trường 'channel' trong payload không được để trống.", 400);
-        }
-
-        if (!string.Equals(normalizedPathChannel, dto.Channel.Trim(), StringComparison.OrdinalIgnoreCase))
-        {
-            throw new OismException("CHANNEL_MISMATCH", $"Kênh bán trên đường dẫn URL ('{pathChannel}') không khớp với kênh bán trong nội dung payload ('{dto.Channel}').", 400);
-        }
-
-        if (string.IsNullOrWhiteSpace(dto.ExternalShopId))
-        {
-            throw new OismException("VALIDATION_ERROR", "Mã Shop trên sàn ('externalShopId') là bắt buộc.", 400);
-        }
-
-        if (dto.ExternalShopId.Trim().Length > 100)
-        {
-            throw new OismException("VALIDATION_ERROR", "Mã Shop trên sàn không được vượt quá 100 ký tự.", 400);
-        }
-
-        if (string.IsNullOrWhiteSpace(dto.ExternalOrderId))
-        {
-            throw new OismException("VALIDATION_ERROR", "Mã Đơn hàng trên sàn ('externalOrderId') là bắt buộc.", 400);
-        }
-
-        if (dto.ExternalOrderId.Trim().Length > 100)
-        {
-            throw new OismException("VALIDATION_ERROR", "Mã Đơn hàng trên sàn không được vượt quá 100 ký tự.", 400);
-        }
-
-        // T5-F03: OrderTimestamp bắt buộc có giá trị xác định
-        if (!dto.OrderTimestamp.HasValue || dto.OrderTimestamp.Value == default)
-        {
-            throw new OismException("VALIDATION_ERROR", "Thời gian đặt hàng ('orderTimestamp') là bắt buộc và phải có giá trị xác định.", 400);
-        }
-
-        // T5-F03: TotalAmount bắt buộc, không âm, scale <= 2, magnitude
-        if (!dto.TotalAmount.HasValue)
-        {
-            throw new OismException("VALIDATION_ERROR", "Tổng tiền đơn hàng ('totalAmount') là bắt buộc.", 400);
-        }
-
-        if (dto.TotalAmount.Value < 0)
-        {
-            throw new OismException("VALIDATION_ERROR", "Tổng tiền đơn hàng không được âm.", 400);
-        }
-
-        if (decimal.Round(dto.TotalAmount.Value, 2) != dto.TotalAmount.Value)
-        {
-            throw new OismException("VALIDATION_ERROR", "Tổng tiền đơn hàng không được vượt quá 2 chữ số thập phân.", 400);
-        }
-
-        if (dto.TotalAmount.Value > OrderService.MaxMoneyAmount)
-        {
-            throw new OismException("VALIDATION_ERROR", "Tổng tiền đơn hàng vượt quá giới hạn tối đa cho phép.", 400);
-        }
-
-        // T5-F03: Customer fields length validation
-        if (dto.CustomerName != null && dto.CustomerName.Trim().Length > 200)
-        {
-            throw new OismException("VALIDATION_ERROR", "Tên khách hàng không được vượt quá 200 ký tự.", 400);
-        }
-
-        if (dto.CustomerPhone != null && dto.CustomerPhone.Trim().Length > 32)
-        {
-            throw new OismException("VALIDATION_ERROR", "Số điện thoại không được vượt quá 32 ký tự.", 400);
-        }
-
-        if (dto.ShippingAddress != null && dto.ShippingAddress.Trim().Length > 500)
-        {
-            throw new OismException("VALIDATION_ERROR", "Địa chỉ giao hàng không được vượt quá 500 ký tự.", 400);
-        }
-
-        if (dto.Items == null || dto.Items.Count == 0)
-        {
-            throw new OismException("VALIDATION_ERROR", "Đơn hàng phải có ít nhất 1 sản phẩm.", 400);
-        }
-
-        if (dto.Items.Any(i => i == null))
-        {
-            throw new OismException("VALIDATION_ERROR", "Dòng sản phẩm trong đơn hàng không được mang giá trị null.", 400);
-        }
-
-        foreach (var item in dto.Items)
-        {
-            if (string.IsNullOrWhiteSpace(item.SkuCode))
-            {
-                throw new OismException("VALIDATION_ERROR", "Mã SKU mặt hàng trong đơn không được để trống.", 400);
-            }
-
-            if (item.SkuCode.Trim().Length > 80)
-            {
-                throw new OismException("VALIDATION_ERROR", $"Mã SKU '{item.SkuCode}' vượt quá 80 ký tự cho phép.", 400);
-            }
-
-            if (!item.Quantity.HasValue)
-            {
-                throw new OismException("VALIDATION_ERROR", $"Số lượng mặt hàng SKU '{item.SkuCode}' là bắt buộc.", 400);
-            }
-
-            if (item.Quantity.Value <= 0)
-            {
-                throw new OismException("VALIDATION_ERROR", $"Số lượng mặt hàng SKU '{item.SkuCode}' phải lớn hơn 0.", 400);
-            }
-
-            if (item.Quantity.Value > OrderService.MaxQuantityAmount)
-            {
-                throw new OismException("VALIDATION_ERROR", $"Số lượng mặt hàng SKU '{item.SkuCode}' vượt quá giới hạn tối đa cho phép.", 400);
-            }
-
-            if (decimal.Round(item.Quantity.Value, 3) != item.Quantity.Value)
-            {
-                throw new OismException("VALIDATION_ERROR", $"Số lượng mặt hàng SKU '{item.SkuCode}' không được vượt quá 3 chữ số thập phân.", 400);
-            }
-
-            if (!item.UnitPrice.HasValue)
-            {
-                throw new OismException("VALIDATION_ERROR", $"Đơn giá của SKU '{item.SkuCode}' là bắt buộc.", 400);
-            }
-
-            if (item.UnitPrice.Value < 0)
-            {
-                throw new OismException("VALIDATION_ERROR", $"Đơn giá của SKU '{item.SkuCode}' không được âm.", 400);
-            }
-
-            if (item.UnitPrice.Value > OrderService.MaxMoneyAmount)
-            {
-                throw new OismException("VALIDATION_ERROR", $"Đơn giá của SKU '{item.SkuCode}' vượt quá giới hạn tối đa cho phép.", 400);
-            }
-
-            if (decimal.Round(item.UnitPrice.Value, 2) != item.UnitPrice.Value)
-            {
-                throw new OismException("VALIDATION_ERROR", $"Đơn giá của SKU '{item.SkuCode}' không được vượt quá 2 chữ số thập phân.", 400);
-            }
-        }
-
-        // Kiểm tra tính nhất quán đơn giá nếu có dòng trùng SKU
-        foreach (var g in dto.Items.GroupBy(i => i.SkuCode.Trim().ToUpperInvariant()))
-        {
-            if (g.Select(x => Math.Round(x.UnitPrice!.Value, 2)).Distinct().Count() > 1)
-            {
-                throw new OismException("VALIDATION_ERROR", "Các dòng cùng SKU trong đơn hàng phải có cùng đơn giá.", 400);
-            }
-        }
-
-        // Tính toán tổng tiền theo cấu trúc dòng hàng phía Server
-        decimal calculatedTotal = 0;
-        foreach (var item in dto.Items)
-        {
-            try
-            {
-                checked
-                {
-                    var lineTotal = item.Quantity!.Value * item.UnitPrice!.Value;
-                    if (lineTotal > OrderService.MaxMoneyAmount)
-                    {
-                        throw new OismException("VALIDATION_ERROR", "Tổng tiền của dòng hàng vượt quá giới hạn tối đa cho phép.", 400);
-                    }
-                    calculatedTotal += lineTotal;
-                    if (calculatedTotal > OrderService.MaxMoneyAmount)
-                    {
-                        throw new OismException("VALIDATION_ERROR", "Tổng tiền đơn hàng vượt quá giới hạn tối đa cho phép.", 400);
-                    }
-                }
-            }
-            catch (OverflowException)
-            {
-                throw new OismException("VALIDATION_ERROR", "Tổng tiền đơn hàng vượt quá giới hạn tối đa cho phép.", 400);
-            }
-        }
-        calculatedTotal = Math.Round(calculatedTotal, 2, MidpointRounding.AwayFromZero);
+        // 1 & 2. Chuẩn hóa kênh bán và kiểm tra toàn bộ tính hợp lệ của Canonical Payload (BE2-F06)
+        var normalizedPathChannel = WebhookCanonicalValidator.CanonicalizeChannel(pathChannel);
+        var calculatedTotal = WebhookCanonicalValidator.ValidateAndCalculateTotal(normalizedPathChannel, dto);
 
         // 3. T5-F02: Xác thực và Ánh xạ Tenant/Branch (Authentication & Credential Resolution)
         Guid resolvedTenantId;
@@ -425,9 +232,9 @@ public class WebhookService : IWebhookService
         }
 
         // 5. Đối với Đơn Hàng MỚI (chưa tồn tại): Kiểm tra tổng tiền và trạng thái hoạt động của Chi nhánh
-        if (Math.Round(calculatedTotal, 2) != Math.Round(dto.TotalAmount.Value, 2))
+        if (Math.Round(calculatedTotal, 2) != Math.Round(dto.TotalAmount!.Value, 2))
         {
-            throw new OismException("TOTAL_AMOUNT_MISMATCH", $"Tổng tiền đơn hàng không khớp (Server tính: {calculatedTotal:N2}, Payload gửi: {dto.TotalAmount.Value:N2}).", 400);
+            throw new OismException("TOTAL_AMOUNT_MISMATCH", $"Tổng tiền đơn hàng không khớp (Server tính: {calculatedTotal:N2}, Payload gửi: {dto.TotalAmount!.Value:N2}).", 400);
         }
 
         Branch? branch;
@@ -462,7 +269,7 @@ public class WebhookService : IWebhookService
             CustomerPhone = dto.CustomerPhone,
             ShippingAddress = dto.ShippingAddress,
             ExpectedTotalAmount = calculatedTotal,
-            OrderTimestamp = dto.OrderTimestamp.Value,
+            OrderTimestamp = dto.OrderTimestamp!.Value,
             CreatedByUserId = null,
             Items = dto.Items.Select(i => new InternalMarketplaceOrderItemContext
             {

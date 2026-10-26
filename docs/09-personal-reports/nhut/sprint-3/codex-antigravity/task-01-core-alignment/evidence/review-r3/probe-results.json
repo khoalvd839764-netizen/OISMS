@@ -1,0 +1,50 @@
+{
+  "reviewedCodeCommit": "db889057940d4ca43fd400b6ce424db6401d4c4a",
+  "documentationOnlyHead": "f9db45a1808f2d25ec8ea7bf7aae515491e14d50",
+  "provider": "PostgreSQL / WebApplicationFactory HTTP",
+  "counters": {
+    "passed": 4,
+    "failed": 2,
+    "executed": 6,
+    "total": 6,
+    "aborted": 0
+  },
+  "tests": [
+    {
+      "name": "ReviewerProbes.SimulatorAdapter_SameTotalChangedItems_MustRejectPayloadMismatch",
+      "outcome": "Passed",
+      "duration": "00:00:00.0589048",
+      "output": "{\"provider\":\"PostgreSQL\",\"configuredShop\":true,\"sameOrderReturned\":false,\"requestedQuantity\":2,\"returnedQuantity\":null,\"requestedUnitPrice\":50,\"returnedUnitPrice\":null,\"actualErrorType\":\"OismException\"}"
+    },
+    {
+      "name": "ReviewerProbes.ProcessEndpoint_OnRealPostgres_MustNotReturn500OrPartiallyConfirm",
+      "outcome": "Passed",
+      "duration": "00:00:00.2591700",
+      "output": "{\"httpStatus\":200,\"persistedStatus\":\"Confirmed\",\"OnHand\":8.000,\"Reserved\":0.000,\"outRows\":1,\"schemaConstraintInBody\":false,\"bodyStart\":\"{\\u0022shippingAddress\\u0022:null,\\u0022requestKey\\u0022:\\u0022839c05cb-8164-48c0-98da-e44bafa3d0bd\\u0022,\\u0022items\\u0022:[{\\u0022id\\u0022:\\u00226b68af3a-d6f0-4d9d-a44b-e80fab908159\\u0022,\\u0022skuId\\u0022:\\u002211111111-0000-0000-0006-000000000001\\u0022,\\u0022skuCode\\u0022:\\u0022POLO-NAM-DEN-M\\u0022,\\u0022skuName\\u0022:\\u0022\\u00C1o Polo Nam Th\\u1EC3 Thao - \\u0110en / Size M\\u0022,\\u0022quantity\\u0022:2.000,\\u0022unitPrice\\u0022:299000.00,\\u0022costPrice\\u0022:100.000000,\\u0022totalLineAmount\\u0022:598000.00000}],\\u0022id\\u0022:\\u00228e6eb61c-009d-488a-88a3-aa9372d09735\\u0022,\\u0022number\\u0022:\\u0022ORD-20261026-0006960\\u0022,\\u0022branchId\\u0022:\\u002211111111-0000-0000-0001-000000000001\\u0022,\\u0022branchName\\u0022:\\u0022Chi nh\\u00E1nh Qu\\u1EADn 1\\u0022,\\u0022channel\\u0022:\\u0022Admin\\u0022,\\u0022externalShopId\\u0022:null,\\u0022externalOrderId\\u0022:null,\\u0022status\\u0022:\\u0022Confirmed\\u0022,\\u0022customerName\\u0022:null,\\u0022customerPhone\\u0022:null,\\u0022totalAmount\\u0022:598000.00,\\u0022itemCount\\u0022:1,\\u0022createdAt\\u0022:\\u00222026-10-26T14:27:40.028274\\u002B00:00\\u0022,\\u0022confirmedAt\\u0022:\\u00222026-10-26T14:27:40.142786\\u002B00:00\\u0022,\\u0022completedAt\\u0022:null,\\u0022cancelledAt\\u0022:nul\"}"
+    },
+    {
+      "name": "ReviewerProbes.Batch_MustNotProvisionIntegrationWithPredictableAnonymousCredential",
+      "outcome": "Passed",
+      "duration": "00:00:00.1712947",
+      "output": "{\"beforeIntegrations\":0,\"afterIntegrations\":0,\"batchHttpStatus\":404,\"anonymousWebhookStatus\":401,\"anonymousOrderCount\":0,\"authorizationHeaderSent\":false,\"credentialWasKnownSourceConstant\":true}\r\n{\"legitimateSecretHttpStatus\":201}"
+    },
+    {
+      "name": "ReviewerProbes.SimulatorAdapter_DefaultTimestamp_MustApplyCanonicalValidation",
+      "outcome": "Passed",
+      "duration": "00:00:00.0290111",
+      "output": "{\"adapterErrorType\":\"OismException\",\"canonicalHttpStatus\":400,\"adapterPersistedOrders\":0}"
+    },
+    {
+      "name": "ReviewerProbes.SimulatorAdapter_MissingTimestamp_NewPayloadInstances_MustMatchCanonicalRejection",
+      "outcome": "Failed",
+      "duration": "00:00:00.5860694",
+      "output": "{\"firstErrorType\":null,\"firstPayloadTimestampInjected\":true,\"retryErrorCode\":\"WEBHOOK_PAYLOAD_MISMATCH\",\"retryErrorStatus\":409,\"canonicalHttpStatus\":400,\"adapterPersistedOrders\":1}"
+    },
+    {
+      "name": "ReviewerProbes.SimulatorAdapter_NullItem_MustReachCanonicalValidation",
+      "outcome": "Failed",
+      "duration": "00:00:00.0289754",
+      "output": "{\"adapterErrorType\":\"NullReferenceException\",\"canonicalHttpStatus\":400,\"adapterPersistedOrders\":0}"
+    }
+  ]
+}

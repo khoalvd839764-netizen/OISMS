@@ -1,8 +1,10 @@
 using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
+using OISM.Application.Features.Inventory.Dtos;
 using OISM.Application.Features.Orders.Dtos;
 using OISM.Application.Features.Realtime;
 using OISM.Application.Features.Realtime.Dtos;
@@ -28,12 +30,12 @@ public class OrderService : IOrderService, IPosCheckoutService
     public OrderService(
         IAppDbContext context,
         ICurrentTenantService currentTenantService,
-        ILogger<OrderService> logger,
+        ILogger<OrderService>? logger = null,
         IRealtimeNotifier? realtimeNotifier = null)
     {
         _context = context;
         _currentTenantService = currentTenantService;
-        _logger = logger;
+        _logger = logger ?? NullLogger<OrderService>.Instance;
         _realtimeNotifier = realtimeNotifier;
     }
 
@@ -2173,14 +2175,298 @@ public class OrderService : IOrderService, IPosCheckoutService
         };
     }
 
-    public Task<OrderResponseDto?> GetOrderByIdAsync(Guid orderId, CancellationToken ct = default)
+    public async Task<OrderResponseDto?> GetOrderByIdAsync(Guid orderId, CancellationToken ct = default)
     {
-        throw new NotImplementedException("Chức năng tra cứu chi tiết đơn hàng thuộc phạm vi phân công của Nhựt (BE2).");
+        var tenantId = _currentTenantService.TenantId;
+        if (!tenantId.HasValue || tenantId.Value == Guid.Empty)
+        {
+            throw new UnauthorizedAccessException("Yêu cầu xác thực gian hàng (TenantId hợp lệ).");
+        }
+
+        var order = await _context.Orders
+            .AsNoTracking()
+            .Include(o => o.Items)
+            .Include(o => o.Payment)
+            .FirstOrDefaultAsync(o => o.TenantId == tenantId.Value && o.Id == orderId, ct);
+
+        if (order == null)
+        {
+            return null;
+        }
+
+        return await MapToOrderResponseDtoAsync(order, ct);
     }
 
     public Task<PagedResultDto<OrderResponseDto>> GetOrdersAsync(OrderFilterRequestDto filter, CancellationToken ct = default)
     {
-        throw new NotImplementedException("Chức năng tra cứu danh sách đơn hàng thuộc phạm vi phân công của Nhựt (BE2).");
+        throw new NotImplementedException("Chức năng tra cứu danh sách đơn hàng thuộc phạm vi phân công của Nhựt (BE2) sẽ hoàn thiện tại T02.");
+    }
+
+    public async Task<PagedResult<OrderSummaryDto>> GetOrdersAsync(OrderFilterDto filter, CancellationToken ct = default)
+    {
+        var tenantId = _currentTenantService.TenantId;
+        if (!tenantId.HasValue || tenantId.Value == Guid.Empty)
+        {
+            throw new UnauthorizedAccessException("Yêu cầu xác thực gian hàng (TenantId hợp lệ).");
+        }
+
+        var query = _context.Orders
+            .AsNoTracking()
+            .Where(o => o.TenantId == tenantId.Value);
+
+        if (!string.IsNullOrWhiteSpace(filter.Status))
+        {
+            var statusTrim = filter.Status.Trim();
+            query = query.Where(o => o.Status == statusTrim);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.Channel))
+        {
+            var channelTrim = filter.Channel.Trim();
+            query = query.Where(o => o.Channel == channelTrim);
+        }
+
+        if (filter.BranchId.HasValue && filter.BranchId.Value != Guid.Empty)
+        {
+            query = query.Where(o => o.BranchId == filter.BranchId.Value);
+        }
+
+        if (filter.FromDate.HasValue)
+        {
+            query = query.Where(o => o.CreatedAt >= filter.FromDate.Value);
+        }
+
+        if (filter.ToDate.HasValue)
+        {
+            query = query.Where(o => o.CreatedAt <= filter.ToDate.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.Search))
+        {
+            var search = filter.Search.Trim().ToLower();
+            query = query.Where(o =>
+                o.Number.ToLower().Contains(search) ||
+                (o.CustomerName != null && o.CustomerName.ToLower().Contains(search)) ||
+                (o.CustomerPhone != null && o.CustomerPhone.Contains(search)) ||
+                (o.ExternalOrderId != null && o.ExternalOrderId.ToLower().Contains(search)));
+        }
+
+        var totalCount = await query.CountAsync(ct);
+
+        var pageIndex = Math.Max(1, filter.PageIndex);
+        var pageSize = Math.Clamp(filter.PageSize, 1, 100);
+
+        var orders = await query
+            .OrderByDescending(o => o.CreatedAt)
+            .Skip((pageIndex - 1) * pageSize)
+            .Take(pageSize)
+            .Select(o => new OrderSummaryDto
+            {
+                Id = o.Id,
+                Number = o.Number,
+                BranchId = o.BranchId,
+                BranchName = o.Branch != null ? o.Branch.Name : null,
+                Channel = o.Channel,
+                ExternalShopId = o.ExternalShopId,
+                ExternalOrderId = o.ExternalOrderId,
+                Status = o.Status,
+                CustomerName = o.CustomerName,
+                CustomerPhone = o.CustomerPhone,
+                TotalAmount = o.TotalAmount,
+                ItemCount = o.Items.Count,
+                CreatedAt = o.CreatedAt,
+                ConfirmedAt = o.ConfirmedAt,
+                CompletedAt = o.CompletedAt,
+                CancelledAt = o.CancelledAt
+            })
+            .ToListAsync(ct);
+
+        return new PagedResult<OrderSummaryDto>
+        {
+            Items = orders,
+            PageIndex = pageIndex,
+            PageSize = pageSize,
+            TotalCount = totalCount
+        };
+    }
+
+    public async Task<OrderDetailDto?> GetOrderDetailByIdAsync(Guid id, CancellationToken ct = default)
+    {
+        var tenantId = _currentTenantService.TenantId;
+        if (!tenantId.HasValue || tenantId.Value == Guid.Empty)
+        {
+            throw new UnauthorizedAccessException("Yêu cầu xác thực gian hàng (TenantId hợp lệ).");
+        }
+
+        var order = await _context.Orders
+            .AsNoTracking()
+            .Include(o => o.Branch)
+            .Include(o => o.Items)
+                .ThenInclude(i => i.Sku)
+                    .ThenInclude(s => s!.Product)
+            .FirstOrDefaultAsync(o => o.Id == id && o.TenantId == tenantId.Value, ct);
+
+        if (order == null)
+        {
+            return null;
+        }
+
+        return MapToDetailDto(order);
+    }
+
+    public async Task<OrderDetailDto> CreateOrderAsync(CreateOrderDto dto, Guid? userId, CancellationToken ct = default)
+    {
+        if (dto == null) throw new ArgumentNullException(nameof(dto));
+        if (dto.Items == null || dto.Items.Count == 0)
+        {
+            throw new ArgumentException("Đơn hàng phải chứa ít nhất một mặt hàng.");
+        }
+
+        var req = new CreateOrderRequestDto
+        {
+            BranchId = dto.BranchId,
+            Channel = dto.Channel,
+            CustomerName = dto.CustomerName,
+            CustomerPhone = dto.CustomerPhone,
+            ShippingAddress = dto.ShippingAddress,
+            RequestKey = (dto.RequestKey.HasValue && dto.RequestKey.Value != Guid.Empty) ? dto.RequestKey.Value : Guid.NewGuid(),
+            Items = dto.Items.Select(i => new OrderItemRequestDto
+            {
+                SkuId = i.SkuId,
+                Quantity = i.Quantity,
+                UnitPrice = i.UnitPrice
+            }).ToList()
+        };
+
+        var response = await CreateOrderAsync(req, userId, ct);
+        var detail = await GetOrderDetailByIdAsync(response.Id, ct);
+        return detail ?? throw new InvalidOperationException("Không thể tải lại chi tiết đơn hàng sau khi tạo.");
+    }
+
+    public async Task<OrderDetailDto> ConfirmOrderAsync(Guid id, Guid? userId, CancellationToken ct = default)
+    {
+        var response = await ConfirmOrderAsync(id, new ConfirmOrderRequestDto(), userId, ct);
+        var detail = await GetOrderDetailByIdAsync(response.Id, ct);
+        return detail ?? throw new InvalidOperationException("Không thể tải lại chi tiết đơn hàng sau khi xác nhận.");
+    }
+
+    private Guid RequireTenantId()
+    {
+        var tenantId = _currentTenantService.TenantId;
+        if (!tenantId.HasValue || tenantId.Value == Guid.Empty)
+        {
+            throw new UnauthorizedAccessException("Yêu cầu xác thực gian hàng (TenantId hợp lệ).");
+        }
+        return tenantId.Value;
+    }
+
+    public async Task<OrderDetailDto> ProcessOrderAsync(Guid id, Guid? userId, CancellationToken ct = default)
+    {
+        var tenantId = RequireTenantId();
+
+        var order = await _context.Orders
+            .AsNoTracking()
+            .FirstOrDefaultAsync(o => o.Id == id && o.TenantId == tenantId, ct);
+
+        if (order == null)
+        {
+            throw new KeyNotFoundException($"Không tìm thấy Đơn hàng với ID '{id}'.");
+        }
+
+        if (order.Status == "Cancelled" || order.Status == "Completed")
+        {
+            throw new OismException("INVALID_STATE_TRANSITION", $"Không thể xử lý đóng gói đối với đơn hàng ở trạng thái '{order.Status}'.", 409);
+        }
+
+        if (order.Status == "Confirmed")
+        {
+            var existing = await GetOrderDetailByIdAsync(id, ct);
+            return existing ?? throw new InvalidOperationException("Không thể tải chi tiết đơn hàng.");
+        }
+
+        if (order.Status != "Reserved")
+        {
+            throw new OismException("INVALID_STATE_TRANSITION", $"Đơn hàng ở trạng thái '{order.Status}' không thể chuyển sang xử lý đóng gói. Yêu cầu trạng thái 'Reserved'.", 409);
+        }
+
+        try
+        {
+            var response = await ConfirmOrderAsync(id, new ConfirmOrderRequestDto(), userId, ct);
+            var detail = await GetOrderDetailByIdAsync(response.Id, ct);
+            return detail ?? throw new InvalidOperationException("Không thể tải lại chi tiết đơn hàng sau khi xử lý.");
+        }
+        catch (OismException ex) when (ex.ErrorCode == "INVALID_STATE_TRANSITION")
+        {
+            var reloaded = await _context.Orders.AsNoTracking().FirstOrDefaultAsync(o => o.Id == id && o.TenantId == tenantId, ct);
+            if (reloaded?.Status == "Confirmed")
+            {
+                var detail = await GetOrderDetailByIdAsync(id, ct);
+                if (detail != null)
+                {
+                    return detail;
+                }
+            }
+            throw;
+        }
+    }
+
+    public async Task<OrderDetailDto> CompleteOrderAsync(Guid id, Guid? userId, CancellationToken ct = default)
+    {
+        var tenantId = RequireTenantId();
+
+        var order = await _context.Orders
+            .FirstOrDefaultAsync(o => o.Id == id && o.TenantId == tenantId, ct);
+
+        if (order == null)
+        {
+            throw new KeyNotFoundException($"Không tìm thấy Đơn hàng với ID '{id}'.");
+        }
+
+        var response = await CompleteOrderAsync(id, new CompleteOrderRequestDto(), userId, ct);
+        var detail = await GetOrderDetailByIdAsync(response.Id, ct);
+        return detail ?? throw new InvalidOperationException("Không thể tải lại chi tiết đơn hàng sau khi hoàn tất.");
+    }
+
+    public async Task<OrderDetailDto> CancelOrderAsync(Guid id, Guid? userId, CancellationToken ct = default)
+    {
+        var response = await CancelOrderAsync(id, new CancelOrderRequestDto { Reason = "Huỷ đơn theo yêu cầu" }, userId, ct);
+        var detail = await GetOrderDetailByIdAsync(response.Id, ct);
+        return detail ?? throw new InvalidOperationException("Không thể tải lại chi tiết đơn hàng sau khi hủy.");
+    }
+
+    private static OrderDetailDto MapToDetailDto(Order order, string? branchName = null)
+    {
+        return new OrderDetailDto
+        {
+            Id = order.Id,
+            Number = order.Number,
+            BranchId = order.BranchId,
+            BranchName = branchName ?? order.Branch?.Name,
+            Channel = order.Channel,
+            ExternalShopId = order.ExternalShopId,
+            ExternalOrderId = order.ExternalOrderId,
+            Status = order.Status,
+            CustomerName = order.CustomerName,
+            CustomerPhone = order.CustomerPhone,
+            ShippingAddress = order.ShippingAddress,
+            TotalAmount = order.TotalAmount,
+            RequestKey = order.RequestKey,
+            ItemCount = order.Items?.Count ?? 0,
+            CreatedAt = order.CreatedAt,
+            ConfirmedAt = order.ConfirmedAt,
+            CompletedAt = order.CompletedAt,
+            CancelledAt = order.CancelledAt,
+            Items = order.Items?.Select(i => new OrderItemDto
+            {
+                Id = i.Id,
+                SkuId = i.SkuId,
+                SkuCode = i.SkuCodeSnapshot ?? i.Sku?.SKU ?? string.Empty,
+                SkuName = i.SkuNameSnapshot ?? i.Sku?.Product?.Name ?? string.Empty,
+                Quantity = i.Quantity,
+                UnitPrice = i.UnitPrice,
+                CostPrice = i.CostPrice
+            }).ToList() ?? new List<OrderItemDto>()
+        };
     }
 
     private static readonly ConcurrentDictionary<Guid, (DateTimeOffset LastCreatedAt, Guid LastOrderId)> _tenantCursors = new();
