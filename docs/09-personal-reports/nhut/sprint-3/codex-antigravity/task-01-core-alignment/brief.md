@@ -1,6 +1,6 @@
 # S3-BE2-T01 — Hợp nhất baseline và một lõi ghi tồn
 
-**Trạng thái:** READY_FOR_REVIEW v1.3. **Ưu tiên:** P0. **Finding gốc:** BE2-F01, BE2-F02, BE2-F06. BE2-T01-F01 và BE2-T01-F02 đã đóng; BE2-F06 đã hoàn tất fix v1.3 theo [brief v1.3](./briefs/v1.3-fix-r3.md).
+**Trạng thái:** VERIFIED v1.3 — [Codex review R4](./reviews/v1.3-review-r4.md), code `ca6b5ce4d9ebe38836e9fbedef12e185c492a409`. **Ưu tiên:** P0. **Finding gốc:** BE2-F01, BE2-F02, BE2-F06. BE2-T01-F01, BE2-T01-F02 và BE2-F06 đã CLOSED; bằng chứng tại [evidence R4](./evidence/review-r4/README.md). T02–T06 vẫn PLANNED.
 
 ## Mục tiêu
 
