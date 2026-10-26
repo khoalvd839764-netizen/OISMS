@@ -1871,9 +1871,9 @@ public class OrderService : IOrderService, IPosCheckoutService
                     return await MapToOrderResponseDtoAsync(order, ct);
                 }
 
-                if (order.Status != "Confirmed")
+                if (order.Status != "Confirmed" && order.Status != "Processing")
                 {
-                    throw new OismException("INVALID_STATE_TRANSITION", $"Không thể hoàn tất đơn hàng ở trạng thái '{order.Status}'. Đơn hàng phải ở trạng thái 'Confirmed'.", 409);
+                    throw new OismException("INVALID_STATE_TRANSITION", $"Không thể hoàn tất đơn hàng ở trạng thái '{order.Status}'. Đơn hàng phải ở trạng thái 'Confirmed' hoặc 'Processing'.", 409);
                 }
 
                 var now = DateTimeOffset.UtcNow;
@@ -2348,6 +2348,94 @@ public class OrderService : IOrderService, IPosCheckoutService
         var response = await ConfirmOrderAsync(id, new ConfirmOrderRequestDto(), userId, ct);
         var detail = await GetOrderDetailByIdAsync(response.Id, ct);
         return detail ?? throw new InvalidOperationException("Không thể tải lại chi tiết đơn hàng sau khi xác nhận.");
+    }
+
+    private Guid RequireTenantId()
+    {
+        var tenantId = _currentTenantService.TenantId;
+        if (!tenantId.HasValue || tenantId.Value == Guid.Empty)
+        {
+            throw new UnauthorizedAccessException("Yêu cầu xác thực gian hàng (TenantId hợp lệ).");
+        }
+        return tenantId.Value;
+    }
+
+    public async Task<OrderDetailDto> ProcessOrderAsync(Guid id, Guid? userId, CancellationToken ct = default)
+    {
+        var tenantId = RequireTenantId();
+
+        var order = await _context.Orders
+            .Include(o => o.Branch)
+            .Include(o => o.Items)
+            .Include(o => o.Reservations)
+            .FirstOrDefaultAsync(o => o.Id == id && o.TenantId == tenantId, ct);
+
+        if (order == null)
+        {
+            throw new KeyNotFoundException($"Không tìm thấy Đơn hàng với ID '{id}'.");
+        }
+
+        if (order.Status == "Processing")
+        {
+            return MapToDetailDto(order);
+        }
+
+        if (order.Status == "Draft" || order.Status == "Reserved")
+        {
+            // Tự động confirm trước khi chuyển sang Processing
+            await ConfirmOrderAsync(id, userId, ct);
+            order = await _context.Orders
+                .Include(o => o.Branch)
+                .Include(o => o.Items)
+                .Include(o => o.Reservations)
+                .FirstAsync(o => o.Id == id && o.TenantId == tenantId, ct);
+        }
+
+        if (order.Status != "Confirmed")
+        {
+            throw new InvalidOperationException($"Không thể chuyển sang xử lý đóng gói đối với đơn hàng ở trạng thái '{order.Status}'.");
+        }
+
+        order.Status = "Processing";
+        order.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await _context.SaveChangesAsync(ct);
+
+        return MapToDetailDto(order);
+    }
+
+    public async Task<OrderDetailDto> CompleteOrderAsync(Guid id, Guid? userId, CancellationToken ct = default)
+    {
+        var tenantId = RequireTenantId();
+
+        var order = await _context.Orders
+            .Include(o => o.Branch)
+            .Include(o => o.Items)
+            .Include(o => o.Reservations)
+            .FirstOrDefaultAsync(o => o.Id == id && o.TenantId == tenantId, ct);
+
+        if (order == null)
+        {
+            throw new KeyNotFoundException($"Không tìm thấy Đơn hàng với ID '{id}'.");
+        }
+
+        if (order.Status == "Completed")
+        {
+            return MapToDetailDto(order);
+        }
+
+        if (order.Status != "Confirmed" && order.Status != "Processing")
+        {
+            throw new InvalidOperationException($"Chỉ có thể hoàn tất giao hàng đối với đơn đã xác nhận hoặc đang đóng gói (Trạng thái hiện tại: '{order.Status}').");
+        }
+
+        order.Status = "Completed";
+        order.CompletedAt = DateTimeOffset.UtcNow;
+        order.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await _context.SaveChangesAsync(ct);
+
+        return MapToDetailDto(order);
     }
 
     public async Task<OrderDetailDto> CancelOrderAsync(Guid id, Guid? userId, CancellationToken ct = default)

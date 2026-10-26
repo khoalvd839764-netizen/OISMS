@@ -317,4 +317,37 @@ public class OrderServiceTests
         var updatedBalance = await context.InventoryBalances.AsNoTracking().FirstOrDefaultAsync(b => b.Id == balance.Id);
         updatedBalance!.Reserved.Should().Be(0); // 5 - 5
     }
+
+    [Fact]
+    public async Task ProcessAndCompleteOrder_ShouldTransitionStateProperly()
+    {
+        // Arrange
+        var (context, mockTenant, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var orderService = new OrderService(context, mockTenant.Object);
+
+        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh 1" };
+        var order = new Order
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Number = "ORD-PROCESS-COMPLETE-TEST",
+            BranchId = branch.Id,
+            Channel = "Shopee",
+            Status = "Confirmed",
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+
+        context.Branches.Add(branch);
+        context.Orders.Add(order);
+        await context.SaveChangesAsync();
+
+        // Act 1: Process
+        var processing = await orderService.ProcessOrderAsync(order.Id, Guid.NewGuid());
+        processing.Status.Should().Be("Processing");
+
+        // Act 2: Complete
+        var completed = await orderService.CompleteOrderAsync(order.Id, Guid.NewGuid());
+        completed.Status.Should().Be("Completed");
+        completed.CompletedAt.Should().NotBeNull();
+    }
 }

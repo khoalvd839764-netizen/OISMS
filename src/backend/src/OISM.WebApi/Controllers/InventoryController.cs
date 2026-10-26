@@ -64,11 +64,13 @@ public class InventoryController : ControllerBase
     }
 
     /// <summary>
-    /// Tra cứu lịch sử Sổ cái kho bất biến (Inventory Ledger - BE1-06).
+    /// Tra cứu lịch sử Sổ cái kho bất biến (Inventory Ledger - BE1-06 / FR-INV).
     /// Chỉ dành cho vai trò Quản lý: Owner và Staff. Thu ngân (Cashier) bị từ chối (403 Forbidden).
+    /// Hỗ trợ cả 2 route: /api/inventory/ledger và /api/inventory-transactions.
     /// Không hỗ trợ API Sửa hoặc Xóa (Append-Only).
     /// </summary>
     [HttpGet("ledger")]
+    [HttpGet("/api/inventory-transactions")]
     [Authorize(Roles = "Owner,Staff")]
     public async Task<IActionResult> GetLedger([FromQuery] InventoryLedgerFilterDto filter, CancellationToken ct)
     {

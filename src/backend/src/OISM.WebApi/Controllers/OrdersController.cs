@@ -160,6 +160,33 @@ public class OrdersController : ControllerBase
     }
 
     /// <summary>
+    /// Bắt đầu xử lý đóng gói đơn hàng (Confirmed -> Processing).
+    /// </summary>
+    [HttpPost("{id:guid}/process")]
+    [Authorize(Roles = "Owner,Staff")]
+    public async Task<IActionResult> Process(Guid id, CancellationToken ct)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var result = await _orderService.ProcessOrderAsync(id, userId, ct);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
+        catch (OismException ex)
+        {
+            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
+        }
+    }
+
+    /// <summary>
     /// Hoàn tất đơn hàng trực tuyến (POST /api/orders/{id}/complete).
     /// Ghi nhận giao hàng thành công, tuyệt đối không trừ tồn hay ghi ledger lần 2.
     /// </summary>

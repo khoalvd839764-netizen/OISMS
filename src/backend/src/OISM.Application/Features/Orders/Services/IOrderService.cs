@@ -70,5 +70,7 @@ public interface IOrderService
     Task<OrderDetailDto?> GetOrderDetailByIdAsync(Guid id, CancellationToken ct = default);
     Task<OrderDetailDto> CreateOrderAsync(CreateOrderDto dto, Guid? userId, CancellationToken ct = default);
     Task<OrderDetailDto> ConfirmOrderAsync(Guid id, Guid? userId, CancellationToken ct = default);
+    Task<OrderDetailDto> ProcessOrderAsync(Guid id, Guid? userId, CancellationToken ct = default);
+    Task<OrderDetailDto> CompleteOrderAsync(Guid id, Guid? userId, CancellationToken ct = default);
     Task<OrderDetailDto> CancelOrderAsync(Guid id, Guid? userId, CancellationToken ct = default);
 }
