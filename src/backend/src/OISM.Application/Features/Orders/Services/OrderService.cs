@@ -1871,9 +1871,9 @@ public class OrderService : IOrderService, IPosCheckoutService
                     return await MapToOrderResponseDtoAsync(order, ct);
                 }
 
-                if (order.Status != "Confirmed" && order.Status != "Processing")
+                if (order.Status != "Confirmed")
                 {
-                    throw new OismException("INVALID_STATE_TRANSITION", $"Không thể hoàn tất đơn hàng ở trạng thái '{order.Status}'. Đơn hàng phải ở trạng thái 'Confirmed' hoặc 'Processing'.", 409);
+                    throw new OismException("INVALID_STATE_TRANSITION", $"Không thể hoàn tất đơn hàng ở trạng thái '{order.Status}'. Đơn hàng phải ở trạng thái 'Confirmed'.", 409);
                 }
 
                 var now = DateTimeOffset.UtcNow;
@@ -2365,9 +2365,7 @@ public class OrderService : IOrderService, IPosCheckoutService
         var tenantId = RequireTenantId();
 
         var order = await _context.Orders
-            .Include(o => o.Branch)
-            .Include(o => o.Items)
-            .Include(o => o.Reservations)
+            .AsNoTracking()
             .FirstOrDefaultAsync(o => o.Id == id && o.TenantId == tenantId, ct);
 
         if (order == null)
@@ -2375,33 +2373,41 @@ public class OrderService : IOrderService, IPosCheckoutService
             throw new KeyNotFoundException($"Không tìm thấy Đơn hàng với ID '{id}'.");
         }
 
-        if (order.Status == "Processing")
+        if (order.Status == "Cancelled" || order.Status == "Completed")
         {
-            return MapToDetailDto(order);
+            throw new OismException("INVALID_STATE_TRANSITION", $"Không thể xử lý đóng gói đối với đơn hàng ở trạng thái '{order.Status}'.", 409);
         }
 
-        if (order.Status == "Draft" || order.Status == "Reserved")
+        if (order.Status == "Confirmed")
         {
-            // Tự động confirm trước khi chuyển sang Processing
-            await ConfirmOrderAsync(id, userId, ct);
-            order = await _context.Orders
-                .Include(o => o.Branch)
-                .Include(o => o.Items)
-                .Include(o => o.Reservations)
-                .FirstAsync(o => o.Id == id && o.TenantId == tenantId, ct);
+            var existing = await GetOrderDetailByIdAsync(id, ct);
+            return existing ?? throw new InvalidOperationException("Không thể tải chi tiết đơn hàng.");
         }
 
-        if (order.Status != "Confirmed")
+        if (order.Status != "Reserved")
         {
-            throw new InvalidOperationException($"Không thể chuyển sang xử lý đóng gói đối với đơn hàng ở trạng thái '{order.Status}'.");
+            throw new OismException("INVALID_STATE_TRANSITION", $"Đơn hàng ở trạng thái '{order.Status}' không thể chuyển sang xử lý đóng gói. Yêu cầu trạng thái 'Reserved'.", 409);
         }
 
-        order.Status = "Processing";
-        order.UpdatedAt = DateTimeOffset.UtcNow;
-
-        await _context.SaveChangesAsync(ct);
-
-        return MapToDetailDto(order);
+        try
+        {
+            var response = await ConfirmOrderAsync(id, new ConfirmOrderRequestDto(), userId, ct);
+            var detail = await GetOrderDetailByIdAsync(response.Id, ct);
+            return detail ?? throw new InvalidOperationException("Không thể tải lại chi tiết đơn hàng sau khi xử lý.");
+        }
+        catch (OismException ex) when (ex.ErrorCode == "INVALID_STATE_TRANSITION")
+        {
+            var reloaded = await _context.Orders.AsNoTracking().FirstOrDefaultAsync(o => o.Id == id && o.TenantId == tenantId, ct);
+            if (reloaded?.Status == "Confirmed")
+            {
+                var detail = await GetOrderDetailByIdAsync(id, ct);
+                if (detail != null)
+                {
+                    return detail;
+                }
+            }
+            throw;
+        }
     }
 
     public async Task<OrderDetailDto> CompleteOrderAsync(Guid id, Guid? userId, CancellationToken ct = default)
@@ -2409,9 +2415,6 @@ public class OrderService : IOrderService, IPosCheckoutService
         var tenantId = RequireTenantId();
 
         var order = await _context.Orders
-            .Include(o => o.Branch)
-            .Include(o => o.Items)
-            .Include(o => o.Reservations)
             .FirstOrDefaultAsync(o => o.Id == id && o.TenantId == tenantId, ct);
 
         if (order == null)
@@ -2419,23 +2422,9 @@ public class OrderService : IOrderService, IPosCheckoutService
             throw new KeyNotFoundException($"Không tìm thấy Đơn hàng với ID '{id}'.");
         }
 
-        if (order.Status == "Completed")
-        {
-            return MapToDetailDto(order);
-        }
-
-        if (order.Status != "Confirmed" && order.Status != "Processing")
-        {
-            throw new InvalidOperationException($"Chỉ có thể hoàn tất giao hàng đối với đơn đã xác nhận hoặc đang đóng gói (Trạng thái hiện tại: '{order.Status}').");
-        }
-
-        order.Status = "Completed";
-        order.CompletedAt = DateTimeOffset.UtcNow;
-        order.UpdatedAt = DateTimeOffset.UtcNow;
-
-        await _context.SaveChangesAsync(ct);
-
-        return MapToDetailDto(order);
+        var response = await CompleteOrderAsync(id, new CompleteOrderRequestDto(), userId, ct);
+        var detail = await GetOrderDetailByIdAsync(response.Id, ct);
+        return detail ?? throw new InvalidOperationException("Không thể tải lại chi tiết đơn hàng sau khi hoàn tất.");
     }
 
     public async Task<OrderDetailDto> CancelOrderAsync(Guid id, Guid? userId, CancellationToken ct = default)

@@ -1,6 +1,6 @@
 # S3-BE2-T01 — Hợp nhất baseline và một lõi ghi tồn
 
-**Trạng thái:** PLANNED. **Ưu tiên:** P0. **Finding:** BE2-F01, BE2-F02, BE2-F06. **Phụ thuộc:** Không.
+**Trạng thái:** CHANGES_REQUESTED — Codex R1. **Ưu tiên:** P0. **Finding gốc:** BE2-F01, BE2-F02, BE2-F06. Vòng fix hiện tại theo [brief v1.1](./briefs/v1.1-fix-r1.md): BE2-T01-F01 và BE2-F06.
 
 ## Mục tiêu
 

@@ -1,0 +1,26 @@
+{
+  "reviewedCodeCommit": "10d9abf7e7dfe8c0171bf22c6988bc9b7d55001a",
+  "documentationOnlyHead": "ceaff0c9115e82ae83eda26f9c1867b1742361a4",
+  "provider": "PostgreSQL; WebApplicationFactory HTTP for process",
+  "counters": {
+    "executed": 2,
+    "failed": 2,
+    "aborted": 0,
+    "passed": 0,
+    "total": 2
+  },
+  "tests": [
+    {
+      "name": "ReviewerProbes.SimulatorAdapter_SameTotalChangedItems_MustRejectPayloadMismatch",
+      "outcome": "Failed",
+      "duration": "00:00:00.2939599",
+      "output": "{\"provider\":\"PostgreSQL\",\"configuredShop\":false,\"sameOrderReturned\":true,\"requestedQuantity\":2,\"returnedQuantity\":1.000,\"requestedUnitPrice\":50,\"returnedUnitPrice\":100.00,\"actualErrorType\":null}"
+    },
+    {
+      "name": "ReviewerProbes.ProcessEndpoint_OnRealPostgres_MustNotReturn500OrPartiallyConfirm",
+      "outcome": "Failed",
+      "duration": "00:00:00.4408221",
+      "output": "{\"httpStatus\":500,\"persistedStatus\":\"Confirmed\",\"OnHand\":8.000,\"Reserved\":0.000,\"outRows\":1,\"schemaConstraintInBody\":true,\"bodyStart\":\"Microsoft.EntityFrameworkCore.DbUpdateException: An error occurred while saving the entity changes. See the inner exception for details.\\r\\n ---\\u003E Npgsql.PostgresException (0x80004005): 23514: new row for relation \\u0022orders\\u0022 violates check constraint \\u0022ck_orders_status_values\\u0022\\r\\n\\r\\nDETAIL: Detail redacted as it may contain sensitive data. Specify \\u0027Include Error Detail\\u0027 in the connection string to include this information.\\r\\n   at Npgsql.Internal.NpgsqlConnector.ReadMessageLong(Boolean async, DataRowLoadingMode dataRowLoadingMode, Boolean readingNotifications, Boolean isReadingPrependedMessage)\\r\\n   at System.Runtime.CompilerServices.PoolingAsyncValueTaskMethodBuilder\\u00601.StateMachineBox\\u00601.System.Threading.Tasks.Sources.IValueTaskSource\\u003CTResult\\u003E.GetResult(Int16 token)\\r\\n   at Npgsql.NpgsqlDataReader.Nex\"}"
+    }
+  ]
+}

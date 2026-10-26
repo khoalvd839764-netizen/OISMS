@@ -28,6 +28,7 @@ public class WebhookOrderPayloadDto
     public string? CustomerName { get; set; }
     public string? CustomerPhone { get; set; }
     public string? ShippingAddress { get; set; }
+    public DateTimeOffset? OrderTimestamp { get; set; }
 
     [Required(ErrorMessage = "Danh sách mặt hàng không được để trống.")]
     [MinLength(1, ErrorMessage = "Đơn hàng sàn phải có ít nhất 1 mặt hàng.")]

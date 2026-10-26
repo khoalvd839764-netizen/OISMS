@@ -343,7 +343,7 @@ public class OrderServiceTests
 
         // Act 1: Process
         var processing = await orderService.ProcessOrderAsync(order.Id, Guid.NewGuid());
-        processing.Status.Should().Be("Processing");
+        processing.Status.Should().Be("Confirmed");
 
         // Act 2: Complete
         var completed = await orderService.CompleteOrderAsync(order.Id, Guid.NewGuid());

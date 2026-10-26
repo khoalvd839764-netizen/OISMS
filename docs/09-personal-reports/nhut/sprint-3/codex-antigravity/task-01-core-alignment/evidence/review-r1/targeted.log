@@ -1,0 +1,5 @@
+Test run for D:\OISMS\src\backend\tests\OISM.IntegrationTests\bin\Release\net8.0\OISM.IntegrationTests.dll (.NETCoreApp,Version=v8.0)
+A total of 1 test files matched the specified pattern.
+Results File: D:\OISMS\tmp\codex-be2-t01-review\targeted\Jacki_Khoa_KHOA_LE_2026-10-26_18_40_27_net8.0.trx
+
+Passed!  - Failed:     0, Passed:    29, Skipped:     0, Total:    29, Duration: 1 m 39 s - OISM.IntegrationTests.dll (net8.0)
