@@ -94,6 +94,15 @@ dotnet test src/backend/tests/OISM.IntegrationTests/OISM.IntegrationTests.csproj
 
 **Tổng kết:** **408 tests PASSED** trên toàn bộ suite backend.
 
+### 4.6. Trạng Thái GitHub Actions CI Thực Tế
+- **Run ID:** `40315621651`
+- **Workflow:** `OISM CI Pipeline`
+- **URL:** https://github.com/khoalvd839764-netizen/OISMS/actions/runs/40315621651
+- **Commit:** `10d9abf7e7dfe8c0171bf22c6988bc9b7d55001a`
+- **Kết quả:** **100% SUCCESS**
+  - `Build Frontend (Admin & POS)`: `success`
+  - `Build & Test Backend (.NET 8)`: `success` (Restore, Build Solution, Run Tests toàn bộ pass)
+
 ---
 
 ## 5. Danh Sách File Thay Đổi Thuộc Phạm Vi T01
