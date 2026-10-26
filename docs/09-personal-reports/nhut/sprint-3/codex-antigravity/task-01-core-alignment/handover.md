@@ -139,6 +139,15 @@ dotnet test src/backend/tests/OISM.IntegrationTests/OISM.IntegrationTests.csproj
 - **Kết quả:** **274/274 PASSED**, 0 Failed, 0 Skipped (Thời lượng: 18m 10s).
 - **Tổng kết toàn bộ Backend:** **417/417 tests PASSED** (143 Unit Tests + 274 Integration Tests).
 
+### 4.10. GitHub Actions CI Pipeline
+- **Run ID:** [40326187937](https://github.com/khoalvd839764-netizen/OISMS/actions/runs/40326187937)
+- **Commit SHA:** `dc20e8887a56e8e190b31f62b1273a5580138e68`
+- **Nhánh:** `feature/OISMS-42-sprint-3-backend-2` (PR [#20](https://github.com/khoalvd839764-netizen/OISMS/pull/20))
+- **Trạng thái:** **SUCCESS / COMPLETED**
+- **Chi tiết Jobs:**
+  - `Build Frontend (Admin & POS)` (Job ID: `121583372506`): **SUCCESS** (17s).
+  - `Build & Test Backend (.NET 8)` (Job ID: `121583372104`): **SUCCESS** (8m 51s). 417 tests passed hoàn toàn trên PostgreSQL container.
+
 ---
 
 ## 5. Giới Hạn Phạm Vi & Kế Hoạch Tiếp Theo
