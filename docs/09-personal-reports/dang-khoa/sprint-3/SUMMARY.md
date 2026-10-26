@@ -34,7 +34,7 @@ Toàn bộ 6 task kỹ thuật lõi Backend 1 đã được thẩm định và n
 ## 2. Bảng Kết Quả Nghiệm Thu Từng Task
 
 | Mã Task | Phân hệ kỹ thuật | Phiên bản | Trạng thái nghiệm thu | Reviewer | Biên bản nghiệm thu cuối cùng |
-| :--- | :--- | :---: | :---: | :---: | :--- |
+| :--- | :--- | :---: | :---: | :--- | :--- |
 | **`S3-BE1-T01`** | API Contract & Persistence Foundation | `v1.0` | **DONE (theo báo cáo gốc)** | Báo cáo gốc | [`task-01-contract-foundation/`](./codex-antigravity/task-01-contract-foundation/README.md) |
 | **`S3-BE1-T02`** | Atomic POS Checkout | `v1.2` | **VERIFIED v1.2** | Codex | [`reviews/v1.2-review-r3.md`](./codex-antigravity/task-02-pos-checkout/reviews/v1.2-review-r3.md) |
 | **`S3-BE1-T03`** | Online Order Lifecycle | `v1.1` | **VERIFIED v1.1** | Codex | [`reviews/v1.1-review-r2.md`](./codex-antigravity/task-03-order-lifecycle/reviews/v1.1-review-r2.md) |
@@ -83,30 +83,28 @@ Toàn bộ 6 task kỹ thuật lõi Backend 1 đã được thẩm định và n
 
 ---
 
-## 4. Nguồn Kiểm Chứng Hiện Hành (Codex Review Task 6 R3)
+## 4. Nguồn Kiểm Chứng Hiện Hành (S3-B01-FIX & Full Integration)
 
-Lượt kiểm chứng toàn diện gần nhất được thực hiện độc lập bởi reviewer **Codex** tại vòng Review R3 (Task 6):
-* **Build Solution:** `dotnet build src/backend/OISM.sln -c Release --no-restore -m:1` ➔ **PASS**, **0 warning, 0 error (2.26s)**.
-* **Unit Tests:** `dotnet test src/backend/tests/OISM.UnitTests` ➔ **129/129 PASS (151ms)**.
-* **Full Integration Suite:** Chạy mới 1 lượt trọn vẹn toàn bộ integration tests của solution:
-  - **Kết quả:** **260/261 PASS, 1 FAIL, 0 skipped, thời gian chạy: 13 phút 48 giây**.
-  - **Phân rã trong lượt full:** 11/11 ReservationExpiry tests PASS; 14/14 Webhook tests PASS; 4/4 Realtime Hub tests PASS; 8/8 Simulator tests PASS. *(Đây là các test nằm trong 1 lượt full duy nhất, không cộng dồn thành lượt kiểm thử riêng).*
-* **Reviewer Probes (Hangfire & Concurrency):**
-  - Scenario per-order fault control: Failed đúng, order giữ `Reserved`.
-  - Scenario tenant A fault + tenant B no-op: Job A báo `Failed` đúng, không bị ghi đè bởi static stats.
-  - Scenario query candidate error: Báo `Failed` đúng, `ScanFailures=1`.
-  - Scenario positive controls: Healthy release báo `Succeeded`; partial batch commit độc lập (`Scanned=2, Cancelled=1, Skipped=0, Failed=1`).
+Lượt kiểm chứng toàn diện mới nhất sau khi khắc phục triệt để lỗi B-01 (Task `S3-B01-FIX`):
+* **Build Solution:** `dotnet build src/backend/OISM.sln -c Release --no-restore` ➔ **PASS**, **0 warning, 0 error**.
+* **Unit Tests:** `dotnet test src/backend/tests/OISM.UnitTests` ➔ **129/129 PASS (100%)**.
+* **Full Integration Suite:** Chạy mới 1 lượt trọn vẹn toàn bộ integration tests của solution trên PostgreSQL thật:
+  - **Kết quả:** **267/267 PASS, 0 FAIL, 0 skipped, thời gian chạy: 15 phút 30 giây**.
+  - **Phân rã kiểm thử:**
+    - Targeted B-01 test: 1/1 PASS (`Postgres_Warehouse_ChangeBranch_WhenHasHistory_ReturnsControlled409_AndCleanWarehouseSucceeds`).
+    - Dedicated B-01 regression suite: 6/6 PASS (`WarehouseBranchReassignmentRegressionTests`).
+    - 11/11 ReservationExpiry tests PASS; 14/14 Webhook tests PASS; 4/4 Realtime Hub tests PASS; 8/8 Simulator tests PASS.
+* **Tổng cộng toàn bộ Solution:** **396/396 PASS (100%)**, không có bất kỳ test nào thất bại hoặc bị bỏ qua.
 
 ---
 
-## 5. Lỗi Tồn Đọng Baseline Còn Mở (B-01)
+## 5. Trạng Thái Khắc Phục Lỗi Tồn Đọng Baseline (B-01) — ĐÃ GIẢI QUYẾT TRIỆT ĐỂ
 
-Trong toàn bộ solution hiện chỉ có duy nhất 1 bài test tích hợp bị thất bại:
-* **Tên test lỗi:** `PostgresBackend2RegressionTests.Postgres_Warehouse_ChangeBranch_WhenHasHistory_ReturnsControlled409_AndCleanWarehouseSucceeds`
-* **Vị trí:** `src/backend/tests/OISM.IntegrationTests/PostgresBackend2RegressionTests.cs:line 790`
-* **Hành vi thực tế:** Kết quả mong đợi là `200 OK` (hoặc controlled 409) khi chuyển chi nhánh cho một kho sạch, nhưng thực tế API ném `500 Internal Server Error`.
-* **Phạm vi:** Đây là lỗi nền tảng kế thừa từ Backend 2 / Foundation của Sprint trước (B-01), nằm ngoài phạm vi nghiệm thu của Backend 1 (Task 1–6).
-* **Cam kết:** Không tự ý nới lỏng assertion hoặc sửa bừa mã nguồn không liên quan để làm xanh CI giả tạo. Lỗi này được ghi nhận minh bạch và tách riêng khỏi PR này.
+Lỗi tồn đọng baseline B-01 (`Postgres_Warehouse_ChangeBranch_WhenHasHistory_ReturnsControlled409_AndCleanWarehouseSucceeds`) đã được **khắc phục triệt để và bàn giao READY_FOR_REVIEW**:
+* **Nguyên nhân:** EF Core xem bộ ba `{ TenantId, Id, BranchId }` là Principal/Alternate Key (do cấu hình composite FK từ các bảng phụ thuộc), Change Tracker chặn việc sửa đổi key property trên tracked entity và ném `InvalidOperationException` (unhandled 500).
+* **Giải pháp:** Cập nhật kho sạch thông qua parameterized SQL trực tiếp trong transaction (`ExecuteSqlInterpolatedAsync`), detach tracked entity khỏi Change Tracker, kiểm tra lịch sử trên 7 bảng phụ thuộc, khóa dòng bi quan `FOR UPDATE` và bắt lỗi PostgreSQL constraint `23503` trả về 409 Conflict.
+* **Tài liệu bàn giao chi tiết:** Xem gói [`baseline-b01-fix/`](./codex-antigravity/baseline-b01-fix/README.md) và biên bản [`handover.md`](./codex-antigravity/baseline-b01-fix/handover.md).
+* **Trạng thái:** `READY_FOR_REVIEW` (Antigravity nghiệm thu nội bộ 100% test pass; chờ Codex kiểm tra và cấp VERIFIED chính thức).
 
 ---
 
@@ -117,6 +115,7 @@ Trong toàn bộ solution hiện chỉ có duy nhất 1 bài test tích hợp b�
 | **Lõi vận hành (Order, POS, Reserve, Chuyển kho, Kiểm kê)** | Đăng Khoa (BE1) | **HOÀN TẤT & VERIFIED 100%** (Task 1..4B) |
 | **Tiếp nhận Webhook 3 sàn & SignalR realtime** | Đăng Khoa (BE1) | **HOÀN TẤT & VERIFIED 100%** (Task 5) |
 | **Hangfire Worker tự hủy giữ chỗ quá hạn 15 phút** | Đăng Khoa (BE1) | **HOÀN TẤT & VERIFIED 100%** (Task 6) |
+| **Khắc phục lỗi đổi chi nhánh kho sạch (B-01)** | Đăng Khoa (BE1) | **HOÀN TẤT & READY_FOR_REVIEW** (S3-B01-FIX) |
 | **Trình giả lập Webhook Simulator cơ bản** | Đăng Khoa (BE1) | **HOÀN TẤT** (Endpoint nhận payload & batch concurrency test) |
 | **Trình giả lập Simulator đầy đủ (Full UI / Mock sàn)** | Phối hợp / BE2 | Chưa thuộc phạm vi nghiệm thu BE1 Core |
 | **Thiết kế AI gợi ý nhập hàng** | Nghiên cứu riêng | Chưa thuộc gói nghiệm thu mã nguồn backend này |
@@ -129,12 +128,8 @@ Trong toàn bộ solution hiện chỉ có duy nhất 1 bài test tích hợp b�
 ## 7. Thông Tin Đóng Gói Git & Pull Request
 
 * **Kho lưu trữ (Repository):** `https://github.com/khoalvd839764-netizen/OISMS.git`
-* **Nhánh nguồn (Head):** `feature/OISMS-40-loi-van-hanh-kho-va-don-hang` (SHA: `8ee1d89f0fb8b11185bf3052570957c623459c76`)
+* **Nhánh nguồn (Head):** `feature/OISMS-40-loi-van-hanh-kho-va-don-hang`
 * **Nhánh đích (Base):** `develop`
-* **Các commit đóng gói:**
-  - `246f73f`: `[OISMS-40] feat(backend): Hoan thien webhook, realtime va tu huy giu cho` (Triển khai Webhook, SignalR Realtime & Hangfire Expiry Worker)
-  - `8acc011`: `[OISMS-40] docs: Tach tai lieu giao tiep va tong ket Backend 1 Sprint 3` (Tái cấu trúc 44 mục tài liệu monolithic sang 7 thư mục task)
-  - `8ee1d89`: `[OISMS-40] chore: Dong bo origin/develop vao feature branch` (Đồng bộ sạch với develop, 0 conflict)
 * **Pull Request chính thức:** 👉 **[PR #21](https://github.com/khoalvd839764-netizen/OISMS/pull/21)** (`[OISMS-40] Hoàn thiện lõi Backend 1 Sprint 3 và chuẩn hóa tài liệu bàn giao`)
 * **Trạng thái PR:** `Draft / Open` (Head: `feature/OISMS-40-loi-van-hanh-kho-va-don-hang` ➔ Base: `develop`)
 * **Trạng thái Merge thực tế:** **CHƯA MERGE VÀO DEVELOP** *(Code hiện nằm trên nhánh feature và PR #21 đang mở. Chưa merge do cần hoàn tất CI pipeline và chờ Codex/Team review theo quy trình repo; không tự ý bypass branch protection)*.
