@@ -4,12 +4,19 @@ Directory of technical reports, testing guides, and acceptance handovers by **Da
 
 ## Sprint 3 Reports (`./sprint-3/`)
 
-### 1. Task Reports & Architecture Design
-* **Task 1: API Contract & Persistence Foundation:** [README.md](./sprint-3/README.md#1-mục-tiêu--phạm-vi-objectives--scope) *(Hoàn thành 24/10/2026 — Chốt hợp đồng API, Dual-Route Checkout, Domain Entities, EF Mapping, DTOs & Service Interfaces)*
-* **Task 2: Atomic POS Checkout (Fast Checkout Toàn Giỏ):** [README.md](./sprint-3/README.md#10-kết-luận-kiểm-chứng-độc-lập-của-codex--vòng-3--v12) *(VERIFIED bởi Codex ngày 24/10/2026, v1.2 — 117/117 unit tests và 21/21 integration tests Sprint 3 pass; B-01 và tích hợp frontend được quản lý riêng)*
-* **Task 3: Online Order Lifecycle:** [README.md](./sprint-3/README.md) *(VERIFIED bởi Codex ngày 24/10/2026, v1.1 — T3-F01..T3-F05 đã đóng; 117/117 unit tests, 55/55 integration tests Sprint 3 pass và probe độc lập đạt; xem mục 14)*
-* **Task 4A: Inter-Warehouse Stock Transfer (Chuyển kho 2 bước):** [README.md](./sprint-3/README.md) *(VERIFIED bởi Codex ngày 24/10/2026, review vòng 3 v1.2 — T4A-F01..T4A-F07 CLOSED; build và 28/28 tests chuyển kho được kiểm chứng độc lập. Kế thừa kết quả unit/regression v1.1 vì DLL ứng dụng không đổi; B-01 riêng. Xem mục 20.)*
-* **Task 4B: Warehouse Stocktaking & Variance Reconciliation (Kiểm kê kho & Cân bằng tồn):** [README.md](./sprint-3/README.md#21-báo-cáo-triển-khai-task-4b-stock-count--v10) *(Sẵn sàng bàn giao review vòng 1 v1.0 — Hoàn tất trọn vẹn vòng đời Draft -> Counting -> Confirmed/Cancelled, Snapshot tồn & Sequence, Sequence Drift detection 409, WAC surplus/deficit, bảo vệ Active reservations 409, Advisory locks loại trừ race condition & deadlock, 35/35 integration tests pass độc lập trên PostgreSQL 16 thật. Xem mục 21.)*
+* **Báo cáo tổng kết chính thức Sprint 3 (BE1):** 👉 **[`SUMMARY.md`](./sprint-3/SUMMARY.md)** *(Đọc độc lập, đầy đủ 7 nội dung tổng kết & đối chiếu Jira)*
+* **Mục lục điều phối Codex – Antigravity:** 👉 **[`codex-antigravity/README.md`](./sprint-3/codex-antigravity/README.md)** *(Quy ước giao tiếp & bảng mapping toàn diện)*
+* **Index ngắn gọn Sprint 3:** [`sprint-3/README.md`](./sprint-3/README.md)
+
+### Danh mục Phân hệ Kỹ thuật Sprint 3 (Backend 1 Core)
+* **Task 1: API Contract & Persistence Foundation:** [`task-01-contract-foundation/`](./sprint-3/codex-antigravity/task-01-contract-foundation/README.md) *(DONE theo báo cáo gốc ngày 24/10/2026 — Chốt hợp đồng API, Dual-Route Checkout, Domain Entities, EF Mapping, DTOs & Service Interfaces)*
+* **Task 2: Atomic POS Checkout (Fast Checkout Toàn Giỏ):** [`task-02-pos-checkout/`](./sprint-3/codex-antigravity/task-02-pos-checkout/README.md) *(VERIFIED bởi Codex ngày 24/10/2026, v1.2 — F-01..F-04 CLOSED; 117/117 unit tests và 21/21 integration tests Sprint 3 pass; B-01 và tích hợp frontend được quản lý riêng)*
+* **Task 3: Online Order Lifecycle (State Machine):** [`task-03-order-lifecycle/`](./sprint-3/codex-antigravity/task-03-order-lifecycle/README.md) *(VERIFIED bởi Codex ngày 24/10/2026, v1.1 — T3-F01..T3-F05 CLOSED; 117/117 unit tests, 55/55 integration tests Sprint 3 pass và probe độc lập đạt)*
+* **Task 4A: Inter-Warehouse Stock Transfer (Chuyển kho 2 bước):** [`task-04a-stock-transfer/`](./sprint-3/codex-antigravity/task-04a-stock-transfer/README.md) *(VERIFIED bởi Codex ngày 24/10/2026, v1.2 — T4A-F01..T4A-F07 CLOSED; build và 28/28 tests chuyển kho được kiểm chứng độc lập. Kế thừa unit/regression v1.1 vì DLL ứng dụng không đổi; B-01 riêng)*
+* **Task 4B: Warehouse Stocktaking & Variance Reconciliation (Kiểm kê kho):** [`task-04b-stock-count/`](./sprint-3/codex-antigravity/task-04b-stock-count/README.md) *(VERIFIED v1.3 bởi Codex ngày 25/10/2026 — T4B-F01..T4B-F05 CLOSED. Build Release 0 warning/error và 51/51 tests PostgreSQL được reviewer thực chạy; kế thừa unit 117 và cross-flow 148 pass; B-01 riêng)*
+* **Task 5: Webhook đa kênh & SignalR Realtime:** [`task-05-webhook-realtime/`](./sprint-3/codex-antigravity/task-05-webhook-realtime/README.md) *(VERIFIED v1.4 bởi Codex ngày 26/10/2026 — T5-F01..T5-F08 CLOSED. Observer nối đúng DbContext options, positive control 40P01=1/reset 0/race 0 PASS; rollback WAC/timestamp/notifier đạt; 26/26 tests liên quan pass: 14 Webhook PostgreSQL, 4 Hub, 8 Simulator. Kế thừa 129 unit và 249/250 full integration; B-01 riêng)*
+* **Task 6: Hangfire Reservation Expiry Worker:** [`task-06-reservation-expiry/`](./sprint-3/codex-antigravity/task-06-reservation-expiry/README.md) *(VERIFIED v1.2 bởi Codex ngày 26/10/2026 — T6-F01..T6-F04 CLOSED. Stats scoped trên instance IOrderService; query candidate lỗi báo Failed; 4 điểm F03 đã kiểm source/runner: gated multi-SKU, snapshot rollback độc lập, cancellation đúng order, cùng SKU qua nhiều kho. Build Release 0 warning/error, 129 unit và full integration 260/261 PASS, fail duy nhất B-01)*
+* **Task Docs & PR:** [`docs-pr-develop/`](./sprint-3/codex-antigravity/docs-pr-develop/README.md) *(Chuẩn hóa docs, tổng kết BE1 và mở PR develop)*
 
 ---
 
