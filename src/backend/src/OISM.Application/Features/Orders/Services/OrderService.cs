@@ -305,6 +305,84 @@ public class OrderService : IOrderService
         return MapToDetailDto(order);
     }
 
+    public async Task<OrderDetailDto> ProcessOrderAsync(Guid id, Guid? userId, CancellationToken ct = default)
+    {
+        var tenantId = RequireTenantId();
+
+        var order = await _context.Orders
+            .Include(o => o.Branch)
+            .Include(o => o.Items)
+            .Include(o => o.Reservations)
+            .FirstOrDefaultAsync(o => o.Id == id && o.TenantId == tenantId, ct);
+
+        if (order == null)
+        {
+            throw new KeyNotFoundException($"Không tìm thấy Đơn hàng với ID '{id}'.");
+        }
+
+        if (order.Status == "Processing")
+        {
+            return MapToDetailDto(order);
+        }
+
+        if (order.Status == "Draft" || order.Status == "Reserved")
+        {
+            // Tự động confirm trước khi chuyển sang Processing
+            await ConfirmOrderAsync(id, userId, ct);
+            order = await _context.Orders
+                .Include(o => o.Branch)
+                .Include(o => o.Items)
+                .Include(o => o.Reservations)
+                .FirstAsync(o => o.Id == id && o.TenantId == tenantId, ct);
+        }
+
+        if (order.Status != "Confirmed")
+        {
+            throw new InvalidOperationException($"Không thể chuyển sang xử lý đóng gói đối với đơn hàng ở trạng thái '{order.Status}'.");
+        }
+
+        order.Status = "Processing";
+        order.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await _context.SaveChangesAsync(ct);
+
+        return MapToDetailDto(order);
+    }
+
+    public async Task<OrderDetailDto> CompleteOrderAsync(Guid id, Guid? userId, CancellationToken ct = default)
+    {
+        var tenantId = RequireTenantId();
+
+        var order = await _context.Orders
+            .Include(o => o.Branch)
+            .Include(o => o.Items)
+            .Include(o => o.Reservations)
+            .FirstOrDefaultAsync(o => o.Id == id && o.TenantId == tenantId, ct);
+
+        if (order == null)
+        {
+            throw new KeyNotFoundException($"Không tìm thấy Đơn hàng với ID '{id}'.");
+        }
+
+        if (order.Status == "Completed")
+        {
+            return MapToDetailDto(order);
+        }
+
+        if (order.Status != "Confirmed" && order.Status != "Processing")
+        {
+            throw new InvalidOperationException($"Chỉ có thể hoàn tất giao hàng đối với đơn đã xác nhận hoặc đang đóng gói (Trạng thái hiện tại: '{order.Status}').");
+        }
+
+        order.Status = "Completed";
+        order.CompletedAt = DateTimeOffset.UtcNow;
+        order.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await _context.SaveChangesAsync(ct);
+
+        return MapToDetailDto(order);
+    }
+
     public async Task<OrderDetailDto> CancelOrderAsync(Guid id, Guid? userId, CancellationToken ct = default)
     {
         var tenantId = RequireTenantId();

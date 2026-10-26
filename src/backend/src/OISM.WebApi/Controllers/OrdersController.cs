@@ -107,6 +107,50 @@ public class OrdersController : ControllerBase
     }
 
     /// <summary>
+    /// Bắt đầu xử lý đóng gói đơn hàng (Confirmed -> Processing).
+    /// </summary>
+    [HttpPost("{id}/process")]
+    public async Task<IActionResult> Process(Guid id, CancellationToken ct)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var result = await _orderService.ProcessOrderAsync(id, userId, ct);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Hoàn tất giao hàng đơn hàng (Processing / Confirmed -> Completed).
+    /// </summary>
+    [HttpPost("{id}/complete")]
+    public async Task<IActionResult> Complete(Guid id, CancellationToken ct)
+    {
+        try
+        {
+            var userId = GetCurrentUserId();
+            var result = await _orderService.CompleteOrderAsync(id, userId, ct);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// Hủy đơn hàng (Draft / Reserved -> Cancelled).
     /// Giải phóng số lượng tồn kho giữ chỗ (Reserved) nếu có.
     /// </summary>
