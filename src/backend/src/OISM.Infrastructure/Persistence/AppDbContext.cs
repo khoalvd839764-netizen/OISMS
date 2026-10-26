@@ -49,6 +49,7 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<StockCountItem> StockCountItems { get; set; } = null!;
     public DbSet<InventoryAdjustment> InventoryAdjustments { get; set; } = null!;
     public DbSet<InventoryAdjustmentItem> InventoryAdjustmentItems { get; set; } = null!;
+    public DbSet<ShopIntegration> ShopIntegrations { get; set; } = null!;
 
     public bool IsRelationalDatabase => Database.IsRelational();
 
@@ -154,6 +155,9 @@ public class AppDbContext : DbContext, IAppDbContext
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
 
         modelBuilder.Entity<InventoryAdjustmentItem>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<ShopIntegration>()
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
     }
 

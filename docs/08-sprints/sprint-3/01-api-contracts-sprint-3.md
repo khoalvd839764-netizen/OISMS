@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-CTR-S3-01` |
-| **Phiên bản (Version)** | `v1.1.0` |
-| **Ngày ban hành** | `2026-10-24` |
+| **Phiên bản (Version)** | `v1.2.0` |
+| **Ngày ban hành** | `2026-10-26` |
 | **Tác giả / Vai trò** | **Lê Võ Đăng Khoa** — Lead Developer / Backend 1 |
 | **Nguồn truy vết gốc** | `De bai CNPM.pdf`, Confluence Page ID `5275650` (Version 11), Confluence Page ID `983053` (Version 69) |
 | **Tài liệu liên kết** | [`../../05-api-contracts/04-order-endpoints.md`](../../05-api-contracts/04-order-endpoints.md), [`../../05-api-contracts/05-pos-endpoints.md`](../../05-api-contracts/05-pos-endpoints.md), [`README.md`](README.md) |
@@ -65,7 +65,7 @@ stateDiagram-v2
 | **Tạo đơn Admin / Webhook** | `Draft` ➔ `Reserved` | Không đổi `on_hand`. Tăng `reserved += Qty`. | Tạo `Reservation` với trạng thái `Active`, hạn dùng `expires_at = now() + 15m`. | Chưa ghi Sổ cái (chưa xuất hàng vật lý). | Chưa chốt giá vốn. |
 | **Duyệt đơn online (`confirm`)** | `Reserved` ➔ `Confirmed` | Trừ `on_hand -= Qty`, giảm `reserved -= Qty`. | Chuyển trạng thái `Reservation` sang `Consumed`. | Ghi bút toán `type = 'OUT'`, tham chiếu `order_item_id`. | Chốt snapshot giá vốn WAC tại thời điểm xác nhận. |
 | **Hoàn tất đơn online (`complete`)** | `Confirmed` ➔ `Completed` | **Không thay đổi tồn kho.** | Giữ nguyên trạng thái `Consumed`. | **Tuyệt đối KHÔNG ghi Sổ cái lần 2** (đã ghi khi Confirm). | Giữ nguyên giá vốn đã chốt. Gán `completed_at = now()`. |
-| **Hủy đơn / Hết hạn (`cancel / expire`)** | `Reserved` ➔ `Cancelled` | Không đổi `on_hand`. Giảm `reserved -= Qty` (hoàn trả `available`). | Chuyển trạng thái `Reservation` sang `Released` (hoặc `Expired`). | Không ghi Sổ cái (vì chưa từng xuất kho). | Không phát sinh giá vốn. |
+| **Hủy đơn / Hết hạn (`cancel / expire`)** | `Reserved` ➔ `Cancelled` | Không đổi `on_hand`. Giảm `reserved -= Qty` (hoàn trả `available`). | Chuyển trạng thái `Reservation`: Phiếu quá hạn (`ExpiresAt <= cutoffUtc`) sang `Expired`, phiếu còn hạn cùng giỏ sang `Released`. | Không ghi Sổ cái (vì chưa từng xuất kho). | Không phát sinh giá vốn. |
 
 ---
 
@@ -339,7 +339,7 @@ $$\text{SKU } (BranchId, SkuId) \longrightarrow \text{RequestKey (nếu có)} \l
 | :---: | :--- | :---: | :--- |
 | `POST` | `/api/stock-counts` | `Owner, Staff` | **Khởi tạo đợt kiểm kê & Snapshot số dư:**<br/>- **Payload (`CreateStockCountRequestDto`):** `RequestKey` (UUID bắt buộc), `BranchId` (UUID), `WarehouseId` (UUID), `SkuIds` (List&lt;Guid&gt;?, null/rỗng = Toàn kho), `Note` (string?).<br/>- **Chế độ kiểm kê:** Lựa chọn danh sách SKU cụ thể hoặc Toàn kho (ALL). Kho rỗng khi chọn Toàn kho trả `400 EMPTY_WAREHOUSE_STOCK_COUNT`.<br/>- **Snapshot:** Chụp chính xác `expected_quantity` (OnHand kho) và `balance_sequence_at_snapshot` (`last_sequence` kho). SKU chưa có số dư snapshot 0. Tạo phiếu Draft không làm biến động tồn kho/ledger (`Zero stock mutation`).<br/>- **Mã đợt kiểm kê:** Tự động sinh số hiệu định dạng `CNT-yyyyMMdd-XXXXX` dưới advisory lock `stock_count_number`.<br/>- **Idempotency tuyệt đối:** Khóa idempotent SHA-256 theo canonical payload. Cùng key + payload trả `200 OK` (`isReplay = true`); cùng key + khác payload trả `409 IDEMPOTENCY_PAYLOAD_MISMATCH`. Replay trả về trạng thái thực tế hiện tại (`Draft`, `Counting`, `Confirmed`, `Cancelled`). |
 | `POST` | `/api/stock-counts/{id}/record` | `Owner, Staff` | **Ghi nhận số lượng đếm thực tế:**<br/>- **Payload (`RecordStockCountBatchRequestDto`):** `Items` (danh sách dòng kiểm đếm). Mỗi dòng gồm `SkuId` (UUID), `CountedQuantity` (decimal?, 0 .. 999,999,999,999,999.999, scale &le; 3), `AdjustmentUnitCost` (decimal?, scale &le; 6, max 999,999,999,999.999999).<br/>- **Phân biệt số 0:** `CountedQuantity = 0` là giá trị kiểm đếm hợp lệ (mất toàn bộ hàng), phân biệt với chưa đếm (`null` / omitted).<br/>- **Chuyển trạng thái:** Tự động chuyển từ `Draft` sang `Counting` sau lần ghi nhận hợp lệ đầu tiên.<br/>- **Atomic Batch & SKU Guards:** Gửi SKU không thuộc đợt kiểm kê trả `400 INVALID_COUNT_ITEM`. Bất kỳ dòng nào lỗi sẽ từ chối toàn bộ batch, không lưu dở dang. |
-| `POST` | `/api/stock-counts/{id}/confirm` | `Owner, Staff` | **Chốt kiểm kê & Cân bằng kho nguyên tử:**<br/>1. **Điều kiện tiên quyết:** Toàn bộ mặt hàng trong đợt phải được nhập số đếm thực tế (nếu thiếu trả `400 INCOMPLETE_STOCK_COUNT`). Phiếu phải ở trạng thái `Counting` (nếu ở `Draft` hoặc `Cancelled` trả `409 INVALID_STATE_TRANSITION`). Phiếu đã `Confirmed` trả `200 OK` idempotent replay.<br/>2. **Thứ tự khóa Advisory Lock:** Khóa SKU `(BranchId, SkuId)` theo thứ tự tăng dần &rarr; Khóa Document `/stock_count/{id}` &rarr; Khóa Sequence `/inventory_adjustment_number`. Loại trừ deadlock tuyệt đối.<br/>3. **Phát hiện Sequence Drift:** Đối chiếu `warehouse_inventory_balances.last_sequence` từng SKU với snapshot. Nếu phát hiện giao dịch xen giữa làm tăng sequence kho, trả `409 STOCK_COUNT_DRIFT_DETECTED` và rollback sạch 100%. Giao dịch ở kho khác cùng chi nhánh hoặc SKU khác trong kho không gây false drift.<br/>4. **Bảo vệ hàng giữ chỗ (Active Reservations):** Nếu `CountedQuantity < whReserved` hoặc `newBranchOnHand < branchReserved`, trả `409 INSUFFICIENT_STOCK_FOR_RESERVATION` để bảo vệ đơn hàng đang chờ giao.<br/>5. **Chính sách WAC hàng thừa (Quyết định B):**<br/>&bull; Khi chi nhánh đã có `WAC > 0`: Dùng WAC hiện có của chi nhánh để tính giá trị điều chỉnh, client gửi giá khác không được ghi đè WAC.<br/>&bull; Khi chi nhánh chưa có tồn / `WAC == 0 || null`: Bắt buộc client cung cấp `AdjustmentUnitCost > 0`. Nếu thiếu/nhỏ hơn bằng 0 trả `422 ADJUSTMENT_COST_REQUIRED`.<br/>&bull; Khi lệch thiếu (deficit): Giữ nguyên WAC chi nhánh.<br/>6. **Sinh chứng từ điều chỉnh:** Tạo duy nhất 1 `InventoryAdjustment` (`ADJ-yyyyMMdd-XXXXX`), liên kết bền vững qua `generated_adjustment_id`. Chỉ sinh `InventoryAdjustmentItem` và bút toán sổ cái `InventoryTransaction` cho các dòng có `Delta != 0` (Thừa `IN`, Thiếu `OUT`). Toàn bộ khớp: sinh adjustment 0 items, 0 ledger entries. Cập nhật số dư 2 cấp (Kho và Chi nhánh) nguyên tử trong transaction. |
+| `POST` | `/api/stock-counts/{id}/confirm` | `Owner, Staff` | **Chốt kiểm kê & Cân bằng kho nguyên tử:**<br/>1. **Điều kiện tiên quyết:** Toàn bộ mặt hàng trong đợt phải được nhập số đếm thực tế (nếu thiếu trả `409 INVALID_STATE_TRANSITION`). Phiếu phải ở trạng thái `Counting` (nếu ở `Draft`, `Confirmed` hoặc `Cancelled` trả `409 INVALID_STATE_TRANSITION`). Phiếu đã chốt `Confirmed` trước đó bị từ chối `409 INVALID_STATE_TRANSITION` (không replay 200).<br/>2. **Thứ tự khóa Advisory Lock:** Khóa SKU `(BranchId, SkuId)` theo thứ tự tăng dần &rarr; Khóa Document `/stock_count/{id}` &rarr; Khóa Sequence `/inventory_adjustment_number`. Loại trừ deadlock tuyệt đối.<br/>3. **Phát hiện Sequence Drift:** Đối chiếu `warehouse_inventory_balances.last_sequence` từng SKU với snapshot. Nếu phát hiện giao dịch xen giữa làm tăng sequence kho, trả `409 STOCK_COUNT_SEQUENCE_DRIFT` và rollback sạch 100%. Giao dịch ở kho khác cùng chi nhánh hoặc SKU khác trong kho không gây false drift.<br/>4. **Bảo vệ hàng giữ chỗ (Active Reservations):** Nếu `CountedQuantity < whReserved` hoặc `newBranchOnHand < branchReserved`, trả `409 INSUFFICIENT_STOCK` để bảo vệ đơn hàng đang chờ giao.<br/>5. **Chính sách WAC hàng thừa (Quyết định B):**<br/>&bull; Khi chi nhánh đã có `WAC > 0`: Dùng WAC hiện có của chi nhánh để tính giá trị điều chỉnh, client gửi giá khác không được ghi đè WAC.<br/>&bull; Khi chi nhánh chưa có tồn / `WAC == 0 || null`: Bắt buộc client cung cấp `AdjustmentUnitCost > 0`. Nếu thiếu/nhỏ hơn bằng 0 trả `422 ADJUSTMENT_COST_REQUIRED`.<br/>&bull; Khi lệch thiếu (deficit): Giữ nguyên WAC chi nhánh.<br/>6. **Sinh chứng từ điều chỉnh & Kiểm soát tràn số:** Tạo duy nhất 1 `InventoryAdjustment` (`ADJ-yyyyMMdd-XXXXX`), liên kết bền vững qua `generated_adjustment_id`. Chặn chủ động các phép tính tổng tồn hoặc tràn số số học CLR vượt giới hạn trước khi lưu CSDL (trả `400 VALIDATION_ERROR`). Chỉ sinh `InventoryAdjustmentItem` và bút toán sổ cái `InventoryTransaction` cho các dòng có `Delta != 0` (Thừa `IN`, Thiếu `OUT`). Toàn bộ khớp: sinh adjustment 0 items, 0 ledger entries. Cập nhật số dư 2 cấp (Kho và Chi nhánh) nguyên tử trong transaction. |
 | `POST` | `/api/stock-counts/{id}/cancel` | `Owner, Staff` | **Hủy đợt kiểm kê an toàn:**<br/>- Cho phép hủy khi phiếu ở `Draft` hoặc `Counting`. Chuyển sang `Cancelled`, ghi nhận lý do hủy.<br/>- Tuyệt đối không làm biến động tồn kho, sổ cái hay sequence (`Zero stock mutation`).<br/>- Chặn hủy khi đã `Confirmed` hoặc `Cancelled` (trả `409 INVALID_STATE_TRANSITION`). |
 | `GET` | `/api/stock-counts` | `Owner, Staff` | *(Phân công Backend 2)* Danh sách các đợt kiểm kê theo chi nhánh/kho. |
 | `GET` | `/api/stock-counts/{id}` | `Owner, Staff` | *(Phân công Backend 2)* Chi tiết đợt kiểm kê kèm bảng so sánh thừa/thiếu giữa số đếm thực tế và sổ sách. |
@@ -351,14 +351,23 @@ $$\text{SKU } (BranchId, SkuId) \longrightarrow \text{RequestKey (nếu có)} \l
 #### `POST /api/webhooks/simulator/{channel}`
 * **Tham số Path:** `channel` nhận giá trị `'Shopee'`, `'TikTok'`, `'Lazada'`.
 * **Xác thực & Bảo mật Tenant:**
-  * Xác thực qua Header bí mật `X-Webhook-Secret` hoặc HMAC-SHA256 signature `X-Hub-Signature-256` (hoặc `X-Tenant-Key` trong môi trường simulator).
+  * Xác thực qua Header bí mật `X-Webhook-Secret` hoặc Bearer JWT Token (`Authorization: Bearer <token>`).
+  * **Chế độ Secret:** Tìm kiếm tích hợp dựa trên `SecretHash` duy nhất (`uq_shop_integrations_secret_hash`). Phát hiện xung đột nếu nhiều cấu hình trùng hash (`401 Unauthorized` / `CREDENTIAL_CONFLICT`). Xác thực doanh nghiệp `Tenant.IsActive == true` (`401 Unauthorized` / `Doanh nghiệp đã ngừng hoạt động`).
   * **Tuyệt đối không tin cậy `tenant_id` từ Request Body.** `TenantId` luôn được trích xuất từ thông tin kênh tích hợp đã xác thực.
 * **Ánh xạ Chi nhánh Fulfillment (Branch Resolution):**
-  * Sàn TMĐT không quản lý `branchId` nội bộ. Hệ thống ánh xạ `(tenant_id, channel, external_shop_id)` sang Chi nhánh mặc định được cấu hình trong bảng tích hợp. Kiểm tra chi nhánh này phải `IsActive = true`.
-* **Khóa chống trùng nhận đơn (Deduplication Key):**
-  * Khóa xác định: `(tenant_id, channel, external_shop_id, external_order_id)`.
-  * **Cùng khóa & cùng payload:** Trả về kết quả đơn hàng đã tạo trước đó `HTTP 200 OK` (Idempotent).
+  * Sàn TMĐT không quản lý `branchId` nội bộ. Hệ thống ánh xạ `(tenant_id, channel, external_shop_id)` sang Chi nhánh mặc định được cấu hình trong bảng tích hợp.
+  * Kiểm tra chi nhánh này phải `IsActive = true` khi tạo đơn mới (`404 Not Found` / `BRANCH_INACTIVE_OR_INVALID`).
+* **Khóa chống trùng nhận đơn (Deduplication Key) & Fast Replay:**
+  * Khóa xác định: `(tenant_id, channel, external_shop_id, external_order_id)`. RequestKey nội bộ phân tách bằng null-byte `\0` triệt tiêu va chạm delimiter MD5.
+  * **Fast Replay:** Cơ chế kiểm tra đơn đã tồn tại được thực hiện trước các kiểm tra tài nguyên động (như chi nhánh ngừng hoạt động hay thay đổi giá catalog).
+  * **Cùng khóa & cùng payload:** Trả về kết quả đơn hàng đã tạo trước đó `HTTP 200 OK` (Idempotent Replay).
   * **Cùng khóa & khác payload:** Trả về `HTTP 409 Conflict` (`WEBHOOK_PAYLOAD_MISMATCH`).
+* **Quy chuẩn Validation DTO (`CanonicalWebhookPayloadDto`):**
+  * `Channel`: Bắt buộc (`[Required]`), không được để trống hoặc omit trong JSON payload (trả về `400 VALIDATION_ERROR`).
+  * `OrderTimestamp`: Bắt buộc (`[Required]`), định dạng ISO-8601 UTC. Giữ trọn 7 chữ số phần thập phân (`.fffffff`) để tính chữ ký Canonical SHA-256 chính xác tới 100ns (1 tick).
+  * `TotalAmount`: Bắt buộc (`[Required]`), số dương $\ge 0$, scale tối đa 2 chữ số thập phân (từ chối `10.001` trả `400 Bad Request`), giá trị tối đa 999 tỷ.
+  * `Items[i].Quantity` & `Items[i].UnitPrice`: Bắt buộc (`[Required] decimal?`). Omit trong JSON trả về `400 VALIDATION_ERROR`. Trường hợp `unitPrice: 0` khi `totalAmount: 0` (quà tặng/hàng khuyến mãi 0 đồng) vẫn hoàn toàn hợp lệ.
+  * Giới hạn độ dài chuỗi: `CustomerName` tối đa 200 ký tự, `CustomerPhone` tối đa 32 ký tự, `ShippingAddress` tối đa 500 ký tự. Vượt quá trả về `400 Bad Request` chuẩn RFC 7807, ngăn chặn lỗi 22001 / 500 Internal Server Error.
 * **Xử lý sai lệch & tài nguyên:**
   * Path channel khác Body channel (vd: URL là `Shopee` nhưng body là `TikTok`): Trả `400 Bad Request` (`CHANNEL_MISMATCH`).
   * SKU không tồn tại trong danh mục cửa hàng: Trả `422 Unprocessable Entity` (`SKU_NOT_FOUND`).
@@ -388,18 +397,18 @@ $$\text{SKU } (BranchId, SkuId) \longrightarrow \text{RequestKey (nếu có)} \l
 
 ### 6. Sự kiện Realtime SignalR Hub (`/hubs/notifications`)
 
-* **Xác thực Hub:** Yêu cầu Bearer JWT Token (`?access_token=...`).
+* **Xác thực Hub:** Yêu cầu Bearer JWT Token qua Query string (`?access_token=...`) dành riêng cho đường dẫn `/hubs/notifications` (tuyệt đối không áp dụng cho REST API). Hỗ trợ các vai trò: `Owner`, `Staff`, `Cashier`.
 * **Phân nhóm nhận (Group Segregation):**
-  * `tenant_{tenantId}`: Toàn bộ nhân viên của cửa hàng nhận thông báo đơn mới tối thiểu và cảnh báo hết hàng.
-  * `tenant_{tenantId}_branch_{branchId}`: Thu ngân và nhân viên chi nhánh nhận biến động tồn kho chi nhánh.
-* **Thời điểm phát sự kiện:** **Chỉ được phát sau khi Database Transaction đã commit thành công** (ngăn chặn thông báo ảo khi rollback).
-* **Payload tối thiểu, không lộ giá vốn:**
+  * `tenant_{tenantId}`: Tự động gia nhập khi kết nối thành công. Nhận thông báo đơn hàng mới toàn cửa hàng và cảnh báo hết hàng.
+  * `tenant_{tenantId}_branch_{branchId}`: Thu ngân và nhân viên chi nhánh đăng ký nhận qua Hub method `JoinBranchGroup(Guid branchId)` và hủy đăng ký qua `LeaveBranchGroup(Guid branchId)`. Server xác thực chi nhánh thuộc đúng quyền quản lý của Tenant trước khi thêm vào Group; Client tuyệt đối không được tự đặt tên group.
+* **Thời điểm phát sự kiện:** **Chỉ được phát sau khi Database Transaction đã commit thành công** (ngăn chặn thông báo ảo khi giao dịch bị rollback). Nếu Notifier gặp sự cố sau commit, hệ thống ghi log và tuyệt đối không làm gián đoạn phản hồi HTTP hay rollback dữ liệu CSDL.
+* **Payload tối thiểu, bảo mật giá vốn (Zero Cost Leakage):**
 
 | Tên sự kiện (Event Name) | Payload DTO | Nội dung & Mục đích |
 | :--- | :--- | :--- |
-| `OrderCreated` | `OrderSummaryRealtimeDto` | Báo đơn hàng mới phát sinh (OrderId, OrderNumber, Channel, Status, TotalAmount, TotalItems). **Tuyệt đối không chứa CostPrice/COGS.** Phát chuông và popup. |
-| `StockLevelChanged` | `StockChangedRealtimeDto` | Báo tồn kho khả dụng vừa thay đổi `{ branchId, skuId, newAvailableStock }` để POS tự động cập nhật giỏ hàng. |
-| `LowStockWarning` | `LowStockAlertRealtimeDto` | Cảnh báo mặt hàng sắp hết tồn kho `{ branchId, skuId, skuCode, currentAvailable, threshold }`. |
+| `OrderCreated` | `OrderSummaryRealtimeDto` | Báo đơn hàng mới phát sinh (OrderId, OrderNumber, Channel, Status, TotalAmount, TotalItems). **Tuyệt đối không chứa CostPrice/COGS/SecretHash.** Phát chuông và popup. Áp dụng cho các đơn Reserved (Admin, Shopee, TikTok, Lazada). Không phát cho POS hoặc replay cũ. |
+| `StockLevelChanged` | `StockChangedRealtimeDto` | Báo tồn kho khả dụng vừa thay đổi `{ branchId, skuId, newAvailableStock }` (Available = OnHand - Reserved) để POS tự động cập nhật giỏ hàng theo thời gian thực. |
+| `LowStockWarning` | `LowStockAlertRealtimeDto` | Cảnh báo mặt hàng sắp hết tồn kho `{ branchId, skuId, skuCode, currentAvailable, threshold }` khi tồn khả dụng giảm xuống dưới hoặc bằng `reorder_point`. |
 
 ---
 
@@ -419,16 +428,21 @@ $$\text{SKU } (BranchId, SkuId) \longrightarrow \text{RequestKey (nếu có)} \l
 
 | Mã HTTP | Mã lỗi (`errorCode`) | Ý nghĩa & Tình huống kích hoạt |
 | :---: | :--- | :--- |
-| `400` | `VALIDATION_ERROR` | Thiếu trường bắt buộc, RequestKey là Guid.Empty, số lượng âm, format không hợp lệ. |
+| `400` | `VALIDATION_ERROR` | Thiếu trường bắt buộc, RequestKey là Guid.Empty, số lượng âm, format không hợp lệ, hoặc tràn số số học CLR. |
 | `400` | `CHANNEL_MISMATCH` | Path parameter channel không khớp với trường channel trong Webhook payload. |
-| `401` | `UNAUTHORIZED` | Thiếu Bearer Token hoặc Token hết hạn, hoặc Webhook secret không hợp lệ. |
-| `403` | `FORBIDDEN` | Cashier cố tình gọi API duyệt đơn Admin, Chuyển kho hoặc Kiểm kê. |
+| `400` | `TOTAL_AMOUNT_MISMATCH` | Tổng tiền gửi lên từ Webhook sàn không khớp với tổng tính toán lại từ các dòng mặt hàng (làm tròn AwayFromZero). |
+| `401` | `UNAUTHORIZED` | Thiếu Bearer Token, Token hết hạn, hoặc Webhook secret không hợp lệ / không khớp cấu hình tích hợp. |
+| `403` | `FORBIDDEN` | Cashier cố tình gọi API duyệt đơn Admin, Chuyển kho, Kiểm kê hoặc Webhook Simulator. |
 | `404` | `NOT_FOUND` | Không tìm thấy Order, SKU, Warehouse hoặc Branch trong phạm vi Tenant. |
-| `409` | `INSUFFICIENT_STOCK` | Hết tồn kho khả dụng hoặc tồn kho bị chiếm trong phiên đồng thời. |
+| `404` | `INTEGRATION_NOT_FOUND` | Gian hàng sàn TMĐT chưa được cấu hình tích hợp trong bảng `shop_integrations`. |
+| `404` | `BRANCH_INACTIVE_OR_INVALID` | Chi nhánh liên kết với cấu hình tích hợp gian hàng không tồn tại hoặc đã ngừng hoạt động. |
+| `409` | `INSUFFICIENT_STOCK` | Hết tồn kho khả dụng hoặc tồn kho bị chiếm trong phiên đồng thời (kể cả kiểm kê chốt làm OnHand thấp hơn Reserved). |
 | `409` | `IDEMPOTENCY_PAYLOAD_MISMATCH` | Gửi cùng RequestKey nhưng khác payload so với yêu cầu trước đó. |
-| `409` | `INVALID_STATE_TRANSITION` | Cố tình duyệt đơn đã Cancelled, hoàn tất đơn chưa Confirmed, hoặc hủy đơn đã Completed. |
-| `409` | `STOCK_COUNT_SEQUENCE_DRIFT` | Tồn kho bị giao dịch khác làm thay đổi trong thời gian đếm thực tế của phiên kiểm kê. |
+| `409` | `WEBHOOK_PAYLOAD_MISMATCH` | Gửi cùng bộ khóa sàn (channel, external_shop_id, external_order_id) nhưng khác chữ ký nội dung Canonical SHA-256. |
+| `409` | `INVALID_STATE_TRANSITION` | Cố tình duyệt đơn đã Cancelled, hoàn tất đơn chưa Confirmed, hủy đơn đã Completed, hoặc chốt lại phiếu kiểm kê đã Confirmed. |
+| `409` | `STOCK_COUNT_SEQUENCE_DRIFT` | Tồn kho bị giao dịch khác làm thay đổi sequence kho trong thời gian đếm thực tế của phiên kiểm kê. |
 | `422` | `ADJUSTMENT_COST_REQUIRED` | Hàng kiểm kê thừa của SKU mới chưa từng có WAC nhưng không cung cấp đơn giá điều chỉnh dương. |
+| `422` | `SKU_NOT_FOUND` | Mặt hàng biến thể SKU không tồn tại trong hệ thống khi tiếp nhận đơn hàng Webhook TMĐT. |
 | `422` | `SKU_INACTIVE` | SKU hoặc sản phẩm bị khóa ngưng hoạt động. |
 
 ---

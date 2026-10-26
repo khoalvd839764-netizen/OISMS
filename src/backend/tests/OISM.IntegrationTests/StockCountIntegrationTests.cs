@@ -65,18 +65,209 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
     public class MidstreamFailureInterceptor : Microsoft.EntityFrameworkCore.Diagnostics.SaveChangesInterceptor
     {
         public bool ShouldFail { get; set; } = true;
+        public int SaveChangesCalls { get; private set; }
+        public int LastSavedEntityCount { get; private set; }
 
         public override ValueTask<int> SavedChangesAsync(
             Microsoft.EntityFrameworkCore.Diagnostics.SaveChangesCompletedEventData eventData,
             int result,
             CancellationToken cancellationToken = default)
         {
+            SaveChangesCalls++;
+            LastSavedEntityCount = eventData.EntitiesSavedCount;
             if (ShouldFail)
             {
                 throw new MidstreamStockCountFaultException("Mô phỏng sự cố mạng/crash sau khi SaveChanges nhưng trước khi COMMIT transaction kiểm kê.");
             }
             return base.SavedChangesAsync(eventData, result, cancellationToken);
         }
+    }
+
+    public class LockCoordinationInterceptor : Microsoft.EntityFrameworkCore.Diagnostics.DbCommandInterceptor
+    {
+        public bool PauseFirstSku { get; init; }
+        public TaskCompletionSource Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _paused;
+        public int Deadlocks;
+
+        public override async ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int>> NonQueryExecutingAsync(
+            System.Data.Common.DbCommand command,
+            Microsoft.EntityFrameworkCore.Diagnostics.CommandEventData eventData,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            var sql = command.CommandText;
+            if (PauseFirstSku && sql.Contains("pg_advisory_xact_lock") && sql.Contains("'/'") && Interlocked.CompareExchange(ref _paused, 1, 0) == 0)
+            {
+                Reached.TrySetResult();
+                await Release.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+            }
+            else if (!PauseFirstSku && sql.Contains("/request_key/"))
+            {
+                Reached.TrySetResult();
+            }
+            return result;
+        }
+
+        public override Task CommandFailedAsync(
+            System.Data.Common.DbCommand command,
+            Microsoft.EntityFrameworkCore.Diagnostics.CommandErrorEventData eventData,
+            CancellationToken cancellationToken = default)
+        {
+            if (eventData.Exception is PostgresException { SqlState: "40P01" })
+            {
+                Interlocked.Increment(ref Deadlocks);
+            }
+            return Task.CompletedTask;
+        }
+    }
+
+    public sealed class CountSavedGate : Microsoft.EntityFrameworkCore.Diagnostics.SaveChangesInterceptor
+    {
+        public TaskCompletionSource Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public override async ValueTask<int> SavedChangesAsync(
+            Microsoft.EntityFrameworkCore.Diagnostics.SaveChangesCompletedEventData eventData,
+            int result,
+            CancellationToken cancellationToken = default)
+        {
+            Reached.TrySetResult();
+            await Release.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+            return result;
+        }
+    }
+
+    private static async Task<long> GetDatabaseDeadlockCountAsync()
+    {
+        await using var conn = new NpgsqlConnection(PostgresTestEnvironment.RuntimeConnectionString);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand("SELECT deadlocks FROM pg_stat_database WHERE datname=current_database()", conn);
+        var result = await cmd.ExecuteScalarAsync();
+        return result is long l ? l : Convert.ToInt64(result);
+    }
+
+    private record FullStockCountBaseline(
+        int StockCountTotal,
+        int StockCountItemTotal,
+        int AdjustmentTotal,
+        int AdjustmentItemTotal,
+        int LedgerAdjustmentTxTotal,
+        decimal BranchOnHand,
+        decimal BranchReserved,
+        decimal BranchWac,
+        long BranchLastSequence,
+        DateTimeOffset BranchCreatedAt,
+        DateTimeOffset? BranchUpdatedAt,
+        decimal WhOnHand,
+        decimal WhReserved,
+        long WhLastSequence,
+        DateTimeOffset WhCreatedAt,
+        DateTimeOffset? WhUpdatedAt,
+        string? CountStatus,
+        Guid? CountGeneratedAdjustmentId,
+        DateTimeOffset? CountConfirmedAt,
+        Guid? CountConfirmedBy,
+        DateTimeOffset? CountCreatedAt,
+        DateTimeOffset? CountUpdatedAt,
+        decimal? ItemExpectedQuantity,
+        long? ItemSnapshotSequence,
+        decimal? ItemCountedQuantity,
+        decimal? ItemAdjustmentUnitCost,
+        DateTimeOffset? ItemCreatedAt,
+        DateTimeOffset? ItemUpdatedAt
+    );
+
+    private async Task<FullStockCountBaseline> CaptureFullBaselineAsync(Guid tenantId, Guid branchId, Guid warehouseId, Guid skuId, Guid? countId)
+    {
+        var (verifyCtx, _) = CreatePostgresDbContext(tenantId);
+        await using (verifyCtx)
+        {
+            var countTotal = await verifyCtx.StockCounts.CountAsync();
+            var itemTotal = await verifyCtx.StockCountItems.CountAsync();
+            var adjTotal = await verifyCtx.InventoryAdjustments.CountAsync();
+            var adjItemTotal = await verifyCtx.InventoryAdjustmentItems.CountAsync();
+            var ledgerAdjTxTotal = await verifyCtx.InventoryTransactions.CountAsync(t => t.AdjustmentItemId.HasValue);
+
+            var branchBal = await verifyCtx.InventoryBalances.FirstAsync(b => b.BranchId == branchId && b.SkuId == skuId);
+            var whBal = await verifyCtx.WarehouseInventoryBalances.FirstAsync(w => w.WarehouseId == warehouseId && w.SkuId == skuId);
+
+            StockCount? count = null;
+            StockCountItem? item = null;
+            if (countId.HasValue)
+            {
+                count = await verifyCtx.StockCounts.Include(c => c.Items).FirstOrDefaultAsync(c => c.Id == countId.Value);
+                item = count?.Items.FirstOrDefault(i => i.SkuId == skuId);
+            }
+
+            return new FullStockCountBaseline(
+                countTotal,
+                itemTotal,
+                adjTotal,
+                adjItemTotal,
+                ledgerAdjTxTotal,
+                branchBal.OnHand,
+                branchBal.Reserved,
+                branchBal.AverageCost,
+                branchBal.LastSequence,
+                branchBal.CreatedAt,
+                branchBal.UpdatedAt,
+                whBal.OnHand,
+                whBal.Reserved,
+                whBal.LastSequence,
+                whBal.CreatedAt,
+                whBal.UpdatedAt,
+                count?.Status,
+                count?.GeneratedAdjustmentId,
+                count?.ConfirmedAt,
+                count?.ConfirmedBy,
+                count?.CreatedAt,
+                count?.UpdatedAt,
+                item?.ExpectedQuantity,
+                item?.BalanceSequenceAtSnapshot,
+                item?.CountedQuantity,
+                item?.AdjustmentUnitCost,
+                item?.CreatedAt,
+                item?.UpdatedAt
+            );
+        }
+    }
+
+    private async Task AssertMatchesBaselineAsync(Guid tenantId, Guid branchId, Guid warehouseId, Guid skuId, Guid? countId, FullStockCountBaseline baseline, string faultPhase)
+    {
+        var current = await CaptureFullBaselineAsync(tenantId, branchId, warehouseId, skuId, countId);
+        current.StockCountTotal.Should().Be(baseline.StockCountTotal, $"[{faultPhase}] StockCounts count must match baseline after rollback.");
+        current.StockCountItemTotal.Should().Be(baseline.StockCountItemTotal, $"[{faultPhase}] StockCountItems count must match baseline after rollback.");
+        current.AdjustmentTotal.Should().Be(baseline.AdjustmentTotal, $"[{faultPhase}] Adjustments count must match baseline after rollback.");
+        current.AdjustmentItemTotal.Should().Be(baseline.AdjustmentItemTotal, $"[{faultPhase}] AdjustmentItems count must match baseline after rollback.");
+        current.LedgerAdjustmentTxTotal.Should().Be(baseline.LedgerAdjustmentTxTotal, $"[{faultPhase}] Ledger transactions must match baseline after rollback.");
+
+        current.BranchOnHand.Should().Be(baseline.BranchOnHand, $"[{faultPhase}] Branch OnHand must match baseline after rollback.");
+        current.BranchReserved.Should().Be(baseline.BranchReserved, $"[{faultPhase}] Branch Reserved must match baseline after rollback.");
+        current.BranchWac.Should().Be(baseline.BranchWac, $"[{faultPhase}] Branch WAC must match baseline after rollback.");
+        current.BranchLastSequence.Should().Be(baseline.BranchLastSequence, $"[{faultPhase}] Branch LastSequence must match baseline after rollback.");
+        current.BranchCreatedAt.Should().Be(baseline.BranchCreatedAt, $"[{faultPhase}] Branch CreatedAt must match baseline after rollback.");
+        current.BranchUpdatedAt.Should().Be(baseline.BranchUpdatedAt, $"[{faultPhase}] Branch UpdatedAt must match baseline after rollback.");
+
+        current.WhOnHand.Should().Be(baseline.WhOnHand, $"[{faultPhase}] Warehouse OnHand must match baseline after rollback.");
+        current.WhReserved.Should().Be(baseline.WhReserved, $"[{faultPhase}] Warehouse Reserved must match baseline after rollback.");
+        current.WhLastSequence.Should().Be(baseline.WhLastSequence, $"[{faultPhase}] Warehouse LastSequence must match baseline after rollback.");
+        current.WhCreatedAt.Should().Be(baseline.WhCreatedAt, $"[{faultPhase}] Warehouse CreatedAt must match baseline after rollback.");
+        current.WhUpdatedAt.Should().Be(baseline.WhUpdatedAt, $"[{faultPhase}] Warehouse UpdatedAt must match baseline after rollback.");
+
+        current.CountStatus.Should().Be(baseline.CountStatus, $"[{faultPhase}] Count Status must match baseline after rollback.");
+        current.CountGeneratedAdjustmentId.Should().Be(baseline.CountGeneratedAdjustmentId, $"[{faultPhase}] GeneratedAdjustmentId must match baseline after rollback.");
+        current.CountConfirmedAt.Should().Be(baseline.CountConfirmedAt, $"[{faultPhase}] ConfirmedAt must match baseline after rollback.");
+        current.CountConfirmedBy.Should().Be(baseline.CountConfirmedBy, $"[{faultPhase}] ConfirmedBy must match baseline after rollback.");
+        current.CountCreatedAt.Should().Be(baseline.CountCreatedAt, $"[{faultPhase}] Count CreatedAt must match baseline after rollback.");
+        current.CountUpdatedAt.Should().Be(baseline.CountUpdatedAt, $"[{faultPhase}] Count UpdatedAt must match baseline after rollback.");
+
+        current.ItemExpectedQuantity.Should().Be(baseline.ItemExpectedQuantity, $"[{faultPhase}] Item ExpectedQuantity must match baseline after rollback.");
+        current.ItemSnapshotSequence.Should().Be(baseline.ItemSnapshotSequence, $"[{faultPhase}] Item BalanceSequenceAtSnapshot must match baseline after rollback.");
+        current.ItemCountedQuantity.Should().Be(baseline.ItemCountedQuantity, $"[{faultPhase}] Item CountedQuantity must match baseline after rollback.");
+        current.ItemAdjustmentUnitCost.Should().Be(baseline.ItemAdjustmentUnitCost, $"[{faultPhase}] Item AdjustmentUnitCost must match baseline after rollback.");
+        current.ItemCreatedAt.Should().Be(baseline.ItemCreatedAt, $"[{faultPhase}] Item CreatedAt must match baseline after rollback.");
+        current.ItemUpdatedAt.Should().Be(baseline.ItemUpdatedAt, $"[{faultPhase}] Item UpdatedAt must match baseline after rollback.");
     }
 
     private (AppDbContext Context, TestTenantService TenantService) CreatePostgresDbContext(Guid? tenantId = null, params Microsoft.EntityFrameworkCore.Diagnostics.IInterceptor[] interceptors)
@@ -390,6 +581,224 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         body.Should().Contain("EMPTY_WAREHOUSE_STOCK_COUNT");
     }
 
+    [Fact]
+    public async Task AC01_CreateDraft_AllMode_InterleavedReceiptBetweenDiscoveryAndLock_SnapshotsFreshBalances()
+    {
+        var infra = await SetupInfrastructureAsync();
+        await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku1Id, 2m, 50000m);
+
+        var gate = new LockCoordinationInterceptor { PauseFirstSku = true };
+        var (context, tenantService) = CreatePostgresDbContext(infra.TenantId, gate);
+        await using (context)
+        {
+            var svc = new StockCountService(context, tenantService, new WacCalculator(), Microsoft.Extensions.Logging.Abstractions.NullLogger<StockCountService>.Instance);
+            var createTask = svc.CreateStockCountAsync(new CreateStockCountRequestDto
+            {
+                RequestKey = Guid.NewGuid(),
+                BranchId = infra.BranchAId,
+                WarehouseId = infra.WarehouseA1Id,
+                Note = "ALL mode interleaved receipt test",
+                SkuIds = null
+            }, infra.UserId);
+
+            // Chờ tác vụ chạm gate trước khi lấy khóa SKU 1
+            await gate.Reached.Task.WaitAsync(TimeSpan.FromSeconds(20));
+
+            // Điều phối: Giao dịch nhập xen giữa vào Kho A1 cho SKU 1 (OnHand: 2 -> 5, Seq: 1 -> 2)
+            try
+            {
+                await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku1Id, 3m, 50000m);
+            }
+            finally
+            {
+                gate.Release.TrySetResult();
+            }
+
+            var result = await createTask;
+
+            // Đối soát: Snapshot phải đọc fresh dưới khóa, ExpectedQuantity = 5 và Seq = sequence thực tế mới
+            await using var verifyContext = CreatePostgresDbContext(infra.TenantId).Context;
+            var actualWh = await verifyContext.WarehouseInventoryBalances.FirstAsync(w => w.WarehouseId == infra.WarehouseA1Id && w.SkuId == infra.Sku1Id);
+            var snapItem = result.Items.First(i => i.SkuId == infra.Sku1Id);
+
+            snapItem.ExpectedQuantity.Should().Be(actualWh.OnHand, "Snapshot ALL mode phải đọc fresh số dư thực tế dưới khóa.");
+            snapItem.BalanceSequenceAtSnapshot.Should().Be(actualWh.LastSequence, "Snapshot ALL mode phải đọc fresh sequence dưới khóa.");
+        }
+    }
+
+    [Fact]
+    public async Task AC01_CreateDraft_AllMode_NewSkuIntroducedBetweenDiscoveryAndLock_ReconcilesLocks_SnapshotsFreshBalances()
+    {
+        var infra = await SetupInfrastructureAsync();
+        // Ban đầu chỉ có SKU1 trong kho (2m @ 50,000)
+        await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku1Id, 2m, 50000m);
+
+        var discovery = new LockCoordinationInterceptor { PauseFirstSku = true };
+        var saved = new CountSavedGate();
+        var (context, tenantService) = CreatePostgresDbContext(infra.TenantId, discovery, saved);
+        await using (context)
+        {
+            var svc = new StockCountService(context, tenantService, new WacCalculator(), Microsoft.Extensions.Logging.Abstractions.NullLogger<StockCountService>.Instance);
+            var dto = new CreateStockCountRequestDto
+            {
+                RequestKey = Guid.NewGuid(),
+                BranchId = infra.BranchAId,
+                WarehouseId = infra.WarehouseA1Id,
+                Note = "ALL mode new sku reconciliation test",
+                SkuIds = null
+            };
+
+            var createTask = svc.CreateStockCountAsync(dto, infra.UserId);
+
+            // Chờ tác vụ discovery xong (chỉ thấy SKU1) và dừng lại trước khi lấy khóa SKU đầu tiên
+            await discovery.Reached.Task.WaitAsync(TimeSpan.FromSeconds(20));
+
+            // Xuất hiện SKU2 (1m @ 80,000) trong kho sau discovery nhưng trước khi khóa
+            try
+            {
+                await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku2Id, 1m, 80000m);
+            }
+            finally
+            {
+                discovery.Release.TrySetResult();
+            }
+
+            // Chờ ALL count phát hiện tập SKU thay đổi, rollback, khóa lại đủ cả SKU1 và SKU2,
+            // đọc fresh balances dưới khóa, và dừng lại ngay sau SaveChanges trước khi commit
+            await saved.Reached.Task.WaitAsync(TimeSpan.FromSeconds(20));
+
+            // Chạy competing receipt thêm 3m cho SKU2 trong khi ALL count chưa commit
+            var receipt = SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku2Id, 3m, 80000m);
+            bool blocked = false;
+            decimal beforeQuantity = -1m;
+            long beforeSequence = -1;
+            try
+            {
+                // Quan sát thực tế: competing receipt phải bị chặn bởi advisory lock trên SKU2 do ALL transaction đang nắm giữ
+                await using var observer = new NpgsqlConnection(PostgresTestEnvironment.RuntimeConnectionString);
+                await observer.OpenAsync();
+                for (var attempt = 0; attempt < 100 && !blocked && !receipt.IsCompleted; attempt++)
+                {
+                    await using var command = new NpgsqlCommand(
+                        "SELECT count(*) FROM pg_stat_activity WHERE datname=current_database() AND wait_event='advisory' AND cardinality(pg_blocking_pids(pid))>0",
+                        observer);
+                    blocked = (long)(await command.ExecuteScalarAsync())! > 0;
+                    if (!blocked) await Task.Delay(100);
+                }
+                blocked = blocked && !receipt.IsCompleted;
+
+                // Xác minh số dư trước commit: Tồn kho SKU2 vẫn ổn định 1m và sequence 1
+                var (verifyCtx, _) = CreatePostgresDbContext(infra.TenantId);
+                await using (verifyCtx)
+                {
+                    var actual = await verifyCtx.WarehouseInventoryBalances.FirstAsync(b => b.WarehouseId == infra.WarehouseA1Id && b.SkuId == infra.Sku2Id);
+                    beforeQuantity = actual.OnHand;
+                    beforeSequence = actual.LastSequence;
+                }
+            }
+            finally
+            {
+                saved.Release.TrySetResult();
+            }
+
+            // Await đầy đủ cả hai tác vụ
+            var result = await createTask.WaitAsync(TimeSpan.FromSeconds(20));
+            await receipt.WaitAsync(TimeSpan.FromSeconds(20));
+
+            blocked.Should().BeTrue("Competing receipt trên SKU2 bắt buộc phải chờ transaction ALL commit vì SKU2 đã được giữ khóa.");
+            beforeQuantity.Should().Be(1m, "Tồn kho SKU2 trước khi commit phải ổn định ở 1m.");
+            beforeSequence.Should().Be(1L, "Sequence SKU2 trước khi commit phải ổn định ở 1.");
+
+            result.Items.Should().HaveCount(2, "ALL mode phải nạp lại toàn bộ tập SKU và snapshot cả SKU mới xuất hiện.");
+            var item1 = result.Items.First(i => i.SkuId == infra.Sku1Id);
+            item1.ExpectedQuantity.Should().Be(2m);
+
+            var item2 = result.Items.First(i => i.SkuId == infra.Sku2Id);
+            item2.ExpectedQuantity.Should().Be(1m, "Snapshot phải ghi nhận đúng số dư 1m dưới khóa, không phải 4m sau receipt.");
+            item2.BalanceSequenceAtSnapshot.Should().Be(1L, "Snapshot sequence phải ghi nhận sequence 1.");
+
+            var (afterCtx, _) = CreatePostgresDbContext(infra.TenantId);
+            await using (afterCtx)
+            {
+                var final = await afterCtx.WarehouseInventoryBalances.FirstAsync(b => b.WarehouseId == infra.WarehouseA1Id && b.SkuId == infra.Sku2Id);
+                final.OnHand.Should().Be(4m, "Receipt chỉ hoàn tất sau khi ALL commit, đưa tổng tồn lên 4m.");
+                final.LastSequence.Should().Be(2L, "Sequence sau receipt lên 2.");
+
+                var countRows = await afterCtx.StockCounts.CountAsync(c => c.RequestKey == dto.RequestKey);
+                countRows.Should().Be(1, "Chỉ tạo duy nhất một đợt kiểm kê.");
+            }
+        }
+    }
+
+    [Fact]
+    public async Task AC01_CreateDraft_AllModeVsSelectedMode_SameRequestKey_NoDeadlock_OneCreatesAndOneMismatch()
+    {
+        var infra = await SetupInfrastructureAsync();
+        await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku1Id, 5m, 50000m);
+
+        var sharedKey = Guid.NewGuid();
+        var allGate = new LockCoordinationInterceptor { PauseFirstSku = true };
+        var selectedGate = new LockCoordinationInterceptor();
+
+        var (allCtx, allTenant) = CreatePostgresDbContext(infra.TenantId, allGate);
+        var (selectedCtx, selectedTenant) = CreatePostgresDbContext(infra.TenantId, selectedGate);
+
+        await using (allCtx)
+        await using (selectedCtx)
+        {
+            var allSvc = new StockCountService(allCtx, allTenant, new WacCalculator(), Microsoft.Extensions.Logging.Abstractions.NullLogger<StockCountService>.Instance);
+            var selectedSvc = new StockCountService(selectedCtx, selectedTenant, new WacCalculator(), Microsoft.Extensions.Logging.Abstractions.NullLogger<StockCountService>.Instance);
+
+            var allDto = new CreateStockCountRequestDto
+            {
+                RequestKey = sharedKey,
+                BranchId = infra.BranchAId,
+                WarehouseId = infra.WarehouseA1Id,
+                Note = "ALL count",
+                SkuIds = null
+            };
+
+            var selectedDto = new CreateStockCountRequestDto
+            {
+                RequestKey = sharedKey,
+                BranchId = infra.BranchAId,
+                WarehouseId = infra.WarehouseA1Id,
+                Note = "Selected count",
+                SkuIds = new List<Guid> { infra.Sku1Id }
+            };
+
+            async Task<string> Run(StockCountService svc, CreateStockCountRequestDto dto)
+            {
+                try
+                {
+                    var val = await svc.CreateStockCountAsync(dto, infra.UserId);
+                    return $"created:{val.Status}";
+                }
+                catch (OISM.Application.Common.Exceptions.OismException ex)
+                {
+                    return $"business:{ex.StatusCode}:{ex.ErrorCode}";
+                }
+                catch (Exception ex)
+                {
+                    return $"exception:{ex.GetType().Name}";
+                }
+            }
+
+            var allRun = Run(allSvc, allDto);
+            await allGate.Reached.Task.WaitAsync(TimeSpan.FromSeconds(20));
+            var selectedRun = Run(selectedSvc, selectedDto);
+            await selectedGate.Reached.Task.WaitAsync(TimeSpan.FromSeconds(20));
+            allGate.Release.TrySetResult();
+
+            var outcomes = await Task.WhenAll(allRun, selectedRun).WaitAsync(TimeSpan.FromSeconds(60));
+
+            // Xác minh: Tuyệt đối không deadlock 40P01 giữa ALL và Selected
+            (allGate.Deadlocks + selectedGate.Deadlocks).Should().Be(0, "Thứ tự khóa nhất quán SKU -> RequestKey triệt tiêu hoàn toàn deadlock 40P01.");
+            outcomes.Should().Contain("created:Draft", "Đúng 1 tác vụ tạo phiếu thành công.");
+            outcomes.Should().Contain("business:409:IDEMPOTENCY_PAYLOAD_MISMATCH", "Tác vụ còn lại bị từ chối 409 IDEMPOTENCY_PAYLOAD_MISMATCH do khác payload.");
+        }
+    }
+
     // =========================================================================
     // AC-02: Idempotency và Replay theo RequestKey
     // =========================================================================
@@ -635,6 +1044,180 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         numbers.Distinct().Should().HaveCount(concurrency, "Tất cả số hiệu phiếu kiểm kê được tạo đồng thời phải duy nhất.");
     }
 
+    [Fact]
+    public async Task AC02_Idempotency_ConcurrentTwentySameKeyAndPayload_ProducesExactlyOneCount()
+    {
+        var infra = await SetupInfrastructureAsync();
+        await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku1Id, 10m, 50000m);
+
+        var ownerToken = await LoginAsAsync("owner@shopa.local", PostgresTestEnvironment.AppPassword);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
+
+        var sharedKey = Guid.NewGuid();
+        const int concurrency = 20;
+
+        var tasks = Enumerable.Range(0, concurrency).Select(async _ =>
+        {
+            using var client = _factory.CreateClient();
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
+
+            var req = new CreateStockCountRequestDto
+            {
+                RequestKey = sharedKey,
+                BranchId = infra.BranchAId,
+                WarehouseId = infra.WarehouseA1Id,
+                Note = "Concurrent same key idempotent",
+                SkuIds = new List<Guid> { infra.Sku1Id }
+            };
+
+            var res = await client.PostAsJsonAsync("/api/stock-counts", req);
+            var count = await res.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
+            return (StatusCode: res.StatusCode, Count: count!);
+        });
+
+        var results = await Task.WhenAll(tasks);
+        var createdList = results.Where(r => r.StatusCode == HttpStatusCode.Created).ToList();
+        var replayList = results.Where(r => r.StatusCode == HttpStatusCode.OK).ToList();
+
+        createdList.Should().HaveCount(1, "Chỉ duy nhất 1 request tạo thành công phiếu 201 Created.");
+        replayList.Should().HaveCount(concurrency - 1, "19 requests còn lại nhận 200 OK replay.");
+
+        var expectedId = createdList.First().Count.Id;
+        var expectedNumber = createdList.First().Count.Number;
+
+        foreach (var r in replayList)
+        {
+            r.Count.Id.Should().Be(expectedId);
+            r.Count.Number.Should().Be(expectedNumber);
+            r.Count.IsReplay.Should().BeTrue();
+        }
+
+        await using (var verifyContext = CreatePostgresDbContext(infra.TenantId).Context)
+        {
+            var dbCount = await verifyContext.StockCounts.CountAsync(c => c.TenantId == infra.TenantId && c.RequestKey == sharedKey);
+            dbCount.Should().Be(1, "Database chỉ lưu đúng 1 bản ghi duy nhất cho RequestKey.");
+        }
+    }
+
+    [Fact]
+    public async Task AC02_Idempotency_AllMode_ReplayAfterWarehouseBalancesChange_ReturnsOriginalSnapshot()
+    {
+        var infra = await SetupInfrastructureAsync();
+        await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku1Id, 10m, 50000m);
+
+        var ownerToken = await LoginAsAsync("owner@shopa.local", PostgresTestEnvironment.AppPassword);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
+
+        var requestKey = Guid.NewGuid();
+        var reqDto = new CreateStockCountRequestDto
+        {
+            RequestKey = requestKey,
+            BranchId = infra.BranchAId,
+            WarehouseId = infra.WarehouseA1Id,
+            Note = "ALL mode stable replay test",
+            SkuIds = null
+        };
+
+        // Tạo lần 1: Expected = 10
+        var res1 = await _client.PostAsJsonAsync("/api/stock-counts", reqDto);
+        res1.StatusCode.Should().Be(HttpStatusCode.Created);
+        var count1 = await res1.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
+        count1!.Items.First(i => i.SkuId == infra.Sku1Id).ExpectedQuantity.Should().Be(10m);
+
+        // Thay đổi tồn kho thực tế sau khi tạo: Nhập thêm 20 cái nữa (OnHand: 10 -> 30)
+        await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku1Id, 20m, 50000m);
+
+        // Gửi lại đúng RequestKey và ALL payload
+        var res2 = await _client.PostAsJsonAsync("/api/stock-counts", reqDto);
+        res2.StatusCode.Should().Be(HttpStatusCode.OK);
+        var count2 = await res2.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
+
+        count2!.IsReplay.Should().BeTrue();
+        count2.Id.Should().Be(count1.Id);
+        count2.Items.First(i => i.SkuId == infra.Sku1Id).ExpectedQuantity.Should().Be(10m, "Replay ALL mode phải bảo toàn snapshot cũ, không tự động refresh theo tồn mới.");
+    }
+
+    [Fact]
+    public async Task AC02_Idempotency_AllMode_ReplayAfterCatalogSkusAdded_ReturnsOriginalSnapshot()
+    {
+        var infra = await SetupInfrastructureAsync();
+        // Ban đầu kho chỉ có SKU1
+        await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku1Id, 10m, 50000m);
+
+        var ownerToken = await LoginAsAsync("owner@shopa.local", PostgresTestEnvironment.AppPassword);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
+
+        var requestKey = Guid.NewGuid();
+        var reqDto = new CreateStockCountRequestDto
+        {
+            RequestKey = requestKey,
+            BranchId = infra.BranchAId,
+            WarehouseId = infra.WarehouseA1Id,
+            Note = "ALL mode replay after new SKU added to catalog/warehouse",
+            SkuIds = null
+        };
+
+        // 1. Tạo lần 1: ALL mode chỉ snapshot 1 SKU (SKU1)
+        var res1 = await _client.PostAsJsonAsync("/api/stock-counts", reqDto);
+        res1.StatusCode.Should().Be(HttpStatusCode.Created);
+        var count1 = await res1.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
+        count1!.Items.Should().HaveCount(1);
+        count1.Items.First().SkuId.Should().Be(infra.Sku1Id);
+
+        // 2. Xuất hiện thêm SKU2 hoàn toàn mới trong kho sau khi đã tạo phiếu
+        await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku2Id, 15m, 80000m);
+
+        // 3. Replay lại cùng RequestKey và ALL payload
+        var res2 = await _client.PostAsJsonAsync("/api/stock-counts", reqDto);
+        res2.StatusCode.Should().Be(HttpStatusCode.OK);
+        var count2 = await res2.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
+
+        count2!.IsReplay.Should().BeTrue();
+        count2.Id.Should().Be(count1.Id);
+        count2.Items.Should().HaveCount(1, "Replay ALL mode phải bảo toàn danh sách SKU ban đầu của chứng từ cũ, không tự nạp thêm SKU mới.");
+        count2.Items.First().SkuId.Should().Be(infra.Sku1Id);
+    }
+
+    [Fact]
+    public async Task AC02_Idempotency_ReplayAfterCancelAndCatalogChange_ReturnsCancelledState()
+    {
+        var infra = await SetupInfrastructureAsync();
+        await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku1Id, 10m, 50000m);
+
+        var ownerToken = await LoginAsAsync("owner@shopa.local", PostgresTestEnvironment.AppPassword);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
+
+        var requestKey = Guid.NewGuid();
+        var reqDto = new CreateStockCountRequestDto
+        {
+            RequestKey = requestKey,
+            BranchId = infra.BranchAId,
+            WarehouseId = infra.WarehouseA1Id,
+            Note = "Replay after cancel",
+            SkuIds = new List<Guid> { infra.Sku1Id }
+        };
+
+        // 1. Tạo phiếu
+        var res1 = await _client.PostAsJsonAsync("/api/stock-counts", reqDto);
+        var count1 = await res1.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
+
+        // 2. Hủy phiếu
+        var cancelRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count1!.Id}/cancel", new CancelStockCountRequestDto { Reason = "Hủy đợt" });
+        cancelRes.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // 3. Thay đổi tồn kho hoặc danh mục
+        await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku1Id, 5m, 50000m);
+
+        // 4. Gửi lại request ban đầu: phải trả về trạng thái Cancelled đã lưu, không tạo phiếu mới
+        var resReplay = await _client.PostAsJsonAsync("/api/stock-counts", reqDto);
+        resReplay.StatusCode.Should().Be(HttpStatusCode.OK);
+        var replayData = await resReplay.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
+
+        replayData!.IsReplay.Should().BeTrue();
+        replayData.Id.Should().Be(count1.Id);
+        replayData.Status.Should().Be("Cancelled");
+    }
+
     // =========================================================================
     // AC-03: Ghi nhận số lượng đếm (POST /api/stock-counts/{id}/record)
     // =========================================================================
@@ -773,7 +1356,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
     }
 
     [Fact]
-    public async Task AC03_Confirm_IncompleteStockCount_Returns400BadRequest()
+    public async Task AC03_Confirm_IncompleteStockCount_Returns409InvalidStateTransition()
     {
         var infra = await SetupInfrastructureAsync();
         var ownerToken = await LoginAsAsync("owner@shopa.local", PostgresTestEnvironment.AppPassword);
@@ -794,11 +1377,11 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
             Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 10m } }
         });
 
-        // Confirm khi chưa đếm hết -> 400 INCOMPLETE_STOCK_COUNT
+        // Confirm khi chưa đếm hết -> 409 INVALID_STATE_TRANSITION
         var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
-        confirmRes.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        confirmRes.StatusCode.Should().Be(HttpStatusCode.Conflict);
         var body = await confirmRes.Content.ReadAsStringAsync();
-        body.Should().Contain("INCOMPLETE_STOCK_COUNT");
+        body.Should().Contain("INVALID_STATE_TRANSITION");
     }
 
     // =========================================================================
@@ -980,12 +1563,12 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         // 2. Giao dịch xen giữa: Có phiếu nhập kho hàng mới cho SKU1 tại Kho A1 -> Sequence của SKU1 tại Kho A1 tăng
         await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku1Id, 5m, 50000m);
 
-        // 3. Confirm phiếu kiểm kê -> Phát hiện sequence drift và từ chối 409 STOCK_COUNT_DRIFT_DETECTED
+        // 3. Confirm phiếu kiểm kê -> Phát hiện sequence drift và từ chối 409 STOCK_COUNT_SEQUENCE_DRIFT
         var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
         confirmRes.StatusCode.Should().Be(HttpStatusCode.Conflict);
 
         var body = await confirmRes.Content.ReadAsStringAsync();
-        body.Should().Contain("STOCK_COUNT_DRIFT_DETECTED");
+        body.Should().Contain("STOCK_COUNT_SEQUENCE_DRIFT");
 
         // Đối soát CSDL: Phiếu kiểm kê vẫn ở trạng thái Counting, không sinh InventoryAdjustment
         await using (var verifyContext = CreatePostgresDbContext(infra.TenantId).Context)
@@ -1043,7 +1626,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
         confirmRes.StatusCode.Should().Be(HttpStatusCode.Conflict);
         var body = await confirmRes.Content.ReadAsStringAsync();
-        body.Should().Contain("STOCK_COUNT_DRIFT_DETECTED");
+        body.Should().Contain("STOCK_COUNT_SEQUENCE_DRIFT");
     }
 
     [Fact]
@@ -1189,6 +1772,15 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         var bodyFail = await confirmFail.Content.ReadAsStringAsync();
         bodyFail.Should().Contain("ADJUSTMENT_COST_REQUIRED");
 
+        // 1b. Confirm khi truyền đơn giá = 0 -> cũng phải bị từ chối 422 ADJUSTMENT_COST_REQUIRED (T4B-F03)
+        var confirmZeroCost = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto
+        {
+            SkuAdjustmentCosts = new Dictionary<Guid, decimal> { [infra.Sku2Id] = 0m }
+        });
+        confirmZeroCost.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        var bodyZero = await confirmZeroCost.Content.ReadAsStringAsync();
+        bodyZero.Should().Contain("ADJUSTMENT_COST_REQUIRED");
+
         // 2. Cung cấp đơn giá điều chỉnh hợp lệ qua ConfirmStockCountRequestDto hoặc record lại
         var confirmSuccess = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto
         {
@@ -1259,7 +1851,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         confirmRes.StatusCode.Should().Be(HttpStatusCode.Conflict);
 
         var body = await confirmRes.Content.ReadAsStringAsync();
-        body.Should().Contain("INSUFFICIENT_STOCK_FOR_RESERVATION");
+        body.Should().Contain("INSUFFICIENT_STOCK");
 
         // Đối soát CSDL: Reserved vẫn là 8, OnHand vẫn là 10, đơn hàng online được bảo vệ an toàn
         await using (var verifyContext = CreatePostgresDbContext(infra.TenantId).Context)
@@ -1268,6 +1860,164 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
             bal.OnHand.Should().Be(10m);
             bal.Reserved.Should().Be(8m);
             bal.AverageCost.Should().Be(60000m);
+        }
+    }
+
+    [Fact]
+    public async Task AC06_Confirm_DerivedBranchBalanceOverflow_Returns400ValidationError_ZeroDatabaseMutation()
+    {
+        var infra = await SetupInfrastructureAsync();
+        // Nhập 1 cái vào Kho A2 (Kho khác cùng Chi nhánh A)
+        await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA2Id, infra.SupplierId, infra.UserId, infra.Sku2Id, 1m, 10000m);
+
+        var ownerToken = await LoginAsAsync("owner@shopa.local", PostgresTestEnvironment.AppPassword);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
+
+        // Kiểm kê tại Kho A1 (chưa có tồn cho SKU2)
+        var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
+        {
+            RequestKey = Guid.NewGuid(),
+            BranchId = infra.BranchAId,
+            WarehouseId = infra.WarehouseA1Id,
+            SkuIds = new List<Guid> { infra.Sku2Id }
+        });
+        createRes.StatusCode.Should().Be(HttpStatusCode.Created);
+        var count = await createRes.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
+
+        // Ghi số đếm cực đại hợp lệ trên input: 999_999_999_999_999.999
+        // Nhưng khi cộng vào tổng chi nhánh (1 + 999999999999999.999 = 1000000000000000.999) sẽ vượt numeric(18,3)
+        var recRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count!.Id}/record", new RecordStockCountBatchRequestDto
+        {
+            Items = new List<RecordStockCountItemRequestDto>
+            {
+                new() { SkuId = infra.Sku2Id, CountedQuantity = 999_999_999_999_999.999m }
+            }
+        });
+        recRes.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Confirm: Hệ thống phải chủ động phát hiện tràn số tính toán và trả 400 VALIDATION_ERROR, KHÔNG lỗi 500
+        var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+        confirmRes.StatusCode.Should().Be(HttpStatusCode.BadRequest, "Tràn số tính toán cấp chi nhánh phải được kiểm soát trả về 400 VALIDATION_ERROR.");
+        var body = await confirmRes.Content.ReadAsStringAsync();
+        body.Should().Contain("VALIDATION_ERROR");
+        body.Should().Contain("vượt quá giới hạn tối đa cho phép");
+
+        // Đối soát CSDL: Hoàn toàn không bị biến động, đợt kiểm kê vẫn ở trạng thái Counting, link null
+        await using (var verifyContext = CreatePostgresDbContext(infra.TenantId).Context)
+        {
+            var dbCount = await verifyContext.StockCounts.FirstAsync(c => c.Id == count.Id);
+            dbCount.Status.Should().Be("Counting");
+            dbCount.GeneratedAdjustmentId.Should().BeNull();
+
+            var bal = await verifyContext.InventoryBalances.FirstAsync(b => b.BranchId == infra.BranchAId && b.SkuId == infra.Sku2Id);
+            bal.OnHand.Should().Be(1m, "Tồn kho chi nhánh được bảo toàn nguyên vẹn khi bị từ chối 400.");
+
+            var adjs = await verifyContext.InventoryAdjustments.CountAsync(a => a.TenantId == infra.TenantId);
+            adjs.Should().Be(0, "Không có chứng từ điều chỉnh nào được lưu vào CSDL.");
+        }
+    }
+
+    [Fact]
+    public async Task AC06_Confirm_ValidNumericBoundary_Succeeds()
+    {
+        var infra = await SetupInfrastructureAsync();
+        var ownerToken = await LoginAsAsync("owner@shopa.local", PostgresTestEnvironment.AppPassword);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
+
+        // Kiểm kê SKU2 tại Kho A1 (chi nhánh chưa có tồn kho nào)
+        var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
+        {
+            RequestKey = Guid.NewGuid(),
+            BranchId = infra.BranchAId,
+            WarehouseId = infra.WarehouseA1Id,
+            SkuIds = new List<Guid> { infra.Sku2Id }
+        });
+        var count = await createRes.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
+
+        // Ghi số đếm biên tối đa cho phép: 999_999_999_999_999.999 với đơn giá 1000.000000
+        const decimal maxQty = 999_999_999_999_999.999m;
+        const decimal unitCost = 1000m;
+        var recRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count!.Id}/record", new RecordStockCountBatchRequestDto
+        {
+            Items = new List<RecordStockCountItemRequestDto>
+            {
+                new() { SkuId = infra.Sku2Id, CountedQuantity = maxQty, AdjustmentUnitCost = unitCost }
+            }
+        });
+        recRes.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Confirm: Nằm chính xác trong ngưỡng biên tối đa -> Thành công 200 OK
+        var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+        var body = await confirmRes.Content.ReadAsStringAsync();
+        confirmRes.StatusCode.Should().Be(HttpStatusCode.OK, $"Confirm biên hợp lệ phải thành công 200 OK: {body}");
+
+        await using (var verifyContext = CreatePostgresDbContext(infra.TenantId).Context)
+        {
+            var bal = await verifyContext.InventoryBalances.FirstAsync(b => b.BranchId == infra.BranchAId && b.SkuId == infra.Sku2Id);
+            bal.OnHand.Should().Be(maxQty);
+            bal.AverageCost.Should().Be(unitCost);
+        }
+    }
+
+    [Fact]
+    public async Task AC06_Confirm_ValidLargeAdjustment_WithoutWac_Succeeds()
+    {
+        var infra = await SetupInfrastructureAsync();
+        var ownerToken = await LoginAsAsync("owner@shopa.local", PostgresTestEnvironment.AppPassword);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
+
+        // SKU3 chưa có tồn kho và chưa có WAC
+        var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
+        {
+            RequestKey = Guid.NewGuid(),
+            BranchId = infra.BranchAId,
+            WarehouseId = infra.WarehouseA1Id,
+            SkuIds = new List<Guid> { infra.Sku3Id }
+        });
+        createRes.StatusCode.Should().Be(HttpStatusCode.Created);
+        var count = await createRes.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
+
+        // Ghi số đếm 2000 với đơn giá 900,000,000,000 (tổng giá trị biến động 1,800,000,000,000,000 - nằm hoàn toàn trong giới hạn CLR)
+        const decimal countedQty = 2000m;
+        const decimal largeUnitCost = 900_000_000_000m;
+        var recRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count!.Id}/record", new RecordStockCountBatchRequestDto
+        {
+            Items = new List<RecordStockCountItemRequestDto>
+            {
+                new() { SkuId = infra.Sku3Id, CountedQuantity = countedQty, AdjustmentUnitCost = largeUnitCost }
+            }
+        });
+        recRes.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // Confirm: Không bị chặn bởi artificial MaxTotalCostAmount cap, thành công 200 OK
+        var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+        var body = await confirmRes.Content.ReadAsStringAsync();
+        confirmRes.StatusCode.Should().Be(HttpStatusCode.OK, $"Confirm giá trị lớn hợp lệ phải thành công 200 OK: {body}");
+
+        var confirmedCount = await confirmRes.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
+        confirmedCount!.Status.Should().Be("Confirmed");
+        confirmedCount.GeneratedAdjustmentId.Should().NotBeNull();
+
+        // Đối soát CSDL độc lập: Tồn kho, WAC, Adjustment và Ledger được lưu chính xác
+        await using (var verifyContext = CreatePostgresDbContext(infra.TenantId).Context)
+        {
+            var branchBal = await verifyContext.InventoryBalances.FirstAsync(b => b.BranchId == infra.BranchAId && b.SkuId == infra.Sku3Id);
+            branchBal.OnHand.Should().Be(countedQty);
+            branchBal.AverageCost.Should().Be(largeUnitCost);
+
+            var whBal = await verifyContext.WarehouseInventoryBalances.FirstAsync(w => w.WarehouseId == infra.WarehouseA1Id && w.SkuId == infra.Sku3Id);
+            whBal.OnHand.Should().Be(countedQty);
+
+            var adj = await verifyContext.InventoryAdjustments.Include(a => a.Items).FirstAsync(a => a.Id == confirmedCount.GeneratedAdjustmentId);
+            adj.Status.Should().Be("Confirmed");
+            adj.Items.Should().HaveCount(1);
+            adj.Items.First().QuantityDelta.Should().Be(countedQty);
+            adj.Items.First().UnitCost.Should().Be(largeUnitCost);
+
+            var txRecord = await verifyContext.InventoryTransactions.FirstAsync(t => t.AdjustmentItemId == adj.Items.First().Id);
+            txRecord.Quantity.Should().Be(countedQty);
+            txRecord.UnitCost.Should().Be(largeUnitCost);
+            txRecord.BalanceAfter.Should().Be(countedQty);
         }
     }
 
@@ -1388,7 +2138,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
     }
 
     [Fact]
-    public async Task AC07_StateMachine_ConfirmAlreadyConfirmed_ReplaysIdempotently()
+    public async Task AC07_StateMachine_ConfirmAlreadyConfirmed_Returns409InvalidStateTransition()
     {
         var infra = await SetupInfrastructureAsync();
         var ownerToken = await LoginAsAsync("owner@shopa.local", PostgresTestEnvironment.AppPassword);
@@ -1414,12 +2164,11 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         var confirmed1 = await confirmRes1.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
         confirmed1!.IsReplay.Should().BeFalse();
 
-        // Confirm lần 2: 200 OK replay idempotent
+        // Confirm lần 2: 409 INVALID_STATE_TRANSITION (không replay 200 - T4B-F02)
         var confirmRes2 = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
-        confirmRes2.StatusCode.Should().Be(HttpStatusCode.OK);
-        var confirmed2 = await confirmRes2.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
-        confirmed2!.IsReplay.Should().BeTrue();
-        confirmed2.Id.Should().Be(confirmed1.Id);
+        confirmRes2.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var body2 = await confirmRes2.Content.ReadAsStringAsync();
+        body2.Should().Contain("INVALID_STATE_TRANSITION");
     }
 
     // =========================================================================
@@ -1462,9 +2211,15 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         var okResponses = responses.Where(r => r.StatusCode == HttpStatusCode.OK).ToList();
         var conflictResponses = responses.Where(r => r.StatusCode == HttpStatusCode.Conflict).ToList();
 
-        // Tất cả các response phải là 200 OK (idempotent replay) hoặc 409 INVALID_STATE_TRANSITION
-        (okResponses.Count + conflictResponses.Count).Should().Be(concurrency);
-        okResponses.Count.Should().BeGreaterThanOrEqualTo(1);
+        // Đúng 1 trả 200 OK, 49 trả 409 INVALID_STATE_TRANSITION (T4B-F02)
+        okResponses.Count.Should().Be(1, "Chỉ duy nhất 1 request confirm thành công 200 OK.");
+        conflictResponses.Count.Should().Be(concurrency - 1, "49 requests còn lại phải trả 409 Conflict.");
+
+        foreach (var conflictRes in conflictResponses)
+        {
+            var conflictBody = await conflictRes.Content.ReadAsStringAsync();
+            conflictBody.Should().Contain("INVALID_STATE_TRANSITION");
+        }
 
         // Đối soát CSDL: Chỉ có đúng 1 InventoryAdjustment và đúng 1 bút toán Ledger IN
         await using (var verifyContext = CreatePostgresDbContext(infra.TenantId).Context)
@@ -1474,6 +2229,9 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
             var bal = await verifyContext.InventoryBalances.FirstAsync(b => b.BranchId == infra.BranchAId && b.SkuId == infra.Sku1Id);
             bal.OnHand.Should().Be(15m, "Tồn kho chỉ được cộng 1 lần duy nhất từ 10 lên 15.");
+
+            var ledgerCount = await verifyContext.InventoryTransactions.CountAsync(t => t.AdjustmentItemId.HasValue);
+            ledgerCount.Should().Be(1, "Chỉ duy nhất 1 bút toán sổ cái điều chỉnh được ghi nhận.");
         }
     }
 
@@ -1524,7 +2282,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
     }
 
     [Fact]
-    public async Task AC08_Concurrency_TwoCountsCompeteForSameSku_FirstSucceedsSecondDetectsDrift()
+    public async Task AC08_Concurrency_TwoCountsCompeteForSameSku_TrulyConcurrent_FirstSucceedsSecondDetectsDrift()
     {
         var infra = await SetupInfrastructureAsync();
         await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku1Id, 10m, 50000m);
@@ -1561,15 +2319,738 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
             Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 14m } }
         });
 
-        // Confirm A thành công -> Sequence của SKU1 tại Kho A1 tăng
-        var confirmA = await _client.PostAsJsonAsync($"/api/stock-counts/{countA.Id}/confirm", new ConfirmStockCountRequestDto());
-        confirmA.StatusCode.Should().Be(HttpStatusCode.OK);
+        // Chạy thực sự đồng thời 2 lệnh confirm qua Task.WhenAll
+        using var clientA = _factory.CreateClient();
+        clientA.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
+        using var clientB = _factory.CreateClient();
+        clientB.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
 
-        // Confirm B bị chặn bởi Sequence Drift (409 STOCK_COUNT_DRIFT_DETECTED)
-        var confirmB = await _client.PostAsJsonAsync($"/api/stock-counts/{countB.Id}/confirm", new ConfirmStockCountRequestDto());
-        confirmB.StatusCode.Should().Be(HttpStatusCode.Conflict);
-        var bodyB = await confirmB.Content.ReadAsStringAsync();
-        bodyB.Should().Contain("STOCK_COUNT_DRIFT_DETECTED");
+        var deadlocksBefore = await GetDatabaseDeadlockCountAsync();
+
+        var confirmTaskA = clientA.PostAsJsonAsync($"/api/stock-counts/{countA.Id}/confirm", new ConfirmStockCountRequestDto());
+        var confirmTaskB = clientB.PostAsJsonAsync($"/api/stock-counts/{countB.Id}/confirm", new ConfirmStockCountRequestDto());
+
+        var responses = await Task.WhenAll(confirmTaskA, confirmTaskB);
+        var deadlocksAfter = await GetDatabaseDeadlockCountAsync();
+        (deadlocksAfter - deadlocksBefore).Should().Be(0, "Cạnh tranh 2 đợt kiểm kê cùng SKU không được gây ra bất kỳ deadlock 40P01 nào.");
+
+        var okCount = responses.Count(r => r.StatusCode == HttpStatusCode.OK);
+        var driftCount = responses.Count(r => r.StatusCode == HttpStatusCode.Conflict);
+
+        okCount.Should().Be(1, "Đúng 1 đợt kiểm kê được chốt thành công 200 OK.");
+        driftCount.Should().Be(1, "Đợt kiểm kê còn lại phải phát hiện sequence drift và trả 409.");
+
+        var driftRes = responses.First(r => r.StatusCode == HttpStatusCode.Conflict);
+        var driftBody = await driftRes.Content.ReadAsStringAsync();
+        driftBody.Should().Contain("STOCK_COUNT_SEQUENCE_DRIFT");
+
+        // Đối soát CSDL độc lập: Winner Confirmed, Loser Counting/link NULL, tồn hai cấp 12 hoặc 14 khớp winner
+        var (verifyCtx, _) = CreatePostgresDbContext(infra.TenantId);
+        await using (verifyCtx)
+        {
+            var dbCountA = await verifyCtx.StockCounts.FirstAsync(c => c.Id == countA.Id);
+            var dbCountB = await verifyCtx.StockCounts.FirstAsync(c => c.Id == countB.Id);
+
+            var whBal = await verifyCtx.WarehouseInventoryBalances.FirstAsync(w => w.WarehouseId == infra.WarehouseA1Id && w.SkuId == infra.Sku1Id);
+            var brBal = await verifyCtx.InventoryBalances.FirstAsync(b => b.BranchId == infra.BranchAId && b.SkuId == infra.Sku1Id);
+
+            whBal.Reserved.Should().Be(0m);
+            brBal.Reserved.Should().Be(0m);
+            brBal.AverageCost.Should().Be(50000m);
+            whBal.LastSequence.Should().Be(2L, "Sequence kho tăng đúng 1 lần (từ seed 1 lên 2).");
+            brBal.LastSequence.Should().Be(2L, "Sequence chi nhánh tăng đúng 1 lần (từ seed 1 lên 2).");
+
+            if (responses[0].StatusCode == HttpStatusCode.OK)
+            {
+                dbCountA.Status.Should().Be("Confirmed");
+                dbCountA.GeneratedAdjustmentId.Should().NotBeNull();
+                dbCountB.Status.Should().Be("Counting");
+                dbCountB.GeneratedAdjustmentId.Should().BeNull();
+
+                whBal.OnHand.Should().Be(12m);
+                brBal.OnHand.Should().Be(12m);
+
+                var adjA = await verifyCtx.InventoryAdjustments.Include(a => a.Items).FirstOrDefaultAsync(a => a.Id == dbCountA.GeneratedAdjustmentId);
+                adjA.Should().NotBeNull();
+                adjA!.Items.Should().HaveCount(1);
+                adjA.Items.First().QuantityDelta.Should().Be(2m);
+
+                var txs = await verifyCtx.InventoryTransactions.Where(t => t.AdjustmentItemId.HasValue && t.SkuId == infra.Sku1Id).ToListAsync();
+                txs.Should().HaveCount(1);
+                txs[0].Quantity.Should().Be(2m);
+                txs[0].UnitCost.Should().Be(50000m);
+            }
+            else
+            {
+                dbCountB.Status.Should().Be("Confirmed");
+                dbCountB.GeneratedAdjustmentId.Should().NotBeNull();
+                dbCountA.Status.Should().Be("Counting");
+                dbCountA.GeneratedAdjustmentId.Should().BeNull();
+
+                whBal.OnHand.Should().Be(14m);
+                brBal.OnHand.Should().Be(14m);
+
+                var adjB = await verifyCtx.InventoryAdjustments.Include(a => a.Items).FirstOrDefaultAsync(a => a.Id == dbCountB.GeneratedAdjustmentId);
+                adjB.Should().NotBeNull();
+                adjB!.Items.Should().HaveCount(1);
+                adjB.Items.First().QuantityDelta.Should().Be(4m);
+
+                var txs = await verifyCtx.InventoryTransactions.Where(t => t.AdjustmentItemId.HasValue && t.SkuId == infra.Sku1Id).ToListAsync();
+                txs.Should().HaveCount(1);
+                txs[0].Quantity.Should().Be(4m);
+                txs[0].UnitCost.Should().Be(50000m);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task AC08_Concurrency_RaceBetweenConfirmAndRecord_ExactlyOneTransitionsOrSucceedsCleanly()
+    {
+        var infra = await SetupInfrastructureAsync();
+        await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku1Id, 10m, 50000m);
+
+        var ownerToken = await LoginAsAsync("owner@shopa.local", PostgresTestEnvironment.AppPassword);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
+
+        var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
+        {
+            RequestKey = Guid.NewGuid(),
+            BranchId = infra.BranchAId,
+            WarehouseId = infra.WarehouseA1Id,
+            SkuIds = new List<Guid> { infra.Sku1Id }
+        });
+        var count = await createRes.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
+
+        // Ghi số đếm lần đầu để đưa phiếu về Counting
+        await _client.PostAsJsonAsync($"/api/stock-counts/{count!.Id}/record", new RecordStockCountBatchRequestDto
+        {
+            Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 12m } }
+        });
+
+        // Chạy đồng thời: 1 request ghi đếm tiếp vs 1 request confirm
+        using var clientRecord = _factory.CreateClient();
+        clientRecord.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
+        using var clientConfirm = _factory.CreateClient();
+        clientConfirm.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
+
+        var taskRecord = clientRecord.PostAsJsonAsync($"/api/stock-counts/{count.Id}/record", new RecordStockCountBatchRequestDto
+        {
+            Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 15m } }
+        });
+        var taskConfirm = clientConfirm.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+
+        var responses = await Task.WhenAll(taskRecord, taskConfirm);
+        var resRecord = responses[0];
+        var resConfirm = responses[1];
+
+        // Confirm phải luôn luôn thành công 200 OK
+        resConfirm.StatusCode.Should().Be(HttpStatusCode.OK, "Confirm phải xử lý thành công không bị gián đoạn.");
+
+        await using (var verifyContext = CreatePostgresDbContext(infra.TenantId).Context)
+        {
+            var dbCount = await verifyContext.StockCounts.Include(c => c.Items).FirstAsync(c => c.Id == count.Id);
+            dbCount.Status.Should().Be("Confirmed", "Trạng thái cuối cùng của đợt kiểm kê bắt buộc phải là Confirmed.");
+            dbCount.GeneratedAdjustmentId.Should().NotBeNull();
+
+            var bal = await verifyContext.InventoryBalances.FirstAsync(b => b.BranchId == infra.BranchAId && b.SkuId == infra.Sku1Id);
+            var whBal = await verifyContext.WarehouseInventoryBalances.FirstAsync(w => w.WarehouseId == infra.WarehouseA1Id && w.SkuId == infra.Sku1Id);
+
+            if (resRecord.StatusCode == HttpStatusCode.OK)
+            {
+                // Nếu Record thắng trước: Cả hai 200 OK, số đếm được cập nhật thành 15, confirm chốt theo số mới
+                dbCount.Items.First().CountedQuantity.Should().Be(15m);
+                bal.OnHand.Should().Be(15m);
+                whBal.OnHand.Should().Be(15m);
+            }
+            else
+            {
+                // Nếu Confirm thắng trước: Record bị 409 INVALID_STATE_TRANSITION, confirm chốt theo số cũ (12)
+                resRecord.StatusCode.Should().Be(HttpStatusCode.Conflict);
+                var errBody = await resRecord.Content.ReadAsStringAsync();
+                errBody.Should().Contain("INVALID_STATE_TRANSITION");
+
+                dbCount.Items.First().CountedQuantity.Should().Be(12m);
+                bal.OnHand.Should().Be(12m);
+                whBal.OnHand.Should().Be(12m);
+            }
+
+            var adjs = await verifyContext.InventoryAdjustments.CountAsync(a => a.Id == dbCount.GeneratedAdjustmentId);
+            adjs.Should().Be(1, "Duy nhất 1 chứng từ InventoryAdjustment được tạo.");
+
+            var txs = await verifyContext.InventoryTransactions.CountAsync(t => t.AdjustmentItemId.HasValue);
+            txs.Should().Be(1, "Duy nhất 1 bút toán ledger được sinh ra tương ứng với delta.");
+        }
+    }
+
+    [Fact]
+    public async Task AC08_Concurrency_ConfirmCompetesWithPosCheckout_ZeroOversell_ValidSerialization()
+    {
+        var infra = await SetupInfrastructureAsync();
+        // Nhập tồn 10 cái @ 50,000 vào Kho A1
+        await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku1Id, 10m, 50000m);
+
+        var ownerToken = await LoginAsAsync("owner@shopa.local", PostgresTestEnvironment.AppPassword);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
+
+        decimal sku1Retail;
+        await using (var ctx = CreatePostgresDbContext(infra.TenantId).Context)
+        {
+            sku1Retail = (await ctx.ProductVariants.FirstAsync(v => v.Id == infra.Sku1Id)).RetailPrice;
+        }
+
+        // Tạo kiểm kê đếm được 8 cái (thiếu -2 cái)
+        var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
+        {
+            RequestKey = Guid.NewGuid(),
+            BranchId = infra.BranchAId,
+            WarehouseId = infra.WarehouseA1Id,
+            SkuIds = new List<Guid> { infra.Sku1Id }
+        });
+        var count = await createRes.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
+
+        await _client.PostAsJsonAsync($"/api/stock-counts/{count!.Id}/record", new RecordStockCountBatchRequestDto
+        {
+            Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 8m } }
+        });
+
+        // Chạy đồng thời: POS checkout mua 3 cái vs Confirm kiểm kê chốt tồn
+        using var clientPos = _factory.CreateClient();
+        var cashierToken = await LoginAsAsync("cashier@shopa.local", PostgresTestEnvironment.AppPassword);
+        clientPos.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", cashierToken);
+
+        var posDto = new OISM.Application.Features.Orders.Dtos.PosCheckoutRequestDto
+        {
+            BranchId = infra.BranchAId,
+            RequestKey = Guid.NewGuid(),
+            PaymentMethod = "Cash",
+            AmountGiven = sku1Retail * 3m,
+            Items = new List<OISM.Application.Features.Orders.Dtos.OrderItemRequestDto>
+            {
+                new() { SkuId = infra.Sku1Id, SkuCode = infra.Sku1Code, Quantity = 3m, UnitPrice = sku1Retail }
+            }
+        };
+
+        using var clientConfirm = _factory.CreateClient();
+        clientConfirm.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
+
+        var taskPos = clientPos.PostAsJsonAsync("/api/pos/checkout", posDto);
+        var taskConfirm = clientConfirm.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+
+        var responses = await Task.WhenAll(taskPos, taskConfirm);
+        var resPos = responses[0];
+        var resConfirm = responses[1];
+
+        // POS checkout bán hàng lẻ tại quầy phải luôn thành công 200 OK
+        resPos.StatusCode.Should().Be(HttpStatusCode.OK, "POS checkout phải luôn thành công.");
+
+        await using (var verifyContext = CreatePostgresDbContext(infra.TenantId).Context)
+        {
+            var bal = await verifyContext.InventoryBalances.FirstAsync(b => b.BranchId == infra.BranchAId && b.SkuId == infra.Sku1Id);
+            var whBal = await verifyContext.WarehouseInventoryBalances.FirstAsync(w => w.WarehouseId == infra.WarehouseA1Id && w.SkuId == infra.Sku1Id);
+            var dbCount = await verifyContext.StockCounts.FirstAsync(c => c.Id == count.Id);
+
+            bal.Reserved.Should().Be(0m);
+            whBal.Reserved.Should().Be(0m);
+            bal.OnHand.Should().Be(whBal.OnHand, "Tồn kho cấp chi nhánh và kho phải nhất quán 100%.");
+
+            if (resConfirm.StatusCode == HttpStatusCode.OK)
+            {
+                // Thứ tự hợp lệ 1: Confirm hoàn tất trước (tồn 10 -> 8), sau đó POS mua 3 (tồn 8 -> 5)
+                dbCount.Status.Should().Be("Confirmed");
+                dbCount.GeneratedAdjustmentId.Should().NotBeNull();
+                bal.OnHand.Should().Be(5m, "Tồn sau điều chỉnh kiểm kê (8) trừ bán POS (3) phải là 5.");
+                whBal.OnHand.Should().Be(5m);
+
+                var adjCount = await verifyContext.InventoryAdjustments.CountAsync(a => a.Id == dbCount.GeneratedAdjustmentId);
+                adjCount.Should().Be(1);
+
+                var txs = await verifyContext.InventoryTransactions.Where(t => t.SkuId == infra.Sku1Id).ToListAsync();
+                txs.Should().HaveCount(3, "Gồm 1 Seed ban đầu + 1 Adjustment + 1 POS Sale.");
+            }
+            else
+            {
+                // Thứ tự hợp lệ 2: POS mua trước (tồn 10 -> 7, sequence tăng), Confirm chạy sau phát hiện sequence drift 409
+                resConfirm.StatusCode.Should().Be(HttpStatusCode.Conflict);
+                var err = await resConfirm.Content.ReadAsStringAsync();
+                err.Should().Contain("STOCK_COUNT_SEQUENCE_DRIFT");
+
+                dbCount.Status.Should().Be("Counting");
+                dbCount.GeneratedAdjustmentId.Should().BeNull();
+                bal.OnHand.Should().Be(7m, "Tồn sau POS bán 3 cái là 7.");
+                whBal.OnHand.Should().Be(7m);
+
+                var adjCount = await verifyContext.InventoryAdjustments.CountAsync(a => a.TenantId == infra.TenantId);
+                adjCount.Should().Be(0, "Không có adjustment nào được tạo khi confirm bị sequence drift.");
+
+                var txs = await verifyContext.InventoryTransactions.Where(t => t.SkuId == infra.Sku1Id).ToListAsync();
+                txs.Should().HaveCount(2, "Gồm 1 Seed ban đầu + 1 POS Sale.");
+            }
+        }
+    }
+
+    [Fact]
+    public async Task AC08_Concurrency_ConfirmCompetesWithStockTransfer_MultiSkuReversedOrder_NoDeadlock()
+    {
+        var infra = await SetupInfrastructureAsync();
+        // Nhập SKU1 và SKU2 vào Kho A1
+        await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku1Id, 10m, 50000m);
+        await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku2Id, 10m, 60000m);
+
+        var ownerToken = await LoginAsAsync("owner@shopa.local", PostgresTestEnvironment.AppPassword);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
+
+        // Tạo kiểm kê cho SKU1 và SKU2 (thứ tự tự nhiên SKU1, SKU2)
+        var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
+        {
+            RequestKey = Guid.NewGuid(),
+            BranchId = infra.BranchAId,
+            WarehouseId = infra.WarehouseA1Id,
+            SkuIds = new List<Guid> { infra.Sku1Id, infra.Sku2Id }
+        });
+        var count = await createRes.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
+
+        await _client.PostAsJsonAsync($"/api/stock-counts/{count!.Id}/record", new RecordStockCountBatchRequestDto
+        {
+            Items = new List<RecordStockCountItemRequestDto>
+            {
+                new() { SkuId = infra.Sku1Id, CountedQuantity = 12m },
+                new() { SkuId = infra.Sku2Id, CountedQuantity = 8m }
+            }
+        });
+
+        // Chuyển kho tạo phiếu với thứ tự đảo ngược (SKU2 trước, SKU1 sau)
+        var trfRes = await _client.PostAsJsonAsync("/api/stock-transfers", new OISM.Application.Features.StockTransfers.Dtos.CreateStockTransferRequestDto
+        {
+            RequestKey = Guid.NewGuid(),
+            FromBranchId = infra.BranchAId,
+            ToBranchId = infra.BranchAId,
+            FromWarehouseId = infra.WarehouseA1Id,
+            ToWarehouseId = infra.WarehouseA2Id,
+            Items = new List<OISM.Application.Features.StockTransfers.Dtos.StockTransferItemRequestDto>
+            {
+                new() { SkuId = infra.Sku2Id, Quantity = 2m },
+                new() { SkuId = infra.Sku1Id, Quantity = 2m }
+            }
+        });
+        var trf = await trfRes.Content.ReadFromJsonAsync<OISM.Application.Features.StockTransfers.Dtos.StockTransferResponseDto>(_jsonOptions);
+
+        // Đồng thời gọi Confirm kiểm kê và Dispatch chuyển kho
+        using var clientConfirm = _factory.CreateClient();
+        clientConfirm.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
+        using var clientDispatch = _factory.CreateClient();
+        clientDispatch.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
+
+        var deadlocksBefore = await GetDatabaseDeadlockCountAsync();
+
+        var taskConfirm = clientConfirm.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+        var taskDispatch = clientDispatch.PostAsJsonAsync($"/api/stock-transfers/{trf!.Id}/dispatch", new OISM.Application.Features.StockTransfers.Dtos.DispatchStockTransferRequestDto());
+
+        var responses = await Task.WhenAll(taskConfirm, taskDispatch);
+        var deadlocksAfter = await GetDatabaseDeadlockCountAsync();
+        (deadlocksAfter - deadlocksBefore).Should().Be(0, "Cạnh tranh chuyển kho đa SKU đảo thứ tự với kiểm kê không được gây ra bất kỳ deadlock 40P01 nào.");
+
+        var resConfirm = responses[0];
+        var resDispatch = responses[1];
+
+        // Dispatch chuyển kho phải luôn thành công 200 OK
+        resDispatch.StatusCode.Should().Be(HttpStatusCode.OK, "Dispatch chuyển kho phải luôn thành công.");
+        resConfirm.StatusCode.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.Conflict);
+
+        var (verifyCtx, _) = CreatePostgresDbContext(infra.TenantId);
+        await using (verifyCtx)
+        {
+            var dbTrf = await verifyCtx.StockTransfers.Include(t => t.Items).FirstAsync(t => t.Id == trf.Id);
+            dbTrf.Status.Should().Be("InTransit");
+            dbTrf.DispatchedAt.Should().NotBeNull();
+            dbTrf.Items.Should().HaveCount(2);
+            dbTrf.Items.Should().OnlyContain(i => i.UnitCost.HasValue && i.UnitCost.Value > 0);
+
+            var trfTxs = await verifyCtx.InventoryTransactions.Where(t => t.TransferItemId.HasValue && (t.SkuId == infra.Sku1Id || t.SkuId == infra.Sku2Id)).ToListAsync();
+            trfTxs.Should().HaveCount(2, "Phải sinh đúng 2 bút toán xuất chuyển kho OUT.");
+            trfTxs.Should().OnlyContain(t => t.Quantity == 2m && t.Type == "OUT" && t.WarehouseId == infra.WarehouseA1Id);
+
+            var dbCount = await verifyCtx.StockCounts.FirstAsync(c => c.Id == count.Id);
+            var whBal1 = await verifyCtx.WarehouseInventoryBalances.FirstAsync(w => w.WarehouseId == infra.WarehouseA1Id && w.SkuId == infra.Sku1Id);
+            var whBal2 = await verifyCtx.WarehouseInventoryBalances.FirstAsync(w => w.WarehouseId == infra.WarehouseA1Id && w.SkuId == infra.Sku2Id);
+            var brBal1 = await verifyCtx.InventoryBalances.FirstAsync(b => b.BranchId == infra.BranchAId && b.SkuId == infra.Sku1Id);
+            var brBal2 = await verifyCtx.InventoryBalances.FirstAsync(b => b.BranchId == infra.BranchAId && b.SkuId == infra.Sku2Id);
+
+            whBal1.Reserved.Should().Be(0m);
+            whBal2.Reserved.Should().Be(0m);
+            brBal1.Reserved.Should().Be(0m);
+            brBal2.Reserved.Should().Be(0m);
+
+            brBal1.AverageCost.Should().Be(50000m);
+            brBal2.AverageCost.Should().Be(60000m);
+
+            if (resConfirm.StatusCode == HttpStatusCode.OK)
+            {
+                // Count thắng trước: count 200, sau đó dispatch trừ 2 mỗi SKU -> source/branch cuối 10 và 6
+                dbCount.Status.Should().Be("Confirmed");
+                dbCount.GeneratedAdjustmentId.Should().NotBeNull();
+
+                whBal1.OnHand.Should().Be(10m, "SKU1: 10 + 2 (count) - 2 (transfer) = 10.");
+                whBal2.OnHand.Should().Be(6m, "SKU2: 10 - 2 (count) - 2 (transfer) = 6.");
+                brBal1.OnHand.Should().Be(10m);
+                brBal2.OnHand.Should().Be(6m);
+
+                var adj = await verifyCtx.InventoryAdjustments.Include(a => a.Items).FirstOrDefaultAsync(a => a.Id == dbCount.GeneratedAdjustmentId);
+                adj.Should().NotBeNull();
+                adj!.Items.Should().HaveCount(2, "Đúng 2 adjustment rows (+2 và -2).");
+                adj.Items.First(i => i.SkuId == infra.Sku1Id).QuantityDelta.Should().Be(2m);
+                adj.Items.First(i => i.SkuId == infra.Sku2Id).QuantityDelta.Should().Be(-2m);
+
+                var countTxs = await verifyCtx.InventoryTransactions.Where(t => t.AdjustmentItemId.HasValue && (t.SkuId == infra.Sku1Id || t.SkuId == infra.Sku2Id)).ToListAsync();
+                countTxs.Should().HaveCount(2);
+                countTxs.First(t => t.SkuId == infra.Sku1Id).Quantity.Should().Be(2m);
+                countTxs.First(t => t.SkuId == infra.Sku1Id).Type.Should().Be("IN");
+                countTxs.First(t => t.SkuId == infra.Sku2Id).Quantity.Should().Be(2m);
+                countTxs.First(t => t.SkuId == infra.Sku2Id).Type.Should().Be("OUT");
+            }
+            else
+            {
+                // Dispatch thắng trước: count phát hiện drift 409 -> source/branch cuối 8 và 8, không adjustment
+                var body = await resConfirm.Content.ReadAsStringAsync();
+                body.Should().Contain("STOCK_COUNT_SEQUENCE_DRIFT");
+
+                dbCount.Status.Should().Be("Counting");
+                dbCount.GeneratedAdjustmentId.Should().BeNull();
+
+                whBal1.OnHand.Should().Be(8m, "SKU1: 10 - 2 (transfer) = 8.");
+                whBal2.OnHand.Should().Be(8m, "SKU2: 10 - 2 (transfer) = 8.");
+                brBal1.OnHand.Should().Be(8m);
+                brBal2.OnHand.Should().Be(8m);
+
+                var adjCount = await verifyCtx.InventoryAdjustments.CountAsync(a => a.Id == dbCount.GeneratedAdjustmentId);
+                adjCount.Should().Be(0);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task AC08_Concurrency_ConfirmCompetesWithGoodsReceipt_SerializationValid_NoDeadlock()
+    {
+        var infra = await SetupInfrastructureAsync();
+        // Nhập tồn ban đầu 10 cái @ 50,000 vào Kho A1
+        await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku1Id, 10m, 50000m);
+
+        var ownerToken = await LoginAsAsync("owner@shopa.local", PostgresTestEnvironment.AppPassword);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
+
+        // Tạo kiểm kê đếm được 15 cái (surplus +5)
+        var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
+        {
+            RequestKey = Guid.NewGuid(),
+            BranchId = infra.BranchAId,
+            WarehouseId = infra.WarehouseA1Id,
+            SkuIds = new List<Guid> { infra.Sku1Id }
+        });
+        var count = await createRes.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
+
+        await _client.PostAsJsonAsync($"/api/stock-counts/{count!.Id}/record", new RecordStockCountBatchRequestDto
+        {
+            Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 15m } }
+        });
+
+        // Chạy đồng thời: Nhập kho thêm 5 cái @ 50,000 bằng GoodsReceiptService thật vs Confirm kiểm kê
+        using var clientConfirm = _factory.CreateClient();
+        clientConfirm.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
+
+        var taskReceipt = Task.Run(async () =>
+        {
+            await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku1Id, 5m, 50000m);
+            return HttpStatusCode.OK;
+        });
+        var taskConfirm = clientConfirm.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+
+        await Task.WhenAll(taskReceipt, taskConfirm);
+        var resConfirm = await taskConfirm;
+
+        // Một lịch tuần tự hợp lệ: Cả 2 đều OK (nếu Confirm trước rồi Receipt sau) hoặc Confirm nhận 409 drift (nếu Receipt xong trước làm tăng sequence)
+        resConfirm.StatusCode.Should().BeOneOf(HttpStatusCode.OK, HttpStatusCode.Conflict);
+
+        await using (var verifyContext = CreatePostgresDbContext(infra.TenantId).Context)
+        {
+            var bal = await verifyContext.InventoryBalances.FirstAsync(b => b.BranchId == infra.BranchAId && b.SkuId == infra.Sku1Id);
+            var whBal = await verifyContext.WarehouseInventoryBalances.FirstAsync(w => w.WarehouseId == infra.WarehouseA1Id && w.SkuId == infra.Sku1Id);
+            bal.OnHand.Should().Be(whBal.OnHand);
+
+            if (resConfirm.StatusCode == HttpStatusCode.OK)
+            {
+                // Confirm trước (tồn thành 15), sau đó Receipt thêm 5 -> tổng tồn 20
+                bal.OnHand.Should().Be(20m);
+            }
+            else
+            {
+                // Receipt trước (tồn thành 15), sau đó Confirm phát hiện drift 409 -> tồn giữ nguyên 15
+                var err = await resConfirm.Content.ReadAsStringAsync();
+                err.Should().Contain("STOCK_COUNT_SEQUENCE_DRIFT");
+                bal.OnHand.Should().Be(15m);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task AC08_Concurrency_ConfirmCompetesWithActiveReservationOrder_ProtectsReserved()
+    {
+        var infra = await SetupInfrastructureAsync();
+        var ownerToken = await LoginAsAsync("owner@shopa.local", PostgresTestEnvironment.AppPassword);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
+
+        decimal sku1Retail, sku2Retail, sku3Retail;
+        var (setupCtx, _) = CreatePostgresDbContext(infra.TenantId);
+        await using (setupCtx)
+        {
+            sku1Retail = (await setupCtx.ProductVariants.FirstAsync(v => v.Id == infra.Sku1Id)).RetailPrice;
+            sku2Retail = (await setupCtx.ProductVariants.FirstAsync(v => v.Id == infra.Sku2Id)).RetailPrice;
+            sku3Retail = (await setupCtx.ProductVariants.FirstAsync(v => v.Id == infra.Sku3Id)).RetailPrice;
+        }
+
+        // =====================================================================
+        // Lịch hợp lệ 1: Admin create POST /api/orders (reserve 8) thắng trước -> Confirm 409 INSUFFICIENT_STOCK
+        // =====================================================================
+        {
+            await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku1Id, 10m, 50000m);
+
+            var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
+            {
+                RequestKey = Guid.NewGuid(),
+                BranchId = infra.BranchAId,
+                WarehouseId = infra.WarehouseA1Id,
+                SkuIds = new List<Guid> { infra.Sku1Id }
+            });
+            var count = await createRes.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
+
+            await _client.PostAsJsonAsync($"/api/stock-counts/{count!.Id}/record", new RecordStockCountBatchRequestDto
+            {
+                Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 5m } }
+            });
+
+            var adminOrderDto = new OISM.Application.Features.Orders.Dtos.CreateOrderRequestDto
+            {
+                BranchId = infra.BranchAId,
+                Channel = "Admin",
+                CustomerName = "Khách Hàng Giữ Chỗ A",
+                CustomerPhone = "0909999881",
+                ShippingAddress = "123 Đường Nguyễn Huệ, Q1, TP.HCM",
+                RequestKey = Guid.NewGuid(),
+                Items = new List<OISM.Application.Features.Orders.Dtos.OrderItemRequestDto>
+                {
+                    new() { SkuId = infra.Sku1Id, SkuCode = infra.Sku1Code, Quantity = 8m, UnitPrice = sku1Retail }
+                }
+            };
+
+            // 1. Admin create trước: POST /api/orders là bước giữ chỗ (reserve) thực sự
+            var orderRes = await _client.PostAsJsonAsync("/api/orders", adminOrderDto);
+            orderRes.StatusCode.Should().Be(HttpStatusCode.Created);
+            var order = await orderRes.Content.ReadFromJsonAsync<OISM.Application.Features.Orders.Dtos.OrderResponseDto>(_jsonOptions);
+            order!.Status.Should().Be("Reserved");
+
+            // 2. Count confirm đua sau: Tồn counted 5 < Reserved 8 -> phải bị từ chối 409 INSUFFICIENT_STOCK
+            var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+            confirmRes.StatusCode.Should().Be(HttpStatusCode.Conflict);
+            var confirmBody = await confirmRes.Content.ReadAsStringAsync();
+            confirmBody.Should().Contain("INSUFFICIENT_STOCK");
+
+            var (verifyCtx, _) = CreatePostgresDbContext(infra.TenantId);
+            await using (verifyCtx)
+            {
+                var brBal = await verifyCtx.InventoryBalances.FirstAsync(b => b.BranchId == infra.BranchAId && b.SkuId == infra.Sku1Id);
+                var whBal = await verifyCtx.WarehouseInventoryBalances.FirstAsync(w => w.WarehouseId == infra.WarehouseA1Id && w.SkuId == infra.Sku1Id);
+                brBal.OnHand.Should().Be(10m);
+                brBal.Reserved.Should().Be(8m);
+                whBal.OnHand.Should().Be(10m);
+                whBal.Reserved.Should().Be(8m);
+                brBal.LastSequence.Should().Be(1L);
+                whBal.LastSequence.Should().Be(1L);
+
+                var activeReservations = await verifyCtx.Reservations.Where(r => r.SkuId == infra.Sku1Id && r.Status == "Active").SumAsync(r => r.Quantity);
+                activeReservations.Should().Be(8m);
+
+                var dbCount = await verifyCtx.StockCounts.FirstAsync(c => c.Id == count.Id);
+                dbCount.Status.Should().Be("Counting");
+                dbCount.GeneratedAdjustmentId.Should().BeNull();
+
+                var adjs = await verifyCtx.InventoryAdjustments.CountAsync(a => a.Id == dbCount.GeneratedAdjustmentId);
+                adjs.Should().Be(0);
+            }
+        }
+
+        // =====================================================================
+        // Lịch hợp lệ 2: Count confirm thắng trước -> Admin create 409 INSUFFICIENT_STOCK
+        // =====================================================================
+        {
+            await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku2Id, 10m, 60000m);
+
+            var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
+            {
+                RequestKey = Guid.NewGuid(),
+                BranchId = infra.BranchAId,
+                WarehouseId = infra.WarehouseA1Id,
+                SkuIds = new List<Guid> { infra.Sku2Id }
+            });
+            var count = await createRes.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
+
+            await _client.PostAsJsonAsync($"/api/stock-counts/{count!.Id}/record", new RecordStockCountBatchRequestDto
+            {
+                Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku2Id, CountedQuantity = 5m } }
+            });
+
+            // 1. Count confirm trước: Chốt tồn kho về 5m (OUT 5m)
+            var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+            confirmRes.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            // 2. Admin create đua sau: Tồn khả dụng chỉ còn 5m < 8m -> phải bị từ chối 409 INSUFFICIENT_STOCK
+            var adminKey = Guid.NewGuid();
+            var adminOrderDto = new OISM.Application.Features.Orders.Dtos.CreateOrderRequestDto
+            {
+                BranchId = infra.BranchAId,
+                Channel = "Admin",
+                CustomerName = "Khách Hàng Giữ Chỗ B",
+                CustomerPhone = "0909999882",
+                ShippingAddress = "456 Đường Lê Lợi, Q1, TP.HCM",
+                RequestKey = adminKey,
+                Items = new List<OISM.Application.Features.Orders.Dtos.OrderItemRequestDto>
+                {
+                    new() { SkuId = infra.Sku2Id, SkuCode = infra.Sku2Code, Quantity = 8m, UnitPrice = sku2Retail }
+                }
+            };
+
+            var orderRes = await _client.PostAsJsonAsync("/api/orders", adminOrderDto);
+            orderRes.StatusCode.Should().Be(HttpStatusCode.Conflict);
+            var orderBody = await orderRes.Content.ReadAsStringAsync();
+            orderBody.Should().Contain("INSUFFICIENT_STOCK");
+
+            var (verifyCtx, _) = CreatePostgresDbContext(infra.TenantId);
+            await using (verifyCtx)
+            {
+                var brBal = await verifyCtx.InventoryBalances.FirstAsync(b => b.BranchId == infra.BranchAId && b.SkuId == infra.Sku2Id);
+                var whBal = await verifyCtx.WarehouseInventoryBalances.FirstAsync(w => w.WarehouseId == infra.WarehouseA1Id && w.SkuId == infra.Sku2Id);
+                brBal.OnHand.Should().Be(5m);
+                brBal.Reserved.Should().Be(0m);
+                whBal.OnHand.Should().Be(5m);
+                whBal.Reserved.Should().Be(0m);
+                brBal.AverageCost.Should().Be(60000m);
+                whBal.LastSequence.Should().Be(2L);
+                brBal.LastSequence.Should().Be(2L);
+
+                var dbCount = await verifyCtx.StockCounts.FirstAsync(c => c.Id == count.Id);
+                dbCount.Status.Should().Be("Confirmed");
+                dbCount.GeneratedAdjustmentId.Should().NotBeNull();
+
+                var adjs = await verifyCtx.InventoryAdjustments.Include(a => a.Items).FirstOrDefaultAsync(a => a.Id == dbCount.GeneratedAdjustmentId);
+                adjs.Should().NotBeNull();
+                adjs!.Items.Should().HaveCount(1);
+                adjs.Items.First().QuantityDelta.Should().Be(-5m);
+
+                var txs = await verifyCtx.InventoryTransactions.Where(t => t.AdjustmentItemId.HasValue && t.SkuId == infra.Sku2Id).ToListAsync();
+                txs.Should().HaveCount(1);
+                txs[0].Quantity.Should().Be(5m);
+                txs[0].Type.Should().Be("OUT");
+                txs[0].UnitCost.Should().Be(60000m);
+
+                var orderExists = await verifyCtx.Orders.AnyAsync(o => o.RequestKey == adminKey);
+                orderExists.Should().BeFalse("Không có đơn rác được lưu khi tạo đơn thất bại.");
+            }
+        }
+
+        // =====================================================================
+        // Lịch hợp lệ 3: Chạy thực sự đồng thời (Truly Concurrent Race qua Task.WhenAll)
+        // =====================================================================
+        {
+            await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku3Id, 10m, 70000m);
+
+            var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
+            {
+                RequestKey = Guid.NewGuid(),
+                BranchId = infra.BranchAId,
+                WarehouseId = infra.WarehouseA1Id,
+                SkuIds = new List<Guid> { infra.Sku3Id }
+            });
+            var count = await createRes.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
+
+            await _client.PostAsJsonAsync($"/api/stock-counts/{count!.Id}/record", new RecordStockCountBatchRequestDto
+            {
+                Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku3Id, CountedQuantity = 5m } }
+            });
+
+            var adminKey = Guid.NewGuid();
+            var adminOrderDto = new OISM.Application.Features.Orders.Dtos.CreateOrderRequestDto
+            {
+                BranchId = infra.BranchAId,
+                Channel = "Admin",
+                CustomerName = "Khách Hàng Đua Đồng Thời",
+                CustomerPhone = "0909999883",
+                ShippingAddress = "789 Đường Hàm Nghi, Q1, TP.HCM",
+                RequestKey = adminKey,
+                Items = new List<OISM.Application.Features.Orders.Dtos.OrderItemRequestDto>
+                {
+                    new() { SkuId = infra.Sku3Id, SkuCode = infra.Sku3Code, Quantity = 8m, UnitPrice = sku3Retail }
+                }
+            };
+
+            using var clientOrder = _factory.CreateClient();
+            clientOrder.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
+            using var clientConfirm = _factory.CreateClient();
+            clientConfirm.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
+
+            var taskOrder = clientOrder.PostAsJsonAsync("/api/orders", adminOrderDto);
+            var taskConfirm = clientConfirm.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+
+            var responses = await Task.WhenAll(taskOrder, taskConfirm);
+            var resOrder = responses[0];
+            var resConfirm = responses[1];
+
+            // Tuyệt đối không có bất kỳ mã lỗi 500 nào
+            responses.Should().NotContain(r => (int)r.StatusCode >= 500, "Tuyệt đối không phát sinh lỗi 500 khi cạnh tranh.");
+
+            // Không bao giờ xảy ra trường hợp cả 2 cùng trả 409
+            (resOrder.StatusCode == HttpStatusCode.Conflict && resConfirm.StatusCode == HttpStatusCode.Conflict)
+                .Should().BeFalse("Không bao giờ xảy ra trường hợp cả hai request cùng trả 409 Conflict.");
+
+            var (verifyCtx, _) = CreatePostgresDbContext(infra.TenantId);
+            await using (verifyCtx)
+            {
+                var brBal = await verifyCtx.InventoryBalances.FirstAsync(b => b.BranchId == infra.BranchAId && b.SkuId == infra.Sku3Id);
+                var whBal = await verifyCtx.WarehouseInventoryBalances.FirstAsync(w => w.WarehouseId == infra.WarehouseA1Id && w.SkuId == infra.Sku3Id);
+                var available = brBal.OnHand - brBal.Reserved;
+                available.Should().BeGreaterThanOrEqualTo(0m, "Tồn khả dụng không bao giờ được phép âm.");
+
+                if (resOrder.StatusCode == HttpStatusCode.Created)
+                {
+                    // Admin thắng trước (201): Confirm phải bị 409 INSUFFICIENT_STOCK
+                    resConfirm.StatusCode.Should().Be(HttpStatusCode.Conflict);
+                    var body = await resConfirm.Content.ReadAsStringAsync();
+                    body.Should().Contain("INSUFFICIENT_STOCK");
+
+                    brBal.OnHand.Should().Be(10m);
+                    brBal.Reserved.Should().Be(8m);
+                    whBal.OnHand.Should().Be(10m);
+                    whBal.Reserved.Should().Be(8m);
+
+                    var dbCount = await verifyCtx.StockCounts.FirstAsync(c => c.Id == count.Id);
+                    dbCount.Status.Should().Be("Counting");
+                    dbCount.GeneratedAdjustmentId.Should().BeNull();
+                }
+                else
+                {
+                    // Confirm thắng trước (200): Admin phải bị 409 INSUFFICIENT_STOCK
+                    resConfirm.StatusCode.Should().Be(HttpStatusCode.OK);
+                    resOrder.StatusCode.Should().Be(HttpStatusCode.Conflict);
+                    var body = await resOrder.Content.ReadAsStringAsync();
+                    body.Should().Contain("INSUFFICIENT_STOCK");
+
+                    brBal.OnHand.Should().Be(5m);
+                    brBal.Reserved.Should().Be(0m);
+                    whBal.OnHand.Should().Be(5m);
+                    whBal.Reserved.Should().Be(0m);
+
+                    var dbCount = await verifyCtx.StockCounts.FirstAsync(c => c.Id == count.Id);
+                    dbCount.Status.Should().Be("Confirmed");
+                    dbCount.GeneratedAdjustmentId.Should().NotBeNull();
+                }
+            }
+        }
     }
 
     // =========================================================================
@@ -1577,7 +3058,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
     // =========================================================================
 
     [Fact]
-    public async Task AC09_FaultInjection_MidstreamFailureDuringConfirm_RollsBackCleanly_RetrySucceeds()
+    public async Task AC09_FaultInjection_MidstreamFailure_CreateRecordConfirm_RollsBackCleanly_AndRetrySucceeds()
     {
         var infra = await SetupInfrastructureAsync();
         await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku1Id, 10m, 50000m);
@@ -1595,49 +3076,59 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
             SkuIds = new List<Guid> { infra.Sku1Id }
         };
 
+        // =====================================================================
         // 1. Fault khi CreateStockCountAsync
+        // =====================================================================
+        var baselineBeforeCreate = await CaptureFullBaselineAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.Sku1Id, null);
+
         interceptor.ShouldFail = true;
         var actCreate = () => faultyService.CreateStockCountAsync(createDto, infra.UserId);
         await actCreate.Should().ThrowAsync<MidstreamStockCountFaultException>();
 
-        // Đối soát CSDL: Hoàn toàn không có stock_counts nào
-        await using (var verifyContext = CreatePostgresDbContext(infra.TenantId).Context)
-        {
-            var count = await verifyContext.StockCounts.CountAsync();
-            count.Should().Be(0, "Transaction tạo phiếu đã rollback 100% khi gặp lỗi midstream.");
-        }
+        // Đối soát CSDL độc lập: 100% trường dữ liệu khớp với baseline trước khi gọi Create
+        await AssertMatchesBaselineAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.Sku1Id, null, baselineBeforeCreate, "CreateFault");
 
-        // Retry Create thành công
+        // Retry Create thành công đúng 1 lần
         interceptor.ShouldFail = false;
         var created = await faultyService.CreateStockCountAsync(createDto, infra.UserId);
         created.Status.Should().Be("Draft");
 
-        // 2. Ghi nhận số đếm hợp lệ
+        // =====================================================================
+        // 2. Fault khi RecordCountsAsync
+        // =====================================================================
+        var baselineBeforeRecord = await CaptureFullBaselineAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.Sku1Id, created.Id);
+
         var recordDto = new RecordStockCountBatchRequestDto
         {
             Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 15m } }
         };
+
+        interceptor.ShouldFail = true;
+        var actRecord = () => faultyService.RecordCountsAsync(created.Id, recordDto, infra.UserId);
+        await actRecord.Should().ThrowAsync<MidstreamStockCountFaultException>();
+
+        // Đối soát CSDL độc lập: 100% trường dữ liệu khớp với baseline trước khi gọi Record
+        await AssertMatchesBaselineAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.Sku1Id, created.Id, baselineBeforeRecord, "RecordFault");
+
+        // Retry Record thành công đúng 1 lần
+        interceptor.ShouldFail = false;
         var recorded = await faultyService.RecordCountsAsync(created.Id, recordDto, infra.UserId);
         recorded.Status.Should().Be("Counting");
 
+        // =====================================================================
         // 3. Fault khi ConfirmStockCountAsync
+        // =====================================================================
+        var baselineBeforeConfirm = await CaptureFullBaselineAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.Sku1Id, created.Id);
+
         interceptor.ShouldFail = true;
         var actConfirm = () => faultyService.ConfirmStockCountAsync(created.Id, new ConfirmStockCountRequestDto(), infra.UserId);
         await actConfirm.Should().ThrowAsync<MidstreamStockCountFaultException>();
 
-        // Đối soát CSDL: Phiếu vẫn ở trạng thái Counting, KHÔNG có InventoryAdjustment, KHÔNG có Ledger mới, Tồn kho vẫn là 10
-        await using (var verifyContext = CreatePostgresDbContext(infra.TenantId).Context)
-        {
-            var c = await verifyContext.StockCounts.FirstAsync(x => x.Id == created.Id);
-            c.Status.Should().Be("Counting");
-            c.GeneratedAdjustmentId.Should().BeNull();
+        // Bằng chứng EF Core đã sinh và gửi SQL cho StockCount, StockCountItem, Adjustment, Ledger và Balances trước khi ném lỗi
+        interceptor.LastSavedEntityCount.Should().BeGreaterThanOrEqualTo(5, "Đã đi qua các câu lệnh SQL cập nhật trạng thái, chứng từ điều chỉnh, bút toán ledger và số dư tồn kho trước khi fault.");
 
-            var adjs = await verifyContext.InventoryAdjustments.CountAsync();
-            adjs.Should().Be(0, "Không rò rỉ bản ghi InventoryAdjustment khi confirm bị lỗi giữa chừng.");
-
-            var bal = await verifyContext.InventoryBalances.FirstAsync(b => b.BranchId == infra.BranchAId && b.SkuId == infra.Sku1Id);
-            bal.OnHand.Should().Be(10m, "Tồn kho không được thay đổi khi confirm bị rollback.");
-        }
+        // Đối soát CSDL độc lập: 100% trường dữ liệu khớp với baseline trước khi gọi Confirm
+        await AssertMatchesBaselineAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.Sku1Id, created.Id, baselineBeforeConfirm, "ConfirmFault");
 
         // Retry Confirm thành công đúng 1 lần
         interceptor.ShouldFail = false;
@@ -1647,8 +3138,23 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
         await using (var verifyContext = CreatePostgresDbContext(infra.TenantId).Context)
         {
-            var bal = await verifyContext.InventoryBalances.FirstAsync(b => b.BranchId == infra.BranchAId && b.SkuId == infra.Sku1Id);
-            bal.OnHand.Should().Be(15m, "Tồn kho được cập nhật chính xác lên 15 sau khi retry confirm thành công.");
+            var c = await verifyContext.StockCounts.FirstAsync(x => x.Id == created.Id);
+            c.Status.Should().Be("Confirmed");
+            c.GeneratedAdjustmentId.Should().Be(confirmed.GeneratedAdjustmentId);
+            c.ConfirmedAt.Should().NotBeNull();
+            c.ConfirmedBy.Should().Be(infra.UserId);
+
+            var branchBal = await verifyContext.InventoryBalances.FirstAsync(b => b.BranchId == infra.BranchAId && b.SkuId == infra.Sku1Id);
+            branchBal.OnHand.Should().Be(15m, "Tồn kho chi nhánh được cập nhật chính xác lên 15 sau retry confirm.");
+            branchBal.AverageCost.Should().Be(50000m);
+            branchBal.LastSequence.Should().Be(2L);
+
+            var whBal = await verifyContext.WarehouseInventoryBalances.FirstAsync(w => w.WarehouseId == infra.WarehouseA1Id && w.SkuId == infra.Sku1Id);
+            whBal.OnHand.Should().Be(15m, "Tồn kho tại kho được cập nhật chính xác lên 15 sau retry confirm.");
+            whBal.LastSequence.Should().Be(2L, "Sequence kho tăng chính xác lên 2 sau retry confirm.");
+
+            var adjs = await verifyContext.InventoryAdjustments.CountAsync();
+            adjs.Should().Be(1, "Có đúng 1 chứng từ điều chỉnh tồn được lưu.");
 
             var txCount = await verifyContext.InventoryTransactions.CountAsync(t => t.AdjustmentItemId.HasValue);
             txCount.Should().Be(1, "Có đúng 1 bút toán ledger được ghi nhận khi retry confirm.");
@@ -1664,29 +3170,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
     {
         var infra = await SetupInfrastructureAsync();
 
-        // 1. 401 Unauthorized khi không có token xác thực
-        _client.DefaultRequestHeaders.Authorization = null;
-        var unauthRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto());
-        unauthRes.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
-
-        // 2. 403 Forbidden khi đăng nhập bằng vai trò Thu ngân (Cashier)
-        var cashierToken = await LoginAsAsync("cashier@shopa.local", PostgresTestEnvironment.AppPassword);
-        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", cashierToken);
-
-        var cashierCreate = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto());
-        cashierCreate.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-
-        var randomId = Guid.NewGuid();
-        var cashierRecord = await _client.PostAsJsonAsync($"/api/stock-counts/{randomId}/record", new RecordStockCountBatchRequestDto());
-        cashierRecord.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-
-        var cashierConfirm = await _client.PostAsJsonAsync($"/api/stock-counts/{randomId}/confirm", new ConfirmStockCountRequestDto());
-        cashierConfirm.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-
-        var cashierCancel = await _client.PostAsJsonAsync($"/api/stock-counts/{randomId}/cancel", new CancelStockCountRequestDto());
-        cashierCancel.StatusCode.Should().Be(HttpStatusCode.Forbidden);
-
-        // 3. Đăng nhập lại Owner Tenant A
+        // Chuẩn bị 1 phiếu kiểm kê Draft thuộc Tenant A
         var ownerTokenA = await LoginAsAsync("owner@shopa.local", PostgresTestEnvironment.AppPassword);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerTokenA);
 
@@ -1698,28 +3182,83 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
             SkuIds = new List<Guid> { infra.Sku1Id }
         });
         var countA = await createResA.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
+        countA.Should().NotBeNull();
 
-        // 4. Cross-Tenant: Đăng nhập Owner Tenant B và cố gắng thao tác trên phiếu hoặc tài nguyên của Tenant A -> 404 Not Found
+        // 1. 401 Unauthorized khi không có token xác thực trên ĐỦ 4 ENDPOINTS
+        _client.DefaultRequestHeaders.Authorization = null;
+
+        var unauthCreate = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto());
+        unauthCreate.StatusCode.Should().Be(HttpStatusCode.Unauthorized, "Create yêu cầu xác thực 401.");
+
+        var unauthRecord = await _client.PostAsJsonAsync($"/api/stock-counts/{countA!.Id}/record", new RecordStockCountBatchRequestDto());
+        unauthRecord.StatusCode.Should().Be(HttpStatusCode.Unauthorized, "Record yêu cầu xác thực 401.");
+
+        var unauthConfirm = await _client.PostAsJsonAsync($"/api/stock-counts/{countA.Id}/confirm", new ConfirmStockCountRequestDto());
+        unauthConfirm.StatusCode.Should().Be(HttpStatusCode.Unauthorized, "Confirm yêu cầu xác thực 401.");
+
+        var unauthCancel = await _client.PostAsJsonAsync($"/api/stock-counts/{countA.Id}/cancel", new CancelStockCountRequestDto());
+        unauthCancel.StatusCode.Should().Be(HttpStatusCode.Unauthorized, "Cancel yêu cầu xác thực 401.");
+
+        // 2. 403 Forbidden khi đăng nhập bằng vai trò Thu ngân (Cashier) trên ĐỦ 4 ENDPOINTS
+        var cashierToken = await LoginAsAsync("cashier@shopa.local", PostgresTestEnvironment.AppPassword);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", cashierToken);
+
+        var cashierCreate = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto());
+        cashierCreate.StatusCode.Should().Be(HttpStatusCode.Forbidden, "Cashier không có quyền tạo kiểm kê 403.");
+
+        var cashierRecord = await _client.PostAsJsonAsync($"/api/stock-counts/{countA.Id}/record", new RecordStockCountBatchRequestDto());
+        cashierRecord.StatusCode.Should().Be(HttpStatusCode.Forbidden, "Cashier không có quyền ghi số đếm 403.");
+
+        var cashierConfirm = await _client.PostAsJsonAsync($"/api/stock-counts/{countA.Id}/confirm", new ConfirmStockCountRequestDto());
+        cashierConfirm.StatusCode.Should().Be(HttpStatusCode.Forbidden, "Cashier không có quyền chốt kiểm kê 403.");
+
+        var cashierCancel = await _client.PostAsJsonAsync($"/api/stock-counts/{countA.Id}/cancel", new CancelStockCountRequestDto());
+        cashierCancel.StatusCode.Should().Be(HttpStatusCode.Forbidden, "Cashier không có quyền hủy kiểm kê 403.");
+
+        // 3. Cross-Tenant Negative: Đăng nhập Owner Tenant B và cố gắng thao tác trên tài nguyên của Tenant A -> 404 Not Found trên ĐỦ 4 ENDPOINTS
         var ownerTokenB = await LoginAsAsync("owner@shopb.local", PostgresTestEnvironment.AppPassword);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerTokenB);
 
-        var crossRecord = await _client.PostAsJsonAsync($"/api/stock-counts/{countA!.Id}/record", new RecordStockCountBatchRequestDto
+        var crossCreate = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
+        {
+            RequestKey = Guid.NewGuid(),
+            BranchId = infra.BranchAId,
+            WarehouseId = infra.WarehouseA1Id,
+            SkuIds = new List<Guid> { infra.Sku1Id }
+        });
+        crossCreate.StatusCode.Should().Be(HttpStatusCode.NotFound, "Tenant B không thể tạo đợt kiểm kê với kho của Tenant A (selected mode).");
+
+        var crossCreateAll = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
+        {
+            RequestKey = Guid.NewGuid(),
+            BranchId = infra.BranchAId,
+            WarehouseId = infra.WarehouseA1Id,
+            SkuIds = null
+        });
+        crossCreateAll.StatusCode.Should().Be(HttpStatusCode.NotFound, "Tenant B không thể tạo đợt kiểm kê ALL mode với kho của Tenant A.");
+
+        var crossRecord = await _client.PostAsJsonAsync($"/api/stock-counts/{countA.Id}/record", new RecordStockCountBatchRequestDto
         {
             Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 5m } }
         });
-        crossRecord.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        crossRecord.StatusCode.Should().Be(HttpStatusCode.NotFound, "Tenant B không thể ghi số đếm cho phiếu của Tenant A.");
 
         var crossConfirm = await _client.PostAsJsonAsync($"/api/stock-counts/{countA.Id}/confirm", new ConfirmStockCountRequestDto());
-        crossConfirm.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        crossConfirm.StatusCode.Should().Be(HttpStatusCode.NotFound, "Tenant B không thể chốt kiểm kê cho phiếu của Tenant A.");
 
         var crossCancel = await _client.PostAsJsonAsync($"/api/stock-counts/{countA.Id}/cancel", new CancelStockCountRequestDto());
-        crossCancel.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        crossCancel.StatusCode.Should().Be(HttpStatusCode.NotFound, "Tenant B không thể hủy phiếu kiểm kê của Tenant A.");
 
-        // Đối soát dữ liệu Tenant A không bị biến động
+        // Đối soát CSDL độc lập: Dữ liệu Tenant A hoàn toàn không bị biến động
         await using (var verifyContext = CreatePostgresDbContext(infra.TenantId).Context)
         {
-            var c = await verifyContext.StockCounts.FirstAsync(x => x.Id == countA.Id);
+            var c = await verifyContext.StockCounts.Include(x => x.Items).FirstAsync(x => x.Id == countA.Id);
             c.Status.Should().Be("Draft");
+            c.GeneratedAdjustmentId.Should().BeNull();
+            c.Items.First().CountedQuantity.Should().BeNull();
+
+            var adjs = await verifyContext.InventoryAdjustments.CountAsync(a => a.TenantId == infra.TenantId);
+            adjs.Should().Be(0);
         }
     }
 
@@ -1746,7 +3285,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
             SkuIds = new List<Guid> { infra.Sku1Id }
         };
 
-        // 1. Kiểm tra Guid.Empty cho các trường khóa
+        // 1. Kiểm tra Guid.Empty cho các trường khóa khi Create
         var dtoEmptyKey = ValidDto(); dtoEmptyKey.RequestKey = Guid.Empty;
         await AssertBadRequest(dtoEmptyKey, "VALIDATION_ERROR");
 
@@ -1761,15 +3300,47 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         dtoMismatch.WarehouseId = infra.WarehouseB1Id;
         await AssertBadRequest(dtoMismatch, "không thuộc chi nhánh");
 
-        // 3. Kiểm tra validation khi Record: SkuId rỗng, số lượng âm, scale > 3
+        // 3. Kiểm tra danh sách SKU khi Create: Guid.Empty hoặc Duplicate
+        var dtoEmptySku = ValidDto();
+        dtoEmptySku.SkuIds = new List<Guid> { Guid.Empty };
+        await AssertBadRequest(dtoEmptySku, "VALIDATION_ERROR");
+
+        var dtoDuplicateSku = ValidDto();
+        dtoDuplicateSku.SkuIds = new List<Guid> { infra.Sku1Id, infra.Sku1Id };
+        await AssertBadRequest(dtoDuplicateSku, "VALIDATION_ERROR");
+
+        // 4. Tạo phiếu kiểm kê hợp lệ để kiểm tra validation cho Record và Confirm
         var createRes = await _client.PostAsJsonAsync("/api/stock-counts", ValidDto());
         var count = await createRes.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
 
-        var badRecordEmptySku = await _client.PostAsJsonAsync($"/api/stock-counts/{count!.Id}/record", new RecordStockCountBatchRequestDto
+        // 4.1. Validation khi Record: danh sách rỗng, SkuId rỗng, duplicate SKU, SKU không thuộc đợt, số lượng âm, scale > 3, tràn số
+        var badRecordEmptyList = await _client.PostAsJsonAsync($"/api/stock-counts/{count!.Id}/record", new RecordStockCountBatchRequestDto
+        {
+            Items = new List<RecordStockCountItemRequestDto>()
+        });
+        badRecordEmptyList.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var badRecordEmptySku = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/record", new RecordStockCountBatchRequestDto
         {
             Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = Guid.Empty, CountedQuantity = 5m } }
         });
         badRecordEmptySku.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var badRecordDuplicateSku = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/record", new RecordStockCountBatchRequestDto
+        {
+            Items = new List<RecordStockCountItemRequestDto>
+            {
+                new() { SkuId = infra.Sku1Id, CountedQuantity = 5m },
+                new() { SkuId = infra.Sku1Id, CountedQuantity = 6m }
+            }
+        });
+        badRecordDuplicateSku.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var badRecordForeignSku = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/record", new RecordStockCountBatchRequestDto
+        {
+            Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku2Id, CountedQuantity = 5m } }
+        });
+        badRecordForeignSku.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
         var badRecordNeg = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/record", new RecordStockCountBatchRequestDto
         {
@@ -1788,6 +3359,50 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
             Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 1_000_000_000_000_000_000m } }
         });
         badRecordOverflow.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var badRecordNegCost = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/record", new RecordStockCountBatchRequestDto
+        {
+            Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 5m, AdjustmentUnitCost = -100m } }
+        });
+        badRecordNegCost.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var badRecordCostScale = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/record", new RecordStockCountBatchRequestDto
+        {
+            Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 5m, AdjustmentUnitCost = 100.1234567m } }
+        });
+        badRecordCostScale.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        // Ghi số đếm hợp lệ để chuyển sang Counting
+        var goodRecord = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/record", new RecordStockCountBatchRequestDto
+        {
+            Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 10m } }
+        });
+        goodRecord.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // 4.2. Validation khi Confirm: SkuAdjustmentCosts chứa SKU ngoài đợt, đơn giá âm, đơn giá scale > 6, đơn giá tràn số
+        var badConfirmForeignSku = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto
+        {
+            SkuAdjustmentCosts = new Dictionary<Guid, decimal> { [infra.Sku2Id] = 50000m }
+        });
+        badConfirmForeignSku.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var badConfirmNegCost = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto
+        {
+            SkuAdjustmentCosts = new Dictionary<Guid, decimal> { [infra.Sku1Id] = -50000m }
+        });
+        badConfirmNegCost.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var badConfirmCostScale = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto
+        {
+            SkuAdjustmentCosts = new Dictionary<Guid, decimal> { [infra.Sku1Id] = 50000.1234567m }
+        });
+        badConfirmCostScale.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        var badConfirmCostOverflow = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto
+        {
+            SkuAdjustmentCosts = new Dictionary<Guid, decimal> { [infra.Sku1Id] = 1_000_000_000_000_000_000m }
+        });
+        badConfirmCostOverflow.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     // =========================================================================
@@ -1834,6 +3449,9 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
     {
         PostgresTestEnvironment.AssertSafeTestTarget(PostgresTestEnvironment.DatabaseName);
         var infra = await SetupInfrastructureAsync();
+        // Nhập tồn ban đầu để phục vụ test workflow của phiếu Counting sau nâng cấp
+        await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku1Id, 10m, 50000m);
+
         var migrator = new DatabaseMigrationService();
         var adminConnStr = PostgresTestEnvironment.AdminDatabaseConnectionString;
 
@@ -1856,25 +3474,40 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
                     await dropCmd.ExecuteNonQueryAsync();
                 }
 
-                // 2. Chèn 1 phiếu kiểm kê legacy vào schema cũ
+                // 2. Chèn 3 phiếu kiểm kê legacy vào schema cũ: Draft, Counting, và Confirmed lịch sử
                 var now = DateTimeOffset.UtcNow;
-                var legacyId = Guid.NewGuid();
-                var itemId = Guid.NewGuid();
+                var legacyDraftId = Guid.NewGuid();
+                var legacyCountingId = Guid.NewGuid();
+                var legacyConfirmedId = Guid.NewGuid();
 
                 await using (var insertCmd = new NpgsqlCommand(@"
+                    -- 1. Phiếu Draft legacy
                     INSERT INTO public.stock_counts (id, tenant_id, number, branch_id, warehouse_id, status, created_by, created_at)
-                    VALUES (@id, @tid, 'CNT-LEG-PRE-00001', @bid, @wid, 'Draft', @uid, @now);
+                    VALUES (@draftId, @tid, 'CNT-LEG-DRAFT-01', @bid, @wid, 'Draft', @uid, @now);
                     INSERT INTO public.stock_count_items (id, tenant_id, stock_count_id, sku_id, expected_quantity, balance_sequence_at_snapshot, created_at)
-                    VALUES (@iid, @tid, @id, @sid, 10, 1, @now);
+                    VALUES (gen_random_uuid(), @tid, @draftId, @sid, 10, 1, @now);
+
+                    -- 2. Phiếu Counting legacy
+                    INSERT INTO public.stock_counts (id, tenant_id, number, branch_id, warehouse_id, status, created_by, created_at)
+                    VALUES (@countId, @tid, 'CNT-LEG-COUNT-01', @bid, @wid, 'Counting', @uid, @now);
+                    INSERT INTO public.stock_count_items (id, tenant_id, stock_count_id, sku_id, expected_quantity, counted_quantity, balance_sequence_at_snapshot, created_at)
+                    VALUES (gen_random_uuid(), @tid, @countId, @sid, 10, 12, 1, @now);
+
+                    -- 3. Phiếu Confirmed lịch sử cũ (thỏa mãn ck_stock_counts_confirmed với confirmed_by và confirmed_at)
+                    INSERT INTO public.stock_counts (id, tenant_id, number, branch_id, warehouse_id, status, created_by, created_at, confirmed_by, confirmed_at)
+                    VALUES (@confId, @tid, 'CNT-LEG-CONF-01', @bid, @wid, 'Confirmed', @uid, @now, @uid, @now);
+                    INSERT INTO public.stock_count_items (id, tenant_id, stock_count_id, sku_id, expected_quantity, counted_quantity, balance_sequence_at_snapshot, created_at)
+                    VALUES (gen_random_uuid(), @tid, @confId, @sid, 10, 10, 1, @now);
                 ", adminConn))
                 {
-                    insertCmd.Parameters.AddWithValue("id", legacyId);
+                    insertCmd.Parameters.AddWithValue("draftId", legacyDraftId);
+                    insertCmd.Parameters.AddWithValue("countId", legacyCountingId);
+                    insertCmd.Parameters.AddWithValue("confId", legacyConfirmedId);
                     insertCmd.Parameters.AddWithValue("tid", infra.TenantId);
                     insertCmd.Parameters.AddWithValue("bid", infra.BranchAId);
                     insertCmd.Parameters.AddWithValue("wid", infra.WarehouseA1Id);
                     insertCmd.Parameters.AddWithValue("uid", infra.UserId);
                     insertCmd.Parameters.AddWithValue("now", now);
-                    insertCmd.Parameters.AddWithValue("iid", itemId);
                     insertCmd.Parameters.AddWithValue("sid", infra.Sku1Id);
                     await insertCmd.ExecuteNonQueryAsync();
                 }
@@ -1890,20 +3523,74 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
                 var check = await migrator.InitializeOrBaselineDatabaseAsync(adminConnStr);
                 check.Success.Should().BeTrue();
 
-                // 5. Thao tác trên chứng từ legacy qua API: Cancel thành công
+                // 5. Đối soát lịch sử Confirmed cũ: không tự sinh adjustment / link giả
+                await using (var verifyCmd = new NpgsqlCommand(@"
+                    SELECT status, generated_adjustment_id FROM public.stock_counts WHERE id = @id;", adminConn))
+                {
+                    verifyCmd.Parameters.AddWithValue("id", legacyConfirmedId);
+                    await using var reader = await verifyCmd.ExecuteReaderAsync();
+                    (await reader.ReadAsync()).Should().BeTrue();
+                    reader.GetString(0).Should().Be("Confirmed");
+                    reader.IsDBNull(1).Should().BeTrue("Lịch sử Confirmed cũ không bị tự tạo adjustment/link giả.");
+                }
+
                 var ownerToken = await LoginAsAsync("owner@shopa.local", PostgresTestEnvironment.AppPassword);
                 _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
 
-                var cancelRes = await _client.PostAsJsonAsync($"/api/stock-counts/{legacyId}/cancel", new CancelStockCountRequestDto { Reason = "Legacy Cancel" });
+                // Thao tác Confirm/Cancel trên phiếu Confirmed cũ đều bị từ chối 409 INVALID_STATE_TRANSITION
+                var badReconfirm = await _client.PostAsJsonAsync($"/api/stock-counts/{legacyConfirmedId}/confirm", new ConfirmStockCountRequestDto());
+                badReconfirm.StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+                var badCancelConf = await _client.PostAsJsonAsync($"/api/stock-counts/{legacyConfirmedId}/cancel", new CancelStockCountRequestDto());
+                badCancelConf.StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+                // 6. Thao tác trên phiếu Draft legacy: Record chuyển trạng thái sang Counting, Cancel thành công
+                var recRes = await _client.PostAsJsonAsync($"/api/stock-counts/{legacyDraftId}/record", new RecordStockCountBatchRequestDto
+                {
+                    Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 11m } }
+                });
+                recRes.StatusCode.Should().Be(HttpStatusCode.OK);
+
+                var cancelRes = await _client.PostAsJsonAsync($"/api/stock-counts/{legacyDraftId}/cancel", new CancelStockCountRequestDto { Reason = "Legacy Cancel" });
                 cancelRes.StatusCode.Should().Be(HttpStatusCode.OK);
 
+                // 7. Thao tác trên phiếu Counting legacy: Confirm thành công, tạo đúng 1 adjustment và liên kết generated_adjustment_id
+                var confRes = await _client.PostAsJsonAsync($"/api/stock-counts/{legacyCountingId}/confirm", new ConfirmStockCountRequestDto());
+                confRes.StatusCode.Should().Be(HttpStatusCode.OK, "Phiếu Counting legacy phải confirm thành công sau nâng cấp schema.");
+                var confData = await confRes.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
+                confData!.Status.Should().Be("Confirmed");
+                confData.GeneratedAdjustmentId.Should().NotBeNull();
+
+                // Đối soát DB: link trỏ đến bản ghi inventory_adjustments hợp lệ
                 await using (var verifyCmd = new NpgsqlCommand(@"
-                    SELECT status FROM public.stock_counts WHERE id = @id;", adminConn))
+                    SELECT COUNT(*) FROM public.inventory_adjustments WHERE id = @adjId;", adminConn))
                 {
-                    verifyCmd.Parameters.AddWithValue("id", legacyId);
-                    var status = (string)(await verifyCmd.ExecuteScalarAsync())!;
-                    status.Should().Be("Cancelled");
+                    verifyCmd.Parameters.AddWithValue("adjId", confData.GeneratedAdjustmentId!.Value);
+                    var count = (long)(await verifyCmd.ExecuteScalarAsync())!;
+                    count.Should().Be(1, "Phiếu điều chỉnh tồn được sinh thực tế trong CSDL.");
                 }
+
+                // 8. Đối soát ràng buộc FK và Unique (AC-11)
+                // 8.1. FK: Gán generated_adjustment_id không tồn tại -> bắt được PostgresException 23503
+                var actFkViolation = async () =>
+                {
+                    await using var fkCmd = new NpgsqlCommand(@"
+                        UPDATE public.stock_counts SET generated_adjustment_id = gen_random_uuid() WHERE id = @id;", adminConn);
+                    fkCmd.Parameters.AddWithValue("id", legacyDraftId);
+                    await fkCmd.ExecuteNonQueryAsync();
+                };
+                (await actFkViolation.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("23503", "Vi phạm khóa ngoại fk_stock_counts_generated_adjustment.");
+
+                // 8.2. Unique: Gán trùng generated_adjustment_id cho 2 phiếu khác nhau -> bắt được PostgresException 23505
+                var actUniqueViolation = async () =>
+                {
+                    await using var uqCmd = new NpgsqlCommand(@"
+                        UPDATE public.stock_counts SET generated_adjustment_id = @existingAdjId WHERE id = @id;", adminConn);
+                    uqCmd.Parameters.AddWithValue("existingAdjId", confData.GeneratedAdjustmentId!.Value);
+                    uqCmd.Parameters.AddWithValue("id", legacyDraftId);
+                    await uqCmd.ExecuteNonQueryAsync();
+                };
+                (await actUniqueViolation.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("23505", "Vi phạm ràng buộc duy nhất uq_stock_counts_4.");
             }
         }
         finally

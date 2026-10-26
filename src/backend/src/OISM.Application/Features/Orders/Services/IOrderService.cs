@@ -16,9 +16,15 @@ public interface IOrderService
 
     /// <summary>
     /// Tạo đơn hàng thủ công hoặc tiếp nhận đơn: Khởi tạo Order 'Draft'/'Reserved' và giữ chỗ tồn kho.
-    /// Bắt buộc RequestKey ổn định từ client.
+    /// Bắt buộc RequestKey ổn định từ client. Kênh 'Admin' bắt buộc khớp giá bán lẻ catalog.
     /// </summary>
     Task<OrderResponseDto> CreateOrderAsync(CreateOrderRequestDto dto, Guid? createdByUserId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Tiếp nhận và tạo đơn hàng từ Webhook sàn TMĐT (Shopee, TikTok, Lazada) ở trạng thái 'Reserved'
+    /// với cùng lõi phân bổ kho và giữ chỗ tồn kho nguyên tử như đơn hàng Admin, sử dụng giá sàn TMĐT tin cậy từ server.
+    /// </summary>
+    Task<OrderResponseDto> CreateMarketplaceReservedOrderAsync(InternalMarketplaceOrderContext context, CancellationToken ct = default);
 
     /// <summary>
     /// Duyệt đơn hàng ('Reserved' -> 'Confirmed'): Trừ tồn kho on_hand, giảm reserved, ghi Sổ cái OUT và chốt giá vốn WAC snapshot.
@@ -49,5 +55,10 @@ public interface IOrderService
     /// <summary>
     /// Tác vụ nền (Hangfire Worker): Tự động quét và giải phóng các phiếu giữ chỗ quá hạn TTL (15 phút).
     /// </summary>
-    Task<int> ExpireOverdueReservationsAsync(CancellationToken ct = default);
+    Task<int> ExpireOverdueReservationsAsync(DateTimeOffset? cutoffUtc = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// Thống kê chi tiết kết quả xử lý batch của lượt quét hết hạn gần nhất trên instance hiện tại.
+    /// </summary>
+    BatchExecutionStats LastExecutionStats { get; }
 }

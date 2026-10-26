@@ -387,6 +387,7 @@ CREATE TABLE "orders" (
   "shipping_address" text,
   "total_amount" numeric(20,2) DEFAULT 0 NOT NULL,
   "request_key" uuid NOT NULL,
+  "webhook_payload_signature" varchar(64),
   "created_by" uuid,
   "confirmed_at" timestamptz,
   "completed_at" timestamptz,
@@ -597,6 +598,24 @@ CREATE TABLE "replenishment_suggestions" (
   CONSTRAINT "ck_replenishment_suggestions_suggested_quantity_nonnegative" CHECK (suggested_quantity >= 0)
 );
 
+
+-- Cấu hình tích hợp gian hàng sàn TMĐT (Shopee, TikTok Shop, Lazada).
+CREATE TABLE "shop_integrations" (
+  "id" uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+  "tenant_id" uuid NOT NULL,
+  "channel" varchar(20) NOT NULL,
+  "external_shop_id" varchar(100) NOT NULL,
+  "branch_id" uuid NOT NULL,
+  "is_active" boolean DEFAULT true NOT NULL,
+  "secret_hash" varchar(255) NOT NULL,
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  "updated_at" timestamptz,
+  CONSTRAINT "uq_shop_integrations_1" UNIQUE ("tenant_id", "id"),
+  CONSTRAINT "uq_shop_integrations_2" UNIQUE ("tenant_id", "channel", "external_shop_id"),
+  CONSTRAINT "uq_shop_integrations_secret_hash" UNIQUE ("secret_hash"),
+  CONSTRAINT "ck_shop_integrations_channel" CHECK (channel IN ('Shopee', 'TikTok', 'Lazada'))
+);
+
 -- Add foreign keys after all tables exist (including intentional circular references).
 ALTER TABLE "users" ADD CONSTRAINT "fk_users_tenant_id" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 ALTER TABLE "refresh_tokens" ADD CONSTRAINT "fk_refresh_tokens_tenant_id" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
@@ -693,6 +712,9 @@ ALTER TABLE "daily_sales_summaries" ADD CONSTRAINT "fk_daily_sales_summaries_sku
 ALTER TABLE "replenishment_suggestions" ADD CONSTRAINT "fk_replenishment_suggestions_tenant_id" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 ALTER TABLE "replenishment_suggestions" ADD CONSTRAINT "fk_replenishment_suggestions_branch_id" FOREIGN KEY ("tenant_id", "branch_id") REFERENCES "branches" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 ALTER TABLE "replenishment_suggestions" ADD CONSTRAINT "fk_replenishment_suggestions_sku_id" FOREIGN KEY ("tenant_id", "sku_id") REFERENCES "skus" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+
+ALTER TABLE "shop_integrations" ADD CONSTRAINT "fk_shop_integrations_tenant" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "shop_integrations" ADD CONSTRAINT "fk_shop_integrations_branch" FOREIGN KEY ("tenant_id", "branch_id") REFERENCES "branches" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 
 -- Query and partial unique indexes.
 CREATE INDEX "ix_skus_product" ON "skus" ("tenant_id", "product_id");
@@ -892,8 +914,8 @@ END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='oisms_runtime') THEN CREATE ROLE oisms_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS; END IF; END $$;
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA public TO oisms_runtime;
-REVOKE ALL ON public."tenants", public."users", public."refresh_tokens", public."branches", public."warehouses", public."categories", public."brands", public."products", public."skus", public."suppliers", public."goods_receipts", public."goods_receipt_items", public."inventory_balances", public."warehouse_inventory_balances", public."stock_transfers", public."stock_transfer_items", public."stock_counts", public."stock_count_items", public."inventory_adjustments", public."inventory_adjustment_items", public."orders", public."order_items", public."reservations", public."payments", public."sales_returns", public."sales_return_items", public."inventory_transactions", public."daily_sales_summaries", public."replenishment_suggestions" FROM PUBLIC, oisms_runtime;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public."tenants", public."users", public."refresh_tokens", public."branches", public."warehouses", public."categories", public."brands", public."products", public."skus", public."suppliers", public."goods_receipts", public."goods_receipt_items", public."inventory_balances", public."warehouse_inventory_balances", public."stock_transfers", public."stock_transfer_items", public."stock_counts", public."stock_count_items", public."inventory_adjustments", public."inventory_adjustment_items", public."orders", public."order_items", public."reservations", public."payments", public."sales_returns", public."sales_return_items", public."inventory_transactions", public."daily_sales_summaries", public."replenishment_suggestions" TO oisms_runtime;
+REVOKE ALL ON public."tenants", public."users", public."refresh_tokens", public."branches", public."warehouses", public."categories", public."brands", public."products", public."skus", public."suppliers", public."goods_receipts", public."goods_receipt_items", public."inventory_balances", public."warehouse_inventory_balances", public."stock_transfers", public."stock_transfer_items", public."stock_counts", public."stock_count_items", public."inventory_adjustments", public."inventory_adjustment_items", public."orders", public."order_items", public."reservations", public."payments", public."sales_returns", public."sales_return_items", public."inventory_transactions", public."daily_sales_summaries", public."replenishment_suggestions", public."shop_integrations" FROM PUBLIC, oisms_runtime;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public."tenants", public."users", public."refresh_tokens", public."branches", public."warehouses", public."categories", public."brands", public."products", public."skus", public."suppliers", public."goods_receipts", public."goods_receipt_items", public."inventory_balances", public."warehouse_inventory_balances", public."stock_transfers", public."stock_transfer_items", public."stock_counts", public."stock_count_items", public."inventory_adjustments", public."inventory_adjustment_items", public."orders", public."order_items", public."reservations", public."payments", public."sales_returns", public."sales_return_items", public."inventory_transactions", public."daily_sales_summaries", public."replenishment_suggestions", public."shop_integrations" TO oisms_runtime;
 REVOKE UPDATE, DELETE, TRUNCATE ON public.inventory_transactions FROM oisms_runtime;
 REVOKE DELETE, TRUNCATE ON public.inventory_balances, public.warehouse_inventory_balances, public.reservations FROM oisms_runtime;
 -- Balance writes are allowed only when deferred checks reconcile ledger/reservations at COMMIT.

@@ -38,6 +38,7 @@ public interface IAppDbContext
     DbSet<StockCountItem> StockCountItems { get; }
     DbSet<InventoryAdjustment> InventoryAdjustments { get; }
     DbSet<InventoryAdjustmentItem> InventoryAdjustmentItems { get; }
+    DbSet<ShopIntegration> ShopIntegrations { get; }
 
     int SaveChanges();
     int SaveChanges(bool acceptAllChangesOnSuccess);

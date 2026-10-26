@@ -1,3 +1,4 @@
+using OISM.Application.Features.Realtime;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
@@ -23,18 +24,21 @@ public class StockTransferService : IStockTransferService
     private readonly IAppDbContext _context;
     private readonly ICurrentTenantService _tenantService;
     private readonly IWacCalculator _wacCalculator;
+    private readonly IRealtimeNotifier? _realtimeNotifier;
     private readonly ILogger<StockTransferService> _logger;
 
     public StockTransferService(
         IAppDbContext context,
         ICurrentTenantService tenantService,
         IWacCalculator wacCalculator,
-        ILogger<StockTransferService> logger)
+        ILogger<StockTransferService> logger,
+        IRealtimeNotifier? realtimeNotifier = null)
     {
         _context = context;
         _tenantService = tenantService;
         _wacCalculator = wacCalculator;
         _logger = logger;
+        _realtimeNotifier = realtimeNotifier;
     }
 
     public async Task<StockTransferResponseDto> CreateTransferAsync(
@@ -324,9 +328,11 @@ public class StockTransferService : IStockTransferService
             throw new OismException("UNAUTHORIZED", "Không xác định được danh tính Tenant.", 401);
         }
 
+        List<Func<Task>> pendingNotifications = new();
         var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        var result = await strategy.ExecuteAsync(async () =>
         {
+            pendingNotifications.Clear();
             _context.ClearChangeTracker();
             await using var tx = await _context.BeginTransactionAsync(ct);
             try
@@ -431,14 +437,33 @@ public class StockTransferService : IStockTransferService
                     }
 
                     // 3. Trừ OnHand tại kho xuất và chi nhánh xuất
-                    var newSequence = bBal!.LastSequence + 1;
+                    var prevAvail = bBal!.OnHand - bBal.Reserved;
+                    var newSequence = bBal.LastSequence + 1;
                     bBal.OnHand -= item.Quantity;
                     bBal.LastSequence = newSequence;
                     bBal.UpdatedAt = now;
 
+                    var newAvail = bBal.OnHand - bBal.Reserved;
+
                     wBal!.OnHand -= item.Quantity;
                     wBal.LastSequence = newSequence;
                     wBal.UpdatedAt = now;
+
+                    if (_realtimeNotifier != null)
+                    {
+                        var skuIdCapture = item.SkuId;
+                        var branchIdCapture = transfer.FromBranchId;
+                        var reorderPoint = bBal.ReorderPoint;
+                        var skuCodeCapture = skuCode;
+                        var tid = tenantId.Value;
+
+                        pendingNotifications.Add(() => _realtimeNotifier.NotifyStockChangedAsync(tid, branchIdCapture, skuIdCapture, newAvail, ct));
+
+                        if (prevAvail > reorderPoint && newAvail <= reorderPoint)
+                        {
+                            pendingNotifications.Add(() => _realtimeNotifier.NotifyLowStockAlertAsync(tid, branchIdCapture, skuIdCapture, skuCodeCapture, newAvail, reorderPoint, ct));
+                        }
+                    }
 
                     // 4. Snapshot WAC từ Chi nhánh xuất vào Item (giữ nguyên độ chính xác 6 số thập phân)
                     var snapshottedWac = Math.Round(bBal.AverageCost, 6, MidpointRounding.AwayFromZero);
@@ -483,6 +508,23 @@ public class StockTransferService : IStockTransferService
                 throw;
             }
         });
+
+        if (pendingNotifications.Count > 0)
+        {
+            foreach (var notifyAction in pendingNotifications)
+            {
+                try
+                {
+                    await notifyAction();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Lá»—i khi phÃ¡t sá»± kiá»‡n Realtime sau xuáº¥t chuyá»ƒn kho {TransferId}.", transferId);
+                }
+            }
+        }
+
+        return result;
     }
 
     public async Task<StockTransferResponseDto> ReceiveTransferAsync(
@@ -497,9 +539,11 @@ public class StockTransferService : IStockTransferService
             throw new OismException("UNAUTHORIZED", "Không xác định được danh tính Tenant.", 401);
         }
 
+        List<Func<Task>> pendingNotifications = new();
         var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        var result = await strategy.ExecuteAsync(async () =>
         {
+            pendingNotifications.Clear();
             _context.ClearChangeTracker();
             await using var tx = await _context.BeginTransactionAsync(ct);
             try
@@ -649,6 +693,15 @@ public class StockTransferService : IStockTransferService
                         wBal.UpdatedAt = now;
                     }
 
+                    if (_realtimeNotifier != null)
+                    {
+                        var skuIdCapture = item.SkuId;
+                        var toBranchId = transfer.ToBranchId;
+                        var tid = tenantId.Value;
+                        var newAvail = bBal.OnHand - bBal.Reserved;
+                        pendingNotifications.Add(() => _realtimeNotifier.NotifyStockChangedAsync(tid, toBranchId, skuIdCapture, newAvail, ct));
+                    }
+
                     // 3. Ghi nhận giao dịch Sổ cái IN (TransferIn)
                     var txIn = new InventoryTransaction
                     {
@@ -689,6 +742,23 @@ public class StockTransferService : IStockTransferService
                 throw;
             }
         });
+
+        if (pendingNotifications.Count > 0)
+        {
+            foreach (var notifyAction in pendingNotifications)
+            {
+                try
+                {
+                    await notifyAction();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Lá»—i khi phÃ¡t sá»± kiá»‡n Realtime sau tiáº¿p nháº­n chuyá»ƒn kho {TransferId}.", transferId);
+                }
+            }
+        }
+
+        return result;
     }
 
     public async Task<StockTransferResponseDto> CancelTransferAsync(

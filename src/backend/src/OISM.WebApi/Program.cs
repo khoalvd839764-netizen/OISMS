@@ -6,6 +6,7 @@ using Microsoft.OpenApi;
 using Npgsql;
 using OISM.Application.Common.Interfaces;
 using OISM.Domain.Entities;
+using OISM.Infrastructure.Jobs;
 using OISM.Infrastructure.Persistence;
 using OISM.Infrastructure.Services;
 
@@ -40,6 +41,10 @@ builder.Services.AddScoped<OISM.Application.Features.Orders.Services.IPosCheckou
 builder.Services.AddScoped<OISM.Application.Features.Orders.Services.IOrderService, OISM.Application.Features.Orders.Services.OrderService>();
 builder.Services.AddScoped<OISM.Application.Features.StockTransfers.Services.IStockTransferService, OISM.Application.Features.StockTransfers.Services.StockTransferService>();
 builder.Services.AddScoped<OISM.Application.Features.StockCounts.Services.IStockCountService, OISM.Application.Features.StockCounts.Services.StockCountService>();
+builder.Services.AddScoped<OISM.Application.Features.Realtime.IRealtimeNotifier, OISM.WebApi.Services.RealtimeNotifier>();
+builder.Services.AddScoped<OISM.Application.Features.Webhooks.Services.IWebhookService, OISM.Application.Features.Webhooks.Services.WebhookService>();
+builder.Services.AddSignalR();
+builder.Services.AddOismHangfire(builder.Configuration);
 
 // 3. Cấu hình Xác thực JWT Bearer (FR-AUTH-02, NFR-SEC-01)
 var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "SuperSecretKeyForOISMOmnichannelRetailSystem2026!#";
@@ -65,6 +70,19 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = jwtAudience,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
         ClockSkew = TimeSpan.Zero
+    };
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs/notifications"))
+            {
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        }
     };
 });
 
@@ -208,9 +226,11 @@ app.UseCors("AllowFrontendApps");
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseOismHangfire(builder.Configuration);
 
 // Controllers API (Auth, Products, Categories, Brands, POS, Branches, Suppliers)
 app.MapControllers();
+app.MapHub<OISM.WebApi.Hubs.NotificationHub>("/hubs/notifications");
 
 // Root endpoint
 app.MapGet("/", () => Results.Ok(new
@@ -276,7 +296,7 @@ public class NpgsqlDatabaseReadinessService : IDatabaseReadinessService
         "stock_counts", "stock_count_items", "inventory_adjustments",
         "inventory_adjustment_items", "orders", "order_items", "reservations",
         "payments", "sales_returns", "sales_return_items", "inventory_transactions",
-        "daily_sales_summaries", "replenishment_suggestions"
+        "daily_sales_summaries", "replenishment_suggestions", "shop_integrations"
     };
 
     public NpgsqlDatabaseReadinessService(IConfiguration configuration, ILogger<NpgsqlDatabaseReadinessService> logger)

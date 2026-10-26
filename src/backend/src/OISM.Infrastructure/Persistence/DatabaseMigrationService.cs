@@ -87,7 +87,8 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         "sales_return_items",
         "inventory_transactions",
         "daily_sales_summaries",
-        "replenishment_suggestions"
+        "replenishment_suggestions",
+        "shop_integrations"
     ];
 
     public static readonly ExpectedTrigger[] ExpectedTriggers =
@@ -168,7 +169,9 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         new("fk_order_items_tenant_id", "order_items", ["tenant_id"], "tenants", ["id"]),
         new("fk_order_items_order_id", "order_items", ["tenant_id", "order_id"], "orders", ["tenant_id", "id"]),
         new("fk_order_items_sku_id", "order_items", ["tenant_id", "sku_id"], "skus", ["tenant_id", "id"]),
-        new("fk_stock_counts_generated_adjustment", "stock_counts", ["tenant_id", "generated_adjustment_id", "branch_id", "warehouse_id"], "inventory_adjustments", ["tenant_id", "id", "branch_id", "warehouse_id"])
+        new("fk_stock_counts_generated_adjustment", "stock_counts", ["tenant_id", "generated_adjustment_id", "branch_id", "warehouse_id"], "inventory_adjustments", ["tenant_id", "id", "branch_id", "warehouse_id"]),
+        new("fk_shop_integrations_tenant", "shop_integrations", ["tenant_id"], "tenants", ["id"]),
+        new("fk_shop_integrations_branch", "shop_integrations", ["tenant_id", "branch_id"], "branches", ["tenant_id", "id"])
     ];
 
     public static readonly ExpectedConstraint[] ExpectedCriticalConstraints =
@@ -219,7 +222,11 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         new("uq_stock_transfers_3", 'u', "stock_transfers", Columns: ["tenant_id", "request_key"]),
         new("uq_stock_counts_3", 'u', "stock_counts", Columns: ["tenant_id", "request_key"]),
         new("uq_stock_counts_4", 'u', "stock_counts", Columns: ["tenant_id", "generated_adjustment_id"]),
-        new("uq_inventory_adjustments_3", 'u', "inventory_adjustments", Columns: ["tenant_id", "id", "branch_id", "warehouse_id"])
+        new("uq_inventory_adjustments_3", 'u', "inventory_adjustments", Columns: ["tenant_id", "id", "branch_id", "warehouse_id"]),
+        new("uq_shop_integrations_2", 'u', "shop_integrations", Columns: ["tenant_id", "channel", "external_shop_id"]),
+        new("uq_shop_integrations_secret_hash", 'u', "shop_integrations", Columns: ["secret_hash"]),
+        new("ck_shop_integrations_channel", 'c', "shop_integrations", ExpectedNormalizedExpression: "((channel)::text = ANY ((ARRAY['Shopee'::character varying, 'TikTok'::character varying, 'Lazada'::character varying])::text[]))"),
+        new("uq_orders_4", 'u', "orders", Columns: ["tenant_id", "channel", "external_shop_id", "external_order_id"])
     ];
 
 
@@ -232,12 +239,48 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         await using var tx = await connection.BeginTransactionAsync(cancellationToken);
         try
         {
+            // Kiểm tra trùng lặp secret_hash nếu bảng shop_integrations đã tồn tại
+            const string checkDupSql = @"
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'shop_integrations'
+    ) THEN
+        IF EXISTS (
+            SELECT secret_hash FROM shop_integrations GROUP BY secret_hash HAVING count(*) > 1
+        ) THEN
+            RAISE EXCEPTION 'Phát hiện trùng lặp secret_hash trong shop_integrations. Yêu cầu xử lý thủ công trước khi áp dụng ràng buộc duy nhất uq_shop_integrations_secret_hash.';
+        END IF;
+    END IF;
+END $$;";
+            await using (var checkCmd = new NpgsqlCommand(checkDupSql, connection, tx))
+            {
+                await checkCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
             const string upgradeSql = @"
 ALTER TABLE stock_transfers ADD COLUMN IF NOT EXISTS request_key uuid;
 ALTER TABLE stock_transfers ADD COLUMN IF NOT EXISTS payload_signature varchar(128);
 ALTER TABLE stock_counts ADD COLUMN IF NOT EXISTS request_key uuid;
 ALTER TABLE stock_counts ADD COLUMN IF NOT EXISTS payload_signature varchar(128);
 ALTER TABLE stock_counts ADD COLUMN IF NOT EXISTS generated_adjustment_id uuid;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS webhook_payload_signature varchar(64);
+CREATE TABLE IF NOT EXISTS shop_integrations (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    channel varchar(20) NOT NULL,
+    external_shop_id varchar(100) NOT NULL,
+    branch_id uuid NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    secret_hash varchar(255) NOT NULL,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz,
+    CONSTRAINT uq_shop_integrations_1 UNIQUE (tenant_id, id),
+    CONSTRAINT uq_shop_integrations_2 UNIQUE (tenant_id, channel, external_shop_id),
+    CONSTRAINT uq_shop_integrations_secret_hash UNIQUE (secret_hash),
+    CONSTRAINT ck_shop_integrations_channel CHECK (channel IN ('Shopee', 'TikTok', 'Lazada'))
+);
 DO $$ 
 BEGIN 
     IF NOT EXISTS (
@@ -268,6 +311,27 @@ BEGIN
         REFERENCES inventory_adjustments (tenant_id, id, branch_id, warehouse_id) 
         ON DELETE RESTRICT ON UPDATE NO ACTION; 
     END IF; 
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_shop_integrations_tenant'
+    ) THEN 
+        ALTER TABLE shop_integrations ADD CONSTRAINT fk_shop_integrations_tenant 
+        FOREIGN KEY (tenant_id) REFERENCES tenants (id) ON DELETE RESTRICT ON UPDATE NO ACTION; 
+    END IF; 
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'fk_shop_integrations_branch'
+    ) THEN 
+        ALTER TABLE shop_integrations ADD CONSTRAINT fk_shop_integrations_branch 
+        FOREIGN KEY (tenant_id, branch_id) REFERENCES branches (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION; 
+    END IF; 
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'uq_shop_integrations_secret_hash'
+    ) THEN 
+        ALTER TABLE shop_integrations ADD CONSTRAINT uq_shop_integrations_secret_hash UNIQUE (secret_hash); 
+    END IF; 
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'oisms_runtime') THEN
+        REVOKE ALL ON TABLE shop_integrations FROM oisms_runtime;
+        GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE shop_integrations TO oisms_runtime;
+    END IF; 
 END $$;
 ";
             await using (var cmd = new NpgsqlCommand(upgradeSql, connection, tx))
@@ -280,7 +344,7 @@ END $$;
                 IsFreshInstall: false,
                 IsBaselineAdopted: false,
                 TableCount: RequiredTables.Length,
-                Message: "Nâng cấp schema v0.5 stock_transfers thành công.");
+                Message: "Nâng cấp schema v0.5 stock_transfers và shop_integrations thành công.");
         }
         catch (Exception ex)
         {
@@ -355,7 +419,7 @@ END $$;
                     IsFreshInstall: true,
                     IsBaselineAdopted: false,
                     TableCount: RequiredTables.Length,
-                    Message: $"Cài mới thành công 29 bảng schema v0.5 và ghi nhận baseline '{InitialBaselineMigrationId}'.");
+                    Message: $"Cài mới thành công {RequiredTables.Length} bảng schema v0.5 và ghi nhận baseline '{InitialBaselineMigrationId}'.");
             }
             catch (Exception ex)
             {
@@ -398,7 +462,7 @@ END $$;
                     IsFreshInstall: false,
                     IsBaselineAdopted: true,
                     TableCount: businessTables.Count,
-                    Message: $"Xác minh thành công 29 bảng, trigger, function và quyền runtime schema v0.5. Đã tiếp nhận baseline '{InitialBaselineMigrationId}'.");
+                    Message: $"Xác minh thành công {RequiredTables.Length} bảng, trigger, function và quyền runtime schema v0.5. Đã tiếp nhận baseline '{InitialBaselineMigrationId}'.");
             }
             catch (Exception ex)
             {
@@ -779,18 +843,19 @@ WHERE n.nspname = 'public';";
 
         // 6. Kiểm tra các cột trọng yếu của schema v0.5
         const string checkColumnsSql = @"
-SELECT table_name, column_name, data_type, COALESCE(character_maximum_length, 0)
+SELECT table_name, column_name, data_type, COALESCE(character_maximum_length, 0), is_nullable
 FROM information_schema.columns 
 WHERE table_schema = 'public';";
 
-        var columnMap = new Dictionary<string, (string DataType, int MaxLength)>(StringComparer.OrdinalIgnoreCase);
+        var columnMap = new Dictionary<string, (string DataType, int MaxLength, bool IsNullable)>(StringComparer.OrdinalIgnoreCase);
         await using (var cmd = new NpgsqlCommand(checkColumnsSql, connection, tx))
         await using (var reader = await cmd.ExecuteReaderAsync(ct))
         {
             while (await reader.ReadAsync(ct))
             {
                 var key = $"{reader.GetString(0)}.{reader.GetString(1)}";
-                columnMap[key] = (reader.GetString(2), reader.GetInt32(3));
+                var isNullable = string.Equals(reader.GetString(4), "YES", StringComparison.OrdinalIgnoreCase);
+                columnMap[key] = (reader.GetString(2), reader.GetInt32(3), isNullable);
             }
         }
 
@@ -800,7 +865,10 @@ WHERE table_schema = 'public';";
             "inventory_transactions.sequence_no", "inventory_transactions.balance_after", "inventory_transactions.type",
             "inventory_balances.on_hand", "inventory_balances.reserved", "inventory_balances.average_cost", "inventory_balances.last_sequence",
             "stock_transfers.request_key", "stock_transfers.payload_signature",
-            "stock_counts.request_key", "stock_counts.payload_signature", "stock_counts.generated_adjustment_id"
+            "stock_counts.request_key", "stock_counts.payload_signature", "stock_counts.generated_adjustment_id",
+            "orders.webhook_payload_signature",
+            "shop_integrations.channel", "shop_integrations.external_shop_id", "shop_integrations.branch_id",
+            "shop_integrations.is_active", "shop_integrations.secret_hash"
         ];
         foreach (var col in crucialColumns)
         {
@@ -850,6 +918,90 @@ WHERE table_schema = 'public';";
             }
         }
 
+        if (columnMap.TryGetValue("orders.webhook_payload_signature", out var whSigCol))
+        {
+            if (!string.Equals(whSigCol.DataType, "character varying", StringComparison.OrdinalIgnoreCase) || whSigCol.MaxLength < 64)
+            {
+                errors.Add($"Cột 'orders.webhook_payload_signature' sai kiểu dữ liệu hoặc độ dài (thực tế='{whSigCol.DataType}({whSigCol.MaxLength})', kỳ vọng='character varying(64)').");
+            }
+            if (!whSigCol.IsNullable)
+            {
+                errors.Add($"Cột 'orders.webhook_payload_signature' sai nullability (thực tế='NOT NULL', kỳ vọng='NULL / nullable cho legacy/POS/Admin').");
+            }
+        }
+
+        if (columnMap.TryGetValue("shop_integrations.secret_hash", out var siSecretCol))
+        {
+            if (!string.Equals(siSecretCol.DataType, "character varying", StringComparison.OrdinalIgnoreCase) || siSecretCol.MaxLength < 255)
+            {
+                errors.Add($"Cột 'shop_integrations.secret_hash' sai kiểu dữ liệu hoặc độ dài (thực tế='{siSecretCol.DataType}({siSecretCol.MaxLength})', kỳ vọng='character varying(255)').");
+            }
+            if (siSecretCol.IsNullable)
+            {
+                errors.Add($"Cột 'shop_integrations.secret_hash' sai nullability (thực tế='NULL', kỳ vọng='NOT NULL').");
+            }
+        }
+
+        if (columnMap.TryGetValue("shop_integrations.channel", out var siChannelCol))
+        {
+            if (!string.Equals(siChannelCol.DataType, "character varying", StringComparison.OrdinalIgnoreCase) || siChannelCol.MaxLength < 20)
+            {
+                errors.Add($"Cột 'shop_integrations.channel' sai kiểu dữ liệu hoặc độ dài (thực tế='{siChannelCol.DataType}({siChannelCol.MaxLength})', kỳ vọng='character varying(20)').");
+            }
+            if (siChannelCol.IsNullable)
+            {
+                errors.Add($"Cột 'shop_integrations.channel' sai nullability (thực tế='NULL', kỳ vọng='NOT NULL').");
+            }
+        }
+
+        if (columnMap.TryGetValue("shop_integrations.external_shop_id", out var siShopCol))
+        {
+            if (!string.Equals(siShopCol.DataType, "character varying", StringComparison.OrdinalIgnoreCase) || siShopCol.MaxLength < 100)
+            {
+                errors.Add($"Cột 'shop_integrations.external_shop_id' sai kiểu dữ liệu hoặc độ dài (thực tế='{siShopCol.DataType}({siShopCol.MaxLength})', kỳ vọng='character varying(100)').");
+            }
+            if (siShopCol.IsNullable)
+            {
+                errors.Add($"Cột 'shop_integrations.external_shop_id' sai nullability (thực tế='NULL', kỳ vọng='NOT NULL').");
+            }
+        }
+
+        if (columnMap.TryGetValue("shop_integrations.branch_id", out var siBranchCol))
+        {
+            if (!string.Equals(siBranchCol.DataType, "uuid", StringComparison.OrdinalIgnoreCase))
+            {
+                errors.Add($"Cột 'shop_integrations.branch_id' sai kiểu dữ liệu (thực tế='{siBranchCol.DataType}', kỳ vọng='uuid').");
+            }
+            if (siBranchCol.IsNullable)
+            {
+                errors.Add($"Cột 'shop_integrations.branch_id' sai nullability (thực tế='NULL', kỳ vọng='NOT NULL').");
+            }
+        }
+
+        if (columnMap.TryGetValue("shop_integrations.is_active", out var siActiveCol))
+        {
+            if (!string.Equals(siActiveCol.DataType, "boolean", StringComparison.OrdinalIgnoreCase))
+            {
+                errors.Add($"Cột 'shop_integrations.is_active' sai kiểu dữ liệu (thực tế='{siActiveCol.DataType}', kỳ vọng='boolean').");
+            }
+            if (siActiveCol.IsNullable)
+            {
+                errors.Add($"Cột 'shop_integrations.is_active' sai nullability (thực tế='NULL', kỳ vọng='NOT NULL').");
+            }
+        }
+
+        if (columnMap.TryGetValue("shop_integrations.tenant_id", out var siTenantCol))
+        {
+            if (!string.Equals(siTenantCol.DataType, "uuid", StringComparison.OrdinalIgnoreCase))
+            {
+                errors.Add($"Cột 'shop_integrations.tenant_id' sai kiểu dữ liệu (thực tế='{siTenantCol.DataType}', kỳ vọng='uuid').");
+            }
+            if (siTenantCol.IsNullable)
+            {
+                errors.Add($"Cột 'shop_integrations.tenant_id' sai nullability (thực tế='NULL', kỳ vọng='NOT NULL').");
+            }
+        }
+
         // 7. Kiểm tra quyền role runtime oisms_runtime
         const string checkRuntimeRoleSql = "SELECT 1 FROM pg_roles WHERE rolname = 'oisms_runtime';";
         await using (var cmd = new NpgsqlCommand(checkRuntimeRoleSql, connection, tx))
@@ -876,6 +1028,24 @@ WHERE grantee = 'oisms_runtime'
             while (await reader.ReadAsync(ct))
             {
                 errors.Add($"Vi phạm an ninh quyền runtime: 'oisms_runtime' bị cấp quyền '{reader.GetString(0)}' trên bảng append-only 'inventory_transactions'.");
+            }
+        }
+
+        // Kiểm tra oisms_runtime CÓ quyền SELECT trên shop_integrations
+        const string checkShopIntegrationsGrantSql = @"
+SELECT 1 
+FROM information_schema.role_table_grants 
+WHERE grantee = 'oisms_runtime' 
+  AND table_schema = 'public' 
+  AND table_name = 'shop_integrations' 
+  AND privilege_type = 'SELECT';";
+
+        await using (var cmdGrant = new NpgsqlCommand(checkShopIntegrationsGrantSql, connection, tx))
+        {
+            var hasSelect = await cmdGrant.ExecuteScalarAsync(ct);
+            if (hasSelect == null)
+            {
+                errors.Add("Role 'oisms_runtime' thiếu quyền SELECT trên bảng 'shop_integrations'.");
             }
         }
 

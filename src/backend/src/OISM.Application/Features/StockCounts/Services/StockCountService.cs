@@ -1,3 +1,4 @@
+using OISM.Application.Features.Realtime;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
@@ -25,18 +26,21 @@ public class StockCountService : IStockCountService
     private readonly IAppDbContext _context;
     private readonly ICurrentTenantService _tenantService;
     private readonly IWacCalculator _wacCalculator;
+    private readonly IRealtimeNotifier? _realtimeNotifier;
     private readonly ILogger<StockCountService> _logger;
 
     public StockCountService(
         IAppDbContext context,
         ICurrentTenantService tenantService,
         IWacCalculator wacCalculator,
-        ILogger<StockCountService> logger)
+        ILogger<StockCountService> logger,
+        IRealtimeNotifier? realtimeNotifier = null)
     {
         _context = context;
         _tenantService = tenantService;
         _wacCalculator = wacCalculator;
         _logger = logger;
+        _realtimeNotifier = realtimeNotifier;
     }
 
     public async Task<StockCountResponseDto> CreateStockCountAsync(
@@ -90,169 +94,185 @@ public class StockCountService : IStockCountService
         var canonical = $"{dto.BranchId:D}|{dto.WarehouseId:D}|{dto.Note?.Trim()}|{skuModePart}";
         var payloadSignature = ComputeSha256Hash(canonical);
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        var isAllMode = dto.SkuIds == null || dto.SkuIds.Count == 0;
+        List<Guid> candidateSkuIds;
+        if (!isAllMode)
         {
-            _context.ClearChangeTracker();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            candidateSkuIds = dto.SkuIds!.Distinct().OrderBy(x => x).ToList();
+        }
+        else
+        {
+            // Discovery/hint: danh sách SKU ban đầu trong kho để xác định tập SKU cần khóa
+            candidateSkuIds = await _context.WarehouseInventoryBalances
+                .Where(w => w.TenantId == tenantId.Value && w.WarehouseId == dto.WarehouseId)
+                .Select(w => w.SkuId)
+                .Distinct()
+                .OrderBy(x => x)
+                .ToListAsync(ct);
+        }
 
-            // 1. Phân cấp khóa: SKU khóa trước -> RequestKey khóa sau
-            if (_context.IsRelationalDatabase)
+        while (true)
+        {
+            var strategy = _context.CreateExecutionStrategy();
+            var (shouldRetry, response, newCandidates) = await strategy.ExecuteAsync(async () =>
             {
-                if (dto.SkuIds != null && dto.SkuIds.Count > 0)
+                _context.ClearChangeTracker();
+                var tx = await _context.BeginTransactionAsync(ct);
+                try
                 {
-                    var sortedSkus = dto.SkuIds.Distinct().OrderBy(x => x).ToList();
-                    foreach (var skuId in sortedSkus)
-                    {
-                        await _context.ExecuteSqlRawAsync(
-                            "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/' || {1}::text || '/' || {2}::text, 0));",
-                            new object[] { tenantId.Value.ToString(), dto.BranchId.ToString(), skuId.ToString() },
-                            ct);
-                    }
-                }
 
-                await _context.ExecuteSqlRawAsync(
-                    "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/request_key/' || {1}::text, 0));",
-                    new object[] { tenantId.Value.ToString(), dto.RequestKey.ToString() },
-                    ct);
-            }
-
-            // 2. Kiểm tra Replay dưới khóa RequestKey
-            var existingCount = await _context.StockCounts
-                .Include(c => c.Items)
-                .ThenInclude(i => i.Sku)
-                .Include(c => c.Branch)
-                .Include(c => c.Warehouse)
-                .FirstOrDefaultAsync(c => c.TenantId == tenantId.Value && c.RequestKey == dto.RequestKey, ct);
-
-            if (existingCount != null)
-            {
-                if (existingCount.PayloadSignature == payloadSignature)
-                {
-                    _logger.LogInformation("Replay đợt kiểm kê {Number} thành công theo RequestKey {Key}.", existingCount.Number, dto.RequestKey);
-                    await tx.CommitAsync(ct);
-                    return MapToResponseDto(existingCount, isReplay: true);
-                }
-
-                throw new OismException("IDEMPOTENCY_PAYLOAD_MISMATCH", "Yêu cầu trùng RequestKey nhưng nội dung payload không khớp.", 409);
-            }
-
-            // 3. Kiểm tra tài nguyên chi nhánh và kho
-            var branch = await _context.Branches
-                .FirstOrDefaultAsync(b => b.TenantId == tenantId.Value && b.Id == dto.BranchId, ct);
-            if (branch == null)
-            {
-                throw new OismException("NOT_FOUND", "Không tìm thấy chi nhánh kiểm kê trong phạm vi doanh nghiệp.", 404);
-            }
-
-            if (!branch.IsActive)
-            {
-                throw new OismException("VALIDATION_ERROR", "Chi nhánh kiểm kê đang bị khóa hoặc ngưng hoạt động.", 400);
-            }
-
-            var warehouse = await _context.Warehouses
-                .FirstOrDefaultAsync(w => w.TenantId == tenantId.Value && w.Id == dto.WarehouseId, ct);
-            if (warehouse == null)
-            {
-                throw new OismException("NOT_FOUND", "Không tìm thấy kho kiểm kê trong phạm vi doanh nghiệp.", 404);
-            }
-
-            if (!warehouse.IsActive)
-            {
-                throw new OismException("VALIDATION_ERROR", "Kho kiểm kê đang bị khóa hoặc ngưng hoạt động.", 400);
-            }
-
-            if (warehouse.BranchId != dto.BranchId)
-            {
-                throw new OismException("VALIDATION_ERROR", "Kho kiểm kê không thuộc chi nhánh kiểm kê đã chọn.", 400);
-            }
-
-            // 4. Lấy danh sách SKU và chụp snapshot
-            var countId = Guid.NewGuid();
-            var itemsToSnapshot = new List<StockCountItem>();
-
-            if (dto.SkuIds != null && dto.SkuIds.Count > 0)
-            {
-                var skus = await _context.Skus
-                    .Where(s => s.TenantId == tenantId.Value && dto.SkuIds.Contains(s.Id))
-                    .ToListAsync(ct);
-
-                if (skus.Count != dto.SkuIds.Count)
-                {
-                    throw new OismException("NOT_FOUND", "Một hoặc nhiều SKU kiểm kê không tồn tại trong hệ thống.", 404);
-                }
-
-                var inactiveSku = skus.FirstOrDefault(s => !s.IsActive);
-                if (inactiveSku != null)
-                {
-                    throw new OismException("SKU_INACTIVE", $"Biến thể SKU '{inactiveSku.Code}' đang bị khóa hoặc ngưng hoạt động.", 422);
-                }
-
-                var whBalances = await _context.WarehouseInventoryBalances
-                    .Where(w => w.TenantId == tenantId.Value && w.WarehouseId == dto.WarehouseId && dto.SkuIds.Contains(w.SkuId))
-                    .ToListAsync(ct);
-
-                var whBalMap = whBalances.ToDictionary(b => b.SkuId);
-
-                foreach (var sku in skus)
-                {
-                    whBalMap.TryGetValue(sku.Id, out var whBal);
-                    itemsToSnapshot.Add(new StockCountItem
-                    {
-                        Id = Guid.NewGuid(),
-                        TenantId = tenantId.Value,
-                        StockCountId = countId,
-                        SkuId = sku.Id,
-                        ExpectedQuantity = whBal?.OnHand ?? 0m,
-                        CountedQuantity = null,
-                        BalanceSequenceAtSnapshot = whBal?.LastSequence ?? 0L,
-                        AdjustmentUnitCost = null,
-                        CreatedAt = DateTimeOffset.UtcNow
-                    });
-                }
-            }
-            else
-            {
-                // Chế độ ALL: Snapshot toàn bộ SKU hiện có bản ghi trong kho
-                var whBalances = await _context.WarehouseInventoryBalances
-                    .Include(w => w.Sku)
-                    .Where(w => w.TenantId == tenantId.Value && w.WarehouseId == dto.WarehouseId)
-                    .ToListAsync(ct);
-
-                if (whBalances.Count == 0)
-                {
-                    throw new OismException("EMPTY_WAREHOUSE_STOCK_COUNT", "Kho kiểm kê hiện không có mặt hàng nào để kiểm kê toàn kho.", 400);
-                }
-
-                // Khóa SKU cho chế độ ALL
+                // 1. Phân cấp khóa nghiêm ngặt: SKU khóa trước (ascending) -> RequestKey khóa sau
                 if (_context.IsRelationalDatabase)
                 {
-                    var sortedSkus = whBalances.Select(b => b.SkuId).Distinct().OrderBy(x => x).ToList();
-                    foreach (var skuId in sortedSkus)
+                    foreach (var skuId in candidateSkuIds)
                     {
                         await _context.ExecuteSqlRawAsync(
                             "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/' || {1}::text || '/' || {2}::text, 0));",
                             new object[] { tenantId.Value.ToString(), dto.BranchId.ToString(), skuId.ToString() },
                             ct);
                     }
+
+                    await _context.ExecuteSqlRawAsync(
+                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/request_key/' || {1}::text, 0));",
+                        new object[] { tenantId.Value.ToString(), dto.RequestKey.ToString() },
+                        ct);
                 }
 
-                foreach (var whBal in whBalances)
+                // 2. Kiểm tra Replay dưới khóa RequestKey TRƯỚC KHI kiểm tra tài nguyên hoặc ném empty guard
+                var existingCount = await _context.StockCounts
+                    .Include(c => c.Items)
+                    .ThenInclude(i => i.Sku)
+                    .Include(c => c.Branch)
+                    .Include(c => c.Warehouse)
+                    .FirstOrDefaultAsync(c => c.TenantId == tenantId.Value && c.RequestKey == dto.RequestKey, ct);
+
+                if (existingCount != null)
                 {
-                    itemsToSnapshot.Add(new StockCountItem
+                    if (existingCount.PayloadSignature == payloadSignature)
                     {
-                        Id = Guid.NewGuid(),
-                        TenantId = tenantId.Value,
-                        StockCountId = countId,
-                        SkuId = whBal.SkuId,
-                        ExpectedQuantity = whBal.OnHand,
-                        CountedQuantity = null,
-                        BalanceSequenceAtSnapshot = whBal.LastSequence,
-                        AdjustmentUnitCost = null,
-                        CreatedAt = DateTimeOffset.UtcNow
-                    });
+                        _logger.LogInformation("Replay đợt kiểm kê {Number} thành công theo RequestKey {Key}.", existingCount.Number, dto.RequestKey);
+                        await tx.CommitAsync(ct);
+                        return (false, MapToResponseDto(existingCount, isReplay: true), candidateSkuIds);
+                    }
+
+                    throw new OismException("IDEMPOTENCY_PAYLOAD_MISMATCH", "Yêu cầu trùng RequestKey nhưng nội dung payload không khớp.", 409);
                 }
-            }
+
+                // 3. Kiểm tra tài nguyên chi nhánh và kho (trả 404 NOT_FOUND nếu không thuộc tenant)
+                var branch = await _context.Branches
+                    .FirstOrDefaultAsync(b => b.TenantId == tenantId.Value && b.Id == dto.BranchId, ct);
+                if (branch == null)
+                {
+                    throw new OismException("NOT_FOUND", "Không tìm thấy chi nhánh kiểm kê trong phạm vi doanh nghiệp.", 404);
+                }
+
+                if (!branch.IsActive)
+                {
+                    throw new OismException("VALIDATION_ERROR", "Chi nhánh kiểm kê đang bị khóa hoặc ngưng hoạt động.", 400);
+                }
+
+                var warehouse = await _context.Warehouses
+                    .FirstOrDefaultAsync(w => w.TenantId == tenantId.Value && w.Id == dto.WarehouseId, ct);
+                if (warehouse == null)
+                {
+                    throw new OismException("NOT_FOUND", "Không tìm thấy kho kiểm kê trong phạm vi doanh nghiệp.", 404);
+                }
+
+                if (!warehouse.IsActive)
+                {
+                    throw new OismException("VALIDATION_ERROR", "Kho kiểm kê đang bị khóa hoặc ngưng hoạt động.", 400);
+                }
+
+                if (warehouse.BranchId != dto.BranchId)
+                {
+                    throw new OismException("VALIDATION_ERROR", "Kho kiểm kê không thuộc chi nhánh kiểm kê đã chọn.", 400);
+                }
+
+                // 4. Lấy danh sách SKU và chụp snapshot FRESH dưới khóa
+                var countId = Guid.NewGuid();
+                var itemsToSnapshot = new List<StockCountItem>();
+
+                if (dto.SkuIds != null && dto.SkuIds.Count > 0)
+                {
+                    var skus = await _context.Skus
+                        .Where(s => s.TenantId == tenantId.Value && dto.SkuIds.Contains(s.Id))
+                        .ToListAsync(ct);
+
+                    if (skus.Count != dto.SkuIds.Count)
+                    {
+                        throw new OismException("NOT_FOUND", "Một hoặc nhiều SKU kiểm kê không tồn tại trong hệ thống.", 404);
+                    }
+
+                    var inactiveSku = skus.FirstOrDefault(s => !s.IsActive);
+                    if (inactiveSku != null)
+                    {
+                        throw new OismException("SKU_INACTIVE", $"Biến thể SKU '{inactiveSku.Code}' đang bị khóa hoặc ngưng hoạt động.", 422);
+                    }
+
+                    var whBalances = await _context.WarehouseInventoryBalances
+                        .Where(w => w.TenantId == tenantId.Value && w.WarehouseId == dto.WarehouseId && dto.SkuIds.Contains(w.SkuId))
+                        .ToListAsync(ct);
+
+                    var whBalMap = whBalances.ToDictionary(b => b.SkuId);
+
+                    foreach (var sku in skus)
+                    {
+                        whBalMap.TryGetValue(sku.Id, out var whBal);
+                        itemsToSnapshot.Add(new StockCountItem
+                        {
+                            Id = Guid.NewGuid(),
+                            TenantId = tenantId.Value,
+                            StockCountId = countId,
+                            SkuId = sku.Id,
+                            ExpectedQuantity = whBal?.OnHand ?? 0m,
+                            CountedQuantity = null,
+                            BalanceSequenceAtSnapshot = whBal?.LastSequence ?? 0L,
+                            AdjustmentUnitCost = null,
+                            CreatedAt = DateTimeOffset.UtcNow
+                        });
+                    }
+                }
+                else
+                {
+                    // Chế độ ALL: Đọc fresh WarehouseInventoryBalances sau khi đã giữ khóa
+                    var whBalances = await _context.WarehouseInventoryBalances
+                        .Include(w => w.Sku)
+                        .Where(w => w.TenantId == tenantId.Value && w.WarehouseId == dto.WarehouseId)
+                        .ToListAsync(ct);
+
+                    if (whBalances.Count == 0)
+                    {
+                        throw new OismException("EMPTY_WAREHOUSE_STOCK_COUNT", "Kho kiểm kê hiện không có mặt hàng nào để kiểm kê toàn kho.", 400);
+                    }
+
+                    // Đối soát tập SKU: Mọi SKU đưa vào snapshot cuối BẮT BUỘC phải được giữ khóa trước đó.
+                    // Nếu tập SKU trong kho đã tăng sau discovery (có SKU mới xuất hiện mà chưa nằm trong candidateSkuIds),
+                    // ta rollback transaction hiện tại, nạp lại toàn bộ candidateSkuIds mới và thực hiện lại từ đầu.
+                    var actualSkuIds = whBalances.Select(w => w.SkuId).Distinct().OrderBy(x => x).ToList();
+                    var unheldSkuLocks = actualSkuIds.Except(candidateSkuIds).ToList();
+                    if (unheldSkuLocks.Count > 0)
+                    {
+                        _logger.LogInformation("Phát hiện SKU mới xuất hiện trong kho sau discovery. Rollback và khởi động lại transaction với tập khóa đầy đủ ({Count} SKUs).", actualSkuIds.Count);
+                        await tx.RollbackAsync(ct);
+                        return (true, (StockCountResponseDto?)null, actualSkuIds);
+                    }
+
+                    foreach (var whBal in whBalances)
+                    {
+                        itemsToSnapshot.Add(new StockCountItem
+                        {
+                            Id = Guid.NewGuid(),
+                            TenantId = tenantId.Value,
+                            StockCountId = countId,
+                            SkuId = whBal.SkuId,
+                            ExpectedQuantity = whBal.OnHand,
+                            CountedQuantity = null,
+                            BalanceSequenceAtSnapshot = whBal.LastSequence,
+                            AdjustmentUnitCost = null,
+                            CreatedAt = DateTimeOffset.UtcNow
+                        });
+                    }
+                }
 
             // 5. Sinh mã kiểm kê an toàn dưới Advisory Lock
             if (_context.IsRelationalDatabase)
@@ -285,10 +305,6 @@ public class StockCountService : IStockCountService
                 Items = itemsToSnapshot
             };
 
-            _context.StockCounts.Add(stockCount);
-            await _context.SaveChangesAsync(ct);
-            await tx.CommitAsync(ct);
-
             // Nạp lại navigation để hiển thị DTO
             stockCount.Branch = branch;
             stockCount.Warehouse = warehouse;
@@ -305,8 +321,26 @@ public class StockCountService : IStockCountService
                 }
             }
 
-            return MapToResponseDto(stockCount, isReplay: false);
-        });
+            _context.StockCounts.Add(stockCount);
+            await _context.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+
+                    return (false, MapToResponseDto(stockCount, isReplay: false), candidateSkuIds);
+                }
+                finally
+                {
+                    tx.Dispose();
+                }
+            });
+
+            if (shouldRetry)
+            {
+                candidateSkuIds = newCandidates;
+                continue;
+            }
+
+            return response!;
+        }
     }
 
     public async Task<StockCountResponseDto> RecordCountsAsync(
@@ -487,9 +521,9 @@ public class StockCountService : IStockCountService
                     throw new OismException("VALIDATION_ERROR", "Mã SKU trong danh sách đơn giá bổ sung không được rỗng.", 400);
                 }
 
-                if (cost <= 0)
+                if (cost < 0)
                 {
-                    throw new OismException("VALIDATION_ERROR", "Đơn giá điều chỉnh bổ sung phải lớn hơn 0.", 400);
+                    throw new OismException("VALIDATION_ERROR", "Đơn giá điều chỉnh bổ sung không được âm.", 400);
                 }
 
                 if (cost > MaxUnitCostAmount)
@@ -515,9 +549,11 @@ public class StockCountService : IStockCountService
             throw new OismException("NOT_FOUND", "Không tìm thấy đợt kiểm kê trong phạm vi doanh nghiệp.", 404);
         }
 
+        List<Func<Task>> pendingNotifications = new();
         var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        var result = await strategy.ExecuteAsync(async () =>
         {
+            pendingNotifications.Clear();
             _context.ClearChangeTracker();
             await using var tx = await _context.BeginTransactionAsync(ct);
 
@@ -553,13 +589,6 @@ public class StockCountService : IStockCountService
                 throw new OismException("NOT_FOUND", "Không tìm thấy đợt kiểm kê trong phạm vi doanh nghiệp.", 404);
             }
 
-            // Replay an toàn nếu đợt kiểm kê đã Confirmed
-            if (stockCount.Status == "Confirmed")
-            {
-                await tx.CommitAsync(ct);
-                return MapToResponseDto(stockCount, isReplay: true);
-            }
-
             if (stockCount.Status != "Counting")
             {
                 throw new OismException("INVALID_STATE_TRANSITION", $"Đợt kiểm kê phải ở trạng thái Counting mới được chốt kiểm kê. Trạng thái hiện tại: '{stockCount.Status}'.", 409);
@@ -569,7 +598,7 @@ public class StockCountService : IStockCountService
             var uncountedItem = stockCount.Items.FirstOrDefault(i => !i.CountedQuantity.HasValue);
             if (uncountedItem != null)
             {
-                throw new OismException("INCOMPLETE_STOCK_COUNT", "Tất cả các mặt hàng phải được nhập số đếm thực tế trước khi chốt kiểm kê.", 400);
+                throw new OismException("INVALID_STATE_TRANSITION", "Tất cả các mặt hàng phải được nhập số đếm thực tế trước khi chốt kiểm kê.", 409);
             }
 
             // Kiểm tra map giá bổ sung không chứa SKU ngoài đợt
@@ -595,6 +624,7 @@ public class StockCountService : IStockCountService
                 .Where(b => b.TenantId == tenantId.Value && b.BranchId == stockCount.BranchId && skuIds.Contains(b.SkuId))
                 .ToListAsync(ct);
             var branchBalMap = branchBalances.ToDictionary(b => b.SkuId);
+            var skuCodes = await _context.ProductVariants.Where(s => s.TenantId == tenantId.Value && skuIds.Contains(s.Id)).ToDictionaryAsync(s => s.Id, s => s.SKU, ct);
 
             // 3.1. Đối soát Sequence Drift
             foreach (var item in stockCount.Items)
@@ -604,7 +634,7 @@ public class StockCountService : IStockCountService
 
                 if (currentWarehouseSeq != item.BalanceSequenceAtSnapshot)
                 {
-                    throw new OismException("STOCK_COUNT_DRIFT_DETECTED",
+                    throw new OismException("STOCK_COUNT_SEQUENCE_DRIFT",
                         $"Phát hiện giao dịch phát sinh xen giữa tại kho kiểm kê cho SKU '{item.SkuId}'. " +
                         $"Sequence tại thời điểm snapshot: {item.BalanceSequenceAtSnapshot}, sequence hiện tại: {currentWarehouseSeq}.", 409);
                 }
@@ -621,7 +651,7 @@ public class StockCountService : IStockCountService
 
                 if (countedQty < whReserved)
                 {
-                    throw new OismException("INSUFFICIENT_STOCK_FOR_RESERVATION",
+                    throw new OismException("INSUFFICIENT_STOCK",
                         $"Số lượng đếm thực tế ({countedQty:G29}) thấp hơn số lượng đang giữ chỗ ({whReserved:G29}) của kho cho SKU '{item.SkuId}'.", 409);
                 }
 
@@ -634,8 +664,21 @@ public class StockCountService : IStockCountService
 
                 if (newBranchOnHand < branchReserved)
                 {
-                    throw new OismException("INSUFFICIENT_STOCK_FOR_RESERVATION",
+                    throw new OismException("INSUFFICIENT_STOCK",
                         $"Tổng tồn chi nhánh sau điều chỉnh ({newBranchOnHand:G29}) thấp hơn tổng giữ chỗ ({branchReserved:G29}) cho SKU '{item.SkuId}'.", 409);
+                }
+
+                // Chặn tràn số tính toán trước khi lưu (T4B-F04)
+                if (newBranchOnHand > MaxQuantityAmount)
+                {
+                    throw new OismException("VALIDATION_ERROR",
+                        $"Tổng tồn chi nhánh sau điều chỉnh ({newBranchOnHand:G29}) vượt quá giới hạn tối đa cho phép ({MaxQuantityAmount:G29}) cho SKU '{item.SkuId}'.", 400);
+                }
+
+                if (newBranchOnHand < 0m)
+                {
+                    throw new OismException("VALIDATION_ERROR",
+                        $"Tổng tồn chi nhánh sau điều chỉnh ({newBranchOnHand:G29}) không được âm cho SKU '{item.SkuId}'.", 400);
                 }
 
                 decimal unitCost = 0m;
@@ -669,11 +712,45 @@ public class StockCountService : IStockCountService
 
                         unitCost = explicitCost.Value;
                     }
+
+                    // Kiểm tra tràn số WAC (T4B-F04)
+                    try
+                    {
+                        var totalOldValue = checked(branchOnHand * branchWac);
+                        var totalImportValue = checked(delta * unitCost);
+                        var totalStock = branchOnHand + delta;
+                        var derivedWac = (totalOldValue + totalImportValue) / totalStock;
+
+                        if (derivedWac > MaxUnitCostAmount)
+                        {
+                            throw new OismException("VALIDATION_ERROR",
+                                $"Giá vốn bình quân (WAC) sau điều chỉnh ({derivedWac:G29}) vượt quá giới hạn tối đa cho phép cho SKU '{item.SkuId}'.", 400);
+                        }
+                    }
+                    catch (OverflowException)
+                    {
+                        throw new OismException("VALIDATION_ERROR",
+                            $"Giá trị tồn kho tính toán vượt quá giới hạn số học cho SKU '{item.SkuId}'.", 400);
+                    }
                 }
                 else if (delta < 0)
                 {
                     // Hàng thiếu: Ledger OUT dùng WAC hiện tại, WAC không đổi
                     unitCost = branchWac;
+                }
+
+                // Kiểm tra tràn số TotalCost số học CLR (T4B-F04)
+                if (delta != 0m)
+                {
+                    try
+                    {
+                        _ = checked(Math.Abs(delta) * unitCost);
+                    }
+                    catch (OverflowException)
+                    {
+                        throw new OismException("VALIDATION_ERROR",
+                            $"Tổng giá trị biến động vượt quá giới hạn số học cho SKU '{item.SkuId}'.", 400);
+                    }
                 }
 
                 itemPlan.Add((item, delta, unitCost, branchOnHand, branchWac));
@@ -761,6 +838,20 @@ public class StockCountService : IStockCountService
                 var newSequenceNo = branchBal.LastSequence + 1;
                 branchBal.LastSequence = newSequenceNo;
                 branchBal.UpdatedAt = now;
+                if (_realtimeNotifier != null)
+                {
+                    var skuIdCapture = item.SkuId;
+                    var skuCodeCapture = skuCodes.TryGetValue(item.SkuId, out var code) ? code : item.SkuId.ToString();
+                    var prevAvail = oldBranchOnHand - branchBal.Reserved;
+                    var newAvail = branchBal.OnHand - branchBal.Reserved;
+                    var reorderPointCapture = branchBal.ReorderPoint;
+                    var isLowStockCapture = prevAvail > branchBal.ReorderPoint && newAvail <= branchBal.ReorderPoint;
+                    pendingNotifications.Add(() => _realtimeNotifier.NotifyStockChangedAsync(tenantId.Value, stockCount.BranchId, skuIdCapture, newAvail, ct));
+                    if (isLowStockCapture)
+                    {
+                        pendingNotifications.Add(() => _realtimeNotifier.NotifyLowStockAlertAsync(tenantId.Value, stockCount.BranchId, skuIdCapture, skuCodeCapture, newAvail, reorderPointCapture, ct));
+                    }
+                }
 
                 // Cập nhật Warehouse Balance
                 if (!whBalMap.TryGetValue(item.SkuId, out var whBal))
@@ -816,6 +907,23 @@ public class StockCountService : IStockCountService
 
             return MapToResponseDto(stockCount, isReplay: false);
         });
+
+        if (pendingNotifications.Count > 0)
+        {
+            foreach (var notifyAction in pendingNotifications)
+            {
+                try
+                {
+                    await notifyAction();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Lá»—i khi phÃ¡t sá»± kiá»‡n Realtime sau confirm kiá»ƒm kÃª {CountId}.", stockCountId);
+                }
+            }
+        }
+
+        return result;
     }
 
     public async Task<StockCountResponseDto> CancelStockCountAsync(

@@ -1,8 +1,11 @@
+using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
 using OISM.Application.Features.Orders.Dtos;
+using OISM.Application.Features.Realtime;
+using OISM.Application.Features.Realtime.Dtos;
 using OISM.Domain.Entities;
 
 namespace OISM.Application.Features.Orders.Services;
@@ -20,14 +23,18 @@ public class OrderService : IOrderService, IPosCheckoutService
     public const decimal MaxMoneyAmount = 999_999_999_999_999_999.99m; // numeric(20,2) limit (18 integer digits, 2 decimals)
     public const decimal MaxQuantityAmount = 999_999_999_999_999.999m; // numeric(18,3) limit (15 integer digits, 3 decimals)
 
+    private readonly IRealtimeNotifier? _realtimeNotifier;
+
     public OrderService(
         IAppDbContext context,
         ICurrentTenantService currentTenantService,
-        ILogger<OrderService> logger)
+        ILogger<OrderService> logger,
+        IRealtimeNotifier? realtimeNotifier = null)
     {
         _context = context;
         _currentTenantService = currentTenantService;
         _logger = logger;
+        _realtimeNotifier = realtimeNotifier;
     }
 
     /// <summary>
@@ -150,9 +157,11 @@ public class OrderService : IOrderService, IPosCheckoutService
         var sortedSkuIds = dto.Items.Select(i => i.SkuId).Distinct().OrderBy(id => id).ToList();
 
         // 4. Bao bọc toàn bộ chuỗi xử lý trong ExecutionStrategy tương thích NpgsqlRetryingExecutionStrategy
+        List<Func<Task>> pendingNotifications = new();
         var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        var result = await strategy.ExecuteAsync(async () =>
         {
+            pendingNotifications.Clear();
             _context.ClearChangeTracker();
 
             // Mở Transaction CSDL duy nhất cho toàn bộ chuỗi xử lý
@@ -697,6 +706,30 @@ public class OrderService : IOrderService, IPosCheckoutService
 
             await tx.CommitAsync(ct);
 
+            
+            if (_realtimeNotifier != null)
+            {
+                foreach (var kv in groupedItems)
+                {
+                    var skuId = kv.Key;
+                    var bBal = branchBalances[skuId];
+                    var sku = skus[skuId];
+                    var prevAvail = bBal.OnHand + kv.Value - bBal.Reserved;
+                    var newAvail = bBal.OnHand - bBal.Reserved;
+                    var skuCodeCapture = sku.SKU;
+                    var branchIdCapture = dto.BranchId;
+                    var tidCapture = tenantId.Value;
+                    var reorderPointCapture = bBal.ReorderPoint;
+
+                    pendingNotifications.Add(() => _realtimeNotifier.NotifyStockChangedAsync(tidCapture, branchIdCapture, skuId, newAvail, ct));
+
+                    if (prevAvail > reorderPointCapture && newAvail <= reorderPointCapture)
+                    {
+                        pendingNotifications.Add(() => _realtimeNotifier.NotifyLowStockAlertAsync(tidCapture, branchIdCapture, skuId, skuCodeCapture, newAvail, reorderPointCapture, ct));
+                    }
+                }
+            }
+
             // 18. Xây dựng DTO phản hồi quầy POS
             var cashierUser = cashierUserId.HasValue
                 ? await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.TenantId == tenantId.Value && u.Id == cashierUserId.Value, ct)
@@ -751,6 +784,23 @@ public class OrderService : IOrderService, IPosCheckoutService
             throw;
         }
         });
+
+        if (pendingNotifications.Count > 0)
+        {
+            foreach (var notifyAction in pendingNotifications)
+            {
+                try
+                {
+                    await notifyAction();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Lỗi khi phát sự kiện Realtime sau commit POS checkout.");
+                }
+            }
+        }
+
+        return result;
     }
 
     // =========================================================================
@@ -770,33 +820,192 @@ public class OrderService : IOrderService, IPosCheckoutService
             throw new UnauthorizedAccessException("Không xác định được TenantId hợp lệ từ ngữ cảnh xác thực.");
         }
 
+        var channel = string.IsNullOrWhiteSpace(dto.Channel) ? "Admin" : dto.Channel.Trim();
+        if (!string.Equals(channel, "Admin", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new OismException("VALIDATION_ERROR", $"Endpoint chỉ hỗ trợ tạo đơn hàng kênh 'Admin'. Kênh '{dto.Channel}' không hợp lệ.", 400);
+        }
+
+        var coreReq = new InternalOrderCoreRequest(
+            TenantId: tenantId.Value,
+            BranchId: dto.BranchId,
+            Channel: "Admin",
+            ExternalShopId: null,
+            ExternalOrderId: null,
+            WebhookPayloadSignature: null,
+            RequestKey: dto.RequestKey,
+            CustomerName: dto.CustomerName,
+            CustomerPhone: dto.CustomerPhone,
+            ShippingAddress: dto.ShippingAddress,
+            ExpectedTotalAmount: null,
+            CreatedByUserId: createdByUserId,
+            IsTrustedMarketplace: false,
+            Items: dto.Items?.Select(i => new InternalOrderCoreItem(i.SkuId, i.SkuCode, i.Quantity, i.UnitPrice)).ToList() ?? new());
+
+        return await CreateReservedOrderCoreAsync(coreReq, ct);
+    }
+
+    public async Task<OrderResponseDto> CreateMarketplaceReservedOrderAsync(InternalMarketplaceOrderContext context, CancellationToken ct = default)
+    {
+        if (context == null)
+        {
+            throw new ArgumentNullException(nameof(context));
+        }
+
+        var coreReq = new InternalOrderCoreRequest(
+            TenantId: context.TenantId,
+            BranchId: context.BranchId,
+            Channel: context.Channel,
+            ExternalShopId: context.ExternalShopId,
+            ExternalOrderId: context.ExternalOrderId,
+            WebhookPayloadSignature: context.WebhookPayloadSignature,
+            RequestKey: context.RequestKey,
+            CustomerName: context.CustomerName,
+            CustomerPhone: context.CustomerPhone,
+            ShippingAddress: context.ShippingAddress,
+            ExpectedTotalAmount: context.ExpectedTotalAmount,
+            CreatedByUserId: context.CreatedByUserId,
+            IsTrustedMarketplace: true,
+            Items: context.Items.Select(i => new InternalOrderCoreItem(null, i.SkuCode, i.Quantity, i.UnitPrice)).ToList());
+
+        return await CreateReservedOrderCoreAsync(coreReq, ct);
+    }
+
+    private record InternalOrderCoreRequest(
+        Guid TenantId,
+        Guid BranchId,
+        string Channel,
+        string? ExternalShopId,
+        string? ExternalOrderId,
+        string? WebhookPayloadSignature,
+        Guid RequestKey,
+        string? CustomerName,
+        string? CustomerPhone,
+        string? ShippingAddress,
+        decimal? ExpectedTotalAmount,
+        Guid? CreatedByUserId,
+        bool IsTrustedMarketplace,
+        List<InternalOrderCoreItem> Items);
+
+    private record InternalOrderCoreItem(
+        Guid? SkuId,
+        string? SkuCode,
+        decimal Quantity,
+        decimal UnitPrice);
+
+    private static void ValidateAdminOrderReplayMatch(Order existingOrder, InternalOrderCoreRequest req)
+    {
+        // So sánh Kênh bán
+        if (!string.Equals(existingOrder.Channel, "Admin", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new IdempotencyPayloadMismatchException("RequestKey đã được sử dụng cho một đơn hàng không thuộc kênh Admin.");
+        }
+
+        // So sánh Chi nhánh
+        if (existingOrder.BranchId != req.BranchId)
+        {
+            throw new IdempotencyPayloadMismatchException("RequestKey đã được sử dụng với Chi nhánh khác.");
+        }
+
+        // So sánh thông tin khách hàng & địa chỉ giao nhận
+        var normDtoCustName = string.IsNullOrWhiteSpace(req.CustomerName) ? null : req.CustomerName.Trim();
+        var normDtoCustPhone = string.IsNullOrWhiteSpace(req.CustomerPhone) ? null : req.CustomerPhone.Trim();
+        var normDtoAddress = string.IsNullOrWhiteSpace(req.ShippingAddress) ? null : req.ShippingAddress.Trim();
+
+        var normOrderCustName = string.IsNullOrWhiteSpace(existingOrder.CustomerName) ? null : existingOrder.CustomerName.Trim();
+        var normOrderCustPhone = string.IsNullOrWhiteSpace(existingOrder.CustomerPhone) ? null : existingOrder.CustomerPhone.Trim();
+        var normOrderAddress = string.IsNullOrWhiteSpace(existingOrder.ShippingAddress) ? null : existingOrder.ShippingAddress.Trim();
+
+        if (!string.Equals(normOrderCustName, normDtoCustName, StringComparison.Ordinal))
+        {
+            throw new IdempotencyPayloadMismatchException("RequestKey đã được sử dụng với thông tin Tên khách hàng khác.");
+        }
+        if (!string.Equals(normOrderCustPhone, normDtoCustPhone, StringComparison.Ordinal))
+        {
+            throw new IdempotencyPayloadMismatchException("RequestKey đã được sử dụng với thông tin Số điện thoại khách hàng khác.");
+        }
+        if (!string.Equals(normOrderAddress, normDtoAddress, StringComparison.Ordinal))
+        {
+            throw new IdempotencyPayloadMismatchException("RequestKey đã được sử dụng với thông tin Địa chỉ giao hàng khác.");
+        }
+
+        // So sánh danh mục SKU
+        var existingItemSummary = existingOrder.Items
+            .GroupBy(i => i.SkuId)
+            .ToDictionary(g => g.Key, g => new
+            {
+                Quantity = g.Sum(x => x.Quantity),
+                UnitPrice = Math.Round(g.First().UnitPrice, 2)
+            });
+
+        var requestItemSummary = req.Items
+            .GroupBy(i => i.SkuId!.Value)
+            .ToDictionary(g => g.Key, g => new
+            {
+                Quantity = g.Sum(x => x.Quantity),
+                UnitPrice = Math.Round(g.First().UnitPrice, 2)
+            });
+
+        if (existingItemSummary.Count != requestItemSummary.Count)
+        {
+            throw new IdempotencyPayloadMismatchException("RequestKey đã được sử dụng với danh mục SKU khác (số loại mặt hàng không khớp).");
+        }
+
+        foreach (var kv in existingItemSummary)
+        {
+            if (!requestItemSummary.TryGetValue(kv.Key, out var reqData))
+            {
+                throw new IdempotencyPayloadMismatchException($"RequestKey đã được sử dụng với danh mục SKU khác (thiếu SKU '{kv.Key}').");
+            }
+
+            if (reqData.Quantity != kv.Value.Quantity)
+            {
+                throw new IdempotencyPayloadMismatchException($"RequestKey đã được sử dụng với số lượng mua khác cho SKU '{kv.Key}'.");
+            }
+
+            if (reqData.UnitPrice != kv.Value.UnitPrice)
+            {
+                throw new IdempotencyPayloadMismatchException($"RequestKey đã được sử dụng với đơn giá khác cho SKU '{kv.Key}'.");
+            }
+        }
+    }
+
+    private async Task<OrderResponseDto> CreateReservedOrderCoreAsync(InternalOrderCoreRequest req, CancellationToken ct)
+    {
+        var tenantId = req.TenantId;
+
         // 1. Validation
-        if (dto.BranchId == Guid.Empty)
+        if (req.BranchId == Guid.Empty)
         {
             throw new OismException("VALIDATION_ERROR", "Chi nhánh không được để trống (Guid.Empty).", 400);
         }
 
-        if (dto.RequestKey == Guid.Empty)
+        if (req.RequestKey == Guid.Empty)
         {
             throw new OismException("VALIDATION_ERROR", "RequestKey (Idempotency Key) không được để trống (Guid.Empty).", 400);
         }
 
-        if (dto.Items == null || dto.Items.Count == 0)
+        if (req.Items == null || req.Items.Count == 0)
         {
             throw new OismException("VALIDATION_ERROR", "Đơn hàng phải có ít nhất 1 sản phẩm.", 400);
         }
 
-        if (dto.Items.Any(i => i == null))
+        if (req.Items.Any(i => i == null))
         {
             throw new OismException("VALIDATION_ERROR", "Dòng sản phẩm trong đơn hàng không được mang giá trị null.", 400);
         }
 
-        if (dto.Items.Any(i => i.SkuId == Guid.Empty))
+        if (!req.IsTrustedMarketplace && req.Items.Any(i => !i.SkuId.HasValue || i.SkuId.Value == Guid.Empty))
         {
             throw new OismException("VALIDATION_ERROR", "Mã biến thể SKU trong đơn hàng không được để trống.", 400);
         }
 
-        foreach (var item in dto.Items)
+        if (req.IsTrustedMarketplace && req.Items.Any(i => string.IsNullOrWhiteSpace(i.SkuCode)))
+        {
+            throw new OismException("VALIDATION_ERROR", "Mã SKU mặt hàng trong đơn không được để trống.", 400);
+        }
+
+        foreach (var item in req.Items)
         {
             if (item.Quantity <= 0)
             {
@@ -829,233 +1038,296 @@ public class OrderService : IOrderService, IPosCheckoutService
             }
         }
 
-        // Kiểm tra tính nhất quán của đơn giá nếu có dòng trùng SKU
-        foreach (var g in dto.Items.GroupBy(i => i.SkuId))
+        // Kiểm tra tính nhất quán đơn giá nếu có dòng trùng SKU
+        if (!req.IsTrustedMarketplace)
         {
-            if (g.Select(x => Math.Round(x.UnitPrice, 2)).Distinct().Count() > 1)
+            foreach (var g in req.Items.GroupBy(i => i.SkuId!.Value))
             {
-                throw new OismException("VALIDATION_ERROR", "Các dòng cùng SKU trong đơn hàng phải có cùng đơn giá.", 400);
+                if (g.Select(x => Math.Round(x.UnitPrice, 2)).Distinct().Count() > 1)
+                {
+                    throw new OismException("VALIDATION_ERROR", "Các dòng cùng SKU trong đơn hàng phải có cùng đơn giá.", 400);
+                }
+            }
+        }
+        else
+        {
+            foreach (var g in req.Items.GroupBy(i => i.SkuCode!.Trim().ToUpperInvariant()))
+            {
+                if (g.Select(x => Math.Round(x.UnitPrice, 2)).Distinct().Count() > 1)
+                {
+                    throw new OismException("VALIDATION_ERROR", "Các dòng cùng SKU trong đơn hàng phải có cùng đơn giá.", 400);
+                }
             }
         }
 
-        var channel = string.IsNullOrWhiteSpace(dto.Channel) ? "Admin" : dto.Channel.Trim();
-        if (!string.Equals(channel, "Admin", StringComparison.OrdinalIgnoreCase))
+        // 2. Fast Replay Check TRƯỚC khi kiểm tra trạng thái Branch / SKU Active / Catalog RetailPrice
+        if (!req.IsTrustedMarketplace)
         {
-            throw new OismException("VALIDATION_ERROR", $"Endpoint chỉ hỗ trợ tạo đơn hàng kênh 'Admin'. Kênh '{dto.Channel}' không hợp lệ.", 400);
+            var existingOrderByKey = await _context.Orders
+                .Include(o => o.Items)
+                .Include(o => o.Payment)
+                .FirstOrDefaultAsync(o => o.TenantId == tenantId && o.RequestKey == req.RequestKey, ct);
+
+            if (existingOrderByKey != null)
+            {
+                ValidateAdminOrderReplayMatch(existingOrderByKey, req);
+                _logger.LogInformation("Idempotent fast replay cho tạo đơn hàng trực tuyến với RequestKey {RequestKey}. Trả kết quả đơn {OrderNumber}.", req.RequestKey, existingOrderByKey.Number);
+                var replayDto = await MapToOrderResponseDtoAsync(existingOrderByKey, ct);
+                replayDto.IsReplay = true;
+                return replayDto;
+            }
         }
-        channel = "Admin";
-
-        // 2. Sắp xếp danh sách SkuId tăng dần để triệt tiêu deadlocks khi khóa tuần tự
-        var sortedSkuIds = dto.Items.Select(i => i.SkuId).Distinct().OrderBy(id => id).ToList();
-
-        // 3. Bao bọc trong ExecutionStrategy
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        else
         {
+            var existingMarketplaceOrder = await _context.Orders
+                .Include(o => o.Items)
+                .Include(o => o.Payment)
+                .FirstOrDefaultAsync(o => o.TenantId == tenantId && o.Channel == req.Channel && o.ExternalShopId == req.ExternalShopId && o.ExternalOrderId == req.ExternalOrderId, ct);
+
+            if (existingMarketplaceOrder != null)
+            {
+                if (string.IsNullOrWhiteSpace(existingMarketplaceOrder.WebhookPayloadSignature))
+                {
+                    throw new OismException("WEBHOOK_PAYLOAD_MISMATCH", "Đơn hàng sàn lịch sử không có chữ ký để đối soát payload.", 409);
+                }
+
+                if (!string.Equals(existingMarketplaceOrder.WebhookPayloadSignature, req.WebhookPayloadSignature, StringComparison.Ordinal))
+                {
+                    throw new OismException("WEBHOOK_PAYLOAD_MISMATCH", "Payload không khớp với đơn hàng TMĐT đã tiếp nhận trước đó cùng mã định danh sàn.", 409);
+                }
+
+                var replayDto = await MapToOrderResponseDtoAsync(existingMarketplaceOrder, ct);
+                replayDto.IsReplay = true;
+                return replayDto;
+            }
+        }
+
+        // 3. Xác thực Chi nhánh fulfillment (kiểm tra đối với đơn hàng MỚI)
+        var branch = await _context.Branches
+            .FirstOrDefaultAsync(b => b.TenantId == tenantId && b.Id == req.BranchId, ct);
+        if (branch == null || !branch.IsActive)
+        {
+            throw new OismException("BRANCH_INACTIVE_OR_INVALID", $"Chi nhánh '{req.BranchId}' không tồn tại hoặc đã ngừng hoạt động.", 404);
+        }
+
+        // 4. Tra cứu SKU trong Catalog
+        Dictionary<Guid, ProductVariant> skus;
+        Dictionary<string, ProductVariant> skusByCode = new(StringComparer.OrdinalIgnoreCase);
+
+        if (!req.IsTrustedMarketplace)
+        {
+            var requestedSkuIds = req.Items.Select(i => i.SkuId!.Value).Distinct().ToList();
+            skus = await _context.ProductVariants
+                .Include(v => v.Product)
+                .Where(v => v.TenantId == tenantId && requestedSkuIds.Contains(v.Id))
+                .ToDictionaryAsync(v => v.Id, ct);
+
+            if (skus.Count != requestedSkuIds.Count)
+            {
+                var missingSkuId = requestedSkuIds.First(id => !skus.ContainsKey(id));
+                throw new OismException("SKU_NOT_FOUND", $"Mặt hàng biến thể SKU '{missingSkuId}' không tồn tại trong hệ thống.", 404);
+            }
+        }
+        else
+        {
+            var requestedSkuCodes = req.Items.Select(i => i.SkuCode!.Trim().ToUpperInvariant()).Distinct().ToList();
+            var skuList = await _context.ProductVariants
+                .Include(v => v.Product)
+                .Where(v => v.TenantId == tenantId && requestedSkuCodes.Contains(v.SKU.ToUpper()))
+                .ToListAsync(ct);
+
+            skusByCode = skuList.ToDictionary(v => v.SKU.Trim().ToUpperInvariant(), StringComparer.OrdinalIgnoreCase);
+
+            if (skusByCode.Count != requestedSkuCodes.Count)
+            {
+                var missingCode = requestedSkuCodes.First(c => !skusByCode.ContainsKey(c));
+                throw new OismException("SKU_NOT_FOUND", $"Mặt hàng biến thể SKU '{missingCode}' không tồn tại trong hệ thống.", 422);
+            }
+
+            skus = skusByCode.Values.ToDictionary(v => v.Id);
+        }
+
+        foreach (var sku in skus.Values)
+        {
+            if (!sku.IsActive || sku.Product == null || !sku.Product.IsActive)
+            {
+                throw new OismException("SKU_INACTIVE", $"Mặt hàng SKU '{sku.SKU}' hoặc sản phẩm liên quan đang ngừng hoạt động.", 422);
+            }
+        }
+
+        // Gom nhóm số lượng theo SkuId
+        var groupedItems = new Dictionary<Guid, decimal>();
+        var itemUnitPrices = new Dictionary<Guid, decimal>();
+
+        foreach (var item in req.Items)
+        {
+            Guid skuId = !req.IsTrustedMarketplace ? item.SkuId!.Value : skusByCode[item.SkuCode!.Trim().ToUpperInvariant()].Id;
+
+            if (groupedItems.TryGetValue(skuId, out var existingQty))
+            {
+                var newQty = existingQty + item.Quantity;
+                if (newQty > MaxQuantityAmount)
+                {
+                    throw new OismException("VALIDATION_ERROR", $"Tổng số lượng mặt hàng SKU '{item.SkuCode}' vượt quá giới hạn tối đa cho phép của hệ thống.", 400);
+                }
+                groupedItems[skuId] = newQty;
+            }
+            else
+            {
+                groupedItems[skuId] = item.Quantity;
+                itemUnitPrices[skuId] = item.UnitPrice;
+            }
+        }
+
+        // Kiểm tra đơn giá khớp với RetailPrice niêm yết trong Catalog đối với Admin
+        if (!req.IsTrustedMarketplace)
+        {
+            foreach (var item in req.Items)
+            {
+                var catalogSku = skus[item.SkuId!.Value];
+                if (item.UnitPrice != catalogSku.RetailPrice)
+                {
+                    throw new OismException("PRICE_MISMATCH", $"Đơn giá của mặt hàng '{catalogSku.SKU}' ({item.UnitPrice:N0}đ) không khớp với giá bán lẻ niêm yết của hệ thống ({catalogSku.RetailPrice:N0}đ).", 400);
+                }
+            }
+        }
+
+        // Tính tổng tiền đơn hàng phía Server
+        decimal totalAmount = 0m;
+        foreach (var kv in groupedItems)
+        {
+            var unitPrice = !req.IsTrustedMarketplace ? skus[kv.Key].RetailPrice : itemUnitPrices[kv.Key];
+            var qty = kv.Value;
+            try
+            {
+                checked
+                {
+                    var lineTotal = qty * unitPrice;
+                    if (lineTotal > MaxMoneyAmount)
+                    {
+                        throw new OismException("VALIDATION_ERROR", "Tổng tiền của dòng hàng vượt quá giới hạn tối đa cho phép của hệ thống.", 400);
+                    }
+                    totalAmount += lineTotal;
+                    if (totalAmount > MaxMoneyAmount)
+                    {
+                        throw new OismException("VALIDATION_ERROR", "Tổng tiền đơn hàng vượt quá giới hạn tối đa cho phép của hệ thống.", 400);
+                    }
+                }
+            }
+            catch (OverflowException)
+            {
+                throw new OismException("VALIDATION_ERROR", "Tổng tiền đơn hàng vượt quá giới hạn tối đa cho phép của hệ thống.", 400);
+            }
+        }
+        totalAmount = Math.Round(totalAmount, 2, MidpointRounding.AwayFromZero);
+        if (totalAmount > MaxMoneyAmount)
+        {
+            throw new OismException("VALIDATION_ERROR", "Tổng tiền đơn hàng vượt quá giới hạn tối đa cho phép của hệ thống.", 400);
+        }
+
+        if (req.IsTrustedMarketplace && req.ExpectedTotalAmount.HasValue)
+        {
+            if (Math.Round(totalAmount, 2) != Math.Round(req.ExpectedTotalAmount.Value, 2))
+            {
+                throw new OismException("TOTAL_AMOUNT_MISMATCH", $"Tổng tiền đơn hàng không khớp (Server tính: {totalAmount:N2}, Payload gửi: {req.ExpectedTotalAmount.Value:N2}).", 400);
+            }
+        }
+
+        // 3. Sắp xếp danh sách SkuId tăng dần để triệt tiêu deadlocks khi khóa tuần tự
+        var sortedSkuIds = skus.Values.Select(v => v.Id).Distinct().OrderBy(id => id).ToList();
+
+        // 4. Bao bọc trong ExecutionStrategy
+        List<Func<Task>> pendingNotifications = new();
+        var strategy = _context.CreateExecutionStrategy();
+        var executionResult = await strategy.ExecuteAsync(async () =>
+        {
+            pendingNotifications.Clear();
             _context.ClearChangeTracker();
 
             await using var tx = await _context.BeginTransactionAsync(ct);
             try
             {
-                // 4. Lấy PostgreSQL Advisory Locks theo thứ tự xác định: SKU Locks -> RequestKey Lock
+                // 5. Lấy PostgreSQL Advisory Locks theo thứ tự xác định: SKU Locks -> RequestKey / External Order Lock
                 if (_context.IsRelationalDatabase)
                 {
                     foreach (var skuId in sortedSkuIds)
                     {
                         await _context.ExecuteSqlRawAsync(
                             "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/' || {1}::text || '/' || {2}::text, 0));",
-                            new object[] { tenantId.Value.ToString(), dto.BranchId.ToString(), skuId.ToString() },
+                            new object[] { tenantId.ToString(), req.BranchId.ToString(), skuId.ToString() },
                             ct);
                     }
 
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/request_key/' || {1}::text, 0));",
-                        new object[] { tenantId.Value.ToString(), dto.RequestKey.ToString() },
-                        ct);
-                }
-
-                // 5. Kiểm tra Idempotency dưới khóa
-                var existingOrder = await _context.Orders
-                    .Include(o => o.Items)
-                    .Include(o => o.Payment)
-                    .FirstOrDefaultAsync(o => o.TenantId == tenantId.Value && o.RequestKey == dto.RequestKey, ct);
-
-                if (existingOrder != null)
-                {
-                    // So sánh Kênh bán
-                    if (!string.Equals(existingOrder.Channel, "Admin", StringComparison.OrdinalIgnoreCase))
+                    if (!req.IsTrustedMarketplace)
                     {
-                        throw new IdempotencyPayloadMismatchException("RequestKey đã được sử dụng cho một đơn hàng không thuộc kênh Admin.");
-                    }
-
-                    // So sánh Chi nhánh
-                    if (existingOrder.BranchId != dto.BranchId)
-                    {
-                        throw new IdempotencyPayloadMismatchException("RequestKey đã được sử dụng với Chi nhánh khác.");
-                    }
-
-                    // So sánh thông tin khách hàng & địa chỉ giao nhận
-                    var normDtoCustName = string.IsNullOrWhiteSpace(dto.CustomerName) ? null : dto.CustomerName.Trim();
-                    var normDtoCustPhone = string.IsNullOrWhiteSpace(dto.CustomerPhone) ? null : dto.CustomerPhone.Trim();
-                    var normDtoAddress = string.IsNullOrWhiteSpace(dto.ShippingAddress) ? null : dto.ShippingAddress.Trim();
-
-                    var normOrderCustName = string.IsNullOrWhiteSpace(existingOrder.CustomerName) ? null : existingOrder.CustomerName.Trim();
-                    var normOrderCustPhone = string.IsNullOrWhiteSpace(existingOrder.CustomerPhone) ? null : existingOrder.CustomerPhone.Trim();
-                    var normOrderAddress = string.IsNullOrWhiteSpace(existingOrder.ShippingAddress) ? null : existingOrder.ShippingAddress.Trim();
-
-                    if (!string.Equals(normOrderCustName, normDtoCustName, StringComparison.Ordinal))
-                    {
-                        throw new IdempotencyPayloadMismatchException("RequestKey đã được sử dụng với thông tin Tên khách hàng khác.");
-                    }
-                    if (!string.Equals(normOrderCustPhone, normDtoCustPhone, StringComparison.Ordinal))
-                    {
-                        throw new IdempotencyPayloadMismatchException("RequestKey đã được sử dụng với thông tin Số điện thoại khách hàng khác.");
-                    }
-                    if (!string.Equals(normOrderAddress, normDtoAddress, StringComparison.Ordinal))
-                    {
-                        throw new IdempotencyPayloadMismatchException("RequestKey đã được sử dụng với thông tin Địa chỉ giao hàng khác.");
-                    }
-
-                    // So sánh danh mục SKU
-                    var existingItemSummary = existingOrder.Items
-                        .GroupBy(i => i.SkuId)
-                        .ToDictionary(g => g.Key, g => new
-                        {
-                            Quantity = g.Sum(x => x.Quantity),
-                            UnitPrice = Math.Round(g.First().UnitPrice, 2)
-                        });
-
-                    var requestItemSummary = dto.Items
-                        .GroupBy(i => i.SkuId)
-                        .ToDictionary(g => g.Key, g => new
-                        {
-                            Quantity = g.Sum(x => x.Quantity),
-                            UnitPrice = Math.Round(g.First().UnitPrice, 2)
-                        });
-
-                    if (existingItemSummary.Count != requestItemSummary.Count)
-                    {
-                        throw new IdempotencyPayloadMismatchException("RequestKey đã được sử dụng với danh mục SKU khác (số loại mặt hàng không khớp).");
-                    }
-
-                    foreach (var kv in existingItemSummary)
-                    {
-                        if (!requestItemSummary.TryGetValue(kv.Key, out var reqData))
-                        {
-                            throw new IdempotencyPayloadMismatchException($"RequestKey đã được sử dụng với danh mục SKU khác (thiếu SKU '{kv.Key}').");
-                        }
-
-                        if (reqData.Quantity != kv.Value.Quantity)
-                        {
-                            throw new IdempotencyPayloadMismatchException($"RequestKey đã được sử dụng với số lượng mua khác cho SKU '{kv.Key}'.");
-                        }
-
-                        if (reqData.UnitPrice != kv.Value.UnitPrice)
-                        {
-                            throw new IdempotencyPayloadMismatchException($"RequestKey đã được sử dụng với đơn giá khác cho SKU '{kv.Key}'.");
-                        }
-                    }
-
-                    _logger.LogInformation("Idempotent replay cho tạo đơn hàng trực tuyến với RequestKey {RequestKey}. Trả kết quả đơn {OrderNumber}.", dto.RequestKey, existingOrder.Number);
-
-                    await tx.CommitAsync(ct);
-                    var replayDto = await MapToOrderResponseDtoAsync(existingOrder, ct);
-                    replayDto.IsReplay = true;
-                    return replayDto;
-                }
-
-                // 6. Xác thực Chi nhánh
-                var branch = await _context.Branches.FirstOrDefaultAsync(b => b.TenantId == tenantId.Value && b.Id == dto.BranchId, ct);
-                if (branch == null || !branch.IsActive)
-                {
-                    throw new OismException("BRANCH_INACTIVE_OR_INVALID", $"Chi nhánh '{dto.BranchId}' không tồn tại hoặc đã ngừng hoạt động.", 404);
-                }
-
-                // 7. Tải và xác thực danh mục SKU trong Catalog
-                var skus = await _context.ProductVariants
-                    .Include(v => v.Product)
-                    .Where(v => v.TenantId == tenantId.Value && sortedSkuIds.Contains(v.Id))
-                    .ToDictionaryAsync(v => v.Id, ct);
-
-                if (skus.Count != sortedSkuIds.Count)
-                {
-                    var missingSkuId = sortedSkuIds.First(id => !skus.ContainsKey(id));
-                    throw new OismException("SKU_NOT_FOUND", $"Mặt hàng biến thể SKU '{missingSkuId}' không tồn tại trong hệ thống.", 404);
-                }
-
-                foreach (var sku in skus.Values)
-                {
-                    if (!sku.IsActive || sku.Product == null || !sku.Product.IsActive)
-                    {
-                        throw new OismException("SKU_INACTIVE", $"Mặt hàng SKU '{sku.SKU}' hoặc sản phẩm liên quan đang ngừng hoạt động.", 422);
-                    }
-                }
-
-                // Gom nhóm số lượng theo SkuId
-                var groupedItems = new Dictionary<Guid, decimal>();
-                foreach (var item in dto.Items)
-                {
-                    if (groupedItems.TryGetValue(item.SkuId, out var existingQty))
-                    {
-                        var newQty = existingQty + item.Quantity;
-                        if (newQty > MaxQuantityAmount)
-                        {
-                            throw new OismException("VALIDATION_ERROR", $"Tổng số lượng mặt hàng SKU '{item.SkuCode}' vượt quá giới hạn tối đa cho phép của hệ thống.", 400);
-                        }
-                        groupedItems[item.SkuId] = newQty;
+                        await _context.ExecuteSqlRawAsync(
+                            "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/request_key/' || {1}::text, 0));",
+                            new object[] { tenantId.ToString(), req.RequestKey.ToString() },
+                            ct);
                     }
                     else
                     {
-                        groupedItems[item.SkuId] = item.Quantity;
+                        await _context.ExecuteSqlRawAsync(
+                            "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/external_order/' || {1}::text || '/' || {2}::text || '/' || {3}::text, 0));",
+                            new object[] { tenantId.ToString(), req.Channel, req.ExternalShopId ?? string.Empty, req.ExternalOrderId ?? string.Empty },
+                            ct);
                     }
                 }
 
-                // Kiểm tra đơn giá khớp với RetailPrice niêm yết trong Catalog
-                foreach (var item in dto.Items)
+                // 6. Kiểm tra Idempotency dưới khóa
+                if (!req.IsTrustedMarketplace)
                 {
-                    var catalogSku = skus[item.SkuId];
-                    if (item.UnitPrice != catalogSku.RetailPrice)
+                    var existingOrder = await _context.Orders
+                        .Include(o => o.Items)
+                        .Include(o => o.Payment)
+                        .FirstOrDefaultAsync(o => o.TenantId == tenantId && o.RequestKey == req.RequestKey, ct);
+
+                    if (existingOrder != null)
                     {
-                        throw new OismException("PRICE_MISMATCH", $"Đơn giá của mặt hàng '{catalogSku.SKU}' ({item.UnitPrice:N0}đ) không khớp với giá bán lẻ niêm yết của hệ thống ({catalogSku.RetailPrice:N0}đ).", 400);
+                        ValidateAdminOrderReplayMatch(existingOrder, req);
+                        _logger.LogInformation("Idempotent replay dÆ°á»›i khÃ³a cho táº¡o Ä‘Æ¡n hÃ ng trá»±c tuyáº¿n vá»›i RequestKey {RequestKey}. Tráº£ káº¿t quáº£ Ä‘Æ¡n {OrderNumber}.", req.RequestKey, existingOrder.Number);
+                        await tx.CommitAsync(ct);
+                        var replayDto = await MapToOrderResponseDtoAsync(existingOrder, ct);
+                        replayDto.IsReplay = true;
+                        return replayDto;
                     }
                 }
-
-                // Tính tổng tiền đơn hàng phía Server
-                decimal totalAmount = 0m;
-                foreach (var kv in groupedItems)
+                else
                 {
-                    var retailPrice = skus[kv.Key].RetailPrice;
-                    var qty = kv.Value;
-                    try
+                    var existingOrder = await _context.Orders
+                        .Include(o => o.Items)
+                        .Include(o => o.Payment)
+                        .FirstOrDefaultAsync(o => o.TenantId == tenantId && o.Channel == req.Channel && o.ExternalShopId == req.ExternalShopId && o.ExternalOrderId == req.ExternalOrderId, ct);
+
+                    if (existingOrder != null)
                     {
-                        checked
+                        if (string.IsNullOrWhiteSpace(existingOrder.WebhookPayloadSignature))
                         {
-                            var lineTotal = qty * retailPrice;
-                            if (lineTotal > MaxMoneyAmount)
-                            {
-                                throw new OismException("VALIDATION_ERROR", "Tổng tiền của dòng hàng vượt quá giới hạn tối đa cho phép của hệ thống.", 400);
-                            }
-                            totalAmount += lineTotal;
-                            if (totalAmount > MaxMoneyAmount)
-                            {
-                                throw new OismException("VALIDATION_ERROR", "Tổng tiền đơn hàng vượt quá giới hạn tối đa cho phép của hệ thống.", 400);
-                            }
+                            throw new OismException("WEBHOOK_PAYLOAD_MISMATCH", "Đơn hàng sàn lịch sử không có chữ ký để đối soát payload.", 409);
                         }
-                    }
-                    catch (OverflowException)
-                    {
-                        throw new OismException("VALIDATION_ERROR", "Tổng tiền đơn hàng vượt quá giới hạn tối đa cho phép của hệ thống.", 400);
+
+                        if (!string.Equals(existingOrder.WebhookPayloadSignature, req.WebhookPayloadSignature, StringComparison.Ordinal))
+                        {
+                            throw new OismException("WEBHOOK_PAYLOAD_MISMATCH", "Payload không khớp với đơn hàng TMĐT đã tiếp nhận trước đó cùng mã định danh sàn.", 409);
+                        }
+
+                        await tx.CommitAsync(ct);
+                        var replayDto = await MapToOrderResponseDtoAsync(existingOrder, ct);
+                        replayDto.IsReplay = true;
+                        return replayDto;
                     }
                 }
-                totalAmount = Math.Round(totalAmount, 2, MidpointRounding.AwayFromZero);
-                if (totalAmount > MaxMoneyAmount)
+
+                // 7. Xác thực Chi nhánh
+                var branch = await _context.Branches.FirstOrDefaultAsync(b => b.TenantId == tenantId && b.Id == req.BranchId, ct);
+                if (branch == null || !branch.IsActive)
                 {
-                    throw new OismException("VALIDATION_ERROR", "Tổng tiền đơn hàng vượt quá giới hạn tối đa cho phép của hệ thống.", 400);
+                    throw new OismException("BRANCH_INACTIVE_OR_INVALID", $"Chi nhánh '{req.BranchId}' không tồn tại hoặc đã ngừng hoạt động.", 404);
                 }
 
                 // 8. Kiểm tra tồn khả dụng tại Chi nhánh (InventoryBalances)
                 var branchBalances = await _context.InventoryBalances
-                    .Where(b => b.TenantId == tenantId.Value && b.BranchId == dto.BranchId && sortedSkuIds.Contains(b.SkuId))
+                    .Where(b => b.TenantId == tenantId && b.BranchId == req.BranchId && sortedSkuIds.Contains(b.SkuId))
                     .ToDictionaryAsync(b => b.SkuId, ct);
 
                 foreach (var kv in groupedItems)
@@ -1077,7 +1349,7 @@ public class OrderService : IOrderService, IPosCheckoutService
 
                 // 9. Phân bổ kho theo chính sách: Tự động phân bổ tồn khả dụng qua các kho hoạt động thuộc chi nhánh
                 var activeWarehouses = await _context.Warehouses
-                    .Where(w => w.TenantId == tenantId.Value && w.BranchId == dto.BranchId && w.IsActive)
+                    .Where(w => w.TenantId == tenantId && w.BranchId == req.BranchId && w.IsActive)
                     .OrderBy(w => w.CreatedAt)
                     .ToListAsync(ct);
 
@@ -1088,7 +1360,7 @@ public class OrderService : IOrderService, IPosCheckoutService
 
                 var warehouseIds = activeWarehouses.Select(w => w.Id).ToList();
                 var whBalances = await _context.WarehouseInventoryBalances
-                    .Where(wb => wb.TenantId == tenantId.Value && wb.BranchId == dto.BranchId && warehouseIds.Contains(wb.WarehouseId) && sortedSkuIds.Contains(wb.SkuId))
+                    .Where(wb => wb.TenantId == tenantId && wb.BranchId == req.BranchId && warehouseIds.Contains(wb.WarehouseId) && sortedSkuIds.Contains(wb.SkuId))
                     .ToListAsync(ct);
 
                 var allocationPlan = new Dictionary<Guid, List<(Warehouse Warehouse, WarehouseInventoryBalance Balance, decimal Quantity)>>();
@@ -1141,24 +1413,33 @@ public class OrderService : IOrderService, IPosCheckoutService
                 // 10. Tạo Đơn hàng ở trạng thái Reserved
                 var now = DateTimeOffset.UtcNow;
                 var orderId = Guid.NewGuid();
-                var orderNumber = $"ORD-{now:yyyyMMdd}-{Guid.NewGuid():N}"[..20];
+                var prefix = req.Channel switch
+                {
+                    "Admin" => "ORD",
+                    "Shopee" => "SHP",
+                    "TikTok" => "TTK",
+                    "Lazada" => "LZD",
+                    _ => "ORD"
+                };
+                var orderNumber = $"{prefix}-{now:yyyyMMdd}-{Guid.NewGuid():N}"[..20];
 
                 var order = new Order
                 {
                     Id = orderId,
-                    TenantId = tenantId.Value,
+                    TenantId = tenantId,
                     Number = orderNumber,
-                    BranchId = dto.BranchId,
-                    Channel = channel,
-                    ExternalShopId = channel == "Admin" || channel == "POS" ? null : dto.ExternalShopId,
-                    ExternalOrderId = channel == "Admin" || channel == "POS" ? null : dto.ExternalOrderId,
+                    BranchId = req.BranchId,
+                    Channel = req.Channel,
+                    ExternalShopId = req.Channel == "Admin" || req.Channel == "POS" ? null : req.ExternalShopId,
+                    ExternalOrderId = req.Channel == "Admin" || req.Channel == "POS" ? null : req.ExternalOrderId,
+                    WebhookPayloadSignature = req.WebhookPayloadSignature,
                     Status = "Reserved",
-                    CustomerName = dto.CustomerName,
-                    CustomerPhone = dto.CustomerPhone,
-                    ShippingAddress = dto.ShippingAddress,
+                    CustomerName = req.CustomerName,
+                    CustomerPhone = req.CustomerPhone,
+                    ShippingAddress = req.ShippingAddress,
                     TotalAmount = totalAmount,
-                    RequestKey = dto.RequestKey,
-                    CreatedBy = createdByUserId,
+                    RequestKey = req.RequestKey,
+                    CreatedBy = req.CreatedByUserId,
                     ConfirmedAt = null,
                     CompletedAt = null,
                     CancelledAt = null,
@@ -1175,17 +1456,18 @@ public class OrderService : IOrderService, IPosCheckoutService
                     var qty = kv.Value;
                     var sku = skus[skuId];
                     var bBal = branchBalances[skuId];
+                    var unitPrice = !req.IsTrustedMarketplace ? sku.RetailPrice : itemUnitPrices[skuId];
 
                     var orderItem = new OrderItem
                     {
                         Id = Guid.NewGuid(),
-                        TenantId = tenantId.Value,
+                        TenantId = tenantId,
                         OrderId = orderId,
                         SkuId = skuId,
                         SkuCodeSnapshot = sku.SKU,
                         SkuNameSnapshot = string.IsNullOrWhiteSpace(sku.VariantName) ? sku.Product?.Name ?? sku.SKU : $"{sku.Product?.Name ?? sku.SKU} - {sku.VariantName}",
                         Quantity = qty,
-                        UnitPrice = Math.Round(sku.RetailPrice, 2, MidpointRounding.AwayFromZero),
+                        UnitPrice = Math.Round(unitPrice, 2, MidpointRounding.AwayFromZero),
                         CostPrice = null, // CostPrice chỉ được snapshot khi Confirmed/Completed
                         CreatedAt = now
                     };
@@ -1205,10 +1487,10 @@ public class OrderService : IOrderService, IPosCheckoutService
                         var reservation = new Reservation
                         {
                             Id = Guid.NewGuid(),
-                            TenantId = tenantId.Value,
+                            TenantId = tenantId,
                             OrderId = orderId,
                             OrderItemId = orderItem.Id,
-                            BranchId = dto.BranchId,
+                            BranchId = req.BranchId,
                             WarehouseId = alloc.Warehouse.Id,
                             SkuId = skuId,
                             Quantity = alloc.Quantity,
@@ -1236,16 +1518,71 @@ public class OrderService : IOrderService, IPosCheckoutService
 
                 _logger.LogInformation("Tạo đơn hàng trực tuyến {OrderNumber} thành công ở trạng thái Reserved.", order.Number);
 
+                // 11. Phát thông báo thời gian thực sau khi Transaction commit thành công
+                // 11. Thu tháº­p thÃ´ng bÃ¡o thá»i gian thá»±c sau khi Transaction commit thÃ nh cÃ´ng
+                if (_realtimeNotifier != null)
+                {
+                    var orderSummary = new OrderSummaryRealtimeDto
+                    {
+                        OrderId = order.Id,
+                        OrderNumber = order.Number,
+                        BranchId = order.BranchId,
+                        BranchName = branch.Name,
+                        Channel = order.Channel,
+                        Status = order.Status,
+                        TotalAmount = order.TotalAmount,
+                        TotalItems = order.Items.Count,
+                        CustomerName = order.CustomerName,
+                        CreatedAt = order.CreatedAt
+                    };
+
+                    pendingNotifications.Add(() => _realtimeNotifier.NotifyNewOrderAsync(tenantId, orderSummary, ct));
+
+                    foreach (var kv in groupedItems)
+                    {
+                        var skuId = kv.Key;
+                        var bBal = branchBalances[skuId];
+                        var sku = skus[skuId];
+                        var prevAvail = bBal.OnHand - (bBal.Reserved - kv.Value);
+                        var newAvail = bBal.OnHand - bBal.Reserved;
+
+                        pendingNotifications.Add(() => _realtimeNotifier.NotifyStockChangedAsync(tenantId, req.BranchId, skuId, newAvail, ct));
+
+                        if (prevAvail > bBal.ReorderPoint && newAvail <= bBal.ReorderPoint)
+                        {
+                            pendingNotifications.Add(() => _realtimeNotifier.NotifyLowStockAlertAsync(tenantId, req.BranchId, skuId, sku.SKU, newAvail, bBal.ReorderPoint, ct));
+                        }
+                    }
+                }
                 return await MapToOrderResponseDtoAsync(order, ct);
             }
             catch (Exception ex)
             {
                 await tx.RollbackAsync(ct);
-                _logger.LogError(ex, "Tạo đơn hàng online thất bại cho RequestKey {RequestKey}. Đã rollback giao dịch.", dto.RequestKey);
+                _logger.LogError(ex, "Tạo đơn hàng online thất bại cho RequestKey {RequestKey}. Đã rollback giao dịch.", req.RequestKey);
                 throw;
             }
         });
+
+        // 12. PhÃ¡t thÃ´ng bÃ¡o thá»i gian thá»±c sau khi Execution Strategy thÃ nh cÃ´ng toÃ n diá»‡n
+        if (pendingNotifications.Count > 0)
+        {
+            foreach (var notifyAction in pendingNotifications)
+            {
+                try
+                {
+                    await notifyAction();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Lá»—i khi phÃ¡t sá»± kiá»‡n Realtime sau commit táº¡o Ä‘Æ¡n thÃ nh cÃ´ng.");
+                }
+            }
+        }
+
+        return executionResult;
     }
+
 
     public async Task<OrderResponseDto> ConfirmOrderAsync(Guid orderId, ConfirmOrderRequestDto dto, Guid? confirmedByUserId, CancellationToken ct = default)
     {
@@ -1581,9 +1918,11 @@ public class OrderService : IOrderService, IPosCheckoutService
             throw new OismException("VALIDATION_ERROR", "Lý do hủy đơn không được để trống.", 400);
         }
 
+        List<Func<Task>> pendingNotifications = new();
         var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        var result = await strategy.ExecuteAsync(async () =>
         {
+            pendingNotifications.Clear();
             _context.ClearChangeTracker();
 
             await using var tx = await _context.BeginTransactionAsync(ct);
@@ -1709,6 +2048,42 @@ public class OrderService : IOrderService, IPosCheckoutService
 
                 _logger.LogInformation("Hủy đơn hàng {OrderNumber} thành công. Đã giải phóng toàn bộ tồn giữ chỗ.", order.Number);
 
+                
+                if (_realtimeNotifier != null && order.Reservations != null)
+                {
+                    try
+                    {
+                        var releasedSkus = order.Reservations
+                            .Where(r => r.Status == "Released")
+                            .GroupBy(r => r.SkuId)
+                            .ToList();
+
+                        if (releasedSkus.Count > 0)
+                        {
+                            var branchBalances = await _context.InventoryBalances
+                                .AsNoTracking()
+                                .Where(b => b.TenantId == tenantId.Value && b.BranchId == order.BranchId && releasedSkus.Select(g => g.Key).Contains(b.SkuId))
+                                .ToDictionaryAsync(b => b.SkuId, ct);
+
+                            foreach (var g in releasedSkus)
+                            {
+                                if (branchBalances.TryGetValue(g.Key, out var bBal))
+                                {
+                                    var newAvail = bBal.OnHand - bBal.Reserved;
+                                    var skuIdCapture = g.Key;
+                                    var branchIdCapture = order.BranchId;
+                                    var tidCapture = tenantId.Value;
+                                    pendingNotifications.Add(() => _realtimeNotifier.NotifyStockChangedAsync(tidCapture, branchIdCapture, skuIdCapture, newAvail, ct));
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Lỗi khi chuẩn bị sự kiện Realtime sau commit hủy đơn {OrderNumber}.", order.Number);
+                    }
+                }
+
                 return await MapToOrderResponseDtoAsync(order, ct);
             }
             catch (Exception ex)
@@ -1718,6 +2093,23 @@ public class OrderService : IOrderService, IPosCheckoutService
                 throw;
             }
         });
+
+        if (pendingNotifications.Count > 0)
+        {
+            foreach (var notifyAction in pendingNotifications)
+            {
+                try
+                {
+                    await notifyAction();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Lỗi khi phát sự kiện Realtime sau commit hủy đơn {OrderId}.", orderId);
+                }
+            }
+        }
+
+        return result;
     }
 
     private async Task<OrderResponseDto> MapToOrderResponseDtoAsync(Order order, CancellationToken ct)
@@ -1791,8 +2183,438 @@ public class OrderService : IOrderService, IPosCheckoutService
         throw new NotImplementedException("Chức năng tra cứu danh sách đơn hàng thuộc phạm vi phân công của Nhựt (BE2).");
     }
 
-    public Task<int> ExpireOverdueReservationsAsync(CancellationToken ct = default)
+    private static readonly ConcurrentDictionary<Guid, (DateTimeOffset LastCreatedAt, Guid LastOrderId)> _tenantCursors = new();
+    private static BatchExecutionStats _lastExecutionStats = new();
+    private BatchExecutionStats _instanceStats = new();
+
+    /// <summary>
+    /// Reset toàn bộ cursor của các tenant (dùng cho test suite hoặc khi re-initialize).
+    /// </summary>
+    public static void ResetCursors()
     {
-        throw new NotImplementedException("Tác vụ quét hết hạn phiếu giữ chỗ thuộc phạm vi Task 6 (Hangfire).");
+        _tenantCursors.Clear();
+        _lastExecutionStats = new BatchExecutionStats();
     }
+
+    /// <summary>
+    /// Thống kê chi tiết kết quả thực thi lượt quét quá hạn gần nhất trên instance hiện tại (scoped theo tenant/invocation).
+    /// Giúp Hangfire job phân biệt rõ: thành công trọn vẹn, một phần, no-op hợp lệ, hay thất bại toàn bộ mà không bị race conditions giữa các tenant.
+    /// </summary>
+    public BatchExecutionStats InstanceExecutionStats => _instanceStats;
+
+    BatchExecutionStats IOrderService.LastExecutionStats => _instanceStats;
+
+    /// <summary>
+    /// Thống kê toàn cục tĩnh hỗ trợ tương thích ngược cho test runner/logging.
+    /// </summary>
+    public static BatchExecutionStats LastExecutionStats => _lastExecutionStats;
+
+    public static void ResetTenantCursor(Guid tenantId)
+    {
+        _tenantCursors.TryRemove(tenantId, out _);
+    }
+
+    /// <summary>
+    /// Tác vụ nền quét và tự động hủy các đơn hàng giữ chỗ quá hạn TTL (15 phút) của Tenant hiện tại.
+    /// Giải phóng toàn bộ phiếu giữ chỗ Active, cập nhật tồn kho hai cấp và phát thông báo StockLevelChanged.
+    /// </summary>
+    /// <param name="cutoffUtc">Mốc thời gian so sánh (mặc định DateTimeOffset.UtcNow nếu null).</param>
+    /// <param name="ct">CancellationToken.</param>
+    /// <returns>Số lượng đơn hàng mới đã được tự động hủy thành công và commit vào CSDL.</returns>
+    public async Task<int> ExpireOverdueReservationsAsync(DateTimeOffset? cutoffUtc = null, CancellationToken ct = default)
+    {
+        var tenantId = _currentTenantService.TenantId;
+        if (!tenantId.HasValue || tenantId.Value == Guid.Empty)
+        {
+            throw new UnauthorizedAccessException("Không xác định được TenantId hợp lệ từ ngữ cảnh thực thi.");
+        }
+
+        var effectiveCutoff = cutoffUtc ?? DateTimeOffset.UtcNow;
+        int batchSize = 50;
+
+        // 1. Quét danh sách Order candidate có phiếu giữ chỗ Active quá hạn (Bounded keyset cursor pagination)
+        var baseQuery = _context.Orders
+            .Where(o => o.TenantId == tenantId.Value
+                && (o.Status == "Draft" || o.Status == "Reserved")
+                && o.ConfirmedAt == null
+                && o.CompletedAt == null
+                && o.CancelledAt == null
+                && (o.Payment == null || o.Payment.Status != "Succeeded")
+                && o.Reservations.Any(r => r.Status == "Active" && r.ExpiresAt <= effectiveCutoff));
+
+        List<(Guid Id, DateTimeOffset CreatedAt)> candidateOrders;
+
+        if (_tenantCursors.TryGetValue(tenantId.Value, out var cursor))
+        {
+            var rawList = await baseQuery
+                .Where(o => o.CreatedAt > cursor.LastCreatedAt || (o.CreatedAt == cursor.LastCreatedAt && o.Id > cursor.LastOrderId))
+                .OrderBy(o => o.CreatedAt)
+                .ThenBy(o => o.Id)
+                .Select(o => new { o.Id, o.CreatedAt })
+                .Take(batchSize)
+                .ToListAsync(ct);
+
+            candidateOrders = rawList.Select(x => (x.Id, x.CreatedAt)).ToList();
+
+            if (candidateOrders.Count < batchSize)
+            {
+                // Quay vòng lại đầu tập dữ liệu (wrap-around) để lấy thêm cho đủ batchSize nếu còn đơn hợp lệ ở đầu
+                var existingIds = candidateOrders.Select(c => c.Id).ToHashSet();
+                var wrapRaw = await baseQuery
+                    .OrderBy(o => o.CreatedAt)
+                    .ThenBy(o => o.Id)
+                    .Select(o => new { o.Id, o.CreatedAt })
+                    .Take(batchSize)
+                    .ToListAsync(ct);
+
+                foreach (var w in wrapRaw)
+                {
+                    if (existingIds.Add(w.Id))
+                    {
+                        candidateOrders.Add((w.Id, w.CreatedAt));
+                        if (candidateOrders.Count >= batchSize) break;
+                    }
+                }
+            }
+        }
+        else
+        {
+            var rawList = await baseQuery
+                .OrderBy(o => o.CreatedAt)
+                .ThenBy(o => o.Id)
+                .Select(o => new { o.Id, o.CreatedAt })
+                .Take(batchSize)
+                .ToListAsync(ct);
+
+            candidateOrders = rawList.Select(x => (x.Id, x.CreatedAt)).ToList();
+        }
+
+        if (candidateOrders.Count > 0)
+        {
+            var last = candidateOrders.Last();
+            _tenantCursors[tenantId.Value] = (last.CreatedAt, last.Id);
+        }
+        else
+        {
+            _tenantCursors.TryRemove(tenantId.Value, out _);
+            _instanceStats = new BatchExecutionStats();
+            _lastExecutionStats = _instanceStats;
+            return 0;
+        }
+
+        int scannedCount = 0;
+        int cancelledCount = 0;
+        int skippedCount = 0;
+        int failedCount = 0;
+        List<Exception> errors = new();
+
+        // 2. Xử lý từng đơn hàng độc lập; lỗi của một đơn không ngăn cản các đơn khác
+        foreach (var candidate in candidateOrders)
+        {
+            ct.ThrowIfCancellationRequested();
+            scannedCount++;
+            try
+            {
+                var cancelled = await ExpireSingleOrderAsync(tenantId.Value, candidate.Id, effectiveCutoff, ct);
+                if (cancelled)
+                {
+                    cancelledCount++;
+                }
+                else
+                {
+                    skippedCount++;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                failedCount++;
+                errors.Add(ex);
+                _logger.LogError(ex, "Lỗi khi tự động hủy đơn giữ chỗ quá hạn '{OrderId}' của Tenant '{TenantId}'. Bỏ qua đơn này và tiếp tục xử lý các đơn khác.", candidate.Id, tenantId.Value);
+            }
+        }
+
+        _instanceStats = new BatchExecutionStats
+        {
+            Scanned = scannedCount,
+            Cancelled = cancelledCount,
+            Skipped = skippedCount,
+            Failed = failedCount,
+            Errors = errors
+        };
+        _lastExecutionStats = _instanceStats;
+        return cancelledCount;
+    }
+
+    /// <summary>
+    /// Xử lý tự động hủy 1 đơn hàng quá hạn giữ chỗ trong một Transaction PostgreSQL độc lập.
+    /// Áp dụng đầy đủ thứ tự khóa chuẩn (SKU locks -> RequestKey lock -> Order lock -> Row locks FOR UPDATE).
+    /// </summary>
+    internal async Task<bool> ExpireSingleOrderAsync(Guid tenantId, Guid orderId, DateTimeOffset effectiveCutoff, CancellationToken ct)
+    {
+        List<Func<Task>> pendingNotifications = new();
+        var strategy = _context.CreateExecutionStrategy();
+        var result = await strategy.ExecuteAsync(async () =>
+        {
+            pendingNotifications.Clear();
+            _context.ClearChangeTracker();
+
+            await using var tx = await _context.BeginTransactionAsync(ct);
+            try
+            {
+                // 1. Pre-read để lấy metadata khóa
+                var meta = await _context.Orders
+                    .Where(o => o.TenantId == tenantId && o.Id == orderId)
+                    .Select(o => new
+                    {
+                        o.BranchId,
+                        o.RequestKey,
+                        ItemSkuIds = o.Items.Select(i => i.SkuId).ToList(),
+                        ResSkuIds = o.Reservations.Select(r => r.SkuId).ToList()
+                    })
+                    .FirstOrDefaultAsync(ct);
+
+                if (meta == null)
+                {
+                    return false;
+                }
+
+                var sortedSkuIds = meta.ItemSkuIds.Concat(meta.ResSkuIds).Distinct().OrderBy(id => id).ToList();
+
+                // 2. Khóa advisory locks theo thứ tự chuẩn: SKU Locks -> RequestKey Lock -> Order Lock
+                if (_context.IsRelationalDatabase)
+                {
+                    foreach (var skuId in sortedSkuIds)
+                    {
+                        await _context.ExecuteSqlRawAsync(
+                            "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/' || {1}::text || '/' || {2}::text, 0));",
+                            new object[] { tenantId.ToString(), meta.BranchId.ToString(), skuId.ToString() },
+                            ct);
+                    }
+
+                    await _context.ExecuteSqlRawAsync(
+                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/request_key/' || {1}::text, 0));",
+                        new object[] { tenantId.ToString(), meta.RequestKey.ToString() },
+                        ct);
+
+                    await _context.ExecuteSqlRawAsync(
+                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/order/' || {1}::text, 0));",
+                        new object[] { tenantId.ToString(), orderId.ToString() },
+                        ct);
+
+                    // Khóa dòng FOR UPDATE: orders, reservations, inventory_balances
+                    await _context.ExecuteSqlRawAsync(
+                        "SELECT id FROM orders WHERE tenant_id = {0} AND id = {1} FOR UPDATE;",
+                        new object[] { tenantId, orderId },
+                        ct);
+
+                    await _context.ExecuteSqlRawAsync(
+                        "SELECT id FROM reservations WHERE tenant_id = {0} AND order_id = {1} FOR UPDATE;",
+                        new object[] { tenantId, orderId },
+                        ct);
+
+                    foreach (var skuId in sortedSkuIds)
+                    {
+                        await _context.ExecuteSqlRawAsync(
+                            "SELECT id FROM inventory_balances WHERE tenant_id = {0} AND branch_id = {1} AND sku_id = {2} FOR UPDATE;",
+                            new object[] { tenantId, meta.BranchId, skuId },
+                            ct);
+                    }
+                }
+
+                // 3. Đọc dữ liệu đơn hàng dưới khóa
+                var order = await _context.Orders
+                    .Include(o => o.Items)
+                    .Include(o => o.Reservations)
+                    .Include(o => o.Payment)
+                    .FirstOrDefaultAsync(o => o.TenantId == tenantId && o.Id == orderId, ct);
+
+                if (order == null)
+                {
+                    return false;
+                }
+
+                // Kiểm tra tính hợp lệ của đơn hàng trước khi hủy
+                if (order.Status != "Draft" && order.Status != "Reserved")
+                {
+                    return false;
+                }
+
+                if (order.ConfirmedAt != null || order.CompletedAt != null || order.CancelledAt != null)
+                {
+                    return false;
+                }
+
+                if (order.Payment != null && order.Payment.Status == "Succeeded")
+                {
+                    return false;
+                }
+
+                if (string.Equals(order.Channel, "POS", StringComparison.OrdinalIgnoreCase))
+                {
+                    bool isLegacyUnpaidDraft = order.Status == "Draft" && (order.Payment == null || order.Payment.Status != "Succeeded") && order.ConfirmedAt == null;
+                    if (!isLegacyUnpaidDraft)
+                    {
+                        return false;
+                    }
+                }
+
+                if (order.Reservations == null || order.Reservations.Count == 0)
+                {
+                    return false;
+                }
+
+                var activeReservations = order.Reservations.Where(r => r.Status == "Active").ToList();
+                if (activeReservations.Count == 0)
+                {
+                    return false;
+                }
+
+                // Chỉ hủy khi có ít nhất một phiếu Active quá hạn: ExpiresAt <= effectiveCutoff
+                bool hasOverdueActive = activeReservations.Any(r => r.ExpiresAt <= effectiveCutoff);
+                if (!hasOverdueActive)
+                {
+                    return false;
+                }
+
+                var now = DateTimeOffset.UtcNow;
+
+                // 4. Khóa dòng warehouse_inventory_balances theo thứ tự warehouseId, skuId
+                var resWarehouseIds = activeReservations.Select(r => r.WarehouseId).Distinct().OrderBy(id => id).ToList();
+                if (_context.IsRelationalDatabase)
+                {
+                    foreach (var whId in resWarehouseIds)
+                    {
+                        foreach (var skuId in sortedSkuIds)
+                        {
+                            await _context.ExecuteSqlRawAsync(
+                                "SELECT id FROM warehouse_inventory_balances WHERE tenant_id = {0} AND branch_id = {1} AND warehouse_id = {2} AND sku_id = {3} FOR UPDATE;",
+                                new object[] { tenantId, meta.BranchId, whId, skuId },
+                                ct);
+                        }
+                    }
+                }
+
+                var branchBalances = await _context.InventoryBalances
+                    .Where(b => b.TenantId == tenantId && b.BranchId == order.BranchId && sortedSkuIds.Contains(b.SkuId))
+                    .ToDictionaryAsync(b => b.SkuId, ct);
+
+                var whBalances = await _context.WarehouseInventoryBalances
+                    .Where(wb => wb.TenantId == tenantId && wb.BranchId == order.BranchId && resWarehouseIds.Contains(wb.WarehouseId) && sortedSkuIds.Contains(wb.SkuId))
+                    .ToListAsync(ct);
+
+                // 5. Giải phóng toàn bộ phiếu giữ chỗ Active:
+                // - Active hết hạn (ExpiresAt <= effectiveCutoff) -> Status = "Expired"
+                // - Active còn hạn cùng giỏ (ExpiresAt > effectiveCutoff) -> Status = "Released"
+                foreach (var res in activeReservations)
+                {
+                    var whBal = whBalances.FirstOrDefault(wb => wb.WarehouseId == res.WarehouseId && wb.SkuId == res.SkuId);
+                    if (whBal == null || whBal.Reserved < res.Quantity)
+                    {
+                        throw new OismException("INCONSISTENT_STOCK", $"Số dư tồn giữ chỗ tại kho '{res.WarehouseId}' không đủ hoặc không tìm thấy để giải phóng cho SKU '{res.SkuId}'.", 409);
+                    }
+
+                    if (!branchBalances.TryGetValue(res.SkuId, out var bBal) || bBal.Reserved < res.Quantity)
+                    {
+                        throw new OismException("INCONSISTENT_STOCK", $"Số dư tồn giữ chỗ chi nhánh không đủ hoặc không tìm thấy để giải phóng cho SKU '{res.SkuId}'.", 409);
+                    }
+
+                    whBal.Reserved -= res.Quantity;
+                    whBal.UpdatedAt = now;
+
+                    bBal.Reserved -= res.Quantity;
+                    bBal.UpdatedAt = now;
+
+                    if (res.ExpiresAt <= effectiveCutoff)
+                    {
+                        res.Status = "Expired";
+                    }
+                    else
+                    {
+                        res.Status = "Released";
+                    }
+                }
+
+                // 6. Cập nhật trạng thái đơn hàng sang Cancelled
+                order.Status = "Cancelled";
+                order.CancelledAt = now;
+
+                await _context.SaveChangesAsync(ct);
+
+                if (_context.IsRelationalDatabase)
+                {
+                    await _context.ExecuteSqlRawAsync("SET CONSTRAINTS ALL IMMEDIATE;", Array.Empty<object>(), ct);
+                }
+
+                await tx.CommitAsync(ct);
+
+                _logger.LogInformation("Tự động hủy đơn hàng quá hạn giữ chỗ {OrderNumber} thành công.", order.Number);
+
+                // 7. Chuẩn bị sự kiện Realtime sau commit thành công (nhóm theo SKU để không trùng lặp)
+                if (_realtimeNotifier != null)
+                {
+                    try
+                    {
+                        var releasedSkuIds = activeReservations.Select(r => r.SkuId).Distinct().ToList();
+                        foreach (var skuId in releasedSkuIds)
+                        {
+                            if (branchBalances.TryGetValue(skuId, out var bBal))
+                            {
+                                var newAvail = bBal.OnHand - bBal.Reserved;
+                                var skuIdCapture = skuId;
+                                var branchIdCapture = order.BranchId;
+                                var tidCapture = tenantId;
+                                pendingNotifications.Add(() => _realtimeNotifier.NotifyStockChangedAsync(tidCapture, branchIdCapture, skuIdCapture, newAvail, ct));
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Lỗi khi chuẩn bị sự kiện Realtime sau commit tự động hủy đơn {OrderNumber}.", order.Number);
+                    }
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                await tx.RollbackAsync(ct);
+                _logger.LogError(ex, "Tự động hủy đơn hàng quá hạn {OrderId} thất bại. Đã rollback giao dịch.", orderId);
+                throw;
+            }
+        });
+
+        // Phát sự kiện SignalR ngoài transaction và ngoài execution strategy delegate
+        if (pendingNotifications.Count > 0)
+        {
+            foreach (var notifyAction in pendingNotifications)
+            {
+                try
+                {
+                    await notifyAction();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Lỗi khi phát sự kiện Realtime sau commit tự động hủy đơn {OrderId}.", orderId);
+                }
+            }
+        }
+
+        return result;
+    }
+}
+
+/// <summary>
+/// Thống kê chi tiết kết quả xử lý batch của tác vụ tự động hủy đơn giữ chỗ quá hạn.
+/// </summary>
+public class BatchExecutionStats
+{
+    public int Scanned { get; set; }
+    public int Cancelled { get; set; }
+    public int Skipped { get; set; }
+    public int Failed { get; set; }
+    public List<Exception> Errors { get; set; } = new();
 }
