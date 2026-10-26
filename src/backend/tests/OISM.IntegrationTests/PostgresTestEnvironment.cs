@@ -414,5 +414,46 @@ SET session_replication_role = 'origin';";
         var sp = services.BuildServiceProvider();
         return sp.GetRequiredService<AppDbContext>();
     }
+
+    /// <summary>
+    /// Khởi tạo schema 'hangfire' trên database test và cấp quyền USAGE, CREATE cho runtime user (oisms_test_app / oisms_runtime).
+    /// </summary>
+    public static async Task EnsureHangfireSchemaAsync(string? targetAdminConnectionString = null, CancellationToken cancellationToken = default)
+    {
+        var isDefault = string.IsNullOrWhiteSpace(targetAdminConnectionString);
+        var targetConnStr = isDefault ? AdminDatabaseConnectionString : targetAdminConnectionString!;
+        var targetDb = ExtractDatabaseName(targetConnStr);
+
+        AssertSafeTestTarget(targetConnStr);
+        await EnsureInitializedAsync(targetConnStr, cancellationToken);
+        await AssertDatabaseOwnedByRunAsync(targetConnStr, RunId, cancellationToken);
+
+        await using var conn = new NpgsqlConnection(targetConnStr);
+        await conn.OpenAsync(cancellationToken);
+
+        const string sql = @"
+CREATE SCHEMA IF NOT EXISTS hangfire;
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'oisms_runtime') THEN
+        EXECUTE 'GRANT USAGE, CREATE ON SCHEMA hangfire TO oisms_runtime';
+        EXECUTE 'ALTER DEFAULT PRIVILEGES IN SCHEMA hangfire GRANT ALL ON TABLES TO oisms_runtime';
+        EXECUTE 'ALTER DEFAULT PRIVILEGES IN SCHEMA hangfire GRANT ALL ON SEQUENCES TO oisms_runtime';
+    END IF;
+    IF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'oisms_app') THEN
+        EXECUTE 'GRANT USAGE, CREATE ON SCHEMA hangfire TO oisms_app';
+        EXECUTE 'ALTER DEFAULT PRIVILEGES IN SCHEMA hangfire GRANT ALL ON TABLES TO oisms_app';
+        EXECUTE 'ALTER DEFAULT PRIVILEGES IN SCHEMA hangfire GRANT ALL ON SEQUENCES TO oisms_app';
+    END IF;
+    IF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'oisms_test_app') THEN
+        EXECUTE 'GRANT USAGE, CREATE ON SCHEMA hangfire TO oisms_test_app';
+        EXECUTE 'ALTER DEFAULT PRIVILEGES IN SCHEMA hangfire GRANT ALL ON TABLES TO oisms_test_app';
+        EXECUTE 'ALTER DEFAULT PRIVILEGES IN SCHEMA hangfire GRANT ALL ON SEQUENCES TO oisms_test_app';
+    END IF;
+END $$;";
+
+        await using var cmd = new NpgsqlCommand(sql, conn);
+        await cmd.ExecuteNonQueryAsync(cancellationToken);
+    }
 }
 

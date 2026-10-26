@@ -1,4 +1,5 @@
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using OISM.Application.Features.Orders.Dtos;
 using OISM.Application.Features.Orders.Services;
 using OISM.Domain.Entities;
@@ -15,8 +16,8 @@ public class OrderServiceTests
         var (context, mockTenant, tenantId) = TestDbContextFactory.CreateInMemoryContext();
         var orderService = new OrderService(context, mockTenant.Object);
 
-        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh Quận 1" };
-        var product = new Product { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Áo Thun Polo Cao Cấp" };
+        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh Quận 1", IsActive = true };
+        var product = new Product { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Áo Thun Polo Cao Cấp", IsActive = true };
         var sku = new ProductVariant
         {
             Id = Guid.NewGuid(),
@@ -24,10 +25,21 @@ public class OrderServiceTests
             ProductId = product.Id,
             SKU = "POLO-BLK-L",
             RetailPrice = 250000,
+            IsActive = true,
             Product = product
+        };
+        var warehouse = new Warehouse
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            BranchId = branch.Id,
+            Name = "Kho Quận 1",
+            IsActive = true,
+            CreatedAt = DateTimeOffset.UtcNow
         };
 
         context.Branches.Add(branch);
+        context.Warehouses.Add(warehouse);
         context.Products.Add(product);
         context.Skus.Add(sku);
         context.InventoryBalances.Add(new InventoryBalance
@@ -38,6 +50,16 @@ public class OrderServiceTests
             SkuId = sku.Id,
             OnHand = 100,
             AverageCost = 150000
+        });
+        context.WarehouseInventoryBalances.Add(new WarehouseInventoryBalance
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            BranchId = branch.Id,
+            WarehouseId = warehouse.Id,
+            SkuId = sku.Id,
+            OnHand = 100,
+            Reserved = 0
         });
         await context.SaveChangesAsync();
 
@@ -59,10 +81,10 @@ public class OrderServiceTests
         // Assert
         result.Should().NotBeNull();
         result.TotalAmount.Should().Be(750000);
-        result.Status.Should().Be("Draft");
+        result.Status.Should().Be("Reserved");
         result.Items.Should().HaveCount(1);
         result.Items[0].SkuCode.Should().Be("POLO-BLK-L");
-        result.Items[0].CostPrice.Should().Be(150000);
+        result.Items[0].CostPrice.Should().BeNull();
     }
 
     [Fact]
@@ -72,7 +94,7 @@ public class OrderServiceTests
         var (context, mockTenant, tenantId) = TestDbContextFactory.CreateInMemoryContext();
         var orderService = new OrderService(context, mockTenant.Object);
 
-        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh Thủ Đức" };
+        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh Thủ Đức", IsActive = true };
         context.Branches.Add(branch);
 
         context.Orders.AddRange(
@@ -122,8 +144,10 @@ public class OrderServiceTests
         var (context, mockTenant, tenantId) = TestDbContextFactory.CreateInMemoryContext();
         var orderService = new OrderService(context, mockTenant.Object);
 
-        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh 1" };
-        var sku = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, SKU = "JEAN-BLU-30", RetailPrice = 400000 };
+        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh 1", IsActive = true };
+        var sku = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, SKU = "JEAN-BLU-30", RetailPrice = 400000, IsActive = true };
+        var warehouse = new Warehouse { Id = Guid.NewGuid(), TenantId = tenantId, BranchId = branch.Id, Name = "Kho 1", IsActive = true, CreatedAt = DateTimeOffset.UtcNow };
+
         var balance = new InventoryBalance
         {
             Id = Guid.NewGuid(),
@@ -135,13 +159,24 @@ public class OrderServiceTests
             AverageCost = 200000
         };
 
+        var whBalance = new WarehouseInventoryBalance
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            BranchId = branch.Id,
+            WarehouseId = warehouse.Id,
+            SkuId = sku.Id,
+            OnHand = 50,
+            Reserved = 2
+        };
+
         var order = new Order
         {
             Id = Guid.NewGuid(),
             TenantId = tenantId,
             Number = "ORD-CONFIRM-TEST",
             BranchId = branch.Id,
-            Channel = "POS",
+            Channel = "Admin",
             Status = "Reserved",
             TotalAmount = 800000,
             CreatedAt = DateTimeOffset.UtcNow
@@ -165,16 +200,19 @@ public class OrderServiceTests
             OrderId = order.Id,
             OrderItemId = orderItem.Id,
             BranchId = branch.Id,
-            WarehouseId = Guid.NewGuid(),
+            WarehouseId = warehouse.Id,
             SkuId = sku.Id,
             Quantity = 2,
-            Status = "Active"
+            Status = "Active",
+            ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(15)
         };
         order.Reservations.Add(reservation);
 
         context.Branches.Add(branch);
+        context.Warehouses.Add(warehouse);
         context.Skus.Add(sku);
         context.InventoryBalances.Add(balance);
+        context.WarehouseInventoryBalances.Add(whBalance);
         context.Orders.Add(order);
         context.Reservations.Add(reservation);
         await context.SaveChangesAsync();
@@ -186,11 +224,14 @@ public class OrderServiceTests
         confirmed.Status.Should().Be("Confirmed");
         confirmed.ConfirmedAt.Should().NotBeNull();
 
-        balance.OnHand.Should().Be(48); // 50 - 2
-        balance.Reserved.Should().Be(0); // 2 - 2
-        reservation.Status.Should().Be("Consumed");
+        var updatedBalance = await context.InventoryBalances.AsNoTracking().FirstOrDefaultAsync(b => b.Id == balance.Id);
+        updatedBalance!.OnHand.Should().Be(48); // 50 - 2
+        updatedBalance.Reserved.Should().Be(0); // 2 - 2
 
-        var outTransaction = context.InventoryTransactions.FirstOrDefault(t => t.OrderItemId == orderItem.Id);
+        var updatedReservation = await context.Reservations.AsNoTracking().FirstOrDefaultAsync(r => r.Id == reservation.Id);
+        updatedReservation!.Status.Should().Be("Consumed");
+
+        var outTransaction = await context.InventoryTransactions.AsNoTracking().FirstOrDefaultAsync(t => t.OrderItemId == orderItem.Id);
         outTransaction.Should().NotBeNull();
         outTransaction!.Type.Should().Be("OUT");
         outTransaction.Quantity.Should().Be(2);
@@ -204,13 +245,26 @@ public class OrderServiceTests
         var (context, mockTenant, tenantId) = TestDbContextFactory.CreateInMemoryContext();
         var orderService = new OrderService(context, mockTenant.Object);
 
-        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh 1" };
-        var sku = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, SKU = "SHIRT-WHT", RetailPrice = 300000 };
+        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh 1", IsActive = true };
+        var sku = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, SKU = "SHIRT-WHT", RetailPrice = 300000, IsActive = true };
+        var warehouse = new Warehouse { Id = Guid.NewGuid(), TenantId = tenantId, BranchId = branch.Id, Name = "Kho 1", IsActive = true, CreatedAt = DateTimeOffset.UtcNow };
+
         var balance = new InventoryBalance
         {
             Id = Guid.NewGuid(),
             TenantId = tenantId,
             BranchId = branch.Id,
+            SkuId = sku.Id,
+            OnHand = 20,
+            Reserved = 5
+        };
+
+        var whBalance = new WarehouseInventoryBalance
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            BranchId = branch.Id,
+            WarehouseId = warehouse.Id,
             SkuId = sku.Id,
             OnHand = 20,
             Reserved = 5
@@ -233,16 +287,19 @@ public class OrderServiceTests
             TenantId = tenantId,
             OrderId = order.Id,
             BranchId = branch.Id,
-            WarehouseId = Guid.NewGuid(),
+            WarehouseId = warehouse.Id,
             SkuId = sku.Id,
             Quantity = 5,
-            Status = "Active"
+            Status = "Active",
+            ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(15)
         };
         order.Reservations.Add(reservation);
 
         context.Branches.Add(branch);
+        context.Warehouses.Add(warehouse);
         context.Skus.Add(sku);
         context.InventoryBalances.Add(balance);
+        context.WarehouseInventoryBalances.Add(whBalance);
         context.Orders.Add(order);
         context.Reservations.Add(reservation);
         await context.SaveChangesAsync();
@@ -253,7 +310,11 @@ public class OrderServiceTests
         // Assert
         cancelled.Status.Should().Be("Cancelled");
         cancelled.CancelledAt.Should().NotBeNull();
-        reservation.Status.Should().Be("Released");
-        balance.Reserved.Should().Be(0); // 5 - 5
+
+        var updatedReservation = await context.Reservations.AsNoTracking().FirstOrDefaultAsync(r => r.Id == reservation.Id);
+        updatedReservation!.Status.Should().Be("Released");
+
+        var updatedBalance = await context.InventoryBalances.AsNoTracking().FirstOrDefaultAsync(b => b.Id == balance.Id);
+        updatedBalance!.Reserved.Should().Be(0); // 5 - 5
     }
 }

@@ -20,8 +20,8 @@ public class SimulatorServiceTests
         var orderService = new OrderService(context, mockTenant.Object);
         var simulatorService = new SimulatorService(context, mockTenant.Object, orderService);
 
-        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh Marketplace" };
-        var product = new Product { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Bàn phím cơ không dây" };
+        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh Marketplace", IsActive = true };
+        var product = new Product { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Bàn phím cơ không dây", IsActive = true };
         var sku = new ProductVariant
         {
             Id = Guid.NewGuid(),
@@ -30,12 +30,42 @@ public class SimulatorServiceTests
             SKU = "KB-MECH-RGB",
             Barcode = "8931234567890",
             RetailPrice = 1200000,
+            IsActive = true,
             Product = product
+        };
+        var warehouse = new Warehouse
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            BranchId = branch.Id,
+            Name = "Kho Marketplace",
+            IsActive = true,
+            CreatedAt = DateTimeOffset.UtcNow
         };
 
         context.Branches.Add(branch);
+        context.Warehouses.Add(warehouse);
         context.Products.Add(product);
         context.Skus.Add(sku);
+        context.InventoryBalances.Add(new InventoryBalance
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            BranchId = branch.Id,
+            SkuId = sku.Id,
+            OnHand = 100,
+            Reserved = 0
+        });
+        context.WarehouseInventoryBalances.Add(new WarehouseInventoryBalance
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            BranchId = branch.Id,
+            WarehouseId = warehouse.Id,
+            SkuId = sku.Id,
+            OnHand = 100,
+            Reserved = 0
+        });
         await context.SaveChangesAsync();
 
         var payload = new WebhookOrderPayloadDto
@@ -73,8 +103,8 @@ public class SimulatorServiceTests
         var orderService = new OrderService(context, mockTenant.Object);
         var simulatorService = new SimulatorService(context, mockTenant.Object, orderService);
 
-        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Kho Hà Nội" };
-        var product = new Product { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chuột Gaming Logitech" };
+        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Kho Hà Nội", IsActive = true };
+        var product = new Product { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chuột Gaming Logitech", IsActive = true };
         var sku = new ProductVariant
         {
             Id = Guid.NewGuid(),
@@ -82,17 +112,48 @@ public class SimulatorServiceTests
             ProductId = product.Id,
             SKU = "MOUSE-G102",
             RetailPrice = 400000,
+            IsActive = true,
             Product = product
+        };
+        var warehouse = new Warehouse
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            BranchId = branch.Id,
+            Name = "Kho Hà Nội 1",
+            IsActive = true,
+            CreatedAt = DateTimeOffset.UtcNow
         };
 
         context.Branches.Add(branch);
+        context.Warehouses.Add(warehouse);
         context.Products.Add(product);
         context.Skus.Add(sku);
+        context.InventoryBalances.Add(new InventoryBalance
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            BranchId = branch.Id,
+            SkuId = sku.Id,
+            OnHand = 100,
+            Reserved = 0
+        });
+        context.WarehouseInventoryBalances.Add(new WarehouseInventoryBalance
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            BranchId = branch.Id,
+            WarehouseId = warehouse.Id,
+            SkuId = sku.Id,
+            OnHand = 100,
+            Reserved = 0
+        });
         await context.SaveChangesAsync();
 
         var payload = new WebhookOrderPayloadDto
         {
             ExternalOrderId = "DUPLICATE-ORDER-999",
+            ExternalShopId = "SHOP-VN-002",
             BranchId = branch.Id,
             CustomerName = "Lê Văn C",
             Items = new List<WebhookOrderItemPayloadDto>

@@ -1,13 +1,17 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using OISM.Application.Common.Exceptions;
+using OISM.Application.Features.Orders.Dtos;
+using OISM.Application.Features.Orders.Services;
 using OISM.Application.Features.Pos;
 using OISM.Infrastructure.Persistence;
 
 namespace OISM.WebApi.Controllers;
 
 /// <summary>
-/// API phục vụ Quầy thu ngân POS: Tìm kiếm nhanh sản phẩm, quét mã vạch Barcode và tra cứu tồn khả dụng (FR-POS-01, BE2-07).
+/// API phục vụ Quầy thu ngân POS: Tìm kiếm nhanh sản phẩm, quét mã vạch Barcode, tra cứu tồn khả dụng và Thanh toán nhanh toàn giỏ (FR-POS-01, FR-POS-02, BE2-07, BE1-10).
 /// </summary>
 [ApiController]
 [Route("api/pos")]
@@ -15,10 +19,29 @@ namespace OISM.WebApi.Controllers;
 public class PosCatalogController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private readonly IPosCheckoutService _posCheckoutService;
 
-    public PosCatalogController(AppDbContext context)
+    public PosCatalogController(AppDbContext context, IPosCheckoutService posCheckoutService)
     {
         _context = context;
+        _posCheckoutService = posCheckoutService;
+    }
+
+    /// <summary>
+    /// Thanh toán nhanh nguyên tử toàn giỏ hàng tại quầy POS (FR-POS-02, BE1-10).
+    /// Tuyến đường chính thức: POST /api/pos/checkout.
+    /// Hỗ trợ vai trò Owner, Staff, Cashier.
+    /// Tạo đơn Completed, thanh toán Succeeded, trừ tồn hai cấp, ghi ledger OUT, snapshot WAC và sinh hóa đơn trong 1 transaction duy nhất.
+    /// </summary>
+    [HttpPost("checkout")]
+    [Authorize(Roles = "Owner,Staff,Cashier")]
+    public async Task<IActionResult> Checkout(
+        [FromBody] PosCheckoutRequestDto dto,
+        [FromHeader(Name = "Idempotency-Key")] string? idempotencyKeyHeader,
+        [FromHeader(Name = "X-Request-Key")] string? xRequestKeyHeader,
+        CancellationToken ct)
+    {
+        return await PosCheckoutActionHelper.ExecuteCheckoutAsync(this, _posCheckoutService, dto, idempotencyKeyHeader, xRequestKeyHeader, ct);
     }
 
     /// <summary>
@@ -179,4 +202,43 @@ public class PosCatalogController : ControllerBase
 
         return Ok(variant);
     }
+
+    private Guid? GetCurrentUserId()
+    {
+        var claim = User.FindFirst("userId")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(claim, out var userId) ? userId : null;
+    }
+
+    private ObjectResult CreateProblemResult(string errorCode, string title, int statusCode, string detail)
+    {
+        var problem = new ProblemDetails
+        {
+            Type = $"https://oisms.local/errors/{errorCode}",
+            Title = title,
+            Status = statusCode,
+            Detail = detail,
+            Instance = HttpContext.Request.Path,
+            Extensions =
+            {
+                ["errorCode"] = errorCode,
+                ["timestamp"] = DateTimeOffset.UtcNow
+            }
+        };
+        return StatusCode(statusCode, problem);
+    }
+
+    private static string GetTitleForErrorCode(string errorCode) => errorCode switch
+    {
+        "INSUFFICIENT_STOCK" => "Tồn kho không đủ",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH" => "Xung đột khóa Idempotency",
+        "VALIDATION_ERROR" => "Lỗi xác thực dữ liệu",
+        "BRANCH_INACTIVE_OR_INVALID" => "Chi nhánh không hợp lệ",
+        "SKU_NOT_FOUND" => "Mặt hàng không tồn tại",
+        "SKU_INACTIVE" => "Mặt hàng đã ngừng hoạt động",
+        "PRICE_MISMATCH" => "Sai lệch đơn giá niêm yết",
+        "INSUFFICIENT_CASH_RECEIVED" => "Tiền khách đưa không đủ",
+        "INVALID_PAYMENT_METHOD" => "Phương thức thanh toán không hợp lệ",
+        "NO_ACTIVE_WAREHOUSE" => "Không tìm thấy kho khả dụng",
+        _ => "Lỗi xử lý nghiệp vụ"
+    };
 }

@@ -7,8 +7,9 @@ using OISM.Application.Features.Simulator.Services;
 namespace OISM.WebApi.Controllers;
 
 /// <summary>
-/// API Trình Giả Lập Webhook Sàn Thương Mại Điện Tử (Shopee, TikTok Shop, Lazada - FR-SIM-01).
-/// Cho phép bắn payload đơn hàng sàn vào hệ thống OISMS để kiểm thử chuẩn hóa đơn hàng và tải đồng thời.
+/// API Trình Giả Lập Tải Đồng Thời (Concurrency Simulation Runner - FR-SIM-01, NFR-PERF-02).
+/// Cho phép bắn nhiều request tranh chấp đồng thời để kiểm tra chống bán vượt và bảo vệ số dư tồn kho.
+/// Lưu ý: Toàn bộ webhook tiếp nhận đơn sàn đi qua WebhooksController (/api/webhooks/simulator/{channel}).
 /// </summary>
 [ApiController]
 [Route("api/webhooks/simulator")]
@@ -30,37 +31,6 @@ public class SimulatorController : ControllerBase
             return userId;
         }
         return null;
-    }
-
-    /// <summary>
-    /// Giả lập tiếp nhận Webhook đơn hàng từ sàn (Shopee, TikTok, Lazada).
-    /// Tự động chuẩn hóa về Mô hình Đơn hàng Hợp nhất (Canonical Order Model - FR-ORD-01) và kích hoạt giữ chỗ (Status = 'Reserved').
-    /// </summary>
-    [HttpPost("{channel}")]
-    public async Task<IActionResult> IngestWebhookOrder(
-        string channel,
-        [FromBody] WebhookOrderPayloadDto payload,
-        CancellationToken ct)
-    {
-        if (!ModelState.IsValid)
-        {
-            return BadRequest(ModelState);
-        }
-
-        try
-        {
-            var userId = GetCurrentUserId();
-            var order = await _simulatorService.IngestWebhookOrderAsync(channel, payload, userId, ct);
-            return Ok(order);
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return NotFound(new { message = ex.Message });
-        }
     }
 
     /// <summary>

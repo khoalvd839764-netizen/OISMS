@@ -66,73 +66,38 @@ public class SimulatorService : ISimulatorService
             throw new ArgumentException("Đơn hàng webhook sàn phải chứa ít nhất một mặt hàng.");
         }
 
-        // Kiểm tra xem đơn hàng sàn ExternalOrderId đã tồn tại chưa (Idempotency)
-        var existingOrder = await _context.Orders
-            .AsNoTracking()
-            .FirstOrDefaultAsync(o => o.TenantId == tenantId &&
-                                      o.Channel == normalizedChannel &&
-                                      o.ExternalOrderId == payload.ExternalOrderId.Trim(), ct);
+        var signature = Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes($"{tenantId}:{normalizedChannel}:{payload.ExternalShopId?.Trim()}:{payload.ExternalOrderId.Trim()}:{payload.Items.Sum(i => i.Quantity * i.UnitPrice)}")
+            )
+        ).ToLowerInvariant();
 
-        if (existingOrder != null)
+        var marketplaceContext = new InternalMarketplaceOrderContext
         {
-            var detail = await _orderService.GetOrderByIdAsync(existingOrder.Id, ct);
-            if (detail != null)
-            {
-                return detail;
-            }
-        }
-
-        // Tìm kiếm các SKU trong gian hàng theo SkuCode hoặc Barcode
-        var skuCodes = payload.Items.Select(i => i.SkuCode.Trim().ToUpperInvariant()).Distinct().ToList();
-
-        var skus = await _context.Skus
-            .Where(s => s.TenantId == tenantId &&
-                        (skuCodes.Contains(s.SKU) || (s.Barcode != null && skuCodes.Contains(s.Barcode))))
-            .ToListAsync(ct);
-
-        var skuMap = new Dictionary<string, Guid>(StringComparer.OrdinalIgnoreCase);
-        foreach (var s in skus)
-        {
-            skuMap[s.SKU] = s.Id;
-            if (!string.IsNullOrWhiteSpace(s.Barcode))
-            {
-                skuMap[s.Barcode] = s.Id;
-            }
-        }
-
-        var orderItemsReq = new List<CreateOrderItemRequestDto>();
-        foreach (var item in payload.Items)
-        {
-            var code = item.SkuCode.Trim();
-            if (!skuMap.TryGetValue(code, out var skuId))
-            {
-                throw new KeyNotFoundException($"Không tìm thấy SKU hoặc Barcode '{code}' trong gian hàng.");
-            }
-
-            orderItemsReq.Add(new CreateOrderItemRequestDto
-            {
-                SkuId = skuId,
-                Quantity = item.Quantity,
-                UnitPrice = item.UnitPrice
-            });
-        }
-
-        var createDto = new CreateOrderDto
-        {
-            Number = $"ORD-{normalizedChannel.ToUpperInvariant()}-{payload.ExternalOrderId.Trim()}",
+            TenantId = tenantId,
             BranchId = payload.BranchId,
             Channel = normalizedChannel,
-            ExternalShopId = payload.ExternalShopId?.Trim(),
+            ExternalShopId = !string.IsNullOrWhiteSpace(payload.ExternalShopId) ? payload.ExternalShopId.Trim() : "DEFAULT_SHOP",
             ExternalOrderId = payload.ExternalOrderId.Trim(),
+            WebhookPayloadSignature = signature,
+            RequestKey = Guid.NewGuid(),
             CustomerName = payload.CustomerName?.Trim(),
             CustomerPhone = payload.CustomerPhone?.Trim(),
             ShippingAddress = payload.ShippingAddress?.Trim(),
-            InitialStatus = "Reserved", // Đơn hàng sàn tự động giữ chỗ theo quy trình FR-ORD-01
-            RequestKey = Guid.NewGuid(),
-            Items = orderItemsReq
+            CreatedByUserId = userId,
+            OrderTimestamp = DateTimeOffset.UtcNow,
+            ExpectedTotalAmount = payload.Items.Sum(i => i.Quantity * i.UnitPrice),
+            Items = payload.Items.Select(i => new InternalMarketplaceOrderItemContext
+            {
+                SkuCode = i.SkuCode.Trim(),
+                Quantity = i.Quantity,
+                UnitPrice = i.UnitPrice
+            }).ToList()
         };
 
-        return await _orderService.CreateOrderAsync(createDto, userId, ct);
+        var orderResponse = await _orderService.CreateMarketplaceReservedOrderAsync(marketplaceContext, ct);
+        var detail = await _orderService.GetOrderDetailByIdAsync(orderResponse.Id, ct);
+        return detail!;
     }
 
     public async Task<SimulationBatchResultDto> RunConcurrencySimulationAsync(
@@ -159,28 +124,27 @@ public class SimulatorService : ISimulatorService
 
         for (int i = 1; i <= request.ConcurrencyCount; i++)
         {
-            var extId = $"SIM-{DateTime.UtcNow:yyyyMMddHHmmss}-{i:D3}";
-            var payload = new WebhookOrderPayloadDto
-            {
-                ExternalOrderId = extId,
-                ExternalShopId = "SHOP-SIMULATOR",
-                BranchId = request.BranchId,
-                CustomerName = $"Khách hàng test #{i}",
-                CustomerPhone = "0901234567",
-                ShippingAddress = "123 Đường Test, Quận 1, TP.HCM",
-                Items = new List<WebhookOrderItemPayloadDto>
-                {
-                    new()
-                    {
-                        SkuCode = request.SkuCode,
-                        Quantity = request.QuantityPerOrder,
-                        UnitPrice = request.UnitPrice
-                    }
-                }
-            };
-
             try
             {
+                var payload = new WebhookOrderPayloadDto
+                {
+                    ExternalOrderId = $"SIM-{DateTimeOffset.UtcNow.ToUnixTimeSeconds()}-{i}",
+                    ExternalShopId = "SIM-SHOP-01",
+                    BranchId = request.BranchId,
+                    CustomerName = $"Sim Customer {i}",
+                    CustomerPhone = "0900000000",
+                    ShippingAddress = "Sim Address",
+                    Items = new List<WebhookOrderItemPayloadDto>
+                    {
+                        new()
+                        {
+                            SkuCode = request.SkuCode,
+                            Quantity = request.QuantityPerOrder,
+                            UnitPrice = request.UnitPrice
+                        }
+                    }
+                };
+
                 var order = await IngestWebhookOrderAsync(normalizedChannel, payload, userId, ct);
                 successCount++;
                 orderNumbers.Add(order.Number);
@@ -188,7 +152,7 @@ public class SimulatorService : ISimulatorService
             catch (Exception ex)
             {
                 failedCount++;
-                errors.Add($"Đơn #{i} thất bại: {ex.Message}");
+                errors.Add($"Req #{i}: {ex.Message}");
             }
         }
 
@@ -198,7 +162,7 @@ public class SimulatorService : ISimulatorService
         result.FailedConflictCount = failedCount;
         result.ElapsedMilliseconds = stopwatch.ElapsedMilliseconds;
         result.CreatedOrderNumbers = orderNumbers;
-        result.ErrorMessages = errors.Take(10).ToList();
+        result.ErrorMessages = errors;
 
         return result;
     }
