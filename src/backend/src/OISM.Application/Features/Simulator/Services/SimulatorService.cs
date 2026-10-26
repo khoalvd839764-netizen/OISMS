@@ -53,11 +53,34 @@ public class SimulatorService : ISimulatorService
         // 1. Chuẩn hóa kênh bán từ WebhookCanonicalValidator
         var normalizedChannel = WebhookCanonicalValidator.CanonicalizeChannel(channel);
 
-        // 2. Chuyển đổi sang CanonicalWebhookPayloadDto và chuẩn hóa Timestamp
-        // Nếu payload.OrderTimestamp có giá trị: giữ nguyên (bao gồm default(DateTimeOffset) để validator bắt lỗi)
-        // Nếu payload.OrderTimestamp là null: tự động gán vào payload để idempotent replay cùng payload instance có signature nhất quán
-        payload.OrderTimestamp ??= DateTimeOffset.UtcNow;
-        DateTimeOffset? effectiveTimestamp = payload.OrderTimestamp;
+        // 2. Chuyển đổi sang CanonicalWebhookPayloadDto và mapping an toàn (BE2-F06, R3-AC-01..04)
+        // Tuyệt đối không tự động gán/mutate timestamp (missing/default phải bị từ chối 400 qua WebhookCanonicalValidator)
+        // Xử lý an toàn khi Items chứa null để tránh NullReferenceException trước validator
+        decimal? totalAmount = null;
+        if (payload.Items != null)
+        {
+            if (payload.Items.Any(i => i == null))
+            {
+                // Khi có item mang giá trị null, đặt totalAmount = 0 để validator tiếp tục kiểm tra và ném lỗi null item chuẩn hóa
+                totalAmount = 0m;
+            }
+            else
+            {
+                try
+                {
+                    decimal sum = 0m;
+                    foreach (var item in payload.Items)
+                    {
+                        checked { sum += item.Quantity * item.UnitPrice; }
+                    }
+                    totalAmount = sum;
+                }
+                catch (OverflowException)
+                {
+                    totalAmount = decimal.MaxValue;
+                }
+            }
+        }
 
         var canonicalDto = new CanonicalWebhookPayloadDto
         {
@@ -67,9 +90,9 @@ public class SimulatorService : ISimulatorService
             CustomerName = payload.CustomerName?.Trim(),
             CustomerPhone = payload.CustomerPhone?.Trim(),
             ShippingAddress = payload.ShippingAddress?.Trim(),
-            OrderTimestamp = effectiveTimestamp,
-            TotalAmount = payload.Items != null ? payload.Items.Sum(i => i.Quantity * i.UnitPrice) : null,
-            Items = payload.Items?.Select(i => new CanonicalWebhookItemDto
+            OrderTimestamp = payload.OrderTimestamp,
+            TotalAmount = totalAmount,
+            Items = payload.Items?.Select(i => i == null ? (CanonicalWebhookItemDto)null! : new CanonicalWebhookItemDto
             {
                 SkuCode = i.SkuCode?.Trim() ?? string.Empty,
                 Quantity = i.Quantity,
@@ -77,7 +100,7 @@ public class SimulatorService : ISimulatorService
             }).ToList() ?? new()
         };
 
-        // 3. Thực thi xác thực chuẩn hóa dùng chung Canonical Validator (BE2-F06, R2-AC-04)
+        // 3. Thực thi xác thực chuẩn hóa dùng chung Canonical Validator (BE2-F06, R2-AC-04, R3-AC-01..04)
         var calculatedTotal = WebhookCanonicalValidator.ValidateAndCalculateTotal(normalizedChannel, canonicalDto);
 
         // 4. Đối soát cấu hình ShopIntegration của gian hàng (FR-SIM-01, BE2-F06 - Tuyệt đối không bypass ShopIntegration)

@@ -311,6 +311,7 @@ public class OrderProcessAndSimulatorRegressionTests : IAsyncLifetime, IClassFix
             ExternalShopId = shop.ExternalShopId,
             ExternalOrderId = "ORD-EXT-AC05",
             BranchId = branchId,
+            OrderTimestamp = DateTimeOffset.UtcNow,
             Items = new() { new() { SkuCode = skuCode, Quantity = 1, UnitPrice = 100m } }
         };
 
@@ -372,6 +373,7 @@ public class OrderProcessAndSimulatorRegressionTests : IAsyncLifetime, IClassFix
             ExternalShopId = shop.ExternalShopId,
             ExternalOrderId = "ORD-EXT-AC06",
             BranchId = branchId,
+            OrderTimestamp = DateTimeOffset.UtcNow,
             Items = new() { new() { SkuCode = skuCode, Quantity = 2, UnitPrice = 150m } }
         };
 
@@ -433,6 +435,7 @@ public class OrderProcessAndSimulatorRegressionTests : IAsyncLifetime, IClassFix
             ExternalShopId = "SHOP-UNKNOWN-NOT-FOUND",
             ExternalOrderId = "ORD-TEST-1",
             BranchId = branchId,
+            OrderTimestamp = DateTimeOffset.UtcNow,
             Items = new() { new() { SkuCode = skuCode, Quantity = 1, UnitPrice = 50m } }
         };
         var exUnconf = await Record.ExceptionAsync(async () => await simulator.IngestWebhookOrderAsync("Lazada", unconfPayload, null));
@@ -447,6 +450,7 @@ public class OrderProcessAndSimulatorRegressionTests : IAsyncLifetime, IClassFix
             ExternalShopId = inactiveShop.ExternalShopId,
             ExternalOrderId = "ORD-TEST-2",
             BranchId = branchId,
+            OrderTimestamp = DateTimeOffset.UtcNow,
             Items = new() { new() { SkuCode = skuCode, Quantity = 1, UnitPrice = 50m } }
         };
         var exInactive = await Record.ExceptionAsync(async () => await simulator.IngestWebhookOrderAsync("Lazada", inactivePayload, null));
@@ -462,6 +466,7 @@ public class OrderProcessAndSimulatorRegressionTests : IAsyncLifetime, IClassFix
             ExternalShopId = activeShop.ExternalShopId,
             ExternalOrderId = "ORD-TEST-3",
             BranchId = mismatchedBranchId,
+            OrderTimestamp = DateTimeOffset.UtcNow,
             Items = new() { new() { SkuCode = skuCode, Quantity = 1, UnitPrice = 50m } }
         };
         var exBranch = await Record.ExceptionAsync(async () => await simulator.IngestWebhookOrderAsync("Lazada", branchMismatchPayload, null));
@@ -756,4 +761,221 @@ public class OrderProcessAndSimulatorRegressionTests : IAsyncLifetime, IClassFix
         count.Should().Be(0);
     }
 
+    [Fact]
+    public async Task R3_AC01_AC03_SimulatorAdapter_MissingTimestamp_TwoIndependentPayloads_BothRejected400_NoPersistOrMismatch()
+    {
+        // Arrange
+        var (tenantId, _, branchId, _, _, skuCode, _, _) = await SetupTenantAndStockAsync(10m);
+        var tenantService = new TestTenantService { TenantId = tenantId };
+        await using var db = PostgresTestEnvironment.CreateRuntimeDbContext(tenantService);
+
+        var shop = new ShopIntegration
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            BranchId = branchId,
+            Channel = "Shopee",
+            ExternalShopId = "SHOP-R3-AC01-03",
+            SecretHash = WebhookSecretHasher.HashSecret(Guid.NewGuid().ToString("N")),
+            IsActive = true,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        db.ShopIntegrations.Add(shop);
+        await db.SaveChangesAsync();
+
+        var simulator = new SimulatorService(db, tenantService, new OrderService(db, tenantService));
+
+        WebhookOrderPayloadDto CreateMissingTimestampPayload() => new()
+        {
+            ExternalShopId = shop.ExternalShopId,
+            ExternalOrderId = "SAME-JSON-MISSING-TIME",
+            BranchId = branchId,
+            OrderTimestamp = null,
+            Items = new() { new() { SkuCode = skuCode, Quantity = 1, UnitPrice = 100m } }
+        };
+
+        // Act 1: Lần đầu tiên với DTO instance thứ nhất (missing timestamp)
+        var firstPayload = CreateMissingTimestampPayload();
+        var firstEx = await Record.ExceptionAsync(async () =>
+        {
+            await simulator.IngestWebhookOrderAsync("Shopee", firstPayload, null);
+        });
+
+        // Assert 1: Bị từ chối VALIDATION_ERROR 400, không bị mutate đối số
+        firstEx.Should().NotBeNull();
+        firstEx.Should().BeOfType<OismException>();
+        var firstOism = (OismException)firstEx!;
+        firstOism.ErrorCode.Should().Be("VALIDATION_ERROR");
+        firstOism.StatusCode.Should().Be(400);
+        firstPayload.OrderTimestamp.Should().BeNull("Không được gán/mutate timestamp vào payload đầu vào");
+
+        // Act 2: Bắn lại cùng dữ liệu với DTO instance thứ hai mới hoàn toàn (missing timestamp)
+        var secondPayload = CreateMissingTimestampPayload();
+        var secondEx = await Record.ExceptionAsync(async () =>
+        {
+            await simulator.IngestWebhookOrderAsync("Shopee", secondPayload, null);
+        });
+
+        // Assert 2: Cả 2 đều bị từ chối 400 VALIDATION_ERROR, tuyệt đối không bị persist lần 1 rồi báo mismatch 409 ở lần 2
+        secondEx.Should().NotBeNull();
+        secondEx.Should().BeOfType<OismException>();
+        var secondOism = (OismException)secondEx!;
+        secondOism.ErrorCode.Should().Be("VALIDATION_ERROR");
+        secondOism.StatusCode.Should().Be(400);
+
+        // Kiểm tra Canonical Ingress qua HTTP cũng trả 400 BadRequest
+        _client.DefaultRequestHeaders.Authorization = null;
+        var canonicalRes = await _client.PostAsJsonAsync("/api/webhooks/simulator/Shopee", new CanonicalWebhookPayloadDto
+        {
+            Channel = "Shopee",
+            ExternalShopId = shop.ExternalShopId,
+            ExternalOrderId = "CANONICAL-MISSING-TIME-R3",
+            OrderTimestamp = null,
+            TotalAmount = 100m,
+            Items = new() { new() { SkuCode = skuCode, Quantity = 1, UnitPrice = 100m } }
+        });
+        canonicalRes.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+
+        // Kiểm chứng tuyệt đối không có side effect nào trong DB
+        var persistedCount = await db.Orders.AsNoTracking().CountAsync(x => x.ExternalOrderId == "SAME-JSON-MISSING-TIME" || x.ExternalOrderId == "CANONICAL-MISSING-TIME-R3");
+        persistedCount.Should().Be(0, "Payload thiếu timestamp tuyệt đối không được lưu order vào database");
+
+        var balance = await db.InventoryBalances.AsNoTracking().SingleAsync(b => b.BranchId == branchId && b.Sku!.SKU == skuCode);
+        balance.Reserved.Should().Be(0m, "Không phát sinh bất kỳ giữ chỗ tồn kho nào");
+    }
+
+    [Fact]
+    public async Task R3_AC02_SimulatorAdapter_TwoNewInstances_SameValidTimestamp_IdempotentReplayReturnsSameOrder()
+    {
+        // Arrange
+        var (tenantId, _, branchId, _, _, skuCode, _, _) = await SetupTenantAndStockAsync(10m);
+        var tenantService = new TestTenantService { TenantId = tenantId };
+        await using var db = PostgresTestEnvironment.CreateRuntimeDbContext(tenantService);
+
+        var shop = new ShopIntegration
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            BranchId = branchId,
+            Channel = "Shopee",
+            ExternalShopId = "SHOP-R3-AC02",
+            SecretHash = WebhookSecretHasher.HashSecret(Guid.NewGuid().ToString("N")),
+            IsActive = true,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        db.ShopIntegrations.Add(shop);
+        await db.SaveChangesAsync();
+
+        var simulator = new SimulatorService(db, tenantService, new OrderService(db, tenantService));
+        var eventTimestamp = DateTimeOffset.UtcNow;
+
+        WebhookOrderPayloadDto CreateValidPayload() => new()
+        {
+            ExternalShopId = shop.ExternalShopId,
+            ExternalOrderId = "ORD-IDEMPOTENT-DTO-NEW",
+            BranchId = branchId,
+            CustomerName = "Khách Hàng Thử Nghiệm",
+            CustomerPhone = "0912345678",
+            OrderTimestamp = eventTimestamp,
+            Items = new() { new() { SkuCode = skuCode, Quantity = 2, UnitPrice = 150m } }
+        };
+
+        // Act 1: Lần đầu tiên từ instance 1
+        var payloadInstance1 = CreateValidPayload();
+        var firstResult = await simulator.IngestWebhookOrderAsync("Shopee", payloadInstance1, null);
+        firstResult.Should().NotBeNull();
+        firstResult.Status.Should().Be("Reserved");
+
+        // Act 2: Replay cùng dữ liệu nhưng từ instance 2 mới độc lập (mô phỏng deserialize mới từ body JSON)
+        var payloadInstance2 = CreateValidPayload();
+        var secondResult = await simulator.IngestWebhookOrderAsync("Shopee", payloadInstance2, null);
+
+        // Assert: Trả về chính xác cùng đơn hàng cũ, không lỗi signature mismatch
+        secondResult.Should().NotBeNull();
+        secondResult.Id.Should().Be(firstResult.Id);
+        secondResult.Number.Should().Be(firstResult.Number);
+
+        // Kiểm tra DB: Chỉ có đúng 1 order được lưu, Reserved đúng 2 (không bị double reserve thành 4)
+        var orderCount = await db.Orders.CountAsync(o => o.ExternalOrderId == "ORD-IDEMPOTENT-DTO-NEW");
+        orderCount.Should().Be(1);
+
+        var balance = await db.InventoryBalances.AsNoTracking().SingleAsync(b => b.BranchId == branchId && b.Sku!.SKU == skuCode);
+        balance.Reserved.Should().Be(2m, "Tồn giữ chỗ vẫn là 2, không bị double reserve khi replay qua instance mới");
+    }
+
+    [Fact]
+    public async Task R3_AC04_SimulatorAdapter_NullItemInList_ThrowsControlledValidationError_NoNullReferenceExceptionOrSideEffect()
+    {
+        // Arrange
+        var (tenantId, _, branchId, _, _, skuCode, _, _) = await SetupTenantAndStockAsync(10m);
+        var tenantService = new TestTenantService { TenantId = tenantId };
+        await using var db = PostgresTestEnvironment.CreateRuntimeDbContext(tenantService);
+
+        var secret = "test-secret-r3-ac04";
+        var shop = new ShopIntegration
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            BranchId = branchId,
+            Channel = "Shopee",
+            ExternalShopId = "SHOP-R3-AC04",
+            SecretHash = WebhookSecretHasher.HashSecret(secret),
+            IsActive = true,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        db.ShopIntegrations.Add(shop);
+        await db.SaveChangesAsync();
+
+        var simulator = new SimulatorService(db, tenantService, new OrderService(db, tenantService));
+        var timestamp = DateTimeOffset.UtcNow;
+
+        // Act 1: Simulator Adapter nhận payload có item mang giá trị null
+        var adapterError = await Record.ExceptionAsync(async () =>
+        {
+            await simulator.IngestWebhookOrderAsync("Shopee", new WebhookOrderPayloadDto
+            {
+                ExternalShopId = shop.ExternalShopId,
+                ExternalOrderId = "NULL-ITEM-ADAPTER-TEST",
+                BranchId = branchId,
+                OrderTimestamp = timestamp,
+                Items = new List<WebhookOrderItemPayloadDto> { null! }
+            }, null);
+        });
+
+        // Assert 1: Phải ném OismException 400 VALIDATION_ERROR (không phải NullReferenceException 500)
+        adapterError.Should().NotBeNull();
+        adapterError.Should().BeOfType<OismException>();
+        var oismEx = (OismException)adapterError!;
+        oismEx.ErrorCode.Should().Be("VALIDATION_ERROR");
+        oismEx.StatusCode.Should().Be(400);
+
+        // Act 2: Canonical Ingress nhận payload có item mang giá trị null
+        _client.DefaultRequestHeaders.Authorization = null;
+        var canonicalReq = new HttpRequestMessage(HttpMethod.Post, "/api/webhooks/simulator/Shopee")
+        {
+            Content = JsonContent.Create(new CanonicalWebhookPayloadDto
+            {
+                Channel = "Shopee",
+                ExternalShopId = shop.ExternalShopId,
+                ExternalOrderId = "NULL-ITEM-CANONICAL-TEST",
+                OrderTimestamp = timestamp,
+                TotalAmount = 100m,
+                Items = new List<CanonicalWebhookItemDto> { null! }
+            })
+        };
+        canonicalReq.Headers.Add("X-Webhook-Secret", secret);
+        var canonicalRes = await _client.SendAsync(canonicalReq);
+
+        // Assert 2: Canonical Ingress cũng trả 400 BadRequest
+        canonicalRes.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var canonicalBody = await canonicalRes.Content.ReadAsStringAsync();
+        canonicalBody.Should().Contain("VALIDATION_ERROR");
+
+        // Kiểm tra cơ sở dữ liệu: không có order nào được persist, không có giữ chỗ tồn kho
+        var persistedOrders = await db.Orders.AsNoTracking().CountAsync(x => x.ExternalOrderId == "NULL-ITEM-ADAPTER-TEST" || x.ExternalOrderId == "NULL-ITEM-CANONICAL-TEST");
+        persistedOrders.Should().Be(0);
+
+        var balance = await db.InventoryBalances.AsNoTracking().SingleAsync(b => b.BranchId == branchId && b.Sku!.SKU == skuCode);
+        balance.Reserved.Should().Be(0m);
+    }
 }

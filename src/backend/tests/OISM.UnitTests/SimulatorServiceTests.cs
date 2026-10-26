@@ -87,6 +87,7 @@ public class SimulatorServiceTests
             CustomerName = "Trần Thị B",
             CustomerPhone = "0987654321",
             ShippingAddress = "Số 456 Lê Duẩn, Đà Nẵng",
+            OrderTimestamp = DateTimeOffset.UtcNow,
             Items = new List<WebhookOrderItemPayloadDto>
             {
                 new() { SkuCode = "KB-MECH-RGB", Quantity = 2, UnitPrice = 1100000 }
@@ -177,6 +178,7 @@ public class SimulatorServiceTests
             ExternalShopId = "SHOP-VN-002",
             BranchId = branch.Id,
             CustomerName = "Lê Văn C",
+            OrderTimestamp = DateTimeOffset.UtcNow,
             Items = new List<WebhookOrderItemPayloadDto>
             {
                 new() { SkuCode = "MOUSE-G102", Quantity = 1, UnitPrice = 400000 }
@@ -260,12 +262,14 @@ public class SimulatorServiceTests
         });
         await context.SaveChangesAsync();
 
+        var fixedTimestamp = DateTimeOffset.UtcNow;
         var payload1 = new WebhookOrderPayloadDto
         {
             ExternalOrderId = "SAME-TOTAL-ORDER-01",
             ExternalShopId = "SHOP-VN-003",
             BranchId = branch.Id,
             CustomerName = "Nguyễn Văn A",
+            OrderTimestamp = fixedTimestamp,
             Items = new List<WebhookOrderItemPayloadDto>
             {
                 new() { SkuCode = "MOUSE-G102", Quantity = 1, UnitPrice = 100 }
@@ -283,6 +287,7 @@ public class SimulatorServiceTests
             ExternalShopId = "SHOP-VN-003",
             BranchId = branch.Id,
             CustomerName = "Nguyễn Văn A",
+            OrderTimestamp = fixedTimestamp,
             Items = new List<WebhookOrderItemPayloadDto>
             {
                 new() { SkuCode = "MOUSE-G102", Quantity = 2, UnitPrice = 50 }
@@ -307,6 +312,7 @@ public class SimulatorServiceTests
             ExternalOrderId = "ORDER-NO-SHOP-1",
             ExternalShopId = "UNCONFIGURED-SHOP-XYZ",
             BranchId = Guid.NewGuid(),
+            OrderTimestamp = DateTimeOffset.UtcNow,
             Items = new List<WebhookOrderItemPayloadDto>
             {
                 new() { SkuCode = "SKU-TEST", Quantity = 1, UnitPrice = 100000 }
@@ -316,5 +322,87 @@ public class SimulatorServiceTests
         Func<Task> act = async () => await simulatorService.IngestWebhookOrderAsync("Shopee", payload, Guid.NewGuid());
         await act.Should().ThrowAsync<OismException>()
             .Where(ex => ex.ErrorCode == "INTEGRATION_NOT_FOUND");
+    }
+
+    [Fact]
+    public async Task IngestWebhook_MissingTimestamp_MustThrowValidationError_WithoutMutatingPayload()
+    {
+        // Arrange
+        var (context, mockTenant, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var orderService = new OrderService(context, mockTenant.Object);
+        var simulatorService = new SimulatorService(context, mockTenant.Object, orderService);
+
+        var payload = new WebhookOrderPayloadDto
+        {
+            ExternalOrderId = "MISSING-TS-ORDER",
+            ExternalShopId = "SHOP-VN-001",
+            BranchId = Guid.NewGuid(),
+            OrderTimestamp = null,
+            Items = new List<WebhookOrderItemPayloadDto>
+            {
+                new() { SkuCode = "SKU-TEST", Quantity = 1, UnitPrice = 100000 }
+            }
+        };
+
+        // Act
+        var act = async () => await simulatorService.IngestWebhookOrderAsync("Shopee", payload, Guid.NewGuid());
+
+        // Assert
+        var ex = await act.Should().ThrowAsync<OismException>();
+        ex.Where(e => e.ErrorCode == "VALIDATION_ERROR" && e.StatusCode == 400);
+        payload.OrderTimestamp.Should().BeNull("Simulator adapter không được tự gán timestamp ngầm vào payload đối số");
+    }
+
+    [Fact]
+    public async Task IngestWebhook_DefaultTimestamp_MustThrowValidationError()
+    {
+        // Arrange
+        var (context, mockTenant, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var orderService = new OrderService(context, mockTenant.Object);
+        var simulatorService = new SimulatorService(context, mockTenant.Object, orderService);
+
+        var payload = new WebhookOrderPayloadDto
+        {
+            ExternalOrderId = "DEFAULT-TS-ORDER",
+            ExternalShopId = "SHOP-VN-001",
+            BranchId = Guid.NewGuid(),
+            OrderTimestamp = default(DateTimeOffset),
+            Items = new List<WebhookOrderItemPayloadDto>
+            {
+                new() { SkuCode = "SKU-TEST", Quantity = 1, UnitPrice = 100000 }
+            }
+        };
+
+        // Act
+        var act = async () => await simulatorService.IngestWebhookOrderAsync("Shopee", payload, Guid.NewGuid());
+
+        // Assert
+        var ex = await act.Should().ThrowAsync<OismException>();
+        ex.Where(e => e.ErrorCode == "VALIDATION_ERROR" && e.StatusCode == 400);
+    }
+
+    [Fact]
+    public async Task IngestWebhook_NullItemInList_MustThrowValidationError_NotThrowNullReferenceException()
+    {
+        // Arrange
+        var (context, mockTenant, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var orderService = new OrderService(context, mockTenant.Object);
+        var simulatorService = new SimulatorService(context, mockTenant.Object, orderService);
+
+        var payload = new WebhookOrderPayloadDto
+        {
+            ExternalOrderId = "NULL-ITEM-ORDER",
+            ExternalShopId = "SHOP-VN-001",
+            BranchId = Guid.NewGuid(),
+            OrderTimestamp = DateTimeOffset.UtcNow,
+            Items = new List<WebhookOrderItemPayloadDto> { null! }
+        };
+
+        // Act
+        var act = async () => await simulatorService.IngestWebhookOrderAsync("Shopee", payload, Guid.NewGuid());
+
+        // Assert: Ném OismException 400 chuẩn hóa thay vì NullReferenceException 500
+        var ex = await act.Should().ThrowAsync<OismException>();
+        ex.Where(e => e.ErrorCode == "VALIDATION_ERROR" && e.StatusCode == 400);
     }
 }
