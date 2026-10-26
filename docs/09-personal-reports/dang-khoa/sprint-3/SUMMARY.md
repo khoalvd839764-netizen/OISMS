@@ -129,10 +129,12 @@ Trong toàn bộ solution hiện chỉ có duy nhất 1 bài test tích hợp b�
 ## 7. Thông Tin Đóng Gói Git & Pull Request
 
 * **Kho lưu trữ (Repository):** `https://github.com/khoalvd839764-netizen/OISMS.git`
-* **Nhánh nguồn (Head):** `feature/OISMS-40-loi-van-hanh-kho-va-don-hang`
+* **Nhánh nguồn (Head):** `feature/OISMS-40-loi-van-hanh-kho-va-don-hang` (SHA: `8ee1d89f0fb8b11185bf3052570957c623459c76`)
 * **Nhánh đích (Base):** `develop`
 * **Các commit đóng gói:**
-  - Commit 1 (Core BE1 Implementation): `[OISMS-40] feat(backend): Hoan thien webhook, realtime va tu huy giu cho`
-  - Commit 2 (Documentation Restructuring): `[OISMS-40] docs: Tach tai lieu giao tiep va tong ket Backend 1 Sprint 3`
-* **Pull Request URL:** *(Sẽ cập nhật sau khi tạo PR trên GitHub)*
-* **Trạng thái Merge thực tế:** **CHƯA MERGE VÀO DEVELOP** *(Code vẫn đang nằm trên nhánh feature, sẵn sàng mở PR vào develop để kiểm tra CI và review theo đúng quy trình repo)*.
+  - `246f73f`: `[OISMS-40] feat(backend): Hoan thien webhook, realtime va tu huy giu cho` (Triển khai Webhook, SignalR Realtime & Hangfire Expiry Worker)
+  - `8acc011`: `[OISMS-40] docs: Tach tai lieu giao tiep va tong ket Backend 1 Sprint 3` (Tái cấu trúc 44 mục tài liệu monolithic sang 7 thư mục task)
+  - `8ee1d89`: `[OISMS-40] chore: Dong bo origin/develop vao feature branch` (Đồng bộ sạch với develop, 0 conflict)
+* **Pull Request chính thức:** 👉 **[PR #21](https://github.com/khoalvd839764-netizen/OISMS/pull/21)** (`[OISMS-40] Hoàn thiện lõi Backend 1 Sprint 3 và chuẩn hóa tài liệu bàn giao`)
+* **Trạng thái PR:** `Draft / Open` (Head: `feature/OISMS-40-loi-van-hanh-kho-va-don-hang` ➔ Base: `develop`)
+* **Trạng thái Merge thực tế:** **CHƯA MERGE VÀO DEVELOP** *(Code hiện nằm trên nhánh feature và PR #21 đang mở. Chưa merge do cần hoàn tất CI pipeline và chờ Codex/Team review theo quy trình repo; không tự ý bypass branch protection)*.

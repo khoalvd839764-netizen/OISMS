@@ -123,13 +123,14 @@ docs/09-personal-reports/dang-khoa/
 
 ## 4. Danh Sách Commit & Thông Tin Pull Request
 
-*(Các thông tin dưới đây sẽ được cập nhật chính xác mã SHA và URL sau khi thực hiện lệnh commit, push và tạo PR)*
-
-* **Branch:** `feature/OISMS-40-loi-van-hanh-kho-va-don-hang`
-* **Base Branch:** `develop`
-* **Commit 1 (Implementation & Core Tests):** `[OISMS-40] feat(backend): Hoan thien webhook, realtime va tu huy giu cho`
-* **Commit 2 (Documentation Restructuring):** `[OISMS-40] docs: Tach tai lieu giao tiep va tong ket Backend 1 Sprint 3`
-* **Pull Request URL:** *(Đang cập nhật)*
-* **Trạng thái PR:** Draft / In Review
-* **Trạng thái Merge:** **CHƯA MERGE** *(Develop chưa nhận code)*
-* **Blocker tồn tại:** Lỗi baseline `B-01` (`PostgresBackend2RegressionTests.cs:790`) tồn đọng từ Backend 2 / Foundation cần được giải quyết ở PR riêng hoặc phối hợp với BE2 để CI toàn bộ pass.
+* **Kho lưu trữ (Repository):** `https://github.com/khoalvd839764-netizen/OISMS.git`
+* **Nhánh nguồn (Head):** `feature/OISMS-40-loi-van-hanh-kho-va-don-hang` (Head SHA: `8ee1d89f0fb8b11185bf3052570957c623459c76`)
+* **Nhánh đích (Base):** `develop` (Base SHA: `eb7fe67cabbe03f7fdd9aff9c4ed71ed8ca1f6be`)
+* **Danh sách Commit mới:**
+  1. `246f73f`: `[OISMS-40] feat(backend): Hoan thien webhook, realtime va tu huy giu cho` *(Triển khai Webhook, Realtime & Hangfire Expiry Worker, 43 files changed)*
+  2. `8acc011`: `[OISMS-40] docs: Tach tai lieu giao tiep va tong ket Backend 1 Sprint 3` *(Tái cấu trúc 44 mục tài liệu monolithic sang 7 thư mục task, 53 files changed)*
+  3. `8ee1d89`: `[OISMS-40] chore: Dong bo origin/develop vao feature branch` *(Đồng bộ sạch với develop, 0 conflict)*
+* **Pull Request chính thức:** 👉 **[PR #21: [OISMS-40] Hoàn thiện lõi Backend 1 Sprint 3 và chuẩn hóa tài liệu bàn giao](https://github.com/khoalvd839764-netizen/OISMS/pull/21)**
+* **Trạng thái PR:** `Draft / Open` (Đang mở chờ review và kiểm tra CI)
+* **Trạng thái Merge thực tế:** **CHƯA MERGE VÀO DEVELOP** *(Code hiện nằm trên nhánh feature và PR #21. Develop chưa nhận code do chờ review và hoàn tất kiểm tra CI theo đúng quy chuẩn repo)*
+* **Blocker tồn tại:** Lỗi baseline `B-01` (`PostgresBackend2RegressionTests.cs:790`) tồn đọng từ Backend 2 / Foundation Sprint trước có thể làm test runner trên CI exit 1; cần được tách giải quyết ở PR riêng của BE2 hoặc thống nhất fix chung. Ngoài ra, việc chuyển trạng thái Jira sang In Review và dán link PR trên Jira Cloud sẽ được thực hiện theo phân công của Lead.
