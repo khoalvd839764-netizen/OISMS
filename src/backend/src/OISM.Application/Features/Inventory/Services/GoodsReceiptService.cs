@@ -2,6 +2,7 @@ using System.Data;
 using Microsoft.EntityFrameworkCore;
 using OISM.Application.Common.Interfaces;
 using OISM.Application.Features.Inventory.Dtos;
+using OISM.Application.Features.Realtime;
 using OISM.Domain.Entities;
 
 namespace OISM.Application.Features.Inventory.Services;
@@ -20,14 +21,18 @@ public class GoodsReceiptService : IGoodsReceiptService
     private readonly ICurrentTenantService _currentTenantService;
     private readonly IWacCalculator _wacCalculator;
 
+    private readonly IRealtimeNotifier? _realtimeNotifier;
+
     public GoodsReceiptService(
         IAppDbContext context,
         ICurrentTenantService currentTenantService,
-        IWacCalculator wacCalculator)
+        IWacCalculator wacCalculator,
+        IRealtimeNotifier? realtimeNotifier = null)
     {
         _context = context;
         _currentTenantService = currentTenantService;
         _wacCalculator = wacCalculator;
+        _realtimeNotifier = realtimeNotifier;
     }
 
     private Guid RequireTenantId()
@@ -219,9 +224,11 @@ public class GoodsReceiptService : IGoodsReceiptService
 
         // BE1-05: Toàn bộ quá trình xác nhận nhập kho diễn ra trong một Transaction READ COMMITTED nguyên tử
         // và được bao bọc bởi IExecutionStrategy tương thích với NpgsqlRetryingExecutionStrategy
+        List<Func<Task>> pendingNotifications = new();
         var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        var result = await strategy.ExecuteAsync(async () =>
         {
+            pendingNotifications.Clear();
             _context.ClearChangeTracker();
             await using var transaction = await _context.BeginTransactionAsync(ct);
 
@@ -381,6 +388,22 @@ public class GoodsReceiptService : IGoodsReceiptService
 
             await transaction.CommitAsync(ct);
 
+            if (_realtimeNotifier != null)
+            {
+                foreach (var item in receipt.Items)
+                {
+                    var bal = await _context.InventoryBalances.AsNoTracking()
+                        .FirstOrDefaultAsync(b => b.TenantId == tenantId && b.BranchId == receipt.BranchId && b.SkuId == item.SkuId, ct);
+                    if (bal != null)
+                    {
+                        var newAvail = bal.OnHand - bal.Reserved;
+                        var skuIdCapture = item.SkuId;
+                        var branchIdCapture = receipt.BranchId;
+                        pendingNotifications.Add(() => _realtimeNotifier.NotifyStockChangedAsync(tenantId, branchIdCapture, skuIdCapture, newAvail, ct));
+                    }
+                }
+            }
+
             return await MapToResponseDtoAsync(receipt.Id, ct);
         }
         catch (DbUpdateException dbEx) when (dbEx.InnerException?.Message.Contains("23505") == true || dbEx.InnerException?.Message.Contains("uq_inventory_transactions") == true)
@@ -400,6 +423,22 @@ public class GoodsReceiptService : IGoodsReceiptService
             throw;
         }
         });
+
+        if (pendingNotifications.Count > 0)
+        {
+            foreach (var notifyAction in pendingNotifications)
+            {
+                try
+                {
+                    await notifyAction();
+                }
+                catch (Exception)
+                {
+                }
+            }
+        }
+
+        return result;
     }
 
     private async Task<GoodsReceiptResponseDto> MapToResponseDtoAsync(Guid id, CancellationToken ct)

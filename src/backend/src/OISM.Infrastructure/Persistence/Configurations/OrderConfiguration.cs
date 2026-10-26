@@ -24,6 +24,10 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
             .IsUnique()
             .HasDatabaseName("uq_orders_3");
 
+        builder.HasIndex(o => new { o.TenantId, o.Channel, o.ExternalShopId, o.ExternalOrderId })
+            .IsUnique()
+            .HasDatabaseName("uq_orders_4");
+
         builder.Property(o => o.TenantId).IsRequired();
 
         builder.Property(o => o.Number)
@@ -79,6 +83,11 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(o => o.RequestKey)
             .HasColumnName("request_key")
             .IsRequired();
+
+        builder.Property(o => o.WebhookPayloadSignature)
+            .HasColumnName("webhook_payload_signature")
+            .HasMaxLength(64)
+            .IsRequired(false);
 
         builder.Property(o => o.CreatedBy)
             .HasColumnName("created_by")

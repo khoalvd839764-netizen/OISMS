@@ -36,6 +36,12 @@ public class Order : BaseEntity, IMustHaveTenant
     /// </summary>
     public Guid RequestKey { get; set; } = Guid.NewGuid();
 
+    /// <summary>
+    /// Chữ ký SHA-256 của Canonical Webhook Payload đối với đơn hàng tiếp nhận từ sàn TMĐT.
+    /// Null đối với đơn tạo từ POS, Admin hoặc đơn lịch sử.
+    /// </summary>
+    public string? WebhookPayloadSignature { get; set; }
+
     public Guid? CreatedBy { get; set; }
     public DateTimeOffset? ConfirmedAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
@@ -48,4 +54,5 @@ public class Order : BaseEntity, IMustHaveTenant
 
     public ICollection<OrderItem> Items { get; set; } = new List<OrderItem>();
     public ICollection<Reservation> Reservations { get; set; } = new List<Reservation>();
+    public Payment? Payment { get; set; }
 }

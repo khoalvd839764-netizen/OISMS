@@ -31,6 +31,14 @@ public interface IAppDbContext
     DbSet<Order> Orders { get; }
     DbSet<OrderItem> OrderItems { get; }
     DbSet<Reservation> Reservations { get; }
+    DbSet<Payment> Payments { get; }
+    DbSet<StockTransfer> StockTransfers { get; }
+    DbSet<StockTransferItem> StockTransferItems { get; }
+    DbSet<StockCount> StockCounts { get; }
+    DbSet<StockCountItem> StockCountItems { get; }
+    DbSet<InventoryAdjustment> InventoryAdjustments { get; }
+    DbSet<InventoryAdjustmentItem> InventoryAdjustmentItems { get; }
+    DbSet<ShopIntegration> ShopIntegrations { get; }
 
     int SaveChanges();
     int SaveChanges(bool acceptAllChangesOnSuccess);

@@ -6,6 +6,7 @@ using Microsoft.OpenApi;
 using Npgsql;
 using OISM.Application.Common.Interfaces;
 using OISM.Domain.Entities;
+using OISM.Infrastructure.Jobs;
 using OISM.Infrastructure.Persistence;
 using OISM.Infrastructure.Services;
 
@@ -36,6 +37,14 @@ builder.Services.AddSingleton<OISM.Application.Features.Inventory.Services.IWacC
 builder.Services.AddScoped<OISM.Application.Features.Inventory.Services.IGoodsReceiptService, OISM.Application.Features.Inventory.Services.GoodsReceiptService>();
 builder.Services.AddScoped<OISM.Application.Features.Inventory.Services.IInventoryService, OISM.Application.Features.Inventory.Services.InventoryService>();
 builder.Services.AddScoped<OISM.Application.Features.Inventory.Services.IReservationService, OISM.Application.Features.Inventory.Services.ReservationService>();
+builder.Services.AddScoped<OISM.Application.Features.Orders.Services.IPosCheckoutService, OISM.Application.Features.Orders.Services.OrderService>();
+builder.Services.AddScoped<OISM.Application.Features.Orders.Services.IOrderService, OISM.Application.Features.Orders.Services.OrderService>();
+builder.Services.AddScoped<OISM.Application.Features.StockTransfers.Services.IStockTransferService, OISM.Application.Features.StockTransfers.Services.StockTransferService>();
+builder.Services.AddScoped<OISM.Application.Features.StockCounts.Services.IStockCountService, OISM.Application.Features.StockCounts.Services.StockCountService>();
+builder.Services.AddScoped<OISM.Application.Features.Realtime.IRealtimeNotifier, OISM.WebApi.Services.RealtimeNotifier>();
+builder.Services.AddScoped<OISM.Application.Features.Webhooks.Services.IWebhookService, OISM.Application.Features.Webhooks.Services.WebhookService>();
+builder.Services.AddSignalR();
+builder.Services.AddOismHangfire(builder.Configuration);
 
 // 3. Cấu hình Xác thực JWT Bearer (FR-AUTH-02, NFR-SEC-01)
 var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "SuperSecretKeyForOISMOmnichannelRetailSystem2026!#";
@@ -62,6 +71,19 @@ builder.Services.AddAuthentication(options =>
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
         ClockSkew = TimeSpan.Zero
     };
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs/notifications"))
+            {
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        }
+    };
 });
 
 builder.Services.AddAuthorization();
@@ -78,7 +100,44 @@ builder.Services.AddCors(options =>
     });
 });
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            var errors = context.ModelState
+                .Where(e => e.Value?.Errors.Count > 0)
+                .ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value!.Errors.Select(e => e.ErrorMessage).ToArray()
+                );
+
+            var firstError = context.ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => !string.IsNullOrWhiteSpace(e.ErrorMessage) ? e.ErrorMessage : e.Exception?.Message)
+                .FirstOrDefault(msg => !string.IsNullOrWhiteSpace(msg)) ?? "Dữ liệu yêu cầu không hợp lệ.";
+
+            var problemDetails = new Microsoft.AspNetCore.Mvc.ProblemDetails
+            {
+                Type = "https://oisms.local/errors/VALIDATION_ERROR",
+                Title = "Lỗi xác thực dữ liệu",
+                Status = Microsoft.AspNetCore.Http.StatusCodes.Status400BadRequest,
+                Detail = firstError,
+                Instance = context.HttpContext.Request.Path,
+                Extensions =
+                {
+                    ["errorCode"] = "VALIDATION_ERROR",
+                    ["errors"] = errors,
+                    ["timestamp"] = DateTimeOffset.UtcNow
+                }
+            };
+
+            return new Microsoft.AspNetCore.Mvc.BadRequestObjectResult(problemDetails)
+            {
+                ContentTypes = { "application/problem+json" }
+            };
+        };
+    });
 builder.Services.AddEndpointsApiExplorer();
 
 // 5. Cấu hình Swagger với nút "Authorize" nhập Bearer Token
@@ -167,9 +226,11 @@ app.UseCors("AllowFrontendApps");
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseOismHangfire(builder.Configuration);
 
 // Controllers API (Auth, Products, Categories, Brands, POS, Branches, Suppliers)
 app.MapControllers();
+app.MapHub<OISM.WebApi.Hubs.NotificationHub>("/hubs/notifications");
 
 // Root endpoint
 app.MapGet("/", () => Results.Ok(new
@@ -235,7 +296,7 @@ public class NpgsqlDatabaseReadinessService : IDatabaseReadinessService
         "stock_counts", "stock_count_items", "inventory_adjustments",
         "inventory_adjustment_items", "orders", "order_items", "reservations",
         "payments", "sales_returns", "sales_return_items", "inventory_transactions",
-        "daily_sales_summaries", "replenishment_suggestions"
+        "daily_sales_summaries", "replenishment_suggestions", "shop_integrations"
     };
 
     public NpgsqlDatabaseReadinessService(IConfiguration configuration, ILogger<NpgsqlDatabaseReadinessService> logger)
