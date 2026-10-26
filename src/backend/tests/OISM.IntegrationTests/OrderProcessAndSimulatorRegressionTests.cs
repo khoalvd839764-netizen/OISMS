@@ -1,3 +1,5 @@
+using OISM.Application.Features.Webhooks.Dtos;
+using OISM.Application.Features.Webhooks.Services;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -468,4 +470,290 @@ public class OrderProcessAndSimulatorRegressionTests : IAsyncLifetime, IClassFix
         ((OismException)exBranch!).ErrorCode.Should().Be("BRANCH_MISMATCH");
         ((OismException)exBranch!).StatusCode.Should().Be(400);
     }
+
+    [Fact]
+    public async Task R2_AC01_Batch_WithoutConfiguredIntegration_RejectsWithControlled404_NoShopOrOrderCreated()
+    {
+        // Arrange
+        var (tenantId, token, branchId, _, _, skuCode, _, _) = await SetupTenantAndStockAsync(10m);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var tenantService = new TestTenantService { TenantId = tenantId };
+        await using var db = PostgresTestEnvironment.CreateRuntimeDbContext(tenantService);
+
+        var beforeIntegrations = await db.ShopIntegrations.CountAsync(x => x.Channel == "Shopee" && x.BranchId == branchId);
+        beforeIntegrations.Should().Be(0, "Chưa có ShopIntegration nào được cấu hình cho branch/channel này");
+
+        // Act: Gọi batch simulation khi chưa cấu hình ShopIntegration
+        var batchRes = await _client.PostAsJsonAsync("/api/webhooks/simulator/batch", new SimulationBatchRequestDto
+        {
+            Channel = "Shopee",
+            BranchId = branchId,
+            SkuCode = skuCode,
+            ConcurrencyCount = 1,
+            QuantityPerOrder = 1,
+            UnitPrice = 100m
+        });
+
+        // Assert: Bị từ chối có kiểm soát với HTTP 404 (INTEGRATION_NOT_FOUND)
+        batchRes.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        var body = await batchRes.Content.ReadAsStringAsync();
+        body.Should().Contain("INTEGRATION_NOT_FOUND");
+
+        // Kiểm chứng không có side effect: không tạo shop, không tạo order, không giữ chỗ tồn kho
+        var afterIntegrations = await db.ShopIntegrations.CountAsync(x => x.Channel == "Shopee" && x.BranchId == branchId);
+        afterIntegrations.Should().Be(0, "Batch bị từ chối tuyệt đối không được tự ý INSERT ShopIntegration ngầm");
+
+        var ordersCount = await db.Orders.CountAsync(x => x.TenantId == tenantId);
+        ordersCount.Should().Be(0, "Không có đơn hàng nào được tạo khi batch bị từ chối");
+
+        var balance = await db.InventoryBalances.AsNoTracking().SingleAsync(b => b.BranchId == branchId && b.Sku!.SKU == skuCode);
+        balance.Reserved.Should().Be(0m, "Không phát sinh giữ chỗ tồn kho khi batch bị từ chối");
+    }
+
+    [Fact]
+    public async Task R2_AC02_PredictableSourceSecret_CannotIngestAnonymousWebhook_Returns401_WhileValidSecretSucceeds()
+    {
+        // Arrange
+        var (tenantId, _, branchId, _, _, skuCode, _, _) = await SetupTenantAndStockAsync(10m);
+        var tenantService = new TestTenantService { TenantId = tenantId };
+        await using var db = PostgresTestEnvironment.CreateRuntimeDbContext(tenantService);
+
+        var validSecret = "my-custom-secure-secret-key-12345";
+        var shop = new ShopIntegration
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            BranchId = branchId,
+            Channel = "Shopee",
+            ExternalShopId = "SHOP-TEST-R2-AC02",
+            SecretHash = WebhookSecretHasher.HashSecret(validSecret),
+            IsActive = true,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        db.ShopIntegrations.Add(shop);
+        await db.SaveChangesAsync();
+
+        _client.DefaultRequestHeaders.Authorization = null;
+
+        // Act 1: Thử gọi webhook ẩn danh bằng secret cố định lịch sử ('sim-batch-secret-key')
+        var badRequest = new HttpRequestMessage(HttpMethod.Post, "/api/webhooks/simulator/Shopee")
+        {
+            Content = JsonContent.Create(new CanonicalWebhookPayloadDto
+            {
+                Channel = "Shopee",
+                ExternalShopId = shop.ExternalShopId,
+                ExternalOrderId = "ORD-ATTACK-01",
+                OrderTimestamp = DateTimeOffset.UtcNow,
+                TotalAmount = 100m,
+                Items = new() { new() { SkuCode = skuCode, Quantity = 1, UnitPrice = 100m } }
+            })
+        };
+        badRequest.Headers.Add("X-Webhook-Secret", "sim-batch-secret-key");
+        var badResponse = await _client.SendAsync(badRequest);
+
+        // Assert 1: Bị từ chối 401 Unauthorized, không có đơn nào được tạo
+        badResponse.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        var attackOrderCount = await db.Orders.CountAsync(x => x.ExternalOrderId == "ORD-ATTACK-01");
+        attackOrderCount.Should().Be(0, "Không có đơn hàng nào được tạo bằng secret cố định cũ");
+
+        // Act 2: Gọi webhook bằng đúng secret riêng hợp lệ được cấu hình
+        var goodRequest = new HttpRequestMessage(HttpMethod.Post, "/api/webhooks/simulator/Shopee")
+        {
+            Content = JsonContent.Create(new CanonicalWebhookPayloadDto
+            {
+                Channel = "Shopee",
+                ExternalShopId = shop.ExternalShopId,
+                ExternalOrderId = "ORD-VALID-01",
+                OrderTimestamp = DateTimeOffset.UtcNow,
+                TotalAmount = 100m,
+                Items = new() { new() { SkuCode = skuCode, Quantity = 1, UnitPrice = 100m } }
+            })
+        };
+        goodRequest.Headers.Add("X-Webhook-Secret", validSecret);
+        var goodResponse = await _client.SendAsync(goodRequest);
+
+        // Assert 2: Thành công 201 Created và đơn được lưu đúng
+        goodResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+        var validOrder = await db.Orders.SingleOrDefaultAsync(x => x.ExternalOrderId == "ORD-VALID-01");
+        validOrder.Should().NotBeNull();
+        validOrder!.Status.Should().Be("Reserved");
+    }
+
+    [Fact]
+    public async Task R2_AC03_Batch_WithValidIntegration_SucceedsAndDoesNotMutateCredentials()
+    {
+        // Arrange
+        var (tenantId, token, branchId, _, _, skuCode, _, _) = await SetupTenantAndStockAsync(10m);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+        var tenantService = new TestTenantService { TenantId = tenantId };
+        await using var db = PostgresTestEnvironment.CreateRuntimeDbContext(tenantService);
+
+        var dedicatedSecretHash = WebhookSecretHasher.HashSecret("my-dedicated-secret-999");
+        var shop = new ShopIntegration
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            BranchId = branchId,
+            Channel = "Shopee",
+            ExternalShopId = "SHOP-TEST-R2-AC03",
+            SecretHash = dedicatedSecretHash,
+            IsActive = true,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        db.ShopIntegrations.Add(shop);
+        await db.SaveChangesAsync();
+
+        var initialIntegrationsCount = await db.ShopIntegrations.CountAsync(x => x.BranchId == branchId && x.TenantId == tenantId);
+
+        // Act: Chạy batch simulation với cấu hình hợp lệ
+        var batchRes = await _client.PostAsJsonAsync("/api/webhooks/simulator/batch", new SimulationBatchRequestDto
+        {
+            Channel = "Shopee",
+            BranchId = branchId,
+            SkuCode = skuCode,
+            ConcurrencyCount = 2,
+            QuantityPerOrder = 1,
+            UnitPrice = 100m
+        });
+
+        // Assert: Thành công 200 OK
+        batchRes.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result = await batchRes.Content.ReadFromJsonAsync<SimulationBatchResultDto>(_jsonOptions);
+        result.Should().NotBeNull();
+        result!.SuccessCount.Should().Be(2);
+
+        // Kiểm tra credential của shop hoàn toàn không bị ghi đè hay thay đổi
+        var reloadedShop = await db.ShopIntegrations.AsNoTracking().SingleAsync(x => x.Id == shop.Id);
+        reloadedShop.SecretHash.Should().Be(dedicatedSecretHash, "SecretHash của gian hàng không bị thay đổi bởi batch");
+
+        var finalIntegrationsCount = await db.ShopIntegrations.CountAsync(x => x.BranchId == branchId && x.TenantId == tenantId);
+        finalIntegrationsCount.Should().Be(initialIntegrationsCount, "Batch không được tự ý thêm bất kỳ ShopIntegration nào khác");
+    }
+
+    [Fact]
+    public async Task R2_AC04_SimulatorAdapter_DefaultTimestamp_ThrowsValidationError400_DoesNotPersistOrder()
+    {
+        // Arrange
+        var (tenantId, _, branchId, _, _, skuCode, _, _) = await SetupTenantAndStockAsync(10m);
+        var tenantService = new TestTenantService { TenantId = tenantId };
+        await using var db = PostgresTestEnvironment.CreateRuntimeDbContext(tenantService);
+
+        var shop = new ShopIntegration
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            BranchId = branchId,
+            Channel = "Shopee",
+            ExternalShopId = "SHOP-TEST-R2-AC04",
+            SecretHash = Guid.NewGuid().ToString("N"),
+            IsActive = true,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        db.ShopIntegrations.Add(shop);
+        await db.SaveChangesAsync();
+
+        var simulator = new SimulatorService(db, tenantService, new OrderService(db, tenantService));
+
+        var payload = new WebhookOrderPayloadDto
+        {
+            ExternalShopId = shop.ExternalShopId,
+            ExternalOrderId = "ORD-DEFAULT-TIMESTAMP-01",
+            BranchId = branchId,
+            OrderTimestamp = default(DateTimeOffset), // Timestamp mặc định không xác định
+            Items = new() { new() { SkuCode = skuCode, Quantity = 1, UnitPrice = 100m } }
+        };
+
+        // Act: Adapter gọi Ingest với default timestamp
+        var exception = await Record.ExceptionAsync(async () =>
+        {
+            await simulator.IngestWebhookOrderAsync("Shopee", payload, null);
+        });
+
+        // Assert: Phải bị từ chối với lỗi VALIDATION_ERROR (400)
+        exception.Should().NotBeNull();
+        exception.Should().BeOfType<OismException>();
+        var oismEx = (OismException)exception!;
+        oismEx.ErrorCode.Should().Be("VALIDATION_ERROR");
+        oismEx.StatusCode.Should().Be(400);
+
+        // Kiểm tra cơ sở dữ liệu: không lưu đơn, không giữ chỗ
+        var persistedOrder = await db.Orders.AsNoTracking().SingleOrDefaultAsync(o => o.ExternalOrderId == payload.ExternalOrderId);
+        persistedOrder.Should().BeNull("Đơn hàng có default timestamp không được lưu vào cơ sở dữ liệu");
+
+        var balance = await db.InventoryBalances.AsNoTracking().SingleAsync(b => b.BranchId == branchId && b.Sku!.SKU == skuCode);
+        balance.Reserved.Should().Be(0m, "Không phát sinh giữ chỗ tồn kho khi timestamp không hợp lệ");
+    }
+
+    [Fact]
+    public async Task R2_AC05_CanonicalWebhook_MissingOrDefaultTimestamp_Returns400_DoesNotPersistOrder()
+    {
+        // Arrange
+        var (tenantId, _, branchId, _, _, skuCode, _, _) = await SetupTenantAndStockAsync(10m);
+        var tenantService = new TestTenantService { TenantId = tenantId };
+        await using var db = PostgresTestEnvironment.CreateRuntimeDbContext(tenantService);
+
+        var secret = "test-secret-r2-ac05";
+        var shop = new ShopIntegration
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            BranchId = branchId,
+            Channel = "Shopee",
+            ExternalShopId = "SHOP-TEST-R2-AC05",
+            SecretHash = WebhookSecretHasher.HashSecret(secret),
+            IsActive = true,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        db.ShopIntegrations.Add(shop);
+        await db.SaveChangesAsync();
+
+        _client.DefaultRequestHeaders.Authorization = null;
+
+        // Case 1: Missing timestamp (null)
+        var missingReq = new HttpRequestMessage(HttpMethod.Post, "/api/webhooks/simulator/Shopee")
+        {
+            Content = JsonContent.Create(new CanonicalWebhookPayloadDto
+            {
+                Channel = "Shopee",
+                ExternalShopId = shop.ExternalShopId,
+                ExternalOrderId = "ORD-CANONICAL-MISSING-TS",
+                OrderTimestamp = null,
+                TotalAmount = 100m,
+                Items = new() { new() { SkuCode = skuCode, Quantity = 1, UnitPrice = 100m } }
+            })
+        };
+        missingReq.Headers.Add("X-Webhook-Secret", secret);
+        var missingRes = await _client.SendAsync(missingReq);
+
+        missingRes.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var missingBody = await missingRes.Content.ReadAsStringAsync();
+        missingBody.Should().Contain("VALIDATION_ERROR");
+
+        // Case 2: Default timestamp (default(DateTimeOffset))
+        var defaultReq = new HttpRequestMessage(HttpMethod.Post, "/api/webhooks/simulator/Shopee")
+        {
+            Content = JsonContent.Create(new CanonicalWebhookPayloadDto
+            {
+                Channel = "Shopee",
+                ExternalShopId = shop.ExternalShopId,
+                ExternalOrderId = "ORD-CANONICAL-DEFAULT-TS",
+                OrderTimestamp = default(DateTimeOffset),
+                TotalAmount = 100m,
+                Items = new() { new() { SkuCode = skuCode, Quantity = 1, UnitPrice = 100m } }
+            })
+        };
+        defaultReq.Headers.Add("X-Webhook-Secret", secret);
+        var defaultRes = await _client.SendAsync(defaultReq);
+
+        defaultRes.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        var defaultBody = await defaultRes.Content.ReadAsStringAsync();
+        defaultBody.Should().Contain("VALIDATION_ERROR");
+
+        // Kiểm tra cơ sở dữ liệu không có đơn nào
+        var count = await db.Orders.CountAsync(x => x.ExternalOrderId != null && x.ExternalOrderId.StartsWith("ORD-CANONICAL-"));
+        count.Should().Be(0);
+    }
+
 }

@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using OISM.Application.Common.Exceptions;
 using OISM.Application.Features.Simulator.Dtos;
 using OISM.Application.Features.Simulator.Services;
 
@@ -52,6 +53,23 @@ public class SimulatorController : ControllerBase
             var userId = GetCurrentUserId();
             var result = await _simulatorService.RunConcurrencySimulationAsync(request, userId, ct);
             return Ok(result);
+        }
+        catch (OismException ex)
+        {
+            var problem = new ProblemDetails
+            {
+                Type = $"https://oisms.local/errors/{ex.ErrorCode}",
+                Title = ex.ErrorCode,
+                Status = ex.StatusCode,
+                Detail = ex.Message,
+                Instance = HttpContext.Request.Path,
+                Extensions =
+                {
+                    ["errorCode"] = ex.ErrorCode,
+                    ["timestamp"] = DateTimeOffset.UtcNow
+                }
+            };
+            return StatusCode(ex.StatusCode, problem);
         }
         catch (Exception ex)
         {

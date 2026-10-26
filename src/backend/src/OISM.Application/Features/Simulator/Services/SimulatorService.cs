@@ -17,11 +17,6 @@ public class SimulatorService : ISimulatorService
     private readonly ICurrentTenantService _currentTenantService;
     private readonly IOrderService _orderService;
 
-    private static readonly HashSet<string> ValidChannels = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "Shopee", "TikTok", "Lazada"
-    };
-
     public SimulatorService(
         IAppDbContext context,
         ICurrentTenantService currentTenantService,
@@ -42,14 +37,6 @@ public class SimulatorService : ISimulatorService
         return tenantId.Value;
     }
 
-    private static string CanonicalizeChannel(string rawChannel)
-    {
-        if (string.Equals(rawChannel, "shopee", StringComparison.OrdinalIgnoreCase)) return "Shopee";
-        if (string.Equals(rawChannel, "tiktok", StringComparison.OrdinalIgnoreCase)) return "TikTok";
-        if (string.Equals(rawChannel, "lazada", StringComparison.OrdinalIgnoreCase)) return "Lazada";
-        return rawChannel;
-    }
-
     public async Task<OrderDetailDto> IngestWebhookOrderAsync(
         string channel,
         WebhookOrderPayloadDto payload,
@@ -58,42 +45,59 @@ public class SimulatorService : ISimulatorService
     {
         var tenantId = RequireTenantId();
 
-        if (string.IsNullOrWhiteSpace(channel) || !ValidChannels.Contains(channel))
-        {
-            throw new OismException("VALIDATION_ERROR", $"Kênh bán '{channel}' không hợp lệ. Hỗ trợ: Shopee, TikTok, Lazada.", 400);
-        }
-
-        var normalizedChannel = CanonicalizeChannel(channel);
-
         if (payload == null)
         {
             throw new OismException("VALIDATION_ERROR", "Nội dung Webhook payload không được để trống.", 400);
         }
 
-        if (string.IsNullOrWhiteSpace(payload.ExternalShopId))
+        // 1. Chuẩn hóa kênh bán từ WebhookCanonicalValidator
+        var normalizedChannel = WebhookCanonicalValidator.CanonicalizeChannel(channel);
+
+        // 2. Chuyển đổi sang CanonicalWebhookPayloadDto và chuẩn hóa Timestamp
+        // Nếu payload.OrderTimestamp có giá trị: giữ nguyên (bao gồm default(DateTimeOffset) để validator bắt lỗi)
+        // Nếu payload.OrderTimestamp là null: tự động gán vào payload để idempotent replay cùng payload instance có signature nhất quán
+        payload.OrderTimestamp ??= DateTimeOffset.UtcNow;
+        DateTimeOffset? effectiveTimestamp = payload.OrderTimestamp;
+
+        var canonicalDto = new CanonicalWebhookPayloadDto
         {
-            throw new OismException("VALIDATION_ERROR", "Mã Shop trên sàn ('externalShopId') là bắt buộc.", 400);
+            Channel = normalizedChannel,
+            ExternalShopId = payload.ExternalShopId?.Trim() ?? string.Empty,
+            ExternalOrderId = payload.ExternalOrderId?.Trim() ?? string.Empty,
+            CustomerName = payload.CustomerName?.Trim(),
+            CustomerPhone = payload.CustomerPhone?.Trim(),
+            ShippingAddress = payload.ShippingAddress?.Trim(),
+            OrderTimestamp = effectiveTimestamp,
+            TotalAmount = payload.Items != null ? payload.Items.Sum(i => i.Quantity * i.UnitPrice) : null,
+            Items = payload.Items?.Select(i => new CanonicalWebhookItemDto
+            {
+                SkuCode = i.SkuCode?.Trim() ?? string.Empty,
+                Quantity = i.Quantity,
+                UnitPrice = i.UnitPrice
+            }).ToList() ?? new()
+        };
+
+        // 3. Thực thi xác thực chuẩn hóa dùng chung Canonical Validator (BE2-F06, R2-AC-04)
+        var calculatedTotal = WebhookCanonicalValidator.ValidateAndCalculateTotal(normalizedChannel, canonicalDto);
+
+        // 4. Đối soát cấu hình ShopIntegration của gian hàng (FR-SIM-01, BE2-F06 - Tuyệt đối không bypass ShopIntegration)
+        var tenant = await _context.Tenants
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(t => t.Id == tenantId, ct);
+
+        if (tenant != null && !tenant.IsActive)
+        {
+            throw new OismException("UNAUTHORIZED", "Doanh nghiệp đã ngừng hoạt động.", 401);
         }
 
-        if (string.IsNullOrWhiteSpace(payload.ExternalOrderId))
-        {
-            throw new OismException("VALIDATION_ERROR", "Mã Đơn hàng trên sàn ('externalOrderId') là bắt buộc.", 400);
-        }
-
-        if (payload.Items == null || payload.Items.Count == 0)
-        {
-            throw new OismException("VALIDATION_ERROR", "Đơn hàng webhook sàn phải chứa ít nhất một mặt hàng.", 400);
-        }
-
-        // Đối soát cấu hình ShopIntegration của gian hàng (FR-SIM-01, BE2-F06 - Tuyệt đối không bypass ShopIntegration)
         var shopIntegration = await _context.ShopIntegrations
             .FirstOrDefaultAsync(si => si.TenantId == tenantId &&
                                        si.Channel == normalizedChannel &&
-                                       si.ExternalShopId == payload.ExternalShopId.Trim(), ct);
+                                       si.ExternalShopId == canonicalDto.ExternalShopId, ct);
 
         if (shopIntegration == null)
         {
-            throw new OismException("INTEGRATION_NOT_FOUND", $"Không tìm thấy cấu hình tích hợp gian hàng '{payload.ExternalShopId}' của kênh '{normalizedChannel}' cho cửa hàng của bạn.", 404);
+            throw new OismException("INTEGRATION_NOT_FOUND", $"Không tìm thấy cấu hình tích hợp gian hàng '{canonicalDto.ExternalShopId}' của kênh '{normalizedChannel}' cho cửa hàng của bạn.", 404);
         }
 
         if (!shopIntegration.IsActive)
@@ -104,7 +108,7 @@ public class SimulatorService : ISimulatorService
         var targetBranchId = shopIntegration.BranchId;
         if (payload.BranchId != Guid.Empty && payload.BranchId != targetBranchId)
         {
-            throw new OismException("BRANCH_MISMATCH", $"Chi nhánh '{payload.BranchId}' không khớp với chi nhánh được cấu hình cho gian hàng '{payload.ExternalShopId}'.", 400);
+            throw new OismException("BRANCH_MISMATCH", $"Chi nhánh '{payload.BranchId}' không khớp với chi nhánh được cấu hình cho gian hàng '{canonicalDto.ExternalShopId}'.", 400);
         }
 
         var branch = await _context.Branches
@@ -114,25 +118,7 @@ public class SimulatorService : ISimulatorService
             throw new OismException("BRANCH_INACTIVE_OR_INVALID", $"Chi nhánh '{targetBranchId}' không tồn tại hoặc đã ngừng hoạt động.", 404);
         }
 
-        // Tính toán chữ ký Canonical Payload SHA-256 theo thuật toán chuẩn của BE1 (bao gồm Channel, Shop, Order, Items, Sku, Qty, Price)
-        var canonicalDto = new CanonicalWebhookPayloadDto
-        {
-            Channel = normalizedChannel,
-            ExternalShopId = payload.ExternalShopId.Trim(),
-            ExternalOrderId = payload.ExternalOrderId.Trim(),
-            CustomerName = payload.CustomerName?.Trim(),
-            CustomerPhone = payload.CustomerPhone?.Trim(),
-            ShippingAddress = payload.ShippingAddress?.Trim(),
-            OrderTimestamp = payload.OrderTimestamp ?? DateTimeOffset.UnixEpoch,
-            TotalAmount = payload.Items.Sum(i => i.Quantity * i.UnitPrice),
-            Items = payload.Items.Select(i => new CanonicalWebhookItemDto
-            {
-                SkuCode = i.SkuCode.Trim(),
-                Quantity = i.Quantity,
-                UnitPrice = i.UnitPrice
-            }).ToList()
-        };
-
+        // 5. Tính toán chữ ký Canonical SHA-256 dùng chung (R2-AC-05)
         var signature = WebhookCanonicalSignatureHelper.ComputeCanonicalSignature(canonicalDto);
 
         var marketplaceContext = new InternalMarketplaceOrderContext
@@ -140,21 +126,26 @@ public class SimulatorService : ISimulatorService
             TenantId = tenantId,
             BranchId = targetBranchId,
             Channel = normalizedChannel,
-            ExternalShopId = payload.ExternalShopId.Trim(),
-            ExternalOrderId = payload.ExternalOrderId.Trim(),
+            ExternalShopId = canonicalDto.ExternalShopId,
+            ExternalOrderId = canonicalDto.ExternalOrderId,
             WebhookPayloadSignature = signature,
-            RequestKey = Guid.NewGuid(),
-            CustomerName = payload.CustomerName?.Trim(),
-            CustomerPhone = payload.CustomerPhone?.Trim(),
-            ShippingAddress = payload.ShippingAddress?.Trim(),
+            RequestKey = new Func<Guid>(() => {
+                using var md5 = System.Security.Cryptography.MD5.Create();
+                var keyBytes = System.Text.Encoding.UTF8.GetBytes(
+                    $"T={tenantId}\0C={normalizedChannel}\0S={canonicalDto.ExternalShopId}\0O={canonicalDto.ExternalOrderId}");
+                return new Guid(md5.ComputeHash(keyBytes));
+            })(),
+            CustomerName = canonicalDto.CustomerName,
+            CustomerPhone = canonicalDto.CustomerPhone,
+            ShippingAddress = canonicalDto.ShippingAddress,
             CreatedByUserId = userId,
-            OrderTimestamp = canonicalDto.OrderTimestamp ?? (payload.OrderTimestamp ?? DateTimeOffset.UnixEpoch),
-            ExpectedTotalAmount = canonicalDto.TotalAmount ?? payload.Items.Sum(i => i.Quantity * i.UnitPrice),
-            Items = payload.Items.Select(i => new InternalMarketplaceOrderItemContext
+            OrderTimestamp = canonicalDto.OrderTimestamp!.Value,
+            ExpectedTotalAmount = calculatedTotal,
+            Items = canonicalDto.Items.Select(i => new InternalMarketplaceOrderItemContext
             {
                 SkuCode = i.SkuCode.Trim(),
-                Quantity = i.Quantity,
-                UnitPrice = i.UnitPrice
+                Quantity = i.Quantity!.Value,
+                UnitPrice = i.UnitPrice!.Value
             }).ToList()
         };
 
@@ -170,7 +161,7 @@ public class SimulatorService : ISimulatorService
     {
         var tenantId = RequireTenantId();
 
-        var normalizedChannel = CanonicalizeChannel(request.Channel);
+        var normalizedChannel = WebhookCanonicalValidator.CanonicalizeChannel(request.Channel);
         var stopwatch = Stopwatch.StartNew();
 
         var result = new SimulationBatchResultDto
@@ -185,26 +176,25 @@ public class SimulatorService : ISimulatorService
         int successCount = 0;
         int failedCount = 0;
 
-        // Tự động đảm bảo ShopIntegration tồn tại cho runner batch mô phỏng
+        // 1. Kiểm tra Chi nhánh tồn tại và đang hoạt động
+        var branch = await _context.Branches
+            .FirstOrDefaultAsync(b => b.TenantId == tenantId && b.Id == request.BranchId, ct);
+        if (branch == null || !branch.IsActive)
+        {
+            throw new OismException("BRANCH_INACTIVE_OR_INVALID", $"Chi nhánh '{request.BranchId}' không tồn tại hoặc đã ngừng hoạt động.", 404);
+        }
+
+        // 2. BE2-T01-F02: Không tự tạo ShopIntegration active/secret ngầm (R2-AC-01..03)
+        // Bắt buộc ShopIntegration phải được cấu hình tường minh trước đó.
         var simIntegration = await _context.ShopIntegrations
             .FirstOrDefaultAsync(si => si.TenantId == tenantId && si.Channel == normalizedChannel && si.BranchId == request.BranchId && si.IsActive, ct);
 
-        string effectiveShopId = simIntegration?.ExternalShopId ?? "SIM-SHOP-01";
         if (simIntegration == null)
         {
-            simIntegration = new ShopIntegration
-            {
-                Id = Guid.NewGuid(),
-                TenantId = tenantId,
-                Channel = normalizedChannel,
-                ExternalShopId = effectiveShopId,
-                BranchId = request.BranchId,
-                IsActive = true,
-                SecretHash = WebhookSecretHasher.HashSecret("sim-batch-secret-key")
-            };
-            _context.ShopIntegrations.Add(simIntegration);
-            await _context.SaveChangesAsync(ct);
+            throw new OismException("INTEGRATION_NOT_FOUND", $"Không tìm thấy cấu hình tích hợp gian hàng đang hoạt động cho kênh '{normalizedChannel}' tại chi nhánh '{request.BranchId}'. Cần cấu hình gian hàng trước khi chạy mô phỏng.", 404);
         }
+
+        string effectiveShopId = simIntegration.ExternalShopId;
 
         for (int i = 1; i <= request.ConcurrencyCount; i++)
         {
@@ -218,6 +208,7 @@ public class SimulatorService : ISimulatorService
                     CustomerName = $"Sim Customer {i}",
                     CustomerPhone = "0900000000",
                     ShippingAddress = "Sim Address",
+                    OrderTimestamp = DateTimeOffset.UtcNow,
                     Items = new List<WebhookOrderItemPayloadDto>
                     {
                         new()
@@ -230,13 +221,13 @@ public class SimulatorService : ISimulatorService
                 };
 
                 var order = await IngestWebhookOrderAsync(normalizedChannel, payload, userId, ct);
-                successCount++;
                 orderNumbers.Add(order.Number);
+                successCount++;
             }
             catch (Exception ex)
             {
                 failedCount++;
-                errors.Add($"Req #{i}: {ex.Message}");
+                errors.Add($"Request #{i}: {ex.Message}");
             }
         }
 
@@ -244,9 +235,9 @@ public class SimulatorService : ISimulatorService
 
         result.SuccessCount = successCount;
         result.FailedConflictCount = failedCount;
-        result.ElapsedMilliseconds = stopwatch.ElapsedMilliseconds;
         result.CreatedOrderNumbers = orderNumbers;
         result.ErrorMessages = errors;
+        result.ElapsedMilliseconds = stopwatch.ElapsedMilliseconds;
 
         return result;
     }
