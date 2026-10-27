@@ -14,7 +14,7 @@
 
 | Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả nội dung & Chi tiết rà soát thay đổi (Change Check) | Mã tham chiếu |
 | :---: | :---: | :--- | :--- | :--- |
-| `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | • Chuẩn hóa mục lục 9 tài liệu chung của Sprint 2 và tách riêng các báo cáo cá nhân sang `09-personal-reports/<member>/sprint-2/`.<br/>• **Check đối chiếu Confluence (`Page ID: 5275650`):** Xác nhận hoàn thành 100% phạm vi Sprint 2 của 5 thành viên (Đăng Khoa: DB 29 bảng, Multi-tenant, Ledger Append-Only, WAC, Lõi giữ chỗ; Nhựt: Auth JWT/RBAC, Catalog/SKU/Barcode, POS Search; Phúc Hữu: Web Admin; Phương: Web POS PWA + Unified Login; TV5: Test Plan & RTM). | `INIT-SPR-02` |
+| `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | • Chuẩn hóa mục lục 9 tài liệu chung của Sprint 2 và tách riêng các báo cáo cá nhân sang `09-personal-reports/<member>/sprint-2/`.<br/>• **Check đối chiếu Confluence (`Page ID: 5275650`):** Xác nhận hoàn thành 100% phạm vi Sprint 2 của 5 thành viên (Đăng Khoa: DB 29 bảng, Multi-tenant, Ledger Append-Only, WAC, Lõi giữ chỗ; Nhựt: Auth JWT/RBAC, Catalog/SKU/Barcode, POS Search; Phúc Hữu: Web Admin; Phương Lê: Web POS PWA + Unified Login; Nam Nguyễn: Test Plan & RTM). | `INIT-SPR-02` |
 
 ---
 

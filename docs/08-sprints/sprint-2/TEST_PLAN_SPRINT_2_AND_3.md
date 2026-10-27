@@ -1,5 +1,5 @@
 # Kế Hoạch Kiểm Thử Toàn Diện (Master Test Plan) — OISMS
-**Dành cho: Thành viên 5 (Tester / Đảm bảo chất lượng - QA)**
+**Dành cho: Nam Nguyễn (Tester / Đảm bảo chất lượng - QA)**
 **Dự án:** Omnichannel Inventory & Sales Management System (OISMS)  
 **Mục tiêu:** Kiểm thử nghiệm thu Backend Sprint 2 và thiết lập ma trận kiểm thử lõi Sprint 3
 
@@ -7,7 +7,7 @@
 
 ## I. MỤC TIÊU & PHẠM VI KIỂM THỬ (TEST OBJECTIVES & SCOPE)
 
-### 1. Mục tiêu cốt lõi của Tester (TV5)
+### 1. Mục tiêu cốt lõi của Tester (Nam Nguyễn)
 1. **Kiểm thử nghiệm thu Sprint 2:** Xác minh tính đúng đắn của toàn bộ 33 endpoints API Backend đã được bàn giao tại `http://localhost:5000/swagger`.
 2. **Bảo vệ tính toàn vẹn đa người thuê (Multi-tenant):** Kiểm chứng không có lỗ hổng rò rỉ dữ liệu chéo giữa các cửa hàng (Tenant A tuyệt đối không xem/sửa được dữ liệu của Tenant B).
 3. **Kiểm tra phân quyền RBAC:** Đảm bảo vai trò `Cashier` (Thu ngân) bị chặn `403 Forbidden` khi cố tình gọi các API quản trị của `Owner` và `Staff`.
@@ -96,7 +96,7 @@ flowchart TD
 
 ## III. MẪU BÁO CÁO KẾT QUẢ & BUG LOG DÀNH CHO TESTER
 
-Khi phát hiện lỗi hoặc lập báo cáo nghiệm thu, TV5 điền theo bảng chuẩn dưới đây để đưa vào tài liệu nghiệm thu Sprint:
+Khi phát hiện lỗi hoặc lập báo cáo nghiệm thu, Nam Nguyễn điền theo bảng chuẩn dưới đây để đưa vào tài liệu nghiệm thu Sprint:
 
 ### 1. Bảng Tổng Hợp Kết Quả Thực Thi (Execution Summary)
 - **Tổng số Test Cases:** 20 ca
