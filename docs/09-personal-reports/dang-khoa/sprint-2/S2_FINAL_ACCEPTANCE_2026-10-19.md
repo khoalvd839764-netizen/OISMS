@@ -118,17 +118,17 @@ Sau khi rà soát và kiểm thử thực tế trên toàn bộ hệ thống g�
 ## 4. RANH GIỚI BÀN GIAO & PHÂN ĐỊNH TRÁCH NHIỆM
 
 ### 4.1. Phân định Trách nhiệm Thành viên
-- **Thành viên 1 — Đăng Khoa (Lead / Backend 1 & DevOps):**
+- **Đăng Khoa (Lead / Backend 1 & DevOps):**
   - Chịu trách nhiệm toàn diện về cơ sở dữ liệu PostgreSQL, Advisory Lock chống race condition, tính nguyên tử của Idempotency backend (F2).
   - Cấu hình Nginx SPA fallback và Dockerfile container (F7).
   - Nghiệm thu kỹ thuật các PR và tài liệu tích hợp liên thông.
-- **Thành viên 3 — Phúc Hữu (Frontend Admin Lead):**
+- **Phúc Hữu & Nam Nguyễn (Frontend Admin):**
   - Chịu trách nhiệm toàn bộ mã nguồn Web Admin (`src/frontend/admin-dashboard/`).
   - Quản lý state form, `sessionStorage` chống mất dữ liệu khi mất mạng hoặc reload.
   - Xử lý bypass kiểm tra tồn phía client khi retry.
   - Phân tách loading, error và empty state của sổ kho và tồn kho.
   - Tuân thủ nghiêm ngặt hợp đồng Swagger API Backend.
-- **Thành viên 2 — Nhựt (Backend 2):**
+- **Nhựt (Backend 2):**
   - Phụ trách danh mục Catalog, Brand, tìm kiếm sản phẩm POS.
 
 ### 4.2. Tuyên bố Minh bạch về Giới hạn Kiểm chứng

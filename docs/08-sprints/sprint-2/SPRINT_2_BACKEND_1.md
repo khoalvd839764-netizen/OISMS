@@ -3,7 +3,7 @@
 > **Người phụ trách:** Khoa — Backend chính / Trưởng nhóm  
 > **Ngày lập:** 16/10/2026  
 > **Nguồn:** [Cẩm nang Sprint 2](SPRINT_2_COMPREHENSIVE_GUIDE.md)  
-> **Phối hợp:** [Backend 2 — Thành viên 2](SPRINT_2_BACKEND_2.md)
+> **Phối hợp:** [Backend 2 — Nhựt](SPRINT_2_BACKEND_2.md)
 
 > **Schema hiện hành:** [Thiết kế database rút gọn v0.5 — 29 bảng](OISMS_DATABASE_DESIGN.md). SQL/DBML trong `docs/database` thay cho bản đề xuất 42 bảng; triển khai entity/migration theo bản mới.
 
@@ -41,7 +41,7 @@ Bảng dưới đây lưu phân công và các tiêu chí kỹ thuật đã phâ
 
 ## 4. Thứ tự bàn giao chung
 
-| Mốc | Backend 1 — Khoa | Backend 2 — TV2 | Frontend có thể làm |
+| Mốc | Backend 1 — Khoa | Backend 2 — Nhựt | Frontend có thể làm |
 |---|---|---|---|
 | 1 | Database, tenant, chuẩn API. | Đăng ký, login, me, RBAC. | Nối đăng nhập. |
 | 2 | Chốt cấu trúc tồn kho và phiếu nhập. | Catalog, SKU, giá, barcode, tra cứu kho/nhà cung cấp. | Nối sản phẩm và form nhập. |

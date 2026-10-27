@@ -2,7 +2,7 @@
 
 **Dự án:** OISMS - Omnichannel Inventory & Sales Management System  
 **Học phần:** Đồ án Chuyên ngành / Công nghệ Phần mềm  
-**Thành viên thực hiện:** Phúc Hữu (Thành viên 3 - Frontend Admin Lead)  
+**Thành viên thực hiện:** Phúc Hữu & Nam Nguyễn (Frontend Admin)  
 **Người nghiệm thu:** Lê Võ Đăng Khoa (Trưởng nhóm / Backend 1 Lead)  
 **Thời gian thực hiện:** 13/10/2026 – 18/10/2026  
 **Trạng thái bàn giao:** Hoàn tất 100% — Web Admin React 19 sẵn sàng, gỡ bỏ toàn bộ hardcoded/Owner mặc định, đầy đủ Form nghiệp vụ và kết nối trực tiếp API Backend.
@@ -16,9 +16,9 @@
 
 ---
 
-## 1. TỔNG QUAN PHẠM VI TRÁCH NHIỆM CỦA THÀNH VIÊN 3 (PHÚC HỮU)
+## 1. TỔNG QUAN PHẠM VI TRÁCH NHIỆM PHÂN HỆ WEB ADMIN DASHBOARD (PHÚC HỮU & NAM NGUYỄN)
 
-Căn cứ Kế hoạch Phân công Công việc Chi tiết trên Confluence dự án OISMS, Thành viên 3 (Phúc Hữu) chịu trách nhiệm toàn diện về phân hệ **Web Admin Dashboard** với 4 trụ cột kỹ thuật then chốt:
+Căn cứ Kế hoạch Phân công Công việc Chi tiết trên Confluence dự án OISMS, Phúc Hữu cùng Nam Nguyễn chịu trách nhiệm toàn diện về phân hệ **Web Admin Dashboard** với 4 trụ cột kỹ thuật then chốt:
 
 ```mermaid
 flowchart TD
@@ -153,7 +153,7 @@ src/frontend/admin-dashboard/
 
 > [!NOTE]
 > **KẾT LUẬN NGHIỆM THU:**  
-> Toàn bộ các yêu cầu của Thành viên 3 (Phúc Hữu) trong Sprint 2 và đầu Sprint 3 đã được hoàn thiện đạt chuẩn 100%: Ứng dụng React 19 mượt mà, gỡ bỏ toàn bộ dữ liệu cứng, quản lý phiên và phân quyền RBAC chặt chẽ, hiển thị loading/lỗi mạng/403 rõ ràng, đầy đủ các Form nghiệp vụ và kết nối trực tiếp với toàn bộ API Backend.
+> Toàn bộ các yêu cầu của Web Admin (Phúc Hữu & Nam Nguyễn) trong Sprint 2 và đầu Sprint 3 đã được hoàn thiện đạt chuẩn 100%: Ứng dụng React 19 mượt mà, gỡ bỏ toàn bộ dữ liệu cứng, quản lý phiên và phân quyền RBAC chặt chẽ, hiển thị loading/lỗi mạng/403 rõ ràng, đầy đủ các Form nghiệp vụ và kết nối trực tiếp với toàn bộ API Backend.
 
 
 ---
@@ -208,15 +208,15 @@ src/frontend/admin-dashboard/
 >   Do công cụ browser tự động bị đóng / ngắt kết nối trong phiên làm việc, đội ngũ chưa tiến hành click tương tác trực quan trên trình duyệt đối với toàn bộ các màn hình responsive/layout. Đội ngũ ghi nhận trung thực hiện trạng này và không tuyên bố hoàn thành toàn diện UI khi chưa có vòng nghiệm thu trực tiếp trên browser.
 
 ### 6.3. Phân định Trách nhiệm Thành viên
-- **Thành viên 3 — Phúc Hữu (Frontend Admin Lead):**
+- **Phúc Hữu & Nam Nguyễn (Frontend Admin):**
   - Chịu trách nhiệm toàn bộ mã nguồn Web Admin (`src/frontend/admin-dashboard/`).
   - Quản lý state form, `sessionStorage` chống mất dữ liệu khi mất mạng hoặc reload.
   - Xử lý bypass kiểm tra tồn phía client khi retry.
   - Phân tách loading, error và empty state của sổ kho và tồn kho.
   - Tuân thủ nghiêm ngặt hợp đồng Swagger API Backend.
-- **Thành viên 1 — Đăng Khoa (Backend Lead & DevOps):**
+- **Đăng Khoa (Backend Lead & DevOps):**
   - Chịu trách nhiệm cơ sở dữ liệu PostgreSQL, Advisory Lock chống race condition, tính nguyên tử của Idempotency backend (F2).
   - Cấu hình Nginx SPA fallback và Dockerfile container (F7).
   - Nghiệm thu kỹ thuật các PR và tài liệu tích hợp liên thông.
-- **Thành viên 2 — Nhựt (Backend 2):**
+- **Nhựt (Backend 2):**
   - Phụ trách danh mục Catalog, Brand, tìm kiếm sản phẩm POS.
