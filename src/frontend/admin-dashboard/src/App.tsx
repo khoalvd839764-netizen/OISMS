@@ -4,6 +4,8 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ProductsPage } from "./pages/ProductsPage";
 import { InventoryPage } from "./pages/InventoryPage";
+import { InventoryTransfersPage } from "./pages/InventoryTransfersPage";
+import { StockCountsPage } from "./pages/StockCountsPage";
 import { OrdersPage } from "./pages/OrdersPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { HandoffPage } from "./pages/HandoffPage";
@@ -37,10 +39,15 @@ export default function App() {
               <Route path="/admin/products" element={<ProductsPage />} />
               <Route path="/inventory" element={<InventoryPage />} />
               <Route path="/admin/inventory" element={<InventoryPage />} />
+              <Route path="/inventory/transfers" element={<InventoryTransfersPage />} />
+              <Route path="/admin/inventory/transfers" element={<InventoryTransfersPage />} />
+              <Route path="/inventory/counts" element={<StockCountsPage />} />
+              <Route path="/admin/inventory/counts" element={<StockCountsPage />} />
               <Route path="/orders" element={<OrdersPage />} />
               <Route path="/admin/orders" element={<OrdersPage />} />
               <Route path="/handoff" element={<HandoffPage />} />
               <Route path="/admin/handoff" element={<HandoffPage />} />
+
               {/* Chỉ Owner được truy cập trang Báo cáo & Quản lý Chi nhánh / Tổ chức */}
               <Route element={<ProtectedRoute allowedRoles={["Owner"]} />}>
                 <Route path="/reports" element={<ReportsPage />} />

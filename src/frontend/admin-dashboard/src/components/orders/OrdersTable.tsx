@@ -1,6 +1,6 @@
 import React from 'react';
-import type { OrderSummary, OrderStatus, OrderChannel } from '../types/ordersCenter';
-import { ORDER_STATUS_LABEL } from '../types/ordersCenter';
+import type { OrderSummary, OrderStatus, OrderChannel } from '../../types/ordersCenter';
+import { ORDER_STATUS_LABEL } from '../../types/ordersCenter';
 
 interface OrdersTableProps {
   orders: OrderSummary[];
