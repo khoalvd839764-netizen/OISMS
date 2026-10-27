@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { OrderDetail } from '../../types/ordersCenter';
 import { ORDER_STATUS_LABEL, ORDER_ACTIONS } from '../../types/ordersCenter';
 import { orderService } from '../../services/orderService';
+import { Printer } from 'lucide-react';
 
 interface OrderDetailDrawerProps {
   orderId: string | null;
@@ -98,12 +99,22 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
               </span>
             )}
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-xl font-bold p-1"
-          >
-            ✕
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => window.print()}
+              className="px-2.5 py-1 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-100 flex items-center gap-1 shadow-sm"
+              title="In phiếu xuất kho / giao hàng"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              In chứng từ
+            </button>
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 text-xl font-bold p-1"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         {/* Nội dung chi tiết */}
@@ -120,33 +131,33 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
                   <p className="text-xs text-gray-500">{detail.customerPhone || 'Chưa có SĐT'}</p>
                 </div>
                 <div>
-                  <span className="text-xs text-gray-400 block">Trạng thái đơn</span>
-                  <span className="inline-block mt-1 px-2.5 py-0.5 text-xs font-semibold rounded border bg-white">
-                    {ORDER_STATUS_LABEL[detail.status]}
+                  <span className="text-xs text-gray-400 block">Trạng thái</span>
+                  <span className="inline-block px-2.5 py-0.5 rounded text-xs font-bold bg-blue-100 text-blue-800 mt-1">
+                    {ORDER_STATUS_LABEL[detail.status] || detail.status}
                   </span>
                 </div>
               </div>
 
-              {/* Bảng Danh sách SKU */}
+              {/* Bảng Mặt Hàng SKU */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-2">Danh sách mặt hàng</h3>
+                <h3 className="font-semibold text-gray-700 text-sm mb-2">Danh sách mặt hàng SKU</h3>
                 <div className="border border-gray-200 rounded-lg overflow-hidden">
-                  <table className="w-full text-xs text-left">
-                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-600">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-gray-100 text-gray-600 font-semibold border-b border-gray-200">
                       <tr>
-                        <th className="p-2">Mã SKU / Tên</th>
+                        <th className="p-2">Sản phẩm</th>
                         <th className="p-2 text-center">SL</th>
                         <th className="p-2 text-right">Giá niêm yết</th>
                         <th className="p-2 text-right">Giá vốn (WAC)</th>
-                        <th className="p-2 text-right">Thành tiền</th>
+                        <th className="p-2 text-right">Tổng tiền</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {detail.items.map((item) => (
+                    <tbody className="divide-y divide-gray-200">
+                      {detail.items?.map((item) => (
                         <tr key={item.id}>
                           <td className="p-2">
-                            <div className="font-medium text-gray-800">{item.skuCode}</div>
-                            <div className="text-gray-400">{item.skuName}</div>
+                            <div className="font-semibold text-gray-800">{item.skuCode}</div>
+                            <div className="text-gray-500">{item.skuName}</div>
                           </td>
                           <td className="p-2 text-center font-medium">{item.quantity}</td>
                           <td className="p-2 text-right">

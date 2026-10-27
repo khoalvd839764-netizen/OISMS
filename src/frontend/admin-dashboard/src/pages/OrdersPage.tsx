@@ -1,11 +1,14 @@
-import { AlertCircle, ChevronRight, Filter, Plus, Printer, RefreshCw, Search } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Badge, Button, Input, Modal, PageTitle, Select } from "../components/ui";
+import { AlertCircle, Plus, RefreshCw, ShoppingBag } from "lucide-react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { Button, Input, Modal, Select } from "../components/ui";
 import { apiAdapter, generateUuid, getPendingOrderStorageKey } from "../services/apiAdapter";
-import { realtimeAdapter, type RealtimeEvent } from "../services/realtimeAdapter";
 import { useAuth } from "../context/AuthContext";
-import { OrderBadge } from "./DashboardPage";
 import type { Order, Sku } from "../types/domain";
+import type { OrderFilter, OrderSummary } from "../types/ordersCenter";
+import { orderService } from "../services/orderService";
+import { OrdersTable } from "../components/orders/OrdersTable";
+import { OrdersFilter } from "../components/orders/OrdersFilter";
+import { OrderDetailDrawer } from "../components/orders/OrderDetailDrawer";
 
 interface PendingOrderState {
   idempotencyKey: string;
@@ -44,20 +47,26 @@ function clearSavedPendingOrder(tenantId?: string) {
 
 export function OrdersPage() {
   const { account } = useAuth();
-  const [ordersList, setOrdersList] = useState<Order[]>([]);
+
+  // State Trung tâm Đơn hàng Đa kênh (Sprint 3: SCR-ORD-01..03)
+  const [orders, setOrders] = useState<OrderSummary[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loadingOrders, setLoadingOrders] = useState(false);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+
+  const [filter, setFilter] = useState<OrderFilter>({
+    pageIndex: 1,
+    pageSize: 10,
+  });
+
+  // Master data cho Modal Tạo đơn & Giữ chỗ (Sprint 2)
   const [skusList, setSkusList] = useState<Sku[]>([]);
   const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([]);
   const [warehouses, setWarehouses] = useState<Array<{ id: string; name: string; branchId: string }>>([]);
-  const [loading, setLoading] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Order | null>(null);
-  const [status, setStatus] = useState<string>("Draft");
-  const [cancelReason, setCancelReason] = useState("");
-  const [inventoryReloaded, setInventoryReloaded] = useState(false);
-
-  // Bộ lọc
-  const [searchQuery, setSearchQuery] = useState("");
-  const [channelFilter, setChannelFilter] = useState("all");
+  const [warehouseStockList, setWarehouseStockList] = useState<any[]>([]);
+  const [loadingWhStock, setLoadingWhStock] = useState(false);
+  const [whStockError, setWhStockError] = useState<string | null>(null);
 
   // Modal tạo đơn & giữ chỗ
   const [createModal, setCreateModal] = useState(false);
@@ -68,9 +77,8 @@ export function OrdersPage() {
   const [newSkuId, setNewSkuId] = useState("");
   const [newQuantity, setNewQuantity] = useState(1);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [warehouseStockList, setWarehouseStockList] = useState<Sku[]>([]);
-  const [loadingWhStock, setLoadingWhStock] = useState(false);
-  const [whStockError, setWhStockError] = useState<string | null>(null);
+  const [loadingCreate, setLoadingCreate] = useState(false);
+
   const isCreatingOrderRef = useRef(false);
   const whStockReqSeqRef = useRef(0);
 
@@ -78,61 +86,73 @@ export function OrdersPage() {
   const [orderIdempotencyKey, setOrderIdempotencyKey] = useState<string | null>(null);
   const [isRetryingOrder, setIsRetryingOrder] = useState(false);
 
-  const loadOrders = async () => {
-    setLoading(true);
-    setLoadError(null);
-    const [res, skuRes, brRes, whRes] = await Promise.all([
-      apiAdapter.getOrders(account.tenantId),
-      apiAdapter.getSkus(),
-      apiAdapter.getBranches(),
-      apiAdapter.getWarehouses(),
-    ]);
-
-    if (skuRes.error) {
-      setLoadError(skuRes.error.message);
+  // Nạp danh sách đơn hàng từ backend (/api/orders)
+  const loadOrders = useCallback(async () => {
+    setLoadingOrders(true);
+    setOrdersError(null);
+    try {
+      const paged = await orderService.getOrders(filter);
+      setOrders(paged.items || []);
+      setTotalCount(paged.totalCount || 0);
+    } catch (err: any) {
+      console.warn("Lỗi nạp danh sách đơn hàng:", err);
+      setOrdersError(err?.response?.data?.detail || err?.message || "Không thể tải danh sách đơn hàng.");
+    } finally {
+      setLoadingOrders(false);
     }
-
-    if (skuRes.data) {
-      setSkusList(skuRes.data);
-      const firstActive = skuRes.data.find((s) => s.isActive !== false) || skuRes.data[0];
-      if (firstActive?.id && !newSkuId) setNewSkuId(firstActive.id);
-    }
-
-    const brData = brRes.data || [];
-    const whData = whRes.data || [];
-    setBranches(brData);
-    setWarehouses(whData);
-
-    const initBranch = newBranchId || brData[0]?.id || "";
-    if (initBranch) {
-      setNewBranchId(initBranch);
-      const branchWhs = whData.filter((w: any) => w.branchId === initBranch);
-      if (!newWarehouseId || !branchWhs.some((w: any) => w.id === newWarehouseId)) {
-        setNewWarehouseId(branchWhs[0]?.id || "");
-      }
-    }
-
-    if (res.data) {
-      setOrdersList(res.data);
-      if (res.data.length > 0 && !selected) {
-        setSelected(res.data[0]);
-        setStatus(res.data[0].status);
-      } else if (res.data.length === 0) {
-        setSelected(null);
-      }
-    }
-    setLoading(false);
-  };
+  }, [filter]);
 
   useEffect(() => {
     loadOrders();
-  }, [account.tenantId]);
+  }, [loadOrders]);
 
+  // Lắng nghe sự kiện SignalR OrderCreated để tự động nạp lại bảng
+  useEffect(() => {
+    const handleOrderCreated = () => {
+      loadOrders();
+    };
+    window.addEventListener("oism:order-created", handleOrderCreated);
+    return () => {
+      window.removeEventListener("oism:order-created", handleOrderCreated);
+    };
+  }, [loadOrders]);
+
+  // Nạp Master data cho Modal Tạo đơn
+  useEffect(() => {
+    async function loadMasterData() {
+      try {
+        const [sRes, brRes, whRes] = await Promise.all([
+          apiAdapter.getSkus(),
+          apiAdapter.getBranches(),
+          apiAdapter.getWarehouses(),
+        ]);
+        if (sRes.data) {
+          setSkusList(sRes.data);
+          if (sRes.data.length > 0) setNewSkuId(sRes.data[0].id);
+        }
+        if (brRes.data) {
+          setBranches(brRes.data);
+          if (brRes.data.length > 0) setNewBranchId(brRes.data[0].id);
+        }
+        if (whRes.data) {
+          setWarehouses(whRes.data);
+          const firstMatch = whRes.data.find(
+            (w: any) => !brRes.data[0]?.id || w.branchId === brRes.data[0]?.id
+          ) || whRes.data[0];
+          if (firstMatch) setNewWarehouseId(firstMatch.id);
+        }
+      } catch (err) {
+        console.warn("Lỗi nạp master data:", err);
+      }
+    }
+    loadMasterData();
+  }, []);
+
+  // Tải tồn kho chi nhánh được chọn trong Modal
   useEffect(() => {
     async function loadSelectedWarehouseStock() {
       if (!createModal || !newBranchId || !newWarehouseId) {
         setWarehouseStockList([]);
-        setWhStockError(null);
         return;
       }
       const seq = ++whStockReqSeqRef.current;
@@ -142,70 +162,30 @@ export function OrdersPage() {
       const res = await apiAdapter.getBalances({
         branchId: newBranchId,
         warehouseId: newWarehouseId,
-      });
+              });
       if (seq !== whStockReqSeqRef.current) return;
       setLoadingWhStock(false);
-      if (res.error) {
-        setWarehouseStockList([]);
-        setWhStockError(res.error.message || "Không thể tải số dư kho");
-      } else {
-        setWarehouseStockList(res.data || []);
-        setWhStockError(null);
-      }
+      if (res.data) setWarehouseStockList(res.data);
+      if (res.error) setWhStockError(res.error.message);
     }
     loadSelectedWarehouseStock();
-  }, [createModal, newBranchId, newWarehouseId]);
+  }, [createModal, newBranchId, newWarehouseId, account.tenantId]);
 
-  const modalBranchWarehouses = useMemo(
-    () => warehouses.filter((w) => w.branchId === newBranchId),
-    [warehouses, newBranchId]
-  );
-
-  useEffect(() => {
-    if (!selected) return;
-    const applyEvent = (event: RealtimeEvent) => {
-      if (event.type !== "reservation.expired" || event.orderCode !== selected.code) return;
-      setStatus("Cancelled");
-      setCancelReason(event.reason);
-      setInventoryReloaded(true);
-    };
-    const latest = realtimeAdapter.getLatestEvent();
-    if (latest) applyEvent(latest);
-    return realtimeAdapter.subscribe(applyEvent);
-  }, [selected?.code]);
-
-  const selectOrder = (order: Order) => {
-    setSelected(order);
-    setStatus(order.status);
-    setCancelReason("");
-    setInventoryReloaded(false);
-  };
-
-  const updateOrderStatus = (nextStatus: Order["status"], reason = "") => {
-    setStatus(nextStatus);
-    if (reason) setCancelReason(reason);
-    if (!selected) return;
-    const nextList = ordersList.map((o) => (o.id === selected.id ? { ...o, status: nextStatus } : o));
-    setOrdersList(nextList);
-    setSelected({ ...selected, status: nextStatus });
-    apiAdapter.saveSessionOrders(nextList, account.tenantId);
-  };
-
+  // Mở Modal tạo đơn
   const openCreateModal = () => {
     setCreateError(null);
     const pending = loadSavedPendingOrder(account.tenantId);
-    if (pending && pending.idempotencyKey) {
+    if (pending) {
       setOrderIdempotencyKey(pending.idempotencyKey);
-      if (pending.branchId) setNewBranchId(pending.branchId);
-      if (pending.warehouseId) setNewWarehouseId(pending.warehouseId);
-      if (pending.skuId) setNewSkuId(pending.skuId);
-      if (pending.quantity) setNewQuantity(pending.quantity);
-      if (pending.channel) setNewChannel(pending.channel);
-      if (pending.customer) setNewCustomer(pending.customer);
+      setNewBranchId(pending.branchId);
+      setNewWarehouseId(pending.warehouseId);
+      setNewSkuId(pending.skuId);
+      setNewQuantity(pending.quantity);
+      setNewChannel(pending.channel);
+      setNewCustomer(pending.customer);
       setIsRetryingOrder(true);
     } else {
-      const freshKey = generateUuid();
-      setOrderIdempotencyKey(freshKey);
+      setOrderIdempotencyKey(generateUuid());
       setIsRetryingOrder(false);
     }
     setCreateModal(true);
@@ -214,14 +194,12 @@ export function OrdersPage() {
   const handleDiscardPendingOrder = () => {
     if (isRetryingOrder) {
       const confirmDiscard = window.confirm(
-        "Thao tác tạo đơn / giữ chỗ trước đó có thể đã được tiếp nhận một phần trên máy chủ. " +
-          "Bỏ thao tác dở dang sẽ dừng theo dõi và sinh định danh mới cho đơn tiếp theo. Bạn có chắc chắn muốn bỏ qua?"
+        "Bạn có chắc muốn hủy bỏ phiên tạo đơn đang chờ? Nếu thao tác trước đó đã thành công, việc tạo mới có thể sinh thêm đơn khác."
       );
       if (!confirmDiscard) return;
     }
     clearSavedPendingOrder(account.tenantId);
-    const freshKey = generateUuid();
-    setOrderIdempotencyKey(freshKey);
+    setOrderIdempotencyKey(generateUuid());
     setIsRetryingOrder(false);
     setCreateError(null);
   };
@@ -230,12 +208,12 @@ export function OrdersPage() {
     if (isRetryingOrder) {
       clearSavedPendingOrder(account.tenantId);
       setIsRetryingOrder(false);
+      setOrderIdempotencyKey(generateUuid());
     }
-    setOrderIdempotencyKey(generateUuid());
-    setCreateError(null);
   };
 
-  const handleCreateOrder = async () => {
+  // Tạo đơn hàng & giữ chỗ
+  const createOrder = async () => {
     if (isCreatingOrderRef.current) return;
     isCreatingOrderRef.current = true;
     try {
@@ -275,7 +253,7 @@ export function OrdersPage() {
       };
       savePendingOrder(pendingPayload, account.tenantId);
 
-      setLoading(true);
+      setLoadingCreate(true);
       const res = await apiAdapter.checkout(
         chosenSku,
         newQuantity,
@@ -286,12 +264,11 @@ export function OrdersPage() {
           branchName: selectedBranchObj?.name,
           warehouseId: newWarehouseId,
           warehouseName: selectedWarehouseObj?.name,
-          tenantId: account.tenantId,
-          idempotencyKey: key,
+                    idempotencyKey: key,
           isRetry: isRetryingOrder,
         }
       );
-      setLoading(false);
+      setLoadingCreate(false);
 
       if (res.error) {
         setCreateError(`${res.error.message} (Định danh: ${key.slice(0, 8)}...)`);
@@ -309,294 +286,105 @@ export function OrdersPage() {
     }
   };
 
-  const filteredOrders = ordersList.filter((o) => {
-    const matchesSearch = `${o.code} ${o.customer}`.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesChannel = channelFilter === "all" || o.channel === channelFilter;
-    return matchesSearch && matchesChannel;
-  });
-
-  const isReservedState = status === "Reserved" || status === "Pending";
-
   return (
-    <>
-      <PageTitle
-        eyebrow="FR-ORD · FR-RSE"
-        title="Đơn hàng đa kênh"
-        description="Một luồng xử lý chung cho POS, Admin và sàn thương mại điện tử (Shopee, TikTok, Lazada) kèm cơ chế khóa giữ chỗ chống bán âm."
-        actions={
-          <>
-            <Button variant="secondary" onClick={loadOrders} disabled={loading}>
-              <RefreshCw size={17} />{loading ? "Đang đồng bộ..." : "Đồng bộ"}
-            </Button>
-            <Button onClick={openCreateModal}>
-              <Plus size={17} />Tạo đơn & Giữ chỗ kho
-            </Button>
-          </>
-        }
-      />
-
-      {loadError && (
-        <div
-          style={{
-            background: "#fef2f2",
-            border: "1px solid #ef4444",
-            color: "#b91c1c",
-            padding: "14px 18px",
-            borderRadius: "10px",
-            marginBottom: "18px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: "12px",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <AlertCircle size={20} />
-            <div>
-              <strong>Không thể tải dữ liệu từ máy chủ:</strong>
-              <div style={{ fontSize: "13px" }}>{loadError}</div>
-            </div>
+    <div className="p-6 max-w-7xl mx-auto space-y-4">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <ShoppingBag className="w-7 h-7 text-indigo-600" />
+            <h1 className="text-2xl font-bold text-gray-900">Trung Tâm Đơn Hàng Đa Kênh</h1>
           </div>
-          <Button variant="secondary" onClick={loadOrders}>
-            <RefreshCw size={15} /> Tải lại trang
-          </Button>
+          <p className="text-xs text-gray-500 mt-1">
+            Quản trị vòng đời đơn hàng: Shopee, TikTok, Lazada, POS, Web. Duyệt đơn (trừ on-hand), Hủy đơn (hoàn giữ chỗ), Xử lý và In phiếu.
+          </p>
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={loadOrders}
+            className="px-3 py-2 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 shadow-sm flex items-center gap-1.5"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            Đồng bộ
+          </button>
+          <button
+            onClick={openCreateModal}
+            className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm flex items-center gap-1.5"
+          >
+            <Plus className="w-4 h-4" />
+            Tạo đơn & Giữ chỗ kho
+          </button>
+        </div>
+      </div>
+
+      {ordersError && (
+        <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-lg text-rose-700 text-xs flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <span>{ordersError}</span>
         </div>
       )}
 
-      <div className="order-layout">
-        <section className="card order-list-card">
-          <div className="toolbar">
-            <label className="search-field">
-              <Search size={18} />
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Tìm mã đơn, khách hàng..."
-              />
-            </label>
-            <Select aria-label="Lọc kênh" value={channelFilter} onChange={(e) => setChannelFilter(e.target.value)}>
-              <option value="all">Tất cả kênh</option>
-              <option value="POS">POS</option>
-              <option value="Shopee">Shopee</option>
-              <option value="TikTok">TikTok</option>
-              <option value="Lazada">Lazada</option>
-            </Select>
-            <Button variant="secondary" onClick={loadOrders}><Filter size={17} /></Button>
-          </div>
-          <div className="order-list">
-            {filteredOrders.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "36px 12px", color: "#64748b" }}>
-                Chưa có đơn hàng nào trong phiên của doanh nghiệp <strong>{account.tenantName}</strong>. Bấm{" "}
-                <strong>"Tạo đơn & Giữ chỗ kho"</strong> để khởi tạo đơn và khóa tồn kho (
-                <code>POST /api/inventory/reserve</code>).
-              </div>
-            ) : (
-              filteredOrders.map((order) => (
-                <button
-                  key={order.id}
-                  className={selected?.id === order.id ? "active" : ""}
-                  onClick={() => selectOrder(order)}
-                >
-                  <div>
-                    <span className={`channel channel--${order.channel.toLowerCase()}`}>{order.channel}</span>
-                    <strong>{order.code}</strong>
-                    <small>
-                      {order.branch ? `${order.branch} · ` : ""}
-                      {new Date(order.createdAt).toLocaleString("vi-VN", {
-                        day: "2-digit",
-                        month: "2-digit",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        timeZone: "Asia/Ho_Chi_Minh",
-                      })}
-                    </small>
-                  </div>
-                  <div>
-                    <strong>{order.amount.toLocaleString("vi-VN")} ₫</strong>
-                    <OrderBadge status={selected?.id === order.id ? status : order.status} />
-                  </div>
-                  <ChevronRight size={18} />
-                </button>
-              ))
-            )}
-          </div>
-        </section>
+      {/* Bộ lọc đa tiêu chí */}
+      <OrdersFilter
+        filter={filter}
+        onChange={(newFilter) => setFilter(newFilter)}
+        onReset={() => setFilter({ pageIndex: 1, pageSize: 10 })}
+      />
 
-        {selected ? (
-          <section className="card order-detail">
-            <div className="card-head detail-head">
-              <div>
-                <div className="eyebrow">CHI TIẾT ĐƠN HÀNG</div>
-                <h2>{selected.code}</h2>
-                <p>
-                  Kênh bán: {selected.channel} {selected.branch ? `· Kho giữ chỗ: ${selected.branch}` : ""}
-                </p>
-              </div>
-              <OrderBadge status={status} />
-            </div>
+      {/* Bảng danh sách đơn hàng có phân trang server-side */}
+      <OrdersTable
+        orders={orders}
+        loading={loadingOrders}
+        totalCount={totalCount}
+        pageIndex={filter.pageIndex}
+        pageSize={filter.pageSize}
+        onPageChange={(nextPage) => setFilter({ ...filter, pageIndex: nextPage })}
+        onSelectOrder={(id) => setSelectedOrderId(id)}
+      />
 
-            {isReservedState && (
-              <div className="reservation-banner">
-                <span>
-                  <strong>Đang giữ chỗ tồn kho (Anti-oversell · Advisory Lock)</strong>
-                  <small>Hệ thống tự động giải phóng tồn kho nếu quá hạn thanh toán.</small>
-                </span>
-                <b>{selected.expiresIn || "15 phút"}</b>
-              </div>
-            )}
+      {/* Drawer Chi tiết đơn hàng & Thao tác nghiệp vụ */}
+      <OrderDetailDrawer
+        orderId={selectedOrderId}
+        onClose={() => setSelectedOrderId(null)}
+        onRefresh={loadOrders}
+      />
 
-            {status === "Cancelled" && cancelReason && (
-              <div className="expired-banner">
-                <div>
-                  <strong>Lý do hủy: {cancelReason}</strong>
-                  <span>Hệ thống đã tự động hoàn trả số dư khả dụng (Available).</span>
-                </div>
-                {inventoryReloaded && <Badge tone="success">Đã hoàn tồn kho</Badge>}
-              </div>
-            )}
-
-            <div className="detail-grid">
-              <div><span>Khách hàng</span><strong>{selected.customer}</strong></div>
-              <div><span>Kênh bán</span><strong>{selected.channel}</strong></div>
-              <div className="full">
-                <span>Chi nhánh / Kho giữ chỗ</span>
-                <strong>{selected.branch || "Chi nhánh chính"}</strong>
-              </div>
-              <div className="full"><span>Trạng thái chứng từ</span><strong>{status}</strong></div>
-            </div>
-
-            {selected.items && selected.items.length > 0 && (
-              <div className="table-wrap" style={{ marginTop: "12px" }}>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>SKU / Sản phẩm</th>
-                      <th>SL</th>
-                      <th>Đơn giá</th>
-                      <th>Giá vốn (WAC chi nhánh)</th>
-                      <th>Thành tiền</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selected.items.map((item, i) => (
-                      <tr key={i}>
-                        <td><strong>{item.skuCode}</strong> · {item.name}</td>
-                        <td>{item.quantity}</td>
-                        <td>{item.price.toLocaleString("vi-VN")} ₫</td>
-                        <td>{item.costSnapshot.toLocaleString("vi-VN")} ₫</td>
-                        <td><strong>{(item.price * item.quantity).toLocaleString("vi-VN")} ₫</strong></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
-            <div className="order-total">
-              <span className="grand">Tổng giá trị đơn<strong>{selected.amount.toLocaleString("vi-VN")} ₫</strong></span>
-            </div>
-
-            <div className="state-flow">
-              <div className="done"><i />Nháp</div>
-              <div className={["Pending", "Reserved", "Confirmed", "Completed"].includes(status) ? "done" : ""}><i />Giữ chỗ (Sprint 2)</div>
-              <div className={["Confirmed", "Completed"].includes(status) ? "done" : ""}><i />Xác nhận (Sprint 3)</div>
-              <div className={status === "Completed" ? "done" : ""}><i />Hoàn tất (Sprint 3)</div>
-            </div>
-
-            <div className="detail-actions" style={{ flexWrap: "wrap", gap: "8px" }}>
-              <Button variant="secondary" onClick={() => window.print()}>
-                <Printer size={17} />In phiếu giao <Badge tone="neutral">[Sprint 3 Preview]</Badge>
-              </Button>
-              {isReservedState && (
-                <>
-                  <Button variant="danger" onClick={() => updateOrderStatus("Cancelled", "Khách yêu cầu hủy đơn")}>
-                    Hủy giữ chỗ <Badge tone="neutral">[Sprint 3 Preview]</Badge>
-                  </Button>
-                  <Button onClick={() => updateOrderStatus("Confirmed")}>
-                    Xác nhận đơn <Badge tone="neutral">[Sprint 3 Preview]</Badge>
-                  </Button>
-                </>
-              )}
-              {status === "Confirmed" && (
-                <Button onClick={() => updateOrderStatus("Completed")}>
-                  Hoàn tất đơn <Badge tone="neutral">[Sprint 3 Preview]</Badge>
-                </Button>
-              )}
-              {status === "Completed" && <Badge tone="success">Quy trình đã hoàn tất [Sprint 3 Preview]</Badge>}
-              {status === "Cancelled" && <Badge tone="danger">Đã hủy đơn hàng [Sprint 3 Preview]</Badge>}
-            </div>
-          </section>
-        ) : (
-          <section className="card order-detail" style={{ display: "grid", placeItems: "center", minHeight: "300px", color: "#64748b" }}>
-            Chọn một đơn hàng từ danh sách bên trái hoặc bấm "Tạo đơn & Giữ chỗ kho" để khởi tạo đơn mới.
-          </section>
-        )}
-      </div>
-
+      {/* Modal Tạo đơn & Giữ chỗ tồn kho (Sprint 2) */}
       {createModal && (
         <Modal title="Tạo đơn hàng đa kênh & Giữ chỗ tồn kho (Advisory Lock)" onClose={() => setCreateModal(false)}>
           {createError && (
-            <div style={{ background: "#fee2e2", border: "1px solid #ef4444", color: "#b91c1c", padding: "10px", borderRadius: "8px", fontSize: "12px", marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
-              <AlertCircle size={16} />
-              <span>{createError}</span>
-            </div>
-          )}
-
-          {orderIdempotencyKey && (
-            <div
-              style={{
-                background: "#f8fafc",
-                border: "1px solid #94a3b8",
-                color: "#334155",
-                padding: "8px 12px",
-                borderRadius: "6px",
-                fontSize: "12px",
-                marginBottom: "12px",
-              }}
-            >
-              <strong>Định danh giữ chỗ (F2 - Idempotency Key):</strong> <code>{orderIdempotencyKey}</code>
-              {isRetryingOrder && (
-                <div style={{ marginTop: "4px", color: "#b45309" }}>
-                  Thao tác trước đó đang chờ kết quả hoặc gặp lỗi mạng. Khi bấm <strong>"Thử lại Tạo đơn & Giữ chỗ"</strong>, hệ thống sẽ gửi cùng định danh và payload để tránh tạo đơn lặp hoặc giữ chỗ hai lần.
-                </div>
-              )}
-            </div>
-          )}
-
-          {whStockError && (
             <div
               style={{
                 background: "#fef2f2",
-                border: "1px solid #f87171",
-                color: "#991b1b",
-                padding: "8px 12px",
-                borderRadius: "6px",
+                border: "1px solid #ef4444",
+                color: "#b91c1c",
+                padding: "10px 14px",
+                borderRadius: "8px",
+                marginBottom: "14px",
                 fontSize: "12px",
-                marginBottom: "12px",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
               }}
             >
-              <span>
-                <strong>Lỗi nạp tồn kho kho xuất hàng:</strong> Không thể tải số dư của kho đang chọn ({whStockError}).
-              </span>
+              <span>{createError}</span>
               <button
                 type="button"
                 onClick={() => {
-                  if (newBranchId && newWarehouseId) {
-                    const seq = ++whStockReqSeqRef.current;
-                    setLoadingWhStock(true);
-                    setWhStockError(null);
-                    setWarehouseStockList([]);
-                    apiAdapter.getBalances({ branchId: newBranchId, warehouseId: newWarehouseId }).then((res) => {
-                      if (seq !== whStockReqSeqRef.current) return;
-                      setLoadingWhStock(false);
-                      if (res.error) {
-                        setWhStockError(res.error.message || "Không thể tải số dư kho");
-                      } else {
-                        setWarehouseStockList(res.data || []);
-                      }
+                  if (orderIdempotencyKey) {
+                    setIsRetryingOrder(true);
+                    createOrder();
+                  } else {
+                    const chosen = skusList.find((s) => s.id === newSkuId);
+                    const k = generateUuid();
+                    setOrderIdempotencyKey(k);
+                    setIsRetryingOrder(false);
+                    apiAdapter.checkout(chosen!, newQuantity, newChannel, newCustomer.trim() || "Khách lẻ", {
+                      branchId: newBranchId,
+                      warehouseId: newWarehouseId,
+                                            idempotencyKey: k,
+                      isRetry: false,
                     });
                   }
                 }}
@@ -660,26 +448,23 @@ export function OrdersPage() {
               </Select>
             </label>
             <label>
-              <span>Kho giữ chỗ (Thuộc chi nhánh) *</span>
+              <span>Kho xuất hàng *</span>
               <Select
                 value={newWarehouseId}
                 onChange={(e) => {
                   setNewWarehouseId(e.target.value);
                   handleFormChange();
                 }}
-                disabled={modalBranchWarehouses.length === 0}
               >
-                {modalBranchWarehouses.length === 0 ? (
-                  <option value="">-- Chưa có kho thuộc chi nhánh này --</option>
-                ) : (
-                  modalBranchWarehouses.map((w) => (
+                {warehouses
+                  .filter((w) => !newBranchId || w.branchId === newBranchId)
+                  .map((w) => (
                     <option key={w.id} value={w.id}>{w.name}</option>
-                  ))
-                )}
+                  ))}
               </Select>
             </label>
-            <label>
-              <span>Chọn SKU đặt hàng *</span>
+            <label style={{ gridColumn: "1 / -1" }}>
+              <span>Sản phẩm / Biến thể (SKU) *</span>
               <Select
                 value={newSkuId}
                 onChange={(e) => {
@@ -699,90 +484,115 @@ export function OrdersPage() {
               </Select>
             </label>
             <label>
-              <span>Số lượng đặt *</span>
+              <span>Số lượng bán *</span>
               <Input
                 type="number"
                 min="1"
                 value={newQuantity}
                 onChange={(e) => {
-                  setNewQuantity(Math.max(1, Number(e.target.value)));
+                  setNewQuantity(Math.max(1, Number(e.target.value) || 1));
                   handleFormChange();
                 }}
+                required
               />
             </label>
           </div>
 
+          {/* Hiển thị tồn khả dụng */}
           {(() => {
             const chosenSku = skusList.find((s) => s.id === newSkuId);
             const whBal = warehouseStockList.find((wb) => wb.id === newSkuId);
-            const whOnHand = whBal?.onHand ?? 0;
-            const whReserved = whBal?.reserved ?? 0;
-            const whAvailable = Math.max(0, whOnHand - whReserved);
-            const branchWac = whBal?.averageCost ?? chosenSku?.averageCost ?? 0;
+            const whOnHand = whBal ? whBal.onHand : 0;
+            const whReserved = whBal ? whBal.reserved : 0;
+            const whAvail = Math.max(0, whOnHand - whReserved);
+            const sysAvail = chosenSku ? chosenSku.onHand - chosenSku.reserved : 0;
+            const isNotEnough = chosenSku && newQuantity > whAvail;
+
             return (
               <div
                 style={{
-                  marginTop: "12px",
-                  padding: "12px",
-                  background: "#f8fafc",
-                  border: "1px solid #cbd5e1",
+                  background: isNotEnough ? "#fff1f2" : "#f8fafc",
+                  border: `1px solid ${isNotEnough ? "#f43f5e" : "#e2e8f0"}`,
+                  padding: "12px 14px",
                   borderRadius: "8px",
+                  marginTop: "12px",
                   fontSize: "12px",
+                  color: isNotEnough ? "#9f1239" : "#334155",
                 }}
               >
-                <strong style={{ display: "block", marginBottom: "6px", color: "#0f172a" }}>
-                  Kiểm tra tồn kho tại Kho giữ chỗ đang chọn ({loadingWhStock ? "Đang tải..." : "Trực tiếp từ Backend"}):
-                </strong>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px" }}>
-                  <div>
-                    <span style={{ color: "#64748b", display: "block" }}>Tồn thực tế (OnHand)</span>
-                    <strong>{whOnHand}</strong>
-                  </div>
-                  <div>
-                    <span style={{ color: "#64748b", display: "block" }}>Đang giữ chỗ (Reserved)</span>
-                    <strong style={{ color: "#d97706" }}>{whReserved}</strong>
-                  </div>
-                  <div>
-                    <span style={{ color: "#64748b", display: "block" }}>Khả dụng tại kho này</span>
-                    <strong style={{ color: whAvailable >= newQuantity ? "#16a34a" : "#dc2626" }}>
-                      {whAvailable}
-                    </strong>
-                  </div>
-                  <div>
-                    <span style={{ color: "#64748b", display: "block" }}>Giá vốn WAC CN</span>
-                    <strong>{branchWac.toLocaleString("vi-VN")} ₫</strong>
-                  </div>
+                <div style={{ fontWeight: 600, marginBottom: "4px" }}>
+                  Kiểm tra tồn kho trước khi Giữ chỗ:
                 </div>
+                {loadingWhStock ? (
+                  <div style={{ color: "#64748b" }}>Đang tải số dư tồn kho thực tế...</div>
+                ) : whStockError ? (
+                  <div style={{ color: "#b91c1c" }}>{whStockError}</div>
+                ) : (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                    <div>
+                      • Khả dụng tại kho đang chọn: <strong>{whAvail}</strong> (OnHand: {whOnHand}, Reserved: {whReserved})
+                    </div>
+                    <div>
+                      • Khả dụng toàn bộ hệ thống: <strong>{sysAvail}</strong>
+                    </div>
+                  </div>
+                )}
+                {isNotEnough && (
+                  <div style={{ color: "#e11d48", fontWeight: 600, marginTop: "6px" }}>
+                    ⚠️ Cảnh báo: Số lượng bán ({newQuantity}) vượt quá Tồn khả dụng ({whAvail}) tại kho này.
+                  </div>
+                )}
               </div>
             );
           })()}
 
-          <div className="hint-box" style={{ marginTop: "12px" }}>
-            Khi bấm tạo đơn, hệ thống gọi trực tiếp API <code>POST /api/inventory/reserve</code> tại đúng{" "}
-            <strong>Chi nhánh & Kho</strong> đã chọn ở trên để khóa số dư khả dụng (<code>Reserved += SL</code>) trong 15 phút chống bán vượt tồn (Overselling).
-          </div>
-          <div className="modal-actions">
-            <Button variant="secondary" onClick={() => setCreateModal(false)}>Đóng</Button>
+          <div
+            style={{
+              marginTop: "10px",
+              padding: "8px 12px",
+              borderRadius: "6px",
+              background: isRetryingOrder ? "#fef3c7" : "#f1f5f9",
+              fontSize: "11px",
+              color: isRetryingOrder ? "#92400e" : "#475569",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <span>
+              {isRetryingOrder
+                ? `Đang giữ nguyên định danh để thử lại an toàn: ${orderIdempotencyKey?.slice(0, 8)}...`
+                : `Định danh thao tác mới: ${orderIdempotencyKey?.slice(0, 8)}...`}
+            </span>
             {isRetryingOrder && (
-              <Button
-                variant="secondary"
+              <button
+                type="button"
                 onClick={handleDiscardPendingOrder}
-                disabled={loading || loadingWhStock}
-                style={{ color: "#dc2626", borderColor: "#fca5a5" }}
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  color: "#b45309",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  textDecoration: "underline",
+                  fontSize: "11px",
+                }}
               >
-                Bỏ thao tác dở dang / Tạo mới
-              </Button>
+                Hủy và tạo yêu cầu mới
+              </button>
             )}
-            <Button onClick={handleCreateOrder} disabled={loading || loadingWhStock || Boolean(whStockError)}>
-              {loading
-                ? "Đang giữ chỗ..."
-                : isRetryingOrder
-                ? "Thử lại Tạo đơn & Giữ chỗ (Cùng định danh)"
-                : "Tạo đơn & Giữ chỗ kho"}
+          </div>
+
+          <div className="modal-actions" style={{ marginTop: "16px", display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+            <Button variant="secondary" onClick={() => setCreateModal(false)}>Hủy</Button>
+            <Button variant="primary" onClick={createOrder} disabled={loadingCreate}>
+              {loadingCreate ? "Đang khóa tồn kho..." : isRetryingOrder ? "Thử lại giữ chỗ" : "Tạo đơn & Giữ chỗ ngay"}
             </Button>
           </div>
         </Modal>
       )}
-    </>
+    </div>
   );
 }
+
+export default OrdersPage;

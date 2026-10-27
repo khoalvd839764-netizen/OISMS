@@ -10,12 +10,19 @@ interface CreateTransferModalProps {
   onSuccess: () => void;
 }
 
+interface WarehouseItem {
+  id: string;
+  name: string;
+  branchId?: string;
+  branchName?: string;
+}
+
 export const CreateTransferModal: React.FC<CreateTransferModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
 }) => {
-  const [warehouses, setWarehouses] = useState<Array<{ id: string; name: string }>>([]);
+  const [warehouses, setWarehouses] = useState<WarehouseItem[]>([]);
   const [skus, setSkus] = useState<Sku[]>([]);
   
   const [fromWarehouseId, setFromWarehouseId] = useState('');
@@ -42,6 +49,8 @@ export const CreateTransferModal: React.FC<CreateTransferModalProps> = ({
           if (whRes.data.length >= 2) {
             setFromWarehouseId(whRes.data[0].id);
             setToWarehouseId(whRes.data[1].id);
+          } else if (whRes.data.length === 1) {
+            setFromWarehouseId(whRes.data[0].id);
           }
         }
         if (skuRes.data) {
@@ -90,13 +99,23 @@ export const CreateTransferModal: React.FC<CreateTransferModalProps> = ({
       return;
     }
 
+    const fromWh = warehouses.find((w) => w.id === fromWarehouseId);
+    const toWh = warehouses.find((w) => w.id === toWarehouseId);
+
+    if (!fromWh?.branchId || !toWh?.branchId) {
+      setError('Không xác định được chi nhánh trực thuộc của kho xuất hoặc kho nhận.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     const payload: CreateStockTransferRequest = {
       fromWarehouseId,
       toWarehouseId,
-      note,
+      fromBranchId: fromWh.branchId,
+      toBranchId: toWh.branchId,
+      note: note.trim() || undefined,
       items: items.map((i) => ({ skuId: i.skuId, quantity: i.quantity })),
     };
 
@@ -104,8 +123,8 @@ export const CreateTransferModal: React.FC<CreateTransferModalProps> = ({
       await stockTransferService.createTransfer(payload);
       onSuccess();
       onClose();
-    } catch (err) {
-      setError('Không thể tạo phiếu chuyển kho. Vui lòng thử lại.');
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || err?.detail || err?.message || 'Không thể tạo phiếu chuyển kho. Vui lòng thử lại.');
     } finally {
       setLoading(false);
     }
@@ -129,66 +148,64 @@ export const CreateTransferModal: React.FC<CreateTransferModalProps> = ({
           {/* Chọn Kho */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block font-medium text-gray-700 mb-1">Kho xuất (Nguồn) *</label>
+              <label className="block text-gray-600 font-semibold mb-1">Kho xuất (Nguồn) *</label>
               <select
                 value={fromWarehouseId}
                 onChange={(e) => setFromWarehouseId(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500"
+                className="w-full p-2 border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500 bg-white"
+                required
               >
-                {warehouses.map((w) => (
-                  <option key={w.id} value={w.id}>{w.name}</option>
+                {warehouses.map((wh) => (
+                  <option key={wh.id} value={wh.id}>
+                    {wh.name} {wh.branchName ? `(${wh.branchName})` : ''}
+                  </option>
                 ))}
               </select>
             </div>
+
             <div>
-              <label className="block font-medium text-gray-700 mb-1">Kho nhận (Đích) *</label>
+              <label className="block text-gray-600 font-semibold mb-1">Kho nhận (Đích) *</label>
               <select
                 value={toWarehouseId}
                 onChange={(e) => setToWarehouseId(e.target.value)}
-                className="w-full p-2 border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500"
+                className="w-full p-2 border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500 bg-white"
+                required
               >
-                {warehouses.map((w) => (
-                  <option key={w.id} value={w.id}>{w.name}</option>
+                {warehouses.map((wh) => (
+                  <option key={wh.id} value={wh.id}>
+                    {wh.name} {wh.branchName ? `(${wh.branchName})` : ''}
+                  </option>
                 ))}
               </select>
             </div>
           </div>
 
-          <div>
-            <label className="block font-medium text-gray-700 mb-1">Ghi chú điều chuyển</label>
-            <input
-              type="text"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Ví dụ: Chuyển hàng hỗ trợ chi nhánh..."
-              className="w-full p-2 border border-gray-300 rounded"
-            />
-          </div>
-
-          {/* Chọn SKU & SL */}
-          <div className="border p-3 rounded-lg bg-gray-50 space-y-2">
-            <span className="font-semibold text-gray-700 block">Thêm mặt hàng SKU</span>
+          {/* Chọn SKU & Số lượng */}
+          <div className="border border-gray-200 p-3 rounded bg-gray-50 space-y-2">
+            <span className="font-semibold text-gray-700 block">Thêm mặt hàng chuyển</span>
             <div className="flex gap-2">
               <select
                 value={selectedSkuId}
                 onChange={(e) => setSelectedSkuId(e.target.value)}
-                className="flex-1 p-2 border border-gray-300 rounded"
+                className="flex-1 p-2 border border-gray-300 rounded bg-white"
               >
-                {skus.map((s) => (
-                  <option key={s.id} value={s.id}>{s.code} - {s.name}</option>
+                {skus.map((sku) => (
+                  <option key={sku.id} value={sku.id}>
+                    {sku.code} - {sku.name} (Tồn: {sku.onHand})
+                  </option>
                 ))}
               </select>
               <input
                 type="number"
                 min="1"
                 value={quantity}
-                onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))}
-                className="w-20 p-2 border border-gray-300 rounded text-center"
+                onChange={(e) => setQuantity(Number(e.target.value))}
+                className="w-20 p-2 border border-gray-300 rounded text-center bg-white"
               />
               <button
                 type="button"
                 onClick={handleAddItem}
-                className="px-3 py-2 bg-indigo-600 text-white font-medium rounded hover:bg-indigo-700"
+                className="px-3 py-2 bg-indigo-600 text-white font-medium rounded hover:bg-indigo-700 transition"
               >
                 + Thêm
               </button>
@@ -197,27 +214,27 @@ export const CreateTransferModal: React.FC<CreateTransferModalProps> = ({
 
           {/* Danh sách SKU đã chọn */}
           {items.length > 0 && (
-            <div className="border rounded overflow-hidden">
+            <div className="border border-gray-200 rounded overflow-hidden">
               <table className="w-full text-left">
-                <thead className="bg-gray-100 border-b">
+                <thead className="bg-gray-100 text-gray-600">
                   <tr>
                     <th className="p-2">Mã SKU</th>
                     <th className="p-2 text-center">Số lượng</th>
-                    <th className="p-2 text-right">Thao tác</th>
+                    <th className="p-2 text-right">Xóa</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y">
+                <tbody className="divide-y divide-gray-200">
                   {items.map((item, idx) => (
-                    <tr key={idx}>
+                    <tr key={item.skuId}>
                       <td className="p-2 font-medium">{item.skuCode}</td>
                       <td className="p-2 text-center">{item.quantity}</td>
                       <td className="p-2 text-right">
                         <button
                           type="button"
                           onClick={() => handleRemoveItem(idx)}
-                          className="text-rose-600 font-bold hover:underline"
+                          className="text-rose-600 hover:text-rose-800"
                         >
-                          Xóa
+                          ✕
                         </button>
                       </td>
                     </tr>
@@ -227,21 +244,33 @@ export const CreateTransferModal: React.FC<CreateTransferModalProps> = ({
             </div>
           )}
 
-          {/* Modal Actions */}
+          {/* Ghi chú */}
+          <div>
+            <label className="block text-gray-600 font-semibold mb-1">Ghi chú điều chuyển</label>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Ghi chú lý do chuyển kho, mã vận đơn..."
+              className="w-full p-2 border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500 bg-white"
+              rows={2}
+            />
+          </div>
+
           <div className="flex justify-end gap-2 pt-2 border-t">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-gray-600 bg-gray-100 rounded hover:bg-gray-200"
+              disabled={loading}
+              className="px-4 py-2 border border-gray-300 rounded text-gray-600 hover:bg-gray-50"
             >
               Hủy
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 text-white bg-indigo-600 rounded hover:bg-indigo-700 disabled:opacity-50"
+              className="px-4 py-2 bg-indigo-600 text-white font-medium rounded hover:bg-indigo-700 disabled:opacity-50"
             >
-              {loading ? 'Đang tạo...' : 'Tạo phiếu nháp (Draft)'}
+              {loading ? 'Đang tạo...' : 'Tạo phiếu chuyển'}
             </button>
           </div>
         </form>

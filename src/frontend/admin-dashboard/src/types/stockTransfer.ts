@@ -14,11 +14,18 @@ export interface StockTransferItem {
   skuCode: string;
   skuName?: string;
   quantity: number;
+  unitCost?: number;
 }
 
 export interface StockTransfer {
   id: string;
-  transferNumber: string;
+  number?: string;
+  transferNumber?: string;
+  requestKey?: string;
+  fromBranchId?: string;
+  fromBranchName?: string;
+  toBranchId?: string;
+  toBranchName?: string;
   fromWarehouseId: string;
   fromWarehouseName?: string;
   toWarehouseId: string;
@@ -32,6 +39,9 @@ export interface StockTransfer {
 }
 
 export interface CreateStockTransferRequest {
+  requestKey?: string;
+  fromBranchId?: string;
+  toBranchId?: string;
   fromWarehouseId: string;
   toWarehouseId: string;
   note?: string;
