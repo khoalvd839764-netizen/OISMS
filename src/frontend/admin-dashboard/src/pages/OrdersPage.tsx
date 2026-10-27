@@ -59,7 +59,7 @@ export function OrdersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [channelFilter, setChannelFilter] = useState("all");
 
-  // [A04 & A08] Modal tạo đơn & giữ chỗ tồn kho theo đúng Chi nhánh / Kho cụ thể (POST /api/inventory/reserve)
+  // Modal tạo đơn & giữ chỗ
   const [createModal, setCreateModal] = useState(false);
   const [newCustomer, setNewCustomer] = useState("Khách hàng Admin");
   const [newChannel, setNewChannel] = useState<Order["channel"]>("Shopee");
@@ -74,7 +74,7 @@ export function OrdersPage() {
   const isCreatingOrderRef = useRef(false);
   const whStockReqSeqRef = useRef(0);
 
-  // [F2] Duy trì Idempotency-Key UUID cho luồng tạo đơn & giữ chỗ
+  // Idempotency-Key
   const [orderIdempotencyKey, setOrderIdempotencyKey] = useState<string | null>(null);
   const [isRetryingOrder, setIsRetryingOrder] = useState(false);
 
@@ -128,7 +128,6 @@ export function OrdersPage() {
     loadOrders();
   }, [account.tenantId]);
 
-  // [A08 & F3] Khi mở Modal Tạo đơn và đổi Chi nhánh / Kho, tải số dư thực tế tại đúng Kho đó (chống stale data)
   useEffect(() => {
     async function loadSelectedWarehouseStock() {
       if (!createModal || !newBranchId || !newWarehouseId) {
@@ -137,7 +136,7 @@ export function OrdersPage() {
         return;
       }
       const seq = ++whStockReqSeqRef.current;
-      setWarehouseStockList([]); // Reset ngay lập tức để không hiển thị số dư của kho cũ
+      setWarehouseStockList([]);
       setWhStockError(null);
       setLoadingWhStock(true);
       const res = await apiAdapter.getBalances({
@@ -182,7 +181,6 @@ export function OrdersPage() {
     setInventoryReloaded(false);
   };
 
-  // [A01 & A11] Lưu trạng thái đơn hàng theo đúng khóa oism_orders_${tenantId}
   const updateOrderStatus = (nextStatus: Order["status"], reason = "") => {
     setStatus(nextStatus);
     if (reason) setCancelReason(reason);
@@ -193,7 +191,6 @@ export function OrdersPage() {
     apiAdapter.saveSessionOrders(nextList, account.tenantId);
   };
 
-  // [F2] Mở modal tạo đơn & khôi phục thao tác dở dang nếu có
   const openCreateModal = () => {
     setCreateError(null);
     const pending = loadSavedPendingOrder(account.tenantId);
@@ -214,7 +211,6 @@ export function OrdersPage() {
     setCreateModal(true);
   };
 
-  // [F2] Hủy thao tác dở dang và sinh key mới để tạo đơn mới
   const handleDiscardPendingOrder = () => {
     if (isRetryingOrder) {
       const confirmDiscard = window.confirm(
@@ -230,7 +226,6 @@ export function OrdersPage() {
     setCreateError(null);
   };
 
-  // [F2] Khi người dùng thay đổi dữ liệu đặt hàng, sinh UUID mới cho ý định mới
   const handleFormChange = () => {
     if (isRetryingOrder) {
       clearSavedPendingOrder(account.tenantId);
@@ -250,7 +245,6 @@ export function OrdersPage() {
         setCreateError("Vui lòng chọn một sản phẩm / SKU hợp lệ.");
         return;
       }
-      // [A10] Chặn chọn SKU đã ngừng hoạt động
       if (chosenSku.isActive === false) {
         setCreateError(`Mã SKU ${chosenSku.code} đang ở trạng thái [Ngừng hoạt động], không thể tạo đơn bán.`);
         return;
@@ -267,7 +261,6 @@ export function OrdersPage() {
       const selectedBranchObj = branches.find((b) => b.id === newBranchId);
       const selectedWarehouseObj = warehouses.find((w) => w.id === newWarehouseId);
 
-      // [F2] Giữ UUID ổn định theo ý định tạo đơn để tránh giữ lặp khi retry
       const key = orderIdempotencyKey || generateUuid();
       setOrderIdempotencyKey(key);
 
@@ -342,7 +335,6 @@ export function OrdersPage() {
         }
       />
 
-      {/* [A09] Hiển thị rõ lỗi kết nối API */}
       {loadError && (
         <div
           style={{
@@ -511,7 +503,6 @@ export function OrdersPage() {
               <div className={status === "Completed" ? "done" : ""}><i />Hoàn tất (Sprint 3)</div>
             </div>
 
-            {/* [A11] Gắn nhãn [Sprint 3 Preview] rõ ràng cho các thao tác trạng thái đơn hàng thuộc phạm vi Sprint 3 */}
             <div className="detail-actions" style={{ flexWrap: "wrap", gap: "8px" }}>
               <Button variant="secondary" onClick={() => window.print()}>
                 <Printer size={17} />In phiếu giao <Badge tone="neutral">[Sprint 3 Preview]</Badge>
@@ -542,7 +533,6 @@ export function OrdersPage() {
         )}
       </div>
 
-      {/* [A04, A08, A10 & F2] Modal Tạo đơn & Giữ chỗ tồn kho hiển thị rõ tồn khả dụng theo đúng Chi nhánh / Kho cụ thể */}
       {createModal && (
         <Modal title="Tạo đơn hàng đa kênh & Giữ chỗ tồn kho (Advisory Lock)" onClose={() => setCreateModal(false)}>
           {createError && (
@@ -652,7 +642,6 @@ export function OrdersPage() {
                 <option value="POS">POS tại quầy</option>
               </Select>
             </label>
-            {/* [A04] Chọn Chi nhánh lọc đúng Kho thuộc chi nhánh đó */}
             <label>
               <span>Chi nhánh xuất hàng *</span>
               <Select
@@ -703,7 +692,7 @@ export function OrdersPage() {
                   const whAvail = whBal ? Math.max(0, whBal.onHand - whBal.reserved) : 0;
                   return (
                     <option key={s.id} value={s.id} disabled={s.isActive === false}>
-                      {s.code} - {s.name} {s.isActive === false ? "[Ngừng hoạt động]" : `(Khả dụng tại kho chọn: ${whAvail} / Tổng hệ thống: ${s.onHand - s.reserved})`}
+                      {s.code} · {s.name} {s.isActive === false ? "[Ngừng hoạt động]" : `(Khả dụng tại kho chọn: ${whAvail} / Tổng hệ thống: ${s.onHand - s.reserved})`}
                     </option>
                   );
                 })}
@@ -723,7 +712,6 @@ export function OrdersPage() {
             </label>
           </div>
 
-          {/* [A08] Hiển thị rõ số tồn khả dụng theo từng Chi nhánh / Kho cụ thể trước khi thực hiện giữ chỗ */}
           {(() => {
             const chosenSku = skusList.find((s) => s.id === newSkuId);
             const whBal = warehouseStockList.find((wb) => wb.id === newSkuId);
