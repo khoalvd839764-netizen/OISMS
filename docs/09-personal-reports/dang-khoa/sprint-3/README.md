@@ -5,35 +5,33 @@
 | **Họ và tên / Vai trò** | **Lê Võ Đăng Khoa** — Lead Developer / Backend 1 Lead |
 | **Giai đoạn dự án** | **Sprint 3: Lõi Vận hành Hoàn chỉnh (18/10/2026 – 22/10/2026)** |
 | **Mã Jira (MCP)** | [`OISMS-40`](https://khoalevodang301007.atlassian.net/browse/OISMS-40) *(Subtask thuộc [`OISMS-34`](https://khoalevodang301007.atlassian.net/browse/OISMS-34))* |
-| **Trạng thái Sprint 3** | **HOÀN TẤT & ĐÃ NGHIỆM THU (VERIFIED)** các chức năng lõi Backend 1 |
-| **Tài liệu tổng kết chính thức** | 👉 **[`SUMMARY.md`](./SUMMARY.md)** *(Đọc độc lập, đầy đủ 7 phần tổng kết kỹ thuật)* |
+| **Trạng thái Sprint 3** | T01 DONE theo báo cáo gốc; T02–T06 (gồm T04A/T04B) VERIFIED; phần lõi BE1 và fix B-01 đã vào develop qua PR #21 |
+| **Tài liệu tổng kết chính thức** | 👉 **[`SUMMARY.md`](./SUMMARY.md)** *(Có checklist công việc đã làm và phần chưa xác nhận hoàn tất; cập nhật 27/10/2026)* |
 | **Quy chuẩn giao tiếp & Mapping**| 👉 **[`codex-antigravity/README.md`](./codex-antigravity/README.md)** *(Quy ước Codex–Anti, bảng mapping 44 mục)* |
 
 ---
 
 ## 1. Trạng Thái Hiện Hành Các Phân Hệ Lõi (Backend 1)
 
-| Task ID | Phân hệ kỹ thuật | Phiên bản | Trạng thái nghiệm thu | Reviewer | Thư mục tài liệu chuyên biệt |
-| :--- | :--- | :---: | :---: | :---: | :--- |
-| **`S3-BE1-T01`** | API Contract & Persistence Foundation | `v1.0` | **DONE (theo báo cáo gốc)** | Báo cáo gốc | [`codex-antigravity/task-01-contract-foundation/`](./codex-antigravity/task-01-contract-foundation/README.md) |
-| **`S3-BE1-T02`** | Atomic POS Checkout | `v1.2` | **VERIFIED v1.2** | Codex | [`codex-antigravity/task-02-pos-checkout/`](./codex-antigravity/task-02-pos-checkout/README.md) |
-| **`S3-BE1-T03`** | Online Order Lifecycle | `v1.1` | **VERIFIED v1.1** | Codex | [`codex-antigravity/task-03-order-lifecycle/`](./codex-antigravity/task-03-order-lifecycle/README.md) |
-| **`S3-BE1-T04A`**| Two-Step Stock Transfer | `v1.2` | **VERIFIED v1.2** | Codex | [`codex-antigravity/task-04a-stock-transfer/`](./codex-antigravity/task-04a-stock-transfer/README.md) |
-| **`S3-BE1-T04B`**| Stocktaking & Reconciliation | `v1.3` | **VERIFIED v1.3** | Codex | [`codex-antigravity/task-04b-stock-count/`](./codex-antigravity/task-04b-stock-count/README.md) |
-| **`S3-BE1-T05`** | Omnichannel Webhooks & Realtime | `v1.4` | **VERIFIED v1.4** | Codex | [`codex-antigravity/task-05-webhook-realtime/`](./codex-antigravity/task-05-webhook-realtime/README.md) |
-| **`S3-BE1-T06`** | Hangfire Reservation Expiry Worker | `v1.2` | **VERIFIED v1.2** | Codex | [`codex-antigravity/task-06-reservation-expiry/`](./codex-antigravity/task-06-reservation-expiry/README.md) |
-| **`S3-BE1-DOCS`**| Chuẩn hóa Docs, Tổng kết BE1 & PR develop | `v1.0` | **IMPLEMENTING** | Codex | [`codex-antigravity/docs-pr-develop/`](./codex-antigravity/docs-pr-develop/README.md) |
+| Task ID | Phân hệ kỹ thuật | Phiên bản | Trạng thái nghiệm thu | Thư mục tài liệu chuyên biệt |
+| :--- | :--- | :---: | :---: | :--- |
+| **`S3-BE1-T01`** | API Contract & Persistence Foundation | `v1.0` | **DONE (theo báo cáo gốc)** | [Task 1](./codex-antigravity/task-01-contract-foundation/README.md) |
+| **`S3-BE1-T02`** | Atomic POS Checkout | `v1.2` | **VERIFIED v1.2** | [Task 2](./codex-antigravity/task-02-pos-checkout/README.md) |
+| **`S3-BE1-T03`** | Online Order Lifecycle | `v1.1` | **VERIFIED v1.1** | [Task 3](./codex-antigravity/task-03-order-lifecycle/README.md) |
+| **`S3-BE1-T04A`**| Two-Step Stock Transfer | `v1.2` | **VERIFIED v1.2** | [Task 4A](./codex-antigravity/task-04a-stock-transfer/README.md) |
+| **`S3-BE1-T04B`**| Stocktaking & Reconciliation | `v1.3` | **VERIFIED v1.3** | [Task 4B](./codex-antigravity/task-04b-stock-count/README.md) |
+| **`S3-BE1-T05`** | Omnichannel Webhooks & Realtime | `v1.4` | **VERIFIED v1.4** | [Task 5](./codex-antigravity/task-05-webhook-realtime/README.md) |
+| **`S3-BE1-T06`** | Hangfire Reservation Expiry Worker | `v1.2` | **VERIFIED v1.2** | [Task 6](./codex-antigravity/task-06-reservation-expiry/README.md) |
+| **`S3-BE1-DOCS`**| Chuẩn hóa tài liệu, tổng kết BE1 & PR develop | `v1.0` | Đã đóng gói PR #21; checklist tổng kết cập nhật 27/10/2026 | [Hồ sơ bàn giao](./codex-antigravity/docs-pr-develop/README.md) |
 
 ---
 
-## 2. Kết Quả Kiểm Chứng Tự Động Toàn Solution (Hiện Hành)
+## 2. Checklist Và Bằng Chứng Kiểm Chứng
 
-Toàn bộ giải pháp đã được reviewer độc lập Codex kiểm chứng bằng runner thực tế:
-* **Build Solution Release:** `0 warning, 0 error (2.26s)`.
-* **Unit Tests:** `129/129 PASS (151ms)`.
-* **Full Integration Suite:** `260/261 PASS, 1 FAIL (B-01), 0 skipped (13m48s)`.
-  - Bao gồm 11/11 tests Expiry, 14/14 tests Webhook, 4/4 tests Hub SignalR, 8/8 tests Simulator.
-* **Lỗi tồn đọng ngoài phạm vi:** Lỗi `B-01` (`PostgresBackend2RegressionTests.cs:790` — chuyển chi nhánh kho sạch) là lỗi kế thừa ngoài phạm vi BE1 Core, được quản lý riêng và không chặn nghiệm thu các task từ Task 1 đến Task 6.
+- [Checklist theo từng task và phần còn lại](./SUMMARY.md#21-checklist-công-việc-đã-thực-hiện) nằm trong báo cáo tổng kết chính thức.
+- Lượt kiểm thử sau fix B-01 được lưu trong bàn giao: Release build 0 warning/error, 129 unit và 267 integration PASS. Đây là số liệu tại baseline BE1, không phải lượt chạy mới trong lần chỉnh tài liệu.
+- B-01 đã có fix `b5ba71e`, nằm trong merge BE1 vào develop `4dbfd8e`; nhóm warehouse/B-01 đã được chạy lại PASS trên nhánh tích hợp, dẫn tại mục 4 của [SUMMARY.md](./SUMMARY.md).
+- Kết quả Task 6 trước fix B-01 (260/261 integration) vẫn được lưu trong hồ sơ lịch sử. Không dùng số liệu đó làm trạng thái lỗi hiện hành.
 
 ---
 
