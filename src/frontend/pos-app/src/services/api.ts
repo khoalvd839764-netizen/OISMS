@@ -227,29 +227,61 @@ export async function scanPosBarcode(barcode: string, branchId?: string): Promis
  * Ghi rõ: DTO đang đề xuất/chờ backend thống nhất contract.
  * Không giả lập thành công khi Backend chưa có endpoint hoặc trả lỗi.
  */
-export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{ success: boolean; message: string; orderNumber?: string; isPendingBackend?: boolean }> {
+export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{ success: boolean; message: string; orderNumber?: string; receipt?: any; isPendingBackend?: boolean }> {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/orders/checkout`, {
+    // 1. Thử gọi route chuẩn Canonical: POST /api/pos/checkout
+    let res = await fetch(`${API_BASE_URL}/api/pos/checkout`, {
       method: 'POST',
-      headers: getHeaders(),
+      headers: {
+        ...getHeaders(),
+        'Idempotency-Key': request.requestKey,
+        'X-Request-Key': request.requestKey,
+      },
       body: JSON.stringify(request),
     });
+
+    // 2. Fallback sang Alias POST /api/orders/checkout nếu route canonical chưa có
+    if (res.status === 404 || res.status === 405) {
+      res = await fetch(`${API_BASE_URL}/api/orders/checkout`, {
+        method: 'POST',
+        headers: {
+          ...getHeaders(),
+          'Idempotency-Key': request.requestKey,
+          'X-Request-Key': request.requestKey,
+        },
+        body: JSON.stringify(request),
+      });
+    }
 
     if (res.ok) {
       const data = await res.json().catch(() => ({}));
       return {
         success: true,
-        message: 'Thanh toán đơn hàng thành công!',
-        orderNumber: data.orderNumber || data.number,
+        message: data.message || 'Thanh toán đơn hàng thành công!',
+        orderNumber: data.orderNumber || data.receipt?.orderNumber || data.number,
+        receipt: data.receipt,
+      };
+    }
+
+    if (res.status === 401) {
+      removeAuthToken();
+      window.dispatchEvent(new CustomEvent('pos-auth-expired'));
+      throw new Error('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+    }
+
+    if (res.status === 409) {
+      const err = await res.json().catch(() => ({}));
+      return {
+        success: false,
+        message: err.message || 'Xung đột dữ liệu: Tồn kho khả dụng không đủ do kênh online vừa giữ chỗ trước hoặc trùng lặp RequestKey.',
       };
     }
 
     if (res.status === 404 || res.status === 405 || res.status === 501) {
-      // Backend chưa có endpoint POST /api/orders/checkout
       return {
         success: false,
         isPendingBackend: true,
-        message: 'API thanh toán (POST /api/orders/checkout) chưa được triển khai trên Backend Swagger. DTO checkout đề xuất đã được chuẩn bị đầy đủ và đang chờ thống nhất hợp đồng API giữa 2 bên.',
+        message: 'API thanh toán (POST /api/pos/checkout và /api/orders/checkout) chưa được triển khai trên Backend Swagger. DTO checkout đề xuất đã được chuẩn bị đầy đủ và đang chờ thống nhất hợp đồng API giữa 2 bên.',
       };
     }
 
@@ -265,4 +297,3 @@ export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{ s
     };
   }
 }
-

@@ -120,7 +120,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       const result = await checkoutPosOrder(checkoutRequest);
 
       if (result.success) {
-        receiptData.receiptNumber = result.orderNumber || orderNumber;
+        receiptData.receiptNumber = result.orderNumber || (result.receipt && result.receipt.receiptNumber) || orderNumber;
+        if (result.receipt) {
+          receiptData.createdAt = new Date(result.receipt.createdAt || Date.now()).toLocaleString('vi-VN');
+          if (result.receipt.cashierName) receiptData.cashierName = result.receipt.cashierName;
+          if (result.receipt.branchName) receiptData.branchName = result.receipt.branchName;
+        }
         onSuccessAndPrint(receiptData);
         onClose();
       } else {
