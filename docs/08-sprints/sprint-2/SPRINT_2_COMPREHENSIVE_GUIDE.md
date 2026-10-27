@@ -27,7 +27,7 @@ $$\text{Đăng nhập (JWT)} \longrightarrow \text{Tạo SKU mới} \longrightar
 | Thành viên | Vai trò | Nhiệm vụ chính trong Sprint 2 | Sản phẩm bàn giao bắt buộc |
 |---|---|---|---|
 | **Khoa** *(Trưởng nhóm)* | **Backend chính** (75% effort BE) | • Thiết kế Schema PostgreSQL, Entity, Mapping, DbContext, Migrations & Seed data.<br>• Thiết lập cô lập Multi-tenant (TenantContext, Global Query Filter).<br>• Lõi Sổ cái kho bất biến (Append-Only Ledger) & Xác nhận nhập kho nguyên tử (Atomic Transaction).<br>• Thuật toán tính giá vốn bình quân (WAC) tự động.<br>• Đặt nền móng dịch vụ Order / Reservation & Thử nghiệm khóa database chống bán vượt sớm.<br>• Chuẩn hóa mẫu Controller, Xử lý lỗi, Transaction Management và Docker Compose/CI. | • DB PostgreSQL chạy thông suốt qua Docker/Local.<br>• API Nhập kho, Sổ cái, Tồn kho chạy thật trên Swagger.<br>• Unit/Integration tests phần lõi Sổ cái & WAC đạt độ phủ (Coverage) $\ge 80\%$.<br>• Hợp đồng API (Contract DTO) rõ ràng cho nhóm. |
-| **Thành viên 2** | **Backend phụ** (25% effort BE) | • Module xác thực: Băm mật khẩu (BCrypt), cấp & refresh JWT token (login/logout/refresh/me) theo template của Khoa.<br>• API Đăng ký cửa hàng (Tenant registration) dưới sự rà soát của Khoa.<br>• API CRUD & Tra cứu: Cây danh mục (Category Hierarchy), Thương hiệu (Brand), Sản phẩm (Product), Biến thể SKU, Bảng giá sỉ/lẻ, Mã vạch (Barcode EAN-13/Code128).<br>• Tra cứu Nhà cung cấp (Supplier), Chi nhánh/Kho.<br>• Viết FluentValidation kiểm tra tính hợp lệ dữ liệu. | • Toàn bộ API Auth và Catalog nộp theo từng lát cắt nhỏ (PR nhỏ).<br>• Ràng buộc duy nhất mã SKU theo tenant và validation mã vạch được kiểm thử đơn vị đạt 100%. |
+| **Nhựt** | **Backend phụ** (25% effort BE) | • Module xác thực: Băm mật khẩu (BCrypt), cấp & refresh JWT token (login/logout/refresh/me) theo template của Khoa.<br>• API Đăng ký cửa hàng (Tenant registration) dưới sự rà soát của Khoa.<br>• API CRUD & Tra cứu: Cây danh mục (Category Hierarchy), Thương hiệu (Brand), Sản phẩm (Product), Biến thể SKU, Bảng giá sỉ/lẻ, Mã vạch (Barcode EAN-13/Code128).<br>• Tra cứu Nhà cung cấp (Supplier), Chi nhánh/Kho.<br>• Viết FluentValidation kiểm tra tính hợp lệ dữ liệu. | • Toàn bộ API Auth và Catalog nộp theo từng lát cắt nhỏ (PR nhỏ).<br>• Ràng buộc duy nhất mã SKU theo tenant và validation mã vạch được kiểm thử đơn vị đạt 100%. |
 | **Thành viên 3** | **Frontend Admin** (Web React 19) | • Tiếp nhận mã nguồn giao diện từ bản Prototype (`Downloads`), đưa vào `src/frontend/admin-dashboard`.<br>• Gỡ bỏ 100% dữ liệu cứng (mock data), gỡ bỏ tài khoản mặc định Owner.<br>• Xây dựng luồng đăng nhập, lưu token JWT, điều hướng phân quyền (Owner/Staff), trang báo lỗi 403.<br>• Dựng và nối API các màn hình: Danh mục, Thương hiệu, Sản phẩm/SKU, Form tạo phiếu nhập kho nhiều dòng, Sổ kho và Báo cáo tồn kho.<br>• Xử lý giao diện: Khung xương đang tải (Skeleton loading), thông báo lỗi đỏ (Toast error). | • Web Admin chạy trên cổng `5173`.<br>• Thao tác thêm/sửa/nhập kho và đọc lại dữ liệu thật từ cơ sở dữ liệu thành công.<br>• Giao diện không bị văng màn hình trắng khi mất mạng. |
 | **Thành viên 4** | **Frontend POS** (Web PWA React 19) | • Tiếp nhận màn hình `PosPage` từ bản Prototype (`Downloads`), đưa vào `src/frontend/pos-app`.<br>• Gỡ bỏ giỏ hàng mẫu hardcode `skus[0]`.<br>• Hoàn thiện tính năng: Tìm kiếm/quét mã vạch từ API thật, giỏ hàng nhiều dòng (thêm/bớt/xóa dòng tự tính tổng tiền), nhập tiền khách đưa tính tiền thừa, phương thức thanh toán.<br>• Chuẩn bị cấu trúc gọi API Checkout nguyên tử theo hợp đồng DTO.<br>• Tối ưu bản in hóa đơn nhiệt qua CSS `@media print` khổ 80mm/58mm.<br>• Cấu hình PWA (manifest, icon). | • Web POS chạy trên cổng `5174`.<br>• Tra cứu và hiển thị đúng tồn khả dụng (`available`) của SKU.<br>• Nút in hóa đơn mở đúng hộp thoại in chuẩn kích thước hóa đơn bán lẻ. |
 | **Thành viên 5** | **Kiểm thử (Tester)** | • **Ngày D1 (Static Testing):** Đọc Hợp đồng DTO, review bắt lỗi thiết kế trên giấy; thiết kế bộ Testcases chi tiết (Positive, Negative, RBAC, Data formats); tạo sẵn Postman Collection và dữ liệu test mẫu.<br>• **Ngày D2–D3:** Nhận API từ Backend ➔ Kiểm thử độc lập ngay trên Swagger/Postman (không đợi Frontend).<br>• **Ngày D4–D5:** Kiểm thử toàn luồng giao diện Web Admin & POS (End-to-End).<br>• **Ngày D5–D6:** Chạy kịch bản thử tải tranh mua Flash Sale (50 reqs/1 SKU); Quản lý bug trên Jira (retest bug); Lập Test Report và đối chiếu ma trận RTM. | • Bảng kịch bản Testcase có kết quả Passed/Failed.<br>• Báo cáo Bug trên Jira (cam kết 0 lỗi Blocker/Critical còn mở trước khi đóng Sprint).<br>• Ma trận RTM đối chiếu 100% yêu cầu đề bài của Sprint 2.<br>• Biên bản ký duyệt chất lượng (Sign-off Summary). |
@@ -48,7 +48,7 @@ gantt
     Lõi Order/Reserve, Khóa DB, Docker/CI            :4, 5
     Tổng hợp, Hỗ trợ fix lỗi, Báo cáo kỹ thuật       :5, 6
 
-    section TV2 (Backend Sub)
+    section Nhựt (Backend Sub)
     JWT Auth (Login, Logout, Refresh, Me)            :1, 3
     Catalog CRUD (Danh mục, Brand, Product, SKU)     :2, 4
     FluentValidation, Unique SKU Tenant Guard        :4, 5
@@ -79,20 +79,20 @@ gantt
 
 | Mã yêu cầu | Tên yêu cầu nghiệp vụ | Người làm | Tiêu chuẩn nghiệm thu kỹ thuật |
 |---|---|---|---|
-| **FR-AUTH-01** | Đăng ký cửa hàng (Tenant) | TV2 & Khoa | Tạo cửa hàng cấp `TenantId` riêng biệt, sinh tài khoản quản trị mặc định ban đầu. |
-| **FR-AUTH-02** | Đăng nhập bảo mật | TV2 | Đăng nhập email/SĐT + mật khẩu; băm mật khẩu bằng BCrypt/Argon2; cấp JWT chứa TenantId, UserId, Role. |
-| **FR-AUTH-03** | Phân quyền RBAC | TV2 & Khoa | Owner toàn quyền; Staff quản lý kho/đơn; Cashier chỉ dùng POS. API trả về `403 Forbidden` nếu sai quyền. |
-| **FR-AUTH-04** | Quản lý Chi nhánh & Kho | TV2 | Owner có quyền tạo, cập nhật, bật/tắt hiển thị chi nhánh và kho trực thuộc cửa hàng mình. |
-| **FR-PROD-01** | Cây danh mục & Thương hiệu | TV2 & TV3 | Quản lý danh mục cha-con phân cấp đa tầng và thương hiệu sản phẩm. |
-| **FR-PROD-02** | Sản phẩm & Biến thể SKU | TV2 & TV3 | Sản phẩm có biến thể (Màu sắc, Kích thước); mã SKU duy nhất trong cùng một tenant (ràng buộc DB Unique Index). |
-| **FR-PROD-03** | Quản lý Mã vạch | TV2 & TV4 | Tự sinh hoặc nhập mã vạch chuẩn EAN-13 / Code128 cho từng SKU; quét tìm kiếm trên POS tức thì. |
-| **FR-PROD-04** | Quản lý Bảng giá | TV2 | Quản lý giá bán lẻ và giá bán sỉ theo từng SKU; tách biệt hoàn toàn với giá vốn. |
+| **FR-AUTH-01** | Đăng ký cửa hàng (Tenant) | Nhựt & Khoa | Tạo cửa hàng cấp `TenantId` riêng biệt, sinh tài khoản quản trị mặc định ban đầu. |
+| **FR-AUTH-02** | Đăng nhập bảo mật | Nhựt | Đăng nhập email/SĐT + mật khẩu; băm mật khẩu bằng BCrypt/Argon2; cấp JWT chứa TenantId, UserId, Role. |
+| **FR-AUTH-03** | Phân quyền RBAC | Nhựt & Khoa | Owner toàn quyền; Staff quản lý kho/đơn; Cashier chỉ dùng POS. API trả về `403 Forbidden` nếu sai quyền. |
+| **FR-AUTH-04** | Quản lý Chi nhánh & Kho | Nhựt | Owner có quyền tạo, cập nhật, bật/tắt hiển thị chi nhánh và kho trực thuộc cửa hàng mình. |
+| **FR-PROD-01** | Cây danh mục & Thương hiệu | Nhựt & TV3 | Quản lý danh mục cha-con phân cấp đa tầng và thương hiệu sản phẩm. |
+| **FR-PROD-02** | Sản phẩm & Biến thể SKU | Nhựt & TV3 | Sản phẩm có biến thể (Màu sắc, Kích thước); mã SKU duy nhất trong cùng một tenant (ràng buộc DB Unique Index). |
+| **FR-PROD-03** | Quản lý Mã vạch | Nhựt & TV4 | Tự sinh hoặc nhập mã vạch chuẩn EAN-13 / Code128 cho từng SKU; quét tìm kiếm trên POS tức thì. |
+| **FR-PROD-04** | Quản lý Bảng giá | Nhựt | Quản lý giá bán lẻ và giá bán sỉ theo từng SKU; tách biệt hoàn toàn với giá vốn. |
 | **FR-INV-01** | Sổ cái kho bất biến (Append-Only) | Khoa | Ghi log mọi biến động nhập, xuất, bán, trả vào `InventoryTransaction` có `BalanceAfter`. Tuyệt đối cấm Update/Delete. |
 | **FR-INV-02** | Nhập kho nhà cung cấp | Khoa & TV3 | Phiếu nhập nhiều dòng; xác nhận nhập kho ghi nhận tăng tồn thực tế và cập nhật giá vốn WAC nguyên tử (Atomic). |
 | **FR-COST-01** | Tính giá vốn bình quân (WAC) | Khoa | Tự động tính toán lại giá vốn đơn vị khi xác nhận nhập kho; có Unit Test chứng minh công thức số học đúng 100%. |
 | **FR-RSE (Nền)** | Nền tảng Giữ chỗ & Khóa DB | Khoa | Công thức tồn khả dụng: `available = on_hand - reserved`. Thử nghiệm khóa database (`SELECT ... FOR UPDATE` hoặc Version Token). |
 | **FR-POS (Nền)** | Nền tảng Giao diện POS | TV4 | Giao diện cảm ứng, phím tắt F2 tìm kiếm, giỏ hàng nhiều dòng, tính tiền thừa, mở hộp thoại in hóa đơn trình duyệt. |
-| **NFR-SEC-01** | Bảo mật token & mật khẩu | TV2 | Access token thời hạn 60 phút, refresh token lưu an toàn; mã hóa mật khẩu một chiều BCrypt. |
+| **NFR-SEC-01** | Bảo mật token & mật khẩu | Nhựt | Access token thời hạn 60 phút, refresh token lưu an toàn; mã hóa mật khẩu một chiều BCrypt. |
 | **NFR-SEC-03** | Bất biến dữ liệu sổ cái | Khoa | Ràng buộc cơ sở dữ liệu và cấu trúc tầng Application ngăn chặn can thiệp trực tiếp sửa đổi số dư sổ cái. |
 | **NFR-MAINT-02** | Độ phủ kiểm thử phần lõi | Khoa | Viết Unit & Integration test tự động cho Inventory Ledger, WAC và Reservation đạt tối thiểu **80% Coverage**. |
 
@@ -133,7 +133,7 @@ Mã task: OISMS-xxx | Người thực hiện: <Tên> | Hạn chót: <Ngày/Thán
 
 ## VI. Hướng Dẫn Tự Kiểm Thử (Self-Test) Trước Khi Bàn Giao
 
-### 1. Dành cho Backend (Khoa & TV2):
+### 1. Dành cho Backend (Khoa & Nhựt):
 * **Kiểm tra Build & Unit Tests:**
   ```bash
   dotnet build src/backend/OISM.sln -c Release

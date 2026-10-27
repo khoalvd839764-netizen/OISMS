@@ -1,6 +1,6 @@
-# Sprint 2 — Backend 2: Thành viên 2
+# Sprint 2 — Backend 2: Nhựt
 
-> **Người phụ trách:** Thành viên 2 — Backend phụ  
+> **Người phụ trách:**  Nhựt — Backend phụ  
 > **Ngày lập:** 16/10/2026  
 > **Nguồn:** [Cẩm nang Sprint 2](SPRINT_2_COMPREHENSIVE_GUIDE.md)  
 > **Phối hợp:** [Backend 1 — Khoa](SPRINT_2_BACKEND_1.md)
@@ -42,7 +42,7 @@ Bảng dưới đây lưu phân công và các tiêu chí kỹ thuật đã phâ
 
 ## 4. Thứ tự bàn giao chung
 
-| Mốc | Backend 1 — Khoa | Backend 2 — TV2 | Frontend có thể làm |
+| Mốc | Backend 1 — Khoa | Backend 2 — Nhựt | Frontend có thể làm |
 |---|---|---|---|
 | 1 | Database, tenant, chuẩn API. | Đăng ký, login, me, RBAC. | Nối đăng nhập. |
 | 2 | Chốt cấu trúc tồn kho và phiếu nhập. | Catalog, SKU, giá, barcode, tra cứu kho/nhà cung cấp. | Nối sản phẩm và form nhập. |

@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>HƯỚNG DẪN BẢO VỆ ĐỒ ÁN ĐẠT ĐIỂM A — DIỄN GIẢI CHI TIẾT TỪ TRANG 1</title>
+<style>
+  @page {
+    size: A4;
+    margin: 16mm 15mm 16mm 15mm;
+    @top-right {
+      content: "Môn: Công nghệ Phần mềm (122005) - UTH";
+      font-size: 8.5pt;
+      color: #64748b;
+      font-style: italic;
+    }
+    @bottom-right {
+      content: "Trang " counter(page);
+      font-size: 9pt;
+      color: #64748b;
+    }
+    @bottom-left {
+      content: "Cẩm nang Vấn đáp & Giải thích Khái niệm Kỹ thuật - Nhựt Phùng Minh";
+      font-size: 8.5pt;
+      color: #64748b;
+    }
+  }
+
+  body {
+    font-family: "Times New Roman", Times, Georgia, serif;
+    color: #111827;
+    line-height: 1.45;
+    font-size: 10.5pt;
+    background: #fff;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Academic UTH Header */
+  .uth-header {
+    text-align: center;
+    border-bottom: 2px solid #1e3a8a;
+    padding-bottom: 10px;
+    margin-bottom: 14px;
+  }
+  .uth-header h3 {
+    margin: 0;
+    font-size: 11.5pt;
+    font-weight: normal;
+    text-transform: uppercase;
+    color: #1f2937;
+  }
+  .uth-header h2 {
+    margin: 3px 0;
+    font-size: 12.5pt;
+    font-weight: bold;
+    text-transform: uppercase;
+    color: #1e3a8a;
+  }
+  .doc-title {
+    margin: 10px 0 3px 0;
+    font-size: 15pt;
+    font-weight: bold;
+    color: #b91c1c;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .doc-subtitle {
+    margin: 0 0 6px 0;
+    font-size: 10.5pt;
+    font-style: italic;
+    color: #4b5563;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: "Times New Roman", Times, Georgia, serif;
+    color: #0f172a;
+    page-break-after: avoid;
+  }
+
+  h2 {
+    font-size: 12pt;
+    color: #1e3a8a;
+    border-bottom: 1.5px solid #cbd5e1;
+    padding-bottom: 3px;
+    margin-top: 1.3em;
+    margin-bottom: 0.3em;
+    text-transform: uppercase;
+  }
+
+  h3 {
+    font-size: 11pt;
+    color: #991b1b;
+    margin-top: 1em;
+    margin-bottom: 0.25em;
+  }
+
+  p, li {
+    text-align: justify;
+    margin-top: 0.2em;
+    margin-bottom: 0.2em;
+  }
+
+  ul, ol {
+    padding-left: 20px;
+  }
+
+  .page-break {
+    page-break-before: always;
+  }
+
+  .avoid-break {
+    page-break-inside: avoid;
+  }
+
+  /* Table styling */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 8px 0 12px 0;
+    font-size: 9pt;
+    page-break-inside: avoid;
+  }
+
+  th, td {
+    border: 1px solid #475569;
+    padding: 5px 7px;
+    vertical-align: top;
+  }
+
+  th {
+    background-color: #f1f5f9;
+    color: #0f172a;
+    font-weight: bold;
+    text-align: center;
+  }
+
+  .text-center { text-align: center; }
+  .text-right { text-align: right; }
+  .font-bold { font-weight: bold; }
+
+  /* Callouts & Highlights */
+  .box-note {
+    background-color: #f8fafc;
+    border-left: 4px solid #2563eb;
+    padding: 6px 10px;
+    margin: 8px 0;
+    font-size: 9.5pt;
+  }
+
+  .box-concept {
+    background-color: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-left: 4px solid #16a34a;
+    border-radius: 4px;
+    padding: 8px 12px;
+    margin: 8px 0;
+    font-size: 9.5pt;
+    page-break-inside: avoid;
+  }
+
+  .box-concept h4 {
+    margin: 0 0 4px 0;
+    font-size: 10.5pt;
+    color: #15803d;
+    text-transform: uppercase;
+  }
+
+  .explain-inline {
+    background: #ecfdf5;
+    border: 1px dashed #059669;
+    border-radius: 4px;
+    padding: 6px 10px;
+    margin: 4px 0 8px 0;
+    font-size: 9.5pt;
+    color: #064e3b;
+  }
+
+  .tag {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 8pt;
+    font-weight: bold;
+  }
+  .tag-red { background: #fee2e2; color: #991b1b; }
+  .tag-green { background: #dcfce7; color: #166534; }
+  .tag-blue { background: #e0f2fe; color: #075985; }
+
+  code {
+    font-family: Consolas, Monaco, "Courier New", monospace;
+    font-size: 8.5pt;
+    background: #f1f5f9;
+    padding: 1px 3px;
+    border-radius: 3px;
+    border: 1px solid #e2e8f0;
+  }
+
+  .formula-box {
+    background: #f1f5f9;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-family: Consolas, monospace;
+    font-size: 9pt;
+    margin: 3px 0;
+    display: block;
+    color: #0f172a;
+    border-left: 3px solid #2563eb;
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER TRƯỜNG UTH -->
+<div class="uth-header">
+  <h3>TRƯỜNG ĐẠI HỌC GIAO THÔNG VẬN TẢI TP. HỒ CHÍ MINH (UTH)</h3>
+  <h2>KHOA CÔNG NGHỆ THÔNG TIN — BỘ MÔN CÔNG NGHỆ PHẦN MỀM</h2>
+  <div class="doc-title">CẨM NANG HÀNH ĐỘNG & KỊCH BẢN VẤN ĐÁP ĐẠT ĐIỂM A</div>
+  <div class="doc-subtitle">Học phần: CÔNG NGHỆ PHẦN MỀM (Mã HP: 122005 - 3 Tín chỉ) — Tích hợp Diễn giải Chi tiết Ngay từ Trang 1</div>
+  <p style="text-align: center; font-size: 9.5pt; margin: 3px 0;">
+    <strong>Giảng viên phụ trách:</strong> TS. Lê Văn Quốc Anh — ThS. Trần Thị Mỹ Tiên<br>
+    <strong>Sinh viên thực hiện:</strong> <strong>Nhựt Phùng Minh</strong> (Backend 2 Lead — Dự án OISMS)
+  </p>
+</div>
+
+<!-- PHẦN I: TỔNG QUAN HỌC PHẦN & ĐỀ TÀI -->
+<h2>I. TỔNG QUAN HỌC PHẦN & ĐỀ TÀI DỰ ÁN OISMS</h2>
+
+<h3>1. Cơ cấu trọng số đánh giá học phần (3 Tín chỉ)</h3>
+<ul>
+  <li><strong>Đánh giá quá trình (50%):</strong>
+    <ul>
+      <li><em>Chuyên cần (Rubric A1.1, A1.2):</em> <strong>10%</strong>. <span class="tag tag-red">Lưu ý sống còn:</span> Vắng &gt; 3 buổi = <strong>CẤM THI</strong>; -1 điểm cho mỗi buổi vắng.</li>
+      <li><em>Bài tập thực hành trên máy (Rubric A3.1):</em> <strong>10%</strong>.</li>
+      <li><em>Bài tập trên lớp / Thảo luận (Rubric A2.1):</em> <strong>10%</strong>.</li>
+      <li><em>Thực hiện Bài tập lớn theo nhóm (Rubric A5.1, A5.2, A5.3):</em> <strong>20%</strong>.</li>
+    </ul>
+  </li>
+  <li><strong>Đánh giá kết thúc học phần (50%):</strong>
+    <ul>
+      <li><em>Báo cáo & Vấn đáp Bài tập lớn (Rubric A5.1, A5.4, A5.5):</em> <strong>20%</strong> (Chấm tập trung tuần 8 &ndash; 9). <span class="tag tag-red">Lưu ý:</span> Rớt Project = Cấm thi kết thúc môn.</li>
+      <li><em>Thi trắc nghiệm kết thúc học phần (Rubric A4.1):</em> <strong>30%</strong>.</li>
+    </ul>
+  </li>
+</ul>
+
+<h3>2. Tổng quan Đề tài nhóm: OISMS & Diễn giải Chi tiết 4 Bài toán cốt lõi</h3>
+<ul>
+  <li><strong>Tên đầy đủ:</strong> <strong>OISMS</strong> — <em>Omnichannel Inventory and Sales Management System</em> (Hệ thống Quản lý Bán hàng và Tồn kho Đa kênh).</li>
+  <li><strong>Bài toán cốt lõi hệ thống giải quyết (Kèm Diễn giải & Ví dụ thực tế ngay bên dưới từng mục):</strong>
+    <ol>
+      <li>
+        <strong>Chống bán vượt tồn (Anti-Oversell):</strong> Đồng bộ tồn kho thời gian thực giữa điểm bán trực tiếp (POS tại quầy) và các sàn thương mại điện tử (Shopee, TikTok Shop, Lazada).
+        <div class="explain-inline">
+          💡 <strong>Giải thích bình dân:</strong> Tránh tình trạng kho chỉ còn đúng 1 cái áo mà cả khách mua ở quầy và khách đặt trên mạng cùng bấm mua một lúc. Hệ thống dùng công thức: <code>Tồn khả dụng (Available) = Tồn trên kệ (OnHand) - Tồn giữ chỗ (Reserved)</code>. Khách Shopee vừa đặt mua là hệ thống khóa giữ chỗ lại ngay, quầy POS thấy số tồn = 0 nên tự khóa nút bán (như chiều nay bạn thấy nút <code>+</code> bị khóa).
+        </div>
+      </li>
+
+      <li>
+        <strong>Sổ cái kho bất biến (Append-Only Inventory Ledger):</strong> Mọi biến động kho đều ghi nhận giao dịch thêm mới, ngăn chặn tuyệt đối việc sửa/xóa lịch sử kho bằng trigger CSDL.
+        <div class="explain-inline">
+          💡 <strong>Giải thích bình dân:</strong> Giống hệt <strong>cuốn sổ sao kê tài khoản ngân hàng</strong>. Tiền ra tiền vào chỉ có in thêm dòng mới, cấm tuyệt đối lấy bút xóa đi dòng cũ. Hệ thống dùng Trigger PostgreSQL <code>oisms_deny_mutation</code> chặn đứng lệnh sửa (UPDATE) hay xóa (DELETE) số tồn để nhân viên không thể gian lận hoặc xóa dấu vết trộm cắp hàng.
+        </div>
+      </li>
+
+      <li>
+        <strong>Tự động hóa tính giá vốn bình quân (COGS / WAC):</strong> Chốt giá vốn bình quân gia quyền ngay khi duyệt phiếu nhập kho nguyên tử (Atomic Goods Receipt).
+        <div class="explain-inline">
+          💡 <strong>Giải thích bình dân & Ví dụ tính tiền cụ thể:</strong>
+          <br>• <strong>WAC là gì?</strong> Là giá vốn gốc trung bình của món hàng khi bạn nhập nhiều đợt với các giá khác nhau.
+          <br>• <strong>Ví dụ:</strong> Đợt 1 bạn nhập <strong>10 áo Polo giá 100.000 đ/cái</strong>. Đợt 2 giá tăng, bạn nhập thêm <strong>10 áo Polo giá 120.000 đ/cái</strong>. Kho có 20 cái áo, giá vốn mới được máy tự động tính lại ngay:
+          <span class="formula-box">Giá vốn bình quân WAC = (10 &times; 100.000 + 10 &times; 120.000) / (10 + 10) = 2.200.000 / 20 = 110.000 đ/chiếc</span>
+          Sau này quầy POS bán chiếc áo đó với giá 299.000 đ, hệ thống tự lấy 299.000 đ trừ đi 110.000 đ giá vốn để báo cáo bạn lãi 189.000 đ.
+          <br>• <strong>Phiếu nhập kho nguyên tử (Atomic) là gì?</strong> Chữ "Nguyên tử" nghĩa là <em>"Được ăn cả, ngã về không"</em>. 4 bước: (1) Kiểm tra hàng, (2) Cộng số lượng kho, (3) Tính lại giá vốn WAC, (4) Ghi sổ cái; phải cùng thành công 100% trong 1 Transaction. Nếu bước 4 bị cúp điện hay lỗi mạng thì hệ thống tự hủy (Rollback) sạch sẽ cả 3 bước trước, không bao giờ có chuyện kho tăng số lượng mà giá vốn chưa kịp tính!
+        </div>
+      </li>
+
+      <li>
+        <strong>Kiến trúc SaaS Multi-tenant:</strong> Dùng chung 1 CSDL PostgreSQL 16 nhưng cô lập dữ liệu 100% giữa các cửa hàng bằng EF Core Global Query Filter.
+        <div class="explain-inline">
+          💡 <strong>Giải thích bình dân:</strong> Giống như <strong>Tòa nhà Chung cư</strong>. Tất cả các Shop A, Shop B đều ở chung một tòa nhà (dùng chung 1 CSDL), nhưng mỗi Shop có chìa khóa phòng riêng (<code>TenantId</code>). Bất kỳ khi nào Shop A mở danh sách xem đơn hàng, chú bảo vệ Global Query Filter tự động thêm <code>WHERE tenant_id = 'Shop_A'</code>, chủ Shop A tuyệt đối không bao giờ thấy dữ liệu của Shop B.
+        </div>
+      </li>
+    </ol>
+  </li>
+</ul>
+
+<div class="page-break"></div>
+
+<!-- PHẦN II: CHI TIẾT ĐÓNG GÓP CỦA NHỰT PHÙNG MINH -->
+<h2>II. CHI TIẾT KHỐI LƯỢNG ĐÓNG GÓP CỦA SINH VIÊN NHỰT PHÙNG MINH</h2>
+
+<p>Theo yêu cầu của Giảng viên: <em>"Tất cả thành viên phải nắm rõ topic và phân định cụ thể phần mình làm là gì"</em>, toàn bộ sản phẩm của sinh viên <strong>Nhựt Phùng Minh</strong> được liên kết trực tiếp với 3 mã công việc Jira chính thức và kết quả mã nguồn thực tế trong Git repository:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width: 14%;">Mã Task Jira</th>
+      <th style="width: 24%;">Phân hệ & Tên nhiệm vụ</th>
+      <th style="width: 34%;">Chi tiết kỹ thuật & Thuật toán cài đặt</th>
+      <th style="width: 28%;">Sản phẩm bàn giao & Bằng chứng</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="text-center font-bold">OISMS-16</td>
+      <td><strong>[DOC-02] Bối cảnh & Khảo sát Hệ thống</strong><br><em>(Chương I Báo cáo)</em></td>
+      <td>
+        • Phân tích thực trạng bối cảnh bán lẻ đa kênh tại Việt Nam.<br>
+        • Xây dựng <strong>Ma trận phân tích cạnh tranh</strong> chi tiết so sánh OISMS với 4 phần mềm lớn: <em>KiotViet, Sapo, Haravan, Odoo</em>.<br>
+        • Xác định khoảng trống thị trường (Gap Analysis): OISMS vượt trội ở cơ chế sổ kho bất biến và chống bán âm phân tán.
+      </td>
+      <td>
+        • Xuất bản trang Confluence <code>983053</code>.<br>
+        • Lưu trữ file: <code>docs/CONFLUENCE_I_PROJECT_INTRODUCTION.md</code>.<br>
+        • Trạng thái: <span class="tag tag-green">Done</span>.
+      </td>
+    </tr>
+    <tr>
+      <td class="text-center font-bold">OISMS-27</td>
+      <td><strong>[BE-02] Xây dựng API Lõi & Logic Nghiệp vụ</strong><br><em>(Backend 2 Lead)</em></td>
+      <td>
+        • Xây dựng <strong>6/10 Controllers</strong> và <strong>28/46 Endpoints API</strong> (chiếm 60.9% toàn bộ API Backend):<br>
+        &nbsp;&nbsp;1. <code>AuthController</code> (5 API): Đăng ký Tenant, Login JWT, Token Rotation, Logout, Me.<br>
+        &nbsp;&nbsp;2. <code>CategoriesController</code> (4 API): Cây danh mục đa tầng.<br>
+        &nbsp;&nbsp;3. <code>BrandsController</code> (4 API): Quản lý thương hiệu.<br>
+        &nbsp;&nbsp;4. <code>ProductsController</code> (10 API): Sản phẩm, SKU, Bảng giá.<br>
+        &nbsp;&nbsp;5. <code>SuppliersController</code> (3 API): Nhà cung cấp.<br>
+        &nbsp;&nbsp;6. <code>PosCatalogController</code> (2 API): Tra cứu/Barcode POS.<br>
+        • Cài đặt <strong>3 Thuật toán nghiệp vụ cốt lõi</strong>:<br>
+        &nbsp;&nbsp;- <em>Cycle Detection:</em> Chống vòng lặp cây danh mục.<br>
+        &nbsp;&nbsp;- <em>EAN-13 Modulo 10:</em> Tự sinh mã vạch quốc tế.<br>
+        &nbsp;&nbsp;- <em>JSONB Canonical Signature:</em> Chống trùng biến thể SKU.
+      </td>
+      <td>
+        • PR #4 gộp vào <code>develop</code>.<br>
+        • Đạt <strong>194/194 bài kiểm thử</strong> tự động (103 Unit + 91 Integration tests) trên PostgreSQL thật.<br>
+        • Code Coverage: <strong>94.83%</strong>.<br>
+        • Trạng thái: <span class="tag tag-green">Done</span>.
+      </td>
+    </tr>
+    <tr>
+      <td class="text-center font-bold">OISMS-31</td>
+      <td><strong>[DOC-03] Ma trận Phân quyền Màn hình</strong><br><em>(Mục 3.1.3 Báo cáo)</em></td>
+      <td>
+        • Xây dựng <strong>Ma trận phân quyền RBAC cho 39 màn hình</strong> (Owner, Staff, Cashier, Guest).<br>
+        • Đối chiếu và kiểm soát 2 tầng bảo vệ: Route Guard giao diện (chặn đẩy về <code>/403</code>) và Backend Controller (<code>[Authorize(Roles = "...")]</code>).<br>
+        • Loại bỏ triệt để các màn hình sai lệch (quên mật khẩu, chốt ca độc lập) để khớp 100% với Đề bài và Code thật.
+      </td>
+      <td>
+        • Xuất bản trang Confluence 3.1.3.<br>
+        • Lưu trữ file: <code>docs/CONFLUENCE_3_1_3_SCREEN_AUTHORIZATION_MATRIX.md</code>.<br>
+        • Trạng thái: <span class="tag tag-green">Done</span>.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="page-break"></div>
+
+<!-- PHẦN III: GIẢI MÃ TOÀN DIỆN CÁC THUẬT TOÁN KỸ THUẬT CỐT LÕI CÒN LẠI -->
+<h2>III. GIẢI MÃ & BÌNH DÂN HÓA CÁC THUẬT TOÁN KỸ THUẬT CỐT LÕI</h2>
+
+<div class="box-concept">
+  <h4>1. Cơ chế Idempotency & PostgreSQL Advisory Lock</h4>
+  <p><strong>• Thuật ngữ chuyên ngành:</strong> <code>Idempotency</code> (Tính lũy đẳng - bấm 10 lần kết quả vẫn là 1); <code>Advisory Lock</code> (Khóa phân tán trong CSDL).</p>
+  <p><strong>• Bản chất đời thường:</strong> Hiện tượng mạng lag khi mua hàng online. Khách bấm nút "Thanh toán" nhưng màn hình xoay vòng vòng, khách sốt ruột <strong>bấm liên tiếp 5 lần</strong> vào nút thanh toán.</p>
+  <p><strong>• Giải pháp của hệ thống:</strong> Nếu không có Idempotency, tài khoản khách sẽ bị trừ tiền 5 lần và trừ kho 5 lần! Nhóm bạn sử dụng mã <code>RequestKey</code> kèm khóa <code>Advisory Lock</code>: Khi 5 request cùng gửi lên, CSDL bắt xếp hàng lần lượt. Request đầu tiên trừ kho thành công, 4 request sau nhận diện trùng RequestKey nên trả về ngay kết quả cũ mà không trừ kho thêm lần nào nữa.</p>
+</div>
+
+<div class="box-concept">
+  <h4>2. Thuật toán Chống vòng lặp Cây danh mục (Cycle Detection / Ancestor Traversal) [Nhựt phụ trách]</h4>
+  <p><strong>• Thuật ngữ chuyên ngành:</strong> <code>Cycle</code> (Chu trình lặp vô tận); <code>Ancestor Traversal</code> (Duyệt ngược dòng tổ tiên).</p>
+  <p><strong>• Bản chất đời thường:</strong> Nghịch lý gia phả: <em>"Một đứa con không thể tự biến thành ông nội hoặc cha của chính bố nó"</em>.</p>
+  <p><strong>• Ví dụ minh họa thực tế:</strong></p>
+  <ul>
+    <li>Cây danh mục chuẩn: <code>Thời trang nam</code> (Ông nội) &rarr; <code>Áo nam</code> (Bố) &rarr; <code>Áo Polo</code> (Con).</li>
+    <li>Một nhân viên lỡ tay bấm sửa danh mục cha của <code>Thời trang nam</code> thành <code>Áo Polo</code>!</li>
+    <li>Nếu hệ thống không kiểm tra, vòng lặp luẩn quẩn xuất hiện: Thời trang nam &rarr; Áo nam &rarr; Áo Polo &rarr; Thời trang nam... Khi hiển thị menu trên web, máy chủ sẽ bị treo vĩnh viễn và sập web (Stack Overflow).</li>
+    <li><strong>Thuật toán của bạn (Nhựt):</strong> Dùng vòng lặp <code>while</code> lần ngược từ <code>ParentId</code> mới lên các đời cha ông. Nếu gặp lại chính danh mục đang sửa &rarr; Chặn đứng ngay và báo lỗi: <em>"Không thể chuyển danh mục thành con của chính con cháu nó"</em>.</li>
+  </ul>
+</div>
+
+<div class="box-concept">
+  <h4>3. Chuẩn hóa chữ ký tổ hợp (Canonical Combination Signature) trên thuộc tính động JSONB [Nhựt phụ trách]</h4>
+  <p><strong>• Thuật ngữ chuyên ngành:</strong> <code>JSONB</code> (Lưu trữ JSON nhị phân); <code>Canonical Signature</code> (Chữ ký chuẩn hóa duy nhất).</p>
+  <p><strong>• Bản chất đời thường:</strong> Chiếc áo Polo có 2 thuộc tính: Màu sắc và Kích cỡ.</p>
+  <ul>
+    <li>Nhân viên A nhập: <code>{"Màu": "Đen", "Size": "L"}</code>.</li>
+    <li>Nhân viên B tháng sau nhập: <code>{"Size": "L", "Màu": "Đen"}</code>.</li>
+    <li>Máy tính thông thường nhìn vào sẽ thấy chuỗi ký tự "Màu trước" và "Size trước" là 2 chuỗi khác nhau, nên cho phép tạo trùng lặp!</li>
+    <li><strong>Thuật toán của bạn (Nhựt):</strong> Tự động sắp xếp chữ cái theo thứ tự bảng chữ cái A-B-C (chữ <code>C</code> - Color luôn đứng trước chữ <code>S</code> - Size) và đổi thành chữ thường: <code>o:{color:s:đen,size:s:l}</code>. Nhờ chữ ký duy nhất này, CSDL nhận diện được ngay là cùng một biến thể và chặn đứng việc tạo trùng.</li>
+  </ul>
+</div>
+
+<div class="page-break"></div>
+
+<div class="box-concept">
+  <h4>4. Thuật toán Sinh mã vạch chuẩn quốc tế EAN-13 (Modulo 10) [Nhựt phụ trách]</h4>
+  <p><strong>• Bản chất đời thường:</strong> Mã vạch 13 chữ số in trên bao bì sản phẩm mà máy quét laser ở siêu thị quét "tít" một cái.</p>
+  <ul>
+    <li>12 chữ số đầu: Là mã quốc gia, mã doanh nghiệp và mã sản phẩm.</li>
+    <li><strong>Chữ số thứ 13 (Check Digit - Số kiểm tra):</strong> Tuyệt đối không được gõ bừa, mà phải tính theo công thức Modulo 10 của tổ chức GS1 quốc tế (lấy tổng các vị trí lẻ nhân 1 cộng tổng các vị trí chẵn nhân 3 rồi lấy phần dư chia cho 10).</li>
+    <li><strong>Tác dụng:</strong> Khi máy quét laser đọc mã, máy tự tính lại số thứ 13 xem có khớp không. Nếu khớp máy mới nhận hàng, giúp chống tình trạng máy quét đọc nhầm mã vạch bị mờ.</li>
+  </ul>
+</div>
+
+<div class="box-concept">
+  <h4>5. JWT Access Token & Refresh Token Rotation [Nhựt phụ trách]</h4>
+  <p><strong>• Bản chất đời thường:</strong> Giống như bạn đi chơi ở <strong>Công viên Nước</strong>:</p>
+  <ul>
+    <li><strong>Access Token (60 phút):</strong> Giống như chiếc <strong>vòng tay giấy</strong> đeo ở cổ tay. Cứ đến mỗi máng trượt, bạn chìa vòng tay ra là được chơi ngay (rất nhanh, không cần xuất trình căn cước công dân). Nhưng vòng tay chỉ có giá trị 60 phút.</li>
+    <li><strong>Refresh Token (7 ngày):</strong> Giống như <strong>tờ vé gốc có dấu mộc đỏ</strong> cất trong tủ đồ. Khi vòng tay hết hạn, bạn cầm vé gốc ra quầy lễ tân để đổi vòng tay mới.</li>
+    <li><strong>Token Rotation (Xoay tua token):</strong> Mỗi lần đổi vòng tay mới, nhân viên lễ tân lập tức <strong>xé hủy tờ vé gốc cũ và phát tờ vé gốc mới</strong>. Nếu kẻ xấu lượm được vé cũ của bạn đem đi đổi, lễ tân kiểm tra thấy vé đã bị hủy &rarr; Lập tức khóa tài khoản lại vì phát hiện có kẻ gian trộm vé (chống tấn công Replay Attack).</li>
+  </ul>
+</div>
+
+<!-- PHẦN IV: BỘ CÂU HỎI VẤN ĐÁP KỸ THUẬT ĂN ĐIỂM A -->
+<h2>IV. BỘ CÂU HỎI VẤN ĐÁP KỸ THUẬT & KỊCH BẢN TRẢ LỜI ĐẠT ĐIỂM A</h2>
+
+<p>Dưới đây là <strong>7 câu hỏi trọng tâm</strong> mà giảng viên khó tính hay hỏi xoáy vào phần việc của sinh viên Nhựt Phùng Minh, kèm kịch bản đối đáp lưu loát:</p>
+
+<h3>Câu 1: "Em hãy giải thích cơ chế phân quyền RBAC và cách bảo vệ hệ thống của em?"</h3>
+<div class="box-note">
+  <strong>Kịch bản trả lời chuẩn:</strong><br>
+  <em>"Dạ thưa Thầy, hệ thống OISMS áp dụng mô hình phân quyền RBAC kết hợp kiểm soát 2 tầng bảo vệ:</em><br>
+  1. <strong>Lớp 1 - Frontend Route Guard:</strong> Tại component <code>ProtectedRoute.tsx</code>, hệ thống kiểm tra JWT Claims. Nếu vai trò <code>Staff</code> cố tình truy cập vào <code>/reports</code> (Báo cáo tài chính) hoặc <code>/organization</code> (Quản trị chi nhánh), Route Guard sẽ chặn lại và đẩy về trang lỗi <code>/403 Access Denied</code>. Đối với vai trò <code>Cashier</code> (Thu ngân), hệ thống cô lập hoàn toàn chỉ cho phép truy cập Web POS (port 5174), chặn toàn bộ Admin Dashboard.<br>
+  2. <strong>Lớp 2 - Backend API Guard:</strong> Ngay cả khi Client bypass qua Postman/Swagger, toàn bộ 10 Controller đều gắn thuộc tính <code>[Authorize(Roles = "...")]</code>. Ví dụ: API xuất báo cáo chỉ cấp quyền cho <code>Owner</code>; thu ngân gọi API kho sẽ nhận ngay mã HTTP <code>403 Forbidden</code>."</em>
+</div>
+
+<h3>Câu 2: "Tại sao em dùng Refresh Token Rotation mà không dùng JWT đơn thuần?"</h3>
+<div class="box-note">
+  <strong>Kịch bản trả lời chuẩn:</strong><br>
+  <em>"Dạ thưa Thầy, nếu chỉ dùng JWT đơn thuần với thời hạn dài, khi Token bị lộ qua tấn công XSS hoặc bắt lén gói tin thì kẻ xấu sẽ chiếm toàn quyền cho đến khi token hết hạn. Do đó em thiết kế cặp Token: Access Token 60 phút và Refresh Token 7 ngày áp dụng Token Rotation. Mỗi khi Client gọi API refresh, hệ thống thu hồi token cũ ngay lập tức (<code>RevokedAt = Now</code>) và cấp một cặp token mới toanh. Nếu kẻ xấu cố dùng lại token cũ, hệ thống phát hiện hành vi Replay Attack và từ chối ngay với mã <code>401 Unauthorized</code>."</em>
+</div>
+
+<div class="page-break"></div>
+
+<h3>Câu 3: "Thuật toán Chống vòng lặp Cây danh mục (Cycle Detection) của em hoạt động thế nào?"</h3>
+<div class="box-note">
+  <strong>Kịch bản trả lời chuẩn:</strong><br>
+  <em>"Dạ thưa Thầy, trong hệ thống bán lẻ, danh mục sản phẩm có cấu trúc phân cấp cha - con nhiều tầng. Em giải quyết bài toán chống chu trình lặp vô tận bằng 2 bước:</em><br>
+  1. <strong>Chiếm khóa phân tán:</strong> Gọi <code>SELECT pg_advisory_xact_lock(...)</code> trên PostgreSQL theo key <code>tenantId/category_tree</code> để chặn race condition khi 2 admin cùng sửa cây đồng thời.<br>
+  2. <strong>Duyệt ngược dòng (Ancestor Traversal):</strong> Dùng vòng lặp <code>while</code> truy vấn ngược từ <code>ParentId</code> mới lên các đời tổ tiên. Nếu bất kỳ tổ tiên nào trùng với <code>Id</code> của danh mục đang sửa, hệ thống phát hiện chu trình lặp và lập tức ngắt giao dịch, trả về mã <code>400 Bad Request</code> kèm thông báo rõ ràng."*
+</div>
+
+<h3>Câu 4: "Làm thế nào em sinh được mã vạch EAN-13 chuẩn quốc tế hợp lệ?"</h3>
+<div class="box-note">
+  <strong>Kịch bản trả lời chuẩn:</strong><br>
+  <em>"Dạ thưa Thầy, mã EAN-13 gồm 13 chữ số, trong đó 12 chữ số đầu là dữ liệu mã hóa và chữ số thứ 13 là số kiểm tra (Check Digit) bắt buộc phải tuân theo thuật toán Modulo 10 của tổ chức GS1 quốc tế. Em cài đặt thuật toán tính tổng trọng số chẵn lẻ và tìm phần bù trong <code>BarcodeHelper.cs</code>, giúp máy quét laser tại quầy POS quét mã với độ chính xác tuyệt đối, không bao giờ bị lỗi sai lệch mã vạch."</em>
+</div>
+
+<h3>Câu 5: "Thuộc tính động lưu JSONB, làm sao em chống được việc người dùng tạo trùng biến thể SKU?"</h3>
+<div class="box-note">
+  <strong>Kịch bản trả lời chuẩn:</strong><br>
+  <em>"Dạ thưa Thầy, một sản phẩm có thể có nhiều thuộc tính tùy biến như Màu sắc, Kích cỡ. Nếu lưu JSON thông thường, chuỗi <code>{'size': 'M', 'color': 'Đen'}</code> và chuỗi <code>{'color': 'Đen', 'size': 'M'}</code> sẽ bị coi là khác nhau dù cùng một biến thể. Em đã xây dựng cơ chế <strong>Canonical Combination Signature</strong> trong <code>SkuAttributeHelper.cs</code>: Tự động trích xuất các cặp Key-Value, chuẩn hóa chữ thường, sắp xếp Key theo thứ tự Alphabet và gắn tiền tố kiểu dữ liệu (ví dụ: <code>o:{color:s:đen,size:s:m}</code>). CSDL áp dụng Unique Index trên cặp <code>(ProductId, CombinationSignature)</code>, chặn đứng 100% việc tạo trùng biến thể SKU."</em>
+</div>
+
+<h3>Câu 6: "Dữ liệu giữa các Shop (Tenant) có nguy cơ bị đọc nhầm hoặc ghi đè của nhau không?"</h3>
+<div class="box-note">
+  <strong>Kịch bản trả lời chuẩn:</strong><br>
+  <em>"Dạ hoàn toàn không thưa Thầy. Hệ thống của em áp dụng cơ chế bảo vệ đa người thuê 2 chiều:</em><br>
+  • <strong>Chiều đọc (Read):</strong> 18 thực thể nghiệp vụ đều được gắn <strong>EF Core Global Query Filter</strong>: Tự động chèn thêm điều kiện <code>WHERE tenant_id = @currentTenantId</code> vào tất cả câu lệnh SQL SELECT sinh ra, lập trình viên không thể quên lọc.<br>
+  • <strong>Chiều ghi (Write):</strong> Tại <code>TenantGuard (SaveChangesAsync)</code>, hệ thống kiểm tra nếu bản ghi bị thay đổi <code>TenantId</code> hoặc có khóa ngoại trỏ sang Tenant khác sẽ lập tức ném ngoại lệ <code>SecurityException</code> và ngắt kết nối ngay lập tức."*
+</div>
+
+<h3>Câu 7: "Em đã kiểm thử sản phẩm như thế nào để chứng minh hệ thống hoạt động đúng?"</h3>
+<div class="box-note">
+  <strong>Kịch bản trả lời chuẩn:</strong><br>
+  <em>"Dạ thưa Thầy, nhóm em xây dựng bộ kiểm thử tự động toàn diện gồm <strong>194 bài test tự động (Passed 100%)</strong>:</em><br>
+  • <strong>103 Unit Tests:</strong> Kiểm thử thuật toán băm mật khẩu BCrypt, EAN-13, Canonical Signature, tính giá vốn WAC.<br>
+  • <strong>91 Integration Tests:</strong> Chạy trực tiếp trên WebApplicationFactory và container PostgreSQL thật, kiểm chứng triệt để cô lập đa người thuê, chống bán vượt tồn và tính toàn vẹn của sổ cái kho.<br>
+  Đồng thời, toàn bộ hệ thống đã được đóng gói Docker Compose gồm đủ 6 container chạy live: PostgreSQL, Redis, PgAdmin, Backend API, Web Admin và Web POS PWA."*
+</div>
+
+<!-- PHẦN V: QUY TRÌNH LIVE DEMO TRÊN LỚP -->
+<h2>V. QUY TRÌNH THAO TÁC LIVE DEMO TRÊN LỚP (3 PHÚT ĂN ĐIỂM TUYỆT ĐỐI)</h2>
+
+<p>Khi Thầy yêu cầu: <em>"Mở máy lên chạy thử sản phẩm cho Thầy xem"</em>, sinh viên Nhựt Phùng Minh thực hiện tuần tự 4 bước sau:</p>
+
+<ol>
+  <li><strong>Bước 1: Chứng minh môi trường Container chuẩn hóa (30 giây)</strong>
+    <ul>
+      <li>Mở Terminal trên máy Mac gõ: <code>docker ps</code>.</li>
+      <li>Chỉ cho Thầy thấy đủ 6 dịch vụ đang Up & Healthy: <code>oism_backend</code> (port 5000), <code>oism_admin_dashboard</code> (port 5173), <code>oism_pos_app</code> (port 5174), <code>oism_postgres</code> (port 5433), <code>oism_redis</code> (port 6379), <code>oism_pgadmin</code> (port 5050).</li>
+    </ul>
+  </li>
+  <li><strong>Bước 2: Demo Backend Swagger API do bạn phụ trách (45 giây)</strong>
+    <ul>
+      <li>Mở trình duyệt vào link: <code>http://localhost:5000/swagger</code>.</li>
+      <li>Chỉ cho Thầy thấy 6 Controller của bạn: <code>/api/auth</code>, <code>/api/categories</code>, <code>/api/brands</code>, <code>/api/products</code>, <code>/api/suppliers</code>, <code>/api/pos</code>.</li>
+      <li>Bấm Execute thử API <code>POST /api/auth/login</code> với tài khoản Owner để Thầy thấy Access Token và Refresh Token được sinh ra chuẩn mực.</li>
+    </ul>
+  </li>
+  <li><strong>Bước 3: Demo Phân quyền RBAC trên Admin Dashboard (45 giây)</strong>
+    <ul>
+      <li>Vào <code>http://localhost:5173/login</code>.</li>
+      <li>Bấm nút mẫu đăng nhập bằng <strong>Owner</strong> &rarr; Thấy xuất hiện đầy đủ menu Báo cáo và Tổ chức.</li>
+      <li>Đăng xuất, bấm nút mẫu đăng nhập bằng <strong>Staff</strong> &rarr; Menu Báo cáo lập tức bị ẩn. Gõ trực tiếp link <code>/reports</code> &rarr; Hệ thống lập tức bật màn hình chặn lỗi <code>403 Access Denied</code>.</li>
+    </ul>
+  </li>
+  <li><strong>Bước 4: Demo Quầy bán lẻ Web POS PWA & Cơ chế Chống bán âm (60 giây)</strong>
+    <ul>
+      <li>Vào <code>http://localhost:5174</code>.</li>
+      <li>Gõ tìm kiếm <code>Polo</code> &rarr; Cho Thầy thấy sản phẩm hiển thị tồn khả dụng theo đúng chi nhánh.</li>
+      <li>Thêm vào giỏ 10 món Áo Polo (2.990.000 đ), bấm nút <strong>THANH TOÁN (F4)</strong>.</li>
+      <li>Nhập tiền khách đưa 3.000.000 đ &rarr; Hệ thống tự động tính tiền thừa 10.000 đ. Bấm xem trước Hóa đơn bán lẻ tiêu chuẩn.</li>
+    </ul>
+  </li>
+</ol>
+
+<div class="box-note" style="margin-top: 20px; text-align: center;">
+  <strong>KẾT LUẬN & CAM KẾT:</strong><br>
+  <em>Toàn bộ mã nguồn, tài liệu thiết kế và kết quả kiểm thử trên đây đều được thực hiện thực tế, trung thực và minh bạch 100% trong Git repository của dự án OISMS. Sinh viên Nhựt Phùng Minh hoàn toàn làm chủ kiến thức và sẵn sàng trả lời mọi câu hỏi vấn đáp chuyên sâu của Hội đồng chấm thi.</em>
+</div>
+
+</body>
+</html>

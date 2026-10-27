@@ -1,0 +1,876 @@
+import subprocess
+import os
+
+html_content = """<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>TÀI LIỆU ĐẶC TẢ CHI TIẾT TOÀN BỘ API VÀ LOGIC NGHIỆP VỤ BACKEND — SPRINT 2</title>
+<style>
+  @page {
+    size: A4;
+    margin: 20mm 18mm 20mm 18mm;
+    @bottom-right {
+      content: counter(page);
+      font-size: 9pt;
+      color: #64748b;
+    }
+    @bottom-left {
+      content: "OISMS - Báo cáo Nghiệm thu Backend Sprint 2";
+      font-size: 9pt;
+      color: #64748b;
+    }
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #1e293b;
+    line-height: 1.6;
+    font-size: 10.5pt;
+    background: #fff;
+    margin: 0;
+    padding: 0;
+  }
+
+  h1, h2, h3, h4 {
+    color: #0f172a;
+    font-weight: 700;
+    margin-top: 1.5em;
+    margin-bottom: 0.5em;
+    page-break-after: avoid;
+  }
+
+  h1 {
+    font-size: 18pt;
+    text-align: center;
+    text-transform: uppercase;
+    color: #1e3a8a;
+    border-bottom: 2px solid #2563eb;
+    padding-bottom: 8px;
+    margin-top: 0;
+  }
+
+  h2 {
+    font-size: 13pt;
+    color: #1e40af;
+    border-bottom: 1px solid #cbd5e1;
+    padding-bottom: 4px;
+    margin-top: 1.8em;
+  }
+
+  h3 {
+    font-size: 11.5pt;
+    color: #0369a1;
+  }
+
+  p, li {
+    margin-top: 0.3em;
+    margin-bottom: 0.3em;
+  }
+
+  ul, ol {
+    padding-left: 20px;
+  }
+
+  .page-break {
+    page-break-before: always;
+  }
+
+  .avoid-break {
+    page-break-inside: avoid;
+  }
+
+  /* Badges */
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 8.5pt;
+    font-weight: 600;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+
+  .badge-nhut {
+    background-color: #ede9fe;
+    color: #6d28d9;
+    border: 1px solid #c4b5fd;
+  }
+
+  .badge-khoa {
+    background-color: #e0f2fe;
+    color: #0369a1;
+    border: 1px solid #bae6fd;
+  }
+
+  .badge-both {
+    background-color: #fef3c7;
+    color: #b45309;
+    border: 1px solid #fde68a;
+  }
+
+  .badge-success {
+    background-color: #dcfce7;
+    color: #15803d;
+  }
+
+  /* Info Box / Metadata */
+  .meta-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    font-size: 10pt;
+  }
+
+  .meta-box ul {
+    list-style-type: square;
+    margin: 0;
+    padding-left: 18px;
+  }
+
+  /* Table styling */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 20px 0;
+    font-size: 9.5pt;
+    page-break-inside: avoid;
+  }
+
+  th, td {
+    border: 1px solid #cbd5e1;
+    padding: 6px 10px;
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  th {
+    background-color: #f1f5f9;
+    color: #0f172a;
+    font-weight: 700;
+  }
+
+  tr:nth-child(even) td {
+    background-color: #f8fafc;
+  }
+
+  /* Code block */
+  pre {
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-family: "JetBrains Mono", Menlo, Consolas, Monaco, monospace;
+    font-size: 8.5pt;
+    overflow-x: auto;
+    line-height: 1.45;
+    margin: 8px 0 14px 0;
+    page-break-inside: avoid;
+  }
+
+  code {
+    font-family: "JetBrains Mono", Menlo, Consolas, Monaco, monospace;
+    font-size: 9pt;
+    background: #f1f5f9;
+    color: #0f172a;
+    padding: 1px 4px;
+    border-radius: 3px;
+    border: 1px solid #e2e8f0;
+  }
+
+  pre code {
+    background: transparent;
+    color: inherit;
+    padding: 0;
+    border: none;
+  }
+
+  .highlight-card {
+    background: #faf5ff;
+    border-left: 4px solid #8b5cf6;
+    padding: 10px 14px;
+    margin: 12px 0;
+    border-radius: 0 6px 6px 0;
+  }
+
+  .toc-list {
+    columns: 2;
+    column-gap: 30px;
+    font-size: 9.5pt;
+  }
+
+  .toc-list li {
+    margin-bottom: 4px;
+  }
+</style>
+</head>
+<body>
+
+<!-- TRANG 1: TIÊU ĐỀ & BẢNG PHÂN ĐỊNH TRÁCH NHIỆM -->
+<div>
+  <h1>TÀI LIỆU ĐẶC TẢ CHI TIẾT TOÀN BỘ API VÀ<br>LOGIC NGHIỆP VỤ BACKEND — SPRINT 2</h1>
+  
+  <div class="meta-box">
+    <ul>
+      <li><strong>Dự án:</strong> OISMS — Omnichannel Inventory & Sales Management System</li>
+      <li><strong>Học phần:</strong> Đồ án Chuyên ngành / Kỹ nghệ Phần mềm (Trường Đại học Giao thông Vận tải TP.HCM - UTH)</li>
+      <li><strong>Tác giả & Kiến trúc sư Backend 1 Lead:</strong> Lê Võ Đăng Khoa (Trưởng nhóm / DevOps)</li>
+      <li><strong>Đồng tác giả & Phụ trách Backend 2 Lead:</strong> <strong>Nhựt Phùng Minh</strong> (Auth, Catalog, Product, Barcode & POS API)</li>
+      <li><strong>Công nghệ nền tảng:</strong> C# .NET 8 (ASP.NET Core Web API), Entity Framework Core 8, PostgreSQL 16+, Redis 7, Docker, Nginx</li>
+      <li><strong>Quy mô Backend Sprint 2:</strong> 10 Controllers, 46 Endpoints API, 194 Tests đạt chuẩn 100%, Code Coverage 94.83%</li>
+    </ul>
+  </div>
+
+  <div class="highlight-card">
+    <strong style="color: #6d28d9; font-size: 11pt;">📊 BẢNG PHÂN ĐỊNH TRÁCH NHIỆM KỸ THUẬT (RACI MATRIX):</strong>
+    <p style="margin-top: 4px; font-size: 9.5pt; color: #475569;">Phân định rõ ràng trách nhiệm thiết kế, triển khai mã nguồn C# và viết bài kiểm thử giữa hai kỹ sư Backend:</p>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 28%;">Phân hệ / Nhóm API</th>
+        <th style="width: 14%; text-align: center;">Quy mô</th>
+        <th style="width: 25%;">Thành viên phụ trách</th>
+        <th style="width: 33%;">Đóng góp kỹ thuật cụ thể</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>1. Xác thực & Phân quyền</strong><br>(<code>AuthController</code>)</td>
+        <td style="text-align: center;">5 Endpoints</td>
+        <td><span class="badge badge-nhut">Nhựt Phùng Minh</span><br><em>Backend 2 Lead</em></td>
+        <td>Đăng ký Tenant, Login JWT, Token Rotation (Access 60p, Refresh 7d), Logout thu hồi token, API <code>/me</code>, băm mật khẩu BCrypt.</td>
+      </tr>
+      <tr>
+        <td><strong>2. Cây danh mục & Thương hiệu</strong><br>(<code>CategoriesController</code>, <code>BrandsController</code>)</td>
+        <td style="text-align: center;">8 Endpoints</td>
+        <td><span class="badge badge-nhut">Nhựt Phùng Minh</span><br><em>Backend 2 Lead</em></td>
+        <td>Cây danh mục nhiều tầng, <strong>Thuật toán Chống vòng lặp đệ quy (Cycle Detection)</strong> bằng PostgreSQL Advisory Lock, CRUD Brand.</td>
+      </tr>
+      <tr>
+        <td><strong>3. Sản phẩm, SKU & Barcode</strong><br>(<code>ProductsController</code>)</td>
+        <td style="text-align: center;">10 Endpoints</td>
+        <td><span class="badge badge-nhut">Nhựt Phùng Minh</span><br><em>Backend 2 Lead</em></td>
+        <td>CRUD Sản phẩm/SKU, Giá sỉ/lẻ, <strong>Thuật toán EAN-13 Modulo 10</strong>, <strong>Thuộc tính động JSONB & Canonical Signature</strong>.</td>
+      </tr>
+      <tr>
+        <td><strong>4. Tra cứu Bán hàng POS</strong><br>(<code>PosCatalogController</code>)</td>
+        <td style="text-align: center;">2 Endpoints</td>
+        <td><span class="badge badge-nhut">Nhựt Phùng Minh</span><br><em>Backend 2 Lead</em></td>
+        <td>Tìm kiếm siêu tốc và quét Barcode cho quầy POS (&lt;50ms), tính tồn khả dụng Available theo đúng chi nhánh thu ngân.</td>
+      </tr>
+      <tr>
+        <td><strong>5. Nhà cung cấp</strong><br>(<code>SuppliersController</code>)</td>
+        <td style="text-align: center;">3 Endpoints</td>
+        <td><span class="badge badge-nhut">Nhựt Phùng Minh</span><br><em>Backend 2 Lead</em></td>
+        <td>Quản lý NCC, kiểm tra trùng MST / SĐT trong cùng Tenant.</td>
+      </tr>
+      <tr>
+        <td><strong>6. Quản lý Chi nhánh & Kho hàng</strong><br>(<code>BranchController</code>, <code>WarehousesController</code>)</td>
+        <td style="text-align: center;">10 Endpoints</td>
+        <td><span class="badge badge-both">Khoa & Nhựt</span><br><em>Phối hợp</em></td>
+        <td>Khoa xây dựng API kho/chi nhánh; Nhựt bổ sung logic nghiệp vụ <strong>BE2-08</strong> (chặn đổi branchId khi kho đã phát sinh số dư/giao dịch).</td>
+      </tr>
+      <tr>
+        <td><strong>7. Nhập kho, Sổ cái & WAC</strong><br>(<code>GoodsReceiptsController</code>, <code>InventoryController</code>)</td>
+        <td style="text-align: center;">8 Endpoints</td>
+        <td><span class="badge badge-khoa">Lê Võ Đăng Khoa</span><br><em>Backend 1 Lead</em></td>
+        <td>Thuật toán tính giá vốn bình quân WAC, Trigger PostgreSQL bảo vệ Sổ kho Append-Only bất biến, Engine Giữ chỗ tồn kho (Reservation).</td>
+      </tr>
+      <tr>
+        <td><strong>8. Kiến trúc lõi & Multi-tenant</strong><br>(Clean Architecture, TenantGuard)</td>
+        <td style="text-align: center;">Hạ tầng</td>
+        <td><span class="badge badge-khoa">Lê Võ Đăng Khoa</span><br><em>Backend 1 Lead</em></td>
+        <td>Clean Architecture 4 tầng, Global Query Filter, TenantGuard, OpenPrivilegedScope, Docker Compose & CI/CD.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p style="font-size: 9.5pt; text-align: right; margin-top: -10px;">
+    👉 <em>Khối lượng thực hiện của <strong>Nhựt Phùng Minh (Backend 2)</strong>: <strong>6 Controllers, 28/46 Endpoints API (60.9%), 3 Thuật toán lõi</strong>.</em>
+  </p>
+</div>
+
+<!-- MỤC LỤC -->
+<div class="avoid-break" style="margin-top: 15px;">
+  <h2>MỤC LỤC NỘI DUNG</h2>
+  <div class="toc-list">
+    <ol>
+      <li><strong>KIẾN TRÚC TỔNG THỂ & CÁC NGUYÊN TẮC THIẾT KẾ</strong></li>
+      <li><strong>CƠ CHẾ CÔ LẬP ĐA NGƯỜI THUÊ (MULTI-TENANT ENGINE)</strong></li>
+      <li><strong>ĐẶC TẢ CHI TIẾT 10 CONTROLLERS & 46 ENDPOINTS API</strong>
+        <ul>
+          <li>3.1. AuthController (5 Endpoints) <span class="badge badge-nhut">Nhựt</span></li>
+          <li>3.2. BranchController (5 Endpoints) <span class="badge badge-khoa">Khoa</span></li>
+          <li>3.3. WarehousesController (5 Endpoints) <span class="badge badge-both">Khoa & Nhựt</span></li>
+          <li>3.4. SuppliersController (3 Endpoints) <span class="badge badge-nhut">Nhựt</span></li>
+          <li>3.5. CategoriesController (4 Endpoints) <span class="badge badge-nhut">Nhựt</span></li>
+          <li>3.6. BrandsController (4 Endpoints) <span class="badge badge-nhut">Nhựt</span></li>
+          <li>3.7. ProductsController (10 Endpoints) <span class="badge badge-nhut">Nhựt</span></li>
+          <li>3.8. GoodsReceiptsController (4 Endpoints) <span class="badge badge-khoa">Khoa</span></li>
+          <li>3.9. InventoryController (4 Endpoints) <span class="badge badge-khoa">Khoa</span></li>
+          <li>3.10. PosCatalogController (2 Endpoints) <span class="badge badge-nhut">Nhựt</span></li>
+        </ul>
+      </li>
+      <li><strong>CÁC THUẬT TOÁN & LOGIC NGHIỆP VỤ CỐT LÕI</strong>
+        <ul>
+          <li>4.1. Duyệt nhập kho & Tính WAC trong DB Transaction <span class="badge badge-khoa">Khoa</span></li>
+          <li>4.2. Sổ cái kho bất biến (Append-Only Inventory Ledger) <span class="badge badge-khoa">Khoa</span></li>
+          <li>4.3. Giữ chỗ tồn kho & PostgreSQL Advisory Lock <span class="badge badge-khoa">Khoa</span></li>
+          <li>4.4. Chống vòng lặp Cây danh mục (Cycle Detection) <span class="badge badge-nhut">Nhựt</span></li>
+          <li>4.5. Sinh mã vạch chuẩn quốc tế EAN-13 (Modulo 10) <span class="badge badge-nhut">Nhựt</span></li>
+          <li>4.6. Thuộc tính động JSONB & Canonical Signature <span class="badge badge-nhut">Nhựt</span></li>
+        </ul>
+      </li>
+      <li><strong>MA TRẬN PHÂN QUYỀN TRUY CẬP (RBAC MATRIX)</strong> <span class="badge badge-nhut">Nhựt</span></li>
+      <li><strong>PHỤ LỤC: ĐỐI CHIẾU NHIỆM VỤ JIRA (OISMS-16, 27, 31)</strong> <span class="badge badge-nhut">Nhựt</span></li>
+    </ol>
+  </div>
+</div>
+
+<div class="page-break"></div>
+
+<!-- NỘI DUNG CHI TIẾT 1 & 2 -->
+<h2>1. KIẾN TRÚC TỔNG THỂ & CÁC NGUYÊN TẮC THIẾT KẾ <span class="badge badge-khoa">Lê Võ Đăng Khoa phụ trách</span></h2>
+<p>Backend OISMS được xây dựng theo mô hình <strong>Clean Architecture (Onion Architecture)</strong> phân tách thành 4 tầng ranh giới nghiêm ngặt:</p>
+<ol>
+  <li><strong>OISM.Domain:</strong> Chứa thực thể cốt lõi (<code>Entities</code>), sự kiện miền (<code>Domain Events</code>), enum trạng thái và các quy tắc nghiệp vụ bất biến. Tuyệt đối không phụ thuộc vào bất kỳ thư viện hay cơ sở dữ liệu nào bên ngoài.</li>
+  <li><strong>OISM.Application:</strong> Chứa logic ứng dụng, triển khai mô hình CQRS / Feature-based (<code>Features/</code>), DTOs, hợp đồng dịch vụ (<code>Interfaces</code>), bộ kiểm tra tính hợp lệ (<code>Validators</code> - FluentValidation) và các thuật toán tính toán (WAC, Barcode, SkuAttribute).</li>
+  <li><strong>OISM.Infrastructure:</strong> Chứa tầng truy cập dữ liệu EF Core (<code>AppDbContext</code>), cấu hình Fluent API (<code>Configurations/</code>), triển khai các dịch vụ kỹ thuật (<code>JwtTokenService</code>, <code>CurrentTenantService</code>), quản lý kết nối CSDL và migration.</li>
+  <li><strong>OISM.WebApi:</strong> Tầng giao tiếp bên ngoài (Presentation Layer) chứa các <code>Controllers</code>, bộ lọc middleware, cấu hình Swagger OpenAPI và Dependency Injection.</li>
+</ol>
+
+<h2>2. CƠ CHẾ CÔ LẬP ĐA NGƯỜI THUÊ (MULTI-TENANT ENGINE) <span class="badge badge-khoa">Lê Võ Đăng Khoa phụ trách</span></h2>
+<p>Hệ thống hoạt động theo mô hình <strong>Shared Database, Shared Schema</strong>, nơi tất cả các cửa hàng (Tenants) dùng chung một CSDL PostgreSQL 16 nhưng được cách ly tuyệt đối:</p>
+
+<h3>2.1. Nhận diện Tenant (<code>ICurrentTenantService</code>)</h3>
+<ul>
+  <li>Mọi request gửi lên API phải đính kèm Header: <code>Authorization: Bearer &lt;JWT_Token&gt;</code>.</li>
+  <li>Middleware giải mã JWT Token, trích xuất Claim <code>tenantId</code>.</li>
+  <li>Giá trị <code>tenantId</code> này được gán vào <code>CurrentTenantService</code> có vòng đời Scoped (tồn tại trong suốt một HTTP Request).</li>
+</ul>
+
+<h3>2.2. Lớp lọc tự động (Global Query Filter)</h3>
+<p>Trong <code>AppDbContext.OnModelCreating</code>, 18 thực thể nghiệp vụ đều được áp dụng bộ lọc toàn cục:</p>
+<pre><code>modelBuilder.Entity&lt;Product&gt;()
+  .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId ==
+(_currentTenantService.TenantId ?? Guid.Empty));</code></pre>
+<ul>
+  <li>Bất kỳ câu lệnh LINQ / SQL SELECT nào được sinh ra bởi EF Core đều tự động bị nối thêm mệnh đề <code>WHERE tenant_id = @currentTenantId</code>.</li>
+  <li>Lập trình viên không cần viết <code>.Where(x => x.TenantId == ...)</code> thủ công ở từng service, loại bỏ 100% rủi ro quên lọc dẫn đến rò rỉ dữ liệu giữa các Shop.</li>
+</ul>
+
+<h3>2.3. Lớp chốt chặn ghi (Tenant Guard)</h3>
+<p>Trong <code>AppDbContext.SaveChangesAsync</code>:</p>
+<ol>
+  <li><strong>Kiểm tra tính bất biến (Immutability):</strong> Nếu bản ghi đang bị sửa (<code>Modified</code>) và thuộc tính <code>TenantId</code> bị thay đổi so với giá trị ban đầu trong DB &rarr; Ném ngoại lệ <code>SecurityException: TenantId is immutable and cannot be changed</code>.</li>
+  <li><strong>Kiểm tra quyền sở hữu:</strong> Nếu bản ghi bị sửa hoặc xóa mà <code>TenantId != currentTenantId</code> &rarr; Ném ngoại lệ <code>SecurityException</code>.</li>
+  <li><strong>Kiểm tra liên kết chéo (Navigation Cross-tenant):</strong> Quét toàn bộ thực thể liên kết, nếu phát hiện thực thể trỏ đến khóa ngoại của Tenant khác &rarr; Chặn đứng với lỗi <code>Cross-tenant reference violation</code>.</li>
+</ol>
+
+<h3>2.4. Kênh đặc quyền kiểm soát (<code>OpenPrivilegedScope</code>)</h3>
+<ul>
+  <li>Khi người dùng gọi API Đăng ký (<code>RegisterTenant</code>) hoặc Đăng nhập (<code>Login</code>), tại thời điểm đó Client chưa có Token và chưa có <code>CurrentTenantId</code>.</li>
+  <li>Phương thức <code>_context.OpenPrivilegedScope()</code> trả về một <code>IDisposable</code> kích hoạt cờ <code>IsPrivilegedScopeActive = true</code> cho phép tạo Tenant và User mới hợp lệ, sau đó đóng phạm vi để trả lại trạng thái bảo vệ nghiêm ngặt.</li>
+</ul>
+
+<div class="page-break"></div>
+
+<!-- NỘI DUNG CHI TIẾT 3: 10 CONTROLLERS -->
+<h2>3. ĐẶC TẢ CHI TIẾT 10 CONTROLLERS & 46 ENDPOINTS API</h2>
+
+<h3>3.1. AuthController (5 Endpoints) <span class="badge badge-nhut">Nhựt Phùng Minh phụ trách chính</span></h3>
+<p>Quản lý vòng đời xác thực, đăng ký cửa hàng và cấp phát Token (<code>/api/auth</code>).</p>
+
+<p><strong>1. POST /api/auth/register-tenant</strong></p>
+<ul>
+  <li><strong>Quyền hạn:</strong> Công khai (Anonymous).</li>
+  <li><strong>Mục đích:</strong> Khởi tạo đồng thời Cửa hàng (Tenant) mới và Tài khoản Chủ shop (Owner) đầu tiên trong một giao dịch ACID.</li>
+  <li><strong>Request Body:</strong> <code>{ tenantName, tenantCode, fullName, email, password, phoneNumber }</code>.</li>
+  <li><strong>Logic nghiệp vụ:</strong>
+    <ol>
+      <li>Kiểm tra tính hợp lệ qua <code>RegisterTenantValidator</code> (Mật khẩu &ge; 8 ký tự, đủ độ phức tạp hoa/thường/số/ký tự đặc biệt).</li>
+      <li>Chuẩn hóa Email về chữ thường (<code>ToLowerInvariant()</code>), chuẩn hóa SĐT qua <code>PhoneHelper</code> về chuẩn quốc tế E.164, chuẩn hóa <code>TenantCode</code> về chữ in hoa.</li>
+      <li>Dùng <code>.IgnoreQueryFilters()</code> quét toàn bộ CSDL kiểm tra Email và SĐT đã tồn tại chưa &rarr; Nếu có trả về <code>409 Conflict</code>.</li>
+      <li>Mở <code>OpenPrivilegedScope()</code> và Database Transaction: Tạo Tenant (<code>IsActive = true</code>), băm mật khẩu bằng thuật toán <strong>BCrypt</strong> (<code>BCrypt.Net.BCrypt.HashPassword(password)</code>), tạo User gán <code>TenantId = tenant.Id</code>, vai trò <code>Role = "Owner"</code>. Commit transaction an toàn.</li>
+    </ol>
+  </li>
+  <li><strong>Response:</strong> <code>201 Created</code> kèm <code>tenantId, userId, tenantCode</code>.</li>
+</ul>
+
+<p><strong>2. POST /api/auth/login</strong></p>
+<ul>
+  <li><strong>Quyền hạn:</strong> Công khai (Anonymous).</li>
+  <li><strong>Mục đích:</strong> Xác thực danh tính người dùng bằng Email/Password, cấp cặp JWT Access Token và Refresh Token.</li>
+  <li><strong>Request Body:</strong> <code>{ email, password }</code>.</li>
+  <li><strong>Logic nghiệp vụ:</strong>
+    <ol>
+      <li>Dùng <code>.IgnoreQueryFilters().Include(u => u.Tenant)</code> tìm User theo Email trên toàn hệ thống.</li>
+      <li>Nếu không tìm thấy &rarr; Trả về <code>401 Unauthorized</code> ("Email hoặc mật khẩu không chính xác", chống tấn công dò quét tài khoản Username Enumeration).</li>
+      <li>So khớp mật khẩu qua <code>BCrypt.Verify(password, user.PasswordHash)</code> &rarr; Sai trả về <code>401 Unauthorized</code>.</li>
+      <li>Kiểm tra trạng thái: Nếu <code>!user.IsActive</code> &rarr; Báo tài khoản bị khóa; nếu <code>!user.Tenant.IsActive</code> &rarr; Báo cửa hàng tạm ngưng.</li>
+      <li>Cấp phát <strong>JWT Access Token</strong> (thời hạn 60 phút, ký bằng thuật toán HMAC-SHA256, chứa Claims: <code>userId, tenantId, tenantCode, email, role</code>).</li>
+      <li>Sinh <strong>Refresh Token ngẫu nhiên</strong> (thời hạn 7 ngày). Lưu mã băm SHA-256 (<code>token_hash</code>) vào bảng <code>refresh_tokens</code>.</li>
+    </ol>
+  </li>
+  <li><strong>Response:</strong> <code>200 OK</code> kèm <code>accessToken, refreshToken, expiresIn = 3600, user profile</code>.</li>
+</ul>
+
+<p><strong>3. POST /api/auth/refresh-token</strong></p>
+<ul>
+  <li><strong>Quyền hạn:</strong> Công khai (Anonymous).</li>
+  <li><strong>Mục đích:</strong> Làm mới phiên làm việc khi Access Token hết hạn thông qua cơ chế bảo mật <strong>Token Rotation</strong>.</li>
+  <li><strong>Logic nghiệp vụ:</strong> Băm token gửi lên bằng SHA-256, tìm kiếm trong bảng <code>refresh_tokens</code>. Nếu token không tồn tại, đã hết hạn (<code>ExpiresAt &lt; UtcNow</code>) hoặc đã bị thu hồi (<code>RevokedAt != null</code>) &rarr; Trả về <code>401 Unauthorized</code>. Thu hồi token cũ: Gán <code>existingToken.RevokedAt = DateTimeOffset.UtcNow</code>. Cấp phát một cặp Access Token và Refresh Token hoàn toàn mới, lưu băm mới vào DB và liên kết <code>existingToken.ReplacedByToken = newRefreshToken</code>.</li>
+  <li><strong>Response:</strong> <code>200 OK</code> kèm cặp Token mới.</li>
+</ul>
+
+<p><strong>4. POST /api/auth/logout</strong></p>
+<ul>
+  <li><strong>Mục đích:</strong> Đăng xuất an toàn bằng cách thu hồi Refresh Token. Đánh dấu <code>RevokedAt = DateTimeOffset.UtcNow</code> vô hiệu hóa vĩnh viễn phiên làm việc.</li>
+  <li><strong>Response:</strong> <code>200 OK</code> ("Đăng xuất thành công").</li>
+</ul>
+
+<p><strong>5. GET /api/auth/me</strong></p>
+<ul>
+  <li><strong>Quyền hạn:</strong> <code>[Authorize]</code>.</li>
+  <li><strong>Mục đích:</strong> Lấy thông tin cá nhân và quyền hạn người dùng đang đăng nhập dựa trên JWT Claims (<code>id, tenantId, tenantCode, tenantName, email, fullName, roles</code>).</li>
+</ul>
+
+<div class="page-break"></div>
+
+<h3>3.2. BranchController (5 Endpoints) <span class="badge badge-khoa">Lê Võ Đăng Khoa phụ trách</span></h3>
+<p>Quản lý các Chi nhánh cửa hàng của Tenant (<code>/api/branches</code>).</p>
+<ul>
+  <li><code>GET /api/branches</code>: Lấy danh sách tất cả chi nhánh thuộc Tenant hiện tại. Phân quyền: Mọi vai trò đã đăng nhập (<code>Owner, Staff, Cashier</code>).</li>
+  <li><code>GET /api/branches/{id}</code>: Lấy thông tin chi tiết 1 chi nhánh theo ID. Trả về <code>404 Not Found</code> nếu ID không thuộc Tenant.</li>
+  <li><code>POST /api/branches</code>: Tạo chi nhánh mới. Phân quyền: <code>[Authorize(Roles = "Owner")]</code>. Kiểm tra tên chi nhánh không được rỗng, tạo bản ghi với <code>IsActive = true</code>.</li>
+  <li><code>PUT /api/branches/{id}</code>: Cập nhật thông tin chi nhánh (Tên, địa chỉ, số điện thoại). Phân quyền: <code>[Authorize(Roles = "Owner")]</code>.</li>
+  <li><code>PUT /api/branches/{id}/toggle-status</code>: Bật/Tắt trạng thái hoạt động của chi nhánh. Phân quyền: <code>[Authorize(Roles = "Owner")]</code>. Chặn không cho xóa cứng chi nhánh để bảo tồn lịch sử giao dịch.</li>
+</ul>
+
+<h3>3.3. WarehousesController (5 Endpoints) <span class="badge badge-both">Khoa & Nhựt phối hợp</span></h3>
+<p>Quản lý các Kho hàng vật lý trực thuộc chi nhánh (<code>/api/warehouses</code>).</p>
+<ul>
+  <li><code>GET /api/warehouses</code>: Lấy danh sách kho hàng. Hỗ trợ lọc theo <code>branchId</code>. Mọi vai trò đều được xem.</li>
+  <li><code>GET /api/warehouses/{id}</code>: Lấy chi tiết kho hàng kèm thông tin chi nhánh quản lý.</li>
+  <li><code>POST /api/warehouses</code>: Tạo kho hàng mới. Phân quyền: <code>[Authorize(Roles = "Owner,Staff")]</code>. Kiểm tra bắt buộc <code>branchId</code> phải tồn tại và thuộc cùng Tenant.</li>
+  <li><code>PUT /api/warehouses/{id}</code>: Cập nhật tên kho, địa chỉ. <strong>Kiểm tra logic BE2-08 (Nhựt đóng góp):</strong> Nếu kho đã có phát sinh tồn kho hoặc giao dịch, nghiêm cấm đổi sang <code>branchId</code> khác để tránh sai lệch số dư kho 2 cấp.</li>
+  <li><code>PUT /api/warehouses/{id}/toggle-status</code>: Đổi trạng thái hoạt động của kho (<code>IsActive</code>).</li>
+</ul>
+
+<h3>3.4. SuppliersController (3 Endpoints) <span class="badge badge-nhut">Nhựt Phùng Minh phụ trách chính</span></h3>
+<p>Quản lý Nhà cung cấp hàng hóa (<code>/api/suppliers</code>).</p>
+<ul>
+  <li><code>GET /api/suppliers</code>: Lấy danh sách nhà cung cấp của cửa hàng, hỗ trợ tìm kiếm theo tên, SĐT, email.</li>
+  <li><code>GET /api/suppliers/{id}</code>: Xem chi tiết nhà cung cấp và lịch sử các đợt nhập hàng.</li>
+  <li><code>POST /api/suppliers</code>: Tạo nhà cung cấp mới. Phân quyền: <code>[Authorize(Roles = "Owner,Staff")]</code>. Kiểm tra trùng lặp mã số thuế/SĐT trong cùng Tenant.</li>
+</ul>
+
+<h3>3.5. CategoriesController (4 Endpoints) <span class="badge badge-nhut">Nhựt Phùng Minh phụ trách chính</span></h3>
+<p>Quản lý Danh mục sản phẩm phân cấp cây cha - con (<code>/api/categories</code>).</p>
+<ul>
+  <li><code>GET /api/categories</code>: Trả về toàn bộ danh mục dưới dạng cây phân cấp (Tree Hierarchy). Tải toàn bộ danh mục lên RAM, lọc các nút gốc (<code>ParentId == null</code>) và đệ quy lồng ghép các danh mục con vào mảng <code>Children</code>.</li>
+  <li><code>POST /api/categories</code>: Tạo danh mục mới. Phân quyền: <code>[Authorize(Roles = "Owner,Staff")]</code>. Nếu chọn <code>ParentId</code>, kiểm tra danh mục cha phải tồn tại và cùng Tenant.</li>
+  <li><code>PUT /api/categories/{id}</code>: Cập nhật danh mục. Phân quyền: <code>[Authorize(Roles = "Owner,Staff")]</code>.
+    <ul>
+      <li><strong>Cơ chế khóa bảo vệ:</strong> Lấy PostgreSQL Advisory Lock <code>SELECT pg_advisory_xact_lock(...)</code> theo <code>tenantId || '/category_tree'</code> để chống race condition.</li>
+      <li><strong>Chống vòng lặp đệ quy (Thuật toán 4.4):</strong> Kiểm tra <code>ParentId != id</code> và duyệt tổ tiên ngược dòng. Nếu danh mục cha mới lại là con/cháu của danh mục hiện tại &rarr; Trả về <code>400 Bad Request</code>.</li>
+    </ul>
+  </li>
+  <li><code>DELETE /api/categories/{id}</code>: Xóa danh mục. Phân quyền: <code>[Authorize(Roles = "Owner")]</code>. Kiểm tra an toàn: Nếu danh mục đang chứa sản phẩm hoặc có danh mục con &rarr; Chặn xóa và trả về <code>400 Bad Request</code>.</li>
+</ul>
+
+<h3>3.6. BrandsController (4 Endpoints) <span class="badge badge-nhut">Nhựt Phùng Minh phụ trách chính</span></h3>
+<p>Quản lý Thương hiệu sản phẩm (<code>/api/brands</code>).</p>
+<ul>
+  <li><code>GET /api/brands</code>: Lấy danh sách thương hiệu của cửa hàng.</li>
+  <li><code>POST /api/brands</code>: Tạo thương hiệu mới. Phân quyền: <code>[Authorize(Roles = "Owner,Staff")]</code>. Chặn trùng tên trong cùng Tenant.</li>
+  <li><code>PUT /api/brands/{id}</code>: Cập nhật tên, mô tả thương hiệu. Phân quyền: <code>[Authorize(Roles = "Owner,Staff")]</code>.</li>
+  <li><code>DELETE /api/brands/{id}</code>: Xóa thương hiệu. Phân quyền: <code>[Authorize(Roles = "Owner")]</code>. Chặn xóa nếu đã có sản phẩm liên kết.</li>
+</ul>
+
+<div class="page-break"></div>
+
+<h3>3.7. ProductsController (10 Endpoints) <span class="badge badge-nhut">Nhựt Phùng Minh phụ trách chính</span></h3>
+<p>Quản lý Sản phẩm đại diện và các Biến thể SKU lưu kho (<code>/api/products</code>).</p>
+<ul>
+  <li><code>GET /api/products</code>: Tra cứu danh sách sản phẩm có phân trang, hỗ trợ tìm kiếm toàn văn theo Tên SP, Mã SKU, Mã vạch Barcode, lọc theo Danh mục và Thương hiệu.</li>
+  <li><code>GET /api/products/{id}</code>: Lấy chi tiết sản phẩm kèm toàn bộ danh sách biến thể SKU, giá bán lẻ, giá bán sỉ và thuộc tính JSONB.</li>
+  <li><code>POST /api/products</code>: Tạo sản phẩm mới kèm danh sách biến thể SKU trong 1 Transaction nguyên tử. Phân quyền: <code>[Authorize(Roles = "Owner,Staff")]</code>.
+    <ul>
+      <li>Chống trùng SKU trong mảng gửi lên và trong database của Tenant.</li>
+      <li>Chống trùng Barcode trong mảng gửi lên và trong database của Tenant.</li>
+      <li>Chống trùng tổ hợp thuộc tính biến thể thông qua chữ ký <strong>CombinationSignature</strong> (Thuật toán 4.6).</li>
+      <li>Tự động sinh mã vạch chuẩn quốc tế <strong>EAN-13</strong> nếu người dùng để trống (Thuật toán 4.5).</li>
+    </ul>
+  </li>
+  <li><code>POST /api/products/{id}/variants</code>: Thêm biến thể SKU mới vào sản phẩm đã có.</li>
+  <li><code>PUT /api/products/{productId}/variants/{variantId}</code>: Sửa thông tin biến thể (mã SKU, barcode, thuộc tính động JSONB).</li>
+  <li><code>PUT /api/products/{productId}/variants/{variantId}/prices</code>: Cập nhật bảng giá biến thể (Giá bán lẻ <code>RetailPrice</code>, Giá bán sỉ <code>WholesalePrice</code>).</li>
+  <li><code>PUT /api/products/{productId}/variants/{variantId}/toggle-status</code>: Bật/Tắt trạng thái hoạt động của biến thể SKU.</li>
+  <li><code>DELETE /api/products/{productId}/variants/{variantId}</code>: Xóa biến thể SKU (chỉ cho phép khi SKU chưa từng phát sinh giao dịch nhập/xuất kho).</li>
+  <li><code>PUT /api/products/{id}</code>: Cập nhật thông tin chung của sản phẩm (Tên, mô tả, danh mục, thương hiệu).</li>
+  <li><code>DELETE /api/products/{id}</code>: Vô hiệu hóa sản phẩm (<code>IsActive = false</code>). Phân quyền: <code>[Authorize(Roles = "Owner")]</code>.</li>
+</ul>
+
+<h3>3.8. GoodsReceiptsController (4 Endpoints) <span class="badge badge-khoa">Lê Võ Đăng Khoa phụ trách chính</span></h3>
+<p>Lập chứng từ và Duyệt nhập kho hàng hóa từ nhà cung cấp (<code>/api/goods-receipts</code>).</p>
+<ul>
+  <li><code>POST /api/goods-receipts</code>: Lập phiếu nhập kho ở trạng thái Nháp (<code>Draft</code>). Phân quyền: <code>[Authorize(Roles = "Owner,Staff")]</code>. Cho phép thêm nhiều dòng sản phẩm, chỉ định Kho nhập, Nhà cung cấp, Số lượng và Đơn giá nhập của từng dòng.</li>
+  <li><code>GET /api/goods-receipts</code>: Tra cứu danh sách phiếu nhập kho, lọc theo trạng thái (<code>Draft, Confirmed</code>), thời gian, kho nhập.</li>
+  <li><code>GET /api/goods-receipts/{id}</code>: Xem chi tiết phiếu nhập kho, danh sách mặt hàng, số tiền, người tạo, người duyệt.</li>
+  <li><code>POST /api/goods-receipts/{id}/confirm</code>: Duyệt xác nhận phiếu nhập kho nguyên tử (Thuật toán 4.1). Phân quyền: <code>[Authorize(Roles = "Owner,Staff")]</code>. Chuyển trạng thái phiếu từ <code>Draft</code> &rarr; <code>Confirmed</code>. Thực thi toàn bộ chuỗi: Cộng tồn kho 2 cấp &rarr; Tính Giá vốn WAC &rarr; Ghi Sổ cái bất biến trong cùng 1 Database Transaction.</li>
+</ul>
+
+<h3>3.9. InventoryController (4 Endpoints) <span class="badge badge-khoa">Lê Võ Đăng Khoa phụ trách chính</span></h3>
+<p>Tra cứu Tồn kho 2 cấp, Lịch sử Sổ cái và Giữ chỗ kho (<code>/api/inventory</code>).</p>
+<ul>
+  <li><code>GET /api/inventory/balances</code>: Tra cứu số dư tồn kho. Mọi vai trò (<code>Owner, Staff, Cashier</code>) đều được gọi. Hỗ trợ lọc theo <code>branchId, warehouseId, searchTerm</code>. Trả về chi tiết: Tồn thực tế (<code>OnHand</code>), Tồn giữ chỗ (<code>Reserved</code>), và Tồn khả dụng thực tế (<code>Available = OnHand - Reserved</code>).</li>
+  <li><code>GET /api/inventory/balances/sku/{skuId}/branch/{branchId}</code>: Tra cứu nhanh số dư tồn kho của 1 SKU cụ thể tại 1 Chi nhánh.</li>
+  <li><code>GET /api/inventory/ledger</code>: Truy vấn Lịch sử Sổ cái kho bất biến (<code>inventory_transactions</code>). Phân quyền: <code>[Authorize(Roles = "Owner,Staff")]</code> (Thu ngân <code>Cashier</code> bị chặn 403 Forbidden vì đây là dữ liệu tài chính nhạy cảm). Trả về: Loại giao dịch (<code>IN/OUT</code>), số lượng biến động, số dư tức thời sau biến động (<code>BalanceAfter</code>), mã chứng từ và số thứ tự <code>SequenceNo</code>.</li>
+  <li><code>POST /api/inventory/reserve</code>: Giữ chỗ kho nguyên tử phục vụ bán hàng đa kênh. Phân quyền: <code>Owner, Staff, Cashier</code>. Kiểm tra tồn khả dụng: <code>Available &ge; RequestedQty</code>. Cơ chế Idempotency với <code>RequestKey</code> UUID và PostgreSQL Advisory Lock chống race condition giữ chỗ lặp.</li>
+</ul>
+
+<h3>3.10. PosCatalogController (2 Endpoints) <span class="badge badge-nhut">Nhựt Phùng Minh phụ trách chính</span></h3>
+<p>Tối ưu hóa tìm kiếm và quét mã vạch cho máy POS bán lẻ tại quầy (<code>/api/pos</code>).</p>
+<ul>
+  <li><code>GET /api/pos/search</code>: Tìm kiếm sản phẩm siêu tốc cho màn hình thu ngân POS. Hỗ trợ tìm theo tên hoặc SKU, trả về danh sách SKU kèm giá bán niêm yết và số lượng tồn khả dụng (<code>Available</code>) tại đúng chi nhánh thu ngân đang đứng.</li>
+  <li><code>GET /api/pos/barcode/{barcode}</code>: Quét mã vạch Barcode. Tìm chính xác SKU tương ứng với độ trễ cực thấp (&lt; 50ms) để tự động bắn vào giỏ hàng POS.</li>
+</ul>
+
+<div class="page-break"></div>
+
+<!-- NỘI DUNG CHI TIẾT 4: CÁC THUẬT TOÁN -->
+<h2>4. CÁC THUẬT TOÁN & LOGIC NGHIỆP VỤ CỐT LÕI</h2>
+
+<h3>4.1. Thuật toán Duyệt nhập kho & Tính WAC trong Database Transaction <span class="badge badge-khoa">Lê Võ Đăng Khoa cài đặt</span></h3>
+<p>Được cài đặt trong <code>ConfirmReceiptCommand.cs</code>:</p>
+<pre><code>await using var transaction = await _context.Database.BeginTransactionAsync(ct);
+try {
+  // 1. Kiểm tra trạng thái phiếu nhập
+  if (receipt.Status != GoodsReceiptStatus.Draft)
+    throw new InvalidOperationException("Phiếu nhập đã được xác nhận trước đó.");
+
+  foreach (var item in receipt.Items) {
+    // 2. Cập nhật tồn thực tế kho vật lý
+    var whBalance = await GetOrCreateWarehouseBalance(receipt.WarehouseId, item.SkuId);
+    whBalance.OnHand += item.Quantity;
+
+    // 3. Cập nhật tồn thực tế và tính WAC tại Chi nhánh
+    var brBalance = await GetOrCreateBranchBalance(receipt.BranchId, item.SkuId);
+    decimal oldStock = brBalance.OnHand;
+    decimal oldCost = brBalance.AverageCost;
+    decimal importQty = item.Quantity;
+    decimal importPrice = item.UnitPrice;
+
+    // Công thức WAC chuẩn:
+    decimal newWac = (oldStock <= 0) 
+      ? importPrice 
+      : ((oldStock * oldCost) + (importQty * importPrice)) / (oldStock + importQty);
+
+    brBalance.OnHand += importQty;
+    brBalance.AverageCost = Math.Round(newWac, 2);
+
+    // 4. Ghi bút toán vào Sổ cái bất biến
+    _context.InventoryTransactions.Add(new InventoryTransaction {
+      TenantId = receipt.TenantId,
+      WarehouseId = receipt.WarehouseId,
+      BranchId = receipt.BranchId,
+      SkuId = item.SkuId,
+      Type = "IN",
+      Quantity = item.Quantity,
+      BalanceAfter = brBalance.OnHand,
+      ReferenceId = receipt.Id,
+      SequenceNo = ++lastSeq
+    });
+  }
+
+  receipt.Status = GoodsReceiptStatus.Confirmed;
+  await _context.SaveChangesAsync(ct);
+  await transaction.CommitAsync(ct);
+} catch {
+  await transaction.RollbackAsync(ct);
+  throw;
+}</code></pre>
+
+<h3>4.2. Cơ chế Sổ cái kho bất biến (Append-Only Inventory Ledger) <span class="badge badge-khoa">Lê Võ Đăng Khoa cài đặt</span></h3>
+<p>Cài đặt Trigger trên PostgreSQL trong <code>oisms_schema.sql</code>:</p>
+<pre><code>CREATE OR REPLACE FUNCTION public.oisms_deny_mutation() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'Operation % on % is prohibited', TG_OP, TG_TABLE_NAME USING ERRCODE='23514';
+END;
+$$;
+
+CREATE TRIGGER trg_deny_inventory_transactions_mutation
+BEFORE UPDATE OR DELETE ON public.inventory_transactions
+FOR EACH ROW EXECUTE FUNCTION public.oisms_deny_mutation();</code></pre>
+<p><em>Bất kỳ câu lệnh UPDATE hay DELETE nào tác động lên bảng <code>inventory_transactions</code> (kể cả từ code C# hay gõ SQL trực tiếp) đều bị Database ngắt và quăng lỗi từ chối ngay lập tức.</em></p>
+
+<div class="page-break"></div>
+
+<h3>4.3. Cơ chế Giữ chỗ chống bán vượt & PostgreSQL Advisory Lock Idempotency (F2) <span class="badge badge-khoa">Lê Võ Đăng Khoa cài đặt</span></h3>
+<p>Được cài đặt trong <code>ReservationService.cs</code>:</p>
+<pre><code>// 1. Chiếm giữ Advisory Lock phân tán theo cặp (tenantId, requestKey)
+var lockKey = $"{tenantId}/request_key/{dto.RequestKey}";
+await _context.Database.ExecuteSqlInterpolatedAsync(
+  $"SELECT pg_advisory_xact_lock(hashtextextended({lockKey}, 0))", ct);
+
+// 2. Đối soát Idempotent
+var existingReservation = await _context.Reservations
+  .FirstOrDefaultAsync(r => r.TenantId == tenantId && r.RequestKey == dto.RequestKey, ct);
+
+if (existingReservation != null) {
+  if (existingReservation.SkuId == dto.SkuId && existingReservation.Quantity == dto.Quantity) {
+    // Cùng RequestKey và cùng payload -> Trả về kết quả cũ, KHÔNG tăng Reserved
+    return new ReserveStockResult { Success = true, ReservationId = existingReservation.Id };
+  }
+  // Cùng RequestKey nhưng khác danh sách hàng -> Báo lỗi xung đột
+  return new ReserveStockResult { Success = false, ErrorMessage = "RequestKey trùng lặp với payload khác." };
+}
+
+// 3. Kiểm tra Tồn khả dụng thực tế
+var balance = await _context.WarehouseInventoryBalances
+  .FirstOrDefaultAsync(w => w.WarehouseId == dto.WarehouseId && w.SkuId == dto.SkuId, ct);
+var available = balance.OnHand - balance.Reserved;
+if (available < dto.Quantity) {
+  return new ReserveStockResult { Success = false, ErrorMessage = "Không đủ tồn khả dụng để giữ chỗ." };
+}
+
+// 4. Tăng Reserved và sinh bản ghi Reservation
+balance.Reserved += dto.Quantity;
+_context.Reservations.Add(new Reservation {
+  TenantId = tenantId,
+  RequestKey = dto.RequestKey,
+  WarehouseId = dto.WarehouseId,
+  SkuId = dto.SkuId,
+  Quantity = dto.Quantity,
+  ExpiresAt = DateTimeOffset.UtcNow.AddMinutes(15),
+  Status = "Active"
+});
+await _context.SaveChangesAsync(ct);</code></pre>
+
+<h3>4.4. Thuật toán Chống vòng lặp Cây danh mục (Cycle Detection) <span class="badge badge-nhut">Nhựt Phùng Minh cài đặt</span></h3>
+<p>Được cài đặt trong <code>CategoriesController.cs</code>:</p>
+<ol>
+  <li><strong>Khóa cây danh mục:</strong> Lấy <code>pg_advisory_xact_lock</code> theo <code>tenantId || '/category_tree'</code>.</li>
+  <li><strong>Duyệt ngược dòng (Ancestor Traversal):</strong></li>
+</ol>
+<pre><code>var currentAncestorId = request.ParentId;
+while (currentAncestorId.HasValue) {
+  if (currentAncestorId.Value == id) {
+    // Phát hiện cha mới nằm trong nhánh con cháu của danh mục hiện tại -> Chu trình!
+    return BadRequest(new { message = "Không thể chuyển danh mục thành con của chính con cháu nó." });
+  }
+  var parentCategory = await _context.Categories.AsNoTracking()
+    .FirstOrDefaultAsync(c => c.Id == currentAncestorId.Value);
+  currentAncestorId = parentCategory?.ParentId;
+}</code></pre>
+
+<div class="page-break"></div>
+
+<h3>4.5. Thuật toán Sinh mã vạch chuẩn quốc tế EAN-13 (Modulo 10) <span class="badge badge-nhut">Nhựt Phùng Minh cài đặt</span></h3>
+<p>Được cài đặt trong <code>BarcodeHelper.cs</code>:</p>
+<ol>
+  <li>Sinh chuỗi ngẫu nhiên gồm 12 chữ số: <code>d1 d2 d3 ... d12</code>.</li>
+  <li>Tính tổng trọng số chẵn lẻ:
+    <p style="font-family: monospace; font-size: 10pt; background: #f8fafc; padding: 6px; border-left: 3px solid #2563eb;">
+      Sum = (d1 + d3 + d5 + d7 + d9 + d11) &times; 1 + (d2 + d4 + d6 + d8 + d10 + d12) &times; 3
+    </p>
+  </li>
+  <li>Tính số kiểm tra thứ 13 (<code>d13</code>):
+    <p style="font-family: monospace; font-size: 10pt; background: #f8fafc; padding: 6px; border-left: 3px solid #2563eb;">
+      d13 = (10 - (Sum mod 10)) mod 10
+    </p>
+  </li>
+  <li>Ghép thành mã 13 chữ số hoàn chỉnh và kiểm tra tính duy nhất trong CSDL.</li>
+</ol>
+
+<h3>4.6. Cơ chế Thuộc tính động JSONB & Canonical Combination Signature <span class="badge badge-nhut">Nhựt Phùng Minh cài đặt</span></h3>
+<p>Được cài đặt trong <code>SkuAttributeHelper.cs</code>:</p>
+<ul>
+  <li>Bảo toàn 100% cấu trúc JSON lồng nhau và các giá trị <code>null</code> bên trong Object / Array.</li>
+  <li>Chuẩn hóa chữ ký tổ hợp (<strong>Canonical Signature</strong>) bằng cách sắp xếp theo thứ tự bảng chữ cái của Key và thêm tiền tố kiểu dữ liệu (<code>s:</code> cho string, <code>n:</code> cho number, <code>b:</code> cho boolean).</li>
+  <li><strong>Ví dụ:</strong> <code>{"size": "L", "color": "Đen"}</code> và <code>{"color": "Đen", "size": "L"}</code> đều được chuẩn hóa thành:
+    <p style="font-family: monospace; font-size: 10pt; background: #f8fafc; padding: 6px; border-left: 3px solid #6d28d9;">
+      o:{color:s:đen,size:s:l}
+    </p>
+    &rarr; Ngăn chặn 100% việc tạo trùng biến thể SKU trong cùng sản phẩm.
+  </li>
+</ul>
+
+<div class="page-break"></div>
+
+<!-- NỘI DUNG CHI TIẾT 5: MA TRẬN RBAC -->
+<h2>5. MA TRẬN PHÂN QUYỀN TRUY CẬP (RBAC MATRIX) <span class="badge badge-nhut">Nhựt Phùng Minh đối soát & hoàn thiện</span></h2>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width: 32%;">Nhóm API / Endpoint</th>
+      <th style="width: 18%;">Owner (Chủ shop)</th>
+      <th style="width: 18%;">Staff (Quản lý kho)</th>
+      <th style="width: 18%;">Cashier (Thu ngân POS)</th>
+      <th style="width: 14%;">Mã phản hồi vi phạm</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Xác thực & Cá nhân<br>(<code>/api/auth/*</code>)</td>
+      <td>Toàn quyền</td>
+      <td>Toàn quyền</td>
+      <td>Toàn quyền</td>
+      <td><code>401 Unauthorized</code></td>
+    </tr>
+    <tr>
+      <td>Cấu hình Chi nhánh<br>(<code>/api/branches</code>)</td>
+      <td>Xem, Tạo, Sửa,<br>Đổi trạng thái</td>
+      <td>Chỉ xem (GET)</td>
+      <td>Chỉ xem (GET)</td>
+      <td><code>403 Forbidden</code></td>
+    </tr>
+    <tr>
+      <td>Cấu hình Kho hàng<br>(<code>/api/warehouses</code>)</td>
+      <td>Toàn quyền</td>
+      <td>Xem, Tạo, Sửa</td>
+      <td>Chỉ xem (GET)</td>
+      <td><code>403 Forbidden</code></td>
+    </tr>
+    <tr>
+      <td>Nhà cung cấp<br>(<code>/api/suppliers</code>)</td>
+      <td>Toàn quyền</td>
+      <td>Xem, Tạo</td>
+      <td>Không có quyền</td>
+      <td><code>403 Forbidden</code></td>
+    </tr>
+    <tr>
+      <td>Danh mục & Thương hiệu<br>(<code>/api/categories</code>, <code>/api/brands</code>)</td>
+      <td>Xem, Tạo, Sửa, Xóa</td>
+      <td>Xem, Tạo, Sửa</td>
+      <td>Chỉ xem (GET)</td>
+      <td><code>403 Forbidden</code></td>
+    </tr>
+    <tr>
+      <td>Sản phẩm & SKU<br>(<code>/api/products</code>)</td>
+      <td>Xem, Tạo, Sửa, Xóa</td>
+      <td>Xem, Tạo, Sửa</td>
+      <td>Chỉ xem (GET)</td>
+      <td><code>403 Forbidden</code></td>
+    </tr>
+    <tr>
+      <td>Lập phiếu nhập kho<br>(<code>POST /api/goods-receipts</code>)</td>
+      <td>Toàn quyền</td>
+      <td>Toàn quyền</td>
+      <td>Không có quyền</td>
+      <td><code>403 Forbidden</code></td>
+    </tr>
+    <tr>
+      <td>Duyệt nhập kho & WAC<br>(<code>POST /api/goods-receipts/{id}/confirm</code>)</td>
+      <td>Toàn quyền</td>
+      <td>Toàn quyền</td>
+      <td>Không có quyền</td>
+      <td><code>403 Forbidden</code></td>
+    </tr>
+    <tr>
+      <td>Xem Sổ cái kho Append-Only<br>(<code>GET /api/inventory/ledger</code>)</td>
+      <td>Toàn quyền</td>
+      <td>Toàn quyền</td>
+      <td><strong>Bị chặn (403)</strong></td>
+      <td><code>403 Forbidden</code></td>
+    </tr>
+    <tr>
+      <td>Tra cứu Tồn kho 2 cấp<br>(<code>GET /api/inventory/balances</code>)</td>
+      <td>Toàn quyền</td>
+      <td>Toàn quyền</td>
+      <td>Toàn quyền</td>
+      <td><code>403 Forbidden</code></td>
+    </tr>
+    <tr>
+      <td>Giữ chỗ kho bán hàng<br>(<code>POST /api/inventory/reserve</code>)</td>
+      <td>Toàn quyền</td>
+      <td>Toàn quyền</td>
+      <td>Toàn quyền</td>
+      <td><code>403 Forbidden</code></td>
+    </tr>
+    <tr>
+      <td>POS Tra cứu & Quét Barcode<br>(<code>/api/pos/*</code>)</td>
+      <td>Toàn quyền</td>
+      <td>Toàn quyền</td>
+      <td>Toàn quyền</td>
+      <td><code>403 Forbidden</code></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- MỤC 6: PHỤ LỤC TRA CỨU NHIỆM VỤ CỦA NHỰT -->
+<div class="avoid-break" style="margin-top: 25px;">
+  <h2>6. PHỤ LỤC: ĐỐI CHIẾU NHIỆM VỤ JIRA CỦA NHỰT PHÙNG MINH <span class="badge badge-nhut">Đối chiếu nghiệm thu</span></h2>
+  <p>Nhằm phục vụ công tác thanh tra và vấn đáp đồ án với Giảng viên hướng dẫn, toàn bộ kết quả đóng góp của sinh viên <strong>Nhựt Phùng Minh</strong> được liên kết trực tiếp với các mã công việc chính thức trên Jira và Git PR:</p>
+  
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 18%;">Mã Task Jira</th>
+        <th style="width: 25%;">Tên Nhiệm vụ</th>
+        <th style="width: 27%;">Sản phẩm bàn giao</th>
+        <th style="width: 30%;">Trạng thái kiểm chứng</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>OISMS-16</strong></td>
+        <td>Nghiên cứu Bối cảnh & Khảo sát Các hệ thống hiện có</td>
+        <td>Mục I.1, I.2, I.3 trên Confluence và file <code>docs/CONFLUENCE_I_PROJECT_INTRODUCTION.md</code>. Ma trận so sánh OISMS với KiotViet, Sapo, Haravan, Odoo.</td>
+        <td><span class="badge badge-success">✓ Đạt</span> Xuất bản tài liệu Confluence trang 983053.</td>
+      </tr>
+      <tr>
+        <td><strong>OISMS-27</strong></td>
+        <td>Bổ sung API Quản lý Kho hàng & Catalog Backend</td>
+        <td>6 Controllers, 28 Endpoints, Thuật toán EAN-13, Cycle Detection, JSONB Signature, băm mật khẩu BCrypt, Token Rotation.</td>
+        <td><span class="badge badge-success">✓ Đạt</span> PR #4 đã gộp vào <code>develop</code>. 194/194 bài test tự động Passed 100%.</td>
+      </tr>
+      <tr>
+        <td><strong>OISMS-31</strong></td>
+        <td>Ma trận phân quyền truy cập màn hình (3.1.3)</td>
+        <td>Mục 3.1.3 trên Confluence và file <code>docs/CONFLUENCE_3_1_3_SCREEN_AUTHORIZATION_MATRIX.md</code> bao phủ 39 màn hình giao diện chuẩn hóa.</td>
+        <td><span class="badge badge-success">✓ Đạt</span> Đã loại bỏ hoàn toàn /forgot-password và các route sai lệch. Đã kiểm chứng trên Admin và POS.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p style="font-size: 9pt; color: #64748b; text-align: center; margin-top: 20px;">
+    <em>Tài liệu được kết xuất từ mã nguồn thực tế của dự án OISMS — Hoàn tất nghiệm thu Sprint 2.</em>
+  </p>
+</div>
+
+</body>
+</html>
+"""
+
+html_path = "/Users/bo/OISMS/docs/TAI_LIEU_DAC_TA_API_VA_LOGIC_NGHIEP_VU_BACKEND_SPRINT_2.html"
+pdf_path = "/Users/bo/OISMS/docs/TAI_LIEU_DAC_TA_API_VA_LOGIC_NGHIEP_VU_BACKEND_SPRINT_2.pdf"
+
+with open(html_path, "w", encoding="utf-8") as f:
+    f.write(html_content)
+
+print(f"HTML generated at: {html_path}")
+
+cmd = [
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "--headless",
+    "--disable-gpu",
+    f"--print-to-pdf={pdf_path}",
+    "--no-pdf-header-footer",
+    html_path
+]
+
+res = subprocess.run(cmd, capture_output=True, text=True)
+if os.path.exists(pdf_path):
+    size = os.path.getsize(pdf_path)
+    print(f"PDF generated successfully at: {pdf_path} (Size: {size} bytes)")
+else:
+    print(f"Error generating PDF: {res.stderr}")
+
