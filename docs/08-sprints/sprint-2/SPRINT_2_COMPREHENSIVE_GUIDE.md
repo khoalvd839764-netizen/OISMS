@@ -28,9 +28,9 @@ $$\text{Đăng nhập (JWT)} \longrightarrow \text{Tạo SKU mới} \longrightar
 |---|---|---|---|
 | **Khoa** *(Trưởng nhóm)* | **Backend chính** (75% effort BE) | • Thiết kế Schema PostgreSQL, Entity, Mapping, DbContext, Migrations & Seed data.<br>• Thiết lập cô lập Multi-tenant (TenantContext, Global Query Filter).<br>• Lõi Sổ cái kho bất biến (Append-Only Ledger) & Xác nhận nhập kho nguyên tử (Atomic Transaction).<br>• Thuật toán tính giá vốn bình quân (WAC) tự động.<br>• Đặt nền móng dịch vụ Order / Reservation & Thử nghiệm khóa database chống bán vượt sớm.<br>• Chuẩn hóa mẫu Controller, Xử lý lỗi, Transaction Management và Docker Compose/CI. | • DB PostgreSQL chạy thông suốt qua Docker/Local.<br>• API Nhập kho, Sổ cái, Tồn kho chạy thật trên Swagger.<br>• Unit/Integration tests phần lõi Sổ cái & WAC đạt độ phủ (Coverage) $\ge 80\%$.<br>• Hợp đồng API (Contract DTO) rõ ràng cho nhóm. |
 | **Nhựt** | **Backend phụ** (25% effort BE) | • Module xác thực: Băm mật khẩu (BCrypt), cấp & refresh JWT token (login/logout/refresh/me) theo template của Khoa.<br>• API Đăng ký cửa hàng (Tenant registration) dưới sự rà soát của Khoa.<br>• API CRUD & Tra cứu: Cây danh mục (Category Hierarchy), Thương hiệu (Brand), Sản phẩm (Product), Biến thể SKU, Bảng giá sỉ/lẻ, Mã vạch (Barcode EAN-13/Code128).<br>• Tra cứu Nhà cung cấp (Supplier), Chi nhánh/Kho.<br>• Viết FluentValidation kiểm tra tính hợp lệ dữ liệu. | • Toàn bộ API Auth và Catalog nộp theo từng lát cắt nhỏ (PR nhỏ).<br>• Ràng buộc duy nhất mã SKU theo tenant và validation mã vạch được kiểm thử đơn vị đạt 100%. |
-| **Phúc Hữu** | **Frontend Admin** (Web React 19) | • Tiếp nhận mã nguồn giao diện từ bản Prototype (`Downloads`), đưa vào `src/frontend/admin-dashboard`.<br>• Gỡ bỏ 100% dữ liệu cứng (mock data), gỡ bỏ tài khoản mặc định Owner.<br>• Xây dựng luồng đăng nhập, lưu token JWT, điều hướng phân quyền (Owner/Staff), trang báo lỗi 403.<br>• Dựng và nối API các màn hình: Danh mục, Thương hiệu, Sản phẩm/SKU, Form tạo phiếu nhập kho nhiều dòng, Sổ kho và Báo cáo tồn kho.<br>• Xử lý giao diện: Khung xương đang tải (Skeleton loading), thông báo lỗi đỏ (Toast error). | • Web Admin chạy trên cổng `5173`.<br>• Thao tác thêm/sửa/nhập kho và đọc lại dữ liệu thật từ cơ sở dữ liệu thành công.<br>• Giao diện không bị văng màn hình trắng khi mất mạng. |
+| **Phúc Hữu & Nam Nguyễn** | **Frontend Admin** (Web React 19) | • Tiếp nhận mã nguồn giao diện từ bản Prototype (`Downloads`), đưa vào `src/frontend/admin-dashboard`.<br>• Gỡ bỏ 100% dữ liệu cứng (mock data), gỡ bỏ tài khoản mặc định Owner.<br>• Xây dựng luồng đăng nhập, lưu token JWT, điều hướng phân quyền (Owner/Staff), trang báo lỗi 403.<br>• Dựng và nối API các màn hình: Danh mục, Thương hiệu, Sản phẩm/SKU, Form tạo phiếu nhập kho nhiều dòng, Sổ kho và Báo cáo tồn kho.<br>• Xử lý giao diện: Khung xương đang tải (Skeleton loading), thông báo lỗi đỏ (Toast error). | • Web Admin chạy trên cổng `5173`.<br>• Thao tác thêm/sửa/nhập kho và đọc lại dữ liệu thật từ cơ sở dữ liệu thành công.<br>• Giao diện không bị văng màn hình trắng khi mất mạng. |
 | **Phương Lê** | **Frontend POS** (Web PWA React 19) | • Tiếp nhận màn hình `PosPage` từ bản Prototype (`Downloads`), đưa vào `src/frontend/pos-app`.<br>• Gỡ bỏ giỏ hàng mẫu hardcode `skus[0]`.<br>• Hoàn thiện tính năng: Tìm kiếm/quét mã vạch từ API thật, giỏ hàng nhiều dòng (thêm/bớt/xóa dòng tự tính tổng tiền), nhập tiền khách đưa tính tiền thừa, phương thức thanh toán.<br>• Chuẩn bị cấu trúc gọi API Checkout nguyên tử theo hợp đồng DTO.<br>• Tối ưu bản in hóa đơn nhiệt qua CSS `@media print` khổ 80mm/58mm.<br>• Cấu hình PWA (manifest, icon). | • Web POS chạy trên cổng `5174`.<br>• Tra cứu và hiển thị đúng tồn khả dụng (`available`) của SKU.<br>• Nút in hóa đơn mở đúng hộp thoại in chuẩn kích thước hóa đơn bán lẻ. |
-| **Nam Nguyễn** | **Kiểm thử (Tester)** | • **Ngày D1 (Static Testing):** Đọc Hợp đồng DTO, review bắt lỗi thiết kế trên giấy; thiết kế bộ Testcases chi tiết (Positive, Negative, RBAC, Data formats); tạo sẵn Postman Collection và dữ liệu test mẫu.<br>• **Ngày D2–D3:** Nhận API từ Backend ➔ Kiểm thử độc lập ngay trên Swagger/Postman (không đợi Frontend).<br>• **Ngày D4–D5:** Kiểm thử toàn luồng giao diện Web Admin & POS (End-to-End).<br>• **Ngày D5–D6:** Chạy kịch bản thử tải tranh mua Flash Sale (50 reqs/1 SKU); Quản lý bug trên Jira (retest bug); Lập Test Report và đối chiếu ma trận RTM. | • Bảng kịch bản Testcase có kết quả Passed/Failed.<br>• Báo cáo Bug trên Jira (cam kết 0 lỗi Blocker/Critical còn mở trước khi đóng Sprint).<br>• Ma trận RTM đối chiếu 100% yêu cầu đề bài của Sprint 2.<br>• Biên bản ký duyệt chất lượng (Sign-off Summary). |
+| **Cả nhóm** *(Khoa, Nhựt, Phúc Hữu, Phương Lê, Nam Nguyễn)* | **Kiểm thử (Tester / QA)** | • **Cả nhóm cùng tham gia kiểm test toàn diện:**<br>• **Ngày D1 (Static Testing):** Đọc Hợp đồng DTO, review bắt lỗi thiết kế trên giấy; thiết kế bộ Testcases chi tiết (Positive, Negative, RBAC, Data formats); tạo sẵn Postman Collection và dữ liệu test mẫu.<br>• **Ngày D2–D3:** Nhận API từ Backend ➔ Kiểm thử độc lập ngay trên Swagger/Postman (không đợi Frontend).<br>• **Ngày D4–D5:** Kiểm thử toàn luồng giao diện Web Admin & POS (End-to-End).<br>• **Ngày D5–D6:** Chạy kịch bản thử tải tranh mua Flash Sale (50 reqs/1 SKU); Quản lý bug trên Jira (retest bug); Lập Test Report và đối chiếu ma trận RTM. | • Bảng kịch bản Testcase có kết quả Passed/Failed.<br>• Báo cáo Bug trên Jira (cam kết 0 lỗi Blocker/Critical còn mở trước khi đóng Sprint).<br>• Ma trận RTM đối chiếu 100% yêu cầu đề bài của Sprint 2.<br>• Biên bản ký duyệt chất lượng (Sign-off Summary). |
 
 ---
 
@@ -54,7 +54,7 @@ gantt
     FluentValidation, Unique SKU Tenant Guard        :4, 5
     Hoàn thiện DTO & API Docs Swagger               :5, 6
 
-    section Phúc Hữu (Frontend Admin)
+    section Phúc Hữu & Nam Nguyễn (Frontend Admin)
     Port Prototype sang admin-dashboard, Auth state   :1, 3
     Nối API Danh mục, Thương hiệu, Sản phẩm/SKU       :3, 4
     Form Phiếu nhập kho nhiều dòng & Trang Sổ kho    :4, 5
@@ -66,7 +66,7 @@ gantt
     Bản in hóa đơn CSS print, Chuẩn bị Checkout      :4, 5
     Tối ưu phím tắt F-keys & Cảm ứng                 :5, 6
 
-    section Nam Nguyễn (Tester)
+    section Cả nhóm (Kiểm thử / Tester)
     Test Design, Chuẩn bị Data & Postman Collec      :1, 2
     Test Swagger độc lập API Auth & Catalog          :2, 4
     Test E2E toàn luồng Admin & POS                  :4, 5
@@ -83,12 +83,12 @@ gantt
 | **FR-AUTH-02** | Đăng nhập bảo mật | Nhựt | Đăng nhập email/SĐT + mật khẩu; băm mật khẩu bằng BCrypt/Argon2; cấp JWT chứa TenantId, UserId, Role. |
 | **FR-AUTH-03** | Phân quyền RBAC | Nhựt & Khoa | Owner toàn quyền; Staff quản lý kho/đơn; Cashier chỉ dùng POS. API trả về `403 Forbidden` nếu sai quyền. |
 | **FR-AUTH-04** | Quản lý Chi nhánh & Kho | Nhựt | Owner có quyền tạo, cập nhật, bật/tắt hiển thị chi nhánh và kho trực thuộc cửa hàng mình. |
-| **FR-PROD-01** | Cây danh mục & Thương hiệu | Nhựt & Phúc Hữu | Quản lý danh mục cha-con phân cấp đa tầng và thương hiệu sản phẩm. |
-| **FR-PROD-02** | Sản phẩm & Biến thể SKU | Nhựt & Phúc Hữu | Sản phẩm có biến thể (Màu sắc, Kích thước); mã SKU duy nhất trong cùng một tenant (ràng buộc DB Unique Index). |
+| **FR-PROD-01** | Cây danh mục & Thương hiệu | Nhựt, Phúc Hữu & Nam Nguyễn | Quản lý danh mục cha-con phân cấp đa tầng và thương hiệu sản phẩm. |
+| **FR-PROD-02** | Sản phẩm & Biến thể SKU | Nhựt, Phúc Hữu & Nam Nguyễn | Sản phẩm có biến thể (Màu sắc, Kích thước); mã SKU duy nhất trong cùng một tenant (ràng buộc DB Unique Index). |
 | **FR-PROD-03** | Quản lý Mã vạch | Nhựt & Phương Lê | Tự sinh hoặc nhập mã vạch chuẩn EAN-13 / Code128 cho từng SKU; quét tìm kiếm trên POS tức thì. |
 | **FR-PROD-04** | Quản lý Bảng giá | Nhựt | Quản lý giá bán lẻ và giá bán sỉ theo từng SKU; tách biệt hoàn toàn với giá vốn. |
 | **FR-INV-01** | Sổ cái kho bất biến (Append-Only) | Khoa | Ghi log mọi biến động nhập, xuất, bán, trả vào `InventoryTransaction` có `BalanceAfter`. Tuyệt đối cấm Update/Delete. |
-| **FR-INV-02** | Nhập kho nhà cung cấp | Khoa & Phúc Hữu | Phiếu nhập nhiều dòng; xác nhận nhập kho ghi nhận tăng tồn thực tế và cập nhật giá vốn WAC nguyên tử (Atomic). |
+| **FR-INV-02** | Nhập kho nhà cung cấp | Khoa, Phúc Hữu & Nam Nguyễn | Phiếu nhập nhiều dòng; xác nhận nhập kho ghi nhận tăng tồn thực tế và cập nhật giá vốn WAC nguyên tử (Atomic). |
 | **FR-COST-01** | Tính giá vốn bình quân (WAC) | Khoa | Tự động tính toán lại giá vốn đơn vị khi xác nhận nhập kho; có Unit Test chứng minh công thức số học đúng 100%. |
 | **FR-RSE (Nền)** | Nền tảng Giữ chỗ & Khóa DB | Khoa | Công thức tồn khả dụng: `available = on_hand - reserved`. Thử nghiệm khóa database (`SELECT ... FOR UPDATE` hoặc Version Token). |
 | **FR-POS (Nền)** | Nền tảng Giao diện POS | Phương Lê | Giao diện cảm ứng, phím tắt F2 tìm kiếm, giỏ hàng nhiều dòng, tính tiền thừa, mở hộp thoại in hóa đơn trình duyệt. |
@@ -146,7 +146,7 @@ Mã task: OISMS-xxx | Người thực hiện: <Tên> | Hạn chót: <Ngày/Thán
 * **Kiểm tra PostgreSQL:** Chạy query xác nhận bảng `InventoryTransactions` có bản ghi mới, đúng `BalanceAfter`, giá vốn `CostPrice` được cập nhật đúng.
 * **Bằng chứng đính kèm PR:** Ảnh chụp màn hình test pass + ảnh Swagger 200/201.
 
-### 2. Dành cho Frontend (Phúc Hữu - Admin & Phương Lê - POS):
+### 2. Dành cho Frontend (Phúc Hữu & Nam Nguyễn - Admin & Phương Lê - POS):
 * **Kiểm tra Build & Lint:**
   ```bash
   cd src/frontend/admin-dashboard && npm run lint && npm run build
@@ -163,7 +163,7 @@ Mã task: OISMS-xxx | Người thực hiện: <Tên> | Hạn chót: <Ngày/Thán
 
 ---
 
-## VII. Kịch Bản Kiểm Thử Mẫu Sprint 2 (Dành Cho Tester Nam Nguyễn)
+## VII. Kịch Bản Kiểm Thử Mẫu Sprint 2 (Dành Cho Cả Nhóm Cùng Kiểm Test)
 
 | Mã Testcase | Chức năng kiểm tra | Dữ liệu đầu vào & Thao tác | Kết quả mong đợi (Expected Output) |
 |---|---|---|---|
@@ -182,7 +182,7 @@ Nhóm đã có sẵn bộ mã nguồn Prototype chất lượng cao tại:
 📁 `C:\Users\Jacki Khoa\Downloads\Interactive Prototype for OISM`
 
 ### Hướng dẫn hành động cụ thể cho Frontend (Thực hiện ngay từ D1–D3):
-1. **Phúc Hữu (Frontend Admin):**
+1. **Phúc Hữu & Nam Nguyễn (Frontend Admin):**
    * Sao chép các trang `DashboardPage.tsx`, `InventoryPage.tsx`, `ProductsPage.tsx`, `OrdersPage.tsx`, `ReportsPage.tsx` từ Prototype sang `src/frontend/admin-dashboard/src/pages/`.
    * Gỡ bỏ import `mockData.ts`, thay thế bằng các hàm gọi API thật qua `apiClient.ts`.
    * Thêm logic Form Validation cho form tạo sản phẩm và phiếu nhập kho nhiều dòng.
@@ -191,4 +191,4 @@ Nhóm đã có sẵn bộ mã nguồn Prototype chất lượng cao tại:
    * Xóa bỏ giỏ hàng mẫu `skus[0]`, viết hàm thanh toán toàn bộ giỏ hàng nhiều dòng.
    * Thêm CSS `@media print` để hóa đơn in ra chuẩn khổ giấy nhiệt 80mm/58mm.
 3. **Kết nối API cuốn chiếu:**
-   * Ngay khi Khoa hoặc Nhựt bàn giao xong endpoint nào (Auth ➔ Catalog ➔ Nhập kho), Phúc Hữu và Phương Lê chỉ việc cắm URL thật vào là màn hình sáng đèn chạy thật ngay lập tức!
+   * Ngay khi Khoa hoặc Nhựt bàn giao xong endpoint nào (Auth ➔ Catalog ➔ Nhập kho), Phúc Hữu, Nam Nguyễn và Phương Lê cắm URL thật vào; cả nhóm cùng phối hợp kiểm thử đối soát ngay lập tức!

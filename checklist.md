@@ -61,10 +61,10 @@ Quy ước: mục FR bao gồm nhiều người hoặc nhiều sprint chỉ đư
 - [x] **`FR-INV-02` (Purchase Receipt Management — Hoàn thành Sprint 2):** Lập phiếu nhập hàng đa dòng từ Nhà cung cấp (`Draft`) và xác nhận nhập kho nguyên tử (`POST /api/inventory/goods-receipts/{id}/confirm`) $\rightarrow$ Tăng `on_hand` $\rightarrow$ Ghi sổ cái `IN` $\rightarrow$ Cập nhật lại giá vốn bình quân (`WAC`). Hoàn thiện toàn diện cả Backend và giao diện Web Admin.
 - [ ] **`FR-INV-03` (Stock Transfer Management — Sprint 3):** Nhóm chức năng chuyển kho hai bước, gồm backend và giao diện.
   - [x] **Đăng Khoa (BE1):** API lập phiếu, dispatch, receive và hủy Draft; kiểm chứng giá vốn, ledger, idempotency và rollback — Task 4A VERIFIED v1.2.
-  - [ ] **Phúc Hữu:** Nối giao diện chuyển kho và nghiệm thu UI E2E; chưa có bằng chứng hoàn tất trong lượt cập nhật này.
+  - [ ] **Phúc Hữu & Nam Nguyễn:** Nối giao diện chuyển kho và nghiệm thu UI E2E; chưa có bằng chứng hoàn tất trong lượt cập nhật này.
 - [ ] **`FR-INV-04` (Stocktake Management — Sprint 3):** Nhóm chức năng kiểm kê, gồm backend và giao diện.
   - [x] **Đăng Khoa (BE1):** Snapshot tồn/sequence, ghi số đếm, chốt kiểm kê tạo chứng từ điều chỉnh và kiểm tra drift — Task 4B VERIFIED v1.3.
-  - [ ] **Phúc Hữu:** Nối giao diện kiểm kê và nghiệm thu UI E2E; chưa có bằng chứng hoàn tất trong lượt cập nhật này.
+  - [ ] **Phúc Hữu & Nam Nguyễn:** Nối giao diện kiểm kê và nghiệm thu UI E2E; chưa có bằng chứng hoàn tất trong lượt cập nhật này.
 
 ### 1.4. Tính Giá vốn bình quân gia quyền (`FR-COST`) — *Phụ trách: Đăng Khoa*
 - [x] **`FR-COST-01` (Automated Batch COGS Calculation — Hoàn thành Sprint 2):** Tự động tính lại giá vốn đơn vị của SKU ngay khi xác nhận Phiếu nhập kho theo công thức bình quân gia quyền: $\text{NewCost} = \frac{(\text{OldStock} \times \text{OldCost}) + (\text{ImportQty} \times \text{ImportPrice})}{\text{OldStock} + \text{ImportQty}}$.
@@ -80,7 +80,7 @@ Quy ước: mục FR bao gồm nhiều người hoặc nhiều sprint chỉ đư
 - [ ] **`FR-ORD-01..03` (Full Order Hub, State Machine & Order Processing — Hoàn thiện đủ ở Sprint 3: `18/10 – 22/10`):**
   - [x] **Đăng Khoa:** Máy trạng thái đơn hàng và lõi webhook canonical — Task 3 v1.1 / Task 5 v1.4 đã nghiệm thu; gồm Reserved, Confirmed, Completed, Cancelled và xử lý Draft legacy theo contract.
   - [ ] **Nhựt:** API `list / detail / filter` đơn hàng và chứng từ kho; T02 BE2 vẫn PLANNED theo hồ sơ hiện có.
-  - [ ] **Phúc Hữu:** Form tạo/duyệt/hủy đơn và in phiếu; chưa xác nhận nghiệm thu UI E2E trong lượt này.
+  - [ ] **Phúc Hữu & Nam Nguyễn:** Form tạo/duyệt/hủy đơn và in phiếu; chưa xác nhận nghiệm thu UI E2E trong lượt này.
 
 ### 1.7. Bán hàng tại quầy PWA POS (`FR-POS`) — *Phụ trách: Phương Lê & Đăng Khoa*
 - [x] **`FR-POS-01` (Fast Sales Interface — Hoàn thành Sprint 2):** Hoàn thiện ứng dụng `src/frontend/pos-app` (React 19 PWA) tối ưu cảm ứng và phím tắt, kết nối API thật tìm kiếm sản phẩm theo Tên, mã SKU (`/api/pos/search`) và quét mã vạch (`/api/pos/barcode/{code}`).
@@ -102,18 +102,18 @@ Quy ước: mục FR bao gồm nhiều người hoặc nhiều sprint chỉ đư
   - [x] **Sprint 3 — Đăng Khoa:** Hangfire PostgreSQL tự hủy đơn đủ điều kiện có reservation quá hạn, giải phóng toàn giỏ nguyên tử; worker thật đã được kiểm chứng — Task 6 VERIFIED v1.2.
   - [ ] **Sprint 4 — Đăng Khoa:** Hangfire tổng hợp báo cáo hằng ngày (`daily report aggregations`); không thuộc nghiệm thu auto-expiry Task 6.
 
-### 1.9. Báo cáo & Cảnh báo tồn kho (`FR-REP`) — *Phụ trách: Nhựt, Phúc Hữu & Đăng Khoa*
-- [ ] **`FR-REP-01..03` (Báo cáo cơ bản & Cảnh báo — Kế hoạch Sprint 3: `18/10 – 22/10`):** **Nhựt** viết câu truy vấn báo cáo `net revenue`, `COGS`, `gross profit`, `inventory value`, `velocity`, `low-stock`, `threshold`; **Phúc Hữu** nối các báo cáo cơ bản vào Dashboard đúng session, filter và role.
+### 1.9. Báo cáo & Cảnh báo tồn kho (`FR-REP`) — *Phụ trách: Nhựt, Phúc Hữu, Nam Nguyễn & Đăng Khoa*
+- [ ] **`FR-REP-01..03` (Báo cáo cơ bản & Cảnh báo — Kế hoạch Sprint 3: `18/10 – 22/10`):** **Nhựt** viết câu truy vấn báo cáo `net revenue`, `COGS`, `gross profit`, `inventory value`, `velocity`, `low-stock`, `threshold`; **Phúc Hữu & Nam Nguyễn** nối các báo cáo cơ bản vào Dashboard đúng session, filter và role.
   - [ ] **Fix sau — `BE2-F03` / T03:** API `GET /api/reports/revenue-profit` hiện cho `Owner,Staff`; giới hạn báo cáo tài chính về Owner và kiểm chứng HTTP Owner 200 / Staff, Cashier 403 / anonymous 401. [Task quyền truy cập](docs/09-personal-reports/nhut/sprint-3/codex-antigravity/task-03-access-isolation/brief.md).
   - [ ] **Fix sau — `BE2-F04` / T04:** Revenue hiện cộng cả đơn Confirmed; chỉ tính Completed theo yêu cầu đang lưu. Case đối chứng: Completed tổng 30 + Confirmed 100 phải cho revenue 30, không phải 130.
   - [ ] **Fix sau — `BE2-F04` / T04:** Bổ sung filter SKU; chỉ cộng doanh thu/COGS các dòng hàng khớp SKU, không cộng toàn bộ đơn nhiều SKU. Chốt thời điểm ghi nhận và biên ngày/múi giờ trước khi sửa. [Ghi nhận chi tiết và điều kiện đóng](docs/09-personal-reports/nhut/sprint-3/codex-antigravity/task-04-report-correctness/brief.md#ghi-nhận-để-fix-sau--27102026).
 - [ ] **`FR-REP-01..03` (Báo cáo nâng cao & Biểu đồ — Kế hoạch Sprint 4: `23/10 – 27/10`):** Hoàn thiện toàn bộ bộ lọc filter, biểu đồ trực quan doanh thu/giá vốn/lãi gộp, tốc độ luân chuyển và cảnh báo tồn thấp.
 
-### 1.10. Dự báo nhu cầu AI & Gợi ý nhập hàng (`AI` - Gói 5) — *Phụ trách: Đăng Khoa, Nhựt & Phúc Hữu*
+### 1.10. Dự báo nhu cầu AI & Gợi ý nhập hàng (`AI` - Gói 5) — *Phụ trách: Đăng Khoa, Nhựt, Phúc Hữu & Nam Nguyễn*
 - [ ] **Chốt thiết kế AI (Sprint 3: `18/10 – 22/10`) & Hiện thực chạy thật (Sprint 4: `23/10 – 27/10`):**
   - **Đăng Khoa:** Thiết kế và hiện thực lõi `AI forecasting & evaluation`.
   - **Nhựt:** Chuẩn bị dữ liệu lịch sử và xây dựng API `recommendation / report` theo model của Khoa.
-  - **Phúc Hữu:** Xây dựng giao diện AI gợi ý nhập hàng trên Web Admin.
+  - **Phúc Hữu & Nam Nguyễn:** Xây dựng giao diện AI gợi ý nhập hàng trên Web Admin.
 
 ---
 

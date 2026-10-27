@@ -1,4 +1,4 @@
-﻿# BÁO CÁO CÔNG VIỆC & BÀN GIAO SPRINT 2 — ĐĂNG KHOA
+# BÁO CÁO CÔNG VIỆC & BÀN GIAO SPRINT 2 — ĐĂNG KHOA
 **Dự án:** OISMS - Omnichannel Inventory & Sales Management System  
 **Thành viên thực hiện:** Đăng Khoa (Backend 1 - Persistence, Security, Inventory Ledger & Anti-Oversell Lead)  
 **Phối hợp:** Nhựt (Backend 2), Phúc Hữu (Frontend Admin Lead) và tester  
@@ -581,7 +581,7 @@ Truy cập Swagger UI tại: `http://localhost:5000/swagger` để thử nghiệ
   - Phụ trách giải pháp **F2 Backend Idempotency**: Thiết kế `RequestKey` UUID, header `Idempotency-Key` / `X-Request-Key`, transaction advisory lock `(tenantId, RequestKey)` trong `ReservationService.cs`.
   - Phụ trách **F7 Docker / Nginx**: Cấu hình SPA fallback `try_files $uri $uri/ /index.html;`, rule chặn file tĩnh thiếu `try_files $uri =404;` và rebuild images `cnpmworkbase-admin-dashboard:latest`, `cnpmworkbase-pos-app:latest`.
   - Đảm bảo 194/194 automated backend tests (.NET 8) pass 100%.
-- **Thành viên 3 — Phúc Hữu (Frontend Admin Lead):**
+- **Phúc Hữu & Nam Nguyễn (Frontend Admin):**
   - Chịu trách nhiệm toàn bộ giao diện Web Admin (`src/frontend/admin-dashboard`).
   - Hoàn thiện xử lý F1 (Lưu/khôi phục/đối soát phiếu nhập pending qua `sessionStorage`, đổi nhãn `"Bỏ theo dõi phiếu này / Tạo phiếu mới"`).
   - Hoàn thiện xử lý F2 Frontend (Quản lý UUID RFC4122 chuẩn, lưu pending reservation và pending order checkout vào `sessionStorage`, bypass client optimistic balance check khi retry).
