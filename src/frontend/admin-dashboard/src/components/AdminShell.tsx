@@ -20,7 +20,7 @@ import {
   ArrowLeftRight,
   ClipboardCheck,
 } from "lucide-react";
-import { Button } from "./ui";
+import { Button, ComingSoonBadge } from "./ui";
 import { useAuth } from "../context/AuthContext";
 import { NotificationCenter } from "./NotificationCenter";
 
@@ -101,7 +101,7 @@ export function AdminShell() {
             <strong>OISM</strong>
             <span>Retail Operations</span>
           </div>
-          <Button variant="ghost" className="mobile-close" onClick={() => setOpen(false)}>
+          <Button variant="ghost" className="mobile-close" aria-label="Đóng menu điều hướng" onClick={() => setOpen(false)}>
             <X size={20} />
           </Button>
         </div>
@@ -210,12 +210,13 @@ export function AdminShell() {
         )}
         <header className="topbar">
           <div className="topbar-left">
-            <Button variant="ghost" className="mobile-toggle" onClick={() => setOpen(true)}>
+            <Button variant="ghost" className="mobile-toggle" aria-label="Mở menu điều hướng" aria-expanded={open} onClick={() => setOpen(true)}>
               <Menu size={20} />
             </Button>
             <div className="search-box">
               <Search size={18} />
-              <input placeholder="Tra cứu SKU, đơn hàng đa kênh, barcode..." />
+              <input disabled aria-label="Tìm kiếm toàn hệ thống — Coming soon" placeholder="Tìm kiếm toàn hệ thống" title="Tìm kiếm toàn hệ thống chưa khả dụng. Dùng tìm kiếm trong từng trang." />
+              <ComingSoonBadge />
             </div>
           </div>
 

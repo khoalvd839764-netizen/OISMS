@@ -1,0 +1,1052 @@
+{
+  "clientDate": "2026-10-28",
+  "timezone": "Asia/Saigon",
+  "branch": "feature/OISMS-43-orders-transfers",
+  "head": "f276eeed72782f7272f32a62f4bb61ba761f3e89",
+  "files": [
+    {
+      "path": "src/backend/tests/OISM.UnitTests/WebhookAndRealtimeUnitTests.cs",
+      "sha256": "05b358bae7dcd328cb9da9102ece10e131ab1d37e8a246fe15d24cbf1f8c3428"
+    },
+    {
+      "path": "src/backend/tests/OISM.UnitTests/WacCalculatorTests.cs",
+      "sha256": "e69b28b3b557b68b165a1760cb0f3140a6ef76821d02d0268338a670c0ca685f"
+    },
+    {
+      "path": "src/backend/tests/OISM.UnitTests/TestDbContextFactory.cs",
+      "sha256": "519bc72989c607fa3e6ed105f6c149e2342e8dc3790be26b80597827bb1642a4"
+    },
+    {
+      "path": "src/backend/tests/OISM.UnitTests/StockDocumentQueryTests.cs",
+      "sha256": "a3329dd6c569d43335e9ee273135ce48a5cd1c1793f98310df956915713bc29d"
+    },
+    {
+      "path": "src/backend/tests/OISM.UnitTests/SimulatorServiceTests.cs",
+      "sha256": "9485d3e1193acfb6e27482c9792b08dbfdb4929d368e257296425d9943fe202e"
+    },
+    {
+      "path": "src/backend/tests/OISM.UnitTests/ReportServiceTests.cs",
+      "sha256": "c0700a6775feb7496e171427e30b7ab2bb42290bbeab067d725536a9bf62f8db"
+    },
+    {
+      "path": "src/backend/tests/OISM.UnitTests/OrderServiceTests.cs",
+      "sha256": "001597756b7d5347f24fffcaa4292e2fa08091a6f4bf0c540b5f1eb466515f21"
+    },
+    {
+      "path": "src/backend/tests/OISM.UnitTests/OrderDtoValidationTests.cs",
+      "sha256": "b6eaa3d4d47bf293600b98797a893f6713462e39b6ba01f69577f8f3f607befc"
+    },
+    {
+      "path": "src/backend/tests/OISM.UnitTests/OISM.UnitTests.csproj",
+      "sha256": "a1cb80ab0d500bb584db01918f086d81917c1ea06eeb56a38584de09d76f7051"
+    },
+    {
+      "path": "src/backend/tests/OISM.UnitTests/DemoSeedConfigurationTests.cs",
+      "sha256": "2825becca9eec2c5cecba8864c58c06687b3b91fe1c7d35bb6c7daf608a71de0"
+    },
+    {
+      "path": "src/backend/tests/OISM.UnitTests/DatabaseBaselineValidatorTests.cs",
+      "sha256": "faf73e1806f00bd607f7d7cb778aad0b4344d5eef4dd761cdc047aea92e3c7d2"
+    },
+    {
+      "path": "src/backend/tests/OISM.UnitTests/BarcodeAndCatalogTests.cs",
+      "sha256": "afbd4d0fe1773584c1a8df372f7d2f5114a5f225601b01214b09ddb7da9d4fac"
+    },
+    {
+      "path": "src/backend/tests/OISM.UnitTests/B01FindingRegressionTests.cs",
+      "sha256": "6ee5fc6d4fb3435b650cc3e09adc63e4e4c20ed3c962f89d2710695f028c8e6d"
+    },
+    {
+      "path": "src/backend/tests/OISM.UnitTests/AuthValidatorTests.cs",
+      "sha256": "b65c31e9e27c1bd3ef5f041114de34768d8ada01bd3f7d75d1b7dc71121498a9"
+    },
+    {
+      "path": "src/backend/tests/OISM.IntegrationTests/WebhookSimulatorControllerTests.cs",
+      "sha256": "acc69f7ae9bfd494384629535d3295a5969cec5b6b23349d48877012f5075f40"
+    },
+    {
+      "path": "src/backend/tests/OISM.IntegrationTests/WebhookIntegrationTests.cs",
+      "sha256": "948930204b3cd3f79d01417531bbe6c861c6e877f0fc4772314a23d23cf10e79"
+    },
+    {
+      "path": "src/backend/tests/OISM.IntegrationTests/WarehouseBranchReassignmentRegressionTests.cs",
+      "sha256": "3d09997194c696b313883d8e04d3d055169cba98e9af8825d0d22c1b9ef96464"
+    },
+    {
+      "path": "src/backend/tests/OISM.IntegrationTests/StockTransferIntegrationTests.cs",
+      "sha256": "f3b0493cfa8a3b036f07091b332e375a5c39f4f7cf54f59cdeffcd4494949492"
+    },
+    {
+      "path": "src/backend/tests/OISM.IntegrationTests/StockDocumentApiTests.cs",
+      "sha256": "3251a286817953d88a4424875855a2793cae3c7ea41062c2aa25582bc820975a"
+    },
+    {
+      "path": "src/backend/tests/OISM.IntegrationTests/StockCountIntegrationTests.cs",
+      "sha256": "99bd47eaf4fc9712d0f91d971f1a91c25c65c243aadf25a9de6bae80766a495e"
+    },
+    {
+      "path": "src/backend/tests/OISM.IntegrationTests/Sprint3PersistenceIntegrationTests.cs",
+      "sha256": "5d055debbc82d978b4ed57805475231a09feafadce68b832e059b016df060a98"
+    },
+    {
+      "path": "src/backend/tests/OISM.IntegrationTests/ReservationExpiryIntegrationTests.cs",
+      "sha256": "582a07992782428b331b48a382c3855a162b0cfdfed62ea18c69f0438e3178a0"
+    },
+    {
+      "path": "src/backend/tests/OISM.IntegrationTests/RealtimeHubIntegrationTests.cs",
+      "sha256": "c1d5bd928d12293bbd2999595a2b1d6c17daea7ed544e84cf87743ff4a9e731d"
+    },
+    {
+      "path": "src/backend/tests/OISM.IntegrationTests/PostgresTestEnvironment.cs",
+      "sha256": "623c101d177c46ad754ec7d621c413622b5df3c042efaf3a9001e195d7430791"
+    },
+    {
+      "path": "src/backend/tests/OISM.IntegrationTests/PostgresTenantIsolationTests.cs",
+      "sha256": "3d18f7f532bf017fd8801cf59d882ad07f6d45d6c5d406de2c7972240b41f682"
+    },
+    {
+      "path": "src/backend/tests/OISM.IntegrationTests/PostgresBackend2RegressionTests.cs",
+      "sha256": "866350525a73158150fb391f69bf2dfe5b22e71887cd842f1089c59fe2573f0c"
+    },
+    {
+      "path": "src/backend/tests/OISM.IntegrationTests/PosCheckoutIntegrationTests.cs",
+      "sha256": "dfcf320c8b4fe4ff2bd5f80ed8e9580484f88ca6f0d5c79c24e63c19819210b2"
+    },
+    {
+      "path": "src/backend/tests/OISM.IntegrationTests/OrderProcessAndSimulatorRegressionTests.cs",
+      "sha256": "aa66072df4d0e35074930aa331040fe07ea883cbf8cc1bea9c727d0256e50fb0"
+    },
+    {
+      "path": "src/backend/tests/OISM.IntegrationTests/OnlineOrderLifecycleIntegrationTests.cs",
+      "sha256": "b7410b3313a2cb9bb509a6c4048fb1e506f9a512242b2d8a41636cd25a3381b9"
+    },
+    {
+      "path": "src/backend/tests/OISM.IntegrationTests/OISM.IntegrationTests.csproj",
+      "sha256": "9e439267aca54d83e6836d6a580994bbf6e9183d4eeac9f05ae8b6d3fc64c008"
+    },
+    {
+      "path": "src/backend/tests/OISM.IntegrationTests/InventoryAndGoodsReceiptIntegrationTests.cs",
+      "sha256": "7c578209f8d9b3bdf2380891d57bb0f62e92c01e59b5200f6b11db50e64b6ba7"
+    },
+    {
+      "path": "src/backend/tests/OISM.IntegrationTests/HealthEndpointTests.cs",
+      "sha256": "ed67888152637e51d62916bbee33ea9156534fbd097c3274b86e089960f44838"
+    },
+    {
+      "path": "src/backend/tests/OISM.IntegrationTests/HealthCheckTests.cs",
+      "sha256": "8f172f4d0403f77604d7e49c344d0979960c640ae791de715bb63187fc9f7750"
+    },
+    {
+      "path": "src/backend/tests/OISM.IntegrationTests/CustomWebApplicationFactory.cs",
+      "sha256": "d557c4896e78cd49806903e6a7bb7d2d6d90e39e265420c0cef640c12d0dcbed"
+    },
+    {
+      "path": "src/backend/tests/OISM.IntegrationTests/CatalogAndProductIntegrationTests.cs",
+      "sha256": "926874b2f3869ef9bb3610847f8dce26dba8b38a761d35db8ac514d51d7220cb"
+    },
+    {
+      "path": "src/backend/tests/OISM.IntegrationTests/BranchAndSupplierIntegrationTests.cs",
+      "sha256": "c7fbc3a76b17fbee02eae475925e193838339f706005dd6fff32399b991a7bbd"
+    },
+    {
+      "path": "src/backend/tests/OISM.IntegrationTests/AuthIntegrationTests.cs",
+      "sha256": "d38d991b209dae0cbb0eaa8c1d7aeee8b43ff9a90be3fd5ec2eca193d523c064"
+    },
+    {
+      "path": "src/backend/tests/OISM.IntegrationTests/AssemblyInfo.cs",
+      "sha256": "4c2c5cf1995d0eb03bd1314df4328443bcf1dab1a9a32ad2a00aa0cca9f77fa8"
+    },
+    {
+      "path": "src/frontend/pos-app/src/App.tsx",
+      "sha256": "8cf0496b642405edefa4d7df070782a8a8e6a007255c59d4a153f86cd76a7071"
+    },
+    {
+      "path": "src/frontend/pos-app/src/App.css",
+      "sha256": "c2571ce7245629994b8adc84f6c48e1920f047a4e7e29c89a4aeb51eeb1b5433"
+    },
+    {
+      "path": "src/frontend/pos-app/src/main.tsx",
+      "sha256": "484f93f3048565a86a47e308f5a12ee27aa12f5291f3b52a4bb5dc03d887dbc7"
+    },
+    {
+      "path": "src/frontend/pos-app/src/index.css",
+      "sha256": "72755f69334b2ea54fa27dae8706b8b32e700e9f847c28acd62e7934150a2e29"
+    },
+    {
+      "path": "src/frontend/pos-app/src/types/pos.ts",
+      "sha256": "c0b16122bbea5abe884a520a938a7c7026683a66b7403f98f5b4f57532dad3ee"
+    },
+    {
+      "path": "src/frontend/pos-app/src/services/api.ts",
+      "sha256": "cd59687b681f0f876f29be9457de92551fc91addc8563788b0931896d0db0c91"
+    },
+    {
+      "path": "src/frontend/pos-app/src/assets/vite.svg",
+      "sha256": "2f1f6c6f90a0ef7422cbb4cfafcd8ad329c507a18afdc34cc21fa72179b9c54a"
+    },
+    {
+      "path": "src/frontend/pos-app/src/assets/react.svg",
+      "sha256": "35ef61ed53b323ae94a16a8ec659b3d0af3880698791133f23b084085ab1c2e5"
+    },
+    {
+      "path": "src/frontend/pos-app/src/assets/hero.png",
+      "sha256": "881ffbcaafc212e49addad08846a5b82761355fa20624253af3477ba33262c5c"
+    },
+    {
+      "path": "src/frontend/pos-app/src/components/PaymentModal.tsx",
+      "sha256": "36af7cb7f99fb562fd6f3d08e78d3d7c4d42db6e09bc00c7be1fcbb314ffa769"
+    },
+    {
+      "path": "src/frontend/pos-app/src/components/LoginModal.tsx",
+      "sha256": "15de31d2ac0c3083ad46c6da655f33fab7b9626a52268a9b442f3562da6b8fde"
+    },
+    {
+      "path": "src/frontend/pos-app/src/components/CartTable.tsx",
+      "sha256": "34f8c3603753163cdd9beae1cae2a58c580c0c8ea119c61f08fd2347c6d67f44"
+    },
+    {
+      "path": "src/frontend/pos-app/src/components/PosHeader.tsx",
+      "sha256": "203f054bec808ce47d47cad0b4ae1f1e00fadd280927056d6749febf16c124ad"
+    },
+    {
+      "path": "src/frontend/pos-app/src/components/ProductSearch.tsx",
+      "sha256": "3a428e29267daf0b089be0f1d05c16c6f4aae7752275768982a081be0bbbf908"
+    },
+    {
+      "path": "src/frontend/pos-app/src/components/ReceiptPrintModal.tsx",
+      "sha256": "ca3005a5d11a5d82b3f39a2d087e55897db828c2752ed200a4469cf609256f6e"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/Services/RealtimeNotifier.cs",
+      "sha256": "88a3e933cd889757d1107e47217c720f802d7c7a713a543da51c97f83dc6560b"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/Properties/launchSettings.json",
+      "sha256": "acea2fa75488d5348a1af8314759bf4637d1ecc9752f347e5e6e28a854f0a755"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/Program.cs",
+      "sha256": "459e3022c1d6959be4f07cea87da8db2764cb8d9c138672e8118702c36b90fa1"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/OISM.WebApi.http",
+      "sha256": "30d6e2ac3dc05a0e34bafdf1c165b6d18e711b0f7e0822e84be58d3e01010208"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/OISM.WebApi.csproj",
+      "sha256": "9821aec669b1db9246c0e9dbcab304b01f5cfc88939eb194d02fd0c80e9117dd"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/appsettings.Development.json",
+      "sha256": "2c0389692cf1cc534c9e7a63e7351d9975103cdac6bc9da56cfe6ec8771f119a"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/Hubs/NotificationHub.cs",
+      "sha256": "087b30b4241aa4120f70b6367a88ee0aa95f3aa9feed797ce499b8b9a70331fc"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/appsettings.json",
+      "sha256": "6ec4f54bb2f766e903588c1f6fc7c0e4667b44d323f09a7dd47bc5c3cad517e0"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/OISM.Application.csproj",
+      "sha256": "ce4b5d667f942b34467c8f6a578af1ac107404b45e203db12f2deafe3b0f912d"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/Controllers/WebhooksController.cs",
+      "sha256": "96dd078d0a6eaaaa9d5ce71b552cde8f7e4ae41629cb33015f8be0deb421d221"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/Controllers/WarehousesController.cs",
+      "sha256": "435e95f755517df84ab8604c29b713f1efb2864b6ff12d5277af65e6ce76efa2"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/Controllers/SuppliersController.cs",
+      "sha256": "51e684cfe9fa07dd4af8e04ea59d0cb8e43d3a2c7b96449390a5e75b7f250de2"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/Controllers/StockTransfersController.cs",
+      "sha256": "5f21158cdf409d999c74af0d9c7ffe81fe8b32443c8dbcedfff60646ed035b6b"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/Controllers/StockCountsController.cs",
+      "sha256": "6ff90329a43c4ead1849e6e6639846646e3e88249e225a430f546ce2eeb35b13"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/Controllers/SimulatorController.cs",
+      "sha256": "b81ff62b153f63408d671ed2e866c0c6b1879e6d461d862ccf0d10627c786cd9"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/Controllers/ReportsController.cs",
+      "sha256": "d0838e4ff62914c36d4c1d314d591c7d0af6c2d48709d4e5001d1542e6e4a2d7"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/Controllers/ProductsController.cs",
+      "sha256": "9b04f754fd1a5a15688e01ab4f045caf340e66bf55b8779c14b7fbe2eaa12212"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/Controllers/PosCheckoutActionHelper.cs",
+      "sha256": "be78babd56a1af119345ec1eeca9ac38b7ef2e61b2d8bb1f19247d0f933b89ab"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/Controllers/PosCatalogController.cs",
+      "sha256": "7c367a9bb32db1b82c5f8c31957bfdf9b1b4371fe6c4fa4cc2df697a758d21db"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/Controllers/OrdersController.cs",
+      "sha256": "94cc7e721b99aa24d74f7ed764d27da05a5920e09d19dd25b11a1bd4fc5d6738"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/Controllers/InventoryController.cs",
+      "sha256": "55da8fb562340c828798524298a7b0cf49c228ac2eeb3d9d75b2eac604419689"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/Controllers/GoodsReceiptsController.cs",
+      "sha256": "538b70d5e9ecdfea116a4c541ed8298451f8821d09fa592e8063ff532382c2df"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/Controllers/CategoriesController.cs",
+      "sha256": "8da965e0a30e185d6f3db357389dc54d8c6b609edf7a364d0c1a191da359e7e3"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/Controllers/BrandsController.cs",
+      "sha256": "0e371b4d0d24646ff1fcaf4707187920a6993d95b7be299c2f83e3c5161c9202"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/Controllers/BranchController.cs",
+      "sha256": "d35200259e9412d50300f1ed16900c0aed50d582fd015735f6379376719ca5e0"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/Controllers/AuthController.cs",
+      "sha256": "248e76455bf36b365f81b1d438c057796d6e841cb39d8f697da2b34ad80bf01f"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/OISM.Infrastructure.csproj",
+      "sha256": "14de86a3620c9c6ef000a90049ed68b68b8c6891a745ab1056aebf7cb273dfbb"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/OISM.Domain.csproj",
+      "sha256": "e151f959964eb450a5b86b72765e3f9c505645fa9516eae485743d2b43911c8e"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Services/JwtTokenService.cs",
+      "sha256": "afc5721dfebeaef2f76b16865ca6267b0c15d9c39dfcc7444e206a632eed1481"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Services/CurrentTenantService.cs",
+      "sha256": "f166cff3fc7af216c0e0c2bf8d09253b61ae00e1025429fc3e694283dd33f332"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Jobs/HangfireConfigurationExtensions.cs",
+      "sha256": "ed0a8e5dd97558505ab0081018165bf8936a14975047746988bf623823a14dca"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Jobs/ReservationExpiryJob.cs",
+      "sha256": "e3ab1fb81c00bbcf5b9fb61afaf0bbc81d7309b6dda8412e664bee137fb1f149"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/AppDbContext.cs",
+      "sha256": "07c8195806ed3b71bf9d523ae5e39b7e72bf17654d1728b151feed205b48fb41"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/OismsDatabaseSeeder.cs",
+      "sha256": "2e7e0fe0182635500729f5407bfc52679d48d059e49998c400102d161e27ea44"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/IDatabaseMigrationService.cs",
+      "sha256": "0aa8afc296fd78d2d9c55a7ee78a8fb8724b638212a97a8cd781ba2dc4e94e36"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/DemoSeedPolicy.cs",
+      "sha256": "f4498d94e7b8abc90ad054f1cdb921336fd7f0f9a5be071b1e7537eef2f072c1"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/DatabaseMigrationService.cs",
+      "sha256": "6c891111f47dd3cdebcb4c984befb6e99cefc9ecef80c5d64062d91c257224e6"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/DatabaseConnectionHelper.cs",
+      "sha256": "98adeacde5da91e22d340cc11705a3c5f83c2c6bb7fb79b8f2b62cc9310818a9"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Common/IMustHaveTenant.cs",
+      "sha256": "f9c66d76de0b25e5f2a79a6efc3aeafaa1ed19b72fcd9ed16ed104198114f784"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Common/BaseEntity.cs",
+      "sha256": "dca19c358474620731731519c0a85996960908da0a4fbf159c8c103fa1130994"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/Configurations/GoodsReceiptItemConfiguration.cs",
+      "sha256": "68031dbc15c588d6997b290125428a948ca523b7aec60f0333458f1152cc36bf"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/Configurations/GoodsReceiptConfiguration.cs",
+      "sha256": "54fc3b498270e2cb5d4494e7549923e91ba5846ca421e966a0c41069a4a81f06"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Common/Attributes/NotEmptyGuidAttribute.cs",
+      "sha256": "8e528aeacb1b83f910d154c1e58304d8456f45220acdb105e0a707beeec03dfa"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/Configurations/CategoryConfiguration.cs",
+      "sha256": "30a95bcfa6fa59ff1071077414da81c2f295e7832792f803888c2dbd43c13a61"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/Configurations/BrandConfiguration.cs",
+      "sha256": "208ce96b525d42297aba7f706f59f70c3b98a711d47e23ed693a7462fe1bebb0"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/Configurations/BranchConfiguration.cs",
+      "sha256": "00173970abec9baf6e7ef7a1d70fe3dc094fe2bacc1460b3a45f78998d64c29c"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/Configurations/InventoryBalanceConfiguration.cs",
+      "sha256": "2e53294f3ba00dc8e15f59d1f1a82f8154066ce6e1090c9b735e56d6a334c2a6"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/Configurations/InventoryAdjustmentItemConfiguration.cs",
+      "sha256": "1ffe61e40f64169d4fa64ffb2403ab3f7c9f319050c87ad19c4113e2d26cb863"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/Configurations/InventoryAdjustmentConfiguration.cs",
+      "sha256": "6746305cfcfa273d24c7c6e9c303a84618212885d826374171d42c5eac79c40c"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/Configurations/InventoryTransactionConfiguration.cs",
+      "sha256": "1efc372c775490df4ac3962af415705b61b8dd05f93d6bf3735ed8388b377a38"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/Configurations/OrderConfiguration.cs",
+      "sha256": "a20b4626e774b5051b85ff0d5fcdebe328944e6c7a2b181dec665daa35f84ecc"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/Category.cs",
+      "sha256": "2c9d7dfb14818250df18b3dc61d2527db5250e98a87006253012b3f14d6436fd"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/Brand.cs",
+      "sha256": "79b5339b55a3dc96cb5efaf46d36a18803e105fca39c9389767b3b2cf6603b13"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/Branch.cs",
+      "sha256": "8224e72a14b6cfe23d0ede66d0544aac8297f876eb026ca3a0ea1037001339bf"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/InventoryTransaction.cs",
+      "sha256": "933b446af2739b3ffde2150745ae94e41601937d40e451545ca8793f64db702e"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/InventoryBalance.cs",
+      "sha256": "5e9709fd4ccc636464df89135c30821392e63c45ad2a6e43d0870a76fb328a73"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/InventoryAdjustmentItem.cs",
+      "sha256": "3ab2d771049106b70002795d45c2f47bd23bfd6a8aa9e50611cff4ef96713c9d"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/InventoryAdjustment.cs",
+      "sha256": "bc91ee347aba42f3f7185db284597b93d8fa709f338c7200ab28d3b582b733eb"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/GoodsReceiptItem.cs",
+      "sha256": "cd7c00bb3913f9665f5c6eee1bb607dceea1220e4bd53a48c50bf0c8de8bb920"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/GoodsReceipt.cs",
+      "sha256": "a981eeef3e434be3e363d4954c18b2a9e1ab309bcbef2d44cca40004f8e29c13"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/Configurations/OrderItemConfiguration.cs",
+      "sha256": "4198fd294bf0e85e92d73be396c9faed7f3760be83058dabd3f8b6a1835d648e"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/ProductVariant.cs",
+      "sha256": "61c9d541b43bfff85af80eee0ac202b3ec32ab3af61689a86b76e630878fa1e0"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/Product.cs",
+      "sha256": "a86fa3bc08345e77b08fe304aa906636532303380ebc92effbb359d1287c532d"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/OrderItem.cs",
+      "sha256": "5fd153882c96d9d30a2eb77c4ba4cb40407cc090ebd08c5efc9f2fc420a8dbb0"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/Payment.cs",
+      "sha256": "868c096665e8160bea2c016855ee9f6a372f12ad7b41780d48c7e1b0106de6ca"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/Order.cs",
+      "sha256": "9a0d79931bf971962cfde1c88b7af53053f637316ebdf0fb70753c270919abc4"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/Reservation.cs",
+      "sha256": "891352030279c460a6e69844ed697a2dd7e05a9b0ac21c20e382f0f09c16686b"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/Role.cs",
+      "sha256": "6b53c2d033db2d8fa3ff323dc6a411429ac6ea2ee06a969dc242699849c168c5"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/RefreshToken.cs",
+      "sha256": "cb304dd0285e4a767c4042dd2f6c622ec13d5c5812aec5a3785660505f0d37b1"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/ShopIntegration.cs",
+      "sha256": "0a8ac37fa709f8061018384d4db47a377193791aa2b1998c1253603e5ac5402c"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/WarehouseInventoryBalance.cs",
+      "sha256": "c0d1a99538da2599a62ce752325b0932779a6085d05fa195a1a47643ca86e510"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/Warehouse.cs",
+      "sha256": "3f7a9e961c75f6ab403fd8e2d6eda1145fcab9a6369ae0907e87d84a91e46756"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/UserRole.cs",
+      "sha256": "c109e360b1d87b0bd32585156dea21adf4c278533bf1f1fa202e974f9724d4eb"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/User.cs",
+      "sha256": "2eb40c7233ec99585bcb24de403b3a3ad04097dfc3d3fbe471c56cbb425f8f3a"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/Tenant.cs",
+      "sha256": "70b611cd47d51bcd27c2724c4c4a7cb9786dd44d9eb004130de50a8e8fa64095"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/Supplier.cs",
+      "sha256": "d8b8369b8d8390f740d0b79dc2d9fe92e3831d453e1604cdb7f10b7a6c57588e"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/StockTransferItem.cs",
+      "sha256": "116ebc1ababbfd022fe06bf418230b929cd38546d677db8efa516849e898fa6e"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/StockTransfer.cs",
+      "sha256": "4f1a5b0c180eccc1f7eeacb3e2787ef3dd2eac42b0a22c9906d4af880bdd4ddc"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/StockCountItem.cs",
+      "sha256": "df0b981725b7e7710712b4d17fbfde76d9de7d4b722aa7d6ad3483443bf89954"
+    },
+    {
+      "path": "src/backend/src/OISM.Domain/Entities/StockCount.cs",
+      "sha256": "f9c4a7663fce24189cb1532f2f89b79b1a47171982dba61ca0ff939bdaa16619"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/Configurations/WarehouseInventoryBalanceConfiguration.cs",
+      "sha256": "9aa20029d7195cda5edc4abbfe85468c3bdb813bec1e182c7c723fdcf2374c88"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/Configurations/WarehouseConfiguration.cs",
+      "sha256": "7c3051d57e4db42189f98a80d8f63e0250c4daa6b42af7af9d95825fc9618f46"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/Configurations/UserConfiguration.cs",
+      "sha256": "32b963a11bb84ed5008ff7ebeb244d4f382da0a42e96984854c165a5ba5f49ac"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/Configurations/TenantConfiguration.cs",
+      "sha256": "7d1b3c1b4ef1a6e1308853d32d131973bea340be302f3d61f531ab7a12013bbb"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/Configurations/SupplierConfiguration.cs",
+      "sha256": "11691f0d727d19e63d8823f3194f4477224952d9eb036c1deaa94d85b9d5271f"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/Configurations/StockTransferItemConfiguration.cs",
+      "sha256": "0501973428c59c64b5079ee57f23f5e2f63e64b90c86ccdfbae105d8cfe88c42"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/Configurations/StockTransferConfiguration.cs",
+      "sha256": "4c157ba0ed2f619b5ec29b381450f15ad3f034f12dd6e736080ba9b21ed80ad0"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/Configurations/StockCountItemConfiguration.cs",
+      "sha256": "d580ea5ac1caf5ba20d6bbcaa061b683a0f577381321a6a881d9d1f45d20e271"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/Configurations/StockCountConfiguration.cs",
+      "sha256": "98c30f86afe573ced8308284c7dd4159a6e81668b27f7f4a375d73991f37df5e"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/Configurations/ShopIntegrationConfiguration.cs",
+      "sha256": "7997179352a0027bcfd2fcefa819c0049d119f97637815835e7fdf5b475e537b"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/Configurations/ReservationConfiguration.cs",
+      "sha256": "7040b2a8755a67c8d2d3ca73160ad102200d65eb75a7527c439bac26adca7876"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/Configurations/RefreshTokenConfiguration.cs",
+      "sha256": "22b72386e8dbf87756fbe46f93ab4d265340f1b64d948a4cc999cf4f57e26417"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/Configurations/ProductVariantConfiguration.cs",
+      "sha256": "65d093b0f4c6b72b7d46bf3fa4456154c698d3a44e0bde88ad1d23f00b02e016"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/Configurations/ProductConfiguration.cs",
+      "sha256": "0670d8d48a539bfa30868a9a89ca389a84b75f52049c68935486762c52b3421b"
+    },
+    {
+      "path": "src/backend/src/OISM.Infrastructure/Persistence/Configurations/PaymentConfiguration.cs",
+      "sha256": "0e348dcf3d7967cc184c4f92748ad2821e28909700c3f9061de4c6356371bc35"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Common/Exceptions/OismException.cs",
+      "sha256": "3bb08c48383269587b668b019ee5c60e94327f23e4891e8d472e025496235d72"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Common/Helpers/SkuAttributeHelper.cs",
+      "sha256": "0786d71a4733dc7687858cab679218554052b6f35638fd057191ab947d0b612c"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Common/Helpers/PhoneHelper.cs",
+      "sha256": "3cd50b0bed4e8b2e5628a4614d1752bb4bd0383c13eea9d7ab871c47b81be320"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Common/Helpers/BarcodeHelper.cs",
+      "sha256": "62e6787865fa64691606e4f922c6aee050ddfd2187892bba27c71411c8eb4653"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Branches/BranchDtos.cs",
+      "sha256": "1f46359e267f5472bc1dc7fb3a0f13c4ff3261efe155b4866d5efe306833f1d9"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Common/Interfaces/IReservationExpiryJob.cs",
+      "sha256": "0f5ede63e91c0bda58d95a141f514e17fc02d2060bcee4ed62a0d74b959d1daf"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Common/Interfaces/IJwtTokenService.cs",
+      "sha256": "9b9078e678c59bf81b5eb8e804d36f63a02d2fae26736adda80328c9dbfedb3f"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Common/Interfaces/ICurrentTenantService.cs",
+      "sha256": "e0d75762fcc5e9ef480b201c93fb83666b5756cc062f7134c1a8dc8c0443cf22"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Common/Interfaces/IAppDbContext.cs",
+      "sha256": "310ab584de00838065f7fd73083d42c4e7a2f5f2045b4782604903853b14f909"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Auth/RegisterTenant/RegisterTenantValidator.cs",
+      "sha256": "04abd03480cb09cf060cf086a89929c92e205e63e08e94693386a747c1a4756a"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Auth/RegisterTenant/RegisterTenantResponse.cs",
+      "sha256": "c4d3f8be0b4adc671bd13cb77b3e18d128d7ba8227ab93d01ec30b1f9dcd82a7"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Auth/RegisterTenant/RegisterTenantRequest.cs",
+      "sha256": "ec6317a40ba3ce0d2ccf171b3bcc8dfe731c7ec300e5622490fb059af2f24797"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Auth/Login/LoginValidator.cs",
+      "sha256": "a3baa2a1debb6197af8edec1264df619f26c90be82b8e46be59bf4525a4fbe31"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Auth/Login/LoginRequest.cs",
+      "sha256": "933bb678a5ecf48fd55ac9ffc227860b180ce318ae0d348840ef2f4072744b6f"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Auth/Login/AuthResponse.cs",
+      "sha256": "67b2edbb087f2ccf8e44e92fde7d6e83e1dbabc00b16f7b7a18ae5503c2296c0"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Auth/CurrentUser/CurrentUserResponse.cs",
+      "sha256": "85a3695f27bf2d32672b06cf36f126ed038860207797189b031019a9a4834696"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Auth/RefreshToken/RefreshTokenRequest.cs",
+      "sha256": "6902c813e0929080d67e9f9f4303f984f26cd5bafa306678464182f38f00c95b"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Inventory/Dtos/ReservationDtos.cs",
+      "sha256": "76d8fc8be0faefe15f3c1ce206885527c14a4af88712b77b2914256520c49033"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Inventory/Dtos/InventoryLedgerDtos.cs",
+      "sha256": "f51fe6a5a25ff50993e1f41d06cb3696eac95236d5cc73fd2b8762df6e0c1939"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Inventory/Dtos/InventoryBalanceDtos.cs",
+      "sha256": "eeeb16faf073d02aa5c687d4d6b0f0b704dddceb33c510dbf1be64cb6d4429dc"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Inventory/Dtos/GoodsReceiptDtos.cs",
+      "sha256": "70f7cb28e41a4b69828152f39bf7c5dcc68fb2233f9449daec0c52d97d1d243c"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Inventory/Services/ReservationService.cs",
+      "sha256": "f09b1641944788daa5a6f405f69e9d035d150fb7d23ca489698a679d92d3aba7"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Inventory/Services/IWacCalculator.cs",
+      "sha256": "12dc755c766d7949019798bd186d2f4d79f4ec31d6e2d1ff7da32456b78ec899"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Inventory/Services/InventoryService.cs",
+      "sha256": "82e4a19db0b108a0db161b5e1aeaadddd10ea96efb42325df86e2d4447c8ee69"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Inventory/Services/GoodsReceiptService.cs",
+      "sha256": "985ed1cc43097b4639c5a6e196d0d1563f1f85e75446e42cfb50205ea0e7f56a"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Webhooks/Services/WebhookService.cs",
+      "sha256": "5264d0c284d7a4c21b61f613c9de7783da0a0eb5c1f2a93168e0ba10b6c52bb6"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Webhooks/Services/WebhookSecretHasher.cs",
+      "sha256": "5654afe4f930cf3ef1379a8ed8e46a88354addac563f4b9836497b99ed3887f9"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Webhooks/Services/WebhookCanonicalValidator.cs",
+      "sha256": "3a630a008e50bfa6df50f811883132aaeceba450e561f8d392de9e886e2c7ca3"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Webhooks/Services/WebhookCanonicalSignatureHelper.cs",
+      "sha256": "41e8b6aaf7c96e1da4f4599ca0de714324932ce14d7e62c692f203418d63f8c7"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Webhooks/Services/IWebhookService.cs",
+      "sha256": "5bae3b0ef88706a8a2162fafdfc1c2f5481bfc9b56195d648e3b5f70bcc02228"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Simulator/Services/SimulatorService.cs",
+      "sha256": "5eb64987d5db592dfd9e76f03914c8e5799ad7c8fe49cb5bafdda1725e9886f9"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Simulator/Services/ISimulatorService.cs",
+      "sha256": "bd72b2a8e40a80bd22185146e0791226c26f2dbfbc16a6fe63478d4a7a532001"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Webhooks/Dtos/WebhookDtos.cs",
+      "sha256": "20444db332b7bd11d53410f2eac98d42e0b5470af53d884cba228ec1232f71c6"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Simulator/Dtos/SimulatorDtos.cs",
+      "sha256": "a8206be551ad701e29868f4f5d7dc578efe8697ccf18f29e089690a8ca558bad"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Suppliers/SupplierDtos.cs",
+      "sha256": "c26e58415098069d02a734e16e501009771c3f66521141c55e478b27693fea60"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Pos/PosSearchDtos.cs",
+      "sha256": "7a2053732dd814fffe42641dea898d12c428456fed7acde6700e8c028523b112"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Catalog/Categories/CategoryDtos.cs",
+      "sha256": "7d06563f0ca4b79f7951ed3538811a9bceb50ac5a14aaf6059ba00aa5dcb969c"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Catalog/Brands/BrandDtos.cs",
+      "sha256": "bf47b0adcb284520d5f8bbfe1bbd2932b7e32e17cc4a7f17f1f7c1006f3803a1"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Warehouses/WarehouseDtos.cs",
+      "sha256": "5d62b0af2f1c9416ec2244de8440894b463e3a51c01fda92cb595a710f62b584"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Realtime/IRealtimeNotifier.cs",
+      "sha256": "c110477a422ff4d4d8dc482dcbcedd90c03bbaec8c91c512918460cc3f0a10eb"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Reports/Services/IReportService.cs",
+      "sha256": "a294fe57a311fde07e412195b2642babf572114eb3e2884fc7508618fd83f07a"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Reports/Services/ReportService.cs",
+      "sha256": "18eb2ab636193f809d958b3e3a1d1ca00116a8ac1385ca142bb9d680f748d36d"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/StockCounts/Dtos/StockCountDtos.cs",
+      "sha256": "ef91020884a7590e6c41e9819803e3de444e17bce4e4ef87795a3c9a291c679d"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Reports/Dtos/ReportDtos.cs",
+      "sha256": "e5648edfbc8c48d83f5d2c3b205bb5ac63497e310876e5b4acab8422d4502846"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Catalog/Products/ProductDtos.cs",
+      "sha256": "54dff4dca530fd1f690ca78e329600b033301d541221bbd0d3108f740fdea70a"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/StockCounts/Services/IStockCountService.cs",
+      "sha256": "1e155c23b9525bbb72de6fde3d54d6c1fbc7a3c29cf243cae6813435c9b3da34"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Realtime/Dtos/RealtimeDtos.cs",
+      "sha256": "a47ca6f81f5e006d0b51bbd7fba9104231aab83ccc8d3113c2f1e18e73bbf893"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/StockCounts/Services/StockCountService.cs",
+      "sha256": "4bf3f462b042819ac66b5b76f2c3acc6d3e485898859169294b21e65d90b344d"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Orders/Dtos/OrderDtos.cs",
+      "sha256": "cc61851d7107be9c61d7ede0f032bcabf7edbf9cf6386995478c05fb9c12b513"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Orders/Dtos/InternalMarketplaceOrderContext.cs",
+      "sha256": "72e9962513218f38a7a9c847b9c4ce377e7726ebc35083014c960324ffd89ad9"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Orders/Services/OrderService.cs",
+      "sha256": "2b803a7e026f317953bbd5898464e375cc08f3185c8967227c375262ea340994"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Orders/Services/IPosCheckoutService.cs",
+      "sha256": "28aec7a5593d54e8088721db4929e9a000e1e36ae29605eb4b0145f95e9102ee"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Orders/Services/IOrderService.cs",
+      "sha256": "ec2ebf034e7dc2602ad01f11079204554b49bee17909530c9ca2c76f536d1c8b"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/StockTransfers/Dtos/StockTransferDtos.cs",
+      "sha256": "73d2ba3e93e2b11342d018b309b260db8575fccc6f520c7228b0e84a664db445"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/StockTransfers/Services/IStockTransferService.cs",
+      "sha256": "04677e8c7c40cfc88c5267aa1b5d771b8d3501980cfd1c13c7bba5d23f6fd0ff"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/StockTransfers/Services/StockTransferService.cs",
+      "sha256": "c5ca2f3ef14e10e01cb656bdb440d201ef7c1e40a3905f9766355470ba37f0ea"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/vite-env.d.ts",
+      "sha256": "424faf9241dd699dda995b367ed36665732da1e6ec1f33b2fd40394488ecac92"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/types/stockTransfer.ts",
+      "sha256": "6cebe05edc3d300d33d3b5ec24367ef6815b6854bf360b0309b44ec0c117c454"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/types/stockCount.ts",
+      "sha256": "5f76122a321715f9c64b1a76df2e1e72ae6d87c2a341c65971049fdbd59ed819"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/types/reports.ts",
+      "sha256": "26180f0d4726d0fa4d49e1622b3f823e9520f2b3684e0200f1e2ce03124f8424"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/types/pos.ts",
+      "sha256": "407ef78c75ec5c18957307291f82483562d27e8dec15d50a8266ba93982f8950"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/types/ordersCenter.ts",
+      "sha256": "6835fc5b1a386c6455cb9fa2459ff8a54a978c699eec9dee4ffc928aad7171d3"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/types/domain.ts",
+      "sha256": "8cc99b0183bb7201ceda7653dc0dacb7048e911b0389c371f937c4e6361d6f34"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/App.tsx",
+      "sha256": "f1696ea3391b0cc2a50b7d342fed4d4a2bfa710ae64b19ebd5c4aae6d827e1bf"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/App.css",
+      "sha256": "c2571ce7245629994b8adc84f6c48e1920f047a4e7e29c89a4aeb51eeb1b5433"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/main.tsx",
+      "sha256": "1b3ca575ac2703387068c66f1987f3ab8de4dc8fe9d37efad914150cd317aeed"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/index.css",
+      "sha256": "04f898314486288a7321e716b80028ad9a7eb03a1f0a6a668b8db0ee4df96a96"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/services/stockTransferService.ts",
+      "sha256": "675b217e665f1abc6d85a302da4ee2a9170e06c9aadbd52949d68a792ced4e39"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/services/stockCountService.ts",
+      "sha256": "44adffa9eec1bf9c7a886553dd133abafc95a5559853d2dfb458dbdc5a3232a7"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/services/reportService.ts",
+      "sha256": "a0ba7028e8f2d24066606aa5a4fbc9c01a41d90af7ba2f2138f2e4357dc1407b"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/services/realtimeAdapter.ts",
+      "sha256": "f6a3bd220f46125d0b3d4e57597c0d3ee11e1b49909caccc9d18e139f8b6735c"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/services/posApi.ts",
+      "sha256": "fe650664fddeff317c11888e65aa9d0ff4f6d2f592b7e6c90a5ed6ddc601f94b"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/services/orderService.ts",
+      "sha256": "6dd0d006f093dc489896b076d7a732c1d720df291abdee93a5df80d38816c8f1"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/services/httpClient.ts",
+      "sha256": "985d8cac7ef22dd43477263e36478578f7efe1549a447bf4f8b79147dec039cf"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/services/authAdapter.ts",
+      "sha256": "52f6effd1dfff1b748178acdec02888f3221c6dc5fc64fed9e114dd9b0775b7a"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/services/apiAdapter.ts",
+      "sha256": "4f72e460eb7b03f6b50eab18998c14e84bd1bf758d482f4402b3202801b52ca3"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/context/AuthContext.tsx",
+      "sha256": "2153171e093b21973a3d2ef5c278b5fc854515940701402e12fe5089e97776a5"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/assets/hero.png",
+      "sha256": "881ffbcaafc212e49addad08846a5b82761355fa20624253af3477ba33262c5c"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/assets/react.svg",
+      "sha256": "35ef61ed53b323ae94a16a8ec659b3d0af3880698791133f23b084085ab1c2e5"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/assets/vite.svg",
+      "sha256": "2f1f6c6f90a0ef7422cbb4cfafcd8ad329c507a18afdc34cc21fa72179b9c54a"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/pages/StockCountsPage.tsx",
+      "sha256": "eecfd914be9a1e4e74cae71d64eced07c60f8fdd75d0010a6194d991e4584170"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/pages/ReportsPage.tsx",
+      "sha256": "b9fb586f00226419a1a333b031045fab6ee158c6b55be69072c71b99bfd43316"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/pages/ProductsPage.tsx",
+      "sha256": "7f12c4ceacdaea15d8cd9152db543ac874010553f420894e05cbd0cd94b14df8"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/pages/PosPage.tsx",
+      "sha256": "4a625a26d24350608f1ff4d57dc07c92e42e9d6e8c5f924d3cc908def5d4cc0c"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/pages/PosPage.css",
+      "sha256": "eb44b378af1a12e7096ab6d53dd62641d4dd8bc5fe68418ad5a289de059eb4fc"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/pages/OrganizationPage.tsx",
+      "sha256": "5c2a4d9af3e926494c0d13cc999094eca44b47c5714c186b7b889d999a1be813"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/pages/OrdersPage.tsx",
+      "sha256": "4f330c076c1cf52753107f0a18fc5ad187bccd2efe51cb63f041d34880aef496"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/pages/InventoryTransfersPage.tsx",
+      "sha256": "75ce0d5087264e53e0daffe7b1a6f5da56187936f14cdbc45f5770e058541d59"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/pages/InventoryPage.tsx",
+      "sha256": "f18955617630f8ed866814accd8befbfc74a7ee60e560ad221222962718210e7"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/pages/HandoffPage.tsx",
+      "sha256": "e390eb3634ddadb5b2d2aca6b8868e92baf7408203842d7877d7f3747010ff02"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/pages/DashboardPage.tsx",
+      "sha256": "08e4eaf2b06566ee8710498481cf7a00d0da4be198bd1b39c5b1377dbb53edce"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/pages/AuthPage.tsx",
+      "sha256": "16f875d1808e7376edb0d203c73cedce321df9f1e735feb4d894e7297e288c93"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/pages/AccessPage.tsx",
+      "sha256": "21df12f70a4f876d992a600a4eeace5ac7e7dea55d40a56b6b4141b7f36811e6"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/components/ui.tsx",
+      "sha256": "839098cd25f1545d3e4cef3552b378ed7b316c5e1bde580a831d1546ec1e0e4e"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/components/orders/OrdersTable.tsx",
+      "sha256": "ce8fa090ebff38ad1dea45c59d27f06af6daf4ae57f69dbbd45c1663c92d3a9a"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/components/orders/OrdersFilter.tsx",
+      "sha256": "1b3907e5af1370ce0b2e695ddf0261838a17c709c0faddf2f2c49fb379743ec3"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/components/orders/OrderDetailDrawer.tsx",
+      "sha256": "06a9ed5e7115aa649d42c055a6237c02a85b082618fa72063ad007f33bbfd6ce"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/components/NotificationCenter.tsx",
+      "sha256": "67c5d6f28af91057b41f81dc3a7ede32a42a3b10fbca395809fd90adde41ce1d"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/components/GoodsReceiptList.tsx",
+      "sha256": "8d3e31f2788b51388a1b52d198b69cb3d0e062dbac3986ef25806899f23cd528"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/components/transfers/TransferDetailDrawer.tsx",
+      "sha256": "3f7308f33c61efd564720b2e04e8afaad2364cecec5a0d8cece39f8ef6760a73"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/components/transfers/StockTransferTable.tsx",
+      "sha256": "76e595a6f5236d191f661616021468720dc74d3f1e9d502a2cf8e52687a13df4"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/components/transfers/CreateTransferModal.tsx",
+      "sha256": "a94d960db8536995872f51407501da4979a5aa23240fa21ccd27d6297bad1fc9"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/components/AdminShell.tsx",
+      "sha256": "393299d5cd700a37960f486614002a149fcbb2ffaa298b01ec81500c69edc920"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/components/stockCounts/StockCountsTable.tsx",
+      "sha256": "509f06c3ffeb14e6852538641f0636cabd8ed62fe8adfc0171cc3e1590689377"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/components/stockCounts/StockCountDetailDrawer.tsx",
+      "sha256": "fa52433be6ce9eac5b168dffe5de4e5344981768c8faafcf0e35b493ba54106c"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/components/stockCounts/CreateStockCountModal.tsx",
+      "sha256": "91f88c62ab06c255043bf8a63f06d27d0ce2e7c995250c6abfdf4458391ad4e1"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/components/ProtectedRoute.tsx",
+      "sha256": "44a89b06f9a00585fd8a2672db935d154d7066380c9733f0c8b04c215fdef4f9"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/components/pos/PaymentModal.tsx",
+      "sha256": "e0e7ffeb32dd701501da2e91c9b52f88c7e3af9b5659737e02e1186a6916d271"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/components/pos/CartTable.tsx",
+      "sha256": "c3f07e6b2140057db8c957b2e96357dabbb98a061b3182f1ff02ad0f5c820b46"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/components/pos/PosHeader.tsx",
+      "sha256": "f8a3cdc56e5cb99153cf7e5d2af7c727627a4c08168a4adba1c7459c8d8c96f8"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/components/pos/ProductCatalog.tsx",
+      "sha256": "544c12a9e1b76a91d093c6b5a0f42c46f7a8c2705757ee49e8ccba28d5dff64c"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/components/pos/ReceiptPrintModal.tsx",
+      "sha256": "0f73fcec009a36709fba65633f6f5effe08f048a6b772426dede3a495f9b1c0b"
+    },
+    {
+      "path": "src/frontend/admin-dashboard/src/components/pos/ProductSearch.tsx",
+      "sha256": "b528ae99ed41a2017ef7400e0e8c9d447b7da7bbdc05ae0c386807bcbf198754"
+    }
+  ]
+}

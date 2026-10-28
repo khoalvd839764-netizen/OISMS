@@ -1486,6 +1486,23 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
             var bal3 = await verifyContext.InventoryBalances.FirstAsync(b => b.BranchId == infra.BranchAId && b.SkuId == infra.Sku3Id);
             bal3.OnHand.Should().Be(10m, "SKU3 khớp tồn giữ nguyên.");
         }
+
+        // The public ledger must identify the originating count, including both surplus and deficit.
+        var history = await _client.GetFromJsonAsync<PagedResult<InventoryLedgerDto>>(
+            $"/api/inventory/ledger?warehouseId={infra.WarehouseA1Id}&pageSize=100", _jsonOptions);
+        var countHistory = history!.Items.Where(i => i.DocumentId == count.Id).ToList();
+        countHistory.Should().HaveCount(2);
+        countHistory.Should().OnlyContain(i => i.DocumentType == "StockCount" && i.DocumentNumber == count.Number);
+        countHistory.Select(i => i.Type).Should().BeEquivalentTo(new[] { "IN", "OUT" });
+        history.Items.Where(i => i.ReceiptItemId.HasValue).Should()
+            .OnlyContain(i => i.DocumentType == "GoodsReceipt" && i.DocumentNumber!.StartsWith("GR-"));
+
+        // A new tenant session must not receive document metadata belonging to the previous tenant.
+        var otherToken = await LoginAsAsync("owner@shopb.local", PostgresTestEnvironment.AppPassword);
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", otherToken);
+        var otherHistory = await _client.GetFromJsonAsync<PagedResult<InventoryLedgerDto>>(
+            "/api/inventory/ledger?pageSize=100", _jsonOptions);
+        otherHistory!.Items.Should().NotContain(i => i.DocumentId == count.Id || i.DocumentNumber == count.Number);
     }
 
     [Fact]

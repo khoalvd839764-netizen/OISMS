@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Trash2, Printer, ShieldCheck, Sparkles } from 'lucide-react';
+import { Trash2, ShoppingBag, Minus, Plus, Package } from 'lucide-react';
 import type { CartItem, Branch, PosProductSearchResponse, ReceiptData } from '../types/pos';
 import { fetchBranches } from '../services/posApi';
 import { PosHeader } from '../components/pos/PosHeader';
-import { ProductSearch } from '../components/pos/ProductSearch';
-import { CartTable } from '../components/pos/CartTable';
+import { ProductCatalog } from '../components/pos/ProductCatalog';
+import './PosPage.css';
 import { PaymentModal } from '../components/pos/PaymentModal';
 import { ReceiptPrintModal } from '../components/pos/ReceiptPrintModal';
 import { useAuth } from '../context/AuthContext';
@@ -32,7 +32,9 @@ export function PosPage() {
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
 
   // Modals
-  const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+  const [checkoutBusy, setCheckoutBusy] = useState(false);
+  const [catalogRefresh, setCatalogRefresh] = useState(0);
+  const paymentButtonRef = useRef<HTMLButtonElement>(null);
   const [printedReceipt, setPrintedReceipt] = useState<ReceiptData | null>(null);
 
   // Search input ref for F2 keyboard shortcut
@@ -64,7 +66,6 @@ export function PosPage() {
     const handleAuthExpired = async () => {
       setCart([]);
       setPrintedReceipt(null);
-      setIsPaymentOpen(false);
       await logout();
       navigate('/login');
     };
@@ -85,18 +86,15 @@ export function PosPage() {
         searchInputRef.current?.focus();
       } else if (e.key === 'F4') {
         e.preventDefault();
-        if (cart.length > 0 && !isPaymentOpen) {
-          setIsPaymentOpen(true);
-        }
+        if (cart.length > 0 && !checkoutBusy) paymentButtonRef.current?.focus();
       } else if (e.key === 'Escape') {
-        setIsPaymentOpen(false);
         setPrintedReceipt(null);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cart.length, isPaymentOpen]);
+  }, [cart.length, checkoutBusy]);
 
   // Fullscreen toggle
   const toggleFullscreen = () => {
@@ -175,7 +173,7 @@ export function PosPage() {
       prevCart.map((item) => {
         if (item.variantId === variantId) {
           const maxAllowed = item.available > 0 ? item.available : 1;
-          const clamped = Math.min(Math.max(1, quantity), maxAllowed);
+          const clamped = Math.min(Math.max(1, Number.isFinite(quantity) ? Math.floor(quantity) : 1), maxAllowed);
           return { ...item, quantity: clamped };
         }
         return item;
@@ -196,7 +194,7 @@ export function PosPage() {
 
   // Đổi chi nhánh: Xóa giỏ hàng để tránh bán vượt tồn hoặc sai kho của chi nhánh khác
   const handleSelectBranch = (branchId: string) => {
-    if (branchId === selectedBranchId) return;
+    if (checkoutBusy || branchId === selectedBranchId) return;
     if (cart.length > 0) {
       if (window.confirm('Đổi chi nhánh sẽ làm mới lại giỏ hàng vì tồn kho các chi nhánh là khác nhau. Bạn có muốn tiếp tục?')) {
         setCart([]);
@@ -211,7 +209,6 @@ export function PosPage() {
   const handleLogout = async () => {
     setCart([]);
     setPrintedReceipt(null);
-    setIsPaymentOpen(false);
     await logout();
     navigate('/login');
   };
@@ -227,7 +224,8 @@ export function PosPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-100 font-sans text-slate-800">
+    <div className="pos-workstation">
+      <div inert={checkoutBusy}>
       {/* Header Bar */}
       <PosHeader
         branches={branches}
@@ -241,171 +239,45 @@ export function PosPage() {
         onToggleFullscreen={toggleFullscreen}
       />
 
-      {/* Main POS Workspace */}
-      <main className="no-print flex-1 p-4 lg:p-6 flex flex-col lg:flex-row gap-5 overflow-hidden max-w-[1920px] mx-auto w-full">
-        {/* Left Side: Product Search & Cart Table */}
-        <section className="flex-1 flex flex-col gap-4 min-w-0">
-          {/* Barcode & Search Component */}
-          <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs">
-            <ProductSearch
-              branchId={selectedBranchId}
-              onAddToCart={handleAddToCart}
-              searchInputRef={searchInputRef}
-            />
+      </div>
+      <main className="pos-workspace no-print">
+        <fieldset className="pos-catalog-fieldset" disabled={checkoutBusy}>
+          <ProductCatalog key={`${user?.tenantId}:${user?.id}:${selectedBranchId}`} branchId={selectedBranchId}
+            cart={cart} onAdd={handleAddToCart} searchRef={searchInputRef} refresh={catalogRefresh} />
+        </fieldset>
+        <aside className="pos-order-panel" aria-label="Giỏ hàng và thanh toán">
+          <div className="pos-order-heading"><h2><ShoppingBag size={19} /> Đơn hiện tại <span>{totalQuantity}</span></h2>
+            <button type="button" onClick={handleClearCart} disabled={!cart.length || checkoutBusy}>Xóa tất cả</button>
           </div>
-
-          {/* Cart Table with Multi-Line Support */}
-          <CartTable
-            items={cart}
-            onUpdateQuantity={handleUpdateQuantity}
-            onSetQuantity={handleSetQuantity}
-            onRemoveItem={handleRemoveItem}
-            onClearCart={handleClearCart}
-            onFocusSearch={() => searchInputRef.current?.focus()}
-          />
-        </section>
-
-        {/* Right Side: Order Summary & Checkout Action Panel */}
-        <aside className="w-full lg:w-[400px] xl:w-[440px] shrink-0 flex flex-col gap-4">
-          <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm p-6 flex flex-col justify-between h-full">
-            <div className="space-y-6">
-              {/* Order Info Header */}
-              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-                <div>
-                  <h2 className="text-base font-extrabold text-slate-800 tracking-tight m-0">
-                    Hóa Đơn Bán Hàng
-                  </h2>
-                  <p className="text-xs text-slate-400 m-0">
-                    Chi nhánh: <span className="font-semibold text-slate-700">{selectedBranch?.name || 'Mặc định'}</span>
-                  </p>
+          <fieldset className="pos-cart-lines" disabled={checkoutBusy}>
+            {cart.length === 0 ? <div className="pos-empty"><Package size={38} strokeWidth={1.3} /><strong>Giỏ hàng trống</strong><p>Quét barcode hoặc chọn sản phẩm</p></div> :
+              cart.map((item) => <article className="pos-cart-line" key={item.variantId}>
+                <div className="pos-cart-product"><strong>{item.productName}</strong><small>{item.sku} · {item.variantName}</small></div>
+                <button className="pos-remove-line" type="button" aria-label={`Xóa ${item.sku}`} onClick={() => handleRemoveItem(item.variantId)}><Trash2 size={15} /></button>
+                <div className="pos-quantity-control">
+                  <button type="button" aria-label={`Giảm ${item.sku}`} onClick={() => handleUpdateQuantity(item.variantId,-1)}><Minus size={13} /></button>
+                  <input type="number" min="1" max={item.available} aria-label={`Số lượng ${item.sku}`} value={item.quantity}
+                    onChange={(event) => handleSetQuantity(item.variantId,Number(event.target.value))} />
+                  <button type="button" aria-label={`Tăng ${item.sku}`} disabled={item.quantity >= item.available} onClick={() => handleUpdateQuantity(item.variantId,1)}><Plus size={13} /></button>
                 </div>
-                <span className="px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/60">
-                  {totalQuantity} món
-                </span>
-              </div>
-
-              {/* Price Breakdown */}
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between text-slate-500">
-                  <span>Tạm tính ({cart.length} dòng):</span>
-                  <span className="font-semibold text-slate-800">{formatCurrency(totalAmount)}</span>
-                </div>
-                <div className="flex justify-between text-slate-500">
-                  <span>Giảm giá:</span>
-                  <span className="font-semibold text-emerald-600">0 đ</span>
-                </div>
-                <div className="flex justify-between text-slate-500">
-                  <span>Thuế VAT (0%):</span>
-                  <span className="font-semibold text-slate-800">0 đ</span>
-                </div>
-
-                <div className="pt-3 border-t-2 border-dashed border-slate-200 flex justify-between items-baseline">
-                  <span className="text-base font-extrabold text-slate-900">TỔNG THANH TOÁN:</span>
-                  <span className="text-2xl font-black text-indigo-600 tracking-tight">
-                    {formatCurrency(totalAmount)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Notice / Status Indicator */}
-              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-500 flex items-start gap-2">
-                <Sparkles className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-semibold text-slate-700">Kết nối API OISMS Backend: </span>
-                  Tra cứu sản phẩm và tồn khả dụng theo chi nhánh thật. DTO Checkout đề xuất đang chờ Backend hoàn thiện endpoint.
-                </div>
-              </div>
+                <div className="pos-line-price"><strong>{formatCurrency(item.retailPrice*item.quantity)}</strong><small>{formatCurrency(item.retailPrice)} / SP</small></div>
+              </article>)}
+          </fieldset>
+          <fieldset className="pos-payment-fieldset" disabled={checkoutBusy}>
+            <div className="pos-order-totals"><div><span>Tạm tính</span><b>{formatCurrency(totalAmount)}</b></div>
+              <div><span>Giảm giá</span><span>0 ₫</span></div>
+              <div className="pos-grand-total"><strong>Tổng thanh toán</strong><strong>{formatCurrency(totalAmount)}</strong></div>
             </div>
-
-            {/* Bottom Actions */}
-            <div className="space-y-3 pt-6 border-t border-slate-100">
-              <button
-                type="button"
-                disabled={cart.length === 0}
-                onClick={() => setIsPaymentOpen(true)}
-                className={`w-full py-4 px-6 rounded-2xl font-bold text-base flex items-center justify-between transition-all shadow-lg ${
-                  cart.length === 0
-                    ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'
-                    : 'bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white shadow-indigo-600/30'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-5 h-5" />
-                  <span>THANH TOÁN (F4)</span>
-                </div>
-                <span className="font-black font-mono text-lg">{formatCurrency(totalAmount)}</span>
-              </button>
-
-              <div className="flex gap-2 text-xs">
-                <button
-                  type="button"
-                  disabled={cart.length === 0}
-                  onClick={() => {
-                    const tempReceipt: ReceiptData = {
-                      receiptNumber: `TMP-${Date.now().toString().slice(-6)}`,
-                      createdAt: new Date().toLocaleString('vi-VN'),
-                      tenantName: currentUser?.tenantName || 'CỬA HÀNG OISMS',
-                      branchName: selectedBranch?.name || 'Chi nhánh mặc định',
-                      branchAddress: selectedBranch?.address || 'Chi nhánh bán lẻ POS',
-                      branchPhone: selectedBranch?.phone || '1900 6868',
-                      cashierName: currentUser?.fullName || 'Thu ngân',
-                      items: cart.map((i) => ({
-                        name: i.productName + (i.variantName ? ` - ${i.variantName}` : ''),
-                        sku: i.sku,
-                        quantity: i.quantity,
-                        unitPrice: i.retailPrice,
-                        subtotal: i.retailPrice * i.quantity,
-                      })),
-                      totalAmount,
-                      paymentMethod: 'CASH',
-                      amountGiven: totalAmount,
-                      changeDue: 0,
-                      isDraft: true,
-                      paymentStatusTitle: 'CHƯA THANH TOÁN (PHIẾU TẠM TÍNH)',
-                    };
-                    setPrintedReceipt(tempReceipt);
-                  }}
-                  className="flex-1 py-2.5 px-3 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 font-semibold rounded-xl transition-colors flex items-center justify-center gap-1.5"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>In phiếu tạm tính</span>
-                </button>
-
-                <button
-                  type="button"
-                  disabled={cart.length === 0}
-                  onClick={handleClearCart}
-                  className="py-2.5 px-3 bg-rose-50 hover:bg-rose-100 disabled:opacity-50 text-rose-700 font-semibold rounded-xl transition-colors flex items-center justify-center gap-1.5"
-                  title="Hủy đơn"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Hủy</span>
-                </button>
-              </div>
-            </div>
-          </div>
+            <PaymentModal key={`${user?.tenantId}:${user?.id}:${selectedBranchId}:${catalogRefresh}`} embedded isOpen
+              onClose={() => {}} items={cart} branchId={selectedBranchId} branchName={selectedBranch?.name || ''}
+              branchAddress={selectedBranch?.address} branchPhone={selectedBranch?.phone}
+              tenantName={currentUser?.tenantName || 'CỬA HÀNG OISMS'} cashierName={currentUser?.fullName || 'Thu ngân'}
+              onBusyChange={setCheckoutBusy} submitRef={paymentButtonRef}
+              onSuccessAndPrint={(receipt) => {setPrintedReceipt(receipt);setCart([]);setCatalogRefresh((value)=>value+1);}}
+              onPreviewReceipt={setPrintedReceipt} />
+          </fieldset>
         </aside>
       </main>
-
-      {/* Payment Modal */}
-      <PaymentModal
-        isOpen={isPaymentOpen}
-        onClose={() => setIsPaymentOpen(false)}
-        items={cart}
-        branchId={selectedBranchId}
-        branchName={selectedBranch?.name || 'Chi nhánh mặc định'}
-        branchAddress={selectedBranch?.address}
-        branchPhone={selectedBranch?.phone}
-        tenantName={currentUser?.tenantName || 'CỬA HÀNG OISMS'}
-        cashierName={currentUser?.fullName || 'Thu ngân'}
-        onSuccessAndPrint={(receipt) => {
-          setPrintedReceipt(receipt);
-          setCart([]); // Chỉ xóa giỏ khi thanh toán thành công
-        }}
-        onPreviewReceipt={(receipt) => {
-          setPrintedReceipt(receipt); // Xem tạm tính: Giữ nguyên giỏ hàng
-        }}
-      />
 
       {/* Print Thermal Receipt Modal */}
       <ReceiptPrintModal

@@ -59,6 +59,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   ];
 
   const handleCheckout = async (forcePrint = false) => {
+    if (paymentMethod !== 'CASH') return;
     if (isShortOfCash && !forcePrint) {
       setApiNotice({
         type: 'error',
@@ -214,7 +215,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
               <button
                 type="button"
-                onClick={() => setPaymentMethod('BANK_TRANSFER_QR')}
+                disabled
+                title="Thanh toán QR — Coming soon"
                 className={`flex items-center justify-center gap-2.5 p-3.5 rounded-2xl border-2 font-bold text-sm transition-all ${
                   paymentMethod === 'BANK_TRANSFER_QR'
                     ? 'border-indigo-600 bg-indigo-50/50 text-indigo-700 shadow-sm'
@@ -222,7 +224,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 }`}
               >
                 <QrCode className="w-5 h-5" />
-                <span>Chuyển khoản QR</span>
+                <span>Chuyển khoản QR · Coming soon</span>
               </button>
             </div>
           </div>

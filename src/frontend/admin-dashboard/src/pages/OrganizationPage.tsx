@@ -1,6 +1,6 @@
 import { Building2, MoreHorizontal, Plus, Search, ShieldCheck, UserRoundCog, AlertCircle } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Badge, Button, Input, Modal, PageTitle, Select } from "../components/ui";
+import { Badge, Button, ComingSoonBadge, ComingSoonPanel, Input, Modal, PageTitle, Select } from "../components/ui";
 import { apiAdapter } from "../services/apiAdapter";
 import { useAuth } from "../context/AuthContext";
 
@@ -119,12 +119,13 @@ export function OrganizationPage() {
       <PageTitle
         eyebrow="FR-AUTH · PHÂN QUYỀN RBAC"
         title="Nhân viên & chi nhánh"
-        description="Quản lý tài khoản, vai trò, chi nhánh và kho hàng trực thuộc trong doanh nghiệp theo thời gian thực."
+        description="Quản lý chi nhánh và kho hàng trực thuộc. Quản lý nhân viên đang được hoàn thiện."
         actions={
           user?.role === "Owner" ? (
-            <Button onClick={() => { setError(null); setOpen(true); }}>
+            <Button disabled={tab === "people"} title={tab === "people" ? "Quản lý nhân viên chưa khả dụng." : undefined} onClick={() => { setError(null); setOpen(true); }}>
               <Plus size={17} />
               {tab === "people" ? "Thêm nhân viên" : "Thêm chi nhánh"}
+              {tab === "people" && <ComingSoonBadge />}
             </Button>
           ) : undefined
         }
@@ -136,7 +137,7 @@ export function OrganizationPage() {
             <Building2 size={16} />Chi nhánh & kho ({branches.length} chi nhánh · {warehouses.length} kho)
           </button>
           <button className={tab === "people" ? "active" : ""} onClick={() => setTab("people")}>
-            <UserRoundCog size={16} />Nhân viên
+            <UserRoundCog size={16} />Nhân viên <ComingSoonBadge />
           </button>
         </div>
 
@@ -144,12 +145,13 @@ export function OrganizationPage() {
           <label className="search-field">
             <Search size={18} />
             <Input
+              disabled={tab === "people"}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={tab === "people" ? "Tìm tên hoặc email nhân viên..." : "Tìm chi nhánh hoặc địa chỉ..."}
             />
           </label>
-          <Select aria-label="Bộ lọc trạng thái" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <Select disabled={tab === "people"} aria-label="Bộ lọc trạng thái" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="all">Tất cả trạng thái</option>
             <option value="active">Đang hoạt động</option>
             <option value="inactive">Đã tạm dừng</option>
@@ -157,6 +159,8 @@ export function OrganizationPage() {
         </div>
 
         {tab === "people" ? (
+          <div>
+          <ComingSoonPanel title="Quản lý nhân viên" description="Thêm nhân viên, phân quyền và phân công chi nhánh chưa khả dụng. Bên dưới là tài khoản đang đăng nhập." />
           <div className="table-wrap">
             <table>
               <thead>
@@ -188,7 +192,7 @@ export function OrganizationPage() {
                       <Badge tone="success">Đang hoạt động</Badge>
                     </td>
                     <td>
-                      <Button variant="ghost"><MoreHorizontal size={18} /></Button>
+                      <Button variant="ghost" disabled aria-label="Quản lý nhân viên — Coming soon" title="Quản lý nhân viên — Coming soon"><MoreHorizontal size={18} /><ComingSoonBadge /></Button>
                     </td>
                   </tr>
                 ) : (
@@ -200,6 +204,7 @@ export function OrganizationPage() {
                 )}
               </tbody>
             </table>
+          </div>
           </div>
         ) : (
           <div className="branch-grid" style={{ padding: "16px", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "14px" }}>

@@ -1,5 +1,3 @@
 # Prompt cũ A01 — đã thay thế
 
-Theo yêu cầu người dùng ngày 28/10/2026, kế hoạch đã gộp 6 hạng mục thành 3 đợt nghiệm thu. **Không dùng prompt A01 để triển khai/review riêng.**
-
-Dùng [prompt B01 — Contract, API đọc và đơn hàng](./PROMPT-START-B01.md), bao gồm A01-AC-01..04 và A02-AC-01..04 trong một lần bàn giao/review. [Plan v1.1](./PLAN.md). Vẫn chờ POS hoàn tất trước khi khởi động Admin.
+Dùng [prompt triển khai core v2.0](./PROMPT-START-B01.md) theo [PLAN hiện hành](./PLAN.md). Theo chỉ đạo ngày 28/10/2026, ưu tiên các luồng cơ bản trong một đợt; không tạo task/review riêng A01 hoặc chờ B01 VERIFIED để làm luồng kho độc lập. AC A01..A06 và các review trước giữ làm mục tiêu nghiệm thu đầy đủ/lịch sử.

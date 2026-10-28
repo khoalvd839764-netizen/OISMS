@@ -28,6 +28,43 @@ function getHeaders(): HeadersInit {
   return headers;
 }
 
+// Build the visual catalog from existing read APIs; stock belongs to the selected branch.
+export async function fetchPosCatalog(branchId: string): Promise<PosProductSearchResponse[]> {
+  if (!branchId) return [];
+  async function read(url: string) {
+    const response = await fetch(`${API_BASE_URL}${url}`, { headers: getHeaders() });
+    if (response.status === 401) {
+      removeAuthToken();
+      window.dispatchEvent(new CustomEvent('pos-auth-expired'));
+      throw new Error('Phiên đăng nhập đã hết hạn.');
+    }
+    if (!response.ok) throw new Error(`Không thể tải sản phẩm hoặc tồn kho (HTTP ${response.status}).`);
+    return response.json();
+  }
+  const params = new URLSearchParams({ branchId, pageIndex: '1', pageSize: '100' });
+  const [products, first] = await Promise.all([read('/api/products'), read(`/api/inventory/balances?${params}`)]);
+  if (!Array.isArray(products) || !Array.isArray(first.items)) throw new Error('Dữ liệu danh mục hoặc tồn kho không đúng định dạng.');
+  const balances = [...first.items];
+  for (let page = 2; page <= first.totalPages; page++) {
+    params.set('pageIndex', String(page));
+    const next = await read(`/api/inventory/balances?${params}`);
+    if (!Array.isArray(next.items)) throw new Error('Không thể đọc đủ dữ liệu tồn kho.');
+    balances.push(...next.items);
+  }
+  const stock = new Map(balances.map((balance: { skuId: string; onHand: number; reserved: number }) => [balance.skuId, balance]));
+  return products.filter((product) => product.isActive).flatMap((product) =>
+    product.variants.filter((variant: { isActive: boolean }) => variant.isActive).map((variant: { id: string; sku: string; variantName: string; barcode: string | null; retailPrice: number; color: string | null; size: string | null }) => {
+      const balance = stock.get(variant.id);
+      const onHand = Number(balance?.onHand ?? 0);
+      const reserved = Number(balance?.reserved ?? 0);
+      return { variantId: variant.id, productId: product.id, sku: variant.sku, productName: product.name,
+        variantName: variant.variantName, barcode: variant.barcode, retailPrice: variant.retailPrice,
+        color: variant.color, size: variant.size, onHand, reserved, available: Math.max(0, onHand - reserved),
+        categoryId: product.categoryId, categoryName: product.categoryName };
+    })
+  );
+}
+
 /**
  * Lấy danh sách Chi nhánh trực thuộc cửa hàng
  */

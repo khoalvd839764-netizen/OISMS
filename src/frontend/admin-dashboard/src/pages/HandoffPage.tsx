@@ -3,14 +3,14 @@ import { Badge, PageTitle } from "../components/ui";
 
 const screens = [
   ["/login", "Đăng nhập, đăng xuất, làm mới phiên", "Công khai", "FR-AUTH", "LoginForm, authAdapter", "POST /api/auth/*"],
-  ["/organization", "Quản lý nhân viên, vai trò, chi nhánh/kho", "Owner", "FR-AUTH", "StaffTable, BranchGrid", "/api/users, /api/branches"],
+  ["/organization", "Quản lý chi nhánh/kho; quản lý nhân viên: Coming soon", "Owner", "FR-AUTH", "StaffTable, BranchGrid", "/api/users, /api/branches"],
   ["/products", "Tra cứu hoặc tạo sản phẩm/SKU/barcode", "Owner, Staff đọc", "FR-PROD", "ProductTable, ProductForm", "/api/products, /api/skus"],
   ["/inventory", "Xem onHand/reserved/available, cấu hình ngưỡng", "Owner, Staff", "FR-INV", "BalanceTable, ThresholdDialog", "/api/inventory, /api/alerts/low-stock"],
   ["/inventory", "Tạo nháp và xác nhận phiếu nhập, tính giá vốn", "Owner, Staff", "FR-COST", "ReceiptDialog", "POST /api/stock-receipts"],
-  ["/inventory", "Lọc ledger, mở chứng từ, tạo phiếu trả nháp", "Owner, Staff", "FR-INV", "LedgerTable, ReturnDialog", "/api/inventory/ledger"],
+  ["/inventory", "Lọc ledger, mở chứng từ; trả hàng và cấu hình ngưỡng: Coming soon", "Owner, Staff", "FR-INV", "LedgerTable", "/api/inventory/ledger"],
   ["/orders", "Giữ chỗ, xác nhận, hoàn tất, nhận sự kiện hết hạn", "Owner, Staff", "FR-ORD, FR-RSE", "OrderDetail, realtimeAdapter", "PATCH /api/orders"],
   ["/pos", "Quét SKU, checkout nguyên tử, in hóa đơn", "Cashier", "FR-POS", "SkuPicker, Cart, Checkout", "POST /api/pos/checkout"],
-  ["/reports", "Doanh thu, giá vốn, lợi nhuận và gợi ý nhập", "Owner", "FR-REP, AI", "SalesReport, ReorderCard", "GET /api/reports/*"],
+  ["/reports", "Doanh thu, giá vốn, lợi nhuận; gợi ý nhập AI và in báo cáo: Coming soon", "Owner", "FR-REP, AI", "SalesReport", "GET /api/reports/*"],
   ["/403", "Màn hình từ chối truy cập và bảo vệ phân quyền RBAC", "Tất cả vai trò", "FR-AUTH", "AccessPage", "Bắt mã lỗi 403 Forbidden"],
 ];
 

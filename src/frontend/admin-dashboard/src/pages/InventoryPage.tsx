@@ -17,10 +17,11 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Badge, Button, Input, Modal, PageTitle, Select } from "../components/ui";
+import { Badge, Button, ComingSoonBadge, Input, Modal, PageTitle, Select } from "../components/ui";
 import { apiAdapter, generateUuid } from "../services/apiAdapter";
 import { useAuth } from "../context/AuthContext";
 import type { LedgerEntry, Sku } from "../types/domain";
+import { GoodsReceiptList } from "../components/GoodsReceiptList";
 
 // [F1] Cấu trúc lưu tạm phiếu nhập nháp đang chờ xác nhận qua các lần đóng/mở form hoặc refresh
 interface PendingReceiptState {
@@ -120,9 +121,14 @@ export function InventoryPage() {
 
   // Modals
   const [receiptModal, setReceiptModal] = useState(false);
+  const [receiptListOpen, setReceiptListOpen] = useState(false);
+  const [receiptReady, setReceiptReady] = useState(false);
+  const [receiptNumber, setReceiptNumber] = useState("");
+  const receiptReadSeq = useRef(0);
+  const receiptActor = `${account?.tenantId}:${account?.id}`;
+  const receiptActorRef = useRef(receiptActor);
+  receiptActorRef.current = receiptActor;
   const [confirmedSuccess, setConfirmedSuccess] = useState(false);
-  const [thresholdOpen, setThresholdOpen] = useState(false);
-  const [returnOpen, setReturnOpen] = useState(false);
   const [selectedLedger, setSelectedLedger] = useState<LedgerEntry | null>(null);
 
   // [A08 & F2] Modal Giữ chỗ tồn kho (Reserve) hỗ trợ Idempotency-Key chống giữ lặp
@@ -161,6 +167,7 @@ export function InventoryPage() {
 
   // [F3] Biến ref kiểm soát thứ tự request tồn kho để tránh phản hồi cũ ghi đè dữ liệu mới
   const balanceReqSeqRef = useRef(0);
+  const ledgerReqSeqRef = useRef(0);
 
   // [A05] Phân trang (Pagination) cho Bảng Tồn kho & Sổ kho
   const [balancePage, setBalancePage] = useState(1);
@@ -191,13 +198,15 @@ export function InventoryPage() {
   const [modalWarehouseBalances, setModalWarehouseBalances] = useState<Sku[]>([]);
 
   // Cấu hình ngưỡng cảnh báo
-  const [thresholds, setThresholds] = useState<Record<string, number>>({});
+  const [thresholds] = useState<Record<string, number>>({});
 
   // [F4] Tải dữ liệu Sổ cái kho và lưu riêng lỗi sổ kho
   const loadLedger = async () => {
+    const seq = ++ledgerReqSeqRef.current;
     setLoadingLedger(true);
     setLedgerError(null);
     const lRes = await apiAdapter.getLedger();
+    if (seq !== ledgerReqSeqRef.current) return;
     if (lRes.error) {
       setLedgerError(lRes.error.message || "Không thể tải sổ cái kho (Ledger) từ máy chủ.");
     } else if (lRes.data) {
@@ -309,6 +318,17 @@ export function InventoryPage() {
   // [F3] Khi lọc theo Kho hoặc Chi nhánh, nạp lại số dư kho an toàn tránh race condition
   useEffect(() => {
     loadBalances(branchFilter, balanceWarehouseFilter);
+  }, [branchFilter, balanceWarehouseFilter]);
+
+  // Returning from a stock operation in another tab must read the authoritative balances and ledger.
+  useEffect(() => {
+    const refreshStock = () => { void loadBalances(branchFilter, balanceWarehouseFilter); void loadLedger(); };
+    window.addEventListener('focus', refreshStock);
+    return () => {
+      window.removeEventListener('focus', refreshStock);
+      balanceReqSeqRef.current++;
+      ledgerReqSeqRef.current++;
+    };
   }, [branchFilter, balanceWarehouseFilter]);
 
   // [A03 & F3] Khi mở Modal Nhập kho và chọn Chi nhánh / Kho, tải số dư thực tế tại đúng Kho đó để mô phỏng WAC chuẩn xác
@@ -479,49 +499,75 @@ export function InventoryPage() {
   };
 
   // [F1] Mở Modal Phiếu nhập và tự động khôi phục / đối soát phiếu nháp đang chờ xác nhận
+  const closeReceiptModal = () => {
+    if (isConfirmingReceiptRef.current) return;
+    receiptReadSeq.current++;
+    setVerifyingPendingReceipt(false);
+    setReceiptModal(false);
+  };
+
+  // Always review the server snapshot, including drafts created in another session.
+  const openSavedReceipt = async (id: string) => {
+    const seq = ++receiptReadSeq.current;
+    setReceiptListOpen(false);
+    setReceiptModal(true);
+    setConfirmedSuccess(false);
+    setCreatedReceiptId(id);
+    setReceiptReady(false);
+    setReceiptError(null);
+    setQuickSupplierOpen(false);
+    setVerifyingPendingReceipt(true);
+    try {
+      const response = await apiAdapter.getGoodsReceiptById(id);
+      if (seq !== receiptReadSeq.current || receiptActorRef.current !== receiptActor) return;
+      const receipt = response.data;
+      if (response.error || !receipt || receipt.id !== id) {
+        throw new Error(response.error?.message || "Không thể đọc phiếu nhập từ máy chủ.");
+      }
+      if (receipt.status !== "Draft" && receipt.status !== "Confirmed") {
+        throw new Error("Phiếu không còn ở trạng thái cho phép xác nhận.");
+      }
+      const items = receipt.items.map((item: { skuId: string; skuCode: string; productName: string; quantity: number; unitPrice: number }) => ({
+        skuId: item.skuId, skuCode: item.skuCode, skuName: item.productName,
+        quantity: item.quantity, unitPrice: item.unitPrice,
+      }));
+      setSelectedBranch(receipt.branchId);
+      setSelectedWarehouse(receipt.warehouseId);
+      setSelectedSupplier(receipt.supplierId);
+      setReceiptNotes(receipt.note || "");
+      setReceiptItems(items);
+      setReceiptNumber(receipt.number);
+      if (receipt.status === "Confirmed") {
+        if (loadSavedPendingReceipt(currentTenantId)?.receiptId === id) clearSavedPendingReceipt(currentTenantId);
+        setCreatedReceiptId(null);
+        setConfirmedSuccess(true);
+      } else {
+        savePendingReceipt({ receiptId: id, branchId: receipt.branchId, warehouseId: receipt.warehouseId,
+          supplierId: receipt.supplierId, notes: receipt.note || "", items }, currentTenantId);
+        setReceiptReady(true);
+      }
+    } catch (error) {
+      if (seq === receiptReadSeq.current && receiptActorRef.current === receiptActor) {
+        setReceiptError(error instanceof Error ? error.message : "Không thể tải phiếu nhập.");
+      }
+    } finally {
+      if (seq === receiptReadSeq.current && receiptActorRef.current === receiptActor) setVerifyingPendingReceipt(false);
+    }
+  };
+
   const openReceiptModal = async () => {
     setReceiptModal(true);
     setConfirmedSuccess(false);
     setReceiptError(null);
 
-    // Kiểm tra phiếu nháp lưu tạm trong sessionStorage theo đúng tenant
     const pending = loadSavedPendingReceipt(currentTenantId);
-    if (pending && pending.receiptId) {
-      setCreatedReceiptId(pending.receiptId);
-      if (pending.branchId) setSelectedBranch(pending.branchId);
-      if (pending.warehouseId) setSelectedWarehouse(pending.warehouseId);
-      if (pending.supplierId) setSelectedSupplier(pending.supplierId);
-      if (pending.items?.length > 0) setReceiptItems(pending.items);
-      if (pending.notes) setReceiptNotes(pending.notes);
-
-      // Đối soát trạng thái phiếu tươi mới từ Backend
-      setVerifyingPendingReceipt(true);
-      const verifyRes = await apiAdapter.getGoodsReceiptById(pending.receiptId);
-      setVerifyingPendingReceipt(false);
-
-      if (verifyRes.data) {
-        if (verifyRes.data.status === "Confirmed") {
-          // Phiếu đã xác nhận thành công trên backend trước đó
-          clearSavedPendingReceipt(currentTenantId);
-          setCreatedReceiptId(null);
-          setConfirmedSuccess(true);
-          await Promise.all([loadBalances(), loadLedger()]);
-          return;
-        }
-      } else if (verifyRes.error?.status === 404) {
-        // Không tìm thấy phiếu nháp trên backend -> xóa cache nháp
-        clearSavedPendingReceipt(currentTenantId);
-        setCreatedReceiptId(null);
-      } else if (verifyRes.error) {
-        setReceiptError(
-          `Không thể đối soát trạng thái phiếu #${pending.receiptId.slice(
-            0,
-            8
-          )} với máy chủ (${verifyRes.error.message}). Bạn vẫn có thể bấm "Thử lại Xác nhận & Ghi sổ kho" để xác nhận đúng phiếu này.`
-        );
-      }
+    if (pending?.receiptId) {
+      await openSavedReceipt(pending.receiptId);
       return;
     }
+    setReceiptReady(false);
+    setReceiptNumber("");
+    setQuickSupplierOpen(false);
 
     // Nếu không có phiếu nháp đang chờ, khởi tạo phiếu mới
     setCreatedReceiptId(null);
@@ -577,6 +623,8 @@ export function InventoryPage() {
     }
     clearSavedPendingReceipt(currentTenantId);
     setCreatedReceiptId(null);
+    setReceiptReady(false);
+    setReceiptNumber("");
     setReceiptError(null);
 
     const defaultBr = selectedBranch || branches[0]?.id || "";
@@ -634,8 +682,9 @@ export function InventoryPage() {
   );
 
   // [A07 & F1] Xử lý tạo và xác nhận phiếu nhập kho an toàn, idempotent retry
-  const handleConfirmReceipt = async () => {
-    if (isConfirmingReceiptRef.current) return;
+  const handleSaveReceipt = async () => {
+    if (isConfirmingReceiptRef.current || createdReceiptId) return;
+    const actor = receiptActor;
     setReceiptError(null);
     if (!selectedBranch || !selectedWarehouse) {
       setReceiptError("Vui lòng chọn Chi nhánh và Kho hàng tiếp nhận thuộc chi nhánh đó.");
@@ -659,7 +708,7 @@ export function InventoryPage() {
     }
     if (
       receiptItems.some(
-        (item) => !item.skuId || Number(item.quantity) <= 0 || Number(item.unitPrice) < 0
+        (item) => !item.skuId || !Number.isFinite(Number(item.quantity)) || !Number.isFinite(Number(item.unitPrice)) || Number(item.quantity) <= 0 || Number(item.unitPrice) < 0
       )
     ) {
       setReceiptError(
@@ -688,6 +737,7 @@ export function InventoryPage() {
         };
 
         const res = await apiAdapter.createGoodsReceipt(payload);
+        if (receiptActorRef.current !== actor) return;
 
         if (res.error || !res.data?.id) {
           setLoading(false);
@@ -697,6 +747,9 @@ export function InventoryPage() {
 
         receiptIdToConfirm = res.data.id;
         setCreatedReceiptId(receiptIdToConfirm);
+        setReceiptNumber(res.data.number);
+        setReceiptReady(true);
+        setQuickSupplierOpen(false);
 
         // [F1] Lưu thông tin phiếu nháp vào sessionStorage theo tenant để không bị mất khi đóng/mở form
         savePendingReceipt(
@@ -712,43 +765,51 @@ export function InventoryPage() {
         );
       }
 
-      // Bước 2: Xác nhận và ghi sổ kho nguyên tử (Atomic Confirm)
-      if (receiptIdToConfirm) {
-        const confirmRes = await apiAdapter.confirmGoodsReceipt(receiptIdToConfirm);
-        if (confirmRes.error) {
-          // Trường hợp timeout ở lượt gọi trước nhưng backend đã kịp xác nhận
-          if (confirmRes.error.message?.includes("đã được xác nhận")) {
-            clearSavedPendingReceipt(currentTenantId);
-            setLoading(false);
-            setCreatedReceiptId(null);
-            setConfirmedSuccess(true);
-            // [F3] Tải lại cả số dư tổng và số dư kho đang chọn
-            await Promise.all([loadBalances(), loadLedger()]);
-            return;
-          }
+      // Saving a draft ends here: inventory is only posted by a separate user action.
+    } catch (err: any) {
+      if (receiptActorRef.current === actor) setReceiptError(err?.message || "Không thể lưu phiếu nháp.");
+    } finally {
+      if (receiptActorRef.current === actor) setLoading(false);
+      isConfirmingReceiptRef.current = false;
+    }
+  };
 
-          setLoading(false);
-          setReceiptError(
-            `${confirmRes.error.message}. Phiếu nháp đã được lưu an toàn (Mã: ${receiptIdToConfirm.slice(
-              0,
-              8
-            )}) — Bấm "Thử lại Xác nhận & Ghi sổ kho" để xác nhận tiếp mà không sợ tạo trùng phiếu.`
-          );
-          return;
+  const handleConfirmReceipt = async () => {
+    if (isConfirmingReceiptRef.current || !createdReceiptId || !receiptReady) return;
+    const id = createdReceiptId;
+    const actor = receiptActor;
+    isConfirmingReceiptRef.current = true;
+    setLoading(true);
+    setReceiptError(null);
+    try {
+      const before = await apiAdapter.getGoodsReceiptById(id);
+      if (receiptActorRef.current !== actor) return;
+      if (before.error || !before.data || before.data.id !== id) {
+        throw new Error(before.error?.message || "Không thể kiểm tra trạng thái phiếu nhập.");
+      }
+      if (before.data.status !== "Confirmed") {
+        if (before.data.status !== "Draft") throw new Error("Chỉ có thể xác nhận phiếu nháp.");
+        const result = await apiAdapter.confirmGoodsReceipt(id);
+        if (receiptActorRef.current !== actor) return;
+        if (result.error || result.data?.status !== "Confirmed") {
+          // Lost response / duplicate confirm: trust the authoritative status, not error text.
+          const after = await apiAdapter.getGoodsReceiptById(id);
+          if (receiptActorRef.current !== actor) return;
+          if (after.data?.id !== id || after.data.status !== "Confirmed") {
+            throw new Error(result.error?.message || "Chưa xác minh được kết quả. Phiếu được giữ lại để kiểm tra và thử xác nhận lại.");
+          }
         }
       }
-
       clearSavedPendingReceipt(currentTenantId);
-      setLoading(false);
       setCreatedReceiptId(null);
+      setReceiptReady(false);
       setConfirmedSuccess(true);
-      // [F3] Cập nhật ngay lập tức cả số dư tổng và số dư kho đang lọc
       await Promise.all([loadBalances(), loadLedger()]);
-    } catch (err: any) {
-      setLoading(false);
-      setReceiptError(err?.message || "Đã xảy ra lỗi khi xử lý phiếu nhập kho. Vui lòng bấm thử lại.");
+    } catch (error) {
+      if (receiptActorRef.current === actor) setReceiptError(error instanceof Error ? error.message : "Không thể xác nhận phiếu nhập.");
     } finally {
       isConfirmingReceiptRef.current = false;
+      if (receiptActorRef.current === actor) setLoading(false);
     }
   };
 
@@ -944,12 +1005,13 @@ export function InventoryPage() {
         description="Theo dõi tồn thực tế, tồn giữ chỗ, thực bán khả dụng theo từng Chi nhánh / Kho và bút toán sổ cái bất biến."
         actions={
           <>
-            <Button variant="secondary" onClick={() => setReturnOpen(true)}>
-              <RotateCcw size={17} />Ghi nhận trả hàng <Badge tone="neutral">[Sprint 3 Preview]</Badge>
+            <Button variant="secondary" disabled title="Chưa có luồng nhận trả hàng và ghi sổ kho.">
+              <RotateCcw size={17} />Ghi nhận trả hàng <ComingSoonBadge />
             </Button>
             <Button variant="secondary" onClick={() => openReserveModal()}>
               <Lock size={17} />Giữ chỗ theo kho
             </Button>
+            <Button variant="secondary" onClick={() => setReceiptListOpen(true)}>Phiếu nhập đã lưu</Button>
             <Button onClick={openReceiptModal}>
               <Plus size={17} />Tạo phiếu nhập
             </Button>
@@ -994,12 +1056,12 @@ export function InventoryPage() {
         </div>
         <div>
           <span><ArrowRightLeft size={18} /></span>
-          <strong>Chuyển kho <Badge tone="neutral">[Sprint 3 Preview]</Badge></strong>
+          <strong>Chuyển kho</strong>
           <small>2 bước nội bộ</small>
         </div>
         <div>
           <span><ClipboardCheck size={18} /></span>
-          <strong>Kiểm kê <Badge tone="neutral">[Sprint 3 Preview]</Badge></strong>
+          <strong>Kiểm kê</strong>
           <small>Cân kho tự động</small>
         </div>
         <div>
@@ -1028,8 +1090,8 @@ export function InventoryPage() {
               </button>
             ))}
           </div>
-          <Button variant="secondary" onClick={() => setThresholdOpen(true)}>
-            <Settings2 size={16} />Cấu hình ngưỡng
+          <Button variant="secondary" disabled title="Lưu ngưỡng cảnh báo lên máy chủ chưa khả dụng.">
+            <Settings2 size={16} />Cấu hình ngưỡng <ComingSoonBadge />
           </Button>
         </section>
       )}
@@ -1039,8 +1101,12 @@ export function InventoryPage() {
           <button className={tab === "balance" ? "active" : ""} onClick={() => setTab("balance")}>
             Bảng Tồn kho ({filteredSkus.length})
           </button>
-          <button className={tab === "ledger" ? "active" : ""} onClick={() => setTab("ledger")}>
+          <button className={tab === "ledger" ? "active" : ""} onClick={() => { setTab("ledger"); void loadLedger(); }}>
             Sổ kho bất biến — Append-Only ({filteredLedger.length})
+          </button>
+          <button type="button" onClick={loadData} disabled={loading}
+            style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <RefreshCw size={15} />Làm mới tồn & sổ kho
           </button>
         </div>
 
@@ -1237,10 +1303,10 @@ export function InventoryPage() {
                               </Button>
                               <Button
                                 variant="ghost"
-                                onClick={() => setThresholdOpen(true)}
-                                title="Ngưỡng cảnh báo"
+                                disabled
+                                title="Cấu hình ngưỡng — Coming soon"
                               >
-                                ≤{thresh}
+                                ≤{thresh} <ComingSoonBadge />
                               </Button>
                             </div>
                           </td>
@@ -1350,6 +1416,9 @@ export function InventoryPage() {
                 <option value="Xuất kho đơn hàng">Xuất kho đơn hàng</option>
                 <option value="Điều chuyển kho">Điều chuyển kho</option>
                 <option value="Kiểm kê cân kho">Kiểm kê cân kho</option>
+                <option value="Điều chỉnh tồn kho">Điều chỉnh tồn kho</option>
+                <option value="Khách trả hàng">Khách trả hàng</option>
+                <option value="Biến động kho">Biến động kho khác</option>
               </Select>
             </div>
 
@@ -1511,20 +1580,27 @@ export function InventoryPage() {
         )}
       </section>
 
+      {receiptListOpen && (
+        <Modal title="Phiếu nhập đã lưu" onClose={() => setReceiptListOpen(false)}>
+          <GoodsReceiptList tenantId={currentTenantId} onOpen={openSavedReceipt} />
+        </Modal>
+      )}
+
       {/* MODAL LẬP PHIẾU NHẬP KHO NHIỀU DÒNG (GOODS RECEIPT DIALOG) */}
       {receiptModal && (
         <Modal
           title={
             confirmedSuccess
               ? "Phiếu nhập kho đã ghi sổ thành công"
-              : "Lập phiếu nhập kho nhiều dòng hàng"
+              : createdReceiptId ? "Xem lại phiếu nhập nháp" : "Lập phiếu nhập kho nhiều dòng hàng"
           }
-          onClose={() => setReceiptModal(false)}
+          onClose={closeReceiptModal}
         >
           {confirmedSuccess ? (
             <div className="success-panel">
               <CheckCircle2 size={48} color="#16a34a" />
               <h3>Đã ghi sổ kho & tính lại giá vốn WAC</h3>
+              <p>Mã phiếu: <strong>{receiptNumber}</strong></p>
               <p>Đã nhập {totalReceiptQuantity} sản phẩm vào kho lưu trữ.</p>
               <div className="cost-result">
                 <span>
@@ -1609,10 +1685,10 @@ export function InventoryPage() {
                   }}
                 >
                   <div style={{ fontWeight: 600, marginBottom: "4px" }}>
-                    Phiếu nhập nháp đang chờ xác nhận: #{createdReceiptId.slice(0, 8)}
+                    Phiếu nháp đã lưu — chưa cộng tồn: {receiptNumber || createdReceiptId.slice(0, 8)}
                   </div>
                   <div>
-                    [F1] Hệ thống giữ nguyên mã phiếu kể cả khi đóng/mở lại modal hoặc tải lại trang. Khi bạn bấm <strong>"Thử lại Xác nhận & Ghi sổ kho"</strong>, hệ thống sẽ xác nhận đúng phiếu này mà không tạo phiếu mới gây trùng hàng. Lưu ý: Phiếu cũ trên backend vẫn lưu ở trạng thái Draft. Bấm <strong>"Bỏ theo dõi phiếu này / Tạo phiếu mới"</strong> nếu bạn muốn bỏ qua phiếu nháp này và lập phiếu khác.
+                    Kiểm tra lại kho, nhà cung cấp, số lượng và đơn giá bên dưới. Chỉ khi bấm <strong>"Xác nhận nhập kho"</strong>, hệ thống mới cộng tồn, ghi sổ và tính lại giá vốn. Bạn có thể đóng và mở lại phiếu trong <strong>"Phiếu nhập đã lưu"</strong> để xác nhận sau.
                   </div>
                 </div>
               )}
@@ -1930,7 +2006,7 @@ export function InventoryPage() {
               </div>
 
               <div className="modal-actions">
-                <Button variant="secondary" onClick={() => setReceiptModal(false)}>
+                <Button variant="secondary" disabled={loading} onClick={closeReceiptModal}>
                   Đóng
                 </Button>
                 {createdReceiptId && (
@@ -1941,20 +2017,20 @@ export function InventoryPage() {
                     style={{ color: "#dc2626", borderColor: "#fca5a5" }}
                     title="Bỏ theo dõi phiếu này trên giao diện và tạo phiếu mới (phiếu cũ vẫn lưu ở trạng thái Draft trên máy chủ)"
                   >
-                    Bỏ theo dõi phiếu này / Tạo phiếu mới
+                    Tạo phiếu khác
                   </Button>
                 )}
                 <Button
-                  onClick={handleConfirmReceipt}
-                  disabled={loading || verifyingPendingReceipt || loadingModalWhStock || Boolean(modalWhError)}
+                  onClick={createdReceiptId ? handleConfirmReceipt : handleSaveReceipt}
+                  disabled={loading || verifyingPendingReceipt || (createdReceiptId ? !receiptReady : loadingModalWhStock || Boolean(modalWhError))}
                 >
                   {loading
                     ? "Đang xử lý..."
                     : verifyingPendingReceipt
                     ? "Đang đối soát..."
                     : createdReceiptId
-                    ? "Thử lại Xác nhận & Ghi sổ kho"
-                    : "Xác nhận & Ghi sổ kho"}
+                    ? "Xác nhận nhập kho"
+                    : "Lưu nháp"}
                 </Button>
               </div>
             </>
@@ -2212,46 +2288,6 @@ export function InventoryPage() {
         </Modal>
       )}
 
-      {/* MODAL CẤU HÌNH NGƯỠNG TỒN */}
-      {thresholdOpen && (
-        <Modal
-          title="Cấu hình ngưỡng cảnh báo tồn kho an toàn"
-          onClose={() => setThresholdOpen(false)}
-        >
-          <div className="threshold-scope">
-            <p>
-              Hệ thống tự động kích hoạt cảnh báo khi Tồn khả dụng (Available) ≤ Ngưỡng (Threshold).
-            </p>
-          </div>
-          <div className="threshold-list" style={{ maxHeight: "300px", overflowY: "auto" }}>
-            {skus.map((sku) => (
-              <label key={`${sku.id}-${sku.branchId || "default"}`}>
-                <span>
-                  <strong>
-                    {sku.code} ({sku.branchName || "CN"})
-                  </strong>
-                  <small>{sku.name}</small>
-                </span>
-                <Input
-                  type="number"
-                  min="0"
-                  value={thresholds[sku.id] ?? sku.threshold}
-                  onChange={(e) =>
-                    setThresholds({ ...thresholds, [sku.id]: Number(e.target.value) })
-                  }
-                />
-              </label>
-            ))}
-          </div>
-          <div className="modal-actions">
-            <Button variant="secondary" onClick={() => setThresholdOpen(false)}>
-              Hủy
-            </Button>
-            <Button onClick={() => setThresholdOpen(false)}>Lưu cấu hình</Button>
-          </div>
-        </Modal>
-      )}
-
       {/* MODAL XEM CHI TIẾT CHỨNG TỪ SỔ KHO BẤT BIẾN */}
       {selectedLedger && (
         <Modal
@@ -2296,59 +2332,6 @@ export function InventoryPage() {
         </Modal>
       )}
 
-      {/* MODAL TRẢ HÀNG [Sprint 3 Preview] */}
-      {returnOpen && (
-        <Modal
-          title="Ghi nhận trả hàng từ khách (Compensating Return) — [Sprint 3 Preview]"
-          onClose={() => setReturnOpen(false)}
-        >
-          <div style={{ marginBottom: "10px" }}>
-            <Badge tone="neutral">[Sprint 3 Preview]</Badge>
-          </div>
-          <div className="form-grid">
-            <label>
-              <span>Mã đơn hàng gốc</span>
-              <Input placeholder="SO-2026-001" defaultValue="SO-2606-0181" />
-            </label>
-            <label>
-              <span>Kho nhận lại hàng</span>
-              <Select>
-                {warehouses.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name}
-                  </option>
-                ))}
-              </Select>
-            </label>
-            <label>
-              <span>Sản phẩm / SKU hoàn lại</span>
-              <Select>
-                {skus.map((s) => (
-                  <option key={`${s.id}-${s.branchId}`} value={s.id}>
-                    {s.code} - {s.name}
-                  </option>
-                ))}
-              </Select>
-            </label>
-            <label>
-              <span>Số lượng trả</span>
-              <Input type="number" min="1" defaultValue="1" />
-            </label>
-          </div>
-          <div className="impact-box" style={{ marginTop: "12px" }}>
-            <strong>Bút toán bù trừ (Sprint 3):</strong> Việc nhận trả hàng sẽ tạo một bút toán{" "}
-            <code>IN</code> mới vào sổ cái kho để tăng lại tồn thực tế, không sửa bút toán xuất bán cũ.
-          </div>
-          <div className="modal-actions">
-            <Button variant="secondary" onClick={() => setReturnOpen(false)}>
-              Hủy
-            </Button>
-            <Button onClick={() => setReturnOpen(false)}>
-              Đóng xem trước [Sprint 3 Preview]
-            </Button>
-          </div>
-        </Modal>
-      )}
     </>
   );
 }

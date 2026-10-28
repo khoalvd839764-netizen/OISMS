@@ -1,0 +1,26 @@
+[
+  {
+    "Path": "src/backend/tests/OISM.IntegrationTests/StockDocumentApiTests.cs",
+    "Unchanged": true
+  },
+  {
+    "Path": "src/frontend/admin-dashboard/src/pages/OrdersPage.tsx",
+    "Unchanged": true
+  },
+  {
+    "Path": "src/frontend/admin-dashboard/src/components/orders/OrderDetailDrawer.tsx",
+    "Unchanged": true
+  },
+  {
+    "Path": "src/frontend/admin-dashboard/src/pages/StockCountsPage.tsx",
+    "Unchanged": true
+  },
+  {
+    "Path": "src/frontend/admin-dashboard/src/services/stockTransferService.ts",
+    "Unchanged": true
+  },
+  {
+    "Path": "src/frontend/admin-dashboard/src/services/stockCountService.ts",
+    "Unchanged": true
+  }
+]

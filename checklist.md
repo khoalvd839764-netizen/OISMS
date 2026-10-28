@@ -1,13 +1,14 @@
-# CHECKLIST TIẾN ĐỘ ĐỒ ÁN OISMS — SPRINT 2 & CẬP NHẬT BACKEND 1 SPRINT 3
+# CHECKLIST TIẾN ĐỘ ĐỒ ÁN OISMS — SPRINT 2, SPRINT 3 & RÀ SOÁT SẢN PHẨM
 
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-CHK-S2` |
-| **Phiên bản (Version)** | `v1.1.0` |
-| **Ngày cập nhật** | `2026-10-27` |
+| **Phiên bản (Version)** | `v1.2.0` |
+| **Ngày cập nhật** | `2026-10-29` (Asia/Saigon) |
 | **Nguồn truy vết gốc** | `C:\Users\Jacki Khoa\Documents\De bai CNPM.pdf` (Trang 1 – 6) & Confluence Page ID `5275650` (Version 9) |
 | **Bằng chứng kiểm thử Sprint 2** | **194/194 Tests Pass (100%)** — 103 Unit Tests + 91 Integration Tests trên PostgreSQL 16+ thật; Code Coverage Core Inventory đạt **`92.49% – 94.83%`** |
 | **Nguồn cập nhật Sprint 3** | [Phân công Sprint 3 lưu trong repo, Confluence v11](docs/08-sprints/sprint-3/README.md) và [báo cáo tổng kết Đăng Khoa](docs/09-personal-reports/dang-khoa/sprint-3/SUMMARY.md); không tra cứu/cập nhật Confluence live trong lượt này |
+| **Hiện trạng sản phẩm mới nhất** | [Rà soát 28–29/10/2026](docs/bug-fixaffter/README.md): **20 nhóm lỗi OPEN**, **8 mục chưa hoàn thiện**; xem mục **0A** trước khi kết luận sản phẩm đã chạy đầy đủ |
 
 ---
 
@@ -17,6 +18,7 @@
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | • Tổng hợp toàn bộ yêu cầu đề bài (`28 FR + AI`, `11 NFR`, `5 Task Packages`, `6 Deliverables`) và đánh dấu nghiệm thu `[x]` các hạng mục đã hoàn thành trong Sprint 2.<br/>• **Check thay đổi khi đối chiếu Confluence (`Page ID: 5275650`, Version 9):** Đồng bộ chính xác lịch trình (`S2: 13–17/10`, `S3: 18–22/10`, `S4: 23–27/10`, `S5: 28/10–01/11`) và phân công 5 thành viên cho các hạng mục chưa hoàn thành `[ ]`. | `INIT-SYNC-CHK-S2` |
 | `v1.1.0` | `2026-10-27` | Lê Võ Đăng Khoa — Backend 1 | Cập nhật checklist BE1 Sprint 3 theo hồ sơ T01–T06, B-01 và PR #21; tách phần backend đã đạt khỏi UI, API đọc/báo cáo BE2 và công việc Sprint 4; đồng bộ phân công Simulator theo bản v11 đã lưu trong repo. | `SYNC-BE1-S3-CHECKLIST` |
+| `v1.2.0` | `2026-10-29` | Rà soát sản phẩm | Bổ sung checklist hiện trạng Admin/POS, 20 nhóm lỗi và 8 mục Coming soon; giữ nguyên bằng chứng Sprint 2/BE1 lịch sử, không tự nâng thành nghiệm thu toàn sản phẩm. | `docs/bug-fixaffter/` |
 
 ---
 
@@ -39,6 +41,77 @@ Chi tiết 42 hạng mục đã triển khai và 5 mục chưa xác nhận hoàn
 - [ ] **Triển khai production và bật/provision Hangfire trên môi trường đích:** Chưa thuộc kết luận nghiệm thu local.
 
 Quy ước: mục FR bao gồm nhiều người hoặc nhiều sprint chỉ được đánh dấu hoàn tất khi toàn bộ phạm vi có bằng chứng. Phần BE1 đã đạt được đánh dấu riêng ở các mục con; `[ ]` của nhóm không phủ nhận phần backend đã hoàn thành.
+
+---
+
+## 0A. Checklist hiện trạng sản phẩm — cập nhật 29/10/2026
+
+**Chưa nghiệm thu toàn bộ sản phẩm.** Các dấu `[x]` ở phần Sprint 2 và báo cáo BE1 bên dưới phản ánh baseline/bằng chứng được ghi tại thời điểm đó. Khi đánh giá khả năng sử dụng hiện tại, phải đối chiếu các mục còn mở trong phần này. Trạng thái bàn giao READY_FOR_REVIEW chỉ có nghĩa chờ review.
+
+Baseline rà soát: nhánh `feature/OISMS-43-orders-transfers`, HEAD `f276eeed72782f7272f32a62f4bb61ba761f3e89` cộng working tree chưa commit. Chi tiết tái hiện, ảnh hưởng, vị trí code và điều kiện đóng: [BUG-LIST.md](docs/bug-fixaffter/BUG-LIST.md).
+
+### 0A.1. Nền tảng và các luồng cơ bản
+
+- [x] Đã có báo cáo Markdown cho đợt rà soát, tách lỗi đang hoạt động, chức năng chưa hoàn thiện và kết quả kiểm tra.
+- [ ] **Đăng nhập/đổi tài khoản:** hoàn thiện vòng đời HTTP, refresh và SignalR theo chủ sở hữu phiên; `BF-001`, `BF-002` còn mở.
+- [ ] **Phiếu nhập hàng:** đã bổ sung tạo Draft, đọc danh sách server và thao tác xác nhận riêng ở lượt trước; cần nghiệm thu lại toàn luồng tạo → xác nhận → tồn/sổ kho → tải lại. Không suy diễn từ kiểm thử từng phần thành hoàn tất sản phẩm.
+- [ ] **Chuyển kho:** đã có UI gọi backend; còn retry tạo phiếu, khóa thao tác và tồn theo kho nguồn (`BF-004`, `BF-008`, `BF-012`); cần nghiệm thu tạo → dispatch → receive → tồn hai kho → lịch sử.
+- [ ] **Kiểm kê:** đã có UI và cập nhật phân loại lịch sử ở lượt trước; còn retry, ô đếm trống và khóa thao tác (`BF-005..008`); cần nghiệm thu lưu số đếm → xác nhận → tồn/điều chỉnh/lịch sử → tải lại.
+- [ ] **Giữ chỗ và đơn hàng:** bảo toàn ý định khi kết quả chưa xác định (`BF-013`), nghiệm thu tạo/giữ → xác nhận hoặc hủy/hết hạn → tồn/sổ kho. In chứng từ Admin còn Coming soon (`CS-06`).
+- [ ] **POS tích hợp `/pos`:** đã có giao diện catalog/giỏ và thanh toán tiền mặt; còn retry, hết phiên và kiểm tra response thành công (`BF-003`, `BF-015`, `BF-019`); QR chưa hoạt động thật (`CS-05`).
+- [ ] **POS riêng:** ngoài các lỗi checkout chung, phải khóa/tách đúng giỏ và chi nhánh khi giao dịch đang chạy (`BF-020`); chưa coi hai POS có mức hoàn thiện tương đương.
+- [ ] **Đồng bộ realtime:** hoàn thiện nhóm chi nhánh, sự kiện tồn và refetch sau reconnect (`BF-002`, `BF-016`); kiểm chứng nhiều phiên và chi nhánh trên môi trường test.
+- [ ] **Báo cáo/cảnh báo:** sửa phản hồi cũ, dữ liệu cũ khi lỗi, ngày/múi giờ, link cảnh báo và kênh Admin (`BF-009..011`, `BF-017`, `BF-018`); các finding BE2-F03/F04 bên dưới vẫn cần xử lý/đối chiếu riêng.
+- [ ] **Chi nhánh/kho:** không trình bày lỗi API như danh sách trống (`BF-014`); nghiệm thu tải, lưu và đọc lại.
+
+### 0A.2. Checklist sửa lỗi còn mở
+
+Tất cả mục dưới đây **OPEN**, chưa tự đánh dấu CLOSED/VERIFIED. P1 ưu tiên sai phiên, giao dịch hoặc số liệu; P2 ưu tiên chức năng và trải nghiệm. Mỗi ID có bằng chứng và tiêu chí đóng riêng trong [danh sách chi tiết](docs/bug-fixaffter/BUG-LIST.md).
+
+- [ ] **P1 · BF-001:** Chặn refresh/HTTP cũ ghi đè phiên mới hoặc replay ý định cũ bằng token tài khoản mới.
+- [ ] **P1 · BF-002:** Tạo/đóng và reset kết nối SignalR đúng phiên đăng nhập.
+- [ ] **P1 · BF-003:** Giữ nguyên request key và snapshot khi retry thanh toán POS có kết quả chưa rõ.
+- [ ] **P1 · BF-004:** Bảo toàn request key khi retry tạo phiếu chuyển kho.
+- [ ] **P1 · BF-005:** Bảo toàn request key của form tạo kiểm kê.
+- [ ] **P1 · BF-006:** Không chốt số đếm cũ sau khi xóa ô và đồng ý gán số sổ sách.
+- [ ] **P2 · BF-007:** Không tự lưu ô đếm trống thành tồn sổ sách khi chưa xác nhận.
+- [ ] **P2 · BF-008:** Không để request chứng từ cũ khóa nút trên chứng từ mới.
+- [ ] **P1 · BF-009:** Không cho phản hồi báo cáo cũ ghi đè bộ lọc mới.
+- [ ] **P2 · BF-010:** Xử lý dữ liệu báo cáo cũ rõ ràng khi truy vấn bộ lọc mới thất bại.
+- [ ] **P1 · BF-011:** Thống nhất ngày Việt Nam, timezone nghiệp vụ và biên ngày báo cáo.
+- [ ] **P2 · BF-012:** Hiển thị tồn của đúng kho nguồn khi lập chuyển kho.
+- [ ] **P1 · BF-013:** Không làm mất ý định/key giữ chỗ pending khi sửa form.
+- [ ] **P2 · BF-014:** Hiển thị lỗi đọc/lưu chi nhánh, kho đúng trạng thái.
+- [ ] **P2 · BF-015:** Xử lý hết phiên và ProblemDetails khi POS checkout thất bại.
+- [ ] **P2 · BF-016:** Nối đầy đủ sự kiện realtime tồn kho và refetch khi reconnect.
+- [ ] **P2 · BF-017:** Mở đúng tab cảnh báo từ link `/reports?tab=alerts`.
+- [ ] **P2 · BF-018:** Bổ sung bộ lọc kênh Admin khớp dữ liệu backend.
+- [ ] **P2 · BF-019:** Không nhận checkout thành công khi response thiếu định danh đơn server.
+- [ ] **P1 · BF-020:** Không để kết quả checkout POS riêng xóa giỏ hoặc cập nhật ngữ cảnh mới.
+
+### 0A.3. Chức năng chưa hoàn thiện / Coming soon
+
+Gắn nhãn hoặc khóa nút giúp phản ánh đúng hiện trạng; **không được đánh dấu hoàn thành yêu cầu** chỉ vì đã gắn Coming soon. Phạm vi và điều kiện sử dụng thật: [COMING-SOON.md](docs/bug-fixaffter/COMING-SOON.md).
+
+- [ ] **CS-01:** Luồng nhận hàng trả từ khách, liên kết đơn gốc và ghi nhận tồn/lịch sử.
+- [ ] **CS-02:** Danh sách, tạo/sửa nhân viên, phân quyền và phân công chi nhánh.
+- [ ] **CS-03:** Lưu ngưỡng cảnh báo trên server và đồng bộ Kho/Báo cáo.
+- [ ] **CS-04:** Tìm kiếm toàn hệ thống ở thanh đầu trang.
+- [ ] **CS-05:** Thanh toán QR thật và xác nhận/đối soát theo phương án nghiệp vụ được chốt.
+- [ ] **CS-06:** In chứng từ giao hàng và báo cáo Admin; in hóa đơn POS cần nghiệm thu riêng.
+- [ ] **CS-07:** KPI bán hàng, đơn gần đây và biểu đồ Tổng quan từ dữ liệu server đầy đủ.
+- [ ] **CS-08:** Dự báo và gợi ý nhập hàng AI có API/model/UI và bằng chứng đánh giá.
+
+### 0A.4. Bằng chứng và điều kiện nghiệm thu tiếp theo
+
+- [x] Backend unit tests trong đợt rà soát: **158 PASS, 0 FAIL**.
+- [x] Frontend regression React/DOM trong đợt rà soát: **13 PASS, 0 FAIL**.
+- [x] Đã ghi bằng chứng cho các kịch bản tái hiện có kiểm soát và link cảnh báo sai tab trên browser. Script tái hiện lỗi thoát 0 không có nghĩa sản phẩm PASS.
+- [x] Backend integration suite đầy đủ đã xuất TRX sau lần kiểm tra trước: **285 PASS, 0 FAIL, 0 SKIP**; tổng backend **443 PASS**. Kết quả này không thay thế nghiệm thu frontend E2E hoặc đóng các finding còn mở.
+- [ ] Nghiệm thu E2E các luồng cơ bản trên database test riêng, gồm tải lại trang, lỗi mạng/kết quả unknown, đổi tài khoản và đổi chi nhánh.
+- [ ] Review và đóng từng finding sau bản sửa cùng bằng chứng hồi quy; giữ các finding bàn giao cũ ở trạng thái chờ review nếu chưa đủ bằng chứng.
+
+Trước khi đẩy nhánh ngày 29/10, đã chạy lại build Admin và POS riêng: cả hai PASS. 14 kiểm thử ở lượt triển khai trước chỉ được dẫn lại, không nhận là vừa chạy lại trong audit. Xem [TEST-RESULTS.md](docs/bug-fixaffter/TEST-RESULTS.md) để biết lệnh, giới hạn và nguồn bằng chứng.
 
 ---
 

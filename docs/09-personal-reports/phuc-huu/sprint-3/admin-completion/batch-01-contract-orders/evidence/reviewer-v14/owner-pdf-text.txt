@@ -1,0 +1,74 @@
+PAGE 1
+Trung Tâm Đơ n
+Hàng Đ a Kênh
+Qu ả n tr ị  vòng đ ờ i đơ n hàng: Shopee,
+TikTok, Lazada, POS, Web. Duy ệ t đơ n
+(tr ừ  on-hand), H ủ y đơ n (hoàn gi ữ  ch ỗ ),
+X ử  lý và In phi ế u.
+Tìm ki ế m
+Mã đơ n, S Đ T...
+Tr ạ ng thái
+T ấ t c ả  tr ạ ng thái
+Kênh bán
+T ấ t c ả  kênh
+T ừ  ngày
+mm/dd/yyyy
+Mã đơ n Kênh
+Bán
+ORD-RES-
+20261028145843-
+7A5A
+POS
+POS-20261028-
+f11cfb4 POS
+POS-20261028-
+c50f250 POS
+POS-20261028-
+15d8537 POS
+POS-20261028-
+26beece POS
+POS-20261028-
+b446741 POS
+POS-20261027-
+3beba26 POS
+POS-20261027-
+71462f8 POS
+
+PAGE 2
+Mã đơ n Kênh
+Bán
+POS-20261027-
+567b3fb POS
+ORD-RES-
+20261020024359-
+ADE2
+POS
+Hi ể n th ị  trang 1 / 2 (T ổ ng 14 đơ n
+hàng)
+Chi ti ế t đơ n hàng ORD-
+RES-20261028145843-
+7A5A
+Kênh: POS | Ngày t ạ o: 21:58:43
+28/10/2026
+Khách hàng
+Khách l ẻ
+Ch ư a có S Đ T
+Tr ạ ng thái
+Nháp
+Danh sách m ặ t hàng SKU
+S ả n
+ph ẩ m SL
+Giá
+niêm
+y ế t
+T ổ ng
+ti ề n
+SKU-
+53318
+IPHONE
+13
+1 150.000
+₫
+150.000
+₫
+T ổ ng ti ề n bán: 150.000 ₫

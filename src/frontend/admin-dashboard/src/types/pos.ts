@@ -14,6 +14,8 @@ export interface PosProductSearchResponse {
   onHand: number | null;
   reserved: number | null;
   available: number | null;
+  categoryId?: string | null;
+  categoryName?: string | null;
 }
 
 export interface CartItem {

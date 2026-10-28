@@ -17,8 +17,6 @@ export const TransferDetailDrawer: React.FC<TransferDetailDrawerProps> = ({
   const [detail, setDetail] = useState<StockTransfer | null>(null);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const [rejectReason, setRejectReason] = useState('');
-  const [showRejectModal, setShowRejectModal] = useState(false);
   const activeReqRef = useRef(0);
 
   useEffect(() => {
@@ -57,7 +55,7 @@ export const TransferDetailDrawer: React.FC<TransferDetailDrawerProps> = ({
 
   if (!transferId) return null;
 
-  // Bước 1 -> 2: Xuất gửi hàng (Dispatch)
+  // Bước 1: Xuất gửi hàng (Draft -> InTransit)
   const handleDispatch = async () => {
     if (!detail || detail.id !== transferId || loading || actionLoading) return;
     const targetId = detail.id;
@@ -70,9 +68,10 @@ export const TransferDetailDrawer: React.FC<TransferDetailDrawerProps> = ({
       if (actionSeq !== activeReqRef.current || transferId !== targetId) return;
       setDetail(updated);
       onRefresh();
-    } catch (error) {
+    } catch (error: any) {
       if (actionSeq !== activeReqRef.current || transferId !== targetId) return;
-      alert('Không thể xuất gửi hàng.');
+      const msg = error?.response?.data?.detail || error?.message || 'Không thể xuất gửi hàng.';
+      alert(msg);
     } finally {
       if (actionSeq === activeReqRef.current && transferId === targetId) {
         setActionLoading(false);
@@ -80,7 +79,7 @@ export const TransferDetailDrawer: React.FC<TransferDetailDrawerProps> = ({
     }
   };
 
-  // Bước 2 -> 3A: Nhận hàng (Receive)
+  // Bước 2: Nhận hàng (InTransit -> Received)
   const handleReceive = async () => {
     if (!detail || detail.id !== transferId || loading || actionLoading) return;
     const targetId = detail.id;
@@ -93,9 +92,10 @@ export const TransferDetailDrawer: React.FC<TransferDetailDrawerProps> = ({
       if (actionSeq !== activeReqRef.current || transferId !== targetId) return;
       setDetail(updated);
       onRefresh();
-    } catch (error) {
+    } catch (error: any) {
       if (actionSeq !== activeReqRef.current || transferId !== targetId) return;
-      alert('Không thể nhận hàng.');
+      const msg = error?.response?.data?.detail || error?.message || 'Không thể nhận hàng.';
+      alert(msg);
     } finally {
       if (actionSeq === activeReqRef.current && transferId === targetId) {
         setActionLoading(false);
@@ -103,27 +103,26 @@ export const TransferDetailDrawer: React.FC<TransferDetailDrawerProps> = ({
     }
   };
 
-  // Bước 2 -> 3B: Từ chối nhận hàng (Reject)
-  const handleReject = async () => {
+  // Hủy phiếu chuyển kho khi còn ở Draft (Draft -> Cancelled)
+  const handleCancel = async () => {
     if (!detail || detail.id !== transferId || loading || actionLoading) return;
-    if (!rejectReason.trim()) {
-      alert('Vui lòng nhập lý do từ chối.');
-      return;
-    }
+    const reason = prompt('Nhập lý do hủy phiếu chuyển kho:');
+    if (reason === null) return;
+
     const targetId = detail.id;
     const actionSeq = ++activeReqRef.current;
     setActionLoading(true);
     try {
-      await stockTransferService.rejectTransfer(targetId, { reason: rejectReason });
+      await stockTransferService.cancelTransfer(targetId, reason);
       if (actionSeq !== activeReqRef.current || transferId !== targetId) return;
-      setShowRejectModal(false);
       const updated = await stockTransferService.getTransferById(targetId);
       if (actionSeq !== activeReqRef.current || transferId !== targetId) return;
       setDetail(updated);
       onRefresh();
-    } catch (error) {
+    } catch (error: any) {
       if (actionSeq !== activeReqRef.current || transferId !== targetId) return;
-      alert('Không thể từ chối nhận hàng.');
+      const msg = error?.response?.data?.detail || error?.message || 'Không thể hủy phiếu chuyển kho.';
+      alert(msg);
     } finally {
       if (actionSeq === activeReqRef.current && transferId === targetId) {
         setActionLoading(false);
@@ -170,7 +169,7 @@ export const TransferDetailDrawer: React.FC<TransferDetailDrawerProps> = ({
                 </div>
                 <div className="text-center flex flex-col justify-center">
                   <span className="text-gray-400 font-bold">➔ ➔ ➔</span>
-                  <span className="text-gray-500 font-semibold">{TRANSFER_STATUS_LABEL[detail.status]}</span>
+                  <span className="text-gray-500 font-semibold">{TRANSFER_STATUS_LABEL[detail.status] || detail.status}</span>
                 </div>
                 <div className="text-right">
                   <span className="text-gray-400 block">Kho nhận (Đích)</span>
@@ -214,71 +213,40 @@ export const TransferDetailDrawer: React.FC<TransferDetailDrawerProps> = ({
           ) : null}
         </div>
 
-        {/* Actions theo Máy trạng thái 2 Bước */}
+        {/* Actions theo Máy trạng thái 2 Bước (Draft -> InTransit -> Received hoặc Draft -> Cancelled) */}
         {detail && (
           <div className="p-4 border-t border-gray-200 bg-gray-50 flex gap-2 justify-end">
             {detail.status === 'Draft' && (
-              <button
-                disabled={actionLoading}
-                onClick={handleDispatch}
-                className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50"
-              >
-                Xuất gửi hàng (Dispatch)
-              </button>
-            )}
-
-            {detail.status === 'InTransit' && (
               <>
                 <button
                   disabled={actionLoading}
-                  onClick={() => setShowRejectModal(true)}
+                  onClick={handleCancel}
                   className="px-4 py-2 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-md hover:bg-rose-100 disabled:opacity-50"
                 >
-                  Từ chối nhận (Reject)
+                  Hủy phiếu (Cancel)
                 </button>
                 <button
                   disabled={actionLoading}
-                  onClick={handleReceive}
-                  className="px-4 py-2 text-xs font-semibold text-white bg-emerald-600 rounded-md hover:bg-emerald-700 disabled:opacity-50"
+                  onClick={handleDispatch}
+                  className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50"
                 >
-                  Xác nhận Nhận hàng (Receive)
+                  Xuất gửi hàng (Dispatch)
                 </button>
               </>
+            )}
+
+            {detail.status === 'InTransit' && (
+              <button
+                disabled={actionLoading}
+                onClick={handleReceive}
+                className="px-4 py-2 text-xs font-semibold text-white bg-emerald-600 rounded-md hover:bg-emerald-700 disabled:opacity-50"
+              >
+                Xác nhận Nhận hàng (Receive)
+              </button>
             )}
           </div>
         )}
       </div>
-
-      {/* Modal từ chối nhận */}
-      {showRejectModal && (
-        <div className="fixed inset-0 z-60 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg p-5 max-w-md w-full space-y-3">
-            <h3 className="font-bold text-gray-800">Từ chối nhận hàng điều chuyển</h3>
-            <textarea
-              placeholder="Nhập lý do từ chối (hư hỏng, sai lệch...)..."
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-rose-500"
-              rows={3}
-            />
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowRejectModal(false)}
-                className="px-3 py-1.5 text-xs text-gray-600 bg-gray-100 rounded"
-              >
-                Đóng
-              </button>
-              <button
-                disabled={actionLoading}
-                onClick={handleReject}
-                className="px-3 py-1.5 text-xs text-white bg-rose-600 rounded disabled:opacity-50"
-              >
-                Xác nhận từ chối
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

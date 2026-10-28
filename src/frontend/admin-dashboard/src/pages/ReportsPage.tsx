@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { reportService } from '../services/reportService';
 import { apiAdapter } from '../services/apiAdapter';
+import { ComingSoonBadge } from '../components/ui';
 import type {
   RevenueProfitReport,
   InventoryVelocityReport,
@@ -188,11 +189,12 @@ export const ReportsPage: React.FC = () => {
             Tải lại
           </button>
           <button
-            onClick={() => window.print()}
+            disabled
+            title="Bản in báo cáo chưa được hoàn thiện."
             className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm flex items-center gap-1.5"
           >
             <Printer className="w-3.5 h-3.5" />
-            In báo cáo
+            In báo cáo <ComingSoonBadge />
           </button>
         </div>
       </div>

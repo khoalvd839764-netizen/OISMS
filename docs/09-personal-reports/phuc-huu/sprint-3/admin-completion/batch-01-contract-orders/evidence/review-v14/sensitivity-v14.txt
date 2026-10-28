@@ -1,0 +1,25 @@
+TAP version 13
+✓ Mutant 1 (no form lock) caught successfully: Customer input phải bị disabled
+
+false !== true
+
+# Subtest: SENSITIVITY 1: Harness phát hiện lỗi khi bỏ khóa biểu mẫu isFormLocked
+ok 1 - SENSITIVITY 1: Harness phát hiện lỗi khi bỏ khóa biểu mẫu isFormLocked
+  ---
+  duration_ms: 420.0421
+  ...
+✓ Mutant 2 (race condition overwriting) caught successfully: Phản hồi muộn của đơn A tuyệt đối không được ghi đè đơn B
+# Subtest: SENSITIVITY 2: Harness phát hiện lỗi khi bỏ race condition guard trên Drawer
+ok 2 - SENSITIVITY 2: Harness phát hiện lỗi khi bỏ race condition guard trên Drawer
+  ---
+  duration_ms: 71.015
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 513.1464

@@ -4,6 +4,7 @@ import { ORDER_STATUS_LABEL, ORDER_ACTIONS } from '../../types/ordersCenter';
 import { orderService } from '../../services/orderService';
 import { Printer } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { ComingSoonBadge } from '../ui';
 
 interface OrderDetailDrawerProps {
   orderId: string | null;
@@ -180,12 +181,12 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
           </div>
           <div className="flex items-center gap-2 print:hidden">
             <button
-              onClick={() => window.print()}
+              disabled
               className="px-2.5 py-1 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-100 flex items-center gap-1 shadow-sm"
-              title="In phiếu xuất kho / giao hàng"
+              title="Bản in phiếu xuất kho / giao hàng đang hoàn thiện."
             >
               <Printer className="w-3.5 h-3.5" />
-              In chứng từ
+              In chứng từ <ComingSoonBadge />
             </button>
             <button
               onClick={onClose}

@@ -1,9 +1,13 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { X, Banknote, QrCode, Printer, AlertCircle, ShieldCheck } from 'lucide-react';
 import type { CartItem, PosCheckoutRequest, ReceiptData } from '../../types/pos';
 import { checkoutPosOrder } from '../../services/posApi';
+import { ComingSoonBadge } from '../ui';
 
 interface PaymentModalProps {
+  embedded?: boolean;
+  onBusyChange?: (busy: boolean) => void;
+  submitRef?: React.RefObject<HTMLButtonElement | null>;
   isOpen: boolean;
   onClose: () => void;
   items: CartItem[];
@@ -18,6 +22,9 @@ interface PaymentModalProps {
 }
 
 export const PaymentModal: React.FC<PaymentModalProps> = ({
+  embedded = false,
+  onBusyChange,
+  submitRef,
   isOpen,
   onClose,
   items,
@@ -30,6 +37,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   onSuccessAndPrint,
   onPreviewReceipt,
 }) => {
+  const submittingRef = useRef(false);
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'BANK_TRANSFER_QR'>('CASH');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -59,6 +67,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   ];
 
   const handleCheckout = async (forcePrint = false) => {
+    if (paymentMethod !== 'CASH') return;
+    if (submittingRef.current || items.length === 0 || !branchId) return;
     if (isShortOfCash && !forcePrint) {
       setApiNotice({
         type: 'error',
@@ -67,7 +77,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       return;
     }
 
+    submittingRef.current = true;
     setIsSubmitting(true);
+    onBusyChange?.(true);
     setApiNotice(null);
 
     const orderNumber = `ORD-POS-${Date.now().toString().slice(-6)}`;
@@ -137,7 +149,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         text: `Lỗi gọi API: ${err.message}`,
       });
     } finally {
+      submittingRef.current = false;
       setIsSubmitting(false);
+      onBusyChange?.(false);
     }
   };
 
@@ -170,6 +184,23 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     onPreviewReceipt(draftReceipt);
     onClose();
   };
+
+  if (embedded) return <div className="pos-inline-payment">
+    <input className="pos-customer-input" aria-label="Tên khách hàng" value={customerName} onChange={(event)=>setCustomerName(event.target.value)} placeholder="Khách hàng (không bắt buộc)" />
+    <input className="pos-customer-input" type="tel" aria-label="Số điện thoại khách hàng" value={customerPhone} onChange={(event)=>setCustomerPhone(event.target.value)} placeholder="Số điện thoại (không bắt buộc)" />
+    <div className="pos-payment-methods">
+      <button type="button" aria-pressed={paymentMethod==='CASH'} onClick={()=>setPaymentMethod('CASH')}><Banknote size={17} />Tiền mặt</button>
+      <button type="button" disabled title="Thanh toán QR chưa được tích hợp." aria-pressed={false}><QrCode size={17} /><span>Chuyển khoản QR</span><ComingSoonBadge /></button>
+    </div>
+    {paymentMethod==='CASH' ? <div className="pos-cash-row"><label>Tiền khách đưa
+      <input type="number" min="0" aria-label="Tiền khách đưa" value={amountGiven || ''} onChange={(event)=>setUserGivenAmount(Number(event.target.value))} placeholder="Nhập số tiền" />
+    </label><div className={isShortOfCash?'pos-change is-short':'pos-change'}><small>{isShortOfCash?'Còn thiếu':'Tiền thừa'}</small><strong>{formatCurrency(isShortOfCash?totalAmount-amountGiven:changeDue)}</strong></div></div> :
+      <p className="pos-qr-notice">QR hiện là chế độ mô phỏng; chưa có xác nhận chuyển tiền tự động. Không chuyển tiền thật qua mã mô phỏng.</p>}
+    {apiNotice && <p className="pos-error" role="alert">{apiNotice.text} Giỏ hàng được giữ lại để kiểm tra.</p>}
+    <button ref={submitRef} className="pos-checkout-button" type="button" disabled={isSubmitting || isShortOfCash || !items.length || !branchId}
+      onClick={()=>handleCheckout(false)}>{isSubmitting?'Đang xử lý...':`Thanh toán · ${formatCurrency(totalAmount)}`}</button>
+    <button className="pos-draft-button" type="button" disabled={!items.length || isSubmitting} onClick={handlePrintPreview}><Printer size={14} />In phiếu tạm tính</button>
+  </div>;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in no-print">
@@ -214,7 +245,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
               <button
                 type="button"
-                onClick={() => setPaymentMethod('BANK_TRANSFER_QR')}
+                disabled
+                title="Thanh toán QR — Coming soon"
                 className={`flex items-center justify-center gap-2.5 p-3.5 rounded-2xl border-2 font-bold text-sm transition-all ${
                   paymentMethod === 'BANK_TRANSFER_QR'
                     ? 'border-indigo-600 bg-indigo-50/50 text-indigo-700 shadow-sm'
@@ -222,7 +254,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 }`}
               >
                 <QrCode className="w-5 h-5" />
-                <span>Chuyển khoản QR</span>
+                <span>Chuyển khoản QR</span><ComingSoonBadge />
               </button>
             </div>
           </div>
