@@ -10,6 +10,7 @@ import { Plus, RefreshCw, ClipboardCheck, Filter } from 'lucide-react';
 export const StockCountsPage: React.FC = () => {
   const [counts, setCounts] = useState<StockCount[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Filters
   const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([]);
@@ -37,6 +38,7 @@ export const StockCountsPage: React.FC = () => {
 
   const loadCounts = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await stockCountService.getStockCounts({
         branchId: selectedBranch || undefined,
@@ -44,8 +46,10 @@ export const StockCountsPage: React.FC = () => {
         status: selectedStatus || undefined,
       });
       setCounts(data);
-    } catch (error) {
-      console.error('Lỗi nạp danh sách kiểm kê kho:', error);
+    } catch (err: any) {
+      console.error('Lỗi nạp danh sách kiểm kê kho:', err);
+      const msg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || 'Không thể tải danh sách kiểm kê kho từ máy chủ.';
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -159,6 +163,20 @@ export const StockCountsPage: React.FC = () => {
           </button>
         )}
       </div>
+
+      {error && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-lg flex items-center justify-between text-sm text-rose-700">
+          <div className="flex items-center gap-2">
+            <span>⚠️ {error}</span>
+          </div>
+          <button
+            onClick={loadCounts}
+            className="px-3 py-1 bg-rose-600 text-white rounded hover:bg-rose-700 text-xs font-semibold"
+          >
+            Thử lại
+          </button>
+        </div>
+      )}
 
       {/* Bảng danh sách đợt kiểm kê */}
       <StockCountsTable

@@ -22,4 +22,8 @@ Sau sửa, kiểm tra diff để phát hiện file ngoài phạm vi, thay đổi
 
 Sửa theo ID finding còn mở. Đọc lại code hiện tại trước khi áp dụng chỉ dẫn vì có thể đã thay đổi. Nếu finding không còn tái hiện hoặc yêu cầu sửa làm sai AC, trả bằng chứng để Codex đánh giá; không áp dụng máy móc và không tranh luận thiếu dữ kiện.
 
+Áp dụng mục **Sửa lỗi có bằng chứng** trong SKILL.md. Với lỗi xuyên nhiều caller, ghi ngắn luồng caller → API/identity → state commit trước khi sửa; dùng nó để kiểm tra bản vá có bỏ sót đường nào không. Regression phải đi qua caller thật hoặc payload/contract tương đương được giải thích rõ. Tự chạy và sửa phần liên quan của cả đợt trước khi bàn giao; không yêu cầu người dùng duyệt từng bước debug nội bộ.
+
+Trong handover, phân biệt **đã sửa chờ review** với **đã đóng bởi reviewer**. Kịch bản/log được dẫn phải đúng body test đã chạy; tên test hoặc lời khẳng định “100%” không thay bằng chứng. Một phần thiếu môi trường chỉ chặn phần phụ thuộc, tiếp tục phần độc lập đã được giao và nêu rõ gate còn thiếu.
+
 Mỗi lần sửa thất bại, ghi giả thuyết, thay đổi và kết quả. Thực hiện giới hạn vòng lặp trong `SKILL.md`; không chạy lại cùng thao tác với cùng đầu vào để chờ kết quả khác. Sau fix, cập nhật bảng finding và kiểm chứng phần bị ảnh hưởng, giữ nguyên phần đã đạt.

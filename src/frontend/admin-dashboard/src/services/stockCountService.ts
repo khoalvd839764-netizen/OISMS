@@ -62,44 +62,24 @@ export const stockCountService = {
    * Lấy danh sách các đợt kiểm kê
    */
   async getStockCounts(filter?: StockCountFilter): Promise<StockCount[]> {
-    try {
-      const response = await httpClient.get('/api/stock-counts', { params: filter });
-      if (Array.isArray(response.data)) {
-        return response.data;
-      }
-      if (response.data && Array.isArray(response.data.items)) {
-        return response.data.items;
-      }
-    } catch (err: any) {
-      console.warn('GET /api/stock-counts chưa sẵn sàng trên BE, nạp từ cache cục bộ:', err?.message);
+    const response = await httpClient.get('/api/stock-counts', { params: filter });
+    if (Array.isArray(response.data)) {
+      return response.data;
     }
-    const local = loadLocalCounts();
-    if (!filter) return local;
-
-    return local.filter((item) => {
-      if (filter.branchId && item.branchId !== filter.branchId) return false;
-      if (filter.warehouseId && item.warehouseId !== filter.warehouseId) return false;
-      if (filter.status && item.status !== filter.status) return false;
-      return true;
-    });
+    if (response.data && Array.isArray(response.data.items)) {
+      return response.data.items;
+    }
+    return [];
   },
 
   /**
    * Lấy chi tiết đợt kiểm kê theo ID
    */
   async getStockCountById(id: string): Promise<StockCount> {
-    try {
-      const response = await httpClient.get(`/api/stock-counts/${id}`);
-      if (response.data) {
-        return response.data;
-      }
-    } catch (err: any) {
-      console.warn(`GET /api/stock-counts/${id} fallback cache:`, err?.message);
+    const response = await httpClient.get(`/api/stock-counts/${id}`);
+    if (response.data) {
+      return response.data;
     }
-
-    const localList = loadLocalCounts();
-    const found = localList.find((c) => c.id === id);
-    if (found) return found;
     throw new Error('Không tìm thấy đợt kiểm kê.');
   },
 

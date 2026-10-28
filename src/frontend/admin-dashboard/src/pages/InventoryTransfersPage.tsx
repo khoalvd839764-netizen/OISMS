@@ -8,16 +8,20 @@ import { CreateTransferModal } from '../components/transfers/CreateTransferModal
 export const InventoryTransfersPage: React.FC = () => {
   const [transfers, setTransfers] = useState<StockTransfer[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [selectedTransferId, setSelectedTransferId] = useState<string | null>(null);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   const loadTransfers = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await stockTransferService.getTransfers();
       setTransfers(data);
-    } catch (error) {
-      console.error('Lỗi nạp danh sách phiếu chuyển kho:', error);
+    } catch (err: any) {
+      console.error('Lỗi nạp danh sách phiếu chuyển kho:', err);
+      const msg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || 'Không thể tải danh sách phiếu chuyển kho từ máy chủ.';
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -52,6 +56,20 @@ export const InventoryTransfersPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {error && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-lg flex items-center justify-between text-sm text-rose-700">
+          <div className="flex items-center gap-2">
+            <span>⚠️ {error}</span>
+          </div>
+          <button
+            onClick={loadTransfers}
+            className="px-3 py-1 bg-rose-600 text-white rounded hover:bg-rose-700 text-xs font-semibold"
+          >
+            Thử lại
+          </button>
+        </div>
+      )}
 
       {/* Bảng phiếu điều chuyển */}
       <StockTransferTable

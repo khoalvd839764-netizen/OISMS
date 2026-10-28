@@ -998,14 +998,77 @@ public class StockCountService : IStockCountService
         });
     }
 
-    public Task<StockCountResponseDto?> GetStockCountByIdAsync(Guid stockCountId, CancellationToken ct = default)
+    public async Task<StockCountResponseDto?> GetStockCountByIdAsync(Guid stockCountId, CancellationToken ct = default)
     {
-        throw new NotImplementedException("Endpoint tra cứu chi tiết đợt kiểm kê thuộc phạm vi phân công của Backend 2.");
+        var tenantId = _tenantService.TenantId;
+        if (tenantId == Guid.Empty)
+        {
+            throw new OismException("UNAUTHORIZED", "Không xác định được danh tính Tenant.", 401);
+        }
+
+        var count = await _context.StockCounts
+            .Include(c => c.Branch)
+            .Include(c => c.Warehouse)
+            .Include(c => c.Items)
+                .ThenInclude(i => i.Sku)
+                    .ThenInclude(s => s!.Product)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.TenantId == tenantId && c.Id == stockCountId, ct);
+
+        return count == null ? null : MapToResponseDto(count, false);
     }
 
-    public Task<PagedResultDto<StockCountResponseDto>> GetStockCountsAsync(StockCountFilterRequestDto filter, CancellationToken ct = default)
+    public async Task<PagedResultDto<StockCountResponseDto>> GetStockCountsAsync(StockCountFilterRequestDto filter, CancellationToken ct = default)
     {
-        throw new NotImplementedException("Endpoint tra cứu danh sách đợt kiểm kê thuộc phạm vi phân công của Backend 2.");
+        var tenantId = _tenantService.TenantId;
+        if (tenantId == Guid.Empty)
+        {
+            throw new OismException("UNAUTHORIZED", "Không xác định được danh tính Tenant.", 401);
+        }
+
+        var query = _context.StockCounts
+            .Include(c => c.Branch)
+            .Include(c => c.Warehouse)
+            .Include(c => c.Items)
+                .ThenInclude(i => i.Sku)
+                    .ThenInclude(s => s!.Product)
+            .AsNoTracking()
+            .Where(c => c.TenantId == tenantId);
+
+        if (filter.BranchId.HasValue && filter.BranchId.Value != Guid.Empty)
+        {
+            query = query.Where(c => c.BranchId == filter.BranchId.Value);
+        }
+
+        if (filter.WarehouseId.HasValue && filter.WarehouseId.Value != Guid.Empty)
+        {
+            query = query.Where(c => c.WarehouseId == filter.WarehouseId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.Status))
+        {
+            var normalizedStatus = filter.Status.Trim();
+            query = query.Where(c => c.Status == normalizedStatus);
+        }
+
+        var totalCount = await query.CountAsync(ct);
+
+        var pageNumber = filter.PageNumber < 1 ? 1 : filter.PageNumber;
+        var pageSize = filter.PageSize < 1 ? 20 : (filter.PageSize > 100 ? 100 : filter.PageSize);
+
+        var items = await query
+            .OrderByDescending(c => c.CreatedAt)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+
+        return new PagedResultDto<StockCountResponseDto>
+        {
+            Items = items.Select(c => MapToResponseDto(c, false)).ToList(),
+            TotalCount = totalCount,
+            PageNumber = pageNumber,
+            PageSize = pageSize
+        };
     }
 
     private static string ComputeSha256Hash(string rawData)

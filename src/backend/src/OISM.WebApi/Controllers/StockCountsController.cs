@@ -24,6 +24,38 @@ public class StockCountsController : ControllerBase
     }
 
     /// <summary>
+    /// Tra cứu danh sách đợt kiểm kê có phân trang và lọc theo trạng thái, chi nhánh, kho.
+    /// </summary>
+    [HttpGet]
+    [Authorize(Roles = "Owner,Staff")]
+    public async Task<IActionResult> GetStockCounts([FromQuery] StockCountFilterRequestDto filter, CancellationToken ct)
+    {
+        var result = await _stockCountService.GetStockCountsAsync(filter, ct);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Xem chi tiết một đợt kiểm kê theo ID.
+    /// </summary>
+    [HttpGet("{id:guid}")]
+    [Authorize(Roles = "Owner,Staff")]
+    public async Task<IActionResult> GetStockCountById(Guid id, CancellationToken ct)
+    {
+        if (id == Guid.Empty)
+        {
+            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã đợt kiểm kê không được để trống (Guid.Empty).");
+        }
+
+        var count = await _stockCountService.GetStockCountByIdAsync(id, ct);
+        if (count == null)
+        {
+            return CreateProblemResult("NOT_FOUND", "Không tìm thấy dữ liệu", StatusCodes.Status404NotFound, $"Không tìm thấy đợt kiểm kê với ID '{id}'.");
+        }
+
+        return Ok(count);
+    }
+
+    /// <summary>
     /// Khởi tạo đợt kiểm kê mới ở trạng thái Draft và chụp snapshot số dư sổ sách.
     /// </summary>
     [HttpPost]

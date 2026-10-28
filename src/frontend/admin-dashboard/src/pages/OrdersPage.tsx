@@ -1,5 +1,6 @@
 import { AlertCircle, Plus, RefreshCw, ShoppingBag } from "lucide-react";
 import { useEffect, useState, useCallback, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Button, Input, Modal, Select } from "../components/ui";
 import { apiAdapter, generateUuid, getPendingOrderStorageKey } from "../services/apiAdapter";
 import { useAuth } from "../context/AuthContext";
@@ -47,6 +48,15 @@ function clearSavedPendingOrder(tenantId?: string) {
 
 export function OrdersPage() {
   const { account } = useAuth();
+  const [searchParams] = useSearchParams();
+  const urlOrderId = searchParams.get("orderId");
+  const orderReqSeqRef = useRef(0);
+
+  useEffect(() => {
+    if (urlOrderId) {
+      setSelectedOrderId(urlOrderId);
+    }
+  }, [urlOrderId]);
 
   // State Trung tâm Đơn hàng Đa kênh (Sprint 3: SCR-ORD-01..03)
   const [orders, setOrders] = useState<OrderSummary[]>([]);
@@ -86,19 +96,24 @@ export function OrdersPage() {
   const [orderIdempotencyKey, setOrderIdempotencyKey] = useState<string | null>(null);
   const [isRetryingOrder, setIsRetryingOrder] = useState(false);
 
-  // Nạp danh sách đơn hàng từ backend (/api/orders)
+  // Nạp danh sách đơn hàng từ backend (/api/orders) - Chống out-of-order responses (A02-AC-01)
   const loadOrders = useCallback(async () => {
+    const seq = ++orderReqSeqRef.current;
     setLoadingOrders(true);
     setOrdersError(null);
     try {
       const paged = await orderService.getOrders(filter);
+      if (seq !== orderReqSeqRef.current) return;
       setOrders(paged.items || []);
       setTotalCount(paged.totalCount || 0);
     } catch (err: any) {
+      if (seq !== orderReqSeqRef.current) return;
       console.warn("Lỗi nạp danh sách đơn hàng:", err);
       setOrdersError(err?.response?.data?.detail || err?.message || "Không thể tải danh sách đơn hàng.");
     } finally {
-      setLoadingOrders(false);
+      if (seq === orderReqSeqRef.current) {
+        setLoadingOrders(false);
+      }
     }
   }, [filter]);
 
@@ -236,9 +251,6 @@ export function OrdersPage() {
         return;
       }
 
-      const selectedBranchObj = branches.find((b) => b.id === newBranchId);
-      const selectedWarehouseObj = warehouses.find((w) => w.id === newWarehouseId);
-
       const key = orderIdempotencyKey || generateUuid();
       setOrderIdempotencyKey(key);
 
@@ -254,34 +266,50 @@ export function OrdersPage() {
       savePendingOrder(pendingPayload, account.tenantId);
 
       setLoadingCreate(true);
-      const res = await apiAdapter.checkout(
-        chosenSku,
-        newQuantity,
-        newChannel,
-        newCustomer.trim() || "Khách lẻ",
-        {
+      try {
+        await orderService.createOrder({
           branchId: newBranchId,
-          branchName: selectedBranchObj?.name,
-          warehouseId: newWarehouseId,
-          warehouseName: selectedWarehouseObj?.name,
-                    idempotencyKey: key,
-          isRetry: isRetryingOrder,
+          channel: newChannel,
+          customerName: newCustomer.trim() || "Khách lẻ",
+          requestKey: key,
+          items: [
+            {
+              skuId: chosenSku.id,
+              skuCode: chosenSku.code,
+              productName: chosenSku.name,
+              variantName: chosenSku.variant,
+              quantity: newQuantity,
+              unitPrice: chosenSku.sellingPrice || 0,
+            },
+          ],
+        });
+
+        clearSavedPendingOrder(account.tenantId);
+        setOrderIdempotencyKey(null);
+        setIsRetryingOrder(false);
+        setCreateModal(false);
+        setNewQuantity(1);
+        await loadOrders();
+      } catch (err: any) {
+        const errorDetail = err?.response?.data?.detail || err?.response?.data?.message || err?.message || "Lỗi xử lý tạo đơn hàng.";
+        const status = err?.response?.status;
+        const errorCode = err?.response?.data?.extensions?.errorCode || (status === 409 ? "INSUFFICIENT_STOCK" : status === 400 ? "VALIDATION_ERROR" : "NETWORK_ERROR");
+
+        let message = errorDetail;
+        if (errorCode === "INSUFFICIENT_STOCK") {
+          message = `Tồn kho không đủ để giữ chỗ: ${errorDetail}`;
+        } else if (status === 401 || status === 403) {
+          message = `Bạn không có quyền thực hiện thao tác tạo đơn (${status}).`;
         }
-      );
-      setLoadingCreate(false);
 
-      if (res.error) {
-        setCreateError(`${res.error.message} (Định danh: ${key.slice(0, 8)}...)`);
+        setCreateError(`${message} (Định danh: ${key.slice(0, 8)}...)`);
         setIsRetryingOrder(true);
-        return;
+      } finally {
+        setLoadingCreate(false);
+        isCreatingOrderRef.current = false;
       }
-
-      clearSavedPendingOrder(account.tenantId);
-      setOrderIdempotencyKey(null);
-      setIsRetryingOrder(false);
-      setCreateModal(false);
-      await loadOrders();
-    } finally {
+    } catch (e: any) {
+      setCreateError(e?.message || "Đã xảy ra sự cố ngoài ý muốn.");
       isCreatingOrderRef.current = false;
     }
   };

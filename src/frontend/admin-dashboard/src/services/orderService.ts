@@ -5,6 +5,7 @@ import type {
   OrderSummary,
   OrderDetail,
   CancelOrderBody,
+  CreateOrderRequest,
 } from '../types/ordersCenter';
 import {
   normalizePaged,
@@ -55,5 +56,19 @@ export const orderService = {
    */
   async completeOrder(id: string): Promise<void> {
     await httpClient.post(`/api/orders/${id}/complete`);
+  },
+
+  /**
+   * Tạo đơn hàng mới thủ công trên Admin Portal (POST /api/orders)
+   * Khởi tạo trạng thái Reserved và giữ chỗ tồn kho
+   */
+  async createOrder(data: CreateOrderRequest): Promise<OrderDetail> {
+    const response = await httpClient.post('/api/orders', data, {
+      headers: {
+        'Idempotency-Key': data.requestKey,
+        'X-Request-Key': data.requestKey,
+      },
+    });
+    return normalizeDetail(response.data);
   },
 };

@@ -1,0 +1,50 @@
+[
+  {
+    "scenario": "Transfer POSTs all reject 409; reads reject 405",
+    "createResolved": "Draft",
+    "dispatchResolved": "InTransit",
+    "cancelResolved": "Rejected",
+    "fabricatedNumber": "TRF-840460",
+    "posts": [
+      "/api/stock-transfers",
+      "/api/stock-transfers/fixture-key-2/dispatch",
+      "/api/stock-transfers/fixture-key-2/cancel"
+    ]
+  },
+  {
+    "scenario": "Create stock count retry without caller requestKey",
+    "firstKey": "fixture-key-3",
+    "retryKey": "fixture-key-4",
+    "note": "Unknown-result retries with unchanged form get different identity"
+  },
+  {
+    "scenario": "User A logout/token B login; NotificationCenter start called again without stop",
+    "connections": 1,
+    "authenticatedWith": "token-A",
+    "currentToken": "token-B",
+    "oldOwnerEventDelivered": [
+      "PRIVATE-A"
+    ],
+    "branchInvocations": []
+  },
+  {
+    "scenario": "Persisted count=10; user edits UI to 7 then clicks Confirm",
+    "requests": [
+      {
+        "op": "confirm",
+        "body": {}
+      }
+    ],
+    "serverCountConfirmed": 10,
+    "uiEditedCount": 7,
+    "note": "No record request persists current edited quantity before confirm"
+  },
+  {
+    "scenario": "Report calendar date in Vietnam",
+    "selectedDate": "2026-10-28",
+    "transmittedStart": "2026-10-28T00:00:00Z",
+    "localMidnightInstant": "2026-10-27T17:00:00.000Z",
+    "hoursExcludedAtStart": 7,
+    "note": "Boundary comparison, source constructs UTC Z for local calendar date"
+  }
+]

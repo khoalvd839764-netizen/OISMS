@@ -3,6 +3,7 @@ import type { OrderDetail } from '../../types/ordersCenter';
 import { ORDER_STATUS_LABEL, ORDER_ACTIONS } from '../../types/ordersCenter';
 import { orderService } from '../../services/orderService';
 import { Printer } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
 interface OrderDetailDrawerProps {
   orderId: string | null;
@@ -15,6 +16,8 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
   onClose,
   onRefresh,
 }) => {
+  const { account } = useAuth();
+  const isOwner = account?.role === 'Owner';
   const [detail, setDetail] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -84,8 +87,8 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
   const actions = detail ? ORDER_ACTIONS[detail.status] || [] : [];
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-black/40 flex justify-end">
-      <div className="w-full max-w-2xl bg-white h-full shadow-2xl flex flex-col">
+    <div className="fixed inset-0 z-50 overflow-hidden bg-black/40 flex justify-end print:static print:bg-transparent print:p-0">
+      <div className="w-full max-w-2xl bg-white h-full shadow-2xl flex flex-col print:w-full print:max-w-none print:shadow-none print:h-auto">
         {/* Header Drawer */}
         <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
           <div>
@@ -99,7 +102,7 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 print:hidden">
             <button
               onClick={() => window.print()}
               className="px-2.5 py-1 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-100 flex items-center gap-1 shadow-sm"
@@ -148,7 +151,7 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
                         <th className="p-2">Sản phẩm</th>
                         <th className="p-2 text-center">SL</th>
                         <th className="p-2 text-right">Giá niêm yết</th>
-                        <th className="p-2 text-right">Giá vốn (WAC)</th>
+                        {isOwner && <th className="p-2 text-right print:hidden">Giá vốn (WAC)</th>}
                         <th className="p-2 text-right">Tổng tiền</th>
                       </tr>
                     </thead>
@@ -163,11 +166,13 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
                           <td className="p-2 text-right">
                             {item.unitPrice.toLocaleString('vi-VN')} ₫
                           </td>
-                          <td className="p-2 text-right text-gray-500">
-                            {item.costPrice !== null
-                              ? `${item.costPrice.toLocaleString('vi-VN')} ₫`
-                              : 'Chưa chốt'}
-                          </td>
+                          {isOwner && (
+                            <td className="p-2 text-right text-gray-500 print:hidden">
+                              {item.costPrice !== null
+                                ? `${item.costPrice.toLocaleString('vi-VN')} ₫`
+                                : 'Chưa chốt'}
+                            </td>
+                          )}
                           <td className="p-2 text-right font-semibold">
                             {(item.quantity * item.unitPrice).toLocaleString('vi-VN')} ₫
                           </td>
@@ -186,14 +191,16 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
                     {detail.totalAmount.toLocaleString('vi-VN')} ₫
                   </span>
                 </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-gray-500">Tổng giá vốn snapshot (WAC):</span>
-                  <span className="font-medium text-gray-700">
-                    {detail.totalCogs !== null
-                      ? `${detail.totalCogs.toLocaleString('vi-VN')} ₫`
-                      : 'Chưa chốt giá vốn'}
-                  </span>
-                </div>
+                {isOwner && (
+                  <div className="flex justify-between text-xs print:hidden">
+                    <span className="text-gray-500">Tổng giá vốn snapshot (WAC):</span>
+                    <span className="font-medium text-gray-700">
+                      {detail.totalCogs !== null
+                        ? `${detail.totalCogs.toLocaleString('vi-VN')} ₫`
+                        : 'Chưa chốt giá vốn'}
+                    </span>
+                  </div>
+                )}
               </div>
             </>
           ) : null}
@@ -201,7 +208,7 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
 
         {/* Footer chứa các Nút Thao Tác Nghiệp Vụ */}
         {detail && actions.length > 0 && (
-          <div className="p-4 border-t border-gray-200 bg-gray-50 flex gap-2 justify-end">
+          <div className="p-4 border-t border-gray-200 bg-gray-50 flex gap-2 justify-end print:hidden">
             {actions.includes('cancel') && (
               <button
                 disabled={actionLoading}
@@ -244,7 +251,7 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
 
       {/* Modal nhập lý do hủy đơn */}
       {showCancelModal && (
-        <div className="fixed inset-0 z-60 bg-black/50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-60 bg-black/50 flex items-center justify-center p-4 print:hidden">
           <div className="bg-white rounded-lg p-5 max-w-md w-full space-y-3">
             <h3 className="font-bold text-gray-800">Xác nhận hủy đơn hàng</h3>
             <textarea

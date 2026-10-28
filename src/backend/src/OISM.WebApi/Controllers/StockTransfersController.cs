@@ -24,6 +24,38 @@ public class StockTransfersController : ControllerBase
     }
 
     /// <summary>
+    /// Tra cứu danh sách phiếu chuyển kho nội bộ có phân trang và lọc theo trạng thái, chi nhánh, kho.
+    /// </summary>
+    [HttpGet]
+    [Authorize(Roles = "Owner,Staff")]
+    public async Task<IActionResult> GetTransfers([FromQuery] StockTransferFilterRequestDto filter, CancellationToken ct)
+    {
+        var result = await _stockTransferService.GetTransfersAsync(filter, ct);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Xem chi tiết một phiếu chuyển kho theo ID.
+    /// </summary>
+    [HttpGet("{id:guid}")]
+    [Authorize(Roles = "Owner,Staff")]
+    public async Task<IActionResult> GetTransferById(Guid id, CancellationToken ct)
+    {
+        if (id == Guid.Empty)
+        {
+            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã phiếu chuyển không được để trống (Guid.Empty).");
+        }
+
+        var transfer = await _stockTransferService.GetTransferByIdAsync(id, ct);
+        if (transfer == null)
+        {
+            return CreateProblemResult("NOT_FOUND", "Không tìm thấy dữ liệu", StatusCodes.Status404NotFound, $"Không tìm thấy phiếu chuyển kho với ID '{id}'.");
+        }
+
+        return Ok(transfer);
+    }
+
+    /// <summary>
     /// Tạo phiếu chuyển kho nội bộ ở trạng thái nháp (Draft).
     /// </summary>
     [HttpPost]

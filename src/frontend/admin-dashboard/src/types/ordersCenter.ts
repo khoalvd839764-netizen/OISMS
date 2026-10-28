@@ -47,6 +47,25 @@ export const ORDER_ACTIONS: Record<OrderStatus, readonly OrderAction[]> = {
 export interface CancelOrderBody { reason: string }
 export interface NoteBody { note?: string }
 
+export interface CreateOrderItemRequest {
+  skuId: string;
+  skuCode: string;
+  productName: string;
+  variantName?: string;
+  quantity: number;
+  unitPrice: number;
+}
+
+export interface CreateOrderRequest {
+  branchId: string;
+  channel: string;
+  customerName?: string;
+  customerPhone?: string;
+  shippingAddress?: string;
+  requestKey: string;
+  items: CreateOrderItemRequest[];
+}
+
 // Tham số GET /api/orders (OrderFilterDto): chú ý tên là pageIndex và search.
 export interface OrderFilter {
   status?: OrderStatus;

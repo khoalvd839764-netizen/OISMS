@@ -33,37 +33,24 @@ export const stockTransferService = {
    * Lấy danh sách phiếu chuyển kho
    */
   async getTransfers(): Promise<StockTransfer[]> {
-    try {
-      const response = await httpClient.get('/api/stock-transfers');
-      if (Array.isArray(response.data)) {
-        return response.data;
-      }
-      if (response.data && Array.isArray(response.data.items)) {
-        return response.data.items;
-      }
-    } catch (err: any) {
-      // Backend 2 (Nhựt) có thể chưa hoàn tất endpoint GET, fallback sang local storage
-      console.warn('GET /api/stock-transfers chưa sẵn sàng trên BE, nạp từ cache cục bộ:', err?.message);
+    const response = await httpClient.get('/api/stock-transfers');
+    if (Array.isArray(response.data)) {
+      return response.data;
     }
-    return loadLocalTransfers();
+    if (response.data && Array.isArray(response.data.items)) {
+      return response.data.items;
+    }
+    return [];
   },
 
   /**
    * Lấy chi tiết phiếu chuyển kho theo ID
    */
   async getTransferById(id: string): Promise<StockTransfer> {
-    try {
-      const response = await httpClient.get(`/api/stock-transfers/${id}`);
-      if (response.data) {
-        return response.data;
-      }
-    } catch (err: any) {
-      console.warn(`GET /api/stock-transfers/${id} fallback cache:`, err?.message);
+    const response = await httpClient.get(`/api/stock-transfers/${id}`);
+    if (response.data) {
+      return response.data;
     }
-
-    const localList = loadLocalTransfers();
-    const found = localList.find((t) => t.id === id);
-    if (found) return found;
     throw new Error('Không tìm thấy phiếu chuyển kho.');
   },
 

@@ -864,14 +864,81 @@ public class StockTransferService : IStockTransferService
         return CancelTransferAsync(transferId, new CancelStockTransferRequestDto { Reason = reason }, cancelledByUserId, ct);
     }
 
-    public Task<StockTransferResponseDto?> GetTransferByIdAsync(Guid transferId, CancellationToken ct = default)
+    public async Task<StockTransferResponseDto?> GetTransferByIdAsync(Guid transferId, CancellationToken ct = default)
     {
-        throw new NotImplementedException("Endpoint truy vấn phiếu chuyển kho thuộc phạm vi BE2 (Nhựt).");
+        var tenantId = _tenantService.TenantId;
+        if (tenantId == Guid.Empty)
+        {
+            throw new OismException("UNAUTHORIZED", "Không xác định được danh tính Tenant.", 401);
+        }
+
+        var transfer = await _context.StockTransfers
+            .Include(t => t.FromBranch)
+            .Include(t => t.ToBranch)
+            .Include(t => t.FromWarehouse)
+            .Include(t => t.ToWarehouse)
+            .Include(t => t.Items)
+                .ThenInclude(i => i.Sku)
+                    .ThenInclude(s => s!.Product)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.TenantId == tenantId && t.Id == transferId, ct);
+
+        return transfer == null ? null : MapToResponse(transfer);
     }
 
-    public Task<PagedResultDto<StockTransferResponseDto>> GetTransfersAsync(StockTransferFilterRequestDto filter, CancellationToken ct = default)
+    public async Task<PagedResultDto<StockTransferResponseDto>> GetTransfersAsync(StockTransferFilterRequestDto filter, CancellationToken ct = default)
     {
-        throw new NotImplementedException("Endpoint truy vấn phiếu chuyển kho thuộc phạm vi BE2 (Nhựt).");
+        var tenantId = _tenantService.TenantId;
+        if (tenantId == Guid.Empty)
+        {
+            throw new OismException("UNAUTHORIZED", "Không xác định được danh tính Tenant.", 401);
+        }
+
+        var query = _context.StockTransfers
+            .Include(t => t.FromBranch)
+            .Include(t => t.ToBranch)
+            .Include(t => t.FromWarehouse)
+            .Include(t => t.ToWarehouse)
+            .Include(t => t.Items)
+                .ThenInclude(i => i.Sku)
+                    .ThenInclude(s => s!.Product)
+            .AsNoTracking()
+            .Where(t => t.TenantId == tenantId);
+
+        if (filter.BranchId.HasValue && filter.BranchId.Value != Guid.Empty)
+        {
+            query = query.Where(t => t.FromBranchId == filter.BranchId.Value || t.ToBranchId == filter.BranchId.Value);
+        }
+
+        if (filter.WarehouseId.HasValue && filter.WarehouseId.Value != Guid.Empty)
+        {
+            query = query.Where(t => t.FromWarehouseId == filter.WarehouseId.Value || t.ToWarehouseId == filter.WarehouseId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.Status))
+        {
+            var normalizedStatus = filter.Status.Trim();
+            query = query.Where(t => t.Status == normalizedStatus);
+        }
+
+        var totalCount = await query.CountAsync(ct);
+
+        var pageNumber = filter.PageNumber < 1 ? 1 : filter.PageNumber;
+        var pageSize = filter.PageSize < 1 ? 20 : (filter.PageSize > 100 ? 100 : filter.PageSize);
+
+        var items = await query
+            .OrderByDescending(t => t.CreatedAt)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(ct);
+
+        return new PagedResultDto<StockTransferResponseDto>
+        {
+            Items = items.Select(MapToResponse).ToList(),
+            TotalCount = totalCount,
+            PageNumber = pageNumber,
+            PageSize = pageSize
+        };
     }
 
     private static string ComputePayloadSignature(CreateStockTransferRequestDto dto)
