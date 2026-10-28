@@ -1,6 +1,19 @@
 import React from 'react';
-import { Store, Wifi, WifiOff, LogIn, LogOut, Maximize2, Minimize2, Sparkles } from 'lucide-react';
-import type { Branch } from '../types/pos';
+import {
+  Store,
+  Wifi,
+  WifiOff,
+  LogIn,
+  LogOut,
+  Maximize2,
+  Minimize2,
+  Sparkles,
+  Radio,
+  Bell,
+  BellOff,
+  RefreshCw,
+} from 'lucide-react';
+import type { Branch, RealtimeConnectionStatus } from '../types/pos';
 
 interface PosHeaderProps {
   branches: Branch[];
@@ -12,6 +25,9 @@ interface PosHeaderProps {
   isOnline: boolean;
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
+  realtimeStatus?: RealtimeConnectionStatus;
+  isMuted?: boolean;
+  onToggleMute?: () => void;
 }
 
 export const PosHeader: React.FC<PosHeaderProps> = ({
@@ -24,6 +40,9 @@ export const PosHeader: React.FC<PosHeaderProps> = ({
   isOnline,
   isFullscreen,
   onToggleFullscreen,
+  realtimeStatus = 'disconnected',
+  isMuted = false,
+  onToggleMute,
 }) => {
   return (
     <header className="no-print bg-slate-900 text-white px-4 py-3 flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 shadow-md">
@@ -45,8 +64,9 @@ export const PosHeader: React.FC<PosHeaderProps> = ({
         </div>
       </div>
 
-      {/* Branch Selector & Online Indicator */}
+      {/* Branch Selector, Statuses & Actions */}
       <div className="flex items-center gap-3">
+        {/* Branch Selector */}
         <div className="flex items-center gap-1.5 bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700">
           <label htmlFor="branch-select" className="text-xs text-slate-400 font-medium whitespace-nowrap">
             Chi nhánh:
@@ -71,7 +91,44 @@ export const PosHeader: React.FC<PosHeaderProps> = ({
           </select>
         </div>
 
-        {/* Network Status */}
+        {/* Realtime Hub Status (T03-AC-02 & T03-AC-05) */}
+        <div
+          className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg font-medium border ${
+            realtimeStatus === 'connected'
+              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+              : realtimeStatus === 'reconnecting' || realtimeStatus === 'connecting'
+              ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+              : 'bg-slate-800/80 text-slate-400 border-slate-700'
+          }`}
+          title={
+            realtimeStatus === 'connected'
+              ? 'SignalR Hub: Đang kết nối thời gian thực'
+              : realtimeStatus === 'reconnecting'
+              ? 'SignalR Hub: Đang kết nối lại...'
+              : realtimeStatus === 'connecting'
+              ? 'SignalR Hub: Đang kết nối...'
+              : 'SignalR Hub: Ngoại tuyến'
+          }
+        >
+          {realtimeStatus === 'connected' ? (
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          ) : realtimeStatus === 'reconnecting' || realtimeStatus === 'connecting' ? (
+            <RefreshCw className="w-3 h-3 text-amber-400 animate-spin" />
+          ) : (
+            <Radio className="w-3 h-3 text-slate-400 opacity-60" />
+          )}
+          <span className="hidden md:inline">
+            {realtimeStatus === 'connected'
+              ? 'Realtime'
+              : realtimeStatus === 'reconnecting'
+              ? 'Đang kết nối lại'
+              : realtimeStatus === 'connecting'
+              ? 'Kết nối Hub'
+              : 'Hub Offline'}
+          </span>
+        </div>
+
+        {/* Network Online / Offline Status */}
         <div
           className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg font-medium ${
             isOnline ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
@@ -81,6 +138,22 @@ export const PosHeader: React.FC<PosHeaderProps> = ({
           {isOnline ? <Wifi className="w-3.5 h-3.5" /> : <WifiOff className="w-3.5 h-3.5" />}
           <span className="hidden sm:inline">{isOnline ? 'Online' : 'Offline'}</span>
         </div>
+
+        {/* Audio Notification Sound Toggle */}
+        {onToggleMute && (
+          <button
+            type="button"
+            onClick={onToggleMute}
+            className={`p-2 rounded-lg transition-colors border ${
+              isMuted
+                ? 'text-slate-400 bg-slate-800/60 border-slate-700 hover:text-white'
+                : 'text-indigo-300 bg-indigo-950/40 border-indigo-700/50 hover:bg-indigo-900/50'
+            }`}
+            title={isMuted ? 'Bật chuông thông báo' : 'Tắt chuông thông báo (Mute)'}
+          >
+            {isMuted ? <BellOff className="w-4 h-4 text-slate-400" /> : <Bell className="w-4 h-4" />}
+          </button>
+        )}
 
         {/* Fullscreen Toggle */}
         <button

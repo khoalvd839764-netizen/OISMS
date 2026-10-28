@@ -1,0 +1,67 @@
+{
+  "provider": "Actual API/validator/mapper/PaymentModal TS/TSX in Node VM; hooks/storage/fetch stubs, mapping fault injection only in mapper-throws control. No backend/PostgreSQL.",
+  "observations": [
+    {
+      "kind": "valid-snapshot",
+      "printedCount": 1,
+      "pendingKeptAfterFirst": false,
+      "sourceCreatedAt": "2026-10-27T07:00:00Z",
+      "mappedCreatedAt": "14:00:00 27/10/2026",
+      "requestCount": 1
+    },
+    {
+      "kind": "empty-item",
+      "printedCount": 0,
+      "pendingKeptAfterFirst": true,
+      "sourceCreatedAt": "2026-10-27T07:00:00Z",
+      "mappedCreatedAt": null,
+      "requestCount": 2,
+      "retrySameKey": true
+    },
+    {
+      "kind": "bad-metadata",
+      "printedCount": 0,
+      "pendingKeptAfterFirst": true,
+      "sourceCreatedAt": "2026-10-27T07:00:00Z",
+      "mappedCreatedAt": null,
+      "requestCount": 2,
+      "retrySameKey": true
+    },
+    {
+      "kind": "bad-date",
+      "printedCount": 0,
+      "pendingKeptAfterFirst": true,
+      "sourceCreatedAt": "invalid-date",
+      "mappedCreatedAt": null,
+      "requestCount": 2,
+      "retrySameKey": true
+    },
+    {
+      "kind": "missing-date",
+      "printedCount": 0,
+      "pendingKeptAfterFirst": true,
+      "sourceCreatedAt": null,
+      "mappedCreatedAt": null,
+      "requestCount": 2,
+      "retrySameKey": true
+    },
+    {
+      "kind": "null-date",
+      "printedCount": 0,
+      "pendingKeptAfterFirst": true,
+      "sourceCreatedAt": null,
+      "mappedCreatedAt": null,
+      "requestCount": 2,
+      "retrySameKey": true
+    },
+    {
+      "kind": "mapper-throws",
+      "printedCount": 0,
+      "pendingKeptAfterFirst": true,
+      "sourceCreatedAt": "2026-10-27T07:00:00Z",
+      "mappedCreatedAt": null,
+      "requestCount": 2,
+      "retrySameKey": true
+    }
+  ]
+}

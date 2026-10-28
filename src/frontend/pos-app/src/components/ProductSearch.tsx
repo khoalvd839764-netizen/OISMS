@@ -1,18 +1,28 @@
-import React, { useState, useEffect, useTransition } from 'react';
-import { Search, Barcode, Loader2, Plus, AlertCircle, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect, useTransition, useRef } from 'react';
+import { Search, Barcode, Loader2, Plus, AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react';
 import type { PosProductSearchResponse } from '../types/pos';
 import { searchPosProducts, scanPosBarcode } from '../services/api';
+import {
+  subscribeBranchStock,
+  setAuthoritativeStock,
+  getCachedStock,
+  registerSkuIdentity,
+  invalidateAndRefetchStock,
+  type StockItemState,
+} from '../services/stockService';
 
 interface ProductSearchProps {
   branchId: string;
   onAddToCart: (product: PosProductSearchResponse) => void;
   searchInputRef: React.RefObject<HTMLInputElement | null>;
+  onLookupLatency?: (latencyMs: number) => void;
 }
 
 export const ProductSearch: React.FC<ProductSearchProps> = ({
   branchId,
   onAddToCart,
   searchInputRef,
+  onLookupLatency,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [results, setResults] = useState<PosProductSearchResponse[]>([]);
@@ -21,31 +31,169 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [stockMap, setStockMap] = useState<Record<string, StockItemState>>({});
+  const [retryingKeys, setRetryingKeys] = useState<Record<string, boolean>>({});
 
-  // Debounced search
+  // Race condition protection: Theo dõi sequential requestId và abort controller
+  const latestRequestIdRef = useRef<number>(0);
+  const currentAbortControllerRef = useRef<AbortController | null>(null);
+  const currentBranchRef = useRef<string>(branchId);
+  currentBranchRef.current = branchId;
+
+  // Dọn dẹp request khi unmount
   useEffect(() => {
-    if (!searchTerm.trim()) {
+    return () => {
+      latestRequestIdRef.current++;
+      if (currentAbortControllerRef.current) {
+        currentAbortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  // Đăng ký nhận cập nhật tồn kho từ stockService cho chi nhánh hiện tại (POS-STOCK-F01 & T03-AC-06)
+  useEffect(() => {
+    if (!branchId) {
+      setStockMap({});
       return;
     }
 
+    const unsubscribe = subscribeBranchStock(branchId, (latestStock) => {
+      setStockMap(latestStock);
+
+      // Cập nhật ngay lập tức vào danh sách results đang hiển thị nếu có mặt hàng khớp
+      setResults((prevResults) => {
+        let changed = false;
+        const next = prevResults.map((item) => {
+          const entry = latestStock[item.variantId] || latestStock[item.sku];
+          if (entry && entry.available !== item.available) {
+            changed = true;
+            return {
+              ...item,
+              available: entry.available,
+              onHand: entry.onHand ?? item.onHand,
+              reserved: entry.reserved ?? item.reserved,
+            };
+          }
+          return item;
+        });
+        return changed ? next : prevResults;
+      });
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [branchId]);
+
+  // Khi đổi chi nhánh: Vô hiệu hóa ngay lập tức mọi request đang bay, xóa trắng kết quả tìm kiếm và từ khóa cũ (T05-AC-06 & B02-F05)
+  useEffect(() => {
+    latestRequestIdRef.current++;
+    setSearchTerm('');
+    setResults([]);
+    setShowDropdown(false);
+    setErrorMessage(null);
+    if (currentAbortControllerRef.current) {
+      currentAbortControllerRef.current.abort();
+    }
+  }, [branchId]);
+
+  // Debounced search với chống Race Condition (T05-AC-06: Gõ nhanh hoặc response đảo thứ tự không ghi đè kết quả mới)
+  useEffect(() => {
+    // B02-F05: Vô hiệu hóa ngay lập tức callback cũ khi query thay đổi hoặc bị xóa
+    const requestId = ++latestRequestIdRef.current;
+    if (currentAbortControllerRef.current) {
+      currentAbortControllerRef.current.abort();
+    }
+
+    const trimmed = searchTerm.trim();
+    if (!trimmed) {
+      setResults([]);
+      setShowDropdown(false);
+      setIsSearching(false);
+      return;
+    }
+
+    const abortController = new AbortController();
+    currentAbortControllerRef.current = abortController;
+
     const timer = setTimeout(async () => {
+      // Nếu trong thời gian debounce (200ms) query đã bị đổi hoặc hủy -> thoát ngay
+      if (
+        requestId !== latestRequestIdRef.current ||
+        abortController.signal.aborted ||
+        branchId !== currentBranchRef.current
+      ) {
+        return;
+      }
+
+      const requestBranchId = branchId;
       setIsSearching(true);
       setErrorMessage(null);
+
+      const startTime = performance.now();
+
       try {
-        const data = await searchPosProducts(searchTerm, branchId);
+        const data = await searchPosProducts(trimmed, requestBranchId);
+        const duration = performance.now() - startTime;
+        onLookupLatency?.(duration);
+
+        // Kiểm tra xem request này có còn là request mới nhất và đúng chi nhánh không
+        if (
+          requestId !== latestRequestIdRef.current ||
+          requestBranchId !== currentBranchRef.current ||
+          abortController.signal.aborted
+        ) {
+          return; // Hủy kết quả cũ hoặc lạc hậu
+        }
+
+        // Đăng ký danh tính và khởi tạo số dư vào stockService (nếu chưa có số dư mới hơn trong cache)
+        for (const item of data) {
+          registerSkuIdentity(item.variantId, item.sku, item.barcode || undefined);
+          const existing = getCachedStock(requestBranchId, item.variantId) || (item.sku ? getCachedStock(requestBranchId, item.sku) : null);
+          if (item.available !== undefined && item.available !== null && !existing) {
+            setAuthoritativeStock(requestBranchId, item.variantId, item.available, {
+              onHand: item.onHand,
+              reserved: item.reserved,
+              skuCode: item.sku,
+              barcode: item.barcode || undefined,
+              skuId: item.variantId,
+            });
+            if (item.sku) {
+              setAuthoritativeStock(requestBranchId, item.sku, item.available, {
+                onHand: item.onHand,
+                reserved: item.reserved,
+                skuCode: item.sku,
+                barcode: item.barcode || undefined,
+                skuId: item.variantId,
+              });
+            }
+          }
+        }
+
         startTransition(() => {
           setResults(data);
           setShowDropdown(true);
         });
       } catch (err: any) {
-        setErrorMessage(err.message || 'Lỗi tra cứu sản phẩm');
+        if (
+          requestId === latestRequestIdRef.current &&
+          requestBranchId === currentBranchRef.current &&
+          !abortController.signal.aborted
+        ) {
+          setErrorMessage(err.message || 'Lỗi tra cứu sản phẩm');
+        }
       } finally {
-        setIsSearching(false);
+        if (requestId === latestRequestIdRef.current) {
+          setIsSearching(false);
+        }
       }
-    }, 250);
+    }, 200);
 
-    return () => clearTimeout(timer);
-  }, [searchTerm, branchId]);
+    return () => {
+      clearTimeout(timer);
+      abortController.abort();
+    };
+  }, [searchTerm, branchId, onLookupLatency]);
 
   // Handle enter key (Barcode or exact match)
   const handleKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -54,25 +202,73 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({
       const code = searchTerm.trim();
       if (!code) return;
 
+      const requestId = ++latestRequestIdRef.current;
+      const requestBranchId = branchId;
+
       setIsSearching(true);
       setErrorMessage(null);
 
+      const startTime = performance.now();
+
       // Tra cứu barcode chính xác từ API
       try {
-        const item = await scanPosBarcode(code, branchId);
-        if ((item.available ?? 0) <= 0) {
+        const item = await scanPosBarcode(code, requestBranchId);
+        const duration = performance.now() - startTime;
+        onLookupLatency?.(duration);
+
+        // B02-F05: Guard cả requestId và currentBranchRef khi branch đổi giữa lúc await
+        if (
+          requestId !== latestRequestIdRef.current ||
+          requestBranchId !== currentBranchRef.current
+        ) {
+          return;
+        }
+
+        // B02-F02: Phản hồi API barcode mới nhất là chuẩn xác thực, tuyệt đối không bị cache cũ ghi đè
+        const freshAvailable = item.available ?? 0;
+
+        if (freshAvailable <= 0) {
           setErrorMessage(`Sản phẩm "${item.productName}" (${item.sku}) đã hết hàng trong kho chi nhánh (tồn khả dụng = 0).`);
           return;
         }
-        onAddToCart(item);
+
+        // Cập nhật stock store và danh tính SKU
+        setAuthoritativeStock(requestBranchId, item.variantId, freshAvailable, {
+          onHand: item.onHand,
+          reserved: item.reserved,
+          skuId: item.variantId,
+          skuCode: item.sku,
+          barcode: item.barcode || undefined,
+        });
+        if (item.sku) {
+          setAuthoritativeStock(requestBranchId, item.sku, freshAvailable, {
+            onHand: item.onHand,
+            reserved: item.reserved,
+            skuId: item.variantId,
+            skuCode: item.sku,
+            barcode: item.barcode || undefined,
+          });
+        }
+
+        onAddToCart({
+          ...item,
+          available: freshAvailable,
+        });
         triggerSuccess(`Đã thêm: ${item.productName} (${item.sku})`);
         setSearchTerm('');
         setShowDropdown(false);
       } catch (err: any) {
-        // Tuyệt đối không tự động thêm results[0] từ lần tìm kiếm trước khi quét barcode thất bại
-        setErrorMessage(err.message || `Không tìm thấy sản phẩm nào khớp với mã "${code}".`);
+        if (
+          requestId === latestRequestIdRef.current &&
+          requestBranchId === currentBranchRef.current
+        ) {
+          // Tuyệt đối không tự động thêm results[0] từ lần tìm kiếm trước khi quét barcode thất bại
+          setErrorMessage(err.message || `Không tìm thấy sản phẩm nào khớp với mã "${code}".`);
+        }
       } finally {
-        setIsSearching(false);
+        if (requestId === latestRequestIdRef.current) {
+          setIsSearching(false);
+        }
       }
     } else if (e.key === 'Escape') {
       setShowDropdown(false);
@@ -85,16 +281,37 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({
   };
 
   const handleSelectProduct = (product: PosProductSearchResponse) => {
-    if ((product.available ?? 0) <= 0) {
+    const currentStockEntry = stockMap[product.variantId] || stockMap[product.sku];
+    const effectiveAvailable = currentStockEntry ? currentStockEntry.available : (product.available ?? 0);
+
+    if (effectiveAvailable <= 0) {
       setErrorMessage(`Sản phẩm "${product.productName}" (${product.sku}) đã hết hàng trong kho chi nhánh (tồn khả dụng = 0).`);
       return;
     }
-    onAddToCart(product);
+
+    onAddToCart({
+      ...product,
+      available: effectiveAvailable,
+    });
     triggerSuccess(`Đã thêm: ${product.productName} (${product.sku})`);
     setSearchTerm('');
     setShowDropdown(false);
     if (searchInputRef.current) {
       searchInputRef.current.focus();
+    }
+  };
+
+  // Thử lại làm mới tồn khi GET refresh gặp lỗi (T03-AC-07)
+  const handleRetryStock = async (e: React.MouseEvent, item: PosProductSearchResponse) => {
+    e.stopPropagation();
+    const lookupKey = item.variantId || item.sku;
+    setRetryingKeys((prev) => ({ ...prev, [lookupKey]: true }));
+    try {
+      await invalidateAndRefetchStock(branchId, [
+        { skuId: item.variantId, skuCode: item.sku, barcode: item.barcode },
+      ]);
+    } finally {
+      setRetryingKeys((prev) => ({ ...prev, [lookupKey]: false }));
     }
   };
 
@@ -153,7 +370,13 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({
             <span className="text-[11px] text-slate-400">Chọn sản phẩm còn tồn để thêm vào giỏ</span>
           </div>
           {results.map((item) => {
-            const isOutOfStock = (item.available ?? 0) <= 0;
+            const stockEntry = stockMap[item.variantId] || stockMap[item.sku];
+            const currentAvailable = stockEntry ? stockEntry.available : (item.available ?? 0);
+            const isOutOfStock = currentAvailable <= 0;
+            const isStale = stockEntry?.isStale;
+            const lookupKey = item.variantId || item.sku;
+            const isRetrying = retryingKeys[lookupKey];
+
             return (
               <div
                 key={item.variantId}
@@ -174,6 +397,11 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({
                         {item.variantName}
                       </span>
                     )}
+                    {isStale && (
+                      <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded font-bold border border-amber-300">
+                        Chưa đồng bộ
+                      </span>
+                    )}
                   </div>
                   <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 mt-1">
                     <span className="font-mono font-semibold text-slate-600">SKU: {item.sku}</span>
@@ -188,15 +416,26 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({
                     <div className={`text-base font-bold ${isOutOfStock ? 'text-slate-400' : 'text-indigo-600'}`}>
                       {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(item.retailPrice)}
                     </div>
-                    <div className="text-xs mt-0.5">
+                    <div className="text-xs mt-0.5 flex items-center justify-end gap-1.5">
                       {isOutOfStock ? (
                         <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-semibold bg-rose-100 text-rose-700">
                           Hết tồn kho (0)
                         </span>
                       ) : (
                         <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-semibold bg-emerald-100 text-emerald-700">
-                          Khả dụng: {item.available}
+                          Khả dụng: {currentAvailable}
                         </span>
+                      )}
+                      {isStale && (
+                        <button
+                          type="button"
+                          onClick={(e) => handleRetryStock(e, item)}
+                          className="px-1.5 py-0.5 text-[10px] font-bold bg-amber-500 hover:bg-amber-600 text-white rounded transition-colors inline-flex items-center gap-0.5 shadow-xs"
+                          title="Làm mới tồn kho"
+                        >
+                          <RefreshCw className={`w-2.5 h-2.5 ${isRetrying ? 'animate-spin' : ''}`} />
+                          Thử lại
+                        </button>
                       )}
                     </div>
                   </div>

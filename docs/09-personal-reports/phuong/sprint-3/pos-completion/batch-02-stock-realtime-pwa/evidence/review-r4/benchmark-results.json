@@ -1,0 +1,38 @@
+{
+  "provider": "Actual benchmark source in VM with fixed clock/fetch and fs in memory; validator checks, no live timing/backend/DB/evidence writes",
+  "cases": [
+    {
+      "kind": "404",
+      "rejected": "Tra cứu barcode thất bại với HTTP status 404",
+      "outputPaths": []
+    },
+    {
+      "kind": "sku",
+      "rejected": "Identity mismatch: mong muốn SKU SKU-53318, nhận được: OTHER",
+      "outputPaths": []
+    },
+    {
+      "kind": "barcode",
+      "rejected": "Barcode mismatch: mong muốn 8934187503554, nhận được: WRONG",
+      "outputPaths": []
+    },
+    {
+      "kind": "numeric",
+      "rejected": "Tồn kho khả dụng (available) không phải số hữu hạn không âm hợp lệ: not-a-number",
+      "outputPaths": []
+    },
+    {
+      "kind": "id",
+      "rejected": "variantId không hợp lệ hoặc rỗng: ",
+      "outputPaths": []
+    },
+    {
+      "kind": "valid-zero",
+      "rejected": null,
+      "outputPaths": [
+        "D:\\OISMS\\docs\\09-personal-reports\\phuong\\sprint-3\\pos-completion\\batch-02-stock-realtime-pwa\\evidence\\v1.3\\latency-benchmark.json"
+      ],
+      "status": "PASS"
+    }
+  ]
+}

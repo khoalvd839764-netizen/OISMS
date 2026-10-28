@@ -17,9 +17,11 @@
 
 ## Finding và bước tiếp theo
 
-| ID | Mở / đã sửa chờ review / đã đóng bởi reviewer | Thay đổi và bằng chứng |
-| --- | --- | --- |
-| F-01 | {Trạng thái} | {Bằng chứng kiểm chứng} |
+| ID | Mở / đã sửa chờ review / đã đóng bởi reviewer | Nguyên nhân và phần sửa | Scenario / bằng chứng |
+| --- | --- | --- | --- |
+| F-01 | {Trạng thái} | {Nguyên nhân và caller/state liên quan} | {Test hành vi, log baseline FAIL → sau sửa PASS; hoặc giới hạn nếu chưa tái hiện/chưa chạy được} |
+
+Với finding code: ghi source/hash của baseline và bản sau sửa, lệnh/cwd/provider và vị trí raw log đủ để reviewer tái chạy. Với thay đổi không phải sửa lỗi code, bỏ yêu cầu log FAIL trước sửa. Không nhận “đã đóng” thay reviewer hoặc cộng kết quả của các test rời nhau thành scenario tích hợp chưa chạy.
 
 - Blocker còn lại và điều kiện gỡ:
 - Các cách sửa đã thử nhưng thất bại, giả thuyết mới (nếu có):

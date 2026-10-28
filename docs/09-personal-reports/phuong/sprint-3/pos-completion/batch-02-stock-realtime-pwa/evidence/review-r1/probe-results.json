@@ -1,0 +1,56 @@
+{
+  "provider": "Actual API, realtimeService, stockService and ProductSearch TS/TSX under Node VM; dependency-aware hooks, storage, controlled fetch/timers and fake SignalR transport. No real backend/PostgreSQL.",
+  "observations": [
+    {
+      "scenario": "A connecting -> stop/logout -> start B -> delayed A connect",
+      "connectionsBuilt": 1,
+      "oldConnectionStopped": false,
+      "oldOrderDeliveredAfterSwitch": [
+        "PRIVATE-A-ORDER"
+      ],
+      "oldJoinBranch": [
+        [
+          "JoinBranchGroup",
+          "11111111-1111-4111-8111-111111111111"
+        ]
+      ]
+    },
+    {
+      "scenario": "Checkout API refresh 8 then real ProductSearch barcode returns 8",
+      "apiCache": 8,
+      "productSearchCache": 10,
+      "addedAvailable": 10
+    },
+    {
+      "scenario": "Exact SKU-A absent; only SKU-A-OTHER search hit",
+      "refreshSuccess": true,
+      "requestedSkuNowAvailable": 99,
+      "isStale": false
+    },
+    {
+      "scenario": "GET says 8 then delayed old Hub event says 10",
+      "before": 8,
+      "after": 10,
+      "getCalls": 1,
+      "eventTriggeredRefetch": false
+    },
+    {
+      "scenario": "Barcode request branch A -> switch to B before response",
+      "addedAfterSwitch": [
+        {
+          "visibleBranch": "22222222-2222-4222-8222-222222222222",
+          "item": {
+            "variantId": "33333333-3333-4333-8333-333333333333",
+            "sku": "SKU-A",
+            "productName": "Old branch A response",
+            "barcode": "BAR-A",
+            "retailPrice": 100,
+            "available": 27,
+            "onHand": 10,
+            "reserved": 0
+          }
+        }
+      ]
+    }
+  ]
+}

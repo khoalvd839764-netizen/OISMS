@@ -1,7 +1,17 @@
-import React, { useState } from 'react';
-import { X, Banknote, QrCode, Printer, AlertCircle, ShieldCheck } from 'lucide-react';
-import type { CartItem, PosCheckoutRequest, ReceiptData } from '../types/pos';
-import { checkoutPosOrder } from '../services/api';
+import React, { useState, useEffect } from 'react';
+import { X, Banknote, QrCode, Printer, AlertCircle, ShieldCheck, RefreshCw } from 'lucide-react';
+import type { CartItem, PosCheckoutRequest, ReceiptData, PendingCheckoutRecord, PosUser } from '../types/pos';
+import {
+  checkoutPosOrder,
+  generateUuidV4,
+  getPendingCheckout,
+  savePendingCheckout,
+  clearPendingCheckout,
+  updatePendingCheckoutStatus,
+  getStoredUser,
+  isSameOwner,
+  mapServerReceiptToReceiptData,
+} from '../services/api';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -13,6 +23,7 @@ interface PaymentModalProps {
   branchPhone?: string;
   tenantName: string;
   cashierName: string;
+  currentUser?: PosUser | null;
   onSuccessAndPrint: (receipt: ReceiptData) => void;
   onPreviewReceipt: (receipt: ReceiptData) => void;
 }
@@ -27,20 +38,51 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   branchPhone,
   tenantName,
   cashierName,
+  currentUser,
   onSuccessAndPrint,
   onPreviewReceipt,
 }) => {
+  const activeUser = currentUser || getStoredUser();
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'BANK_TRANSFER_QR'>('CASH');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [userGivenAmount, setUserGivenAmount] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiNotice, setApiNotice] = useState<{ type: 'warning' | 'error' | 'success'; text: string; details?: any } | null>(null);
+  const [pendingAttempt, setPendingAttempt] = useState<PendingCheckoutRecord | null>(() => {
+    return getPendingCheckout(activeUser, branchId);
+  });
+
+  // POS-T01-F01: Xác minh nghiêm ngặt owner và branch của attempt trước khi hiển thị hoặc gửi.
+  // Tuyệt đối không cho state modal cũ hiển thị hoặc gửi attempt của user trước bằng token của user sau.
+  const getActivePendingRecord = (): PendingCheckoutRecord | null => {
+    if (pendingAttempt && isSameOwner(pendingAttempt.owner, activeUser, branchId)) {
+      return pendingAttempt;
+    }
+    return getPendingCheckout(activeUser, branchId);
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      const fresh = getPendingCheckout(activeUser, branchId);
+      setPendingAttempt(fresh);
+      if (!fresh) {
+        setApiNotice(null);
+      }
+    }
+  }, [isOpen, activeUser?.id, activeUser?.tenantId, activeUser?.email, branchId]);
 
   const totalAmount = items.reduce((sum, item) => sum + item.retailPrice * item.quantity, 0);
   const amountGiven = userGivenAmount !== null ? userGivenAmount : totalAmount;
 
   if (!isOpen) return null;
+
+  const currentPending = getActivePendingRecord();
+  const isRetry = Boolean(currentPending && (currentPending.status === 'unknown' || currentPending.status === 'submitting'));
+
+  // POS-T01-F01: Cảnh báo API chỉ hiển thị nếu thuộc về giao dịch của người dùng hiện tại
+  const isNoticeForCurrent = apiNotice && (!apiNotice.details?.requestKey || apiNotice.details?.requestKey === currentPending?.requestKey);
+  const activeNotice = isNoticeForCurrent ? apiNotice : null;
 
   const changeDue = Math.max(0, amountGiven - totalAmount);
   const isShortOfCash = paymentMethod === 'CASH' && amountGiven < totalAmount;
@@ -59,6 +101,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   ];
 
   const handleCheckout = async (forcePrint = false) => {
+    if (isSubmitting) {
+      return; // Chặn submit song song
+    }
+
     if (isShortOfCash && !forcePrint) {
       setApiNotice({
         type: 'error',
@@ -70,66 +116,106 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     setIsSubmitting(true);
     setApiNotice(null);
 
-    const orderNumber = `ORD-POS-${Date.now().toString().slice(-6)}`;
-    const checkoutRequest: PosCheckoutRequest = {
-      branchId: branchId || '00000000-0000-0000-0000-000000000000',
-      channel: 'POS',
-      customerName: customerName.trim() || undefined,
-      customerPhone: customerPhone.trim() || undefined,
-      paymentMethod,
-      amountGiven: paymentMethod === 'CASH' ? amountGiven : totalAmount,
-      changeDue: paymentMethod === 'CASH' ? changeDue : 0,
-      requestKey: crypto.randomUUID ? crypto.randomUUID() : `req-${Date.now()}`,
-      items: items.map((i) => ({
-        skuId: i.variantId,
-        skuCode: i.sku,
-        productName: i.productName,
-        variantName: i.variantName,
-        quantity: i.quantity,
-        unitPrice: i.retailPrice,
-      })),
-      totalAmount,
-    };
+    // Xác minh lại owner và branch ngay tại thời điểm submit
+    const activePending = getActivePendingRecord();
+    const isRetryActive = Boolean(activePending && (activePending.status === 'unknown' || activePending.status === 'submitting'));
 
-    // Chuẩn bị dữ liệu phiếu in hóa đơn
-    const receiptData: ReceiptData = {
-      receiptNumber: orderNumber,
-      createdAt: new Date().toLocaleString('vi-VN'),
-      tenantName: tenantName || 'CỬA HÀNG OISMS',
-      branchName: branchName || 'Chi nhánh mặc định',
-      branchAddress: branchAddress || 'Chi nhánh bán lẻ POS',
-      branchPhone: branchPhone || '1900 6868',
-      cashierName: cashierName || 'Thu ngân',
-      customerName: customerName.trim() || undefined,
-      customerPhone: customerPhone.trim() || undefined,
-      items: items.map((i) => ({
-        name: i.productName + (i.variantName ? ` - ${i.variantName}` : ''),
-        sku: i.sku,
-        quantity: i.quantity,
-        unitPrice: i.retailPrice,
-        subtotal: i.retailPrice * i.quantity,
-      })),
-      totalAmount,
-      paymentMethod,
-      amountGiven: paymentMethod === 'CASH' ? amountGiven : totalAmount,
-      changeDue: paymentMethod === 'CASH' ? changeDue : 0,
-      isDraft: false,
-    };
+    let requestKey: string;
+    let checkoutRequest: PosCheckoutRequest;
+
+    if (isRetryActive && activePending) {
+      // GIỮ NGUYÊN requestKey và snapshot requestPayload khi retry (T01-AC-01, T01-AC-02, PR24-F01)
+      requestKey = activePending.requestKey;
+      checkoutRequest = activePending.requestPayload;
+      updatePendingCheckoutStatus('submitting', undefined, undefined, activeUser, branchId);
+    } else {
+      // Giao dịch mới: sinh UUID v4 RFC 4122 hợp lệ, không dùng chuỗi req-${Date.now()}
+      requestKey = generateUuidV4();
+      checkoutRequest = {
+        branchId: branchId || '00000000-0000-0000-0000-000000000000',
+        channel: 'POS',
+        customerName: customerName.trim() || undefined,
+        customerPhone: customerPhone.trim() || undefined,
+        paymentMethod,
+        amountGiven: paymentMethod === 'CASH' ? amountGiven : totalAmount,
+        changeDue: paymentMethod === 'CASH' ? changeDue : 0,
+        requestKey,
+        items: items.map((i) => ({
+          skuId: i.variantId,
+          skuCode: i.sku,
+          productName: i.productName,
+          variantName: i.variantName,
+          quantity: i.quantity,
+          unitPrice: i.retailPrice,
+        })),
+        totalAmount,
+      };
+
+      const newRecord: PendingCheckoutRecord = {
+        version: 1,
+        requestKey,
+        owner: {
+          tenantId: activeUser?.tenantId,
+          tenantCode: activeUser?.tenantCode,
+          tenantName: activeUser?.tenantName || tenantName,
+          userId: activeUser?.id,
+          email: activeUser?.email,
+          cashierName: activeUser?.fullName || cashierName,
+          branchId,
+        },
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        status: 'submitting',
+        requestPayload: checkoutRequest,
+      };
+      savePendingCheckout(newRecord);
+      setPendingAttempt(newRecord);
+    }
 
     try {
       const result = await checkoutPosOrder(checkoutRequest);
 
       if (result.success) {
-        receiptData.receiptNumber = result.orderNumber || (result.receipt && result.receipt.receiptNumber) || orderNumber;
-        if (result.receipt) {
-          receiptData.createdAt = new Date(result.receipt.createdAt || Date.now()).toLocaleString('vi-VN');
-          if (result.receipt.cashierName) receiptData.cashierName = result.receipt.cashierName;
-          if (result.receipt.branchName) receiptData.branchName = result.receipt.branchName;
+        if (!result.receipt) {
+          throw new Error('Dữ liệu biên lai (receipt snapshot) từ máy chủ bị thiếu.');
         }
-        onSuccessAndPrint(receiptData);
+
+        // B01-F02: Ánh xạ và validate receipt snapshot từ server TRƯỚC khi xóa pending.
+        // PR24-F03 & T02-AC-01 / T02-AC-02: Tuyệt đối không dùng dữ liệu local để vá receipt chính thức.
+        const officialReceipt: ReceiptData = mapServerReceiptToReceiptData(result.receipt, {
+          tenantName: activeUser?.tenantName || tenantName,
+          fallbackCashierName: activeUser?.fullName || cashierName,
+          fallbackBranchName: branchName,
+        });
+
+        // B01-F02: CHỈ xóa giỏ và pending sau khi mapping thành công trọn vẹn
+        clearPendingCheckout(activeUser, branchId);
+        setPendingAttempt(null);
+
+        onSuccessAndPrint(officialReceipt);
         onClose();
+      } else if (result.isAuthExpired) {
+        // 401 hết phiên: lưu pending trạng thái unknown/chờ đăng nhập, không làm mất giỏ
+        updatePendingCheckoutStatus('unknown', result.message, result.errorCode, activeUser, branchId);
+        setPendingAttempt(getPendingCheckout(activeUser, branchId));
+        setApiNotice({
+          type: 'warning',
+          text: result.message,
+          details: checkoutRequest,
+        });
+      } else if (result.isUnknown) {
+        // Kết quả chưa xác định (timeout, mất kết nối sau commit, 500/502/503/504, 2xx lỗi JSON): giữ nguyên pending để retry (POS-T01-F02, POS-T01-F04)
+        updatePendingCheckoutStatus('unknown', result.message, result.errorCode, activeUser, branchId);
+        setPendingAttempt(getPendingCheckout(activeUser, branchId));
+        setApiNotice({
+          type: 'warning',
+          text: result.message,
+          details: checkoutRequest,
+        });
       } else {
-        // Checkout thất bại hoặc API chưa sẵn sàng: Giữ nguyên giỏ hàng, thông báo rõ ràng
+        // Thất bại xác định (400 validation, 403, 409 thiếu tồn/mismatch, 404/405/501): Xóa pending
+        clearPendingCheckout(activeUser, branchId);
+        setPendingAttempt(null);
         setApiNotice({
           type: 'warning',
           text: result.message,
@@ -137,9 +223,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         });
       }
     } catch (err: any) {
+      updatePendingCheckoutStatus('unknown', err.message, undefined, activeUser, branchId);
+      setPendingAttempt(getPendingCheckout(activeUser, branchId));
       setApiNotice({
         type: 'error',
-        text: `Lỗi gọi API: ${err.message}`,
+        text: `Lỗi gọi API: ${err.message}. Kết quả giao dịch chưa xác định, mã yêu cầu được giữ nguyên để đối soát/thử lại.`,
+        details: checkoutRequest,
       });
     } finally {
       setIsSubmitting(false);
@@ -147,15 +236,15 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   };
 
   const handlePrintPreview = () => {
-    // Phiếu xem trước / tạm tính: tách biệt hoàn toàn khỏi thanh toán thành công, không xóa giỏ
+    // T02-AC-04: Phiếu xem trước / tạm tính: tách biệt hoàn toàn khỏi thanh toán thành công, không gọi API, không xóa giỏ/key
     const draftReceipt: ReceiptData = {
       receiptNumber: `DRAFT-${Date.now().toString().slice(-6)}`,
       createdAt: new Date().toLocaleString('vi-VN'),
-      tenantName: tenantName || 'CỬA HÀNG OISMS',
+      tenantName: activeUser?.tenantName || tenantName || 'CỬA HÀNG OISMS',
       branchName: branchName || 'Chi nhánh mặc định',
-      branchAddress: branchAddress || 'Chi nhánh bán lẻ POS',
-      branchPhone: branchPhone || '1900 6868',
-      cashierName: cashierName || 'Thu ngân',
+      branchAddress: branchAddress?.trim() || undefined,
+      branchPhone: branchPhone?.trim() || undefined,
+      cashierName: activeUser?.fullName || cashierName || 'Thu ngân',
       customerName: customerName.trim() || undefined,
       customerPhone: customerPhone.trim() || undefined,
       items: items.map((i) => ({
@@ -176,6 +265,20 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     onClose();
   };
 
+  const handleSafeClose = () => {
+    if (isSubmitting) return; // Không đóng modal khi đang gửi request
+    onClose();
+  };
+
+  const handleResetPending = () => {
+    // POS-T01-F02: Không cho nút reset hoặc hộp confirm làm mất key/payload của giao dịch unknown!
+    // Giao dịch unknown đang chờ đối soát hoặc thử lại, tuyệt đối không được xóa pending để sinh key mới.
+    setApiNotice({
+      type: 'warning',
+      text: 'Giao dịch chưa xác định kết quả từ máy chủ. Để đảm bảo an toàn và không trừ tồn kho hai lần, hệ thống giữ nguyên mã yêu cầu và giỏ hàng. Vui lòng bấm "Thử lại thanh toán (Retry)" hoặc liên hệ quản trị viên để đối soát.',
+    });
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in no-print">
       <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-xl w-full overflow-hidden flex flex-col max-h-[90vh]">
@@ -189,8 +292,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            disabled={isSubmitting}
+            onClick={handleSafeClose}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors disabled:opacity-50"
           >
             <X className="w-5 h-5" />
           </button>
@@ -198,6 +302,31 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
         {/* Modal Content */}
         <div className="p-6 overflow-y-auto space-y-6">
+          {/* Unknown Pending Attempt Warning Banner */}
+          {isRetry && currentPending && (
+            <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl text-xs text-amber-900 space-y-1">
+              <div className="font-bold flex items-center gap-1.5 text-amber-800">
+                <RefreshCw className="w-4 h-4 text-amber-600 animate-spin" />
+                <span>Giao dịch đang chờ xác nhận kết quả (Retry Mode)</span>
+              </div>
+              <p className="m-0 text-amber-700 leading-relaxed text-[11px]">
+                Yêu cầu thanh toán trước đó chưa nhận được phản hồi xác nhận từ máy chủ. Hệ thống giữ nguyên mã yêu cầu{' '}
+                <code className="font-mono font-bold bg-amber-100 px-1 py-0.5 rounded text-amber-950">{currentPending.requestKey}</code>{' '}
+                và nội dung giỏ hàng để gửi lại an toàn, tuyệt đối không trừ tồn kho 2 lần.
+              </p>
+              <div className="pt-1 flex gap-2">
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={handleResetPending}
+                  className="text-[11px] text-amber-800 hover:text-amber-950 underline font-semibold"
+                >
+                  Yêu cầu đang chờ đối soát (giữ nguyên mã để gửi lại)
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Method Selection */}
           <div>
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 block">
@@ -206,8 +335,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
+                disabled={isSubmitting || isRetry}
                 onClick={() => setPaymentMethod('CASH')}
-                className={`flex items-center justify-center gap-2.5 p-3.5 rounded-2xl border-2 font-bold text-sm transition-all ${
+                className={`flex items-center justify-center gap-2.5 p-3.5 rounded-2xl border-2 font-bold text-sm transition-all disabled:opacity-70 ${
                   paymentMethod === 'CASH'
                     ? 'border-indigo-600 bg-indigo-50/50 text-indigo-700 shadow-sm'
                     : 'border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -219,8 +349,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
               <button
                 type="button"
+                disabled={isSubmitting || isRetry}
                 onClick={() => setPaymentMethod('BANK_TRANSFER_QR')}
-                className={`flex items-center justify-center gap-2.5 p-3.5 rounded-2xl border-2 font-bold text-sm transition-all ${
+                className={`flex items-center justify-center gap-2.5 p-3.5 rounded-2xl border-2 font-bold text-sm transition-all disabled:opacity-70 ${
                   paymentMethod === 'BANK_TRANSFER_QR'
                     ? 'border-indigo-600 bg-indigo-50/50 text-indigo-700 shadow-sm'
                     : 'border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -242,10 +373,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 <div className="relative">
                   <input
                     type="number"
+                    disabled={isSubmitting || isRetry}
                     value={amountGiven || ''}
                     onChange={(e) => setUserGivenAmount(parseFloat(e.target.value) || 0)}
                     placeholder="Nhập số tiền khách đưa..."
-                    className="w-full text-xl font-bold text-slate-900 px-4 py-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-indigo-600 focus:ring-4 focus:ring-indigo-100"
+                    className="w-full text-xl font-bold text-slate-900 px-4 py-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:border-indigo-600 focus:ring-4 focus:ring-indigo-100 disabled:bg-slate-100 disabled:text-slate-500"
                   />
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">
                     VND
@@ -259,8 +391,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   <button
                     key={i}
                     type="button"
+                    disabled={isSubmitting || isRetry}
                     onClick={() => setUserGivenAmount(opt.value)}
-                    className="py-1.5 px-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold transition-colors"
+                    className="py-1.5 px-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
                   >
                     {opt.label}
                   </button>
@@ -377,10 +510,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               </label>
               <input
                 type="text"
+                disabled={isSubmitting || isRetry}
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 placeholder="Khách lẻ..."
-                className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-indigo-600"
+                className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-indigo-600 disabled:bg-slate-100 disabled:text-slate-500"
               />
             </div>
             <div>
@@ -389,26 +523,27 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               </label>
               <input
                 type="text"
+                disabled={isSubmitting || isRetry}
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
                 placeholder="09..."
-                className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-indigo-600"
+                className="w-full text-xs px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-indigo-600 disabled:bg-slate-100 disabled:text-slate-500"
               />
             </div>
           </div>
 
           {/* API Notice / DoD Alert */}
-          {apiNotice && (
+          {activeNotice && (
             <div
               className={`p-4 rounded-xl text-xs space-y-2 border ${
-                apiNotice.type === 'warning'
+                activeNotice.type === 'warning'
                   ? 'bg-amber-50 text-amber-900 border-amber-200'
                   : 'bg-rose-50 text-rose-900 border-rose-200'
               }`}
             >
               <div className="flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                <div className="font-semibold">{apiNotice.text}</div>
+                <div className="font-semibold">{activeNotice.text}</div>
               </div>
               <p className="text-[11px] text-slate-600">
                 (Đề xuất DTO Checkout POS: Đang chờ Backend thống nhất hợp đồng API Swagger. Trong lúc này, giỏ hàng vẫn được giữ nguyên).
@@ -429,13 +564,26 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
         {/* Modal Footer */}
         <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors"
-          >
-            Đóng lại (Esc)
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={handleSafeClose}
+              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors disabled:opacity-50"
+            >
+              Đóng lại (Esc)
+            </button>
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={() => handlePrintPreview()}
+              className="px-3.5 py-2 text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl transition-colors flex items-center gap-1.5 disabled:opacity-50"
+              title="In phiếu tạm tính (chưa thanh toán)"
+            >
+              <Printer className="w-3.5 h-3.5 text-amber-600" />
+              <span>In phiếu tạm tính</span>
+            </button>
+          </div>
 
           <button
             type="button"
@@ -449,6 +597,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           >
             {isSubmitting ? (
               <span>Đang gửi Checkout API...</span>
+            ) : isRetry ? (
+              <>
+                <RefreshCw className="w-4 h-4" />
+                <span>Thử lại thanh toán (F4)</span>
+              </>
             ) : (
               <>
                 <ShieldCheck className="w-4 h-4" />

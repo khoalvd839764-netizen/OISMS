@@ -1,0 +1,6 @@
+﻿--- ─ÉO ─Éß║áC ─Éß╗ÿ TRß╗ä TRA Cß╗¿U THß╗░C Tß║╛ (T05-AC-06 & B02-F06 v1.3) ---
+─É├ú l╞░u kß║┐t quß║ú ─æo ─æß║íc v├áo: D:\OISMS\docs\09-personal-reports\phuong\sprint-3\pos-completion\batch-02-stock-realtime-pwa\evidence\v1.3\latency-benchmark.json
+- Mß║½u th├ánh c├┤ng (HTTP 200, ─æ├║ng SKU & Available dß║íng sß╗æ): 50/50
+- Full roundtrip p95 thß╗▒c ─æo: 16.653ms (Min: 7.543ms, Avg: 12.107ms, Max: 21.232ms)
+- In-memory Map lookup p95: 0.002ms
+- Kß║┐t quß║ú: PASS (< 200ms: ─Éß║áT)

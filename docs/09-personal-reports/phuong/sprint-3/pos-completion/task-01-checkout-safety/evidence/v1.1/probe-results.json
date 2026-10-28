@@ -1,0 +1,57 @@
+{
+  "baseline": "feature/OISMS-44-pos-pwa-checkout-va-in-hoa-don @ 44317f3 + v1.1 fixes",
+  "provider": "Actual frontend TS/TSX in Node VM, React hooks/events/storage/fetch stub and modeled server persistence; no real browser/HTTP/PostgreSQL",
+  "timestamp": "2026-10-27T13:41:10.264Z",
+  "observations": [
+    {
+      "scenario": "Normal network-loss retry",
+      "sameKey": true,
+      "modeledOrders": 1,
+      "status": "RESOLVED"
+    },
+    {
+      "scenario": "Different cashier login with actual modal-created pending",
+      "owner": {
+        "tenantId": "tenant-a",
+        "tenantName": "Fixture Shop",
+        "userId": "user-a",
+        "email": "a@fixture.local",
+        "cashierName": "Cashier A",
+        "branchId": "11111111-1111-4111-8111-111111111111"
+      },
+      "acceptedDifferentUser": false,
+      "cartAfterOtherLogin": 0,
+      "acceptedDifferentTenantWithSameDisplayName": false,
+      "status": "RESOLVED"
+    },
+    {
+      "scenario": "Reset unknown pending then submit again",
+      "sameKey": true,
+      "modeledOrders": 1,
+      "status": "RESOLVED"
+    },
+    {
+      "scenario": "500 after modeled commit then retry",
+      "pendingKept": true,
+      "sameKey": true,
+      "modeledOrders": 1,
+      "status": "RESOLVED"
+    },
+    {
+      "scenario": "Reload with pending on branch A and branch B first in response",
+      "originalKey": "f7ea7af5-1e7e-4bfd-b863-da05fa7c7b96",
+      "selectedBranchAfterReload": "11111111-1111-4111-8111-111111111111",
+      "hydratedCartBeforeAdding": 1,
+      "pendingVisibleForUi": true,
+      "branchAKept": true,
+      "cartHydrated": true,
+      "status": "RESOLVED"
+    },
+    {
+      "scenario": "200 with unreadable body",
+      "printedOfficialReceipt": 0,
+      "pendingKept": true,
+      "status": "RESOLVED"
+    }
+  ]
+}

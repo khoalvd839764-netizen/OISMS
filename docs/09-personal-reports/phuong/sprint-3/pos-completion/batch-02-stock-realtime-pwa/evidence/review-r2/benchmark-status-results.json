@@ -1,0 +1,8 @@
+{
+  "provider": "Actual benchmark runner in VM, fake fetch returns successful login then 51 barcode 404 responses; output intercepted in memory, no backend/DB and no evidence overwrite",
+  "requests": 52,
+  "barcodeHttpStatus": 404,
+  "reportedStatus": "PASS",
+  "reportedP95": 1,
+  "renderEstimate": 0.15
+}

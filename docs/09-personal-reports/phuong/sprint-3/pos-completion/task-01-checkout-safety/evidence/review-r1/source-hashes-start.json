@@ -1,0 +1,26 @@
+[
+  {
+    "path": "src/frontend/pos-app/src/App.tsx",
+    "hash": "57220CA559151894E6605AA1B1E905041E682A719D9FEC92A89C562B26A6F9B4"
+  },
+  {
+    "path": "src/frontend/pos-app/src/components/PaymentModal.tsx",
+    "hash": "3AF14CB756BAEDF18F2B4C3BAE3C1DB19219ECC84FAF3EAF26E208C6ADC2C7A5"
+  },
+  {
+    "path": "src/frontend/pos-app/src/services/api.ts",
+    "hash": "C44D36ADBCB52BC067F95F259F4FBB618465EDC7F8E181DA8950D58C02C232EF"
+  },
+  {
+    "path": "src/frontend/pos-app/src/services/pendingCheckoutStore.ts",
+    "hash": "2ABE7CEC9A4D725CB285CE095844489292BEA813CEBF8B7863638CDD4DC14CF0"
+  },
+  {
+    "path": "src/frontend/pos-app/src/types/pos.ts",
+    "hash": "A18E6AB34628A3C8C87D1AFD7256BA221A9F6D68A53C6EDFD78A7AC666098B1B"
+  },
+  {
+    "path": "src/frontend/pos-app/test-pos-e2e.mjs",
+    "hash": "ADF15BD81C6FCA8D62821D7781EB4F04216EDA6CC07F957635E1940183A23546"
+  }
+]

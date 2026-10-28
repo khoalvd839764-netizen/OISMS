@@ -1,0 +1,79 @@
+
+> pos-app@0.0.0 test
+> node --test test-pos-e2e.mjs
+
+TAP version 13
+# Subtest: 1. File Structure & TypeScript Artifacts Integrity
+ok 1 - 1. File Structure & TypeScript Artifacts Integrity
+  ---
+  duration_ms: 4.2967
+  ...
+# Subtest: 2. api.ts Real Endpoints & Strict No-Demo Contract
+ok 2 - 2. api.ts Real Endpoints & Strict No-Demo Contract
+  ---
+  duration_ms: 0.651
+  ...
+# Subtest: 3. Search & Barcode Matching Simulation with Real API Logic
+ok 3 - 3. Search & Barcode Matching Simulation with Real API Logic
+  ---
+  duration_ms: 1.1211
+  ...
+# Subtest: 4. Cart Operations & Stock Constraint Validation
+ok 4 - 4. Cart Operations & Stock Constraint Validation
+  ---
+  duration_ms: 0.4614
+  ...
+# Subtest: 5. Cash Payment & Quick Cash Auto Change Calculations
+ok 5 - 5. Cash Payment & Quick Cash Auto Change Calculations
+  ---
+  duration_ms: 0.1947
+  ...
+# Subtest: 6. 80mm Thermal Receipt Layout & Draft Watermark Contract
+ok 6 - 6. 80mm Thermal Receipt Layout & Draft Watermark Contract
+  ---
+  duration_ms: 0.641
+  ...
+# Subtest: 7. Checkout Contract & Draft Preview Decoupling
+ok 7 - 7. Checkout Contract & Draft Preview Decoupling
+  ---
+  duration_ms: 0.6873
+  ...
+# Subtest: 8. Negative Case: Barcode Miss does NOT add results[0]
+ok 8 - 8. Negative Case: Barcode Miss does NOT add results[0]
+  ---
+  duration_ms: 0.3166
+  ...
+# Subtest: 9. Negative Case: Branch Change & Logout Clears Cart
+ok 9 - 9. Negative Case: Branch Change & Logout Clears Cart
+  ---
+  duration_ms: 0.5316
+  ...
+# Subtest: 10. Negative Case: Available stock boundary enforcement
+ok 10 - 10. Negative Case: Available stock boundary enforcement
+  ---
+  duration_ms: 1.8333
+  ...
+# Subtest: 11. PWA Baseline Configuration
+ok 11 - 11. PWA Baseline Configuration
+  ---
+  duration_ms: 0.7003
+  ...
+# Subtest: 12. Direct Runtime API Logic & Status Code Handling
+ok 12 - 12. Direct Runtime API Logic & Status Code Handling
+  ---
+  duration_ms: 0.4899
+  ...
+# Subtest: 13. Workflow: Failed Checkout & Preview Receipt preserves Cart
+ok 13 - 13. Workflow: Failed Checkout & Preview Receipt preserves Cart
+  ---
+  duration_ms: 0.173
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 165.1512
