@@ -1,0 +1,48 @@
+ M docs/09-personal-reports/phuc-huu/sprint-3/README.md
+ M docs/09-personal-reports/phuc-huu/sprint-3/admin-completion/PLAN.md
+ M docs/09-personal-reports/phuc-huu/sprint-3/admin-completion/PROMPT-START-A01.md
+ M docs/09-personal-reports/phuc-huu/sprint-3/admin-completion/PROMPT-START-B01.md
+ M docs/09-personal-reports/phuc-huu/sprint-3/admin-completion/batch-01-contract-orders/handover.md
+ M skills/codex-antigravity-workflow/SKILL.md
+ M skills/codex-antigravity-workflow/assets/handoff.md
+ M skills/codex-antigravity-workflow/assets/task-brief.md
+ M skills/codex-antigravity-workflow/references/antigravity.md
+ M skills/codex-antigravity-workflow/references/codex.md
+ M skills/codex-antigravity-workflow/references/oisms.md
+ M src/backend/src/OISM.Application/Features/Inventory/Dtos/InventoryLedgerDtos.cs
+ M src/backend/src/OISM.Application/Features/Inventory/Services/InventoryService.cs
+ M src/backend/tests/OISM.IntegrationTests/StockCountIntegrationTests.cs
+ M src/backend/tests/OISM.IntegrationTests/StockDocumentApiTests.cs
+ M src/backend/tests/OISM.IntegrationTests/StockTransferIntegrationTests.cs
+ M src/frontend/admin-dashboard/src/components/AdminShell.tsx
+ M src/frontend/admin-dashboard/src/components/orders/OrderDetailDrawer.tsx
+ M src/frontend/admin-dashboard/src/components/pos/PaymentModal.tsx
+ M src/frontend/admin-dashboard/src/components/pos/PosHeader.tsx
+ M src/frontend/admin-dashboard/src/components/stockCounts/StockCountDetailDrawer.tsx
+ M src/frontend/admin-dashboard/src/components/transfers/TransferDetailDrawer.tsx
+ M src/frontend/admin-dashboard/src/components/ui.tsx
+ M src/frontend/admin-dashboard/src/index.css
+ M src/frontend/admin-dashboard/src/pages/DashboardPage.tsx
+ M src/frontend/admin-dashboard/src/pages/HandoffPage.tsx
+ M src/frontend/admin-dashboard/src/pages/InventoryPage.tsx
+ M src/frontend/admin-dashboard/src/pages/OrganizationPage.tsx
+ M src/frontend/admin-dashboard/src/pages/PosPage.tsx
+ M src/frontend/admin-dashboard/src/pages/ReportsPage.tsx
+ M src/frontend/admin-dashboard/src/services/apiAdapter.ts
+ M src/frontend/admin-dashboard/src/services/posApi.ts
+ M src/frontend/admin-dashboard/src/services/stockTransferService.ts
+ M src/frontend/admin-dashboard/src/types/pos.ts
+ M src/frontend/pos-app/src/components/PaymentModal.tsx
+?? docs/09-personal-reports/phuc-huu/sprint-3/admin-completion/BACKLOG.md
+?? docs/09-personal-reports/phuc-huu/sprint-3/admin-completion/batch-01-contract-orders/evidence/review-v13/
+?? docs/09-personal-reports/phuc-huu/sprint-3/admin-completion/batch-01-contract-orders/evidence/review-v14/
+?? docs/09-personal-reports/phuc-huu/sprint-3/admin-completion/batch-01-contract-orders/evidence/reviewer-v14/
+?? docs/09-personal-reports/phuc-huu/sprint-3/admin-completion/batch-01-contract-orders/evidence/test-summary-v13.txt
+?? docs/09-personal-reports/phuc-huu/sprint-3/admin-completion/batch-01-contract-orders/reviews/
+?? docs/09-personal-reports/phuc-huu/sprint-3/admin-completion/core-product/
+?? docs/09-personal-reports/phuong/sprint-3/
+?? docs/bug-fixaffter/
+?? scratch/
+?? src/frontend/admin-dashboard/src/components/GoodsReceiptList.tsx
+?? src/frontend/admin-dashboard/src/components/pos/ProductCatalog.tsx
+?? src/frontend/admin-dashboard/src/pages/PosPage.css

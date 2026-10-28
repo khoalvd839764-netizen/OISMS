@@ -1,0 +1,38 @@
+﻿TAP version 13
+# [2026-10-28T10:20:01.209Z] Information: WebSocket connected to ws://localhost:5000/hubs/notifications?id=4Rqh-Cn-rikw9Xz6IRdDnA.
+# [2026-10-28T10:20:01.277Z] Information: Connection disconnected.
+#   [EVIDENCE v1.3] SignalR Hub WebSocket Transport & Cross-Tenant:
+#     - Live WebSocket Connection & JWT Handshake: PASS
+#     - Tenant A: 11111111-1111-1111-1111-111111111111 (Thu ng├ón shop A)
+#     - Joined own branch: 11111111-0000-0000-0001-000000000001 -> PASS
+#     - Rejected REAL Tenant B branch: 22222222-0000-0000-0001-000000000001 -> PASS (Cross-tenant isolated)
+#     - Production realtimeService Integration (start/switch/stop): PASS
+#   [LIVE EVENT WORKFLOW RUNNER]: ─Éang chß║íy tr├¬n Isolated Test Backend: http://localhost:5001
+#     - Ngß║»t transport thß║¡t bß║▒ng proxy/network test control...
+# [2026-10-28T10:20:02.325Z] Error: Connection disconnected with error 'Error: WebSocket closed with status code: 1006 (no reason given).'.
+# [2026-10-28T10:20:02.329Z] Warning: Error from HTTP request. TypeError: fetch failed.
+# [2026-10-28T10:20:02.329Z] Error: Failed to complete negotiation with the server: TypeError: fetch failed
+# [2026-10-28T10:20:02.329Z] Error: Failed to start the connection: Error: Failed to complete negotiation with the server: TypeError: fetch failed
+#     - Tß║ío biß║┐n ─æß╗Öng tß╗ôn kho (Checkout 1 sß║ún phß║⌐m) tr├¬n backend trong l├║c client offline...
+#     - Kh├┤i phß╗Ñc transport mß║íng v├á chß╗¥ SDK tß╗▒ ─æß╗Öng reconnect & rejoin...
+#     - Tß╗ôn ─æß║ºu 92 - online 2 - offline 1 = kß╗│ vß╗ìng 89 (Backend thß╗▒c tß║┐: 89)
+#     - ─É├ú nhß║¡n sß╗▒ kiß╗çn OrderCreated & StockLevelChanged ─æ├║ng DTO/branch/SKU: PASS
+#     - Ngß║»t transport vß║¡t l├╜ thß║¡t & client chuyß╗ân trß║íng th├íi mß║Ñt kß║┐t nß╗æi: PASS
+#     - Tß║ío biß║┐n ─æß╗Öng tß╗ôn hß╗úp lß╗ç trong l├║c offline: PASS
+#     - Tß╗▒ ─æß╗Öng reconnect, rejoin chi nh├ính th├ánh c├┤ng & gß╗¡i GET refetch: PASS
+#     - Cache kh├┤i phß╗Ñc ch├¡nh x├íc sß╗æ tß╗ôn cuß╗æi kß╗│ vß╗ìng (available: 89, not stale): PASS
+#     - Live Event Mutation & Recovery Workflow: PASS
+# Subtest: B02-LIVE-HUB: Real Backend SignalR WebSocket Transport & Cross-Tenant Isolation
+ok 1 - B02-LIVE-HUB: Real Backend SignalR WebSocket Transport & Cross-Tenant Isolation
+  ---
+  duration_ms: 3773.6582
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4383.871

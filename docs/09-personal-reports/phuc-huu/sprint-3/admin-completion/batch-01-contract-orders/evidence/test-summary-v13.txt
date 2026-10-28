@@ -1,0 +1,87 @@
+======================================================================
+OISMS SPRINT 3 - BATCH 01 (S3-ADMIN-B01) TEST SUMMARY v1.3
+Generated At: 2026-10-28
+Provider: Real PostgreSQL 16+ (Docker localhost:5432) & Node.js Native Runner
+======================================================================
+
+1. FRONTEND REGRESSION BEHAVIORAL SUITE
+Command: node scratch/test_regression_v12.cjs
+Working Directory: D:\OISMS
+Provider: Node.js v22.14.0 native test runner (node:test)
+Result: Passed! - Failed: 0, Passed: 13, Skipped: 0, Total: 13, Duration: 192 ms
+
+Detail of 13 behavioral checks:
+- ok 1: PR26-F04: normalizeTransfer từ chối payload thiếu trường danh tính bắt buộc (id, number, status, {unexpected:true})
+- ok 2: PR26-F04: stockCountService.getStockCountById từ chối phản hồi malformed
+- ok 3: PR26-F04: normalizeSummary và normalizeDetail từ chối đơn hàng malformed
+- ok 4: PR26-F04: Đổi hoặc xóa bộ lọc khi đang ở trang > 1 luôn đưa về trang 1
+- ok 5: PR26-F04: Phản hồi API có tổng số trang nhỏ hơn trang hiện tại tự động lùi về trang 1 (Auto-recovery)
+- ok 6: B01-F02: Reload khi POST đang bay giữ nguyên trạng thái unknown, RequestKey và payload cũ
+- ok 7: B01-F02: Khi có pending/unknown snapshot, toàn bộ 5 trường biểu mẫu bị khóa và retry gửi đúng snapshot
+- ok 8: B01-F02: Nút hủy pending yêu cầu xác nhận trước khi xóa và sinh key mới
+- ok 9: B01-F02: Cách ly tuyệt đối pending giữa người dùng (Owner A không bị gửi bởi Owner B)
+- ok 10: B01-F04: Phản hồi tải chi tiết ban đầu hoặc retry của đơn A trả muộn bị chặn khi đã chuyển sang đơn B
+- ok 11: B01-F04: Mutation duyệt đơn A trả muộn không ghi đè drawer khi người dùng đã chuyển sang đơn B
+- ok 12: B01-F04: TransferDetailDrawer và StockCountDetailDrawer có generation guards chặn dispatch/record muộn
+- ok 13: A02-AC-04: In chứng từ từ server snapshot và ẩn tuyệt đối COGS/WAC trên bản in và vai trò không phải Owner
+
+======================================================================
+2. FRONTEND PRODUCTION BUILD
+Command: Push-Location src/frontend/admin-dashboard; npm run build; Pop-Location
+Working Directory: D:\OISMS\src\frontend\admin-dashboard
+Provider: Vite v8.3.4 + TypeScript v5.9.3 (tsc -b && vite build)
+Result: PASS (0 errors, 0 typecheck warnings)
+Output:
+dist/index.html                   0.62 kB │ gzip:   0.40 kB
+dist/assets/index-BvcbBS-e.css   88.05 kB │ gzip:  17.27 kB
+dist/assets/index-DHC5oKjv.js   699.88 kB │ gzip: 192.00 kB
+built in 1.95s
+
+======================================================================
+3. BACKEND UNIT TESTS (OISM.UnitTests.csproj)
+Command: dotnet test src/backend/tests/OISM.UnitTests/OISM.UnitTests.csproj
+Working Directory: D:\OISMS
+Provider: .NET 8 / InMemory TestDbContext
+Result: Passed! - Failed: 0, Passed: 158, Skipped: 0, Total: 158, Duration: 3 s
+
+Làm rõ lịch sử chuyển tiếp số lượng kiểm thử:
+- 146 baseline unit tests (OrderService, Reports, WacCalculator, Auth, Barcode, Simulator)
+- + 5 tests trong StockDocumentQueryTests.cs (query transfers/counts, tenant isolation, pagination)
+- = 151 tests (đây là mốc test-summary.txt ban đầu ở v1.0)
+- + 7 tests trong B01FindingRegressionTests.cs (bổ sung ở đợt fix v1.1):
+  * 4 InlineData cases cho B01_F01 (Shopee, TikTok, Lazada, POS -> 400 ValidationError)
+  * 1 case B01_F01 (Admin channel -> 200 Reserved)
+  * 1 case B01_F02 (Idempotency replay same payload -> 200 isReplay=true, different payload -> 409 Conflict)
+  * 1 case PR26_F04 (StockCountFilterRequestDto & StockTransferFilterRequestDto default pagination PageNumber=1, PageSize=20)
+- = 158 tests tổng cộng hiện tại.
+
+======================================================================
+4. BACKEND INTEGRATION TESTS TRÊN CSDL POSTGRESQL THẬT
+Provider: Live PostgreSQL 16+ Docker container (localhost:5432)
+WebApplicationFactoryWithPostgres với Production DI
+
+4.1. StockDocumentApiTests.cs (API đọc chứng từ thật & Multi-Tenant Isolation)
+Command: dotnet test src/backend/tests/OISM.IntegrationTests/OISM.IntegrationTests.csproj --filter "FullyQualifiedName~StockDocumentApiTests"
+Result: Passed! - Failed: 0, Passed: 3, Skipped: 0, Total: 3, Duration: 10 s
+Scenarios tested:
+- StockTransfers: 401 unauthenticated, 403 Cashier, 200 Staff (đọc danh sách và chi tiết có chứng từ thật kèm items), 200 Owner, 404 ID không tồn tại, 404 Tenant B không truy cập được chứng từ Tenant A (không rò rỉ danh sách).
+- StockCounts: 401 unauthenticated, 403 Cashier, 200 Staff (đọc danh sách và chi tiết có chứng từ thật kèm items), 200 Owner, 404 ID không tồn tại, 404 Tenant B không truy cập được chứng từ Tenant A (không rò rỉ danh sách).
+- NewBrowserSession: Phiên làm việc / trình duyệt mới đăng nhập lại đọc đầy đủ chứng từ đã tạo từ CSDL PostgreSQL.
+
+4.2. OnlineOrderLifecycleIntegrationTests.cs (Vòng đời đơn hàng & Giữ chỗ tồn kho)
+Command: dotnet test src/backend/tests/OISM.IntegrationTests/OISM.IntegrationTests.csproj --filter "FullyQualifiedName~OnlineOrderLifecycleIntegrationTests"
+Result: Passed! - Failed: 0, Passed: 34, Skipped: 0, Total: 34, Duration: 1 m 52 s
+Scenarios tested:
+- AC-01: Tạo đơn hàng Admin + giữ chỗ multi-SKU (POST /api/orders, 201 Created).
+- AC-02: Idempotency tuyệt đối (replay 200 OK, payload mismatch 409, first submission).
+- AC-03: Duyệt đơn hàng (POST /api/orders/{id}/confirm: trừ OnHand, giảm Reserved, ghi Ledger OUT, chốt WAC snapshot).
+- AC-04: Hoàn tất đơn hàng (POST /api/orders/{id}/complete: 200 OK, idempotent replay).
+- AC-05: Hủy đơn hàng (POST /api/orders/{id}/cancel: giải phóng Active reservations, OnHand giữ nguyên).
+- AC-06: Concurrency & Stress: 50 đơn tranh 1 suất tồn kho, Confirm vs Cancel không deadlock.
+- AC-07: Atomic Rollback: Thiếu tồn rollback 100%, phiếu giữ chỗ hết hạn chặn Confirm.
+- AC-08: Phân quyền RBAC (401 unauthenticated, 403 Cashier).
+
+4.3. PostgresTenantIsolationTests.cs (Cô lập tenant & Bảo vệ CSDL thật)
+Command: dotnet test src/backend/tests/OISM.IntegrationTests/OISM.IntegrationTests.csproj --filter "FullyQualifiedName~PostgresTenantIsolationTests"
+Result: Passed! - Failed: 0, Passed: 35, Skipped: 0, Total: 35, Duration: 2 m 10 s
+======================================================================

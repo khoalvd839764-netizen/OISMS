@@ -1,0 +1,6 @@
+=== RUNNING OFFLINE PREFLIGHT FOR LIVE RUNNER (F06) ===
+  -> Preflight PASSED 100%!
+  -> Method signatures valid (subscribeOrderCreated & subscribeStockLevelChanged).
+  -> Correct test backend URL and token injected into production modules.
+  -> Health readiness check verified before mutation.
+  -> Zero TypeError, zero contract mismatch.

@@ -1,0 +1,19 @@
+﻿{
+    "generatedAt":  "2026-10-27T23:01:30+07:00",
+    "gitHead":  "44317f3b5188c276fa3ef25c8faf30323e503079",
+    "branch":  "feature/OISMS-44-pos-pwa-checkout-va-in-hoa-don",
+    "files":  {
+                  "src/frontend/pos-app/src/types/pos.ts":  "f65beb383b0a71316257a80ab301093f96ba58b9f9236a54c68fc7346ffa7d7b",
+                  "src/frontend/pos-app/src/services/api.ts":  "f61af0512c4774903051f565ff7c19753c0ac8c10791db782ea02099b8af11d3",
+                  "src/frontend/pos-app/src/services/receiptMapper.ts":  "c6f6e57c5ef7b6f862b58ddbefba062bd58d7a840259899648e68631c88585ca",
+                  "src/frontend/pos-app/src/services/pendingCheckoutStore.ts":  "5066491e494561fd0933bacb0851b4556da760fda248b3e5b1e04c0168e9aa59",
+                  "src/frontend/pos-app/src/components/PaymentModal.tsx":  "5bf0938ad656c5f69fe75ce798351594f526e73fe998cfd33b71022655d6c5f3",
+                  "src/frontend/pos-app/src/components/ReceiptPrintModal.tsx":  "e819edf931d3cc864775a743dd0d943b9c33f7ec1b27804d52d16203c0203d7f",
+                  "src/frontend/pos-app/src/App.tsx":  "991e50b8a85f98d2fba74386a0f432b2d30c0ed21da0795b36361d8c89957264",
+                  "src/frontend/pos-app/src/index.css":  "6d530dfea087839bb15bff6422b711e300df941e1d11f4f71467f527bf6e5cba",
+                  "src/frontend/pos-app/test-pos-e2e.mjs":  "127ac13a13b693f4973fdabd0f56e5548e13af9809f42eb1bb1c21fbf37ede3f",
+                  "src/frontend/pos-app/generate-print-evidence.mjs":  "7210fbb44730777307c5de095586f2a314b340d7f69ba3c0e698923e9211e4c3",
+                  "src/backend/src/OISM.Application/Features/Orders/Dtos/OrderDtos.cs":  "cc61851d7107be9c61d7ede0f032bcabf7edbf9cf6386995478c05fb9c12b513",
+                  "src/backend/src/OISM.Application/Features/Orders/Services/OrderService.cs":  "2b803a7e026f317953bbd5898464e375cc08f3185c8967227c375262ea340994"
+              }
+}

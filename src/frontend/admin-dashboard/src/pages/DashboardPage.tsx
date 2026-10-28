@@ -1,16 +1,13 @@
 import { AlertCircle, ArrowRight, Boxes, CircleAlert, Clock3, PackageCheck, RefreshCw, ShoppingCart, TrendingUp, WalletCards } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Badge, Button, PageTitle, StatCard } from "../components/ui";
+import { Badge, Button, ComingSoonBadge, ComingSoonPanel, PageTitle, StatCard } from "../components/ui";
 import { apiAdapter } from "../services/apiAdapter";
 import { useAuth } from "../context/AuthContext";
-import type { Order, Sku } from "../types/domain";
-
-const chart = [42, 58, 48, 72, 64, 84, 76, 93, 70, 88, 96, 82];
+import type { Sku } from "../types/domain";
 
 export function DashboardPage() {
   const { account } = useAuth();
-  const [ordersList, setOrdersList] = useState<Order[]>([]);
   const [skusList, setSkusList] = useState<Sku[]>([]);
   const [branchBalances, setBranchBalances] = useState<Sku[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,8 +16,7 @@ export function DashboardPage() {
   const fetchDashboard = async () => {
     setLoading(true);
     setLoadError(null);
-    const [ordRes, skuRes, balRes] = await Promise.all([
-      apiAdapter.getOrders(account.tenantId),
+    const [skuRes, balRes] = await Promise.all([
       apiAdapter.getSkus(),
       apiAdapter.getBalances(),
     ]);
@@ -28,7 +24,6 @@ export function DashboardPage() {
     if (skuRes.error || balRes.error) {
       setLoadError(skuRes.error?.message || balRes.error?.message || "Lỗi kết nối máy chủ khi tải dữ liệu tổng quan.");
     }
-    if (ordRes.data) setOrdersList(ordRes.data);
     if (skuRes.data) setSkusList(skuRes.data);
     if (balRes.data) setBranchBalances(balRes.data);
     setLoading(false);
@@ -38,17 +33,7 @@ export function DashboardPage() {
     fetchDashboard();
   }, [account.tenantId]);
 
-  const activeOrders = ordersList.filter((o) => o.status !== "Cancelled");
-  const totalRevenue = activeOrders.reduce((sum, o) => sum + (Number(o.amount) || 0), 0);
-  const totalCogs = activeOrders.reduce((sum, o) => sum + (Number(o.cogs) || 0), 0);
-  const grossProfit = totalRevenue - totalCogs;
-  const marginPct = totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100).toFixed(1) : "0.0";
-  const totalUnitsSold = activeOrders.reduce(
-    (sum, o) => sum + (o.items?.reduce((s, i) => s + i.quantity, 0) || 1),
-    0
-  );
   const lowStockSkus = skusList.filter((s) => s.isActive !== false && s.onHand - s.reserved <= s.threshold);
-  const reservedOrders = ordersList.filter((o) => o.status === "Pending" || o.status === "Reserved");
 
   // [A02] Tính tổng giá trị tồn kho chính xác theo từng Chi nhánh: TotalValue = sum(OnHand_branch * AverageCost_branch)
   const totalInventoryValue =
@@ -61,7 +46,7 @@ export function DashboardPage() {
       <PageTitle
         eyebrow="Tổng quan vận hành OISM"
         title={`Chào mừng trở lại, ${account.name || "Quản trị viên"}`}
-        description={`Tình hình bán hàng và tồn kho thực tế của ${account.tenantName || "Doanh nghiệp"} hôm nay.`}
+        description={`Theo dõi tồn kho của ${account.tenantName || "Doanh nghiệp"}. Các chỉ số bán hàng tổng hợp đang được hoàn thiện.`}
         actions={
           <>
             <Button variant="secondary" onClick={fetchDashboard} disabled={loading}>
@@ -104,26 +89,26 @@ export function DashboardPage() {
       <div className="stats-grid">
         <StatCard
           label="Doanh thu ghi nhận"
-          value={loadError ? "—" : `${totalRevenue.toLocaleString("vi-VN")} ₫`}
+          value="Coming soon"
           change={loadError ? "Lỗi kết nối API" : `Giá trị tồn kho: ${totalInventoryValue.toLocaleString("vi-VN")} ₫`}
           icon={<WalletCards size={19} />}
         />
         <StatCard
           label="Đơn hàng"
-          value={loadError ? "—" : String(ordersList.length)}
-          change={`${reservedOrders.length} đơn đang giữ chỗ`}
+          value="Coming soon"
+          change="Đang hoàn thiện tổng hợp đơn hàng"
           icon={<ShoppingCart size={19} />}
         />
         <StatCard
           label="Danh mục SKU"
           value={loadError ? "—" : `${skusList.length} SKU`}
-          change={`Đã xuất/giữ chỗ: ${totalUnitsSold} SP`}
+          change="Dữ liệu từ danh mục sản phẩm"
           icon={<PackageCheck size={19} />}
         />
         <StatCard
           label="Lợi nhuận gộp"
-          value={loadError ? "—" : `${grossProfit.toLocaleString("vi-VN")} ₫`}
-          change={`Biên lợi nhuận ${marginPct}%`}
+          value="Coming soon"
+          change="Xem số liệu tại trang Báo cáo"
           icon={<TrendingUp size={19} />}
         />
       </div>
@@ -132,24 +117,14 @@ export function DashboardPage() {
           <div className="card-head">
             <div>
               <h2>Biểu đồ vận hành & lưu chuyển hàng hóa</h2>
-              <p>Đã trừ đơn hủy · Đồng bộ trực tiếp từ tồn kho & đơn hàng</p>
+              <p>Biểu đồ tổng hợp dữ liệu vận hành đang được hoàn thiện.</p>
             </div>
             <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-              <Badge tone="neutral">[Sprint 3 Preview]</Badge>
+              <ComingSoonBadge />
               <Badge tone="success">{skusList.length} SKU đang quản lý</Badge>
             </div>
           </div>
-          <div className="chart">
-            <div className="chart-y"><span>20</span><span>15</span><span>10</span><span>5</span><span>0</span></div>
-            <div className="bars">
-              {chart.map((height, index) => (
-                <div className="bar-wrap" key={index}>
-                  <div className={`bar ${index === 11 ? "bar--active" : ""}`} style={{ height: `${height}%` }} />
-                  {index % 2 === 0 && <span>{index + 11}/06</span>}
-                </div>
-              ))}
-            </div>
-          </div>
+          <ComingSoonPanel title="Biểu đồ vận hành" description="Chưa có biểu đồ từ dữ liệu thực tế. Số liệu mẫu đã được ẩn." />
         </section>
         <section className="card alert-card">
           <div className="card-head">
@@ -157,7 +132,7 @@ export function DashboardPage() {
               <h2>Cần xử lý</h2>
               <p>Ưu tiên theo mức độ ảnh hưởng</p>
             </div>
-            <span className="alert-count">{lowStockSkus.length + reservedOrders.length}</span>
+            <span className="alert-count">{lowStockSkus.length}</span>
           </div>
           <div className="attention-list">
             <Link to="/inventory">
@@ -171,8 +146,8 @@ export function DashboardPage() {
             <Link to="/orders">
               <span className="attention-icon warning"><Clock3 size={19} /></span>
               <div>
-                <strong>{reservedOrders.length} đơn đang giữ chỗ tồn kho</strong>
-                <p>Thời hạn giữ chỗ 15 phút (Advisory Lock)</p>
+                <strong>Tra cứu và xử lý đơn hàng</strong>
+                <p>Mở danh sách đơn để xem trạng thái giữ chỗ</p>
               </div>
               <ArrowRight size={18} />
             </Link>
@@ -195,46 +170,7 @@ export function DashboardPage() {
           </div>
           <Link className="text-link" to="/orders">Xem tất cả <ArrowRight size={16} /></Link>
         </div>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Mã đơn</th>
-                <th>Kênh</th>
-                <th>Khách hàng</th>
-                <th>Thời gian</th>
-                <th>Tổng tiền</th>
-                <th>Trạng thái</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={6} style={{ textAlign: "center", padding: "28px 0", color: "#64748b" }}>
-                    Đang tải dữ liệu đơn hàng từ máy chủ...
-                  </td>
-                </tr>
-              ) : ordersList.length === 0 ? (
-                <tr>
-                  <td colSpan={6} style={{ textAlign: "center", padding: "28px 0", color: "#64748b" }}>
-                    Chưa có đơn hàng nào phát sinh hôm nay. Bạn có thể tạo đơn tại trang Đơn hàng hoặc Quầy POS.
-                  </td>
-                </tr>
-              ) : (
-                ordersList.slice(0, 5).map((order) => (
-                  <tr key={order.id}>
-                    <td><strong>{order.code}</strong></td>
-                    <td><span className={`channel channel--${order.channel.toLowerCase()}`}>{order.channel}</span></td>
-                    <td>{order.customer}</td>
-                    <td>{new Date(order.createdAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Ho_Chi_Minh" })}</td>
-                    <td><strong>{order.amount.toLocaleString("vi-VN")} ₫</strong></td>
-                    <td><OrderBadge status={order.status} /></td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        <ComingSoonPanel title="Đơn hàng gần đây" description="Danh sách đơn trên Tổng quan đang được hoàn thiện. Chọn Xem tất cả để tra cứu đơn hàng tại trang Đơn đa kênh." />
       </section>
     </>
   );

@@ -1,0 +1,11 @@
+AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+  assert.ok(requests.some(r=>r.path==='/api/pos/search'&&r.availableAtRequest===8))
+
+    at D:\OISMS\tmp\pos-b02-review-r4\browser-search.cjs:34:10 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '=='
+}

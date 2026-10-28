@@ -74,3 +74,7 @@ jobs:
       run: |
         npm install
         npm run build
+
+    - name: POS regression tests (source, component and guard fixtures)
+      working-directory: src/frontend/pos-app
+      run: npm test

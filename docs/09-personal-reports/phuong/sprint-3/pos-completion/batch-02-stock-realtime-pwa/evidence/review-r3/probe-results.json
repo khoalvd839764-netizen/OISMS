@@ -1,0 +1,56 @@
+{
+  "provider": "Actual TS/TSX and production callbacks/components in VM, controlled HTTP/storage/hooks/fake SignalR; balance fixture matches backend DTO. No backend/DB writes.",
+  "observations": [
+    {
+      "case": "F04-ID-contract",
+      "status": "PASS",
+      "state": {
+        "available": 8,
+        "onHand": 8,
+        "reserved": 0,
+        "skuId": "33333333-3333-4333-8333-333333333333",
+        "skuCode": "SKU-A",
+        "isStale": false,
+        "error": null,
+        "updatedAt": 1793170401379
+      },
+      "requests": [
+        "/api/inventory/balances/sku/33333333-3333-4333-8333-333333333333/branch/11111111-1111-4111-8111-111111111111"
+      ]
+    },
+    {
+      "case": "F04-R2-alias-helper",
+      "status": "PASS",
+      "available": 8
+    },
+    {
+      "case": "F04-reconnect",
+      "status": "PASS",
+      "gets": 1,
+      "available": 8
+    },
+    {
+      "case": "F05-query-clear",
+      "status": "PASS",
+      "input": "",
+      "oldRows": 0
+    },
+    {
+      "case": "F04-App-code-as-ID",
+      "status": "REPRODUCED",
+      "checkoutArgs": {
+        "skuId": "SKU-A",
+        "skuCode": "SKU-A"
+      },
+      "afterNewer": 8,
+      "afterOlder": 10
+    },
+    {
+      "case": "F04-actual-barcode-versus-refetch",
+      "status": "REPRODUCED",
+      "addedAvailable": 8,
+      "afterBarcode": 8,
+      "afterOlderGET": 10
+    }
+  ]
+}

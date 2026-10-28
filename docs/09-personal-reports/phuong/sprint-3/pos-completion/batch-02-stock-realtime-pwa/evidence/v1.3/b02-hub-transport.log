@@ -1,0 +1,35 @@
+﻿TAP version 13
+[2026-10-28T07:18:28.788Z] Information: WebSocket connected to ws://localhost:5000/hubs/notifications?id=NEO76yyyJFCRdlv2c0UbcQ.
+[2026-10-28T07:18:28.861Z] Information: Connection disconnected.
+
+  [EVIDENCE v1.3] SignalR Hub WebSocket Transport & Cross-Tenant:
+    - Live WebSocket Connection & JWT Handshake: PASS
+    - Tenant A: 11111111-1111-1111-1111-111111111111 (Thu ng├ón shop A)
+    - Joined own branch: 11111111-0000-0000-0001-000000000001 -> PASS
+    - Rejected REAL Tenant B branch: 22222222-0000-0000-0001-000000000001 -> PASS (Cross-tenant isolated)
+    - Production realtimeService Integration (start/switch/stop): PASS
+
+  [GATE STATUS: LIVE EVENT BROADCAST & AUTO-RECONNECT WORKFLOW]
+    - Trß║íng th├íi: NOT RUN / BLOCKED
+    - L├╜ do: M├┤i tr╞░ß╗¥ng hiß╗çn tß║íi l├á Shared Demo Container (localhost:5000), kh├┤ng c├│ Database Test ─æß╗Öc lß║¡p.
+      Tu├ón thß╗º nguy├¬n tß║»c an to├án dß╗» liß╗çu: Kh├┤ng thß╗▒c hiß╗çn thao t├íc ghi ─æ╞ín h├áng / checkout l├ám thay ─æß╗òi
+      dß╗» liß╗çu demo d├╣ng chung m├á kh├┤ng c├│ isolated test DB.
+    - C├ích gß╗í: Chß║íy container test chuy├¬n biß╗çt (e.g. docker-compose.test.yml vß╗¢i database rß╗ùng) v├á thiß║┐t lß║¡p
+      biß║┐n m├┤i tr╞░ß╗¥ng POS_LIVE_TEST_ENV=1 ─æß╗â k├¡ch hoß║ít to├án bß╗Ö luß╗ông ph├ít sinh event live.
+    - To├án bß╗Ö workflow tß╗▒ ─æß╗Öng reconnect, rejoin v├á GET refetch stock ─æ├ú ─æ╞░ß╗úc kiß╗âm chß╗⌐ng 100% PASS
+      trong controlled runtime test suite: test-b02-realtime-pwa.mjs.
+
+# Subtest: B02-LIVE-HUB: Real Backend SignalR WebSocket Transport & Cross-Tenant Isolation
+ok 1 - B02-LIVE-HUB: Real Backend SignalR WebSocket Transport & Cross-Tenant Isolation
+  ---
+  duration_ms: 996.7602
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1004.3516

@@ -154,35 +154,13 @@ export const stockTransferService = {
       requestKey,
     };
 
-    let createdTransfer: StockTransfer;
-
-    try {
-      const response = await httpClient.post('/api/stock-transfers', payload, {
-        headers: {
-          'Idempotency-Key': requestKey,
-          'X-Request-Key': requestKey,
-        },
-      });
-      createdTransfer = response.data;
-    } catch (err) {
-      console.warn('POST /api/stock-transfers gặp sự cố, lưu bản ghi phục hồi:', err);
-      // Giả lập DTO phản hồi nếu backend test offline
-      createdTransfer = {
-        id: generateUuid(),
-        transferNumber: `TRF-${Date.now().toString().slice(-6)}`,
-        fromWarehouseId: data.fromWarehouseId,
-        toWarehouseId: data.toWarehouseId,
-        status: 'Draft',
-        note: data.note,
-        items: data.items.map((it, idx) => ({
-          id: `item-${idx}`,
-          skuId: it.skuId,
-          skuCode: `SKU-${it.skuId.slice(0, 6)}`,
-          quantity: it.quantity,
-        })),
-        createdAt: new Date().toISOString(),
-      };
-    }
+    const response = await httpClient.post('/api/stock-transfers', payload, {
+      headers: {
+        'Idempotency-Key': requestKey,
+        'X-Request-Key': requestKey,
+      },
+    });
+    const createdTransfer = normalizeTransfer(response.data);
 
     // Đồng bộ vào cache danh sách
     const list = loadLocalTransfers();
@@ -201,11 +179,7 @@ export const stockTransferService = {
    * Bước 1: Xuất gửi hàng (Draft -> InTransit)
    */
   async dispatchTransfer(id: string): Promise<void> {
-    try {
-      await httpClient.post(`/api/stock-transfers/${id}/dispatch`);
-    } catch (err) {
-      console.warn('POST /api/stock-transfers/{id}/dispatch gọi lỗi:', err);
-    }
+    await httpClient.post(`/api/stock-transfers/${id}/dispatch`);
 
     // Cập nhật trạng thái trong local cache
     const list = loadLocalTransfers();
@@ -221,11 +195,7 @@ export const stockTransferService = {
    * Bước 2: Tiếp nhận hàng (InTransit -> Received)
    */
   async receiveTransfer(id: string): Promise<void> {
-    try {
-      await httpClient.post(`/api/stock-transfers/${id}/receive`);
-    } catch (err) {
-      console.warn('POST /api/stock-transfers/{id}/receive gọi lỗi:', err);
-    }
+    await httpClient.post(`/api/stock-transfers/${id}/receive`);
 
     // Cập nhật trạng thái trong local cache
     const list = loadLocalTransfers();
@@ -238,21 +208,26 @@ export const stockTransferService = {
   },
 
   /**
-   * Từ chối nhận / Hủy phiếu
+   * Hủy phiếu chuyển kho khi còn ở trạng thái Draft (Draft -> Cancelled)
    */
-  async rejectTransfer(id: string, data: RejectStockTransferRequest): Promise<void> {
-    try {
-      await httpClient.post(`/api/stock-transfers/${id}/cancel`, data);
-    } catch (err) {
-      console.warn('POST /api/stock-transfers/{id}/cancel gọi lỗi:', err);
-    }
+  async cancelTransfer(id: string, reason?: string): Promise<void> {
+    await httpClient.post(`/api/stock-transfers/${id}/cancel`, {
+      reason: reason || 'Hủy phiếu chuyển kho',
+    });
 
     // Cập nhật trạng thái trong local cache
     const list = loadLocalTransfers();
     const item = list.find((t) => t.id === id);
     if (item) {
-      item.status = 'Rejected';
+      item.status = 'Cancelled';
       saveLocalTransfers(list);
     }
+  },
+
+  /**
+   * @deprecated Backend không hỗ trợ Reject từ InTransit; alias trỏ tới cancelTransfer
+   */
+  async rejectTransfer(id: string, data?: RejectStockTransferRequest): Promise<void> {
+    await this.cancelTransfer(id, data?.reason);
   },
 };

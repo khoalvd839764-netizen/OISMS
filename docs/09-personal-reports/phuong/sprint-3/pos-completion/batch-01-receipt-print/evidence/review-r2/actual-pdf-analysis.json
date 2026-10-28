@@ -1,0 +1,30 @@
+[
+  {
+    "file": "actual-print-58mm-draft.pdf",
+    "pages": 1,
+    "width_mm": 57.83,
+    "height_mm": 200.07,
+    "text_chars": 443
+  },
+  {
+    "file": "actual-print-58mm-official.pdf",
+    "pages": 1,
+    "width_mm": 57.83,
+    "height_mm": 200.07,
+    "text_chars": 369
+  },
+  {
+    "file": "actual-print-80mm-draft.pdf",
+    "pages": 1,
+    "width_mm": 80.09,
+    "height_mm": 200.07,
+    "text_chars": 468
+  },
+  {
+    "file": "actual-print-80mm-official.pdf",
+    "pages": 1,
+    "width_mm": 80.09,
+    "height_mm": 200.07,
+    "text_chars": 394
+  }
+]

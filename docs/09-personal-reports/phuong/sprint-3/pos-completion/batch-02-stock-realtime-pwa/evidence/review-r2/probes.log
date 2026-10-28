@@ -1,0 +1,85 @@
+[
+  {
+    "id": "F01-original",
+    "status": "PASS",
+    "connections": 2,
+    "oldStopped": 2,
+    "oldOwnerDelivered": [],
+    "newJoin": [
+      [
+        "JoinBranchGroup",
+        "22222222-2222-4222-8222-222222222222"
+      ]
+    ]
+  },
+  {
+    "id": "F02-original",
+    "status": "PASS",
+    "apiCache": 8,
+    "sharedCache": 8,
+    "addedAvailable": 8
+  },
+  {
+    "id": "F03-original",
+    "status": "PASS",
+    "result": {
+      "success": false,
+      "updated": {},
+      "errors": {
+        "SKU-A": "Không tìm thấy mặt hàng khớp chính xác trong kho chi nhánh."
+      }
+    },
+    "state": {
+      "available": 10,
+      "isStale": true,
+      "error": "Không tìm thấy mặt hàng khớp chính xác trong kho chi nhánh.",
+      "updatedAt": 1793168703974
+    }
+  },
+  {
+    "id": "F05-branch",
+    "status": "PASS",
+    "addedAfterBranchSwitch": []
+  },
+  {
+    "id": "F04-contract",
+    "status": "REPRODUCED",
+    "expected": 8,
+    "actual": 10,
+    "isStale": true,
+    "requests": [
+      "/api/pos/search?query=33333333-3333-4333-8333-333333333333&branchId=11111111-1111-4111-8111-111111111111"
+    ],
+    "note": "Fixture mirrors PosCatalogController search predicate; UUID is not a searchable field"
+  },
+  {
+    "id": "F04-alias-race",
+    "status": "REPRODUCED",
+    "afterNewerBarcode": 8,
+    "afterOlderSkuResponse": 10,
+    "note": "Sequence keys differ: SKU code versus UUID although same variant"
+  },
+  {
+    "id": "F04-reconnect",
+    "status": "REPRODUCED",
+    "getsAfterReconnect": 0,
+    "availableAfterReconnect": 10,
+    "serverAvailable": 8,
+    "joins": [
+      [
+        "JoinBranchGroup",
+        "11111111-1111-4111-8111-111111111111"
+      ],
+      [
+        "JoinBranchGroup",
+        "11111111-1111-4111-8111-111111111111"
+      ]
+    ]
+  },
+  {
+    "id": "F05-query-clear",
+    "status": "REPRODUCED",
+    "inputValue": "",
+    "oldResultsReopened": 1
+  }
+]

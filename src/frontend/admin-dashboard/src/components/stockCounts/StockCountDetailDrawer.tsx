@@ -134,6 +134,41 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
   const handleConfirmCount = async () => {
     if (!detail || detail.id !== countId || loading || actionLoading) return;
 
+    // Kiểm tra dirty: Người dùng đã sửa số lượng hoặc đơn giá so với bản ghi đã lưu trên server chưa?
+    const hasDirtyEdits = detail.items.some((item) => {
+      const currentCountStr = countedMap[item.skuId];
+      const savedCountStr =
+        item.countedQuantity !== undefined && item.countedQuantity !== null
+          ? String(item.countedQuantity)
+          : '';
+      if (
+        currentCountStr !== undefined &&
+        currentCountStr.trim() !== '' &&
+        currentCountStr.trim() !== savedCountStr.trim()
+      ) {
+        return true;
+      }
+
+      const currentCostStr = costMap[item.skuId];
+      const savedCostStr =
+        item.adjustmentUnitCost !== undefined && item.adjustmentUnitCost !== null
+          ? String(item.adjustmentUnitCost)
+          : '';
+      if (
+        currentCostStr !== undefined &&
+        currentCostStr.trim() !== '' &&
+        currentCostStr.trim() !== savedCostStr.trim()
+      ) {
+        return true;
+      }
+      return false;
+    });
+
+    if (hasDirtyEdits) {
+      alert("Bạn có thay đổi số lượng đếm hoặc giá vốn chưa được lưu. Vui lòng bấm 'Lưu kết quả đếm' trước khi Chốt kiểm kê.");
+      return;
+    }
+
     // Kiểm tra đã nhập hết chưa
     const uncounted = detail.items.filter(
       (item) => countedMap[item.skuId] === undefined || countedMap[item.skuId].trim() === ''
@@ -262,6 +297,13 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
             </div>
           ) : detail ? (
             <>
+              {detail.status === 'Confirmed' && (
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-900" role="status">
+                  {detail.items.every((item) => item.countedQuantity === item.expectedQuantity)
+                    ? 'Đợt kiểm kê đã xác nhận và không có chênh lệch. Tồn kho giữ nguyên nên không phát sinh bút toán mới; phiếu vẫn được lưu trong lịch sử kiểm kê.'
+                    : `Đợt kiểm kê đã xác nhận. Xem lịch sử tại Kho & sổ kho → Sổ kho → Kiểm kê cân kho, tìm mã ${detail.number}.`}
+                </div>
+              )}
               {/* Sequence Drift Alert Banner (HTTP 409) */}
               {sequenceDrift && (
                 <div className="p-4 bg-amber-50 border-2 border-amber-400 rounded-xl flex items-start gap-3 text-amber-900">

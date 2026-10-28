@@ -1,0 +1,70 @@
+{
+  "provider": "Actual API/mapper/PaymentModal TS/TSX in Node VM with hook/storage/fetch stubs; no real backend/PostgreSQL",
+  "observations": [
+    {
+      "kind": "valid-snapshot",
+      "printedCount": 1,
+      "pendingKeptAfterFirst": false,
+      "printedReceipt": {
+        "receiptNumber": "SERVER-1",
+        "orderNumber": "SERVER-1",
+        "orderId": "55555555-5555-4555-8555-555555555555",
+        "createdAt": "14:00:00 27/10/2026",
+        "tenantName": "Fixture Shop",
+        "branchName": "A",
+        "cashierName": "A",
+        "items": [
+          {
+            "name": "Server renamed product",
+            "sku": "SKU-A",
+            "quantity": 1,
+            "unitPrice": 100,
+            "subtotal": 100
+          }
+        ],
+        "totalAmount": 100,
+        "paymentMethod": "Cash",
+        "amountGiven": 100,
+        "changeDue": 0,
+        "isDraft": false
+      },
+      "requestCount": 1
+    },
+    {
+      "kind": "empty-item",
+      "printedCount": 1,
+      "pendingKeptAfterFirst": false,
+      "printedReceipt": {
+        "receiptNumber": "",
+        "orderNumber": "",
+        "createdAt": "23:10:09 27/10/2026",
+        "tenantName": "Fixture Shop",
+        "branchName": "Branch A",
+        "cashierName": "Cashier A",
+        "items": [
+          {
+            "name": "Sản phẩm",
+            "sku": "",
+            "quantity": 0,
+            "unitPrice": 0,
+            "subtotal": 0
+          }
+        ],
+        "totalAmount": 0,
+        "paymentMethod": "Cash",
+        "amountGiven": 0,
+        "changeDue": 0,
+        "isDraft": false
+      },
+      "requestCount": 1
+    },
+    {
+      "kind": "invalid-field-throws",
+      "printedCount": 0,
+      "pendingKeptAfterFirst": false,
+      "printedReceipt": null,
+      "requestCount": 2,
+      "newKeyAfterMapperError": true
+    }
+  ]
+}

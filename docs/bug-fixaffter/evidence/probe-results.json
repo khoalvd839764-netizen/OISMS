@@ -1,0 +1,197 @@
+{
+  "provider": "Current source; actual React/JSDOM components and VM services; controlled HTTP/SignalR/storage. No live writes.",
+  "observations": [
+    {
+      "id": "retry-transfer",
+      "status": "REPRODUCED",
+      "scenario": "Same payload retried after an unknown result",
+      "observed": {
+        "sameKey": false,
+        "requestCount": 2
+      }
+    },
+    {
+      "id": "retry-count",
+      "status": "REPRODUCED",
+      "scenario": "Same payload retried after an unknown result",
+      "observed": {
+        "sameKey": false,
+        "requestCount": 2
+      }
+    },
+    {
+      "id": "auth-refresh-owner",
+      "status": "REPRODUCED",
+      "scenario": "Login B while token refresh A is pending",
+      "observed": {
+        "expectedOwner": "B",
+        "storedTokenOwner": "A"
+      }
+    },
+    {
+      "id": "auth-old-401-replay",
+      "status": "REPRODUCED",
+      "scenario": "An old mutation sent by A returns 401 after B signs in",
+      "observed": {
+        "originalIntentOwner": "A",
+        "replayedWithOwner": "B",
+        "mutationReplayed": true
+      }
+    },
+    {
+      "id": "realtime-owner",
+      "status": "REPRODUCED",
+      "scenario": "A connected transport remains active when B subscribes",
+      "observed": {
+        "connections": 1,
+        "transportOwner": "A",
+        "activeOwner": "B",
+        "oldOwnerEventDelivered": true
+      }
+    },
+    {
+      "id": "report-today-vietnam",
+      "status": "REPRODUCED",
+      "scenario": "At 01:00 on 29/10 in Vietnam, choose Today",
+      "observed": {
+        "clientDateVietnam": "2026-10-29",
+        "requestedCalendarDate": "2026-10-28"
+      }
+    },
+    {
+      "id": "report-timezone",
+      "status": "REPRODUCED",
+      "scenario": "Choose 28/10/2026 as a Vietnamese business date",
+      "observed": {
+        "transmittedStart": "2026-10-28T00:00:00Z",
+        "expectedVietnamMidnight": "2026-10-27T17:00:00.000Z",
+        "shiftHours": 7
+      }
+    },
+    {
+      "id": "report-admin-channel",
+      "status": "REPRODUCED",
+      "scenario": "Report channel picker omits the Admin channel used by manual orders",
+      "observed": {
+        "adminOptionPresent": false,
+        "unsupportedWebOptionPresent": true
+      }
+    },
+    {
+      "id": "report-response-order",
+      "status": "REPRODUCED",
+      "scenario": "Request A arrives after request B under filter B",
+      "observed": {
+        "selectedBranch": "B",
+        "expectedRevenue": 9900,
+        "displayedRevenue": 1100
+      }
+    },
+    {
+      "id": "report-stale-on-error",
+      "status": "REPRODUCED",
+      "scenario": "Branch C fails after prior report data was loaded",
+      "observed": {
+        "selectedBranch": "C",
+        "oldRevenueStillRendered": 1100,
+        "errorVisible": true
+      }
+    },
+    {
+      "id": "count-cleared-value",
+      "status": "REPRODUCED",
+      "scenario": "Saved count=10, expected=8; clear input then accept assigning book stock at confirm",
+      "observed": {
+        "recordRequests": 0,
+        "confirmRequests": 1,
+        "savedCountSentForConfirmation": 10,
+        "expectedAssignedCount": 8
+      }
+    },
+    {
+      "id": "count-save-blank",
+      "status": "REPRODUCED",
+      "scenario": "Save untouched blank count inputs",
+      "observed": {
+        "userEnteredCount": false,
+        "recordedCount": 8,
+        "assignmentPromptShown": false
+      }
+    },
+    {
+      "id": "count-action-lock",
+      "status": "REPRODUCED",
+      "scenario": "Switch document while an old save is in flight",
+      "observed": {
+        "newDocument": "count-B",
+        "saveStillDisabledAfterOldRequestFinished": true
+      }
+    },
+    {
+      "id": "transfer-action-lock",
+      "status": "REPRODUCED",
+      "scenario": "Switch transfer while old dispatch is pending",
+      "observed": {
+        "newDocument": "transfer-B",
+        "dispatchStillDisabledAfterOldRequestFinished": true
+      }
+    },
+    {
+      "id": "pos-retry-key",
+      "status": "REPRODUCED",
+      "scenario": "Retry the same cash checkout after an unknown result",
+      "observed": {
+        "sameKey": false,
+        "checkoutCalls": 2
+      }
+    },
+    {
+      "id": "organization-hidden-error",
+      "status": "REPRODUCED",
+      "scenario": "Initial organization read APIs return errors",
+      "observed": {
+        "emptyStateShown": true,
+        "errorShown": false
+      }
+    },
+    {
+      "id": "transfer-source-stock",
+      "status": "REPRODUCED",
+      "scenario": "Choose source warehouse B; SKU picker still shows tenant total stock",
+      "observed": {
+        "displayedOnHand": 50,
+        "warehouseBalanceReads": 0,
+        "sourceWarehouseStockFixture": 3
+      }
+    },
+    {
+      "id": "pos-checkout-401",
+      "status": "REPRODUCED",
+      "scenario": "Checkout returns 401 ProblemDetails",
+      "observed": {
+        "sessionExpiryEventDispatched": false,
+        "expiredTokenRetained": true,
+        "backendDetailShown": false
+      }
+    },
+    {
+      "id": "pos-malformed-success",
+      "status": "REPRODUCED",
+      "scenario": "HTTP 200 with no server order identity",
+      "observed": {
+        "reportedSuccess": true,
+        "serverOrderNumberPresent": false
+      }
+    },
+    {
+      "id": "separate-pos-old-checkout",
+      "status": "REPRODUCED",
+      "scenario": "Close pending checkout A, switch to B, add a new cart, then receive A success",
+      "observed": {
+        "activeBranch": "B",
+        "oldCheckoutBranch": "A",
+        "newCartErased": true
+      }
+    }
+  ]
+}

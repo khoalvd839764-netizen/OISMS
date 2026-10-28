@@ -213,6 +213,8 @@ public class InventoryService : IInventoryService
                 .ThenInclude(s => s!.Product)
             .Include(t => t.ReceiptItem)
                 .ThenInclude(ri => ri!.Receipt)
+            .Include(t => t.OrderItem)
+                .ThenInclude(oi => oi!.Order)
             .AsNoTracking();
 
         if (filter.BranchId.HasValue)
@@ -245,7 +247,51 @@ public class InventoryService : IInventoryService
             .Take(pageSize)
             .ToListAsync(ct);
 
-        var items = transactions.Select(t => new InventoryLedgerDto
+        // Resolve source documents for this page only. Keep tenant query filters on every lookup.
+        // IN/OUT describes the direction, not the business operation (a count/transfer can have either).
+        var sources = new Dictionary<Guid, (string Type, Guid Id, string Number)>();
+        var transferIds = transactions.Where(t => t.TransferItemId.HasValue).Select(t => t.TransferItemId!.Value).ToArray();
+        if (transferIds.Length > 0)
+        {
+            var transfers = await _context.StockTransferItems.AsNoTracking()
+                .Where(i => transferIds.Contains(i.Id))
+                .Select(i => new { i.Id, i.TransferId, i.Transfer!.Number }).ToListAsync(ct);
+            foreach (var item in transfers) sources[item.Id] = ("StockTransfer", item.TransferId, item.Number);
+        }
+
+        var adjustmentItemIds = transactions.Where(t => t.AdjustmentItemId.HasValue).Select(t => t.AdjustmentItemId!.Value).ToArray();
+        if (adjustmentItemIds.Length > 0)
+        {
+            var adjustments = await _context.InventoryAdjustmentItems.AsNoTracking()
+                .Where(i => adjustmentItemIds.Contains(i.Id))
+                .Select(i => new { i.Id, i.AdjustmentId, i.Adjustment!.Number }).ToListAsync(ct);
+            var adjustmentIds = adjustments.Select(i => i.AdjustmentId).Distinct().ToArray();
+            var counts = await _context.StockCounts.AsNoTracking()
+                .Where(c => c.GeneratedAdjustmentId.HasValue && adjustmentIds.Contains(c.GeneratedAdjustmentId.Value))
+                .Select(c => new { c.Id, c.Number, c.GeneratedAdjustmentId }).ToListAsync(ct);
+            var countsByAdjustment = counts.ToDictionary(c => c.GeneratedAdjustmentId!.Value);
+            foreach (var item in adjustments)
+            {
+                sources[item.Id] = countsByAdjustment.TryGetValue(item.AdjustmentId, out var count)
+                    ? ("StockCount", count.Id, count.Number)
+                    : ("InventoryAdjustment", item.AdjustmentId, item.Number);
+            }
+        }
+
+        var countItemIds = transactions.Where(t => t.StockCountItemId.HasValue).Select(t => t.StockCountItemId!.Value).ToArray();
+        if (countItemIds.Length > 0)
+        {
+            var counts = await _context.StockCountItems.AsNoTracking()
+                .Where(i => countItemIds.Contains(i.Id))
+                .Select(i => new { i.Id, i.StockCountId, i.StockCount!.Number }).ToListAsync(ct);
+            foreach (var item in counts) sources[item.Id] = ("StockCount", item.StockCountId, item.Number);
+        }
+
+        var items = transactions.Select(t =>
+        {
+            var sourceKey = t.TransferItemId ?? t.AdjustmentItemId ?? t.StockCountItemId ?? Guid.Empty;
+            var hasSource = sources.TryGetValue(sourceKey, out var source);
+            return new InventoryLedgerDto
         {
             Id = t.Id,
             BranchId = t.BranchId,
@@ -261,9 +307,13 @@ public class InventoryService : IInventoryService
             BalanceAfter = t.BalanceAfter,
             SequenceNo = t.SequenceNo,
             ReceiptItemId = t.ReceiptItemId,
-            DocumentNumber = t.ReceiptItem?.Receipt?.Number,
+            DocumentType = hasSource ? source.Type : t.ReceiptItemId.HasValue ? "GoodsReceipt"
+                : t.OrderItemId.HasValue ? "Order" : t.SalesReturnItemId.HasValue ? "SalesReturn" : "Unknown",
+            DocumentId = hasSource ? source.Id : t.ReceiptItem?.ReceiptId ?? t.OrderItem?.OrderId,
+            DocumentNumber = hasSource ? source.Number : t.ReceiptItem?.Receipt?.Number ?? t.OrderItem?.Order?.Number,
             ReferenceId = t.ReferenceId,
             CreatedAt = t.CreatedAt
+        };
         }).ToList();
 
         return new PagedResult<InventoryLedgerDto>

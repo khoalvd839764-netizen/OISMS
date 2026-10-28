@@ -573,10 +573,20 @@ export const apiAdapter = {
         skuId: l.skuId,
         sku: `${l.skuCode} · ${l.productName}`,
         direction: (l.type === "IN" ? "IN" : "OUT") as "IN" | "OUT",
-        transaction:
-          l.receiptItemId || String(l.documentNumber || "").toUpperCase().startsWith("GR") || l.type === "IN"
-            ? "Nhập kho nhà cung cấp"
-            : "Xuất kho đơn hàng",
+        // IN/OUT is a direction; transfers and stock counts can have either direction.
+        transaction: ({
+          GoodsReceipt: "Nhập kho nhà cung cấp",
+          Order: "Xuất kho đơn hàng",
+          StockTransfer: "Điều chuyển kho",
+          StockCount: "Kiểm kê cân kho",
+          InventoryAdjustment: "Điều chỉnh tồn kho",
+          SalesReturn: "Khách trả hàng",
+        } as Record<string, string>)[l.documentType] || (
+          l.receiptItemId || /^GR-/.test(l.documentNumber || "") ? "Nhập kho nhà cung cấp" :
+          /^(ORD|POS)-/.test(l.documentNumber || "") ? "Xuất kho đơn hàng" :
+          /^TRF-/.test(l.documentNumber || "") ? "Điều chuyển kho" :
+          /^CNT-/.test(l.documentNumber || "") ? "Kiểm kê cân kho" : "Biến động kho"
+        ),
         quantity: Number(l.quantity) || 0,
         unitCost: Number(l.unitCost) || 0,
         balanceAfter: Number(l.balanceAfter) || 0,
@@ -675,15 +685,18 @@ export const apiAdapter = {
     }
   },
 
-  async getGoodsReceipts() {
+  async getGoodsReceipts(pageIndex = 1) {
     try {
-      const res = await httpClient.get("/api/goods-receipts?pageSize=100");
+      const res = await httpClient.get(`/api/goods-receipts?pageIndex=${pageIndex}&pageSize=20`);
+      if (!Array.isArray(res.data) && !Array.isArray(res.data?.items)) {
+        throw new Error("Dữ liệu danh sách phiếu nhập không đúng định dạng.");
+      }
       const raw = Array.isArray(res.data) ? res.data : Array.isArray(res.data?.items) ? res.data.items : [];
-      return { data: raw };
+      return { data: raw, totalPages: Number(res.data?.totalPages) || 1 };
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || "Không thể tải danh sách phiếu nhập kho.",
+          message: err?.response?.data?.message || err?.message || "Không thể tải danh sách phiếu nhập kho.",
         },
       };
     }

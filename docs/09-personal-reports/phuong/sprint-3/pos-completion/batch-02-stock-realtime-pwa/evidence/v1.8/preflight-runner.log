@@ -1,0 +1,28 @@
+=== RUNNING OFFLINE PREFLIGHT & AUDIT HARNESS FOR F06 (v1.8) ===
+Timestamp: 2026-10-28T10:17:52.970Z
+
+[PREFLIGHT TEST 1] Full Live Workflow on Isolated Test Host (Positive):
+  -> TEST 1 PASSED: OrderCreated, StockLevelChanged, Drop, Offline Mutation, Reconnect, Rejoin, GET & Exact Stock 7 PASS!
+
+[PREFLIGHT TEST 2] Demo Target Guard (Fail Closed on localhost:5000):
+  -> TEST 2 PASSED: Demo target guard successfully rejected and prevented mutation on localhost:5000
+
+[PREFLIGHT TEST 3] Database Isolation Guard (Fail Closed on unverified shared DB):
+  -> TEST 3 PASSED: Isolation guard successfully rejected unverified database role!
+
+[PREFLIGHT TEST 4] Defect Catch: Missing StockLevelChanged event:
+  -> TEST 4 PASSED: Runner caught missing StockLevelChanged defect!
+
+[PREFLIGHT TEST 5] Defect Catch: Missing Automatic Reconnect:
+  -> TEST 5 PASSED: Runner caught missing automatic reconnect defect!
+
+[PREFLIGHT TEST 6] Defect Catch: Incorrect Recovered Stock (wrong stock 123 !== 7):
+  -> TEST 6 PASSED: Runner caught incorrect recovered stock defect!
+
+[PREFLIGHT TEST 7] Defect Catch: Rejoin Rejected after drop:
+  -> TEST 7 PASSED: Runner caught rejoin rejection defect!
+
+[PREFLIGHT TEST 8] Defect Catch: Omitted Reconnect Stock GET:
+  -> TEST 8 PASSED: Runner caught omitted reconnect stock GET defect!
+
+=== ALL 8 PREFLIGHT AUDIT TESTS PASSED 100% ===

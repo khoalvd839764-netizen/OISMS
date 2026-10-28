@@ -1,0 +1,138 @@
+[
+  {
+    "testCase": "80mm Official",
+    "filename": "receipt-80mm-official.pdf",
+    "fileSizeBytes": 74358,
+    "hasTextAndFonts": true,
+    "paperWidth": "80mm",
+    "expectedWidthRangeMm": "78mm - 82mm",
+    "actualMediaBox": {
+      "rawBox": [
+        0,
+        0,
+        227.03999,
+        567.12
+      ],
+      "widthPt": 227.03999,
+      "heightPt": 567.12,
+      "widthMm": 80.09466313888888,
+      "heightMm": 200.06733333333332
+    },
+    "isWidthValid": true,
+    "printLayoutCheck": {
+      "bgDisplay": "block",
+      "borderDisplay": "block",
+      "paperDisplay": "block",
+      "paperRect": {
+        "width": 302.359375,
+        "height": 545.6875
+      },
+      "noPrintHiddenCount": 3,
+      "totalNoPrintCount": 3
+    },
+    "isPrintVisible": true,
+    "status": "PASSED"
+  },
+  {
+    "testCase": "58mm Official",
+    "filename": "receipt-58mm-official.pdf",
+    "fileSizeBytes": 72171,
+    "hasTextAndFonts": true,
+    "paperWidth": "58mm",
+    "expectedWidthRangeMm": "56mm - 60mm",
+    "actualMediaBox": {
+      "rawBox": [
+        0,
+        0,
+        163.919998,
+        567.12
+      ],
+      "widthPt": 163.919998,
+      "heightPt": 567.12,
+      "widthMm": 57.82733262777778,
+      "heightMm": 200.06733333333332
+    },
+    "isWidthValid": true,
+    "printLayoutCheck": {
+      "bgDisplay": "block",
+      "borderDisplay": "block",
+      "paperDisplay": "block",
+      "paperRect": {
+        "width": 219.203125,
+        "height": 444.890625
+      },
+      "noPrintHiddenCount": 3,
+      "totalNoPrintCount": 3
+    },
+    "isPrintVisible": true,
+    "status": "PASSED"
+  },
+  {
+    "testCase": "80mm Draft",
+    "filename": "receipt-80mm-draft.pdf",
+    "fileSizeBytes": 74555,
+    "hasTextAndFonts": true,
+    "paperWidth": "80mm",
+    "expectedWidthRangeMm": "78mm - 82mm",
+    "actualMediaBox": {
+      "rawBox": [
+        0,
+        0,
+        227.03999,
+        567.12
+      ],
+      "widthPt": 227.03999,
+      "heightPt": 567.12,
+      "widthMm": 80.09466313888888,
+      "heightMm": 200.06733333333332
+    },
+    "isWidthValid": true,
+    "printLayoutCheck": {
+      "bgDisplay": "block",
+      "borderDisplay": "block",
+      "paperDisplay": "block",
+      "paperRect": {
+        "width": 302.359375,
+        "height": 533.03125
+      },
+      "noPrintHiddenCount": 3,
+      "totalNoPrintCount": 3
+    },
+    "isPrintVisible": true,
+    "status": "PASSED"
+  },
+  {
+    "testCase": "58mm Draft",
+    "filename": "receipt-58mm-draft.pdf",
+    "fileSizeBytes": 72655,
+    "hasTextAndFonts": true,
+    "paperWidth": "58mm",
+    "expectedWidthRangeMm": "56mm - 60mm",
+    "actualMediaBox": {
+      "rawBox": [
+        0,
+        0,
+        163.919998,
+        567.12
+      ],
+      "widthPt": 163.919998,
+      "heightPt": 567.12,
+      "widthMm": 57.82733262777778,
+      "heightMm": 200.06733333333332
+    },
+    "isWidthValid": true,
+    "printLayoutCheck": {
+      "bgDisplay": "block",
+      "borderDisplay": "block",
+      "paperDisplay": "block",
+      "paperRect": {
+        "width": 219.203125,
+        "height": 438.890625
+      },
+      "noPrintHiddenCount": 3,
+      "totalNoPrintCount": 3
+    },
+    "isPrintVisible": true,
+    "status": "PASSED"
+  }
+]

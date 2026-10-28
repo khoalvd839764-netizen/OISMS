@@ -1048,6 +1048,18 @@ public class StockTransferIntegrationTests : IAsyncLifetime, IClassFixture<WebAp
             var wBalA2 = await verifyContext.WarehouseInventoryBalances.FirstAsync(w => w.WarehouseId == infra.WarehouseA2Id && w.SkuId == infra.Sku1Id);
             wBalA2.OnHand.Should().Be(15m);
         }
+
+        var history = await _client.GetFromJsonAsync<PagedResult<InventoryLedgerDto>>(
+            "/api/inventory/ledger?pageSize=100", _jsonOptions);
+        foreach (var transfer in new[] { transfer1, transferIntra })
+        {
+            var rows = history!.Items.Where(i => i.DocumentId == transfer!.Id).ToList();
+            rows.Should().HaveCount(2);
+            rows.Should().OnlyContain(i => i.DocumentType == "StockTransfer" && i.DocumentNumber == transfer!.Number);
+            rows.Select(i => i.Type).Should().BeEquivalentTo(new[] { "OUT", "IN" });
+            rows.Should().Contain(i => i.WarehouseId == transfer!.FromWarehouseId && i.Type == "OUT");
+            rows.Should().Contain(i => i.WarehouseId == transfer!.ToWarehouseId && i.Type == "IN");
+        }
     }
 
     [Fact]

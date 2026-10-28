@@ -1,0 +1,16 @@
+=== BASELINE R4 REPRODUCTIONS BEFORE FIX ===
+Timestamp: 2026-10-28T07:35:05.221Z
+[PROBE 1 - Older Barcode vs Newer Refetch]:
+  afterNewerGET: 8
+  finalCacheStock: 10
+  cartAddedAvailable: 10
+  Result: FAILED on baseline as expected: Expected cache to stay 8, but was 10
+
+10 !== 8
+
+[PROBE 2 - Fresh Search 8 with Existing Cache 10]:
+  finalCacheStock: 10
+  cartAddedAvailable: 10
+  Result: FAILED on baseline as expected: Expected cache to update to 8, but was 10
+
+10 !== 8

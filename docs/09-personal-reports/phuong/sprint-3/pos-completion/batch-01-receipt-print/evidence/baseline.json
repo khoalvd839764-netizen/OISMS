@@ -1,0 +1,65 @@
+{
+  "batch": "S3-POS-B01",
+  "date": "2026-10-27",
+  "branch": "feature/OISMS-44-pos-pwa-checkout-va-in-hoa-don",
+  "head": "44317f3b5188c276fa3ef25c8faf30323e503079",
+  "working_tree": "Includes uncommitted T01 v1.3 fixes; HEAD alone is not the tested baseline",
+  "files": [
+    {
+      "path": "src/frontend/pos-app/src/App.tsx",
+      "sha256": "EC88B88116751CF159AE56CBBD864F287D2E25969EF55D1774B005643B34D6FF"
+    },
+    {
+      "path": "src/frontend/pos-app/src/components/LoginModal.tsx",
+      "sha256": "C800F3DAF92DDDB6827FD2465180DE8AE652CB21FA5E10B49BB2046473656FC7"
+    },
+    {
+      "path": "src/frontend/pos-app/src/components/PaymentModal.tsx",
+      "sha256": "53BCD7A5CDF84CD8328E26D686BC0113872B1633E53F516D379B82885503B597"
+    },
+    {
+      "path": "src/frontend/pos-app/src/components/ReceiptPrintModal.tsx",
+      "sha256": "CA3005A5D11A5D82B3F39A2D087E55897DB828C2752ED200A4469CF609256F6E"
+    },
+    {
+      "path": "src/frontend/pos-app/src/services/api.ts",
+      "sha256": "4FC371F1907C493EF86F879118FBFE84F6C49B1844AF60F1919947C1296AC5AA"
+    },
+    {
+      "path": "src/frontend/pos-app/src/services/pendingCheckoutStore.ts",
+      "sha256": "5066491E494561FD0933BACB0851B4556DA760FDA248B3E5B1E04C0168E9AA59"
+    },
+    {
+      "path": "src/frontend/pos-app/src/types/pos.ts",
+      "sha256": "A18E6AB34628A3C8C87D1AFD7256BA221A9F6D68A53C6EDFD78A7AC666098B1B"
+    },
+    {
+      "path": "src/frontend/pos-app/src/index.css",
+      "sha256": "72755F69334B2EA54FA27DAE8706B8B32E700E9F847C28ACD62E7934150A2E29"
+    },
+    {
+      "path": "src/frontend/pos-app/index.html",
+      "sha256": "465450EDB8859CB7CF0859C92706214670A0454172DF0356FE9A279906010753"
+    },
+    {
+      "path": "src/frontend/pos-app/package.json",
+      "sha256": "81928B51C9830FB56BE362B21C7797722F768DA42FA9EED259A3516591942483"
+    },
+    {
+      "path": "src/frontend/pos-app/package-lock.json",
+      "sha256": "A7B70D9E5B0BC31C7C141C47674BC4642FB4FD71E25FCB3B2749228AF8CF04FA"
+    },
+    {
+      "path": "src/frontend/pos-app/test-pos-e2e.mjs",
+      "sha256": "5C3F7A327A06C9DB5ABF1003D5E406545DC53F7627505E1D4330234AA34C67DA"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Orders/Dtos/OrderDtos.cs",
+      "sha256": "CC61851D7107BE9C61D7EDE0F032BCABF7EDBF9CF6386995478C05FB9C12B513"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Orders/Services/OrderService.cs",
+      "sha256": "2B803A7E026F317953BBD5898464E375CC08F3185C8967227C375262EA340994"
+    }
+  ]
+}
