@@ -1,0 +1,38 @@
+TAP version 13
+# [2026-10-28T10:17:04.656Z] Information: WebSocket connected to ws://localhost:5000/hubs/notifications?id=IG84De4dz7udiVeW1SB7KA.
+# [2026-10-28T10:17:04.722Z] Information: Connection disconnected.
+#   [EVIDENCE v1.3] SignalR Hub WebSocket Transport & Cross-Tenant:
+#     - Live WebSocket Connection & JWT Handshake: PASS
+#     - Tenant A: 11111111-1111-1111-1111-111111111111 (Thu ngân shop A)
+#     - Joined own branch: 11111111-0000-0000-0001-000000000001 -> PASS
+#     - Rejected REAL Tenant B branch: 22222222-0000-0000-0001-000000000001 -> PASS (Cross-tenant isolated)
+#     - Production realtimeService Integration (start/switch/stop): PASS
+#   [LIVE EVENT WORKFLOW RUNNER]: Đang chạy trên Isolated Test Backend: http://localhost:5001
+#     - Ngắt transport thật bằng proxy/network test control...
+# [2026-10-28T10:17:05.744Z] Error: Connection disconnected with error 'Error: WebSocket closed with status code: 1006 (no reason given).'.
+# [2026-10-28T10:17:05.751Z] Warning: Error from HTTP request. TypeError: fetch failed.
+# [2026-10-28T10:17:05.751Z] Error: Failed to complete negotiation with the server: TypeError: fetch failed
+# [2026-10-28T10:17:05.751Z] Error: Failed to start the connection: Error: Failed to complete negotiation with the server: TypeError: fetch failed
+#     - Tạo biến động tồn kho (Checkout 1 sản phẩm) trên backend trong lúc client offline...
+#     - Khôi phục transport mạng và chờ SDK tự động reconnect & rejoin...
+#     - Tồn đầu 78 - online 2 - offline 1 = kỳ vọng 75
+#     - Đã nhận sự kiện OrderCreated & StockLevelChanged đúng DTO/branch/SKU: PASS
+#     - Ngắt transport vật lý thật & client chuyển trạng thái mất kết nối: PASS
+#     - Tạo biến động tồn hợp lệ trong lúc offline: PASS
+#     - Tự động reconnect, rejoin chi nhánh thành công & gửi GET refetch: PASS
+#     - Cache khôi phục chính xác số tồn cuối kỳ vọng (available: 75, not stale): PASS
+#     - Live Event Mutation & Recovery Workflow: PASS
+# Subtest: B02-LIVE-HUB: Real Backend SignalR WebSocket Transport & Cross-Tenant Isolation
+ok 1 - B02-LIVE-HUB: Real Backend SignalR WebSocket Transport & Cross-Tenant Isolation
+  ---
+  duration_ms: 3652.7129
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 4408.1997

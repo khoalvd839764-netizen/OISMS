@@ -1,0 +1,11 @@
+AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+  assert.ok(buttons.length>0)
+
+    at D:\OISMS\tmp\pos-b02-review-r2\reviewer-probes.cjs:66:48 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '=='
+}

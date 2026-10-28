@@ -20,3 +20,11 @@ Tạo brief theo `assets/task-brief.md`. AC phải mô tả hành vi quan sát �
 6. Kết luận `VERIFIED`, `CHANGES_REQUESTED` hoặc `BLOCKED` kèm bằng chứng và kiểm tra còn thiếu. Đề xuất ngoài phạm vi không kéo dài vòng nghiệm thu.
 
 Nếu nguồn yêu cầu mâu thuẫn ảnh hưởng phạm vi, trình bày điểm cần quyết định và tiếp tục phần độc lập. Không yêu cầu người dùng xác nhận những lựa chọn kỹ thuật thường lệ đã nằm trong quyền được giao.
+
+## Giảm vòng review–fix
+
+Với finding code, dùng mục **Sửa lỗi có bằng chứng** trong SKILL.md: prompt fix chỉ rõ scenario, state cuối, caller/provider cần đi qua và điều kiện đóng; không ép một cách triển khai khi chưa có bằng chứng nguyên nhân. Với lỗi dùng chung state, kiểm tra các caller liên quan ngay trong lượt review, không chỉ helper đã sửa.
+
+Review cả task/đợt đã giao và gom finding đã kiểm chứng vào một báo cáo/prompt fix. Vòng sau giữ AC và phần đã đóng, ưu tiên lỗi còn mở cùng regression do diff liên quan. Không biến ý tưởng cải tiến ngoài scope thành yêu cầu chặn mới. Phát hiện mới trực tiếp thuộc AC hoặc regression vẫn cần báo với bằng chứng, không bỏ qua chỉ để giảm số vòng.
+
+Đối chiếu assertion và provider của test với claim bàn giao; test xanh nhưng không thực hiện scenario cần kiểm chứng thì gate vẫn chưa đạt. Không suy diễn test backend riêng cộng test frontend giả lập thành một luồng tích hợp đã chạy. Sau hai vòng fix còn cùng lỗi chặn, ghi lại nguyên nhân/giả thuyết và thay cách kiểm chứng trước khi giao tiếp, không chỉ tăng version rồi lặp prompt.

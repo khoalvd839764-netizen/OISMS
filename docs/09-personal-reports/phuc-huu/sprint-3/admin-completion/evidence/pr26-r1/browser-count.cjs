@@ -1,0 +1,24 @@
+const fs=require('node:fs'),path=require('node:path'),http=require('node:http'),assert=require('node:assert/strict');
+const {chromium}=require('C:/Users/Jacki Khoa/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright');
+const dist=path.resolve('tmp/pr26-review/snapshot/OISMS-403431446d213bbbf7f27d01b9622672f2fa4653/src/frontend/admin-dashboard/dist');
+const count={id:'11111111-1111-4111-8111-111111111111',number:'COUNT-REVIEW-1',status:'Counting',warehouseId:'wh-A',warehouseName:'Warehouse A',branchId:'branch-A',branchName:'Branch A',createdAt:'2026-10-28T00:00:00Z',items:[{id:'line-A',skuId:'sku-A',skuCode:'SKU-A',productName:'A',expectedQuantity:10,countedQuantity:10,balanceSequenceAtSnapshot:1}]};
+const server=http.createServer((req,res)=>{let file=path.resolve(dist,'.'+new URL(req.url,'http://localhost').pathname);if(!file.startsWith(dist+path.sep)&&file!==dist){res.writeHead(403).end();return}if(!fs.existsSync(file)||fs.statSync(file).isDirectory())file=path.join(dist,'index.html');res.setHeader('Content-Type',({'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml'})[path.extname(file)]||'application/octet-stream');res.end(fs.readFileSync(file))});
+(async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));let browser;
+ try{browser=await chromium.launch({executablePath:'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',headless:true});const context=await browser.newContext({viewport:{width:1440,height:1000}});
+ await context.addInitScript(c=>{localStorage.setItem('oism_access_token','fixture-only');localStorage.setItem('oism_tenant_id','tenant-review');localStorage.setItem('oism_stock_counts_tenant-review',JSON.stringify([c]))},count);
+ await context.route('**/hubs/**',r=>r.abort());const requests=[];
+ await context.route('**/api/**',async route=>{const request=route.request(),url=new URL(request.url());requests.push({method:request.method(),path:url.pathname,body:request.postDataJSON()});let data,status=200;
+ if(url.pathname==='/api/auth/me')data={id:'user-review',tenantId:'tenant-review',email:'review@fixture.local',fullName:'Reviewer fixture',roles:['Owner']};
+ else if(url.pathname==='/api/branches')data=[{id:'branch-A',name:'Branch A'}];
+ else if(url.pathname==='/api/warehouses')data=[{id:'wh-A',name:'Warehouse A',branchId:'branch-A'}];
+ else if(url.pathname.endsWith('/confirm'))data={...count,status:'Confirmed'};
+ else{status=405;data={detail:'Fixture missing read endpoint'}};
+ await route.fulfill({status,contentType:'application/json',body:JSON.stringify(data)});
+ });
+ const page=await context.newPage();page.setDefaultTimeout(15000);const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
+ await page.goto('http://127.0.0.1:'+server.address().port+'/inventory/counts');await page.getByText('COUNT-REVIEW-1',{exact:true}).click();
+ const input=page.locator('input[type=number]').first();await input.waitFor();assert.equal(await input.inputValue(),'10');await input.fill('7');await page.getByRole('button',{name:'Chốt kiểm kê & Cân bằng tồn',exact:true}).click();
+ await page.getByRole('button',{name:'Chốt kiểm kê & Cân bằng tồn',exact:true}).waitFor({state:'hidden'});const mutations=requests.filter(x=>x.method==='POST');assert.equal(mutations.length,1);assert.ok(mutations[0].path.endsWith('/confirm'));assert.equal(mutations[0].body?.items,undefined);
+ const result={provider:'Actual production React in installed Edge, fixture REST, Hub offline, no real backend/DB writes',uiEditedCount:7,fixturePersistedCountConfirmed:10,requests,pageErrors:errors};fs.writeFileSync(path.join(__dirname,'browser-count-results.json'),JSON.stringify(result,null,2));await page.screenshot({path:path.join(__dirname,'browser-count.png'),fullPage:true});console.log(JSON.stringify(result,null,2));
+ }finally{await browser?.close();await new Promise(r=>server.close(r))}
+})().catch(e=>{console.error(e);process.exitCode=1});

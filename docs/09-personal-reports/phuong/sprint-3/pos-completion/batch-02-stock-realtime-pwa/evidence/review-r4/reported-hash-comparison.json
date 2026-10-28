@@ -1,0 +1,110 @@
+[
+  {
+    "Path": "src/frontend/pos-app/src/App.tsx",
+    "Match": true
+  },
+  {
+    "Path": "src/frontend/pos-app/src/components/LoginModal.tsx",
+    "Match": true
+  },
+  {
+    "Path": "src/frontend/pos-app/src/components/PaymentModal.tsx",
+    "Match": true
+  },
+  {
+    "Path": "src/frontend/pos-app/src/components/ReceiptPrintModal.tsx",
+    "Match": true
+  },
+  {
+    "Path": "src/frontend/pos-app/src/components/ProductSearch.tsx",
+    "Match": true
+  },
+  {
+    "Path": "src/frontend/pos-app/src/components/CartTable.tsx",
+    "Match": true
+  },
+  {
+    "Path": "src/frontend/pos-app/src/components/PosHeader.tsx",
+    "Match": true
+  },
+  {
+    "Path": "src/frontend/pos-app/src/services/api.ts",
+    "Match": true
+  },
+  {
+    "Path": "src/frontend/pos-app/src/services/stockService.ts",
+    "Match": true
+  },
+  {
+    "Path": "src/frontend/pos-app/src/services/realtimeService.ts",
+    "Match": true
+  },
+  {
+    "Path": "src/frontend/pos-app/src/services/receiptMapper.ts",
+    "Match": true
+  },
+  {
+    "Path": "src/frontend/pos-app/src/services/pendingCheckoutStore.ts",
+    "Match": true
+  },
+  {
+    "Path": "src/frontend/pos-app/src/types/pos.ts",
+    "Match": true
+  },
+  {
+    "Path": "src/frontend/pos-app/src/index.css",
+    "Match": true
+  },
+  {
+    "Path": "src/frontend/pos-app/src/main.tsx",
+    "Match": true
+  },
+  {
+    "Path": "src/frontend/pos-app/index.html",
+    "Match": true
+  },
+  {
+    "Path": "src/frontend/pos-app/public/sw.js",
+    "Match": true
+  },
+  {
+    "Path": "src/frontend/pos-app/public/manifest.webmanifest",
+    "Match": true
+  },
+  {
+    "Path": "src/frontend/pos-app/public/favicon.svg",
+    "Match": true
+  },
+  {
+    "Path": "src/frontend/pos-app/package.json",
+    "Match": true
+  },
+  {
+    "Path": "src/frontend/pos-app/package-lock.json",
+    "Match": true
+  },
+  {
+    "Path": "src/frontend/pos-app/vite.config.ts",
+    "Match": true
+  },
+  {
+    "Path": "src/frontend/pos-app/test-pos-e2e.mjs",
+    "Match": true
+  },
+  {
+    "Path": "src/frontend/pos-app/test-b02-realtime-pwa.mjs",
+    "Match": true
+  },
+  {
+    "Path": "src/frontend/pos-app/test-b02-hub-transport.mjs",
+    "Match": true
+  },
+  {
+    "Path": "src/frontend/pos-app/test-b02-browser-production.mjs",
+    "Match": true
+  },
+  {
+    "Path": "src/frontend/pos-app/measure-pos-latency.mjs",
+    "Match": true
+  }
+]

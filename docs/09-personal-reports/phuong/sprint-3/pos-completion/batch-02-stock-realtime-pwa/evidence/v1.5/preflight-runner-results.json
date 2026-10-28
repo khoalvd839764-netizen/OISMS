@@ -1,0 +1,32 @@
+{
+  "provider": "Offline preflight test for live runner branch with HTTP fixture and fake SignalR SDK",
+  "configuredTestHost": "http://localhost:5001",
+  "status": "PASS",
+  "requestsCount": 8,
+  "loadedModules": [
+    {
+      "file": "src/services/api.ts",
+      "injectedToken": "fixture-DEMO-token",
+      "embedsDemoBackend": true,
+      "embedsTestBackend": false
+    },
+    {
+      "file": "src/services/realtimeService.ts",
+      "injectedToken": "fixture-DEMO-token",
+      "embedsDemoBackend": true,
+      "embedsTestBackend": false
+    },
+    {
+      "file": "src/services/api.ts",
+      "injectedToken": "fixture-TEST-token",
+      "embedsDemoBackend": false,
+      "embedsTestBackend": true
+    },
+    {
+      "file": "src/services/realtimeService.ts",
+      "injectedToken": "fixture-TEST-token",
+      "embedsDemoBackend": false,
+      "embedsTestBackend": true
+    }
+  ]
+}

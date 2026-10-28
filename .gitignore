@@ -36,5 +36,7 @@ Desktop.ini
 .DS_Store
 tmp/
 codegraph-viewer.html
+# Local browser profiles created by review probes
+docs/**/edge-profile*/
 .agents/
 Library/

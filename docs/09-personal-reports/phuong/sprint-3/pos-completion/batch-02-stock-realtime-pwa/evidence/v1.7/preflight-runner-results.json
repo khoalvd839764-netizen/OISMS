@@ -1,0 +1,55 @@
+{
+  "provider": "Offline preflight & audit harness v1.7 verifying full workflow, demo guard, isolation guard, and 5 negative defect probes",
+  "status": "PASS",
+  "testCases": [
+    {
+      "name": "Full Live Workflow (5001)",
+      "status": "PASS",
+      "asserted": [
+        "OrderCreated",
+        "StockLevelChanged",
+        "networkDrop",
+        "offlineMutation",
+        "autoReconnect",
+        "rejoinSuccess",
+        "stockRefetch",
+        "exactStock7"
+      ]
+    },
+    {
+      "name": "Demo Target Guard (5000)",
+      "status": "PASS",
+      "result": "Fail closed with DEMO TARGET GUARD REJECTED, 0 checkout requests"
+    },
+    {
+      "name": "Database Isolation Guard",
+      "status": "PASS",
+      "result": "Fail closed with ISOLATION GUARD REJECTED on unverified DB role"
+    },
+    {
+      "name": "Defect Catch (Missing Stock Event)",
+      "status": "PASS",
+      "result": "Caught with AssertionError, 0 false PASS"
+    },
+    {
+      "name": "Defect Catch (Missing Auto-Reconnect)",
+      "status": "PASS",
+      "result": "Caught with AssertionError, 0 false PASS"
+    },
+    {
+      "name": "Defect Catch (Incorrect Recovered Stock 123 !== 7)",
+      "status": "PASS",
+      "result": "Caught with AssertionError, 0 false PASS"
+    },
+    {
+      "name": "Defect Catch (Rejoin Rejected)",
+      "status": "PASS",
+      "result": "Caught with AssertionError, 0 false PASS"
+    },
+    {
+      "name": "Defect Catch (Omitted Reconnect Stock GET)",
+      "status": "PASS",
+      "result": "Caught with AssertionError, 0 false PASS"
+    }
+  ]
+}

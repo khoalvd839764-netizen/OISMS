@@ -21,6 +21,17 @@ Mỗi lần chỉ giao một mục tiêu có thể nghiệm thu độc lập. Br
 
 Phạm vi được khóa theo hành vi và thành phần, không chỉ danh sách file. Cho phép thêm test/helper/tài liệu cần trực tiếp cho AC trong thành phần đã giao. Thay đổi hành vi khác, dependency mới, schema/migration hoặc refactor rộng cần được nêu trong brief hoặc có chỉ đạo bổ sung của người dùng. Không hỏi lại quyền đã có.
 
+Khi người dùng gộp nhiều hạng mục thành một đợt, giữ mapping AC/finding gốc và dùng một brief, một handover, một review tổng hợp cho đợt đó. Các bước kỹ thuật bên trong đợt không tự trở thành các task phải chờ duyệt riêng. Không mặc định mọi dự án đều phải chia cùng số đợt.
+
+## Sửa lỗi có bằng chứng
+
+Áp dụng khi sửa finding code, nhất là lỗi lặp hoặc xuyên nhiều caller; không ép quy trình debug/test này cho chỉnh tài liệu hay thay đổi nhỏ không có lỗi cần tái hiện.
+
+- Trước khi vá, xác định nguyên nhân và các đường gọi/đọc/ghi liên quan trong phạm vi AC. Với state dùng chung, đối chiếu identity, context, thứ tự request và nơi commit của các caller; test helper với đầu vào lý tưởng chưa chứng minh caller thật đã đúng.
+- Với lỗi tái hiện được, chạy regression FAIL đúng hành vi lỗi trên baseline, sửa code rồi chạy lại cùng điều kiện/assertion để có PASS. Chọn component/API/browser/provider theo rủi ro và AC. Nếu không tái hiện được hoặc thiếu môi trường, ghi giới hạn và phép thử phân biệt tiếp theo; không làm test lỗi giả hoặc coi thiếu bằng chứng là đạt.
+- Kiểm chứng hành vi quan sát được: callback/payload/response và state cuối. Khởi tạo kết nối, đăng ký listener hoặc assert source có tên biến không thay thế việc nhận event, tự reconnect hay cập nhật dữ liệu nếu đó là AC. Fixture phải phản ánh contract thật và có ca lỗi; không nuốt lỗi thành dữ liệu thành công.
+- Trước bàn giao, chạy bộ lệnh nghiệm thu phù hợp của cả task/đợt với cwd, setup, provider và kết quả rõ; lưu log trước/sau cho finding cùng source/phiên bản đã test. Giữ riêng kết quả đo, giả lập, ước lượng và NOT RUN; không ghi đè evidence lịch sử để báo cáo lại. Không bắt chạy lại phần đã pass khi source và rủi ro liên quan không đổi.
+
 ## Quy tắc chung
 
 1. Ghi nhận branch/commit và thay đổi chưa commit trước khi làm. Không reset, ghi đè hoặc nhận công phần thay đổi sẵn có. Nếu cùng file bị agent khác sửa, đọc lại diff trước khi tiếp tục.

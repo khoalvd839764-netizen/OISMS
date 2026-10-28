@@ -1,0 +1,12 @@
+locator.waitFor: Timeout 15000ms exceeded.
+Call log:
+  - waiting for getByText('Đã cân bằng (Hoàn tất)', { exact: true }).first() to be visible
+    33 × locator resolved to hidden <option value="Confirmed">Đã cân bằng (Hoàn tất)</option>
+
+    at D:\OISMS\tmp\pr26-review\browser-count.cjs:21:70 {
+  log: [
+    "  - waiting for getByText('Đã cân bằng (Hoàn tất)', { exact: true }).first() to be visible",
+    '    33 × locator resolved to hidden <option value="Confirmed">Đã cân bằng (Hoàn tất)</option>'
+  ],
+  name: 'TimeoutError'
+}

@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { X, Lock, Mail, Loader2, AlertCircle, KeyRound } from 'lucide-react';
-import { loginCashier } from '../services/api';
+import type { PosUser } from '../types/pos';
+import { loginCashier, getStoredUser } from '../services/api';
 
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLoginSuccess: (user: { fullName: string; email: string; tenantName?: string }) => void;
+  onLoginSuccess: (user: PosUser) => void;
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLoginSuccess }) => {
@@ -28,11 +29,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin
 
     try {
       const data = await loginCashier(email.trim(), password);
-      onLoginSuccess({
-        fullName: data.user?.fullName || data.user?.email || email,
-        email: data.user?.email || email,
-        tenantName: data.user?.tenantName,
-      });
+      // POS-T01-F01: Truyền định danh đầy đủ của người dùng đã xác thực (id, tenantId, tenantCode, fullName, email, tenantName)
+      const userToPass: PosUser = data.user || getStoredUser() || {
+        fullName: email,
+        email: email,
+      };
+      onLoginSuccess(userToPass);
       onClose();
     } catch (err: any) {
       setError(err.message || 'Đăng nhập không thành công.');

@@ -1,0 +1,42 @@
+{
+  "head": "9e41eb11f751dfeac64d2eef3b360a02810113be",
+  "provider": "Actual TS/TSX functions transpiled in Node VM; mocked React hooks, fetch and server persistence model; no real HTTP/PostgreSQL/browser E2E",
+  "observations": [
+    {
+      "probe": "Canonical headers match body",
+      "result": false
+    },
+    {
+      "probe": "Lost response followed by retry using actual PaymentModal handler",
+      "keys": [
+        "ca0d49ee-9bc9-4f56-86e7-8944effea023",
+        "b8f6fff6-a55d-480f-8f86-47612d65f9a8"
+      ],
+      "modeledPersistedOrders": 2,
+      "bugReproduced": true
+    },
+    {
+      "probe": "Server receipt metadata versus item snapshot",
+      "printedBranch": "Branch UI",
+      "serverBranch": "Branch server",
+      "printedItemName": "Ten ao cu",
+      "serverItemName": "Ten ao moi trong snapshot server",
+      "bugReproduced": true
+    },
+    {
+      "probe": "409 ProblemDetails detail",
+      "expectedDetail": "SKU-A: yeu cau 2, kha dung 1",
+      "actualMessage": "Thanh toán thất bại (Mã lỗi 409).",
+      "bugReproduced": true
+    },
+    {
+      "probe": "Checkout 401 through actual App auth-expired listener",
+      "cartBefore": 1,
+      "cartAfter": 1,
+      "authEvents": [],
+      "paymentOpenAfter": true,
+      "loginOpenAfter": false,
+      "bugReproduced": false
+    }
+  ]
+}

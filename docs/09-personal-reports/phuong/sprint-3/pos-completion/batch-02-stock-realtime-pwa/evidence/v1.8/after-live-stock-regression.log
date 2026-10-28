@@ -1,0 +1,28 @@
+TAP version 13
+# {"mode":"wrong","actual":61,"injected":123,"runnerExit":1,"result":"wrong stock rejected"}
+# Subtest: B02-F06: live branch rejects wrong and missed-offline stock
+    # Subtest: wrong
+    ok 1 - wrong
+      ---
+      duration_ms: 4424.1239
+      ...
+# {"mode":"stale","actual":68,"injected":69,"runnerExit":1,"result":"wrong stock rejected"}
+    # Subtest: stale
+    ok 2 - stale
+      ---
+      duration_ms: 4903.7303
+      ...
+    1..2
+ok 1 - B02-F06: live branch rejects wrong and missed-offline stock
+  ---
+  duration_ms: 9329.9006
+  ...
+1..1
+# tests 3
+# suites 0
+# pass 3
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 9455.6994
