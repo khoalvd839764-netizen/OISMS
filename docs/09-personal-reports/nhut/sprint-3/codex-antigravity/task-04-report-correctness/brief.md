@@ -8,6 +8,20 @@
 
 Truy vấn chỉ đọc, không sửa lại CostPrice lịch sử, trạng thái đơn hay tồn kho. Không thêm AI, forecast hoặc dashboard ngoài phạm vi.
 
+## Ghi nhận để fix sau — 27/10/2026
+
+Theo yêu cầu lưu lỗi để xử lý sau, API `GET /api/reports/revenue-profit` đã có implementation nhưng chưa được nghiệm thu hoàn chỉnh. Đối chiếu source tại baseline `bfc83c0`; lượt ghi nhận này không sửa code, không chạy lại HTTP probe/test và không thay đổi thứ tự T01 → T06. Dùng lại finding ID gốc từ [review ban đầu](../reviews/initial-review.md), không tạo finding trùng.
+
+| Finding / task xử lý | Hiện trạng và ảnh hưởng | Điều kiện đóng |
+| --- | --- | --- |
+| **BE2-F03 / T03 / P1** | `ReportsController.cs:14,28` cho phép Owner,Staff ở class và action revenue chưa thu hẹp quyền; Staff có thể nhận doanh thu, COGS, lợi nhuận. | Giới hạn action revenue về Owner theo contract; HTTP Owner 200, Staff/Cashier 403, anonymous 401. Không thu hẹp nhầm quyền inventory-velocity/stock-alerts. Xử lý tại [T03](../task-03-access-isolation/brief.md). |
+| **BE2-F04 / T04 / P1** | `ReportService.cs:36` lấy cả Confirmed và Completed, làm ghi nhận doanh thu từ đơn chưa hoàn tất. | Chỉ tính Completed theo FR hiện hành; hai Completed tổng 30 và một Confirmed 100 cho revenue=30, orders=2. Các trạng thái chưa hoàn tất/hủy không được cộng. |
+| **BE2-F04 / T04 / P1 — filter SKU** | `ReportDtos.cs:3–10` chưa có SKU filter; service hiện cộng `order.TotalAmount`, chưa có phép tính theo các dòng SKU được chọn. | Có contract/filter SKU; đơn nhiều SKU chỉ cộng revenue/COGS của các dòng khớp filter; totals và breakdown nhất quán, có PostgreSQL test. |
+
+**Quyết định cần chốt khi triển khai:** hiện filter và daily breakdown dùng CreatedAt; T04 phải chốt timestamp ghi nhận (đề xuất CompletedAt), múi giờ và biên ngày, cùng quy tắc CostPrice thiếu. Đây là phần hợp đồng cần thống nhất/kiểm thử, không tự ghi thêm một finding thời gian độc lập khi chưa chốt contract. Giữ giá vốn lịch sử; không dùng WAC hiện tại để sửa kết quả đơn cũ.
+
+**Trạng thái:** OPEN / PLANNED, chờ triển khai T03–T04. Chưa sửa trong lượt ghi nhận này.
+
 ## Acceptance criteria
 
 | AC | Điều kiện đạt / bằng chứng |

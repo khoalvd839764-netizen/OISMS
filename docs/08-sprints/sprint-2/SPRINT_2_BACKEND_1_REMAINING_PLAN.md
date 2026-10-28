@@ -8,7 +8,7 @@ Phạm vi lấy từ `SPRINT_2_BACKEND_1.md`: hoàn thiện Sprint 2 cho Backend
 
 - CodeGraph báo index cập nhật: **59 files, 782 nodes, 1.244 edges, 30 routes**. Các số này mô tả phần được index, không phải tổng số file của repository.
 - Đã có SQL 29 bảng, Docker init, runtime role, kiểm tra readiness và trigger bảo vệ ledger/tồn. Không cần thiết kế lại database từ đầu.
-- Đã merge Auth/Catalog của TV2. Tuy nhiên model EF hiện chưa khớp SQL v0.5; không thể lấy việc merge hoặc readiness thành công làm bằng chứng API nghiệp vụ chạy đúng.
+- Đã merge Auth/Catalog của Nhựt. Tuy nhiên model EF hiện chưa khớp SQL v0.5; không thể lấy việc merge hoặc readiness thành công làm bằng chứng API nghiệp vụ chạy đúng.
 - Chưa thấy entity/service/controller cho phiếu nhập, hai cấp tồn, ledger, WAC và reservation trong cây mã nguồn backend hiện tại.
 - Chưa có thư mục EF migrations hoặc seed dùng chung cho luồng nghiệp vụ thật trong danh sách file backend. Seed role hiện có không tương thích mô hình `users.role` của SQL.
 - Working tree sạch trước khi thêm bản kế hoạch này.
@@ -17,13 +17,13 @@ Phạm vi lấy từ `SPRINT_2_BACKEND_1.md`: hoàn thiện Sprint 2 cho Backend
 
 | Vấn đề | Bằng chứng hiện tại | Việc cần làm |
 |---|---|---|
-| EF chưa khớp schema | `AppDbContext.cs:24–34` có 11 DbSet; `OnModelCreating` chưa mapping tên bảng/cột snake_case. SQL dùng `skus`, không có bảng Role/UserRole. | Khoa chủ trì mapping theo SQL v0.5; phối hợp TV2 sửa Auth/Catalog. |
+| EF chưa khớp schema | `AppDbContext.cs:24–34` có 11 DbSet; `OnModelCreating` chưa mapping tên bảng/cột snake_case. SQL dùng `skus`, không có bảng Role/UserRole. | Khoa chủ trì mapping theo SQL v0.5; phối hợp Nhựt sửa Auth/Catalog. |
 | Khác biệt mô hình dữ liệu | Code dùng `Tenant.Code`, Role/UserRole và `ProductVariant.CostPrice/Color/Size`; SQL dùng `users.role`, `skus.attributes`, WAC tại `inventory_balances.average_cost`. | Lập bảng đối chiếu property–column và sửa DTO/service liên quan; không chỉ đổi tên bảng. Rà thêm refresh token hash, trường bắt buộc, precision và unique/FK. |
 | Kết nối API khác health check | `Program.cs:15–24` cấu hình EF bằng `DefaultConnection`; readiness dùng `BuildConnectionStringBuilder`, hỗ trợ `Database__*`. | Dùng chung nguồn cấu hình và runtime account; kiểm thử API thực tế cùng database với readiness. |
 | Thiếu tenant vẫn đọc được | `AppDbContext.cs:49–71` dùng điều kiện `!TenantId.HasValue || ...`; `CurrentTenantService.cs:46–51` có fallback header. | Nghiệp vụ yêu cầu tenant từ JWT đã xác thực; thiếu tenant phải chặn. Login/register/refresh có đường truy cập riêng, giới hạn rõ. |
 | Write guard chưa đầy đủ | `AppDbContext.cs:145–161` chỉ gán TenantId trống khi thêm và bỏ cập nhật cột TenantId khi sửa. | Kiểm tra tenant thực thể khi thêm/sửa/xóa và các FK; kiểm thử detached entity, tenant giả và tham chiếu chéo tenant. |
 | Test chưa xác minh PostgreSQL | `CustomWebApplicationFactory.cs:30–34` dùng InMemory, bỏ qua cảnh báo transaction. | Thêm suite PostgreSQL thật cho mapping, constraint, rollback, lock và commit. |
-| POS chưa có tồn | `PosSearchDtos.cs:3–14` chưa trả branch/onHand/reserved/available. | Khoa bàn giao query tồn; TV2 tích hợp vào tìm kiếm/quét mã POS. |
+| POS chưa có tồn | `PosSearchDtos.cs:3–14` chưa trả branch/onHand/reserved/available. | Khoa bàn giao query tồn; Nhựt tích hợp vào tìm kiếm/quét mã POS. |
 
 Giới hạn kiểm chứng hôm nay: `dotnet test --no-restore -c Release` thoát mã 1, không trả báo cáo test; `dotnet --info` báo bị từ chối truy cập Service Control Manager. Docker CLI không kết nối được pipe Docker Desktop Linux Engine; request localhost:5000 bị hạn chế socket. Vì vậy **chưa xác nhận lại build/test hoặc trạng thái runtime**. Các kết quả pass trong commit/tài liệu cũ là bằng chứng lịch sử.
 
@@ -33,7 +33,7 @@ Giới hạn kiểm chứng hôm nay: `dotnet test --no-restore -c Release` tho�
 |---|---|---|
 | BE1-01 | Có nền SQL/Docker/readiness/CI; chưa hoàn tất tích hợp | Mapping EF, thống nhất kết nối, migration baseline/upgrade, seed và smoke test thật. |
 | BE1-02 | Có tenant context/filter; cần siết lại | Chặn khi thiếu tenant, write guard, FK cùng tenant và test đọc/ghi. |
-| BE1-03 | Có controller/DTO/validation từ TV2; cần thống nhất | Mẫu service, lỗi chuẩn, quyền, transaction/retry và hợp đồng kho. |
+| BE1-03 | Có controller/DTO/validation từ Nhựt; cần thống nhất | Mẫu service, lỗi chuẩn, quyền, transaction/retry và hợp đồng kho. |
 | BE1-04 | Chưa thấy triển khai backend | Tạo phiếu nhiều dòng, danh sách, chi tiết, xác nhận. |
 | BE1-05 | SQL có guard hỗ trợ; thiếu posting service | Transaction nguyên tử, khóa trước đọc, idempotency và rollback. |
 | BE1-06 | Có append-only ở SQL; thiếu nghiệp vụ/API | Ghi ledger đúng nguồn/sequence/BalanceAfter và API tra cứu. |
@@ -46,10 +46,10 @@ Giới hạn kiểm chứng hôm nay: `dotnet test --no-restore -c Release` tho�
 
 ### Bước 1 — Đồng bộ nền tích hợp (ưu tiên P0)
 
-Bao phủ BE1-01, phối hợp TV2.
+Bao phủ BE1-01, phối hợp Nhựt.
 
 1. Giữ SQL v0.5 làm nguồn cấu trúc hiện hành. Lập mapping explicit cho bảng/cột, kiểu dữ liệu, khóa ghép theo tenant và generated column.
-2. Khoa chịu trách nhiệm DbContext/configuration/migration; TV2 chỉnh Auth/Catalog/DTO tương ứng: role trực tiếp trên user, token hash, SKU attributes, các trường không tồn tại trong SQL.
+2. Khoa chịu trách nhiệm DbContext/configuration/migration; Nhựt chỉnh Auth/Catalog/DTO tương ứng: role trực tiếp trên user, token hash, SKU attributes, các trường không tồn tại trong SQL.
 3. Dùng chung builder kết nối cho EF và readiness; bỏ fallback tài khoản quản trị ở đường chạy nghiệp vụ.
 4. Chốt một đường migration: baseline phải mang đủ function/trigger/index/quyền; database đã có v0.5 cần quy trình nhận baseline đã kiểm tra, không chạy lại CREATE TABLE hoặc xóa volume. Thử cài mới và nâng cấp trên database riêng.
 5. Seed dev/test có hai tenant, đủ Owner/Staff/Cashier, chi nhánh, kho, nhà cung cấp và SKU. Tồn ban đầu bằng 0; dữ liệu tồn có sổ cái/chứng từ hợp lệ.
@@ -63,7 +63,7 @@ Bao phủ BE1-02, BE1-03.
 - Tenant nghiệp vụ chỉ lấy từ identity đã xác thực. Loại bỏ header fallback khỏi đường API nghiệp vụ; đường test dùng context riêng có kiểm soát.
 - Thiếu tenant: chặn truy cập nghiệp vụ. Tách rõ đường Auth chưa có tenant, tránh làm hỏng login/register khi đổi filter.
 - Guard toàn bộ thêm/sửa/xóa và ID kho/SKU/nhà cung cấp; giữ FK ghép của database làm lớp bảo vệ bổ sung.
-- Quyền đề xuất: Owner/Staff tạo/xác nhận nhập và đọc ledger; Cashier đọc tồn phục vụ POS. Xác nhận với hợp đồng TV2/frontend khi tích hợp.
+- Quyền đề xuất: Owner/Staff tạo/xác nhận nhập và đọc ledger; Cashier đọc tồn phục vụ POS. Xác nhận với hợp đồng Nhựt/frontend khi tích hợp.
 - Chuẩn hóa lỗi có `code`, `message`, `traceId`, lỗi trường khi cần; 400 dữ liệu sai, 401 chưa xác thực, 403 sai quyền, 404 ID không thuộc phạm vi truy cập, 409 xung đột nghiệp vụ.
 - Chốt DTO phân trang và endpoint đề xuất ở mục 4 trước khi frontend tích hợp.
 
@@ -73,7 +73,7 @@ Bao phủ BE1-02, BE1-03.
 
 Bao phủ BE1-04.
 
-- Bổ sung Warehouse, GoodsReceipt, GoodsReceiptItem và mapping; kho/chi nhánh tra cứu phối hợp TV2.
+- Bổ sung Warehouse, GoodsReceipt, GoodsReceiptItem và mapping; kho/chi nhánh tra cứu phối hợp Nhựt.
 - Tạo phiếu nhiều dòng: kho thuộc chi nhánh, supplier/SKU cùng tenant, tài nguyên hoạt động, quantity > 0, unit price >= 0.
 - Mỗi SKU một dòng/phiếu theo unique của SQL; trả lỗi rõ khi gửi SKU trùng.
 - Lưu `created_by` từ user xác thực, không nhận tùy ý từ client; có số phiếu chống trùng và trạng thái Draft.
@@ -104,7 +104,7 @@ Bao phủ BE1-06, BE1-08.
 - Query tồn theo tenant/chi nhánh/SKU: onHand, reserved, available = onHand − reserved; hỗ trợ chi tiết kho.
 - Query ledger theo branch, SKU, khoảng thời gian, phân trang ổn định; không có API sửa/xóa ledger hoặc chỉnh onHand tùy ý.
 - WAC trả cho vai trò quản lý kho theo hợp đồng; DTO POS chỉ cần thông tin phục vụ bán hàng, không mặc nhiên trả giá vốn.
-- TV2 nối tồn vào search/barcode với branchId rõ ràng; Khoa cung cấp query/service và test đối chiếu.
+- Nhựt nối tồn vào search/barcode với branchId rõ ràng; Khoa cung cấp query/service và test đối chiếu.
 
 **Nghiệm thu:** nhập xong Admin thấy tồn mới; POS cùng chi nhánh đọc đúng available; chi nhánh/tenant khác không bị cộng lẫn; SKU chưa có số dư xử lý nhất quán là tồn 0.
 
@@ -115,7 +115,7 @@ Bao phủ BE1-09; không tự mở rộng thành checkout/thanh toán đầy đ�
 - Reservation hiện có FK bắt buộc tới order/order_item: cần mapping và dữ liệu đơn/dòng đơn tối thiểu cho service/harness. Không chỉ tăng cột reserved hoặc tạo reservation không có nguồn.
 - Giữ chỗ theo available của chi nhánh, phân bổ xuống kho với thứ tự xác định; cập nhật reservation và reserved hai cấp trong một transaction.
 - Dùng cùng cơ chế khóa trước đọc như posting service; kiểm tra quantity, thời hạn, tenant, nguồn đơn và giới hạn lượng phân bổ.
-- Chốt đường gọi service/API tối thiểu với TV2; cùng request/đơn retry không giữ chỗ thêm. Có thao tác giải phóng tối thiểu có thể kiểm thử; scheduler hết hạn đầy đủ chỉ triển khai nếu phạm vi sprint xác nhận cần.
+- Chốt đường gọi service/API tối thiểu với Nhựt; cùng request/đơn retry không giữ chỗ thêm. Có thao tác giải phóng tối thiểu có thể kiểm thử; scheduler hết hạn đầy đủ chỉ triển khai nếu phạm vi sprint xác nhận cần.
 
 **Nghiệm thu:** tồn hợp lệ 1, gửi đồng thời 50 yêu cầu độc lập bằng các connection/context riêng trong cửa sổ 1 giây: đúng 1 thành công, 49 bị từ chối nghiệp vụ, available = 0; không lấy lỗi timeout/500 làm kết quả từ chối hợp lệ. Retry cùng yêu cầu và release lặp không làm sai reserved.
 
@@ -125,7 +125,7 @@ Bao phủ BE1-10 và kiểm chứng lại BE1-01.
 
 - Unit test WAC: tồn 0, số lẻ, giá nhập 0, đầu vào sai, làm tròn, độc lập chi nhánh; không dùng CostPrice toàn SKU làm nguồn giá vốn.
 - Integration PostgreSQL riêng: mapping thực, API luồng nhập, tenant/FK, RBAC, ledger bất biến, rollback, lỗi COMMIT, confirm đồng thời và reservation 50 request.
-- Giữ test Auth/Catalog hiện có; thêm PostgreSQL regression cho các thay đổi tích hợp với TV2. InMemory không thay bộ kiểm thử transaction/constraint.
+- Giữ test Auth/Catalog hiện có; thêm PostgreSQL regression cho các thay đổi tích hợp với Nhựt. InMemory không thay bộ kiểm thử transaction/constraint.
 - Thêm PostgreSQL service/fixture vào CI, tạo schema và runtime role tương đương; lưu test report và coverage artifact.
 - Chốt phạm vi coverage lõi Application/Infrastructure của posting, ledger, WAC, reservation; mục tiêu line coverage ≥80%, báo cáo branch coverage kèm theo. Không loại lớp nghiệp vụ để làm đẹp tỷ lệ.
 - Kiểm tra tái tạo DB và giữ dữ liệu sau restart trên môi trường riêng; không xóa volume làm việc.
@@ -146,7 +146,7 @@ Các endpoint dưới đây là đề xuất, chưa tồn tại và chưa phải
 | GET | `/api/inventory/balances` | Tồn theo branchId/skuId, có tùy chọn warehouseId và phân trang. |
 | GET | `/api/inventory/transactions` | Tra ledger theo branchId/skuId/kho/thời gian. |
 
-Reservation ưu tiên service + harness tích hợp trước; API công khai phải gắn hợp đồng đơn/dòng đơn, quyền và idempotency với TV2. API tra cứu kho thuộc phần phối hợp TV2, không mặc định là đã có.
+Reservation ưu tiên service + harness tích hợp trước; API công khai phải gắn hợp đồng đơn/dòng đơn, quyền và idempotency với Nhựt. API tra cứu kho thuộc phần phối hợp Nhựt, không mặc định là đã có.
 
 ## 5. Chia bàn giao và phạm vi tiếp theo
 

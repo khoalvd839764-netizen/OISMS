@@ -20,7 +20,7 @@ Tài liệu này xác lập hợp đồng kỹ thuật chuẩn mực (API Contra
 * **Đối với Backend 2 (Nhựt):** Cung cấp cấu trúc DTO, phân trang, truy vấn `list/detail/filter` và chỉ số tài chính (Net Revenue, COGS, Gross Profit, Inventory Value, Velocity) để viết API đọc và bộ Automated Core Tests.
 * **Đối với Frontend Admin (Phúc Hữu):** Cung cấp contract chuẩn cho duyệt đơn online, quản lý chuyển kho, kiểm kê và nhận thông báo chuông/popup SignalR.
 * **Đối với Frontend POS (Phương):** Cung cấp contract thanh toán nhanh nguyên tử toàn giỏ (Atomic Checkout), in hóa đơn chuẩn qua `PosReceiptDto`, giải quyết dứt điểm tình trạng lệch endpoint và bảo mật dữ liệu giá vốn.
-* **Đối với QA / Tester (TV5):** Cung cấp ma trận endpoint, payload mẫu, mã lỗi HTTP và kịch bản kiểm thử tải đồng thời (Concurrency 50 reqs).
+* **Đối với Kiểm thử / QA (Cả nhóm):** Cung cấp ma trận endpoint, payload mẫu, mã lỗi HTTP và kịch bản kiểm thử tải đồng thời (Concurrency 50 reqs).
 
 ---
 

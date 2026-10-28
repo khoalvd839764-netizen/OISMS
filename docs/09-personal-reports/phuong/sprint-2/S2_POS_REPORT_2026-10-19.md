@@ -1,5 +1,5 @@
 # BÁO CÁO BÀN GIAO NHIỆM VỤ FRONTEND POS (PWA) - SPRINT 2
-**Người thực hiện:** Phương (Thành viên 4 - Frontend POS Lead)  
+**Người thực hiện:** Phương Lê (Frontend POS Lead)  
 **Phạm vi:** `src/frontend/pos-app`  
 **Cổng phục vụ:** `http://localhost:5174`  
 **Ngày cập nhật:** 19/10/2026 (Đã cập nhật toàn diện theo feedback Nhóm trưởng)  
