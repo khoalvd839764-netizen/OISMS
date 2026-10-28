@@ -1,0 +1,132 @@
+{
+  "description": "DỮ LIỆU KIỂM THỬ E2E TÍCH HỢP CHO HỆ THỐNG POS (TEST FIXTURES ONLY)",
+  "testEnvironment": {
+    "targetBackendUrl": "http://localhost:5000",
+    "targetHubUrl": "http://localhost:5000/hubs/notifications",
+    "requiredDbGuardFlag": "POS_TEST_ENV=1",
+    "safeTestPorts": [5433, 5434],
+    "protectedDemoPort": 5432
+  },
+  "testUsers": {
+    "cashier": {
+      "email": "cashier@shopa.local",
+      "role": "Cashier",
+      "fullName": "Thu ngân Nguyễn Văn B",
+      "tenantId": "00000000-0000-0000-0000-000000000001",
+      "tenantName": "Cửa hàng Thời trang Shop A"
+    },
+    "owner": {
+      "email": "owner@shopa.local",
+      "role": "Owner",
+      "fullName": "Chủ cửa hàng Lê Văn A",
+      "tenantId": "00000000-0000-0000-0000-000000000001",
+      "tenantName": "Cửa hàng Thời trang Shop A"
+    }
+  },
+  "testBranches": {
+    "branchA": {
+      "id": "11111111-1111-1111-1111-111111111111",
+      "name": "Chi nhánh Quận 1",
+      "address": "123 Lê Lợi, Bến Nghé, Quận 1, TP.HCM",
+      "phone": "028 3822 1234"
+    },
+    "branchB": {
+      "id": "22222222-2222-2222-2222-222222222222",
+      "name": "Chi nhánh Bình Thạnh",
+      "address": "456 Xô Viết Nghệ Tĩnh, P.25, Bình Thạnh, TP.HCM",
+      "phone": "028 3511 5678"
+    }
+  },
+  "testSkus": {
+    "skuPolo": {
+      "skuId": "33333333-3333-3333-3333-333333333333",
+      "skuCode": "POLO-NAM-DEN-M",
+      "productName": "Áo Polo Nam",
+      "variantName": "Đen / M",
+      "barcode": "8938501234012",
+      "initialOnHand": 10,
+      "initialReserved": 0,
+      "initialAvailable": 10,
+      "retailPrice": 225000,
+      "unitCost": 120000
+    },
+    "skuTshirt": {
+      "skuId": "44444444-4444-4444-4444-444444444444",
+      "skuCode": "AO-THUN-TRANG-L",
+      "productName": "Áo Thun Trơn Unisex",
+      "variantName": "Trắng / L",
+      "barcode": "8938501234029",
+      "initialOnHand": 5,
+      "initialReserved": 0,
+      "initialAvailable": 5,
+      "retailPrice": 150000,
+      "unitCost": 80000
+    }
+  },
+  "scenarios": {
+    "checkoutCash": {
+      "scenarioId": "SC-E2E-01",
+      "name": "Thanh toán Tiền mặt thành công",
+      "requestKey": "a1b2c3d4-e5f6-4789-abcd-ef1234567890",
+      "branchId": "11111111-1111-1111-1111-111111111111",
+      "paymentMethod": "CASH",
+      "items": [
+        { "skuId": "33333333-3333-3333-3333-333333333333", "quantity": 2, "unitPrice": 225000 }
+      ],
+      "totalAmount": 450000,
+      "amountGiven": 500000,
+      "expectedChangeDue": 50000,
+      "expectedStockAfter": 8
+    },
+    "checkoutQr": {
+      "scenarioId": "SC-E2E-02",
+      "name": "Thanh toán Chuyển khoản QR tại quầy",
+      "requestKey": "b2c3d4e5-f6a7-4890-bcde-fa2345678901",
+      "branchId": "11111111-1111-1111-1111-111111111111",
+      "paymentMethod": "BANK_TRANSFER_QR",
+      "items": [
+        { "skuId": "33333333-3333-3333-3333-333333333333", "quantity": 1, "unitPrice": 225000 },
+        { "skuId": "44444444-4444-4444-4444-444444444444", "quantity": 1, "unitPrice": 150000 }
+      ],
+      "totalAmount": 375000,
+      "amountGiven": null,
+      "expectedChangeDue": null,
+      "expectedNormalizedMethod": "BankTransfer"
+    },
+    "insufficientStock": {
+      "scenarioId": "SC-E2E-03",
+      "name": "Từ chối thanh toán do thiếu tồn khả dụng",
+      "requestKey": "c3d4e5f6-a7b8-4901-cdef-ab3456789012",
+      "branchId": "11111111-1111-1111-1111-111111111111",
+      "paymentMethod": "CASH",
+      "items": [
+        { "skuId": "44444444-4444-4444-4444-444444444444", "quantity": 10, "unitPrice": 150000 }
+      ],
+      "expectedStatusCode": 409,
+      "expectedErrorCode": "INSUFFICIENT_STOCK"
+    },
+    "networkLossRetry": {
+      "scenarioId": "SC-E2E-04",
+      "name": "Mất mạng sau khi server đã commit -> Retry giữ cùng RequestKey",
+      "requestKey": "d4e5f6a7-b8c9-4012-aefa-bc4567890123",
+      "branchId": "11111111-1111-1111-1111-111111111111",
+      "paymentMethod": "CASH",
+      "items": [
+        { "skuId": "33333333-3333-3333-3333-333333333333", "quantity": 2, "unitPrice": 225000 }
+      ],
+      "totalAmount": 450000,
+      "firstCallResult": "Network timeout after commit (unknown)",
+      "secondCallExpectedStatus": 200,
+      "expectedDbOrdersCount": 1,
+      "expectedDbLedgerOutCount": 1
+    },
+    "freshnessWithoutF5": {
+      "scenarioId": "SC-E2E-05",
+      "name": "Nghiệm thu dứt điểm POS-STOCK-F01 (Tồn 10 -> 8 không cần F5)",
+      "initialStock": 10,
+      "purchasedQty": 2,
+      "expectedStockImmediatelyAfterCheckout": 8,
+      "expectedStockAfterReplayOrDelayedEvent": 8
+    }
+  }
+}
