@@ -32,9 +32,16 @@ export const InventoryTransfersPage: React.FC = () => {
         pageSize,
       });
       if (seq !== transferReqSeqRef.current) return;
+
+      // PR26-F04: Nếu pageNumber vượt quá tổng số trang sau khi lọc/cập nhật, tự động lùi về trang 1
+      if (data.totalPages > 0 && pageNumber > data.totalPages) {
+        setPageNumber(1);
+        return;
+      }
+
       setTransfers(data.items);
       setTotalCount(data.totalCount);
-      setTotalPages(data.totalPages);
+      setTotalPages(Math.max(1, data.totalPages));
     } catch (err: any) {
       if (seq !== transferReqSeqRef.current) return;
       console.error('Lỗi nạp danh sách phiếu chuyển kho:', err);

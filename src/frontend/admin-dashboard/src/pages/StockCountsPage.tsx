@@ -58,9 +58,16 @@ export const StockCountsPage: React.FC = () => {
         pageSize,
       });
       if (seq !== countReqSeqRef.current) return;
+
+      // PR26-F04: Nếu pageNumber vượt quá tổng số trang sau khi lọc, tự động lùi về trang 1
+      if (data.totalPages > 0 && pageNumber > data.totalPages) {
+        setPageNumber(1);
+        return;
+      }
+
       setCounts(data.items);
       setTotalCount(data.totalCount);
-      setTotalPages(data.totalPages);
+      setTotalPages(Math.max(1, data.totalPages));
     } catch (err: any) {
       if (seq !== countReqSeqRef.current) return;
       console.error('Lỗi nạp danh sách kiểm kê kho:', err);
@@ -130,6 +137,7 @@ export const StockCountsPage: React.FC = () => {
           onChange={(e) => {
             setSelectedBranch(e.target.value);
             setSelectedWarehouse('');
+            setPageNumber(1);
           }}
           className="border border-gray-300 rounded-lg px-3 py-1.5 text-xs bg-white focus:ring-1 focus:ring-indigo-500 outline-none"
         >
@@ -174,6 +182,7 @@ export const StockCountsPage: React.FC = () => {
               setSelectedBranch('');
               setSelectedWarehouse('');
               setSelectedStatus('');
+              setPageNumber(1);
             }}
             className="text-xs text-indigo-600 hover:underline ml-auto"
           >

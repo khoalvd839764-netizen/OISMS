@@ -105,10 +105,20 @@ export const stockCountService = {
    */
   async getStockCountById(id: string): Promise<StockCount> {
     const response = await httpClient.get(`/api/stock-counts/${id}`);
-    if (response.data && typeof response.data === 'object' && response.data.id) {
-      return response.data;
+    const d = response.data;
+    if (
+      d &&
+      typeof d === 'object' &&
+      !Array.isArray(d) &&
+      d.id &&
+      String(d.id).trim() &&
+      String(d.id).trim() !== '00000000-0000-0000-0000-000000000000' &&
+      d.number &&
+      d.status
+    ) {
+      return d;
     }
-    throw new Error('Không tìm thấy đợt kiểm kê hoặc dữ liệu không hợp lệ.');
+    throw new Error('Không tìm thấy đợt kiểm kê hoặc dữ liệu không hợp lệ (thiếu id, number hoặc status).');
   },
 
   /**

@@ -142,9 +142,14 @@ function normalizeLine(raw: Raw): OrderLine {
 
 export function normalizeSummary(raw: unknown): OrderSummary {
   if (!isRaw(raw)) throw new Error('Dữ liệu đơn hàng không hợp lệ.');
+  const id = str(raw.id)?.trim();
+  const number = str(raw.number)?.trim();
+  if (!id || !number) {
+    throw new Error('Dữ liệu đơn hàng không hợp lệ: thiếu id hoặc number.');
+  }
   return {
-    id: str(raw.id) ?? '',
-    number: str(raw.number) ?? '',
+    id,
+    number,
     branchId: str(raw.branchId) ?? '',
     branchName: str(raw.branchName),
     channel: str(raw.channel) ?? '',

@@ -32,17 +32,33 @@ export function normalizeTransfer(t: any): StockTransfer {
   if (!t || typeof t !== 'object') {
     throw new Error('Dữ liệu phiếu chuyển kho không hợp lệ.');
   }
+
+  // Reject missing identity and mandatory fields according to real contract (PR26-F04)
+  const id = t.id ? String(t.id).trim() : '';
+  const number = (t.number || t.transferNumber || '').trim();
+  const status = (t.status || '').trim();
+
+  if (!id || id === '00000000-0000-0000-0000-000000000000') {
+    throw new Error('Dữ liệu phiếu chuyển kho thiếu định danh hợp lệ (id).');
+  }
+  if (!number) {
+    throw new Error('Dữ liệu phiếu chuyển kho thiếu mã số phiếu (number).');
+  }
+  if (!status) {
+    throw new Error('Dữ liệu phiếu chuyển kho thiếu trạng thái hợp lệ (status).');
+  }
+
   const rawItems = Array.isArray(t.items) ? t.items : [];
   return {
     ...t,
-    id: String(t.id || ''),
-    number: t.number || t.transferNumber || '',
-    transferNumber: t.transferNumber || t.number || '',
-    status: t.status || 'Draft',
-    fromWarehouseId: t.fromWarehouseId || '',
-    toWarehouseId: t.toWarehouseId || '',
+    id,
+    number,
+    transferNumber: number,
+    status: status as any,
+    fromWarehouseId: t.fromWarehouseId ? String(t.fromWarehouseId) : '',
+    toWarehouseId: t.toWarehouseId ? String(t.toWarehouseId) : '',
     items: rawItems.map(normalizeTransferItem),
-    createdAt: t.createdAt || new Date().toISOString(),
+    createdAt: t.createdAt ? String(t.createdAt) : new Date().toISOString(),
   };
 }
 

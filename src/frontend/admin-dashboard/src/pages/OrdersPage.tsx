@@ -222,9 +222,12 @@ export function OrdersPage() {
       }
       setNewCustomer(pending.requestPayload.customerName);
       setIsRetryingOrder(true);
-      setIsUnknownState(pending.isUnknownState);
+      // B01-F02: Mọi pending chưa giải phóng dứt khoát khi nạp lại đều ở trạng thái unknown
+      setIsUnknownState(true);
       if (pending.lastError) {
         setCreateError(pending.lastError);
+      } else {
+        setCreateError("Đang có một yêu cầu tạo đơn chưa rõ kết quả từ phiên trước. Vui lòng thử lại để kiểm tra với máy chủ, hoặc hủy bỏ để tạo yêu cầu mới.");
       }
     } else {
       setPendingSnapshot(null);
@@ -236,7 +239,7 @@ export function OrdersPage() {
   };
 
   const handleDiscardPendingOrder = () => {
-    if (isRetryingOrder || isUnknownState) {
+    if (isRetryingOrder || isUnknownState || pendingSnapshot) {
       const confirmDiscard = window.confirm(
         "Bạn có chắc muốn hủy bỏ yêu cầu tạo đơn đang chờ? Nếu máy chủ đã xử lý thành công yêu cầu trước đó, việc tạo mới có thể sinh thêm đơn khác."
       );
@@ -251,15 +254,9 @@ export function OrdersPage() {
   };
 
   const handleFormChange = () => {
-    // B01-F02: Nếu đang ở trạng thái unknown, KHÔNG tự xóa pending hoặc tự sinh key mới khi gõ phím
-    if (isUnknownState) {
+    // B01-F02: Tuyệt đối không cho phép gõ phím làm mất pending hoặc sinh key mới khi đang có pending snapshot
+    if (isRetryingOrder || isUnknownState || pendingSnapshot) {
       return;
-    }
-    if (isRetryingOrder) {
-      clearSavedPendingOrder(account.tenantId, account.id);
-      setPendingSnapshot(null);
-      setIsRetryingOrder(false);
-      setOrderIdempotencyKey(generateUuid());
     }
   };
 
@@ -274,7 +271,7 @@ export function OrdersPage() {
     let payloadToSend: any;
     let keyToSend: string;
 
-    if (isRetryingOrder && pendingSnapshot) {
+    if ((isRetryingOrder || pendingSnapshot) && pendingSnapshot) {
       // B01-F02: Retry giữ nguyên snapshot payload & requestKey, KHÔNG dựng lại từ catalog
       keyToSend = pendingSnapshot.idempotencyKey;
       payloadToSend = pendingSnapshot.requestPayload;
@@ -322,18 +319,21 @@ export function OrdersPage() {
     isCreatingOrderRef.current = true;
     setLoadingCreate(true);
 
-    // Lưu snapshot với tenantId và userId cách ly (B01-F02)
+    // B01-F02: Lưu snapshot với isUnknownState = true NGAY TRƯỚC KHI GỬI POST.
+    // Nếu trang bị reload hoặc ngắt kết nối giữa chừng, snapshot được bảo toàn ở trạng thái unknown
     const snapshotToSave: PendingOrderSnapshot = {
       ownerTenantId: account.tenantId,
       ownerUserId: account.id,
       idempotencyKey: keyToSend,
       requestPayload: payloadToSend,
       warehouseId: newWarehouseId,
-      isUnknownState: false,
+      isUnknownState: true, // In-flight = unknown until definite server response
       createdAt: Date.now(),
     };
     savePendingOrder(snapshotToSave, account.tenantId, account.id);
     setPendingSnapshot(snapshotToSave);
+    setIsUnknownState(true);
+    setIsRetryingOrder(true);
 
     try {
       await orderService.createOrder(payloadToSend);
@@ -355,7 +355,7 @@ export function OrdersPage() {
 
       // Phân định Definite Failure vs Indeterminate / Unknown State (B01-F02)
       if (status === 400) {
-        // Lỗi xác thực dứt khoát
+        // Lỗi xác thực dứt khoát: cho phép sửa lại form
         const msg = `Lỗi xác thực dữ liệu (400): ${errorDetail}`;
         setCreateError(msg);
         clearSavedPendingOrder(account.tenantId, account.id);
@@ -383,12 +383,12 @@ export function OrdersPage() {
           const msg = `Xung đột định danh (409 ${errorCode}): Dữ liệu yêu cầu không khớp với yêu cầu trước đó. Vui lòng bấm 'Hủy và tạo yêu cầu mới'.`;
           setCreateError(msg);
           setIsRetryingOrder(true);
-          setIsUnknownState(false);
+          setIsUnknownState(true);
         } else {
           const msg = `Xung đột trạng thái (409): ${errorDetail}`;
           setCreateError(msg);
           setIsRetryingOrder(true);
-          setIsUnknownState(false);
+          setIsUnknownState(true);
         }
       } else {
         // Timeout mạng, rớt kết nối, lỗi 5xx -> Trạng thái Unknown (B01-F02)
@@ -518,101 +518,113 @@ export function OrdersPage() {
             </div>
           )}
 
-          {isUnknownState && (
-            <div className="mb-3 p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-800">
-              ⚠️ <b>Yêu cầu đang chờ xác nhận:</b> Phản hồi trước đó bị gián đoạn mạng. Hệ thống đang bảo lưu chính xác dữ liệu (SKU, giá, số lượng, định danh). Bạn không thể thay đổi thông tin trên biểu mẫu để tránh tạo sai lệch. Hãy bấm <b>Thử lại giữ chỗ</b> để kiểm tra lại với máy chủ, hoặc bấm <b>Hủy và tạo yêu cầu mới</b> nếu muốn hủy bỏ.
-            </div>
-          )}
+          {/* B01-F02: Tính toán isFormLocked bao quát toàn bộ trường hợp pending chưa hoàn tất */}
+          {(() => {
+            const isFormLocked = isRetryingOrder || isUnknownState || !!pendingSnapshot;
+            return (
+              <>
+                {isFormLocked && (
+                  <div className="mb-3 p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-800">
+                    ⚠️ <b>Yêu cầu đang chờ xác nhận:</b> Hệ thống đang bảo lưu chính xác dữ liệu giao dịch (SKU, giá, số lượng, chi nhánh, định danh). Biểu mẫu đang được khóa để bảo đảm nhất quán với dữ liệu gửi tới máy chủ. Hãy bấm <b>Thử lại giữ chỗ</b> để đối soát lại với máy chủ, hoặc bấm <b>Hủy và tạo yêu cầu mới</b> nếu muốn thay đổi thông tin.
+                  </div>
+                )}
 
-          <div className="form-grid">
-            <label>
-              <span>Tên khách hàng *</span>
-              <Input
-                value={newCustomer}
-                onChange={(e) => {
-                  setNewCustomer(e.target.value);
-                  handleFormChange();
-                }}
-                disabled={isUnknownState}
-                required
-              />
-            </label>
-            <label>
-              <span>Kênh bán hàng *</span>
-              {/* B01-F01: Đơn tạo thủ công qua Admin bắt buộc channel Admin, hiển thị rõ ràng */}
-              <Input
-                value="Admin (Đơn tạo thủ công)"
-                disabled
-                readOnly
-              />
-            </label>
-            <label>
-              <span>Chi nhánh xuất hàng *</span>
-              <Select
-                value={newBranchId}
-                onChange={(e) => {
-                  const nextBr = e.target.value;
-                  setNewBranchId(nextBr);
-                  const matchingWhs = warehouses.filter((w) => w.branchId === nextBr);
-                  setNewWarehouseId(matchingWhs[0]?.id || "");
-                  handleFormChange();
-                }}
-              >
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>{b.name}</option>
-                ))}
-              </Select>
-            </label>
-            <label>
-              <span>Kho xuất hàng (Tra cứu khả dụng)</span>
-              <Select
-                value={newWarehouseId}
-                onChange={(e) => {
-                  setNewWarehouseId(e.target.value);
-                  handleFormChange();
-                }}
-              >
-                {warehouses
-                  .filter((w) => !newBranchId || w.branchId === newBranchId)
-                  .map((w) => (
-                    <option key={w.id} value={w.id}>{w.name}</option>
-                  ))}
-              </Select>
-            </label>
-            <label style={{ gridColumn: "1 / -1" }}>
-              <span>Sản phẩm / Biến thể (SKU) *</span>
-              <Select
-                value={newSkuId}
-                onChange={(e) => {
-                  setNewSkuId(e.target.value);
-                  handleFormChange();
-                }}
-              >
-                {skusList.map((s) => {
-                  const whBal = warehouseStockList.find((wb) => wb.id === s.id);
-                  const whAvail = whBal ? Math.max(0, whBal.onHand - whBal.reserved) : 0;
-                  return (
-                    <option key={s.id} value={s.id} disabled={s.isActive === false}>
-                      {s.code} · {s.name} {s.isActive === false ? "[Ngừng hoạt động]" : `(Khả dụng tại kho chọn: ${whAvail} / Tổng hệ thống: ${s.onHand - s.reserved})`}
-                    </option>
-                  );
-                })}
-              </Select>
-            </label>
-            <label>
-              <span>Số lượng bán *</span>
-              <Input
-                type="number"
-                min="1"
-                value={newQuantity}
-                onChange={(e) => {
-                  setNewQuantity(Math.max(1, Number(e.target.value) || 1));
-                  handleFormChange();
-                }}
-                required
-              />
-            </label>
-          </div>
+                <div className="form-grid">
+                  <label>
+                    <span>Tên khách hàng *</span>
+                    <Input
+                      value={newCustomer}
+                      onChange={(e) => {
+                        setNewCustomer(e.target.value);
+                        handleFormChange();
+                      }}
+                      disabled={isFormLocked}
+                      required
+                    />
+                  </label>
+                  <label>
+                    <span>Kênh bán hàng *</span>
+                    {/* B01-F01: Đơn tạo thủ công qua Admin bắt buộc channel Admin, hiển thị rõ ràng */}
+                    <Input
+                      value="Admin (Đơn tạo thủ công)"
+                      disabled
+                      readOnly
+                    />
+                  </label>
+                  <label>
+                    <span>Chi nhánh xuất hàng *</span>
+                    <Select
+                      value={newBranchId}
+                      disabled={isFormLocked}
+                      onChange={(e) => {
+                        const nextBr = e.target.value;
+                        setNewBranchId(nextBr);
+                        const matchingWhs = warehouses.filter((w) => w.branchId === nextBr);
+                        setNewWarehouseId(matchingWhs[0]?.id || "");
+                        handleFormChange();
+                      }}
+                    >
+                      {branches.map((b) => (
+                        <option key={b.id} value={b.id}>{b.name}</option>
+                      ))}
+                    </Select>
+                  </label>
+                  <label>
+                    <span>Kho xuất hàng (Tra cứu khả dụng)</span>
+                    <Select
+                      value={newWarehouseId}
+                      disabled={isFormLocked}
+                      onChange={(e) => {
+                        setNewWarehouseId(e.target.value);
+                        handleFormChange();
+                      }}
+                    >
+                      {warehouses
+                        .filter((w) => !newBranchId || w.branchId === newBranchId)
+                        .map((w) => (
+                          <option key={w.id} value={w.id}>{w.name}</option>
+                        ))}
+                    </Select>
+                  </label>
+                  <label style={{ gridColumn: "1 / -1" }}>
+                    <span>Sản phẩm / Biến thể (SKU) *</span>
+                    <Select
+                      value={newSkuId}
+                      disabled={isFormLocked}
+                      onChange={(e) => {
+                        setNewSkuId(e.target.value);
+                        handleFormChange();
+                      }}
+                    >
+                      {skusList.map((s) => {
+                        const whBal = warehouseStockList.find((wb) => wb.id === s.id);
+                        const whAvail = whBal ? Math.max(0, whBal.onHand - whBal.reserved) : 0;
+                        return (
+                          <option key={s.id} value={s.id} disabled={s.isActive === false}>
+                            {s.code} · {s.name} {s.isActive === false ? "[Ngừng hoạt động]" : `(Khả dụng tại kho chọn: ${whAvail} / Tổng hệ thống: ${s.onHand - s.reserved})`}
+                          </option>
+                        );
+                      })}
+                    </Select>
+                  </label>
+                  <label>
+                    <span>Số lượng bán *</span>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={newQuantity}
+                      disabled={isFormLocked}
+                      onChange={(e) => {
+                        setNewQuantity(Math.max(1, Number(e.target.value) || 1));
+                        handleFormChange();
+                      }}
+                      required
+                    />
+                  </label>
+                </div>
+              </>
+            );
+          })()}
 
           {/* Hiển thị tồn khả dụng */}
           {(() => {

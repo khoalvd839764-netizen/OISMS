@@ -60,32 +60,46 @@ export const TransferDetailDrawer: React.FC<TransferDetailDrawerProps> = ({
   // Bước 1 -> 2: Xuất gửi hàng (Dispatch)
   const handleDispatch = async () => {
     if (!detail || detail.id !== transferId || loading || actionLoading) return;
+    const targetId = detail.id;
+    const actionSeq = ++activeReqRef.current;
     setActionLoading(true);
     try {
-      await stockTransferService.dispatchTransfer(detail.id);
-      const updated = await stockTransferService.getTransferById(detail.id);
+      await stockTransferService.dispatchTransfer(targetId);
+      if (actionSeq !== activeReqRef.current || transferId !== targetId) return;
+      const updated = await stockTransferService.getTransferById(targetId);
+      if (actionSeq !== activeReqRef.current || transferId !== targetId) return;
       setDetail(updated);
       onRefresh();
     } catch (error) {
+      if (actionSeq !== activeReqRef.current || transferId !== targetId) return;
       alert('Không thể xuất gửi hàng.');
     } finally {
-      setActionLoading(false);
+      if (actionSeq === activeReqRef.current && transferId === targetId) {
+        setActionLoading(false);
+      }
     }
   };
 
   // Bước 2 -> 3A: Nhận hàng (Receive)
   const handleReceive = async () => {
     if (!detail || detail.id !== transferId || loading || actionLoading) return;
+    const targetId = detail.id;
+    const actionSeq = ++activeReqRef.current;
     setActionLoading(true);
     try {
-      await stockTransferService.receiveTransfer(detail.id);
-      const updated = await stockTransferService.getTransferById(detail.id);
+      await stockTransferService.receiveTransfer(targetId);
+      if (actionSeq !== activeReqRef.current || transferId !== targetId) return;
+      const updated = await stockTransferService.getTransferById(targetId);
+      if (actionSeq !== activeReqRef.current || transferId !== targetId) return;
       setDetail(updated);
       onRefresh();
     } catch (error) {
+      if (actionSeq !== activeReqRef.current || transferId !== targetId) return;
       alert('Không thể nhận hàng.');
     } finally {
-      setActionLoading(false);
+      if (actionSeq === activeReqRef.current && transferId === targetId) {
+        setActionLoading(false);
+      }
     }
   };
 
@@ -96,17 +110,24 @@ export const TransferDetailDrawer: React.FC<TransferDetailDrawerProps> = ({
       alert('Vui lòng nhập lý do từ chối.');
       return;
     }
+    const targetId = detail.id;
+    const actionSeq = ++activeReqRef.current;
     setActionLoading(true);
     try {
-      await stockTransferService.rejectTransfer(detail.id, { reason: rejectReason });
+      await stockTransferService.rejectTransfer(targetId, { reason: rejectReason });
+      if (actionSeq !== activeReqRef.current || transferId !== targetId) return;
       setShowRejectModal(false);
-      const updated = await stockTransferService.getTransferById(detail.id);
+      const updated = await stockTransferService.getTransferById(targetId);
+      if (actionSeq !== activeReqRef.current || transferId !== targetId) return;
       setDetail(updated);
       onRefresh();
     } catch (error) {
+      if (actionSeq !== activeReqRef.current || transferId !== targetId) return;
       alert('Không thể từ chối nhận hàng.');
     } finally {
-      setActionLoading(false);
+      if (actionSeq === activeReqRef.current && transferId === targetId) {
+        setActionLoading(false);
+      }
     }
   };
 

@@ -91,7 +91,9 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
 
   // Lưu bản đếm thực tế
   const handleSaveCounts = async () => {
-    if (!detail) return;
+    if (!detail || detail.id !== countId || loading || actionLoading) return;
+    const targetId = detail.id;
+    const actionSeq = ++activeReqRef.current;
     setActionLoading(true);
     setErrorDetails(null);
     setSequenceDrift(false);
@@ -110,23 +112,27 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
         };
       });
 
-      const updated = await stockCountService.recordCounts(detail.id, {
+      const updated = await stockCountService.recordCounts(targetId, {
         items: itemsToRecord,
       });
 
+      if (actionSeq !== activeReqRef.current || countId !== targetId) return;
       setDetail(updated);
       onRefresh();
       alert('Đã lưu kết quả kiểm đếm thành công!');
     } catch (err: any) {
+      if (actionSeq !== activeReqRef.current || countId !== targetId) return;
       setErrorDetails(err);
     } finally {
-      setActionLoading(false);
+      if (actionSeq === activeReqRef.current && countId === targetId) {
+        setActionLoading(false);
+      }
     }
   };
 
   // Chốt kiểm kê & Cân bằng tồn
   const handleConfirmCount = async () => {
-    if (!detail) return;
+    if (!detail || detail.id !== countId || loading || actionLoading) return;
 
     // Kiểm tra đã nhập hết chưa
     const uncounted = detail.items.filter(
@@ -139,6 +145,8 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
       if (!proceed) return;
     }
 
+    const targetId = detail.id;
+    const actionSeq = ++activeReqRef.current;
     setActionLoading(true);
     setErrorDetails(null);
     setSequenceDrift(false);
@@ -153,43 +161,53 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
         }
       });
 
-      const confirmed = await stockCountService.confirmStockCount(detail.id, {
+      const confirmed = await stockCountService.confirmStockCount(targetId, {
         note: detail.note,
         skuAdjustmentCosts: Object.keys(skuAdjustmentCosts).length > 0 ? skuAdjustmentCosts : undefined,
       });
 
+      if (actionSeq !== activeReqRef.current || countId !== targetId) return;
       setDetail(confirmed);
       onRefresh();
       alert('Đã chốt kiểm kê và tạo chứng từ cân bằng tồn kho thành công!');
     } catch (err: any) {
+      if (actionSeq !== activeReqRef.current || countId !== targetId) return;
       if (err.errorCode === 'STOCK_COUNT_DRIFT_DETECTED' || err.status === 409) {
         setSequenceDrift(true);
       }
       setErrorDetails(err);
     } finally {
-      setActionLoading(false);
+      if (actionSeq === activeReqRef.current && countId === targetId) {
+        setActionLoading(false);
+      }
     }
   };
 
   // Hủy đợt kiểm kê
   const handleCancelCount = async () => {
-    if (!detail) return;
+    if (!detail || detail.id !== countId || loading || actionLoading) return;
     const reason = prompt('Nhập lý do hủy đợt kiểm kê:');
     if (reason === null) return;
 
+    const targetId = detail.id;
+    const actionSeq = ++activeReqRef.current;
     setActionLoading(true);
     setErrorDetails(null);
     try {
-      const cancelled = await stockCountService.cancelStockCount(detail.id, {
+      const cancelled = await stockCountService.cancelStockCount(targetId, {
         reason: reason || undefined,
       });
+      if (actionSeq !== activeReqRef.current || countId !== targetId) return;
       setDetail(cancelled);
       onRefresh();
       alert('Đã hủy đợt kiểm kê.');
     } catch (err: any) {
+      if (actionSeq !== activeReqRef.current || countId !== targetId) return;
       setErrorDetails(err);
     } finally {
-      setActionLoading(false);
+      if (actionSeq === activeReqRef.current && countId === targetId) {
+        setActionLoading(false);
+      }
     }
   };
 
