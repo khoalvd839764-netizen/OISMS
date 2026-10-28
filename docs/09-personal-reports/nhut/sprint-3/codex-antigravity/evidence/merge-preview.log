@@ -1,0 +1,17 @@
+2e35a05736e849064c562c57c29a58a4e8648c23
+src/backend/src/OISM.Application/Features/Orders/Dtos/OrderDtos.cs
+src/backend/src/OISM.Application/Features/Orders/Services/IOrderService.cs
+src/backend/src/OISM.Application/Features/Orders/Services/OrderService.cs
+src/backend/src/OISM.WebApi/Controllers/OrdersController.cs
+src/backend/src/OISM.WebApi/Program.cs
+
+Auto-merging src/backend/src/OISM.Application/Features/Orders/Dtos/OrderDtos.cs
+CONFLICT (add/add): Merge conflict in src/backend/src/OISM.Application/Features/Orders/Dtos/OrderDtos.cs
+Auto-merging src/backend/src/OISM.Application/Features/Orders/Services/IOrderService.cs
+CONFLICT (add/add): Merge conflict in src/backend/src/OISM.Application/Features/Orders/Services/IOrderService.cs
+Auto-merging src/backend/src/OISM.Application/Features/Orders/Services/OrderService.cs
+CONFLICT (add/add): Merge conflict in src/backend/src/OISM.Application/Features/Orders/Services/OrderService.cs
+Auto-merging src/backend/src/OISM.WebApi/Controllers/OrdersController.cs
+CONFLICT (add/add): Merge conflict in src/backend/src/OISM.WebApi/Controllers/OrdersController.cs
+Auto-merging src/backend/src/OISM.WebApi/Program.cs
+CONFLICT (content): Merge conflict in src/backend/src/OISM.WebApi/Program.cs

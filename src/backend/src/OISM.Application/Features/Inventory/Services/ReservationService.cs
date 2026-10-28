@@ -1,3 +1,4 @@
+using OISM.Application.Features.Realtime;
 using System.Data;
 using Microsoft.EntityFrameworkCore;
 using OISM.Application.Common.Interfaces;
@@ -15,11 +16,16 @@ public class ReservationService : IReservationService
 {
     private readonly IAppDbContext _context;
     private readonly ICurrentTenantService _currentTenantService;
+    private readonly IRealtimeNotifier? _realtimeNotifier;
 
-    public ReservationService(IAppDbContext context, ICurrentTenantService currentTenantService)
+    public ReservationService(
+        IAppDbContext context,
+        ICurrentTenantService currentTenantService,
+        IRealtimeNotifier? realtimeNotifier = null)
     {
         _context = context;
         _currentTenantService = currentTenantService;
+        _realtimeNotifier = realtimeNotifier;
     }
 
     private Guid RequireTenantId()
@@ -47,9 +53,11 @@ public class ReservationService : IReservationService
         }
 
         // Bắt đầu một transaction READ COMMITTED bao bọc trong ExecutionStrategy
+        List<Func<Task>> pendingNotifications = new();
         var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        var result = await strategy.ExecuteAsync(async () =>
         {
+            pendingNotifications.Clear();
             await using var transaction = await _context.BeginTransactionAsync(ct);
 
             try
@@ -337,6 +345,20 @@ public class ReservationService : IReservationService
             }
 
             await transaction.CommitAsync(ct);
+            if (_realtimeNotifier != null)
+            {
+                var skuIdCapture = dto.SkuId;
+                var skuCodeCapture = sku.SKU;
+                var prevAvail = branchBalance.OnHand - (branchBalance.Reserved - dto.Quantity);
+                var newAvail = branchBalance.OnHand - branchBalance.Reserved;
+                var reorderPointCapture = branchBalance.ReorderPoint;
+                var isLowStockCapture = prevAvail > branchBalance.ReorderPoint && newAvail <= branchBalance.ReorderPoint;
+                pendingNotifications.Add(() => _realtimeNotifier.NotifyStockChangedAsync(tenantId, dto.BranchId, skuIdCapture, newAvail, ct));
+                if (isLowStockCapture)
+                {
+                    pendingNotifications.Add(() => _realtimeNotifier.NotifyLowStockAlertAsync(tenantId, dto.BranchId, skuIdCapture, skuCodeCapture, newAvail, reorderPointCapture, ct));
+                }
+            }
 
             return new ReserveStockResponseDto
             {
@@ -358,6 +380,22 @@ public class ReservationService : IReservationService
             throw;
         }
         });
+
+        if (pendingNotifications.Count > 0)
+        {
+            foreach (var notifyAction in pendingNotifications)
+            {
+                try
+                {
+                    await notifyAction();
+                }
+                catch
+                {
+                }
+            }
+        }
+
+        return result;
     }
 
     private static bool IsReservationConflict(DbUpdateException ex)

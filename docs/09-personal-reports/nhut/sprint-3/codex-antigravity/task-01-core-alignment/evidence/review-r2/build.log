@@ -1,0 +1,12 @@
+  OISM.Domain -> D:\OISMS\src\backend\src\OISM.Domain\bin\Release\net8.0\OISM.Domain.dll
+  OISM.Application -> D:\OISMS\src\backend\src\OISM.Application\bin\Release\net8.0\OISM.Application.dll
+  OISM.Infrastructure -> D:\OISMS\src\backend\src\OISM.Infrastructure\bin\Release\net8.0\OISM.Infrastructure.dll
+  OISM.WebApi -> D:\OISMS\src\backend\src\OISM.WebApi\bin\Release\net8.0\OISM.WebApi.dll
+  OISM.UnitTests -> D:\OISMS\src\backend\tests\OISM.UnitTests\bin\Release\net8.0\OISM.UnitTests.dll
+  OISM.IntegrationTests -> D:\OISMS\src\backend\tests\OISM.IntegrationTests\bin\Release\net8.0\OISM.IntegrationTests.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:17.50

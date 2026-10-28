@@ -1,0 +1,5 @@
+Test run for D:\OISMS\src\backend\tests\OISM.UnitTests\bin\Release\net8.0\OISM.UnitTests.dll (.NETCoreApp,Version=v8.0)
+A total of 1 test files matched the specified pattern.
+Results File: D:\OISMS\tmp\codex-be2-t01-review-r3\unit\Jacki_Khoa_KHOA_LE_2026-10-26_21_28_32_net8.0.trx
+
+Passed!  - Failed:     0, Passed:   143, Skipped:     0, Total:   143, Duration: 3 s - OISM.UnitTests.dll (net8.0)

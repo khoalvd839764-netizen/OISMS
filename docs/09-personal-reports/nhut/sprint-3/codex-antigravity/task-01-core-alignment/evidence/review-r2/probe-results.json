@@ -1,0 +1,38 @@
+{
+  "reviewedCodeCommit": "dc20e8887a56e8e190b31f62b1273a5580138e68",
+  "documentationOnlyHead": "88898417d438344c3d40aa14716e1cb3feff1d8a",
+  "provider": "PostgreSQL / WebApplicationFactory HTTP",
+  "counters": {
+    "failed": 2,
+    "executed": 4,
+    "passed": 2,
+    "aborted": 0,
+    "total": 4
+  },
+  "tests": [
+    {
+      "name": "ReviewerProbes.Batch_MustNotProvisionIntegrationWithPredictableAnonymousCredential",
+      "outcome": "Failed",
+      "duration": "00:00:00.2339430",
+      "output": "{\"beforeIntegrations\":0,\"afterIntegrations\":1,\"batchHttpStatus\":200,\"SuccessCount\":1,\"anonymousWebhookStatus\":201,\"anonymousOrderCount\":1,\"authorizationHeaderSent\":false,\"credentialWasKnownSourceConstant\":true}"
+    },
+    {
+      "name": "ReviewerProbes.SimulatorAdapter_SameTotalChangedItems_MustRejectPayloadMismatch",
+      "outcome": "Passed",
+      "duration": "00:00:00.4452827",
+      "output": "{\"provider\":\"PostgreSQL\",\"configuredShop\":true,\"sameOrderReturned\":false,\"requestedQuantity\":2,\"returnedQuantity\":null,\"requestedUnitPrice\":50,\"returnedUnitPrice\":null,\"actualErrorType\":\"OismException\"}"
+    },
+    {
+      "name": "ReviewerProbes.SimulatorAdapter_DefaultTimestamp_MustApplyCanonicalValidation",
+      "outcome": "Failed",
+      "duration": "00:00:00.0569410",
+      "output": "{\"adapterErrorType\":null,\"canonicalHttpStatus\":400,\"adapterPersistedOrders\":1}"
+    },
+    {
+      "name": "ReviewerProbes.ProcessEndpoint_OnRealPostgres_MustNotReturn500OrPartiallyConfirm",
+      "outcome": "Passed",
+      "duration": "00:00:00.2074363",
+      "output": "{\"httpStatus\":200,\"persistedStatus\":\"Confirmed\",\"OnHand\":8.000,\"Reserved\":0.000,\"outRows\":1,\"schemaConstraintInBody\":false,\"bodyStart\":\"{\\u0022shippingAddress\\u0022:null,\\u0022requestKey\\u0022:\\u002239f4062c-7f2c-4413-b22e-af9fdbf0933f\\u0022,\\u0022items\\u0022:[{\\u0022id\\u0022:\\u00229253e143-db75-40ea-9bba-be2da5a1de26\\u0022,\\u0022skuId\\u0022:\\u002211111111-0000-0000-0006-000000000001\\u0022,\\u0022skuCode\\u0022:\\u0022POLO-NAM-DEN-M\\u0022,\\u0022skuName\\u0022:\\u0022\\u00C1o Polo Nam Th\\u1EC3 Thao - \\u0110en / Size M\\u0022,\\u0022quantity\\u0022:2.000,\\u0022unitPrice\\u0022:299000.00,\\u0022costPrice\\u0022:100.000000,\\u0022totalLineAmount\\u0022:598000.00000}],\\u0022id\\u0022:\\u002289094a97-3a48-4625-9735-9d558c57fae5\\u0022,\\u0022number\\u0022:\\u0022ORD-20261026-b657e50\\u0022,\\u0022branchId\\u0022:\\u002211111111-0000-0000-0001-000000000001\\u0022,\\u0022branchName\\u0022:\\u0022Chi nh\\u00E1nh Qu\\u1EADn 1\\u0022,\\u0022channel\\u0022:\\u0022Admin\\u0022,\\u0022externalShopId\\u0022:null,\\u0022externalOrderId\\u0022:null,\\u0022status\\u0022:\\u0022Confirmed\\u0022,\\u0022customerName\\u0022:null,\\u0022customerPhone\\u0022:null,\\u0022totalAmount\\u0022:598000.00,\\u0022itemCount\\u0022:1,\\u0022createdAt\\u0022:\\u00222026-10-26T13:14:44.147806\\u002B00:00\\u0022,\\u0022confirmedAt\\u0022:\\u00222026-10-26T13:14:44.230147\\u002B00:00\\u0022,\\u0022completedAt\\u0022:null,\\u0022cancelledAt\\u0022:nul\"}"
+    }
+  ]
+}

@@ -20,9 +20,10 @@ export function getPendingReservationStorageKey(tenantId?: string): string {
   return `oism_pending_reservation_${tid}`;
 }
 
-export function getPendingOrderStorageKey(tenantId?: string): string {
+export function getPendingOrderStorageKey(tenantId?: string, userId?: string): string {
   const tid = tenantId || getActiveTenantId();
-  return `oism_pending_order_${tid}`;
+  const uid = userId || 'default';
+  return `oism_pending_order_${tid}_${uid}`;
 }
 
 // [F2] Trình sinh UUID RFC4122 chuẩn cho ClientRequestId / Idempotency-Key
@@ -112,8 +113,8 @@ export const apiAdapter = {
   getPendingReservationStorageKey(tenantId?: string) {
     return getPendingReservationStorageKey(tenantId);
   },
-  getPendingOrderStorageKey(tenantId?: string) {
-    return getPendingOrderStorageKey(tenantId);
+  getPendingOrderStorageKey(tenantId?: string, userId?: string) {
+    return getPendingOrderStorageKey(tenantId, userId);
   },
 
   // --- CATALOG & PRODUCTS ---

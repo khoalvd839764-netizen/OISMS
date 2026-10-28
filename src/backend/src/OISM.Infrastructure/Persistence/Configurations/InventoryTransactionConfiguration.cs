@@ -124,5 +124,17 @@ public class InventoryTransactionConfiguration : IEntityTypeConfiguration<Invent
             .WithMany()
             .HasForeignKey(t => new { t.TenantId, t.ReceiptItemId })
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(t => t.OrderItem)
+            .WithMany()
+            .HasForeignKey(t => new { t.TenantId, t.OrderItemId })
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne<InventoryAdjustmentItem>()
+            .WithMany()
+            .HasForeignKey(t => new { t.TenantId, t.AdjustmentItemId })
+            .HasConstraintName("fk_inventory_transactions_adjustment_item_id")
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

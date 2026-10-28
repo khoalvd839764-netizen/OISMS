@@ -1,0 +1,38 @@
+======================================================================
+1. BACKEND UNIT TESTS (OISM.UnitTests.csproj)
+Command: dotnet test src/backend/tests/OISM.UnitTests/OISM.UnitTests.csproj
+Result: Passed! - Failed: 0, Passed: 151, Skipped: 0, Total: 151, Duration: 1 s
+Features tested:
+- StockTransferService.GetTransfersAsync (Tenant isolation, status/branch filter, pagination)
+- StockTransferService.GetTransferByIdAsync (Full DTO mapping, tenant isolation, 404 on unknown)
+- StockCountService.GetStockCountsAsync (Tenant isolation, filter, pagination)
+- StockCountService.GetStockCountByIdAsync (Full DTO mapping, tenant isolation, 404 on unknown)
+- 146 existing unit tests for OrderService, Reports, WAC, Dtos, Barcodes, Auth.
+
+======================================================================
+2. BACKEND INTEGRATION TESTS (StockDocumentApiTests.cs)
+Command: dotnet test src/backend/tests/OISM.IntegrationTests/OISM.IntegrationTests.csproj --filter "FullyQualifiedName~StockDocumentApiTests"
+Result: Passed! - Failed: 0, Passed: 2, Skipped: 0, Total: 2, Duration: 4 s
+Features tested:
+- GET /api/stock-transfers: 401 Unauthorized for anonymous, 403 Forbidden for Cashier, 200 OK for Owner.
+- GET /api/stock-transfers/{missingId}: 404 Not Found ProblemDetails ("NOT_FOUND") for Owner, 403 Forbidden for Cashier.
+- GET /api/stock-counts: 401 Unauthorized for anonymous, 403 Forbidden for Cashier, 200 OK for Owner.
+- GET /api/stock-counts/{missingId}: 404 Not Found ProblemDetails ("NOT_FOUND") for Owner, 403 Forbidden for Cashier.
+
+======================================================================
+3. FRONTEND BUILD (Admin Dashboard)
+Command: npm --prefix src/frontend/admin-dashboard run build
+Result:
+> admin-dashboard@1.0.0 build
+> tsc -b && vite build
+
+vite v8.3.4 building client environment for production...
+transforming...
+✓ 2056 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.63 kB │ gzip:   0.41 kB
+dist/assets/index-E7HSV2f4.css   87.99 kB │ gzip:  17.26 kB
+dist/assets/index-pWir6HP-.js   688.67 kB │ gzip: 189.60 kB
+✓ built in 769ms
+Status: PASS (0 errors, 0 typecheck failures)

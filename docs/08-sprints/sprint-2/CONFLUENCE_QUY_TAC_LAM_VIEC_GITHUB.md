@@ -1,7 +1,7 @@
 # QUY TẮC CHUẨN MỰC LÀM VIỆC VỚI GITHUB (GIT WORKFLOW GUIDELINES)
 
 > **Dự án:** OISMS — Omnichannel Inventory & Sales Management System  
-> **Áp dụng cho:** Toàn bộ thành viên đội ngũ phát triển (Khoa, Thành viên 2, TV3, TV4, TV5)  
+> **Áp dụng cho:** Toàn bộ thành viên đội ngũ phát triển (Khoa, Nhựt, Phúc Hữu, Phương Lê, Nam Nguyễn)  
 > **Nền tảng quản lý:** Confluence / GitHub Repository (`khoalvd839764-netizen/OISMS`)  
 > **Cập nhật:** 19/10/2026 (Chuẩn hóa từ Sprint 2 trở đi)  
 

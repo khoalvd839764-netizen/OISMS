@@ -1,0 +1,170 @@
+[
+  {
+    "filename": "src/frontend/admin-dashboard/package-lock.json",
+    "status": "modified",
+    "additions": 188,
+    "deletions": 4
+  },
+  {
+    "filename": "src/frontend/admin-dashboard/package.json",
+    "status": "modified",
+    "additions": 2,
+    "deletions": 1
+  },
+  {
+    "filename": "src/frontend/admin-dashboard/src/App.tsx",
+    "status": "modified",
+    "additions": 7,
+    "deletions": 0
+  },
+  {
+    "filename": "src/frontend/admin-dashboard/src/components/AdminShell.tsx",
+    "status": "modified",
+    "additions": 63,
+    "deletions": 55
+  },
+  {
+    "filename": "src/frontend/admin-dashboard/src/components/NotificationCenter.tsx",
+    "status": "modified",
+    "additions": 102,
+    "deletions": 31
+  },
+  {
+    "filename": "src/frontend/admin-dashboard/src/components/orders/OrderDetailDrawer.tsx",
+    "status": "added",
+    "additions": 277,
+    "deletions": 0
+  },
+  {
+    "filename": "src/frontend/admin-dashboard/src/components/orders/OrdersFilter.tsx",
+    "status": "added",
+    "additions": 92,
+    "deletions": 0
+  },
+  {
+    "filename": "src/frontend/admin-dashboard/src/components/orders/OrdersTable.tsx",
+    "status": "added",
+    "additions": 138,
+    "deletions": 0
+  },
+  {
+    "filename": "src/frontend/admin-dashboard/src/components/stockCounts/CreateStockCountModal.tsx",
+    "status": "added",
+    "additions": 322,
+    "deletions": 0
+  },
+  {
+    "filename": "src/frontend/admin-dashboard/src/components/stockCounts/StockCountDetailDrawer.tsx",
+    "status": "added",
+    "additions": 449,
+    "deletions": 0
+  },
+  {
+    "filename": "src/frontend/admin-dashboard/src/components/stockCounts/StockCountsTable.tsx",
+    "status": "added",
+    "additions": 140,
+    "deletions": 0
+  },
+  {
+    "filename": "src/frontend/admin-dashboard/src/components/transfers/CreateTransferModal.tsx",
+    "status": "added",
+    "additions": 280,
+    "deletions": 0
+  },
+  {
+    "filename": "src/frontend/admin-dashboard/src/components/transfers/StockTransferTable.tsx",
+    "status": "added",
+    "additions": 89,
+    "deletions": 0
+  },
+  {
+    "filename": "src/frontend/admin-dashboard/src/components/transfers/TransferDetailDrawer.tsx",
+    "status": "added",
+    "additions": 248,
+    "deletions": 0
+  },
+  {
+    "filename": "src/frontend/admin-dashboard/src/pages/InventoryTransfersPage.tsx",
+    "status": "added",
+    "additions": 80,
+    "deletions": 0
+  },
+  {
+    "filename": "src/frontend/admin-dashboard/src/pages/OrdersPage.tsx",
+    "status": "modified",
+    "additions": 266,
+    "deletions": 468
+  },
+  {
+    "filename": "src/frontend/admin-dashboard/src/pages/ReportsPage.tsx",
+    "status": "modified",
+    "additions": 718,
+    "deletions": 221
+  },
+  {
+    "filename": "src/frontend/admin-dashboard/src/pages/StockCountsPage.tsx",
+    "status": "added",
+    "additions": 187,
+    "deletions": 0
+  },
+  {
+    "filename": "src/frontend/admin-dashboard/src/services/orderService.ts",
+    "status": "added",
+    "additions": 59,
+    "deletions": 0
+  },
+  {
+    "filename": "src/frontend/admin-dashboard/src/services/realtimeAdapter.ts",
+    "status": "modified",
+    "additions": 182,
+    "deletions": 2
+  },
+  {
+    "filename": "src/frontend/admin-dashboard/src/services/reportService.ts",
+    "status": "added",
+    "additions": 58,
+    "deletions": 0
+  },
+  {
+    "filename": "src/frontend/admin-dashboard/src/services/stockCountService.ts",
+    "status": "added",
+    "additions": 219,
+    "deletions": 0
+  },
+  {
+    "filename": "src/frontend/admin-dashboard/src/services/stockTransferService.ts",
+    "status": "added",
+    "additions": 181,
+    "deletions": 0
+  },
+  {
+    "filename": "src/frontend/admin-dashboard/src/types/ordersCenter.ts",
+    "status": "added",
+    "additions": 173,
+    "deletions": 0
+  },
+  {
+    "filename": "src/frontend/admin-dashboard/src/types/reports.ts",
+    "status": "added",
+    "additions": 79,
+    "deletions": 0
+  },
+  {
+    "filename": "src/frontend/admin-dashboard/src/types/stockCount.ts",
+    "status": "added",
+    "additions": 81,
+    "deletions": 0
+  },
+  {
+    "filename": "src/frontend/admin-dashboard/src/types/stockTransfer.ts",
+    "status": "added",
+    "additions": 56,
+    "deletions": 0
+  },
+  {
+    "filename": "test-auth.ps1",
+    "status": "added",
+    "additions": 311,
+    "deletions": 0
+  }
+]

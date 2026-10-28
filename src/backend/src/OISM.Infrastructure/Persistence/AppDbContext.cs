@@ -42,6 +42,14 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<Order> Orders { get; set; } = null!;
     public DbSet<OrderItem> OrderItems { get; set; } = null!;
     public DbSet<Reservation> Reservations { get; set; } = null!;
+    public DbSet<Payment> Payments { get; set; } = null!;
+    public DbSet<StockTransfer> StockTransfers { get; set; } = null!;
+    public DbSet<StockTransferItem> StockTransferItems { get; set; } = null!;
+    public DbSet<StockCount> StockCounts { get; set; } = null!;
+    public DbSet<StockCountItem> StockCountItems { get; set; } = null!;
+    public DbSet<InventoryAdjustment> InventoryAdjustments { get; set; } = null!;
+    public DbSet<InventoryAdjustmentItem> InventoryAdjustmentItems { get; set; } = null!;
+    public DbSet<ShopIntegration> ShopIntegrations { get; set; } = null!;
 
     public bool IsRelationalDatabase => Database.IsRelational();
 
@@ -126,6 +134,30 @@ public class AppDbContext : DbContext, IAppDbContext
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
 
         modelBuilder.Entity<Reservation>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<Payment>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<StockTransfer>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<StockTransferItem>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<StockCount>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<StockCountItem>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<InventoryAdjustment>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<InventoryAdjustmentItem>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<ShopIntegration>()
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
     }
 

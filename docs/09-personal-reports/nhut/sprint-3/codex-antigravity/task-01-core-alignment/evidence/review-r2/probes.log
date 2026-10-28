@@ -1,0 +1,37 @@
+  Determining projects to restore...
+  Restored D:\OISMS\tmp\codex-be2-t01-review-r2\probe\ReviewerProbes.csproj (in 2.3 sec).
+  5 of 6 projects are up-to-date for restore.
+  ReviewerProbes -> D:\OISMS\tmp\codex-be2-t01-review-r2\probe\bin\Release\net8.0\ReviewerProbes.dll
+Test run for D:\OISMS\tmp\codex-be2-t01-review-r2\probe\bin\Release\net8.0\ReviewerProbes.dll (.NETCoreApp,Version=v8.0)
+A total of 1 test files matched the specified pattern.
+[xUnit.net 00:00:19.16]     ReviewerProbes.Batch_MustNotProvisionIntegrationWithPredictableAnonymousCredential [FAIL]
+  Failed ReviewerProbes.Batch_MustNotProvisionIntegrationWithPredictableAnonymousCredential [233 ms]
+  Error Message:
+   Assert.Equal() Failure: Values differ
+Expected: Unauthorized
+Actual:   Created
+  Stack Trace:
+     at ReviewerProbes.Batch_MustNotProvisionIntegrationWithPredictableAnonymousCredential() in D:\OISMS\tmp\codex-be2-t01-review-r2\probe\ReviewerProbes.cs:line 198
+   at ReviewerProbes.Batch_MustNotProvisionIntegrationWithPredictableAnonymousCredential() in D:\OISMS\tmp\codex-be2-t01-review-r2\probe\ReviewerProbes.cs:line 198
+--- End of stack trace from previous location ---
+  Standard Output Messages:
+ {"beforeIntegrations":0,"afterIntegrations":1,"batchHttpStatus":200,"SuccessCount":1,"anonymousWebhookStatus":201,"anonymousOrderCount":1,"authorizationHeaderSent":false,"credentialWasKnownSourceConstant":true}
+
+
+[xUnit.net 00:00:26.19]     ReviewerProbes.SimulatorAdapter_DefaultTimestamp_MustApplyCanonicalValidation [FAIL]
+  Failed ReviewerProbes.SimulatorAdapter_DefaultTimestamp_MustApplyCanonicalValidation [56 ms]
+  Error Message:
+   Assert.IsType() Failure: Value is null
+Expected: typeof(OISM.Application.Common.Exceptions.OismException)
+Actual:   null
+  Stack Trace:
+     at ReviewerProbes.SimulatorAdapter_DefaultTimestamp_MustApplyCanonicalValidation() in D:\OISMS\tmp\codex-be2-t01-review-r2\probe\ReviewerProbes.cs:line 231
+   at ReviewerProbes.SimulatorAdapter_DefaultTimestamp_MustApplyCanonicalValidation() in D:\OISMS\tmp\codex-be2-t01-review-r2\probe\ReviewerProbes.cs:line 232
+--- End of stack trace from previous location ---
+  Standard Output Messages:
+ {"adapterErrorType":null,"canonicalHttpStatus":400,"adapterPersistedOrders":1}
+
+
+Results File: D:\OISMS\tmp\codex-be2-t01-review-r2\probe-results\Jacki_Khoa_KHOA_LE_2026-10-26_20_14_35_net8.0.trx
+
+Failed!  - Failed:     2, Passed:     2, Skipped:     0, Total:     4, Duration: 12 s - ReviewerProbes.dll (net8.0)

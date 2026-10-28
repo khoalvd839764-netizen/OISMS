@@ -43,7 +43,7 @@ sequenceDiagram
     API->>DB: Khóa số dư Kho B (FOR UPDATE)
     API->>DB: Tăng OnHand tại Kho B & Cập nhật WAC tại Kho B
     API->>DB: Ghi Sổ cái InventoryTransaction (Branch B, Type = IN, BalanceAfter)
-    API->>DB: Cập nhật trạng thái Phiếu chuyển -> Completed
+    API->>DB: Cập nhật trạng thái Phiếu chuyển -> Received
     API->>DB: COMMIT TRANSACTION
     API-->>StaffB: HTTP 200 OK (Hoàn tất chuyển kho 2 bước)
 ```

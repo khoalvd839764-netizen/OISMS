@@ -1,6 +1,6 @@
 # KẾ HOẠCH TÍCH HỢP GIAO DIỆN FIGMA VÀO FRONTEND ADMIN (WEB DASHBOARD)
 
-> **Người thực hiện:** Phúc Hữu (Thành viên 3 — Frontend Admin Lead)  
+> **Người thực hiện:** Phúc Hữu & Nam Nguyễn (Frontend Admin)  
 > **Dự án:** OISMS — Omnichannel Inventory & Sales Management System  
 > **Thư mục dự án:** `C:\Fontend\OISMS`  
 > **Thư mục mã nguồn Figma:** `C:\Users\ACER\Downloads\Interactive Prototype for OISM`  
@@ -11,9 +11,9 @@
 
 ---
 
-## 1. MỤC TIÊU & NHIỆM VỤ TRỌNG TÂM CỦA THÀNH VIÊN 3 (PHÚC HỮU)
+## 1. MỤC TIÊU & NHIỆM VỤ TRỌNG TÂM CỦA PHÂN HỆ WEB ADMIN DASHBOARD (PHÚC HỮU & NAM NGUYỄN)
 
-Căn cứ theo bản phân công nhiệm vụ Sprint 2 trên Confluence dự án OISMS, Thành viên 3 (Phúc Hữu) chịu trách nhiệm toàn diện việc tiếp nhận bản thiết kế Figma (Figma Make App) và hoàn thiện phân hệ **Web Admin Dashboard** với 4 trụ cột nghiệp vụ:
+Căn cứ theo bản phân công nhiệm vụ Sprint 2 trên Confluence dự án OISMS, Phúc Hữu cùng Nam Nguyễn chịu trách nhiệm toàn diện việc tiếp nhận bản thiết kế Figma (Figma Make App) và hoàn thiện phân hệ **Web Admin Dashboard** với 4 trụ cột nghiệp vụ:
 
 1. **Hoàn thiện Web Admin trên React 19, gỡ bỏ toàn bộ dữ liệu cứng / mặc định Owner:**
    - Chuyển đổi mã nguồn từ prototype Figma sang React 19 thuần, không dùng dữ liệu giả lập (mock data) gán sẵn.
@@ -365,7 +365,7 @@ export function ProtectedRoute({ allowedRoles }: { allowedRoles?: string[] }) {
 
 ## 4. CHECKLIST NGHIỆM THU KIỂM THỬ TỰ THỰC HIỆN (DEV SELF-TEST)
 
-Thành viên 3 (Phúc Hữu) đã tự thực hiện kiểm thử và xác nhận 12/12 tiêu chí nghiệm thu nghiêm ngặt:
+Phúc Hữu cùng Nam Nguyễn đã tự thực hiện kiểm thử và xác nhận 12/12 tiêu chí nghiệm thu nghiêm ngặt:
 
 - [x] **ST-01:** Chạy `npm run dev` trên cổng `5173` và `npm run build` thành công xuất sắc (< 300ms), 0 lỗi TypeScript, 0 cảnh báo lint.
 - [x] **ST-02:** Mở trình duyệt ẩn danh vào `http://localhost:5173/` $\rightarrow$ Tự động chuyển hướng về `/login` do chưa có token.
@@ -384,4 +384,4 @@ Thành viên 3 (Phúc Hữu) đã tự thực hiện kiểm thử và xác nhậ
 
 ## 5. KẾT LUẬN & ĐÓNG GÓI BÀN GIAO
 
-Bản kế hoạch này định hình rõ ràng từng bước thực thi cho Phúc Hữu từ việc tiếp nhận giao diện mẫu của Figma đến khi vận hành trơn tru với toàn bộ 33 API của hệ thống Backend OISM. Toàn bộ mã nguồn đã được tích hợp sạch sẽ, kiểm tra build production đạt chuẩn (`npm run build` $\rightarrow$ 285ms, 0 errors) và sẵn sàng bàn giao cho Thành viên 5 (Tester) và Trưởng nhóm (Lê Võ Đăng Khoa) nghiệm thu Sprint 2 & 3.
+Bản kế hoạch này định hình rõ ràng từng bước thực thi cho Phúc Hữu và Nam Nguyễn từ việc tiếp nhận giao diện mẫu của Figma đến khi vận hành trơn tru với toàn bộ 33 API của hệ thống Backend OISM. Toàn bộ mã nguồn đã được tích hợp sạch sẽ, kiểm tra build production đạt chuẩn (`npm run build` $\rightarrow$ 285ms, 0 errors) và sẵn sàng bàn giao cho Cả nhóm (Kiểm thử) và Trưởng nhóm (Lê Võ Đăng Khoa) nghiệm thu Sprint 2 & 3.

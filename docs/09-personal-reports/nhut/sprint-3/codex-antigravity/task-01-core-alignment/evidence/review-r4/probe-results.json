@@ -1,0 +1,48 @@
+{
+  "testedCommit": "ca6b5ce4d9ebe38836e9fbedef12e185c492a409",
+  "counters": {
+    "total": 6,
+    "executed": 6,
+    "passed": 6,
+    "failed": 0,
+    "aborted": 0
+  },
+  "tests": [
+    {
+      "name": "ReviewerProbes.SimulatorAdapter_DefaultTimestamp_MustApplyCanonicalValidation",
+      "outcome": "Passed",
+      "duration": "00:00:00.0293390",
+      "output": "{\"adapterErrorType\":\"OismException\",\"canonicalHttpStatus\":400,\"adapterPersistedOrders\":0}"
+    },
+    {
+      "name": "ReviewerProbes.SimulatorAdapter_NullItem_MustReachCanonicalValidation",
+      "outcome": "Passed",
+      "duration": "00:00:00.0298816",
+      "output": "{\"adapterErrorType\":\"OismException\",\"canonicalHttpStatus\":400,\"adapterPersistedOrders\":0}"
+    },
+    {
+      "name": "ReviewerProbes.SimulatorAdapter_MissingTimestamp_NewPayloadInstances_MustMatchCanonicalRejection",
+      "outcome": "Passed",
+      "duration": "00:00:00.2366252",
+      "output": "{\"firstErrorType\":\"OismException\",\"firstPayloadTimestampInjected\":false,\"retryErrorCode\":\"VALIDATION_ERROR\",\"retryErrorStatus\":400,\"canonicalHttpStatus\":400,\"adapterPersistedOrders\":0}"
+    },
+    {
+      "name": "ReviewerProbes.Batch_MustNotProvisionIntegrationWithPredictableAnonymousCredential",
+      "outcome": "Passed",
+      "duration": "00:00:00.6469734",
+      "output": "{\"beforeIntegrations\":0,\"afterIntegrations\":0,\"batchHttpStatus\":404,\"anonymousWebhookStatus\":401,\"anonymousOrderCount\":0,\"authorizationHeaderSent\":false,\"credentialWasKnownSourceConstant\":true}\r\n{\"legitimateSecretHttpStatus\":201}"
+    },
+    {
+      "name": "ReviewerProbes.ProcessEndpoint_OnRealPostgres_MustNotReturn500OrPartiallyConfirm",
+      "outcome": "Passed",
+      "duration": "00:00:00.3843101",
+      "output": "{\"httpStatus\":200,\"persistedStatus\":\"Confirmed\",\"OnHand\":8.000,\"Reserved\":0.000,\"outRows\":1,\"schemaConstraintInBody\":false,\"bodyStart\":\"{\\u0022shippingAddress\\u0022:null,\\u0022requestKey\\u0022:\\u00223be94d0f-0c2a-4cb6-9e94-c18d0b1375fc\\u0022,\\u0022items\\u0022:[{\\u0022id\\u0022:\\u0022900fffe6-ef85-4d2c-9612-09bf18ec9a3d\\u0022,\\u0022skuId\\u0022:\\u002211111111-0000-0000-0006-000000000001\\u0022,\\u0022skuCode\\u0022:\\u0022POLO-NAM-DEN-M\\u0022,\\u0022skuName\\u0022:\\u0022\\u00C1o Polo Nam Th\\u1EC3 Thao - \\u0110en / Size M\\u0022,\\u0022quantity\\u0022:2.000,\\u0022unitPrice\\u0022:299000.00,\\u0022costPrice\\u0022:100.000000,\\u0022totalLineAmount\\u0022:598000.00000}],\\u0022id\\u0022:\\u0022cae9375f-682e-4c85-b385-462357322cc4\\u0022,\\u0022number\\u0022:\\u0022ORD-20261026-0e44482\\u0022,\\u0022branchId\\u0022:\\u002211111111-0000-0000-0001-000000000001\\u0022,\\u0022branchName\\u0022:\\u0022Chi nh\\u00E1nh Qu\\u1EADn 1\\u0022,\\u0022channel\\u0022:\\u0022Admin\\u0022,\\u0022externalShopId\\u0022:null,\\u0022externalOrderId\\u0022:null,\\u0022status\\u0022:\\u0022Confirmed\\u0022,\\u0022customerName\\u0022:null,\\u0022customerPhone\\u0022:null,\\u0022totalAmount\\u0022:598000.00,\\u0022itemCount\\u0022:1,\\u0022createdAt\\u0022:\\u00222026-10-26T15:20:34.485885\\u002B00:00\\u0022,\\u0022confirmedAt\\u0022:\\u00222026-10-26T15:20:34.647261\\u002B00:00\\u0022,\\u0022completedAt\\u0022:null,\\u0022cancelledAt\\u0022:nul\"}"
+    },
+    {
+      "name": "ReviewerProbes.SimulatorAdapter_SameTotalChangedItems_MustRejectPayloadMismatch",
+      "outcome": "Passed",
+      "duration": "00:00:00.3705785",
+      "output": "{\"provider\":\"PostgreSQL\",\"configuredShop\":true,\"sameOrderReturned\":false,\"requestedQuantity\":2,\"returnedQuantity\":null,\"requestedUnitPrice\":50,\"returnedUnitPrice\":null,\"actualErrorType\":\"OismException\"}"
+    }
+  ]
+}

@@ -1,0 +1,142 @@
+[
+  {
+    "Algorithm": "SHA256",
+    "Hash": "3B27CCD19ED6F421A29F1DF70FDE4BFD4AC8C992C11209CB29E5A13A749600EA",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\src\\frontend\\admin-dashboard\\package-lock.json"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "F79EB77A0DEA3C361A90D4AFCB2C97A825E667D1BC730F35552610F4B982378D",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\src\\frontend\\admin-dashboard\\package.json"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "B76D0F781F21ACA5BA3CDFC757F9B799F7A39C1FF376F77A239830FE9547A1FB",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\src\\frontend\\admin-dashboard\\src\\App.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "9720E4E16395832E49D2447D86EF67C923F0267AFF939E65D49BCEE1EA55119F",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\src\\frontend\\admin-dashboard\\src\\components\\AdminShell.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "B4D4663F9D4D9F2430C2F2AE2CAEE736C0F6B0FA7F9FA758F754E7EA87643783",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\src\\frontend\\admin-dashboard\\src\\components\\NotificationCenter.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "9855EC26F0A29869CE001833F7249BED090EDA637D096449C52AC4F1C232F13A",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\src\\frontend\\admin-dashboard\\src\\components\\orders\\OrderDetailDrawer.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "4ED2D1DA8869189DE88FF4618F06EC8F841845F01C9015EE36E4011EFA84BFEC",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\src\\frontend\\admin-dashboard\\src\\components\\orders\\OrdersFilter.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "4EFAFEE08609C85A07CF76AA9D085AF91F607555C135720E131568EA81CC9BDD",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\src\\frontend\\admin-dashboard\\src\\components\\orders\\OrdersTable.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "125ADF0BA4252B41DC0AF0174669D7E03637CD2804ECF93DEAE489F940BF9EE7",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\src\\frontend\\admin-dashboard\\src\\components\\stockCounts\\CreateStockCountModal.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "FAF95847508A1B61FB2506B3BD7B09E1B31B8F26FFEBD5F1F752C17A3CB530C6",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\src\\frontend\\admin-dashboard\\src\\components\\stockCounts\\StockCountDetailDrawer.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "19436B531708506AA0A079EC234EA7166FA9D13AFABB8E6D9394A5B352709B39",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\src\\frontend\\admin-dashboard\\src\\components\\stockCounts\\StockCountsTable.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "DF81825AD19057F0F95EA828360B6BDFAB6335889E76DF43C28D793142EC24B0",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\src\\frontend\\admin-dashboard\\src\\components\\transfers\\CreateTransferModal.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "6F8F1E2DA37E59C552E575EAF269A58E3C1E1BACAF2CE87A790540A1293293E8",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\src\\frontend\\admin-dashboard\\src\\components\\transfers\\StockTransferTable.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "6CEAB158872993BE10FB5596BD249188FBB8DE2F1017220A5A2F678F817ACD86",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\src\\frontend\\admin-dashboard\\src\\components\\transfers\\TransferDetailDrawer.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "5CCE28958E1224976D64FD0D7AE3E5A5C0C48998E6406E3A8E139CFB5394C90C",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\src\\frontend\\admin-dashboard\\src\\pages\\InventoryTransfersPage.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "8FF08E591245C0826114C49C57175C7945BB95B837C99B320635BFD0A70FBB7F",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\src\\frontend\\admin-dashboard\\src\\pages\\OrdersPage.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "4EF0EF2C3BCC3F895E67CD6E8C39811F805038F6855B1545F16626B373821451",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\src\\frontend\\admin-dashboard\\src\\pages\\ReportsPage.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "717FAF83E2250521CC1BECE86ED92821694BD32BBC06A2BA054AC478EBE86F49",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\src\\frontend\\admin-dashboard\\src\\pages\\StockCountsPage.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "717744CC1682C5A3293F8493B3B5D1C8D5FB0D976E64EC3E9F59D4FF0F2E100A",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\src\\frontend\\admin-dashboard\\src\\services\\orderService.ts"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "93E86C25ADF098638ED730CF97BFE28D7755FC070113728CC9D29F5409F160B0",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\src\\frontend\\admin-dashboard\\src\\services\\realtimeAdapter.ts"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "DBCFB929DF672E58EF795E25AD3730132377BF4236E33A935D92DA79EBAAA797",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\src\\frontend\\admin-dashboard\\src\\services\\reportService.ts"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "253BE4A4C4B46C5796EEA623C6C40257BEB5AF99FB58D15855C563ED76673111",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\src\\frontend\\admin-dashboard\\src\\services\\stockCountService.ts"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "5096B0DFF2509230DE641B2D7A6B0C275F7A6C9CF6353EF5C851471D72BC1D43",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\src\\frontend\\admin-dashboard\\src\\services\\stockTransferService.ts"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "5EF40BB4096E728006F148D1A2A8B26EF6FBCE38F2D8B910F78B3D67A3EA6D8A",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\src\\frontend\\admin-dashboard\\src\\types\\ordersCenter.ts"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "BC0B7A50A9CE19C5D348251978611F5897B8FC51F4BD2B03C66C57D49E3B39C2",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\src\\frontend\\admin-dashboard\\src\\types\\reports.ts"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "23AEC6ED762184768104D9CC00B2E54B384A5CCB9DE3DEC0B79990E2F140F98B",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\src\\frontend\\admin-dashboard\\src\\types\\stockCount.ts"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "894C0DE88DD42A8A76746CA1BF3DC6861A212CBB0D2468894A63806999576E50",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\src\\frontend\\admin-dashboard\\src\\types\\stockTransfer.ts"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "D8AB62F0E3265CEE98E41363E01ACEE502362B4BCD04CB224C294493BA9CE017",
+    "Path": "D:\\OISMS\\tmp\\pr26-review\\snapshot\\OISMS-403431446d213bbbf7f27d01b9622672f2fa4653\\test-auth.ps1"
+  }
+]

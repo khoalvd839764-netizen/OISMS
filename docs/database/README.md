@@ -837,18 +837,21 @@ Kiểm kê SKU tại kho; đối chiếu số dư và sequence của kho, cập 
 |---|---|---|---|
 | `id` (PK) | `uuid` | Có | `gen_random_uuid()` |
 | `tenant_id` | `uuid` | Có | Backend phải cung cấp |
-| `number` | `varchar(50)` | Có | Backend phải cung cấp |
+| `number` | `varchar(50)` | Có | Backend phải cung cấp (`CNT-yyyyMMdd-XXXXX`) |
+| `request_key` | `uuid` | Không | Backend cung cấp cho tạo mới (UUID) |
+| `payload_signature` | `varchar(128)` | Không | Hash SHA-256 canonical payload kiểm soát Idempotency |
 | `branch_id` | `uuid` | Có | Backend phải cung cấp |
 | `warehouse_id` | `uuid` | Có | Backend phải cung cấp |
 | `status` | `varchar(20)` | Có | `'Draft'` |
 | `created_by` | `uuid` | Có | Backend phải cung cấp |
 | `confirmed_by` | `uuid` | Không | Backend cung cấp khi có giá trị |
 | `confirmed_at` | `timestamptz` | Không | Backend cung cấp khi có giá trị |
+| `generated_adjustment_id` | `uuid` | Không | Liên kết 1-1 với `inventory_adjustments` sinh ra khi chốt |
 | `note` | `text` | Không | Backend cung cấp khi có giá trị |
 | `created_at` | `timestamptz` | Có | `now()` |
 | `updated_at` | `timestamptz` | Không | Backend cung cấp khi có giá trị |
 
-**UNIQUE:** `(tenant_id, id)`; `(tenant_id, number)`.
+**UNIQUE:** `(tenant_id, id)`; `(tenant_id, number)`; `(tenant_id, request_key)` (khi không null); `(tenant_id, generated_adjustment_id)` (khi không null).
 
 **Quan hệ FK:**
 
@@ -857,6 +860,7 @@ Kiểm kê SKU tại kho; đối chiếu số dư và sequence của kho, cập 
 - `(tenant_id, warehouse_id, branch_id)` → `warehouses(tenant_id, id, branch_id)`.
 - `(tenant_id, created_by)` → `users(tenant_id, id)`.
 - `(tenant_id, confirmed_by)` → `users(tenant_id, id)`.
+- `(tenant_id, generated_adjustment_id, branch_id, warehouse_id)` → `inventory_adjustments(tenant_id, id, branch_id, warehouse_id)`.
 
 **CHECK:**
 
@@ -903,7 +907,7 @@ Chứng từ tối thiểu cho bút toán bù/số dư đầu kỳ chi nhánh th
 |---|---|---|---|
 | `id` (PK) | `uuid` | Có | `gen_random_uuid()` |
 | `tenant_id` | `uuid` | Có | Backend phải cung cấp |
-| `number` | `varchar(50)` | Có | Backend phải cung cấp |
+| `number` | `varchar(50)` | Có | Backend phải cung cấp (`ADJ-yyyyMMdd-XXXXX`) |
 | `branch_id` | `uuid` | Có | Backend phải cung cấp |
 | `warehouse_id` | `uuid` | Có | Backend phải cung cấp |
 | `reason` | `text` | Có | Backend phải cung cấp |
@@ -914,7 +918,7 @@ Chứng từ tối thiểu cho bút toán bù/số dư đầu kỳ chi nhánh th
 | `created_at` | `timestamptz` | Có | `now()` |
 | `updated_at` | `timestamptz` | Không | Backend cung cấp khi có giá trị |
 
-**UNIQUE:** `(tenant_id, id)`; `(tenant_id, number)`.
+**UNIQUE:** `(tenant_id, id)`; `(tenant_id, number)`; `(tenant_id, id, branch_id, warehouse_id)`.
 
 **Quan hệ FK:**
 
@@ -980,6 +984,7 @@ Tăng/giảm có lý do, có thể liên kết giao dịch cần bù; không s�
 | `shipping_address` | `text` | Không | Backend cung cấp khi có giá trị |
 | `total_amount` | `numeric(20,2)` | Có | `0` |
 | `request_key` | `uuid` | Có | Backend phải cung cấp |
+| `webhook_payload_signature` | `varchar(64)` | Không | SHA-256 canonical payload hash của đơn TMĐT |
 | `created_by` | `uuid` | Không | Backend cung cấp khi có giá trị |
 | `confirmed_at` | `timestamptz` | Không | Backend cung cấp khi có giá trị |
 | `completed_at` | `timestamptz` | Không | Backend cung cấp khi có giá trị |
@@ -1292,5 +1297,37 @@ FR-REP: tổng hợp theo ngày, chi nhánh, kênh và SKU.
 - `horizon_days > 0`.
 - `predicted_quantity >= 0`.
 - `suggested_quantity >= 0`.
+
+### 30. `shop_integrations`
+
+Lưu cấu hình kết nối gian hàng sàn thương mại điện tử (Shopee, TikTok, Lazada) theo từng chi nhánh fulfillment.
+
+| Cột | Kiểu PostgreSQL | Bắt buộc | Mặc định / cách ghi |
+|---|---|---|---|
+| `id` (PK) | `uuid` | Có | `gen_random_uuid()` |
+| `tenant_id` | `uuid` | Có | Backend phải cung cấp |
+| `channel` | `varchar(20)` | Có | Kênh bán: 'Shopee', 'TikTok', 'Lazada' |
+| `external_shop_id` | `varchar(100)` | Có | Mã Shop phía sàn TMĐT |
+| `branch_id` | `uuid` | Có | Chi nhánh phụ trách fulfillment |
+| `is_active` | `boolean` | Có | `true` |
+| `secret_hash` | `varchar(255)` | Có | Băm SHA-256 kèm salt của Webhook Secret |
+| `created_at` | `timestamptz` | Có | `now()` |
+| `updated_at` | `timestamptz` | Có | `now()` |
+
+**UNIQUE:** `(tenant_id, id)`; `(tenant_id, channel, external_shop_id)`; `uq_shop_integrations_secret_hash (secret_hash)` (ràng buộc 1:1, ngăn chặn trùng lặp hoặc chia sẻ credential giữa các gian hàng / tenant).
+
+**Quan hệ FK:**
+
+- `(tenant_id)` → `tenants(id)`.
+- `(tenant_id, branch_id)` → `branches(tenant_id, id)`.
+
+**CHECK:**
+
+- `channel IN ('Shopee', 'TikTok', 'Lazada')`.
+
+**Phân quyền Runtime Role (`oisms_runtime`):**
+
+- `REVOKE ALL ON public.shop_integrations FROM PUBLIC;`
+- `GRANT SELECT, INSERT, UPDATE, DELETE ON public.shop_integrations TO oisms_runtime;`
 
 <!-- DATABASE_DICTIONARY_END -->

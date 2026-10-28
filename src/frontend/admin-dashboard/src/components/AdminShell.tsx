@@ -17,6 +17,8 @@ import {
   Store,
   WifiOff,
   X,
+  ArrowLeftRight,
+  ClipboardCheck,
 } from "lucide-react";
 import { Button } from "./ui";
 import { useAuth } from "../context/AuthContext";
@@ -26,6 +28,8 @@ const nav = [
   { to: "/admin", label: "Tổng quan", icon: LayoutDashboard },
   { to: "/products", label: "Sản phẩm", icon: PackageSearch },
   { to: "/inventory", label: "Kho & sổ kho", icon: Boxes },
+  { to: "/inventory/transfers", label: "Chuyển kho", icon: ArrowLeftRight },
+  { to: "/inventory/counts", label: "Kiểm kê kho", icon: ClipboardCheck },
   { to: "/orders", label: "Đơn đa kênh", icon: ShoppingBag },
   { to: "/reports", label: "Báo cáo", icon: ChartNoAxesCombined },
 ];
@@ -60,10 +64,14 @@ export function AdminShell() {
     "/admin/products": "Sản phẩm",
     "/inventory": "Kho & sổ kho",
     "/admin/inventory": "Kho & sổ kho",
+    "/inventory/transfers": "Chuyển kho nội bộ (2 Bước)",
+    "/admin/inventory/transfers": "Chuyển kho nội bộ (2 Bước)",
+    "/inventory/counts": "Kiểm kê kho & cân bằng tồn",
+    "/admin/inventory/counts": "Kiểm kê kho & cân bằng tồn",
     "/orders": "Đơn đa kênh",
     "/admin/orders": "Đơn đa kênh",
-    "/reports": "Báo cáo",
-    "/admin/reports": "Báo cáo",
+    "/reports": "Báo cáo tài chính & tồn kho",
+    "/admin/reports": "Báo cáo tài chính & tồn kho",
     "/demo-tools": "Công cụ demo",
     "/handoff": "Handoff kỹ thuật",
     "/admin/handoff": "Handoff kỹ thuật",
@@ -162,90 +170,90 @@ export function AdminShell() {
           >
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <WifiOff size={18} />
-              <span>
-                <strong>Lỗi mất kết nối mạng:</strong> {networkError}
-              </span>
+              <span>{networkError}</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
               <button
-                type="button"
                 onClick={() => window.location.reload()}
                 style={{
-                  background: "rgba(255,255,255,0.2)",
-                  border: "1px solid rgba(255,255,255,0.4)",
-                  color: "#fff",
+                  background: "#ffffff",
+                  color: "#dc2626",
+                  border: "none",
                   padding: "4px 12px",
-                  borderRadius: "6px",
+                  borderRadius: "4px",
+                  fontWeight: 600,
+                  fontSize: "12px",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
-                  gap: "6px",
-                  fontSize: "12px",
-                  fontWeight: 600,
+                  gap: "4px",
                 }}
               >
-                <RefreshCw size={14} /> Thử lại
+                <RefreshCw size={12} /> Tải lại trang
               </button>
               <button
-                type="button"
                 onClick={() => setNetworkError(null)}
                 style={{
-                  background: "none",
-                  border: "none",
-                  color: "#fff",
+                  background: "transparent",
+                  color: "#ffffff",
+                  border: "1px solid rgba(255,255,255,0.4)",
+                  padding: "4px 8px",
+                  borderRadius: "4px",
+                  fontSize: "12px",
                   cursor: "pointer",
-                  padding: "4px",
                 }}
-                title="Đóng cảnh báo"
               >
-                <X size={16} />
+                Đóng
               </button>
             </div>
           </div>
         )}
-
         <header className="topbar">
-          <div className="top-left">
-            <Button variant="ghost" className="menu-button" onClick={() => setOpen(true)}>
-              <Menu size={21} />
+          <div className="topbar-left">
+            <Button variant="ghost" className="mobile-toggle" onClick={() => setOpen(true)}>
+              <Menu size={20} />
             </Button>
-            <span className="crumb">{account.tenantName}</span>
-            <span>/</span>
-            <strong>{current}</strong>
+            <div className="search-box">
+              <Search size={18} />
+              <input placeholder="Tra cứu SKU, đơn hàng đa kênh, barcode..." />
+            </div>
           </div>
 
-          <div className="top-actions">
-            <div className="global-search">
-              <Search size={17} />
-              <span>Tìm nhanh</span>
-              <kbd>⌘ K</kbd>
-            </div>
-            <button className="branch-picker" type="button">
-              <Store size={17} />
-              <span>{account.branchName}</span>
-              <ChevronDown size={15} />
-            </button>
-            <NotificationCenter />
-            <div className="avatar">{account.initials}</div>
-            <div className="user-meta">
-              <strong>{account.name}</strong>
-              <span>{account.role}</span>
-            </div>
-            <Button
-              variant="ghost"
-              aria-label="Đăng xuất"
-              title="Đăng xuất"
-              onClick={async () => {
-                await logout();
-                navigate("/login");
-              }}
-            >
-              <LogOut size={18} />
+          <div className="topbar-right">
+            <Button variant="secondary" className="pos-btn" onClick={() => navigate("/pos")}>
+              <Store size={18} />
+              <span>Mở Web POS</span>
             </Button>
+            <NotificationCenter />
+            <div className="profile-chip">
+              <span className="avatar">{account.initials}</span>
+              <div className="profile-chip-text">
+                <strong>{account.name}</strong>
+                <small>
+                  {account.role === "Owner"
+                    ? "Chủ cửa hàng (Owner)"
+                    : account.role === "Staff"
+                    ? "Nhân viên kho (Staff)"
+                    : "Thu ngân (Cashier)"}{" "}
+                  · {account.branchName}
+                </small>
+              </div>
+              <button
+                className="profile-logout-btn"
+                title="Đăng xuất khỏi hệ thống"
+                aria-label="Đăng xuất"
+                onClick={async () => {
+                  await logout();
+                  navigate("/login", { replace: true });
+                }}
+              >
+                <LogOut size={16} />
+              </button>
+            </div>
           </div>
         </header>
 
-        <main className="content">
+        <main className="main-content">
           <Outlet />
         </main>
       </div>
