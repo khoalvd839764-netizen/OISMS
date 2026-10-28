@@ -1,0 +1,16 @@
+  OISM.Domain -> D:\OISMS\src\backend\src\OISM.Domain\bin\Debug\net8.0\OISM.Domain.dll
+  OISM.Application -> D:\OISMS\src\backend\src\OISM.Application\bin\Debug\net8.0\OISM.Application.dll
+  OISM.Infrastructure -> D:\OISMS\src\backend\src\OISM.Infrastructure\bin\Debug\net8.0\OISM.Infrastructure.dll
+  OISM.UnitTests -> D:\OISMS\src\backend\tests\OISM.UnitTests\bin\Debug\net8.0\OISM.UnitTests.dll
+Test run for D:\OISMS\src\backend\tests\OISM.UnitTests\bin\Debug\net8.0\OISM.UnitTests.dll (.NETCoreApp,Version=v8.0)
+A total of 1 test files matched the specified pattern.
+Results File: D:\OISMS\docs\bug-fixaffter\evidence\backend\backend-audit_net8.0_20261028235825.trx
+
+Passed!  - Failed:     0, Passed:   158, Skipped:     0, Total:   158, Duration: 2 s - OISM.UnitTests.dll (net8.0)
+  OISM.WebApi -> D:\OISMS\src\backend\src\OISM.WebApi\bin\Debug\net8.0\OISM.WebApi.dll
+  OISM.IntegrationTests -> D:\OISMS\src\backend\tests\OISM.IntegrationTests\bin\Debug\net8.0\OISM.IntegrationTests.dll
+Test run for D:\OISMS\src\backend\tests\OISM.IntegrationTests\bin\Debug\net8.0\OISM.IntegrationTests.dll (.NETCoreApp,Version=v8.0)
+A total of 1 test files matched the specified pattern.
+Results File: D:\OISMS\docs\bug-fixaffter\evidence\backend\backend-audit_net8.0_20261029001914.trx
+
+Passed!  - Failed:     0, Passed:   285, Skipped:     0, Total:   285, Duration: 20 m 45 s - OISM.IntegrationTests.dll (net8.0)

@@ -1,0 +1,30 @@
+[
+  {
+    "Path": "scratch/test_regression_v12.cjs",
+    "SHA256": "0945F5B7523E72361603D1F52DEA8F7095A658D1CC2E1CBEE7F79D297DFA9BD4"
+  },
+  {
+    "Path": "src/backend/tests/OISM.IntegrationTests/StockDocumentApiTests.cs",
+    "SHA256": "3251A286817953D88A4424875855A2793CAE3C7EA41062C2AA25582BC820975A"
+  },
+  {
+    "Path": "src/frontend/admin-dashboard/src/pages/OrdersPage.tsx",
+    "SHA256": "4F330C076C1CF52753107F0A18FC5AD187BCCD2EFE51CB63F041D34880AEF496"
+  },
+  {
+    "Path": "src/frontend/admin-dashboard/src/components/orders/OrderDetailDrawer.tsx",
+    "SHA256": "D8064E0CC0B58515A445B851ADDA2EEB000F71A06D4214CECB0F32699292425D"
+  },
+  {
+    "Path": "src/frontend/admin-dashboard/src/pages/StockCountsPage.tsx",
+    "SHA256": "EECFD914BE9A1E4E74CAE71D64ECED07C60F8FDD75D0010A6194D991E4584170"
+  },
+  {
+    "Path": "src/frontend/admin-dashboard/src/services/stockTransferService.ts",
+    "SHA256": "3F5AA27331650F3AA16D86BA388333F5CB9EB5F3BBCA686DD7B626785931CFE8"
+  },
+  {
+    "Path": "src/frontend/admin-dashboard/src/services/stockCountService.ts",
+    "SHA256": "44ADFFA9EEC1BF9C7A886553DD133ABAFC95A5559853D2DFB458DBDC5A3232A7"
+  }
+]

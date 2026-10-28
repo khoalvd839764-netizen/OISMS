@@ -1,55 +1,95 @@
-# Plan hoàn thiện Frontend Admin — PR26 / v1.1
+# Plan hoàn thiện sản phẩm Admin — v2.0 / ưu tiên luồng cơ bản
 
-Ngày 28/10/2026. Trạng thái **PLANNED — chờ hoàn tất POS** theo yêu cầu người dùng. Đây là kế hoạch cho phần Admin của Phúc Hữu, không thay kế hoạch POS và không bắt đầu implementation trong lượt này.
+Ngày 28/10/2026. **CORE_PLANNED — chưa chạy smoke toàn sản phẩm trong lượt lập kế hoạch này.**
 
-Cập nhật v1.1 theo yêu cầu người dùng: **gộp 6 hạng mục A01–A06 thành 3 đợt B01–B03** để giảm số lần bàn giao/review và kiểm thử lặp. Giữ toàn bộ AC và mã finding; A01–A06 bên dưới là nhóm công việc để truy vết, không còn là 6 task phải nghiệm thu riêng.
+Theo chỉ đạo mới của người dùng: ưu tiên sản phẩm chạy được các luồng cơ bản; sửa lỗi và hoàn thiện evidence sâu sau. Kế hoạch này thay thứ tự điều phối v1.x: **không chờ B01 VERIFIED hoặc đóng hết E01/E02 mới triển khai luồng kho/báo cáo độc lập**. Giữ nguyên lịch sử review, ID finding và AC đầy đủ bên dưới; không tự biến finding chưa sửa thành CLOSED.
 
-## Mục tiêu và điều kiện bắt đầu
+## Thứ tự ưu tiên đã làm rõ
 
-Admin thực hiện đơn hàng, chuyển kho, kiểm kê, báo cáo và realtime bằng dữ liệu server thật; không coi local fallback hoặc build xanh là nghiệp vụ đã đạt. Đầu vào [review R1](./reviews/pr26-review-r1.md), PR26-F01..F08 OPEN.
+Theo làm rõ của người dùng: **hoàn thiện các phần/tầng cơ bản trước, rồi fix lỗi quan trọng tập trung**. Tái sử dụng kiến trúc/engine hiện có, không xây lại các tầng backend hay database.
 
-1. POS hoàn tất B02 và B03, có nghiệm thu các AC bắt buộc và trạng thái tích hợp rõ ràng. Không coi B01 đã VERIFIED hoặc B02 chỉ READY_FOR_REVIEW là POS xong.
-2. Bảo toàn/persist toàn bộ working tree POS và tài liệu trước khi chuyển nhánh; không checkout/reset/clean ghi đè để lấy code Admin. Không tự thao tác git trong plan này.
-3. Tại lúc bắt đầu, đọc lại AGENTS/skill, fetch/read trạng thái mới, pin branch/head/develop thực tế và review diff mới. Làm fix trên `feature/OISMS-43-orders-transfers`; không làm Admin trên nhánh POS. Snapshot R1 chỉ là bằng chứng, không copy đè lên branch mới.
-4. Nếu POS tích hợp vào develop sau review này, đưa thay đổi develop vào nhánh Admin theo quy tắc repo và giải quyết conflict có đối chiếu cả hai bên. Chạy lại regression bị ảnh hưởng; không mặc định giữ hết phía nào.
+1. **Hoàn thiện nền tảng:** đủ màn hình, form, service/API mapping và dữ liệu nền cần cho Orders/Transfers/Counts/Reports; nối endpoint hiện có. Không dừng xây phần độc lập để đóng hết finding ở module trước.
+2. **Nối và thử luồng cơ bản:** thực hiện C0–C5 để biết phần nào chạy, phần nào thiếu. Ghi cả bug quan trọng theo ID/ảnh hưởng; lỗi chặn thao tác chỉ sửa tối thiểu đủ để tiếp tục thử, hoặc đánh dấu luồng BLOCKED rồi làm module độc lập khác. Chưa có nghĩa các luồng đều PASS.
+3. **Ổn định tập trung:** sau khi nền tảng và wiring đã đủ, gom sửa lỗi quan trọng: dữ liệu/quyền/idempotency/tồn, rồi lỗi chức năng chính. Chạy lại đúng luồng chịu tác động, một lần bàn giao/review tổng hợp. Lỗi phụ tiếp tục backlog.
 
-Baseline tham chiếu: PR26 head `403431446d213bbbf7f27d01b9622672f2fa4653`, develop `ecc0c85c7d6f81841d8138ff61ae40d33ef013d2`, ahead 3/behind 0 lúc R1. Hiện PR trỏ main; feature thực 28 files so develop. [Metadata/evidence](./evidence/pr26-r1/README.md). Không dùng SHA này thay cho head mới ở lượt triển khai.
+Các nhãn P0-CORE và yêu cầu sửa trước PASS trong bảng dưới xác định ưu tiên của **đợt ổn định và điều kiện kết luận**, không bắt dừng xây dựng toàn bộ các tầng ở bước 1–2. Chỉ xác nhận CORE_READY_WITH_KNOWN_ISSUES sau bước 3 khi không còn lỗi quan trọng về dữ liệu/quyền hoặc chặn core flow; trước đó báo CORE_IN_PROGRESS/PARTIAL_CORE và lỗi còn mở đúng thực tế.
+## Mốc cần đạt và cách báo trạng thái
 
-Nguồn yêu cầu: `docs/08-sprints/sprint-3/README.md`, FR Order/Inventory/Reports/SignalR, `docs/05-api-contracts/`, backend DTO/controller/service hiện hành, quy tắc GitHub ở Sprint 2; báo cáo nền `docs/09-personal-reports/phuc-huu/sprint-2/S2_ADMIN_REPORT_2026-10-18.md`. Đọc nguồn liên quan từng task, không audit toàn repo lại.
+- **Mốc 1 — CORE_READY_WITH_KNOWN_ISSUES:** một bộ Admin/backend/PostgreSQL đúng phiên bản chạy được toàn bộ checklist luồng cơ bản bên dưới; có hạn chế công khai và backlog. Đây là mốc sử dụng nội bộ/dev-test, không đồng nghĩa nghiệm thu đầy đủ Sprint/production.
+- **Mốc 2 — VERIFIED đầy đủ:** xử lý backlog cần thiết và đạt AC gốc/DoD dự án, integration/provider/CI theo phạm vi. Giữ [DoD dự án](../../../../06-testing-and-qa/04-acceptance-criteria-dod.md); không sửa quy tắc toàn repo trong task lập plan này.
+- Trước khi đủ mốc 1, báo từng luồng PASS/BLOCKED/NOT RUN. Nếu chỉ một phần chạy, dùng **PARTIAL_CORE**, chỉ rõ luồng dùng được; không báo toàn sản phẩm đã sẵn sàng.
+- Không trì hoãn lỗi đã tái hiện làm mất/sai dữ liệu, rò tenant/quyền, tạo chứng từ trùng, giữ/trừ tồn sai hoặc giả thành công. Có thể hoãn tính năng phụ và vô hiệu hóa an toàn phần chưa dùng được; ví dụ tắt realtime lỗi phiên và dùng refetch thủ công. Không cấp thêm quyền hoặc giấu lỗi API để đi tiếp.
 
-## Ba đợt triển khai và nghiệm thu
+## Baseline và phạm vi
 
-| Đợt | Phạm vi gộp / AC gốc | Kết quả và finding | Phụ thuộc / trạng thái |
-| --- | --- | --- | --- |
-| **S3-ADMIN-B01 — Contract, API đọc và đơn hàng** | A01-AC-01..04 + A02-AC-01..04 | API đọc chứng từ thật, session/context contract; Orders tạo/giữ chỗ/duyệt/hủy/in. Đóng F04, chuẩn bị nền cho F02/F06. | Sau POS; **PLANNED** |
-| **S3-ADMIN-B02 — Chuyển kho và kiểm kê** | A03-AC-01..04 + A04-AC-01..04 | Hai luồng kho dùng API thật, state machine/retry nhất quán, lưu/chốt đúng số đếm, drift. Đóng F01/F03/F05/F06. | B01; **PLANNED** |
-| **S3-ADMIN-B03 — Báo cáo, realtime và nghiệm thu cuối** | A05-AC-01..04 + A06-AC-01..05 | Dashboard/report/filter; Hub theo phiên/branch, reconnect; E2E liên thông POS và PR develop. Đóng F02/F07/F08 và kiểm tra trạng thái mọi finding. | B01–B02; **PLANNED** |
+Làm trên `feature/OISMS-43-orders-transfers`, head tham chiếu `f276eeed72782f7272f32a62f4bb61ba761f3e89` + working tree v1.4. Pin lại source khi bắt đầu; bảo toàn skill, tài liệu, test và artifact đang có. Develop đã fetch ở lượt trước là `ecc0c85`, không coi là mới nhất mãi.
 
-Mỗi đợt **một prompt, một brief, một handover và một review tổng hợp**. Bên trong đợt, Anti tự kiểm tra và sửa các phần liên quan trước khi bàn giao, không dừng chờ Codex nghiệm thu từng hạng mục A. Ví dụ B01 hoàn thiện query contract trước khi nối/test UI; đây là thứ tự kỹ thuật trong cùng đợt, không tách thành hai vòng review. Chỉ triển khai đợt sau khi đợt trước được nghiệm thu.
+Đã có: query API đọc chuyển kho/kiểm kê; component tests **13/13 PASS**, sensitivity **2/2 PASS** tại review v1.4; HTTP PostgreSQL **3/3 PASS** reviewer v1.3, hash liên quan không đổi ở v1.4. Đây là đầu vào được tái sử dụng, không phải kết quả smoke toàn sản phẩm. Xem [review v1.4](./batch-01-contract-orders/reviews/v1.4-review.md).
 
-Chọn 3 đợt để giữ ba kết quả có thể đánh giá riêng: dữ liệu/đơn hàng, nghiệp vụ kho, tích hợp cuối. Hai đợt sẽ gom nhiều luồng contract/stock/realtime vào cùng một lần debug hơn. Số vòng sửa phụ thuộc lỗi tìm thấy, không mặc định mỗi đợt phải qua 3 vòng hoặc đủ số vòng thì tự đạt.
+POS tại nhánh riêng `feature/OISMS-44-pos-pwa-checkout-va-in-hoa-don`, head tham chiếu `ee68bad`, đã được tài liệu POS ghi VERIFIED; chưa là ancestor của Admin tại lần đối chiếu trước. Chạy bản POS đó cùng backend tương thích để smoke liên thông; không tự merge toàn nhánh chỉ để có bản demo. Nếu cần tích hợp source, đối chiếu phạm vi/contract và bảo toàn thay đổi trước khi quyết định cách tích hợp.
 
-Bảng dưới chỉ giữ mapping công việc cũ; **không tạo handover/review riêng cho A01–A06**:
+Phạm vi sản phẩm: Admin auth/session, dữ liệu nền sẵn có, đơn hàng, chuyển kho, kiểm kê, báo cáo/dashboard, kết nối POS và realtime ở mức phù hợp. Tái sử dụng API/engine hiện có; không viết lại backend tồn/ledger/WAC, thêm module nghiệp vụ, migration hoặc đổi policy quyền để lấp chỗ trống. Bug backend trực tiếp chặn luồng phải có repro/contract và phương án sửa giới hạn; không âm thầm mở rộng thành refactor.
 
-| Hạng mục | Kết quả cần đạt | Finding chính | Thuộc đợt |
-| --- | --- | --- | --- |
-| A01 | Khóa contract/session và API đọc chứng từ thật | F04; chuẩn bị F02/F06 | B01 |
-| A02 | Orders Center và luồng tạo/duyệt/hủy/in thật | Regression Orders, yêu cầu FR-ORD-03 | B01 |
-| A03 | Chuyển kho 2 bước đúng state, không giả thành công | F01/F05, phần transfer F06 | B02 |
-| A04 | Kiểm kê lưu/chốt đúng số đếm, drift/retry an toàn | F03, phần count F06 | B02 |
-| A05 | Dashboard/báo cáo/filter/role và thời gian đúng | Các gate report còn thiếu | B03 |
-| A06 | Hub theo phiên/branch, tích hợp E2E và PR develop | F02/F07/F08, nghiệm thu toàn bộ | B03 |
+## Thứ tự thực hiện — một đợt hoàn thiện luồng cơ bản
 
-## Cách giảm vòng debug và kiểm thử lặp
+Đây là các checkpoint kỹ thuật trong cùng đợt, không phải sáu task phải chờ Codex duyệt riêng. Anti tự chạy/sửa trong phạm vi, tiếp tục phần độc lập khi một dependency bị chặn. Codex review tổng hợp khi bàn giao hoặc khi có quyết định thật sự cần người dùng.
 
-- Đầu mỗi đợt pin contract/fixture/backend test/provider một lần; dùng chung cho các nhóm A trong đợt. Không mock rộng đến mức mọi query đều trả cùng dữ liệu hoặc mọi lỗi thành success.
-- Với finding cần sửa, lập bản đồ caller/API/state liên quan và quy tắc đúng trước khi thay product code; tạo regression chạy FAIL đúng lỗi trên baseline rồi PASS cùng assertion sau sửa. Dùng callback/payload thật của UI và contract backend, không chỉ kiểm tra helper trong trường hợp đầu vào lý tưởng. Làm các bước này trong cùng đợt, không thêm vòng người dùng duyệt.
-- Anti tái hiện finding bằng regression có assertion hành vi, sửa nguyên nhân và chạy checks liên quan trước khi gửi READY_FOR_REVIEW. Bàn giao đủ raw log/source hash/provider và một bảng AC của cả đợt.
-- Có một lệnh hoặc danh sách lệnh nghiệm thu cố định cho cả đợt với cwd/provider/setup/timeout/cleanup rõ; kết quả cần phân biệt PASS/FAIL/NOT RUN. Gate tích hợp bắt buộc chưa chạy không được thay bằng build/unit xanh hoặc lời khẳng định100%.
-- Codex review cả đợt, gom các lỗi đã có bằng chứng trong một báo cáo và một prompt fix. Vòng sau ưu tiên ID còn mở và regression trực tiếp bị ảnh hưởng; giữ phần đã đóng, không bắt đầu lại toàn đợt.
-- Test phạm vi hẹp khi sửa từng lỗi; chạy build/regression liên quan trước bàn giao đợt. Giữ kết quả đã pass khi source/dependency/môi trường/rủi ro không đổi. Bộ E2E liên thông đầy đủ chạy ở B03 trên head tích hợp; các kiểm chứng DB riêng bắt buộc của B01/B02 vẫn phải chạy tại đợt tương ứng.
-- Sau hai vòng review–fix cùng lỗi chặn, đánh giá lại nguyên nhân, contract và harness trước khi giao vòng tiếp; không lặp cùng prompt/cách thử. Thiếu môi trường hoặc quyết định thật sự thì ghi điều kiện gỡ rõ, tiếp tục phần độc lập trong đợt.
-- Một hạng mục có phụ thuộc thiếu chỉ chặn phần cần phụ thuộc đó; không yêu cầu dừng mọi việc còn lại trong đợt. Chưa đủ AC bắt buộc thì chưa nghiệm thu đợt, không giảm yêu cầu để giảm số vòng.
+| Bước / ưu tiên | Kết quả sản phẩm cần có | Việc cần làm và bằng chứng tối thiểu |
+| --- | --- | --- |
+| C0 — P0, môi trường | Một địa chỉ Admin dùng được với backend đúng source và PostgreSQL test | Ghi source/port/provider/URL; dùng host backend mới hoặc build image dev phù hợp, không tiếp tục dùng image cũ trả GET chứng từ 405. Xác minh login + Orders + GET transfers/counts không 405. Giữ dữ liệu làm việc/production; dùng DB test có guard hoặc fixture hiện có. Không dừng dịch vụ người dùng không liên quan. |
+| C1 — P0, phiên và dữ liệu nền | Owner/Staff đăng nhập đúng quyền; SKU/chi nhánh/kho/tồn đọc được | Dùng danh mục có sẵn, chuẩn bị fixture tồn dương qua seed/API đã có; không cập nhật trực tiếp balance/ledger. Cashier bị chặn route Admin theo policy, tenant B không đọc dữ liệu A. Kiểm tra đăng xuất/đăng nhập lại không hiển thị dữ liệu phiên cũ. Không mở rộng thành làm lại catalog. |
+| C2 — P0, đơn hàng | Tạo/giữ chỗ → duyệt → xử lý/hoàn tất; nhánh hủy độc lập | Thực hiện trên UI/API thật, mở lại đơn sau reload; đối chiếu trạng thái và tồn trước/sau. Tạo đơn khác để kiểm tra hủy và giải phóng giữ chỗ, không đòi một đơn vừa hoàn tất vừa hủy. Có ca thiếu tồn, double click/retry một ý định không tạo hai đơn. Giữ khóa/payload hiện có và server snapshot. Chưa bắt hoàn thiện print hay mutation-testing sâu. |
+| C3 — P0, chuyển kho | Tạo Draft → Dispatch → Receive, đọc lại bằng phiên mới | Sửa những chỗ chặn gọi API/mapping/action matrix; không fake local success. Nguồn giảm đúng khi dispatch, đích tăng đúng khi receive; mỗi bước một lần. Cancel chỉ khi trạng thái backend cho phép. Lỗi POST không đổi state thành thành công; retry giữ ý định. |
+| C4 — P0, kiểm kê | Tạo → nhập số đếm → lưu → chốt, reload thấy kết quả server | Chọn cách đơn giản: bắt buộc Lưu trước Chốt nếu dirty, không cần auto-save phức tạp. Ca server lưu 10, UI sửa 7 phải lưu/chốt 7 hoặc chặn rõ; 0 hợp lệ. Record fail không confirm; drift báo kiểm kê lại, không tự vượt guard. Đối chiếu adjustment/số dư thật. |
+| C5 — P1, báo cáo và liên thông | Dashboard/report đọc dữ liệu thật; giao dịch Admin/POS cùng phản ánh tồn | Chọn fixture/khoảng ngày biết trước, đối chiếu doanh thu/COGS/quyền theo nguồn hiện hành. Tạo giao dịch từ POS hoặc dùng flow POS đã nghiệm thu trên cùng môi trường test; tải lại Admin để thấy dữ liệu mới. Trạng thái realtime có thể “chưa bật”; refresh thủ công là cách dùng hợp lệ ở mốc 1. |
+
+Không bắt C2 đóng toàn bộ finding/evidence trước khi làm C3/C4. Những luồng dùng chung auth/contract/tồn vẫn phải sửa dependency chung trước; không gọi luồng đã PASS nếu dependency đó thực tế còn sai.
+
+## Checklist smoke mốc 1
+
+Một người thực hiện trên browser và API thật, ghi mã chứng từ/fixture và kết quả. Có thể dùng manual smoke có thể lặp lại; không bắt viết E2E framework mới để đạt mốc cơ bản.
+
+| ID | Thao tác | Kết quả quan sát bắt buộc |
+| --- | --- | --- |
+| CORE-01 | Login Owner, logout, login Staff; thử Cashier/tenant B | Quyền đúng, không nhìn/thao tác nhầm dữ liệu phiên/tenant khác |
+| CORE-02 | Mở SKU/kho/tồn nền hiện có | Dữ liệu từ API, đủ fixture cho các bước tiếp theo, không fake fallback |
+| CORE-03 | Tạo đơn Admin đủ tồn → reserve → confirm → process/complete theo contract | Có ID server, state đúng, tồn/giữ chỗ/ledger phù hợp từng bước |
+| CORE-04 | Tạo đơn khác → cancel; thử thiếu tồn và gửi trùng/retry | Giải phóng đúng; lỗi rõ; không tạo hai chứng từ hay trừ tồn hai lần |
+| CORE-05 | Chuyển kho Draft → dispatch → receive; reload/session mới đọc lại | Nguồn/đích đúng mỗi bước; list/detail không 405 hoặc chỉ đọc cache |
+| CORE-06 | Count nhập 7 thay số đã lưu 10 → lưu → chốt; thêm ca 0/dirty/drift | Server chốt đúng số đã xác nhận, hoặc chặn đúng điều kiện; không ghi adjustment sai |
+| CORE-07 | Mở dashboard/report đúng role và khoảng ngày của fixture | Có số thật/empty thật, không giả số hoặc hiển thị số cũ dưới filter mới; đối chiếu mẫu số liệu biết trước |
+| CORE-08 | Giao dịch POS trên cùng backend/test DB → refresh Admin | Thấy chứng từ/tồn thay đổi đúng; ghi rõ head Admin/POS/backend và kết quả |
+
+Smoke không thay proof transaction/concurrency của engine. Tái sử dụng evidence provider thật còn hợp lệ; khi sửa đường transaction/idempotency/tenant hoặc bằng chứng không khớp source thì chạy test tích hợp liên quan trước khi đánh dấu luồng PASS. Không chạy lại toàn suite chỉ vì đổi CSS/câu chữ.
+
+## Chuyển lỗi sang làm sau
+
+[BACKLOG.md](./BACKLOG.md) là danh sách tiếp tục sau mốc 1, giữ finding ID và điều kiện đóng.
+
+| Mục hiện tại | Quyết định cho mốc 1 |
+| --- | --- |
+| B01-E01: first-submit/reload sensitivity và manual-retry coverage | Hoãn phần tự động hóa chuyên sâu; giữ code guard hiện tại và smoke cơ bản về phiên, key/payload/retry. Nếu có bug sản phẩm thực gây gửi trùng/chéo owner thì nâng P0 ngay. Không gọi E01 CLOSED. |
+| B01-E02: print A4/80mm và UI thừa | Hoãn print hoàn chỉnh, công khai tính năng in chưa nghiệm thu; mở chi tiết đơn để tra cứu tạm. Khi sửa sau chỉ tập trung print scope, không chặn Orders/stock core vì lỗi layout này. |
+| B01-E02 / PR26-F04: browser đọc transfers/counts qua backend mới | Làm ngay trong C0/C3/C4 vì trực tiếp chặn luồng kho. Không hoãn dưới nhãn “thiếu evidence”. |
+| PR26-F01/F03/F05/F06 | Kiểm tra trên source hiện hành trong luồng C3/C4; lỗi fake success, chốt sai số, action sai và retry trùng có tái hiện phải sửa trước PASS luồng đó. Review R1 là lịch sử, không mặc định bug còn nguyên. |
+| PR26-F02/F07 realtime | Nếu chưa an toàn theo phiên/tenant, tắt kết nối/event cũ và dùng refetch thủ công cho mốc 1; khôi phục realtime đúng owner/branch/reconnect sau. Không cho Hub rò dữ liệu chạy chỉ để có thông báo. |
+| PR26-F08 và AC release/CI/PR base | Thực hiện ở bước delivery sau khi code sẵn sàng; không đổi PR/merge trong lượt lập plan hoặc tự coi core-ready là đủ merge. |
+| Style, responsive phụ, âm thanh, benchmark, coverage mở rộng | Hoãn; chỉ kéo lên nếu trực tiếp khiến không thể thao tác hoặc hiểu sai dữ liệu |
+
+Lỗi mới: nếu chặn một core flow hoặc có rủi ro dữ liệu/quyền thì xử lý tại luồng; nếu không, ghi backlog một dòng, ảnh hưởng và cách tái hiện. Không mở vòng review chỉ để hoàn thiện hình thức báo cáo.
+
+## Bàn giao và ngân sách mềm
+
+- Dùng [prompt thực hiện luồng cơ bản](./PROMPT-START-B01.md). Tên file giữ để các link cũ hoạt động; nội dung v2.0 đã thay giới hạn “chỉ B01”.
+- Tái sử dụng brief/evidence hiện có. Khi triển khai, lưu **một handoff core** tại `core-product/handover.md` (chỉ tạo khi có kết quả), gồm head/diff, URL/cách chạy, fixture/test DB, bảng CORE-01..08 PASS/FAIL/NOT RUN, finding làm ngay/để sau và giới hạn.
+- Anti bàn giao `CORE_READY_FOR_REVIEW` khi đủ checklist; Codex mới xác nhận `CORE_READY_WITH_KNOWN_ISSUES`. Codex review một lần trên toàn diff đợt và smoke cần thiết; chỉ finding chặn core/an toàn mới yêu cầu fix trước mốc 1. Các review v1.x vẫn là lịch sử nghiệm thu đầy đủ, không dùng chúng để khóa phần độc lập theo thứ tự cũ.
+- Checkpoint ban đầu 20–30 phút xác định bộ runtime đúng source; mỗi 45–60 phút triển khai phải có luồng chạy thêm hoặc blocker kỹ thuật cụ thể. Đây là nhịp điều phối, không phải deadline bỏ kiểm tra.
+- Nếu cùng lỗi hai lần thử không có tiến triển, đổi giả thuyết/phương pháp và làm phần độc lập. Dependency môi trường thật thiếu thì ghi BLOCKED cho luồng cần nó, không tiếp tục viết báo cáo/test mô phỏng để thay thế.
+- Kết thúc đợt khi toàn bộ CORE-01..08 đạt và không còn lỗi chặn an toàn: `CORE_READY_WITH_KNOWN_ISSUES`; chưa đủ thì `PARTIAL_CORE`. Chỉ dùng `VERIFIED` sau mốc 2. Lượt hiện tại mới lập plan, chưa triển khai hoặc smoke mới.
+
+## AC đầy đủ giữ để hoàn thiện sau mốc 1
+
+Các AC A01–A06 bên dưới được giữ nguyên để truy vết mục tiêu cuối. Phần báo cáo/tách B01/B02/B03 và điều kiện đóng toàn finding trong phần này áp dụng cho **nghiệm thu đầy đủ mốc 2**, không còn là yêu cầu chờ tuần tự của mốc 1. Invariant dữ liệu/quyền vẫn áp dụng ở cả hai mốc. ID CORE là tập kết quả vận hành tối thiểu, không thay/xóa ID AC gốc.
 
 ## AC gốc được giữ nguyên để truy vết
 
@@ -133,7 +173,3 @@ Phạm vi: Admin realtimeAdapter/NotificationCenter/Auth lifecycle, view subscri
 | A06-AC-05 | F08: PR base develop, title/body đầy đủ phạm vi và validation, diff chỉ thay đổi cần thiết sau merge develop/POS; giải quyết conflict và CI head cuối pass. Commit/push/cập nhật PR là bước delivery khi đã được người dùng giao thực hiện, không tự làm từ prompt review/plan này. Merge do reviewer quyết định. |
 
 Báo cáo A05+A06 chung tại `batch-03-reports-realtime-final/`, bảng F01..F08 + AC/pass/fail/not run/provider và source hash cuối. Chỉ `READY_FOR_REVIEW`, Codex quyết định `VERIFIED`. Chưa kiểm chứng live DB/Hub hoặc còn finding chặn thì chưa nghiệm thu toàn bộ Admin.
-
-## Cách thực hiện sau POS
-
-Dùng [prompt khởi động B01](./PROMPT-START-B01.md). Khi bắt đầu mỗi đợt, tạo một brief theo mẫu skill tại thư mục batch tương ứng, pin source mới và nêu rõ phạm vi/AC/provider/lệnh; khi xong lưu một handover và evidence chung. Giữ mã finding và ID AC gốc, fix phần còn mở, không xóa review R1. Đánh giá lại plan nếu baseline mới đã sửa một lỗi hoặc thay contract; đóng bằng evidence, không lặp lại sửa đã hoàn tất. Không triển khai B02/B03 Admin trong prompt B01.

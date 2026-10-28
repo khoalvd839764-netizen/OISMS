@@ -1,0 +1,36 @@
+{
+  "date": "2026-10-29",
+  "timezone": "Asia/Saigon",
+  "integrationTreeBeforeDocs": "b809f5e852bd63a22b94f6addf7c959463fca3ef",
+  "sourceComparison": [
+    {
+      "scope": "src/backend",
+      "tested": "e3813da",
+      "identical": true
+    },
+    {
+      "scope": "src/frontend/admin-dashboard",
+      "tested": "e3813da",
+      "identical": true
+    },
+    {
+      "scope": "src/frontend/pos-app",
+      "tested": "8c53b7b",
+      "identical": true
+    }
+  ],
+  "freshTests": {
+    "qrModule": 10,
+    "pos": 51,
+    "realtimePwa": 24
+  },
+  "builds": {
+    "admin": "PASS",
+    "pos": "PASS"
+  },
+  "reusedBackend": {
+    "unit": 158,
+    "integration": 285
+  },
+  "limitations": "No fresh browser/PostgreSQL E2E; CI must be checked after push."
+}

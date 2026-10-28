@@ -22,6 +22,8 @@ public class InventoryLedgerDto
     public long SequenceNo { get; set; }
 
     public Guid? ReceiptItemId { get; set; }
+    public string DocumentType { get; set; } = "Unknown";
+    public Guid? DocumentId { get; set; }
     public string? DocumentNumber { get; set; }
     public Guid ReferenceId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }

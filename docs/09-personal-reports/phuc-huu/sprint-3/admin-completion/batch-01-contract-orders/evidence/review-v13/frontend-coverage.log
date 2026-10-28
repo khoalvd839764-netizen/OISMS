@@ -1,0 +1,76 @@
+TAP version 13
+# Subtest: PR26-F04: normalizeTransfer từ chối payload thiếu trường danh tính bắt buộc
+ok 1 - PR26-F04: normalizeTransfer từ chối payload thiếu trường danh tính bắt buộc
+  ---
+  duration_ms: 1.3114
+  ...
+# Subtest: PR26-F04: stockCountService.getStockCountById từ chối phản hồi malformed
+ok 2 - PR26-F04: stockCountService.getStockCountById từ chối phản hồi malformed
+  ---
+  duration_ms: 0.4403
+  ...
+# Subtest: PR26-F04: normalizeSummary và normalizeDetail từ chối đơn hàng malformed
+ok 3 - PR26-F04: normalizeSummary và normalizeDetail từ chối đơn hàng malformed
+  ---
+  duration_ms: 0.4756
+  ...
+# Subtest: PR26-F04: Đổi hoặc xóa bộ lọc khi đang ở trang > 1 luôn đưa về trang 1
+ok 4 - PR26-F04: Đổi hoặc xóa bộ lọc khi đang ở trang > 1 luôn đưa về trang 1
+  ---
+  duration_ms: 0.1983
+  ...
+# Subtest: PR26-F04: Phản hồi API có tổng số trang nhỏ hơn trang hiện tại tự động lùi về trang 1 (Auto-recovery)
+ok 5 - PR26-F04: Phản hồi API có tổng số trang nhỏ hơn trang hiện tại tự động lùi về trang 1 (Auto-recovery)
+  ---
+  duration_ms: 0.2963
+  ...
+# Subtest: B01-F02: Reload khi POST đang bay giữ nguyên trạng thái unknown, RequestKey và payload cũ
+ok 6 - B01-F02: Reload khi POST đang bay giữ nguyên trạng thái unknown, RequestKey và payload cũ
+  ---
+  duration_ms: 0.3252
+  ...
+# Subtest: B01-F02: Khi có pending/unknown snapshot, toàn bộ 5 trường biểu mẫu bị khóa và retry gửi đúng snapshot
+ok 7 - B01-F02: Khi có pending/unknown snapshot, toàn bộ 5 trường biểu mẫu bị khóa và retry gửi đúng snapshot
+  ---
+  duration_ms: 0.7402
+  ...
+# Subtest: B01-F02: Nút hủy pending yêu cầu xác nhận trước khi xóa và sinh key mới
+ok 8 - B01-F02: Nút hủy pending yêu cầu xác nhận trước khi xóa và sinh key mới
+  ---
+  duration_ms: 0.1453
+  ...
+# Subtest: B01-F02: Cách ly tuyệt đối pending giữa người dùng (Owner A không bị gửi bởi Owner B)
+ok 9 - B01-F02: Cách ly tuyệt đối pending giữa người dùng (Owner A không bị gửi bởi Owner B)
+  ---
+  duration_ms: 0.4193
+  ...
+# Subtest: B01-F04: Phản hồi tải chi tiết ban đầu hoặc retry của đơn A trả muộn bị chặn khi đã chuyển sang đơn B
+ok 10 - B01-F04: Phản hồi tải chi tiết ban đầu hoặc retry của đơn A trả muộn bị chặn khi đã chuyển sang đơn B
+  ---
+  duration_ms: 54.1259
+  ...
+# Subtest: B01-F04: Mutation duyệt đơn A trả muộn không ghi đè drawer khi người dùng đã chuyển sang đơn B
+ok 11 - B01-F04: Mutation duyệt đơn A trả muộn không ghi đè drawer khi người dùng đã chuyển sang đơn B
+  ---
+  duration_ms: 61.2766
+  ...
+# Subtest: B01-F04: TransferDetailDrawer và StockCountDetailDrawer có generation guards chặn dispatch/record muộn
+ok 12 - B01-F04: TransferDetailDrawer và StockCountDetailDrawer có generation guards chặn dispatch/record muộn
+  ---
+  duration_ms: 64.0013
+  ...
+# Subtest: A02-AC-04: In chứng từ từ server snapshot và ẩn tuyệt đối COGS/WAC trên bản in và vai trò không phải Owner
+ok 13 - A02-AC-04: In chứng từ từ server snapshot và ẩn tuyệt đối COGS/WAC trên bản in và vai trò không phải Owner
+  ---
+  duration_ms: 0.7759
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 190.5157
+REVIEW_COMPONENT_FILES_READ=[]

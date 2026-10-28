@@ -1,0 +1,76 @@
+TAP version 13
+# Subtest: PR26-F04: normalizeTransfer từ chối payload thiếu trường danh tính bắt buộc
+ok 1 - PR26-F04: normalizeTransfer từ chối payload thiếu trường danh tính bắt buộc
+  ---
+  duration_ms: 6.5317
+  ...
+# Subtest: PR26-F04: stockCountService.getStockCountById từ chối phản hồi malformed
+ok 2 - PR26-F04: stockCountService.getStockCountById từ chối phản hồi malformed
+  ---
+  duration_ms: 1.0649
+  ...
+# Subtest: PR26-F04: normalizeSummary và normalizeDetail từ chối đơn hàng malformed
+ok 3 - PR26-F04: normalizeSummary và normalizeDetail từ chối đơn hàng malformed
+  ---
+  duration_ms: 0.905
+  ...
+# Subtest: PR26-F04: StockCountsPage reset về trang 1 khi đổi bộ lọc hoặc bấm Xóa bộ lọc
+ok 4 - PR26-F04: StockCountsPage reset về trang 1 khi đổi bộ lọc hoặc bấm Xóa bộ lọc
+  ---
+  duration_ms: 393.9337
+  ...
+# Subtest: PR26-F04: Component auto-recovery: API trả về totalPages < pageNumber tự động lùi về trang 1
+ok 5 - PR26-F04: Component auto-recovery: API trả về totalPages < pageNumber tự động lùi về trang 1
+  ---
+  duration_ms: 84.8802
+  ...
+# Subtest: B01-F02: OrdersPage in-flight reload bảo toàn snapshot unknown, requestKey và payload
+ok 6 - B01-F02: OrdersPage in-flight reload bảo toàn snapshot unknown, requestKey và payload
+  ---
+  duration_ms: 292.2966
+  ...
+# Subtest: B01-F02: OrdersPage khóa toàn bộ 5 trường biểu mẫu khi pending/unknown và retry gửi đúng snapshot
+ok 7 - B01-F02: OrdersPage khóa toàn bộ 5 trường biểu mẫu khi pending/unknown và retry gửi đúng snapshot
+  ---
+  duration_ms: 183.3495
+  ...
+# Subtest: B01-F02: Nút hủy pending yêu cầu xác nhận trước khi xóa và sinh key mới
+ok 8 - B01-F02: Nút hủy pending yêu cầu xác nhận trước khi xóa và sinh key mới
+  ---
+  duration_ms: 137.8246
+  ...
+# Subtest: B01-F02: Cách ly tuyệt đối pending giữa người dùng (Owner A không bị nạp hoặc gửi bởi Owner B)
+ok 9 - B01-F02: Cách ly tuyệt đối pending giữa người dùng (Owner A không bị nạp hoặc gửi bởi Owner B)
+  ---
+  duration_ms: 79.3337
+  ...
+# Subtest: B01-F04: OrderDetailDrawer phản hồi tải chi tiết ban đầu của đơn A trả muộn bị chặn khi đã chuyển sang đơn B
+ok 10 - B01-F04: OrderDetailDrawer phản hồi tải chi tiết ban đầu của đơn A trả muộn bị chặn khi đã chuyển sang đơn B
+  ---
+  duration_ms: 63.2769
+  ...
+# Subtest: B01-F04: OrderDetailDrawer mutation duyệt đơn A trả muộn không ghi đè drawer khi người dùng đã chuyển sang đơn B
+ok 11 - B01-F04: OrderDetailDrawer mutation duyệt đơn A trả muộn không ghi đè drawer khi người dùng đã chuyển sang đơn B
+  ---
+  duration_ms: 58.8985
+  ...
+# Subtest: B01-F04: TransferDetailDrawer và StockCountDetailDrawer có generation guards chặn phản hồi muộn
+ok 12 - B01-F04: TransferDetailDrawer và StockCountDetailDrawer có generation guards chặn phản hồi muộn
+  ---
+  duration_ms: 43.0851
+  ...
+# Subtest: A02-AC-04: OrderDetailDrawer hiển thị đúng snapshot và che giấu COGS/WAC theo vai trò
+ok 13 - A02-AC-04: OrderDetailDrawer hiển thị đúng snapshot và che giấu COGS/WAC theo vai trò
+  ---
+  duration_ms: 46.4177
+  ...
+1..13
+# tests 13
+# suites 0
+# pass 13
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1418.1998
+REVIEW_COMPONENT_FILES_READ=["D:\\OISMS\\src\\frontend\\admin-dashboard\\src\\components\\orders\\OrderDetailDrawer.tsx","D:\\OISMS\\src\\frontend\\admin-dashboard\\src\\components\\transfers\\TransferDetailDrawer.tsx","D:\\OISMS\\src\\frontend\\admin-dashboard\\src\\components\\stockCounts\\StockCountDetailDrawer.tsx","D:\\OISMS\\src\\frontend\\admin-dashboard\\src\\pages\\StockCountsPage.tsx","D:\\OISMS\\src\\frontend\\admin-dashboard\\src\\components\\stockCounts\\StockCountsTable.tsx","D:\\OISMS\\src\\frontend\\admin-dashboard\\src\\components\\stockCounts\\CreateStockCountModal.tsx","D:\\OISMS\\src\\frontend\\admin-dashboard\\src\\pages\\InventoryTransfersPage.tsx","D:\\OISMS\\src\\frontend\\admin-dashboard\\src\\components\\transfers\\StockTransferTable.tsx","D:\\OISMS\\src\\frontend\\admin-dashboard\\src\\components\\transfers\\CreateTransferModal.tsx","D:\\OISMS\\src\\frontend\\admin-dashboard\\src\\pages\\OrdersPage.tsx","D:\\OISMS\\src\\frontend\\admin-dashboard\\src\\components\\ui.tsx","D:\\OISMS\\src\\frontend\\admin-dashboard\\src\\components\\orders\\OrdersTable.tsx","D:\\OISMS\\src\\frontend\\admin-dashboard\\src\\components\\orders\\OrdersFilter.tsx"]

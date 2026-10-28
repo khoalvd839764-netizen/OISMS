@@ -1,6 +1,14 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
 import { X } from "lucide-react";
 
+export function ComingSoonBadge() {
+  return <span className="coming-soon-badge">Coming soon</span>;
+}
+
+export function ComingSoonPanel({ title, description }: { title: string; description: string }) {
+  return <div className="coming-soon-panel"><ComingSoonBadge /><strong>{title}</strong><p>{description}</p></div>;
+}
+
 export function Button({ className = "", variant = "primary", ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" | "ghost" | "danger" }) {
   return <button className={`button button--${variant} ${className}`} {...props} />;
 }

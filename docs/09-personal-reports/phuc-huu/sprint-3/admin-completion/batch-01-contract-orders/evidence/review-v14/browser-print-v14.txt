@@ -1,0 +1,55 @@
+========================================================================
+B01-E02: KIỂM CHỨNG BROWSER SESSION, IN CHỨNG TỪ & CHE GIẤU COGS (v1.4)
+========================================================================
+✓ Edge Headless CDP kết nối thành công tại port 9235
+
+--- BƯỚC 1: KIỂM THỬ PHIÊN OWNER ---
+1.1. Điều hướng tới trang đăng nhập http://localhost:5173/login
+1.2. Chọn tài khoản Owner & Đăng nhập
+   URL sau khi Owner đăng nhập: http://localhost:5173/admin
+1.3. Điều hướng tới chứng từ: /orders?orderId=49f90af6-dd1e-48a2-8ad4-816f344e6096
+   Dữ liệu hiển thị màn hình (Owner Screen State): {
+  drawerTitle: 'Chi tiết đơn hàng ORD-RES-20261028145843-7A5A',
+  hasOrderNum: true,
+  hasSkuItem: true,
+  hasPrice: true,
+  hasWacHeaderOnScreen: true,
+  hasTotalCogsOnScreen: true,
+  hasPrintBtn: true
+}
+1.4. Chuyển chế độ in (Emulation.setEmulatedMedia: print)
+   CSS Computed Style trên bản in (print media): {
+  headerDisplay: 'none',
+  cellDisplay: 'none',
+  cogsContainerDisplay: 'none',
+  actionsDisplay: 'none'
+}
+✓ Đã xuất PDF bản in Owner: D:\OISMS\docs\09-personal-reports\phuc-huu\sprint-3\admin-completion\batch-01-contract-orders\evidence\review-v14\order_print_owner.pdf (217837 bytes)
+✓ Đã xuất Screenshot bản in Owner: D:\OISMS\docs\09-personal-reports\phuc-huu\sprint-3\admin-completion\batch-01-contract-orders\evidence\review-v14\order_print_owner.png (32283 bytes)
+
+--- BƯỚC 2: KIỂM THỬ PHIÊN STAFF (CÔ LẬP MỚI) ---
+2.1. Dọn sạch storage và mở trang đăng nhập
+2.2. Chọn tài khoản Staff & Đăng nhập
+   URL sau khi Staff đăng nhập: http://localhost:5173/admin
+2.3. Điều hướng tới chứng từ: /orders?orderId=49f90af6-dd1e-48a2-8ad4-816f344e6096
+   Dữ liệu hiển thị màn hình (Staff Screen State): {
+  drawerTitle: 'Chi tiết đơn hàng ORD-RES-20261028145843-7A5A',
+  hasOrderNum: true,
+  hasSkuItem: true,
+  hasPrice: true,
+  wacHeaderInDom: false,
+  totalCogsInDom: false,
+  bodyContainsWac: false
+}
+✓ Xác nhận: Thông tin COGS/WAC hoàn toàn không tồn tại trong DOM đối với vai trò Staff.
+2.4. Xuất PDF và Screenshot bản in Staff
+✓ Đã xuất PDF bản in Staff: D:\OISMS\docs\09-personal-reports\phuc-huu\sprint-3\admin-completion\batch-01-contract-orders\evidence\review-v14\order_print_staff.pdf (217851 bytes)
+✓ Đã xuất Screenshot bản in Staff: D:\OISMS\docs\09-personal-reports\phuc-huu\sprint-3\admin-completion\batch-01-contract-orders\evidence\review-v14\order_print_staff.png (32289 bytes)
+
+--- BƯỚC 3: KIỂM THỬ PHÂN QUYỀN CASHIER ---
+   URL hiện tại của Cashier khi truy cập /orders: http://localhost:5173/403
+✓ Xác nhận: Cashier bị chặn khỏi /orders theo đúng hợp đồng (URL: http://localhost:5173/403 )
+
+========================================================================
+✓ HOÀN TẤT TOÀN BỘ KIỂM CHỨNG B01-E02: PASS 100%
+========================================================================
