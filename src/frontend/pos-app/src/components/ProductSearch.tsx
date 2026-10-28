@@ -8,6 +8,7 @@ import {
   getCachedStock,
   registerSkuIdentity,
   invalidateAndRefetchStock,
+  issueStockReadTicket,
   type StockItemState,
 } from '../services/stockService';
 
@@ -127,6 +128,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({
       }
 
       const requestBranchId = branchId;
+      const searchTicket = issueStockReadTicket();
       setIsSearching(true);
       setErrorMessage(null);
 
@@ -146,18 +148,17 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({
           return; // Hủy kết quả cũ hoặc lạc hậu
         }
 
-        // Đăng ký danh tính và khởi tạo số dư vào stockService (nếu chưa có số dư mới hơn trong cache)
+        // Đăng ký danh tính và cập nhật số dư vào stockService với searchTicket
         for (const item of data) {
           registerSkuIdentity(item.variantId, item.sku, item.barcode || undefined);
-          const existing = getCachedStock(requestBranchId, item.variantId) || (item.sku ? getCachedStock(requestBranchId, item.sku) : null);
-          if (item.available !== undefined && item.available !== null && !existing) {
+          if (item.available !== undefined && item.available !== null) {
             setAuthoritativeStock(requestBranchId, item.variantId, item.available, {
               onHand: item.onHand,
               reserved: item.reserved,
               skuCode: item.sku,
               barcode: item.barcode || undefined,
               skuId: item.variantId,
-            });
+            }, searchTicket);
             if (item.sku) {
               setAuthoritativeStock(requestBranchId, item.sku, item.available, {
                 onHand: item.onHand,
@@ -165,7 +166,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({
                 skuCode: item.sku,
                 barcode: item.barcode || undefined,
                 skuId: item.variantId,
-              });
+              }, searchTicket);
             }
           }
         }
@@ -204,6 +205,7 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({
 
       const requestId = ++latestRequestIdRef.current;
       const requestBranchId = branchId;
+      const barcodeTicket = issueStockReadTicket();
 
       setIsSearching(true);
       setErrorMessage(null);
@@ -224,22 +226,17 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({
           return;
         }
 
-        // B02-F02: Phản hồi API barcode mới nhất là chuẩn xác thực, tuyệt đối không bị cache cũ ghi đè
+        // B02-F02 & B02-F04: Phản hồi API barcode mới nhất cập nhật theo barcodeTicket phát hành khi bắt đầu read
         const freshAvailable = item.available ?? 0;
 
-        if (freshAvailable <= 0) {
-          setErrorMessage(`Sản phẩm "${item.productName}" (${item.sku}) đã hết hàng trong kho chi nhánh (tồn khả dụng = 0).`);
-          return;
-        }
-
-        // Cập nhật stock store và danh tính SKU
-        setAuthoritativeStock(requestBranchId, item.variantId, freshAvailable, {
+        // Cập nhật stock store và danh tính SKU với ticket
+        const committedVariant = setAuthoritativeStock(requestBranchId, item.variantId, freshAvailable, {
           onHand: item.onHand,
           reserved: item.reserved,
           skuId: item.variantId,
           skuCode: item.sku,
           barcode: item.barcode || undefined,
-        });
+        }, barcodeTicket);
         if (item.sku) {
           setAuthoritativeStock(requestBranchId, item.sku, freshAvailable, {
             onHand: item.onHand,
@@ -247,12 +244,28 @@ export const ProductSearch: React.FC<ProductSearchProps> = ({
             skuId: item.variantId,
             skuCode: item.sku,
             barcode: item.barcode || undefined,
-          });
+          }, barcodeTicket);
+        }
+
+        // B02-F04: Nếu response barcode trả về sau một refetch/write mới hơn -> dùng authoritative stock mới nhất trong cache
+        let effectiveAvailable = freshAvailable;
+        if (!committedVariant) {
+          const latestCached = getCachedStock(requestBranchId, item.variantId) || (item.sku ? getCachedStock(requestBranchId, item.sku) : null);
+          if (latestCached?.isStale) {
+            setErrorMessage(latestCached.error || 'Dữ liệu tồn chưa đồng bộ do lỗi kết nối. Bấm để thử lại.');
+            return;
+          }
+          effectiveAvailable = latestCached ? latestCached.available : freshAvailable;
+        }
+
+        if (effectiveAvailable <= 0) {
+          setErrorMessage(`Sản phẩm "${item.productName}" (${item.sku}) đã hết hàng trong kho chi nhánh (tồn khả dụng = 0).`);
+          return;
         }
 
         onAddToCart({
           ...item,
-          available: freshAvailable,
+          available: effectiveAvailable,
         });
         triggerSuccess(`Đã thêm: ${item.productName} (${item.sku})`);
         setSearchTerm('');

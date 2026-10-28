@@ -1,0 +1,23 @@
+{
+  "src/frontend/pos-app/src/App.tsx": "8922007fa7db85190627477eda05574ea60f8522b7a02859674bb416791bc2ba",
+  "src/frontend/pos-app/src/components/ProductSearch.tsx": "4c9af1c0848db0177d1f1cfcf1645a96688a2bd577ca57502bce619271311d62",
+  "src/frontend/pos-app/src/services/api.ts": "cc58d91457ce2ed6682aa52638a6e6589bbef4f6c513eaa64b093ad8d7f457c2",
+  "src/frontend/pos-app/src/services/stockService.ts": "ead0a301f768d8d29b9a4f28fbef71385f5f46decf13f9095351df9e5fa367bd",
+  "src/frontend/pos-app/src/services/realtimeService.ts": "df89981ee934291af7a210c097672ce964a99c792d578e99b66231c4a93101f4",
+  "src/frontend/pos-app/src/components/PaymentModal.tsx": "419b8ac9641ad904c4f9b037773b800f2b49f8b44a2fe5a3a77efaf7fe1affa3",
+  "src/frontend/pos-app/src/components/PosHeader.tsx": "468a98ecca9d1df582fcb2bff1794e1be6dcf589063cde4b613af8c1316b1a52",
+  "src/frontend/pos-app/src/components/ReceiptPrintModal.tsx": "941c4e448b6019bd624ebd30935fcb6cdd11a042138164b35efbba19b8bea9a1",
+  "src/frontend/pos-app/src/components/LoginModal.tsx": "c800f3daf92dddb6827fd2465180de8ae652cb21fa5e10b49bb2046473656fc7",
+  "src/frontend/pos-app/src/types/pos.ts": "43f20da53c6840109dbc95a9233a155ea06aa5a33fd09a0a0b32c29eecfe3aea",
+  "src/frontend/pos-app/src/services/pendingCheckoutStore.ts": "5066491e494561fd0933bacb0851b4556da760fda248b3e5b1e04c0168e9aa59",
+  "src/frontend/pos-app/src/services/receiptMapper.ts": "9f3ad439b32dc27e514677b42723f6d7c859c7e71c7d692a23805884988ec903",
+  "src/frontend/pos-app/public/sw.js": "a23f3be270d28ed0774e7c8680f32d783a653f81c1d605ae36a9243f44b48ed2",
+  "src/frontend/pos-app/test-b02-realtime-pwa.mjs": "ffd0f17fd05a78ff389fb9d7b4a06fb1ba0ead04d93d76a4af461f7b2c2b09f2",
+  "src/frontend/pos-app/test-b02-hub-transport.mjs": "862541b3197d96a86cc3987c1f6f268d8c0416284ff94d3ee0b22fb81e737636",
+  "src/frontend/pos-app/test-b02-browser-production.mjs": "68d37c59e496a8164aca9546d140ac9ed9e4f85a58c0a3ec0d9825ac5cbac203",
+  "src/frontend/pos-app/test-pos-e2e.mjs": "71901ba4f50ac22658935f395e7185e558a4236c01dcfb5f504af3ec7e5b626d",
+  "src/frontend/pos-app/measure-pos-latency.mjs": "dbf9cc2d9b9a36f7142bc90540da6cb387fa27299504452e92fe6396294e76aa",
+  "src/frontend/pos-app/test-probe-v15.cjs": "56f476d27a269a746ae5c4880f0cc75c1ee66627b1e7d6e2a839692bd8a59fd4",
+  "src/frontend/pos-app/test-b02-hub-preflight.cjs": "40979cd70d983478286ea75c20e8da43ed0751f39a946c4a8d41d6d522a389f0",
+  "src/frontend/pos-app/test-b02-browser-search-v16.cjs": "6859f0334e5f3eebb0fd087a1f815827441a16b40c91ab03d3e40f5dddbabd01"
+}

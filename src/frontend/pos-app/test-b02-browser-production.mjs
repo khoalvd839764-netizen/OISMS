@@ -12,7 +12,7 @@ const playwrightModule = await import(pathToFileURL(PLAYWRIGHT_PATH).href);
 const playwright = playwrightModule.default || playwrightModule;
 const chromium = playwright.chromium;
 
-const EVIDENCE_DIR = path.resolve(__dirname, '../../../docs/09-personal-reports/phuong/sprint-3/pos-completion/batch-02-stock-realtime-pwa/evidence/v1.3');
+const EVIDENCE_DIR = path.resolve(__dirname, '../../../docs/09-personal-reports/phuong/sprint-3/pos-completion/batch-02-stock-realtime-pwa/evidence/v1.6');
 if (!fs.existsSync(EVIDENCE_DIR)) {
   fs.mkdirSync(EVIDENCE_DIR, { recursive: true });
 }

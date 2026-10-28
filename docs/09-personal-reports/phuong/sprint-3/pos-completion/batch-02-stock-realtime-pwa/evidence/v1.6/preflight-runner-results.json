@@ -1,0 +1,31 @@
+{
+  "provider": "Offline preflight & audit harness verifying complete recovery workflow, demo target guard, and defect catch probes",
+  "status": "PASS",
+  "testCases": [
+    {
+      "name": "Full Live Workflow (5001)",
+      "status": "PASS",
+      "asserted": [
+        "OrderCreated",
+        "StockLevelChanged",
+        "autoReconnect",
+        "stockRefetch"
+      ]
+    },
+    {
+      "name": "Demo Target Guard (5000)",
+      "status": "PASS",
+      "result": "Fail closed with DEMO TARGET GUARD REJECTED, 0 checkout requests"
+    },
+    {
+      "name": "Defect Catch (Missing Stock Event)",
+      "status": "PASS",
+      "result": "Caught with AssertionError, 0 false PASS"
+    },
+    {
+      "name": "Defect Catch (Missing Auto-Reconnect)",
+      "status": "PASS",
+      "result": "Caught with AssertionError, 0 false PASS"
+    }
+  ]
+}

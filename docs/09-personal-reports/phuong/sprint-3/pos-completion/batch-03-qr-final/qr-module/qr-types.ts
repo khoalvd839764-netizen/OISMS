@@ -8,7 +8,7 @@ export interface BankConfig {
   bankBin: string;
   /** Tên viết tắt hoặc tên đầy đủ của ngân hàng */
   bankName: string;
-  /** Số tài khoản thụ hưởng của cửa hàng/chi nhánh */
+  /** Số tài khoản thụ hưởng của cửa hàng/chi nhánh (tối đa 19 ký tự theo QuickLink/NAPAS) */
   accountNumber: string;
   /** Tên chủ tài khoản thụ hưởng */
   accountName: string;
@@ -41,6 +41,15 @@ export type QrPaymentStatus =
   | 'CONFIRMED'
   | 'FAILED';
 
+export interface QrSnapshotData {
+  requestKey: string;
+  amount: number;
+  bankBin: string;
+  accountNumber: string;
+  orderDescription?: string;
+  branchId?: string;
+}
+
 export interface VietQrResult {
   /** Chuỗi mã hóa EMVCo / VietQR hoàn chỉnh (gồm TLV và mã kiểm tra CRC-16) */
   rawPayload: string;
@@ -60,10 +69,22 @@ export interface VietQrResult {
   isTestFixture: boolean;
   /** Thời điểm tạo mã */
   createdAt: string;
+  /** B03-F03: Khóa định danh yêu cầu đầy đủ (UUID v4 RFC 4122) */
+  requestKey: string;
+  /** B03-F03: Dữ liệu snapshot giao dịch để đối chiếu Idempotency */
+  snapshot: QrSnapshotData;
 }
 
 export interface QrValidationResult {
   valid: boolean;
   errors: string[];
   sanitizedAmount?: number;
+  sanitizedDescription?: string;
+}
+
+export interface TlvField {
+  tag: string;
+  length: number;
+  value: string;
+  subFields?: TlvField[];
 }

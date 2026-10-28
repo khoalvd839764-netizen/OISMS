@@ -37,8 +37,8 @@ T01 đã được nghiệm thu độc lập. Phần còn lại giao tuần tự 
 | Đợt | Phạm vi gộp và AC gốc | Kết quả / trạng thái |
 | --- | --- | --- |
 | [S3-POS-B01 — Hóa đơn và in nhiệt](./batch-01-receipt-print/brief.md) | Toàn bộ T02-AC-01..05 + T05-AC-02; phần print preview/thiết bị in của T05-AC-05 | **VERIFIED v1.2 — R3**, B01-F01/F02/F03 CLOSED; [review](./batch-01-receipt-print/reviews/v1.2-review-r3.md) |
-| [S3-POS-B02 — Tồn realtime và thao tác quầy](./batch-02-stock-realtime-pwa/reviews/v1.3-review-r4.md) | Toàn bộ T03-AC-01..07 + T05-AC-01/03/04/06; phần desktop/touch/barcode/keyboard/reopen/reconnect còn lại của T05-AC-05 | **CHANGES_REQUESTED v1.3 — R4**; F04 OPEN, F06 còn live workflow; [prompt v1.4](./batch-02-stock-realtime-pwa/reviews/v1.4-fix-prompt.md) |
-| S3-POS-B03 — QR và nghiệm thu cuối | Toàn bộ T04-AC-01..05 + T06-AC-01..07 | Chốt QR, triển khai phần đã chốt rồi E2E/báo cáo/PR #24. **PLANNED**, sau B01–B02; QR có decision gate |
+| [S3-POS-B02 — Tồn realtime và thao tác quầy](./batch-02-stock-realtime-pwa/handover.md) | Toàn bộ T03-AC-01..07 + T05-AC-01/03/04/06; phần desktop/touch/barcode/keyboard/reopen/reconnect còn lại của T05-AC-05 | **VERIFIED v1.8**, F01..F06 CLOSED; [handover](./batch-02-stock-realtime-pwa/handover.md) |
+| [S3-POS-B03 — QR và nghiệm thu cuối](./batch-03-qr-final/handover.md) | Toàn bộ T04-AC-01..05 + T06-AC-01..07 | Tích hợp VietQR, nghiệm thu E2E test backend 5001 + PG 5433, Edge browser evidence. **READY_FOR_REVIEW v1.2-integration** |
 
 T05 hoàn tất khi cả B01 và B02 đạt các phần AC được phân bổ; không đánh dấu toàn T05 xong sau B01. T06 kiểm chứng lại các luồng tích hợp của cả ba đợt, không thay thế bằng test stub ở B01/B02. QR thiếu quyết định chỉ chặn phần phụ thuộc QR trong B03; vẫn chuẩn bị/chạy các kiểm tra độc lập đã đủ điều kiện và ghi rõ phần chưa chạy. Không gọi B03 VERIFIED khi AC bắt buộc hoặc quyết định phạm vi QR còn thiếu.
 
@@ -48,10 +48,10 @@ Bảng dưới giữ mã task gốc cho lịch sử và báo cáo:
 | --- | --- | --- | --- | --- |
 | [S3-POS-T01](./task-01-checkout-safety/brief.md) | Checkout an toàn khi mất mạng, hết phiên, retry | POS-T01-F01/F02/F03/F04 CLOSED theo R4 | Không | VERIFIED v1.3 — R4 |
 | S3-POS-T02 | Map và in hóa đơn từ server receipt | PR24-F03 / FR-POS-03; B01-F01/F02/F03 CLOSED | T01 | VERIFIED qua B01 v1.2 — R3 |
-| S3-POS-T03 | Làm mới tồn ngay sau checkout, không F5; SignalR cho thay đổi từ máy/kênh khác | POS-STOCK-F01 / FR-SIM-02 | T01–T02 | Trong B02 — CHANGES_REQUESTED v1.3 R4 |
-| S3-POS-T04 | Chốt QR, thực hiện đúng phạm vi và sửa claim nghiệm thu | PR24-F04 / FR-POS-03 | Hợp đồng QR được chốt | Trong B03 — PLANNED, có decision gate |
-| S3-POS-T05 | PWA, offline an toàn, phím tắt, cảm ứng và khổ in | FR-POS-01..03 | T01–T02 | Phần in VERIFIED qua B01; phần B02 CHANGES_REQUESTED v1.3 R4 |
-| S3-POS-T06 | E2E, bằng chứng cuối, báo cáo và cập nhật PR #24 | Toàn bộ phạm vi đã chốt | Các task trước đạt | Trong B03 — PLANNED |
+| S3-POS-T03 | Làm mới tồn ngay sau checkout, không F5; SignalR cho thay đổi từ máy/kênh khác | POS-STOCK-F01 / FR-SIM-02 | T01–T02 | VERIFIED qua B02 v1.8 |
+| S3-POS-T04 | Chốt QR, thực hiện đúng phạm vi và sửa claim nghiệm thu | PR24-F04 / FR-POS-03 | Hợp đồng QR được chốt | Hoàn tất trong B03 v1.2-integration |
+| S3-POS-T05 | PWA, offline an toàn, phím tắt, cảm ứng và khổ in | FR-POS-01..03 | T01–T02 | VERIFIED qua B01 (in) & B02 (realtime/PWA) |
+| S3-POS-T06 | E2E, bằng chứng cuối, báo cáo và cập nhật PR #24 | Toàn bộ phạm vi đã chốt | Các task trước đạt | Hoàn tất trong B03 v1.2-integration |
 
 B01 đã VERIFIED; B02 đã có brief riêng và pin HEAD + working tree/hash thực tế sau B01 (code hiện chưa commit). Chỉ giao B02 trong prompt hiện tại; tới B03 tạo brief/baseline riêng sau B02, không tự triển khai cả hai đợt. Không tự gửi lệnh sang ứng dụng/agent khác.
 

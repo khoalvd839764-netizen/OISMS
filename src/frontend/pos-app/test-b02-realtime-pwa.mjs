@@ -712,3 +712,186 @@ test('B02-F05-REGRESSION-QUERY-CLEAR: Clearing search input while search request
   assert.equal(input(m).props.value, '');
   assert.equal(buttons.length, 0, 'Dropdown không được mở lại sau khi input đã bị xóa về rỗng');
 });
+
+test('B02-F04-REGRESSION-PROBE-1: In-flight older barcode 10 returns after newer refetch 8 -> cache remains 8 and item adds with 8', async () => {
+  const gate = defer();
+  const w = world(async (url) => {
+    if (url.includes('/api/pos/barcode/')) {
+      await gate.promise;
+      return response({ ...sku, available: 10 });
+    }
+    return response([{ ...sku, available: 8 }]);
+  });
+
+  const added = [];
+  const m = w.mountSearch({ branchId: branchA, onAddToCart: (x) => added.push(x), searchInputRef: { current: null } });
+
+  // 1. Quét barcode 10 (bắt đầu bay ở t=1)
+  input(m).props.onChange({ target: { value: 'BAR-A' } });
+  m.settle();
+  const barcodePending = input(m).props.onKeyDown({ key: 'Enter', preventDefault() {} });
+  await flush();
+
+  // 2. Trong lúc barcode đang bay, một refetch mới hoàn tất và ghi tồn = 8
+  const refetchTicket = w.api.issueStockReadTicket();
+  w.api.setAuthoritativeStock(branchA, sku.variantId, 8, { skuId: sku.variantId, skuCode: sku.sku, barcode: sku.barcode }, refetchTicket);
+  assert.equal(w.api.getCachedStock(branchA, sku.variantId).available, 8, 'Cache sau refetch phải là 8');
+
+  // 3. Barcode cũ 10 hoàn tất trả về
+  gate.resolve();
+  await barcodePending;
+  m.settle();
+
+  // 4. Khẳng định: Cache vẫn là 8, không bị ghi đè thành 10; item thêm vào giỏ có available = 8
+  assert.equal(w.api.getCachedStock(branchA, sku.variantId).available, 8, 'Cache phải giữ nguyên 8');
+  assert.equal(added.length, 1, 'Mặt hàng phải được thêm vào giỏ');
+  assert.equal(added[0].available, 8, 'Mặt hàng thêm vào giỏ phải có available = 8, không phải 10');
+});
+
+test('B02-F04-REGRESSION-PROBE-2: Fresh search 8 with existing cache 10 -> updates cache to 8 and row selection adds with 8', async () => {
+  let searchAvailable = 8;
+  const w = world(async () => {
+    return response([{ ...sku, available: searchAvailable }]);
+  });
+
+  // 1. Cache sẵn có giá trị 10 từ phiên trước
+  const initTicket = w.api.issueStockReadTicket();
+  w.api.setAuthoritativeStock(branchA, sku.variantId, 10, { skuId: sku.variantId, skuCode: sku.sku, barcode: sku.barcode }, initTicket);
+  assert.equal(w.api.getCachedStock(branchA, sku.variantId).available, 10, 'Tồn khởi tạo là 10');
+
+  const added = [];
+  const m = w.mountSearch({ branchId: branchA, onAddToCart: (x) => added.push(x), searchInputRef: { current: null } });
+
+  // 2. Người dùng tìm kiếm -> API trả về số dư mới = 8
+  input(m).props.onChange({ target: { value: 'SKU-A' } });
+  m.settle();
+  w.advance(200);
+  await flush();
+  m.settle();
+
+  // 3. Khẳng định: Cache đã cập nhật lên 8 (không bị bỏ qua do cache cũ tồn tại)
+  assert.equal(w.api.getCachedStock(branchA, sku.variantId).available, 8, 'Cache phải được cập nhật thành 8');
+
+  // 4. Người dùng click chọn hàng từ dropdown
+  const buttons = [];
+  function visit(n) {
+    if (Array.isArray(n)) return n.forEach(visit);
+    if (!n || typeof n !== 'object') return;
+    if (typeof n.props?.onClick === 'function' && String(n.props.onClick).includes('handleSelectProduct')) {
+      buttons.push(n);
+    }
+    visit(n.props?.children);
+  }
+  visit(m.tree());
+  assert.ok(buttons.length > 0, 'Dropdown phải hiển thị hàng tìm kiếm');
+  buttons[0].props.onClick();
+  m.settle();
+
+  // 5. Khẳng định: Thêm vào giỏ với available = 8
+  assert.equal(added.length, 1, 'Phải thêm 1 sản phẩm vào giỏ');
+  assert.equal(added[0].available, 8, 'Sản phẩm thêm từ kết quả search mới phải có available = 8');
+});
+
+test('B02-F04-REGRESSION-PROBE-3: In-flight older barcode 10 returns after newer refresh fails -> cache retains isStale and error, barcode does not add as fresh', async () => {
+  const gate = defer();
+  const w = world(async (url) => {
+    if (String(url).includes('/barcode/')) {
+      await gate.promise;
+      return response({ ...sku, available: 10 });
+    }
+    throw new Error('network failure on refresh');
+  });
+
+  w.api.setAuthoritativeStock(branchA, sku.variantId, 10, { skuId: sku.variantId, skuCode: sku.sku, barcode: sku.barcode });
+  w.api.setAuthoritativeStock(branchA, sku.sku, 10, { skuId: sku.variantId, skuCode: sku.sku, barcode: sku.barcode });
+
+  const added = [];
+  const m = w.mountSearch({ branchId: branchA, onAddToCart: (x) => added.push(x), searchInputRef: { current: null } });
+
+  // 1. Quét barcode 10 (bắt đầu bay trước)
+  input(m).props.onChange({ target: { value: 'BAR-A' } });
+  m.settle();
+  const barcodePending = input(m).props.onKeyDown({ key: 'Enter', preventDefault() {} });
+  await flush();
+
+  // 2. Refresh mới hơn cùng SKU gặp lỗi mạng
+  const refresh = await w.api.invalidateAndRefetchStock(branchA, [{ skuCode: sku.sku }]);
+  assert.equal(refresh.success, false, 'Refresh mới phải báo lỗi');
+
+  const beforeOlder = { ...w.api.getCachedStock(branchA, sku.sku) };
+  assert.equal(beforeOlder.isStale, true, 'Cache phải là stale sau khi refresh lỗi');
+  assert.ok(beforeOlder.error, 'Cache phải lưu thông báo lỗi');
+
+  // 3. Barcode cũ hoàn tất trả về 10
+  gate.resolve();
+  await barcodePending;
+  m.settle();
+
+  // 4. Khẳng định: Barcode cũ không được xóa trạng thái stale/error của refresh mới hơn
+  const afterOlder = { ...w.api.getCachedStock(branchA, sku.sku) };
+  assert.equal(afterOlder.isStale, true, 'isStale phải giữ nguyên true');
+  assert.ok(afterOlder.error, 'error phải giữ nguyên thông báo lỗi');
+  assert.equal(added.length, 0, 'Barcode cũ không được tự động thêm vào giỏ hàng như dữ liệu đã đồng bộ');
+});
+
+test('B02-F04-REGRESSION-PROBE-4: In-flight older refetch 10 returns after newer refresh fails -> cache retains isStale and error', async () => {
+  const gate = defer();
+  let call = 0;
+  const w = world(async () => {
+    if (++call === 1) {
+      await gate.promise;
+      return response([{ ...sku, available: 10 }]);
+    }
+    throw new Error('network failure on newer refresh');
+  });
+
+  w.api.setAuthoritativeStock(branchA, sku.variantId, 10, { skuId: sku.variantId, skuCode: sku.sku, barcode: sku.barcode });
+  w.api.setAuthoritativeStock(branchA, sku.sku, 10, { skuId: sku.variantId, skuCode: sku.sku, barcode: sku.barcode });
+
+  // 1. Refetch cũ bắt đầu bay
+  const olderRefetch = w.api.invalidateAndRefetchStock(branchA, [{ skuCode: sku.sku }]);
+  await flush();
+
+  // 2. Refetch mới hơn gặp lỗi
+  const newerRefetch = await w.api.invalidateAndRefetchStock(branchA, [{ skuCode: sku.sku }]);
+  assert.equal(newerRefetch.success, false, 'Refetch mới phải báo lỗi');
+
+  const beforeOlder = { ...w.api.getCachedStock(branchA, sku.sku) };
+  assert.equal(beforeOlder.isStale, true);
+
+  // 3. Refetch cũ hoàn tất
+  gate.resolve();
+  await olderRefetch;
+
+  // 4. Khẳng định: Refetch cũ không được xóa cờ stale/error của refetch mới hơn
+  const afterOlder = { ...w.api.getCachedStock(branchA, sku.sku) };
+  assert.equal(afterOlder.isStale, true, 'isStale phải giữ nguyên true sau khi refetch cũ về');
+  assert.ok(afterOlder.error, 'error phải được giữ nguyên');
+});
+
+test('B02-F04-REGRESSION-PROBE-5: Newer retry 8 succeeds after failed refresh -> clears stale/error and updates to fresh 8', async () => {
+  let shouldFail = true;
+  const w = world(async () => {
+    if (shouldFail) throw new Error('temporary network failure');
+    return response([{ ...sku, available: 8 }]);
+  });
+
+  w.api.setAuthoritativeStock(branchA, sku.variantId, 10, { skuId: sku.variantId, skuCode: sku.sku, barcode: sku.barcode });
+  w.api.setAuthoritativeStock(branchA, sku.sku, 10, { skuId: sku.variantId, skuCode: sku.sku, barcode: sku.barcode });
+
+  // 1. Refresh thất bại
+  const failRefresh = await w.api.invalidateAndRefetchStock(branchA, [{ skuCode: sku.sku }]);
+  assert.equal(failRefresh.success, false);
+  assert.equal(w.api.getCachedStock(branchA, sku.sku).isStale, true);
+
+  // 2. Thử lại thành công trả về tồn 8
+  shouldFail = false;
+  const retryRefresh = await w.api.invalidateAndRefetchStock(branchA, [{ skuCode: sku.sku }]);
+  assert.equal(retryRefresh.success, true);
+
+  // 3. Khẳng định: Cache xóa cờ stale, error thành null và tồn thành 8
+  const freshStock = w.api.getCachedStock(branchA, sku.sku);
+  assert.equal(freshStock.available, 8, 'Cache available phải thành 8');
+  assert.equal(freshStock.isStale, false, 'isStale phải là false');
+  assert.equal(freshStock.error, null, 'error phải là null');
+});

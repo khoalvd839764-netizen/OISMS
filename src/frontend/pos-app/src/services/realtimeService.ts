@@ -14,7 +14,7 @@ import type {
 } from '../types/pos';
 import { getAuthToken, invalidateAndRefetchStock, setAuthoritativeStock, refreshBranchStock } from './api';
 
-const API_BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 const HUB_URL = `${API_BASE_URL}/hubs/notifications`;
 
 let hubConnection: HubConnection | null = null;

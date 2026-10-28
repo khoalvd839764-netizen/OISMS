@@ -12,6 +12,10 @@ import {
   markStockStale as apiMarkStockStale,
   invalidateAndRefetchStock as apiInvalidateAndRefetchStock,
   _resetStockState as apiResetStockState,
+  issueStockReadTicket as apiIssueStockReadTicket,
+  getCommittedStockVersion as apiGetCommittedStockVersion,
+  canCommitStockRead as apiCanCommitStockRead,
+  recordCommittedStockVersion as apiRecordCommittedStockVersion,
 } from './api';
 
 export type { StockItemState, StockRefreshResult };
@@ -23,3 +27,7 @@ export const registerSkuIdentity = apiRegisterSkuIdentity;
 export const markStockStale = apiMarkStockStale;
 export const invalidateAndRefetchStock = apiInvalidateAndRefetchStock;
 export const _resetStockState = apiResetStockState;
+export const issueStockReadTicket = apiIssueStockReadTicket;
+export const getCommittedStockVersion = apiGetCommittedStockVersion;
+export const canCommitStockRead = apiCanCommitStockRead;
+export const recordCommittedStockVersion = apiRecordCommittedStockVersion;

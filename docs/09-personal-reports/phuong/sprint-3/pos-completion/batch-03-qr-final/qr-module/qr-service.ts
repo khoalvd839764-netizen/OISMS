@@ -7,12 +7,27 @@
  * 3. Kiểm định nghiêm ngặt số tiền, cấu hình ngân hàng và khóa Idempotency (RequestKey UUID v4).
  * 4. Bảo đảm tính bất biến (Idempotent Invariance) của nội dung QR và mã tham chiếu khi retry.
  * 5. Thiết lập Guard chống suy diễn thanh toán thành công từ hiển thị, quét mã hoặc hết thời gian.
+ *
+ * B03 FIXES (Review R1):
+ * - B03-F01: Hoàn toàn không phụ thuộc Node Buffer, chạy 100% trên môi trường Browser (TextEncoder/Uint8Array).
+ * - B03-F02: Giới hạn trường theo chuẩn QuickLink & NAPAS (account <= 19 ký tự, amount <= 13 chữ số,
+ *            description <= 50 ký tự không ký tự đặc biệt). Format TLV chặn tràn độ dài 2 chữ số (<= 99 bytes).
+ *            Kèm bộ parser TLV độc lập để kiểm chứng round-trip.
+ * - B03-F03: Lưu trữ đầy đủ requestKey (UUID) và snapshot trong VietQrResult; assertIdempotentPayload
+ *            đối chiếu full UUID và snapshot, phân biệt hai UUID khác nhau dù trùng 8 ký tự đầu.
  */
 
-import type { BankConfig, QrPaymentPayload, VietQrResult, QrValidationResult } from './qr-types.js';
+import type {
+  BankConfig,
+  QrPaymentPayload,
+  VietQrResult,
+  QrValidationResult,
+  QrSnapshotData,
+  TlvField,
+} from './qr-types.js';
 
-/** Giới hạn tiền tệ hệ thống OISMS trong môi trường POS frontend (tối đa 15 chữ số nguyên: 999 nghìn tỷ VNĐ) */
-export const MAX_MONEY_AMOUNT = 999_999_999_999_999;
+/** Giới hạn tiền tệ hệ thống OISMS theo chuẩn QuickLink/NAPAS: tối đa 13 chữ số nguyên (9.999.999.999.999 đ) */
+export const MAX_MONEY_AMOUNT = 9_999_999_999_999;
 
 /** Regex kiểm tra UUID v4 RFC 4122 chuẩn */
 export const UUID_V4_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -20,17 +35,74 @@ export const UUID_V4_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-
 /** Regex kiểm tra 6 chữ số BIN ngân hàng */
 export const BANK_BIN_REGEX = /^\d{6}$/;
 
+/** Regex kiểm tra số tài khoản ngân hàng thụ hưởng (6-19 ký tự alphanumeric theo chuẩn QuickLink/NAPAS) */
+export const ACCOUNT_NUMBER_REGEX = /^[0-9a-zA-Z]{6,19}$/;
+
+/** Regex kiểm tra nội dung chuyển khoản hợp lệ (tối đa 50 ký tự không có ký tự đặc biệt) */
+export const DESCRIPTION_REGEX = /^[0-9a-zA-Z\s\-_]{1,50}$/;
+
+/**
+ * Đếm độ dài byte UTF-8 của chuỗi ký tự mà không dùng Buffer của Node.js (tương thích 100% browser).
+ */
+export function getUtf8ByteLength(str: string): number {
+  if (typeof TextEncoder !== 'undefined') {
+    return new TextEncoder().encode(str).length;
+  }
+  let count = 0;
+  for (let i = 0; i < str.length; i++) {
+    const code = str.charCodeAt(i);
+    if (code <= 0x7f) count += 1;
+    else if (code <= 0x7ff) count += 2;
+    else if (code >= 0xd800 && code <= 0xdbff) {
+      count += 4;
+      i++; // surrogate pair
+    } else count += 3;
+  }
+  return count;
+}
+
+/**
+ * Chuyển chuỗi sang mảng byte UTF-8 (Uint8Array) hoàn toàn không dùng Buffer.
+ */
+export function stringToUtf8Bytes(str: string): Uint8Array {
+  if (typeof TextEncoder !== 'undefined') {
+    return new TextEncoder().encode(str);
+  }
+  const bytes: number[] = [];
+  for (let i = 0; i < str.length; i++) {
+    let charCode = str.charCodeAt(i);
+    if (charCode <= 0x7f) {
+      bytes.push(charCode);
+    } else if (charCode <= 0x7ff) {
+      bytes.push(0xc0 | (charCode >> 6), 0x80 | (charCode & 0x3f));
+    } else if (charCode >= 0xd800 && charCode <= 0xdbff) {
+      i++;
+      const nextCharCode = str.charCodeAt(i);
+      const codePoint = 0x10000 + (((charCode & 0x3ff) << 10) | (nextCharCode & 0x3ff));
+      bytes.push(
+        0xf0 | (codePoint >> 18),
+        0x80 | ((codePoint >> 12) & 0x3f),
+        0x80 | ((codePoint >> 6) & 0x3f),
+        0x80 | (codePoint & 0x3f)
+      );
+    } else {
+      bytes.push(0xe0 | (charCode >> 12), 0x80 | ((charCode >> 6) & 0x3f), 0x80 | (charCode & 0x3f));
+    }
+  }
+  return new Uint8Array(bytes);
+}
+
 /**
  * Tính toán mã CRC-16/CCITT-FALSE (đa thức 0x1021, giá trị khởi tạo 0xFFFF, không đảo bit).
- * Đây là thuật toán chuẩn quốc tế được quy định trong tài liệu EMVCo Book 4 và VietQR NAPAS.
+ * Không phụ thuộc Node Buffer.
  */
 export function calculateCrc16Ccitt(str: string): string {
   let crc = 0xffff;
   const polynomial = 0x1021;
-  const buffer = Buffer.from(str, 'utf8');
+  const bytes = stringToUtf8Bytes(str);
 
-  for (let i = 0; i < buffer.length; i++) {
-    crc ^= buffer[i] << 8;
+  for (let i = 0; i < bytes.length; i++) {
+    crc ^= bytes[i] << 8;
     for (let j = 0; j < 8; j++) {
       if ((crc & 0x8000) !== 0) {
         crc = ((crc << 1) ^ polynomial) & 0xffff;
@@ -45,16 +117,66 @@ export function calculateCrc16Ccitt(str: string): string {
 
 /**
  * Đóng gói trường dữ liệu TLV (Tag - Length - Value) theo chuẩn EMVCo.
- * Length luôn là 2 chữ số (ví dụ: '01' -> '02' -> '010212').
+ * B03-F02: Kiểm tra nghiêm ngặt độ dài byte <= 99 để không bao giờ làm tràn trường length 2 chữ số.
  */
 export function formatTlv(tag: string, value: string): string {
-  const len = Buffer.byteLength(value, 'utf8');
+  const len = getUtf8ByteLength(value);
+  if (len > 99) {
+    throw new Error(`Độ dài trường dữ liệu Tag ${tag} vượt quá giới hạn 2 chữ số (tối đa 99 bytes, nhận được ${len} bytes).`);
+  }
   const lenStr = len.toString().padStart(2, '0');
   return `${tag}${lenStr}${value}`;
 }
 
 /**
+ * Bộ giải mã TLV độc lập (Independent TLV Parser - B03-F02):
+ * Đọc tuần tự các trường 2 chữ số Tag, 2 chữ số Length, và Value để xác minh tính toàn vẹn cấu trúc EMVCo.
+ */
+export function parseTlvPayload(rawPayload: string): { fields: TlvField[]; crcValid: boolean; crcCalculated: string; crcInPayload: string } {
+  const fields: TlvField[] = [];
+  let offset = 0;
+
+  if (rawPayload.length < 4) {
+    throw new Error('Chuỗi payload quá ngắn để chứa trường TLV hợp lệ.');
+  }
+
+  const payloadWithoutCrc = rawPayload.slice(0, -4);
+  const crcInPayload = rawPayload.slice(-4);
+  const crcCalculated = calculateCrc16Ccitt(payloadWithoutCrc);
+  const crcValid = crcInPayload.toUpperCase() === crcCalculated.toUpperCase();
+
+  while (offset < rawPayload.length) {
+    if (offset + 4 > rawPayload.length) {
+      throw new Error(`Lỗi cấu trúc TLV tại offset ${offset}: không đủ 4 ký tự cho Tag và Length.`);
+    }
+
+    const tag = rawPayload.slice(offset, offset + 2);
+    const lengthStr = rawPayload.slice(offset + 2, offset + 4);
+
+    if (!/^\d{2}$/.test(tag) || !/^\d{2}$/.test(lengthStr)) {
+      throw new Error(`Lỗi định dạng TLV tại offset ${offset}: Tag '${tag}' hoặc Length '${lengthStr}' không phải là 2 chữ số.`);
+    }
+
+    const length = parseInt(lengthStr, 10);
+    const valueStart = offset + 4;
+    const valueEnd = valueStart + length;
+
+    if (valueEnd > rawPayload.length) {
+      throw new Error(`Lỗi tràn dữ liệu TLV tại offset ${offset}: Tag '${tag}' khai báo length ${length} nhưng chuỗi chỉ còn ${rawPayload.length - valueStart} ký tự.`);
+    }
+
+    const value = rawPayload.slice(valueStart, valueEnd);
+    fields.push({ tag, length, value });
+
+    offset = valueEnd;
+  }
+
+  return { fields, crcValid, crcCalculated, crcInPayload };
+}
+
+/**
  * Kiểm tra tính hợp lệ của cấu hình ngân hàng thụ hưởng.
+ * B03-F02: Áp dụng ràng buộc 6-19 ký tự cho số tài khoản theo chuẩn QuickLink và NAPAS.
  */
 export function validateBankConfig(config: BankConfig | null | undefined): QrValidationResult {
   const errors: string[] = [];
@@ -69,8 +191,8 @@ export function validateBankConfig(config: BankConfig | null | undefined): QrVal
 
   if (!config.accountNumber || config.accountNumber.trim().length === 0) {
     errors.push('Số tài khoản ngân hàng thụ hưởng không được để trống.');
-  } else if (!/^[0-9a-zA-Z]{6,30}$/.test(config.accountNumber.trim())) {
-    errors.push('Số tài khoản ngân hàng chứa ký tự không hợp lệ hoặc độ dài ngoài khoảng 6–30 ký tự.');
+  } else if (!ACCOUNT_NUMBER_REGEX.test(config.accountNumber.trim())) {
+    errors.push('Số tài khoản ngân hàng không hợp lệ (phải từ 6 đến 19 ký tự chữ hoặc số theo chuẩn QuickLink/NAPAS).');
   }
 
   if (!config.accountName || config.accountName.trim().length === 0) {
@@ -85,6 +207,7 @@ export function validateBankConfig(config: BankConfig | null | undefined): QrVal
 
 /**
  * Kiểm tra tính hợp lệ của Payload thanh toán QR.
+ * B03-F02: Áp dụng trần 13 chữ số tiền và tối đa 50 ký tự không đặc biệt cho description.
  */
 export function validateQrPaymentPayload(payload: QrPaymentPayload | null | undefined): QrValidationResult {
   const errors: string[] = [];
@@ -99,9 +222,8 @@ export function validateQrPaymentPayload(payload: QrPaymentPayload | null | unde
   } else if (payload.amount <= 0) {
     errors.push('Số tiền thanh toán phải lớn hơn 0.');
   } else if (payload.amount > MAX_MONEY_AMOUNT) {
-    errors.push(`Số tiền thanh toán vượt quá giới hạn tối đa cho phép của hệ thống (${MAX_MONEY_AMOUNT.toLocaleString('vi-VN')} đ).`);
+    errors.push(`Số tiền thanh toán vượt quá giới hạn tối đa cho phép của QuickLink/NAPAS (${MAX_MONEY_AMOUNT.toLocaleString('vi-VN')} đ, tối đa 13 chữ số).`);
   } else {
-    // Kiểm tra số chữ số thập phân (tối đa 2 chữ số theo hợp đồng tiền tệ)
     const rounded = Math.round(payload.amount * 100) / 100;
     if (Math.abs(payload.amount - rounded) > 1e-6) {
       errors.push('Số tiền thanh toán không được vượt quá 2 chữ số thập phân.');
@@ -115,10 +237,26 @@ export function validateQrPaymentPayload(payload: QrPaymentPayload | null | unde
     errors.push('Mã yêu cầu (RequestKey) phải là UUID v4 RFC 4122 hợp lệ.');
   }
 
+  // 3. B03-F02: Kiểm tra nội dung mô tả (nếu có cung cấp)
+  let sanitizedDesc: string | undefined;
+  if (payload.orderDescription !== undefined) {
+    const trimmed = payload.orderDescription.trim();
+    if (trimmed.length === 0) {
+      errors.push('Nội dung chuyển khoản không được để trống hoặc chỉ chứa khoảng trắng.');
+    } else if (trimmed.length > 50) {
+      errors.push(`Nội dung chuyển khoản vượt quá giới hạn 50 ký tự của QuickLink (nhận được ${trimmed.length} ký tự).`);
+    } else if (!DESCRIPTION_REGEX.test(trimmed)) {
+      errors.push('Nội dung chuyển khoản chứa ký tự đặc biệt không được hỗ trợ bởi VietQR/QuickLink.');
+    } else {
+      sanitizedDesc = trimmed;
+    }
+  }
+
   return {
     valid: errors.length === 0,
     errors,
     sanitizedAmount: typeof payload.amount === 'number' && payload.amount > 0 ? Math.round(payload.amount * 100) / 100 : undefined,
+    sanitizedDescription: sanitizedDesc,
   };
 }
 
@@ -133,12 +271,8 @@ export function extractShortReference(requestKey: string): string {
 
 /**
  * Sinh mã VietQR (chuỗi EMVCo Payload và QuickLink URL).
- *
- * @param bankConfig Thông tin tài khoản ngân hàng thụ hưởng.
- * @param payload Dữ liệu thanh toán (số tiền, requestKey,...).
  */
 export function generateVietQrPayload(bankConfig: BankConfig, payload: QrPaymentPayload): VietQrResult {
-  // Validate cấu hình và payload
   const configVal = validateBankConfig(bankConfig);
   if (!configVal.valid) {
     throw new Error(`Cấu hình ngân hàng không hợp lệ: ${configVal.errors.join('; ')}`);
@@ -154,9 +288,13 @@ export function generateVietQrPayload(bankConfig: BankConfig, payload: QrPayment
   const cleanAmount = payloadVal.sanitizedAmount!;
   const amountStr = Number.isInteger(cleanAmount) ? cleanAmount.toString() : cleanAmount.toFixed(2);
   const shortRef = extractShortReference(payload.requestKey);
-  const transferContent = payload.orderDescription ? payload.orderDescription.trim() : `OISMS POS ${shortRef}`;
+  const transferContent = payloadVal.sanitizedDescription || `OISMS POS ${shortRef}`;
 
-  // Xây dựng chuỗi EMVCo theo chuẩn VietQR NAPAS:
+  // Kiểm tra độ dài nội dung chuyển khoản bảo đảm không tràn 50 ký tự
+  if (transferContent.length > 50) {
+    throw new Error(`Nội dung chuyển khoản quá dài (${transferContent.length} ký tự), vượt trần 50 ký tự.`);
+  }
+
   // Tag 00: Payload Format Indicator = '01'
   const tag00 = formatTlv('00', '01');
 
@@ -164,11 +302,6 @@ export function generateVietQrPayload(bankConfig: BankConfig, payload: QrPayment
   const tag01 = formatTlv('01', '12');
 
   // Tag 38: Merchant Account Information - NAPAS
-  //   Sub 00: AID = 'A000000727' (NAPAS)
-  //   Sub 01: Beneficiary Organization:
-  //     Sub-sub 00: Bank BIN
-  //     Sub-sub 01: Account Number
-  //   Sub 02: Service Code = 'QRIBFTTA' (Chuyển nhanh 247 qua tài khoản)
   const sub38_00 = formatTlv('00', 'A000000727');
   const sub38_01_00 = formatTlv('00', cleanBin);
   const sub38_01_01 = formatTlv('01', cleanAccount);
@@ -185,47 +318,77 @@ export function generateVietQrPayload(bankConfig: BankConfig, payload: QrPayment
   // Tag 58: Country Code = 'VN'
   const tag58 = formatTlv('58', 'VN');
 
-  // Tag 62: Additional Data Field Template
-  //   Sub 08: Purpose of Transaction / Reference
+  // Tag 62: Additional Data Field Template (Sub 08: Purpose of Transaction / Reference)
   const sub62_08 = formatTlv('08', transferContent);
   const tag62 = formatTlv('62', sub62_08);
 
-  // Ghép các trường dữ liệu trước trường CRC (Tag 63)
+  // Ghép các trường trước trường CRC (Tag 63)
   const preCrc = `${tag00}${tag01}${tag38}${tag53}${tag54}${tag58}${tag62}6304`;
 
   // Tính toán CRC16-CCITT cho toàn bộ chuỗi
   const crcCode = calculateCrc16Ccitt(preCrc);
   const rawPayload = `${preCrc}${crcCode}`;
 
-  // Kiểm tra lại tính hợp lệ của chuỗi đã ghép
-  const verifyPayloadWithoutCrc = rawPayload.slice(0, -4);
-  const calculatedVerificationCrc = calculateCrc16Ccitt(verifyPayloadWithoutCrc);
-  const crcValid = calculatedVerificationCrc === crcCode;
+  // Kiểm chứng lại tính toàn vẹn cấu trúc qua bộ parser TLV độc lập
+  const parsed = parseTlvPayload(rawPayload);
+  if (!parsed.crcValid) {
+    throw new Error(`Lỗi toàn vẹn dữ liệu: CRC tính toán không khớp với mã kiểm tra sinh ra (${parsed.crcCalculated} !== ${parsed.crcInPayload}).`);
+  }
 
-  // Xây dựng đường dẫn QuickLink
+  // Đường dẫn QuickLink
   const template = bankConfig.template || 'compact2';
   const encodedContent = encodeURIComponent(transferContent);
   const encodedAccountName = encodeURIComponent(bankConfig.accountName.trim());
   const quickLinkUrl = `https://img.vietqr.io/image/${cleanBin}-${cleanAccount}-${template}.png?amount=${amountStr}&addInfo=${encodedContent}&accountName=${encodedAccountName}`;
+
+  const snapshot: QrSnapshotData = {
+    requestKey: payload.requestKey,
+    amount: cleanAmount,
+    bankBin: cleanBin,
+    accountNumber: cleanAccount,
+    orderDescription: transferContent,
+    branchId: payload.branchId,
+  };
 
   return {
     rawPayload,
     quickLinkUrl,
     transactionReference: shortRef,
     transferContent,
-    crcValid,
+    crcValid: parsed.crcValid,
     crcCode,
     status: 'AWAITING_CASHIER_CONFIRMATION',
     isTestFixture: Boolean(bankConfig.isTestFixture),
     createdAt: new Date().toISOString(),
+    requestKey: payload.requestKey, // B03-F03: Bảo toàn full UUID
+    snapshot,                       // B03-F03: Snapshot ngữ cảnh đầy đủ
   };
 }
 
 /**
  * Kiểm tra tính toàn vẹn và bất biến (Idempotent Invariance) khi Retry giao dịch:
- * Khi gửi lại cùng một requestKey, nội dung chuyển khoản, mã tham chiếu và số tiền phải giữ nguyên.
+ * B03-F03: Bắt buộc đối chiếu full RequestKey UUID và dữ liệu snapshot;
+ * hai UUID khác nhau dù trùng 8 ký tự đầu KHÔNG ĐƯỢC coi là cùng giao dịch.
  */
 export function assertIdempotentPayload(first: VietQrResult, retry: VietQrResult): boolean {
+  if (!first || !retry) return false;
+
+  // B03-F03: Khẳng định nghiêm ngặt full UUID v4 RFC 4122
+  if (first.requestKey !== retry.requestKey) {
+    return false;
+  }
+
+  // Khẳng định snapshot giao dịch
+  if (first.snapshot?.amount !== retry.snapshot?.amount) {
+    return false;
+  }
+  if (first.snapshot?.bankBin !== retry.snapshot?.bankBin) {
+    return false;
+  }
+  if (first.snapshot?.accountNumber !== retry.snapshot?.accountNumber) {
+    return false;
+  }
+
   if (first.transactionReference !== retry.transactionReference) {
     return false;
   }

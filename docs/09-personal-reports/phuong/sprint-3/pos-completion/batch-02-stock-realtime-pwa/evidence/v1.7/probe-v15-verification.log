@@ -1,0 +1,57 @@
+﻿=== RUNNING S3-POS-B02 v1.5 PROBES ===
+Timestamp: 2026-10-28T09:52:50.840Z
+
+[TEST 1] Older barcode returns after newer refresh fails:
+  State after older barcode completion: {
+  isStale: true,
+  error: 'Dß╗» liß╗çu tß╗ôn ch╞░a ─æß╗ông bß╗Ö do lß╗ùi kß║┐t nß╗æi. Bß║Ñm ─æß╗â thß╗¡ lß║íi.',
+  addedCount: 0
+}
+  -> TEST 1 PASSED: Failure state preserved against older barcode completion
+
+[TEST 2] Older refetch returns after newer refresh fails:
+  State after older refetch completion: {
+  isStale: true,
+  error: 'Dß╗» liß╗çu tß╗ôn ch╞░a ─æß╗ông bß╗Ö do lß╗ùi kß║┐t nß╗æi. Bß║Ñm ─æß╗â thß╗¡ lß║íi.'
+}
+  -> TEST 2 PASSED: Failure state preserved against older refetch completion
+
+[TEST 3] Newer retry 8 succeeds after failed refresh:
+  -> TEST 3 PASSED: Successful retry clears stale state and sets fresh stock 8
+
+[TEST 4] R4 Success Race: older barcode after newer refetch 8:
+  -> TEST 4 PASSED: Newer 8 preserved against older barcode 10
+
+[TEST 5] R4 Success Race: fresh search 8 with existing cache 10:
+  -> TEST 5 PASSED: Fresh search 8 overrides cache 10
+
+[TEST 6] Older refetch 10 after newer barcode 8:
+  -> TEST 6 PASSED: Newer barcode 8 preserved against older refetch 10
+
+=== ALL v1.5 PROBES PASSED ===
+[
+  {
+    "test": "older-barcode-after-refresh-fail",
+    "status": "PASS"
+  },
+  {
+    "test": "older-refetch-after-refresh-fail",
+    "status": "PASS"
+  },
+  {
+    "test": "newer-retry-succeeds-clears-stale",
+    "status": "PASS"
+  },
+  {
+    "test": "r4-older-barcode-newer-refetch-success",
+    "status": "PASS"
+  },
+  {
+    "test": "r4-fresh-search-overrides-cache",
+    "status": "PASS"
+  },
+  {
+    "test": "older-refetch-newer-barcode-success",
+    "status": "PASS"
+  }
+]

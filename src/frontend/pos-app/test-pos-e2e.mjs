@@ -472,6 +472,9 @@ test('13. Workflow: Failed Checkout & Preview Receipt preserves Cart', () => {
 const apiSourceCode = fs.readFileSync(path.resolve(__dirname, 'src/services/api.ts'), 'utf8')
   .replace(/import\.meta\.env\.VITE_API_BASE_URL/g, 'undefined');
 const modalSourceCode = fs.readFileSync(path.resolve(__dirname, 'src/components/PaymentModal.tsx'), 'utf8');
+const qrServiceSourceCode = fs.readFileSync(path.resolve(__dirname, 'src/services/qrService.ts'), 'utf8')
+  .replace(/\(import\.meta as any\)\.env\?/g, '({})')
+  .replace(/import\.meta/g, '({})');
 const loginModalSourceCode = fs.readFileSync(path.resolve(__dirname, 'src/components/LoginModal.tsx'), 'utf8');
 const appSourceCode = fs.readFileSync(path.resolve(__dirname, 'src/App.tsx'), 'utf8');
 
@@ -616,11 +619,14 @@ function mountPaymentModal(env, props, apiModule) {
     useRef: (val) => ({ current: val }),
   };
 
+  const qrServiceModule = compileAndLoadModule(qrServiceSourceCode, 'qrService.ts', env, {});
+
   const { PaymentModal } = compileAndLoadModule(modalSourceCode, 'PaymentModal.tsx', env, {
     react,
     'react/jsx-runtime': { jsx, jsxs: jsx, Fragment: 'Fragment' },
     'lucide-react': {},
     '../services/api': apiModule,
+    '../services/qrService': qrServiceModule,
   });
 
   return {

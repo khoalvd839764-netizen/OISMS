@@ -978,8 +978,12 @@ const stockStateByBranch: Record<string, Record<string, StockItemState>> = {};
 const branchStockSubscribers: Record<string, Set<(stocks: Record<string, StockItemState>) => void>> = {};
 const skuIdentityRegistry: Map<string, { skuId?: string; skuCode?: string; barcode?: string }> = new Map();
 
-let globalStockVersion = 0;
-const stockVersionByBranch: Record<string, Record<string, number>> = {};
+let globalStockTicket = 0;
+const committedStockVersionByBranch: Record<string, Record<string, number>> = {};
+
+export function issueStockReadTicket(): number {
+  return ++globalStockTicket;
+}
 
 export function registerSkuIdentity(skuId?: string, skuCode?: string, barcode?: string): void {
   const cleanSkuId = typeof skuId === 'string' && skuId.trim() ? skuId.trim() : undefined;
@@ -1035,9 +1039,9 @@ export function resolveCanonicalVariantId(key: string): string {
   return trimmed.toLowerCase();
 }
 
-export function getStockVersion(branchId: string, key: string): number {
+export function getCommittedStockVersion(branchId: string, key: string): number {
   if (!branchId || !key) return 0;
-  const branchMap = stockVersionByBranch[branchId];
+  const branchMap = committedStockVersionByBranch[branchId];
   if (!branchMap) return 0;
   const canonical = resolveCanonicalVariantId(key);
   return Math.max(
@@ -1047,46 +1051,63 @@ export function getStockVersion(branchId: string, key: string): number {
   );
 }
 
-export function bumpStockVersion(
+export function canCommitStockRead(branchId: string, key: string, readTicket: number): boolean {
+  const committedVer = getCommittedStockVersion(branchId, key);
+  return readTicket >= committedVer;
+}
+
+export function recordCommittedStockVersion(
   branchId: string,
   key: string,
-  aliases?: Array<string | undefined | null>,
-  explicitVersion?: number
-): number {
-  if (!branchId) return 0;
-  if (!stockVersionByBranch[branchId]) {
-    stockVersionByBranch[branchId] = {};
+  version: number,
+  aliases?: Array<string | undefined | null>
+): void {
+  if (!branchId) return;
+  if (!committedStockVersionByBranch[branchId]) {
+    committedStockVersionByBranch[branchId] = {};
   }
-  const branchMap = stockVersionByBranch[branchId];
-  const nextVer = explicitVersion !== undefined ? explicitVersion : ++globalStockVersion;
+  const branchMap = committedStockVersionByBranch[branchId];
   const canonical = resolveCanonicalVariantId(key);
 
-  branchMap[canonical] = Math.max(branchMap[canonical] || 0, nextVer);
-  branchMap[key] = Math.max(branchMap[key] || 0, nextVer);
-  branchMap[key.toLowerCase()] = Math.max(branchMap[key.toLowerCase()] || 0, nextVer);
+  branchMap[canonical] = Math.max(branchMap[canonical] || 0, version);
+  branchMap[key] = Math.max(branchMap[key] || 0, version);
+  branchMap[key.toLowerCase()] = Math.max(branchMap[key.toLowerCase()] || 0, version);
 
   const entry =
     skuIdentityRegistry.get(key) ||
     skuIdentityRegistry.get(key.toLowerCase()) ||
     skuIdentityRegistry.get(canonical);
   if (entry) {
-    if (entry.skuId) branchMap[entry.skuId] = Math.max(branchMap[entry.skuId] || 0, nextVer);
+    if (entry.skuId) branchMap[entry.skuId] = Math.max(branchMap[entry.skuId] || 0, version);
     if (entry.skuCode) {
-      branchMap[entry.skuCode] = Math.max(branchMap[entry.skuCode] || 0, nextVer);
-      branchMap[entry.skuCode.toLowerCase()] = Math.max(branchMap[entry.skuCode.toLowerCase()] || 0, nextVer);
+      branchMap[entry.skuCode] = Math.max(branchMap[entry.skuCode] || 0, version);
+      branchMap[entry.skuCode.toLowerCase()] = Math.max(branchMap[entry.skuCode.toLowerCase()] || 0, version);
     }
-    if (entry.barcode) branchMap[entry.barcode] = Math.max(branchMap[entry.barcode] || 0, nextVer);
+    if (entry.barcode) branchMap[entry.barcode] = Math.max(branchMap[entry.barcode] || 0, version);
   }
 
   if (aliases) {
     for (const a of aliases) {
       if (a) {
-        branchMap[a] = Math.max(branchMap[a] || 0, nextVer);
-        branchMap[a.toLowerCase()] = Math.max(branchMap[a.toLowerCase()] || 0, nextVer);
+        branchMap[a] = Math.max(branchMap[a] || 0, version);
+        branchMap[a.toLowerCase()] = Math.max(branchMap[a.toLowerCase()] || 0, version);
       }
     }
   }
+}
 
+export function getStockVersion(branchId: string, key: string): number {
+  return getCommittedStockVersion(branchId, key);
+}
+
+export function bumpStockVersion(
+  branchId: string,
+  key: string,
+  aliases?: Array<string | undefined | null>,
+  explicitVersion?: number
+): number {
+  const nextVer = explicitVersion !== undefined ? explicitVersion : ++globalStockTicket;
+  recordCommittedStockVersion(branchId, key, nextVer, aliases);
   return nextVer;
 }
 
@@ -1161,12 +1182,11 @@ export function setAuthoritativeStock(
   branchId: string,
   key: string,
   available: number,
-  metadata?: { onHand?: number | null; reserved?: number | null; skuId?: string; skuCode?: string; barcode?: string }
-): void {
-  if (!branchId || !key) return;
-  if (!stockStateByBranch[branchId]) {
-    stockStateByBranch[branchId] = {};
-  }
+  metadata?: { onHand?: number | null; reserved?: number | null; skuId?: string; skuCode?: string; barcode?: string },
+  readTicket?: number
+): boolean {
+  if (!branchId || !key) return false;
+
   const validUuid = isUuid(key) ? key : (isUuid(metadata?.skuId) ? metadata?.skuId : undefined);
   const skuId = metadata?.skuId || (validUuid ? key : undefined);
   const skuCode = metadata?.skuCode || (!validUuid ? key : undefined);
@@ -1174,8 +1194,19 @@ export function setAuthoritativeStock(
 
   registerSkuIdentity(skuId, skuCode, barcode);
 
-  // Bump freshness version across all writers
-  bumpStockVersion(branchId, key, [skuId, skuCode, barcode]);
+  if (readTicket !== undefined) {
+    if (!canCommitStockRead(branchId, key, readTicket)) {
+      return false;
+    }
+    recordCommittedStockVersion(branchId, key, readTicket, [skuId, skuCode, barcode]);
+  } else {
+    const commitTicket = ++globalStockTicket;
+    recordCommittedStockVersion(branchId, key, commitTicket, [skuId, skuCode, barcode]);
+  }
+
+  if (!stockStateByBranch[branchId]) {
+    stockStateByBranch[branchId] = {};
+  }
 
   stockStateByBranch[branchId][key] = {
     available: Math.max(0, available),
@@ -1189,28 +1220,74 @@ export function setAuthoritativeStock(
     updatedAt: Date.now(),
   };
   notifyBranchStockSubscribers(branchId);
+  return true;
 }
 
-export function markStockStale(branchId: string, keys: string[], errorMessage: string): void {
-  if (!branchId || keys.length === 0) return;
+export function markStockStale(
+  branchId: string,
+  keys: string[],
+  errorMessage: string,
+  readTicket?: number
+): boolean {
+  if (!branchId || keys.length === 0) return false;
+
+  const expandedKeys = new Set<string>();
+  for (const k of keys) {
+    if (!k) continue;
+    expandedKeys.add(k);
+    const canonical = resolveCanonicalVariantId(k);
+    if (canonical) expandedKeys.add(canonical);
+    const entry =
+      skuIdentityRegistry.get(k) ||
+      skuIdentityRegistry.get(k.toLowerCase()) ||
+      (canonical ? skuIdentityRegistry.get(canonical) : undefined);
+    if (entry) {
+      if (entry.skuId) expandedKeys.add(entry.skuId);
+      if (entry.skuCode) expandedKeys.add(entry.skuCode);
+      if (entry.barcode) expandedKeys.add(entry.barcode);
+    }
+  }
+
+  const allKeys = Array.from(expandedKeys);
+
+  // B02-F04 v1.5: Thứ tự failure/stale thuộc read→commit
+  // Nếu có readTicket, kiểm tra xem read thất bại này có mới hơn phiên bản đã commit trước đó không
+  if (readTicket !== undefined) {
+    const canCommit = allKeys.some((k) => canCommitStockRead(branchId, k, readTicket));
+    if (!canCommit) {
+      return false;
+    }
+    for (const k of allKeys) {
+      recordCommittedStockVersion(branchId, k, readTicket, allKeys);
+    }
+  } else {
+    const commitTicket = ++globalStockTicket;
+    for (const k of allKeys) {
+      recordCommittedStockVersion(branchId, k, commitTicket, allKeys);
+    }
+  }
+
   if (!stockStateByBranch[branchId]) {
     stockStateByBranch[branchId] = {};
   }
-  for (const k of keys) {
+  for (const k of allKeys) {
     const existing = stockStateByBranch[branchId][k];
-    stockStateByBranch[branchId][k] = {
-      available: existing ? existing.available : 0,
-      onHand: existing?.onHand,
-      reserved: existing?.reserved,
-      skuId: existing?.skuId,
-      skuCode: existing?.skuCode,
-      barcode: existing?.barcode,
-      isStale: true,
-      error: errorMessage,
-      updatedAt: Date.now(),
-    };
+    if (existing || keys.includes(k)) {
+      stockStateByBranch[branchId][k] = {
+        available: existing ? existing.available : 0,
+        onHand: existing?.onHand,
+        reserved: existing?.reserved,
+        skuId: existing?.skuId,
+        skuCode: existing?.skuCode,
+        barcode: existing?.barcode,
+        isStale: true,
+        error: errorMessage,
+        updatedAt: Date.now(),
+      };
+    }
   }
   notifyBranchStockSubscribers(branchId);
+  return true;
 }
 
 export async function invalidateAndRefetchStock(
@@ -1234,7 +1311,7 @@ export async function invalidateAndRefetchStock(
       registerSkuIdentity(item.skuId, item.skuCode, item.barcode || undefined);
 
       const canonicalId = resolveCanonicalVariantId(item.skuId || item.skuCode || item.barcode || lookupKey);
-      const readVersion = bumpStockVersion(branchId, canonicalId, [item.skuId, item.skuCode, item.barcode || undefined]);
+      const readTicket = issueStockReadTicket();
 
       try {
         let freshItem: any = null;
@@ -1309,8 +1386,7 @@ export async function invalidateAndRefetchStock(
         }
 
         // Freshness guard: Nếu đã có direct write hoặc read mới hơn cho item này -> bỏ qua response cũ
-        const currentVersion = getStockVersion(branchId, canonicalId);
-        if (readVersion < currentVersion) {
+        if (!canCommitStockRead(branchId, canonicalId, readTicket)) {
           return;
         }
 
@@ -1326,14 +1402,16 @@ export async function invalidateAndRefetchStock(
           ].filter((k): k is string => Boolean(k));
 
           for (const k of keysToUpdate) {
-            setAuthoritativeStock(branchId, k, newStock, {
+            const committed = setAuthoritativeStock(branchId, k, newStock, {
               onHand: freshItem.onHand,
               reserved: freshItem.reserved,
               skuId: freshItem.variantId || item.skuId,
               skuCode: freshItem.sku || item.skuCode,
               barcode: freshItem.barcode || item.barcode,
-            });
-            result.updated[k] = newStock;
+            }, readTicket);
+            if (committed) {
+              result.updated[k] = newStock;
+            }
           }
         } else {
           // B02-F03: Mặt hàng vắng mặt / không khớp -> Đánh dấu stale, không lấy hàng khác gán đè
@@ -1343,12 +1421,12 @@ export async function invalidateAndRefetchStock(
           markStockStale(
             branchId,
             keysToStale,
-            'Không tìm thấy mặt hàng khớp chính xác trong kho chi nhánh.'
+            'Không tìm thấy mặt hàng khớp chính xác trong kho chi nhánh.',
+            readTicket
           );
         }
       } catch (err: any) {
-        const currentVersion = getStockVersion(branchId, canonicalId);
-        if (readVersion < currentVersion) return;
+        if (!canCommitStockRead(branchId, canonicalId, readTicket)) return;
 
         result.success = false;
         result.errors[lookupKey] = err.message || 'Lỗi kết nối khi làm mới tồn.';
@@ -1356,7 +1434,8 @@ export async function invalidateAndRefetchStock(
         markStockStale(
           branchId,
           keysToStale,
-          'Dữ liệu tồn chưa đồng bộ do lỗi kết nối. Bấm để thử lại.'
+          'Dữ liệu tồn chưa đồng bộ do lỗi kết nối. Bấm để thử lại.',
+          readTicket
         );
       }
     })
@@ -1391,17 +1470,17 @@ export async function refreshBranchStock(branchId: string): Promise<StockRefresh
 export function _resetStockState(branchId?: string): void {
   if (branchId) {
     delete stockStateByBranch[branchId];
-    delete stockVersionByBranch[branchId];
+    delete committedStockVersionByBranch[branchId];
     notifyBranchStockSubscribers(branchId);
   } else {
     for (const b of Object.keys(stockStateByBranch)) {
       delete stockStateByBranch[b];
     }
-    for (const b of Object.keys(stockVersionByBranch)) {
-      delete stockVersionByBranch[b];
+    for (const b of Object.keys(committedStockVersionByBranch)) {
+      delete committedStockVersionByBranch[b];
     }
     skuIdentityRegistry.clear();
-    globalStockVersion = 0;
+    globalStockTicket = 0;
   }
 }
 

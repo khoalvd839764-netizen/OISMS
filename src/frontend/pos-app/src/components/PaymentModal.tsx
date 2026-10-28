@@ -12,6 +12,12 @@ import {
   isSameOwner,
   mapServerReceiptToReceiptData,
 } from '../services/api';
+import {
+  getPosBankConfig,
+  generateVietQrPayload,
+  extractShortReference,
+} from '../services/qrService';
+import type { BankConfig, VietQrResult } from '../types/qr';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -49,6 +55,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [userGivenAmount, setUserGivenAmount] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiNotice, setApiNotice] = useState<{ type: 'warning' | 'error' | 'success'; text: string; details?: any } | null>(null);
+  const [modalRequestKey, setModalRequestKey] = useState<string>(() => generateUuidV4());
   const [pendingAttempt, setPendingAttempt] = useState<PendingCheckoutRecord | null>(() => {
     return getPendingCheckout(activeUser, branchId);
   });
@@ -68,6 +75,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setPendingAttempt(fresh);
       if (!fresh) {
         setApiNotice(null);
+        setModalRequestKey(generateUuidV4());
       }
     }
   }, [isOpen, activeUser?.id, activeUser?.tenantId, activeUser?.email, branchId]);
@@ -79,6 +87,31 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   const currentPending = getActivePendingRecord();
   const isRetry = Boolean(currentPending && (currentPending.status === 'unknown' || currentPending.status === 'submitting'));
+  const activeRequestKey = currentPending?.requestKey || modalRequestKey;
+
+  // B03-T04: Khởi tạo và kiểm tra cấu hình ngân hàng thụ hưởng cho VietQR
+  const bankConfig: BankConfig | null = getPosBankConfig(branchId);
+  let qrResult: VietQrResult | null = null;
+  let qrError: string | null = null;
+
+  if (paymentMethod === 'BANK_TRANSFER_QR') {
+    if (!bankConfig) {
+      qrError = 'Chưa cấu hình tài khoản ngân hàng thụ hưởng cho chi nhánh.';
+    } else {
+      try {
+        qrResult = generateVietQrPayload(bankConfig, {
+          amount: totalAmount,
+          requestKey: activeRequestKey,
+          branchId,
+          orderDescription: `OISMS POS ${extractShortReference(activeRequestKey)}`,
+        });
+      } catch (err: any) {
+        qrError = err.message || 'Lỗi khi tạo mã VietQR.';
+      }
+    }
+  }
+
+  const isBankConfigInvalid = paymentMethod === 'BANK_TRANSFER_QR' && (!bankConfig || Boolean(qrError));
 
   // POS-T01-F01: Cảnh báo API chỉ hiển thị nếu thuộc về giao dịch của người dùng hiện tại
   const isNoticeForCurrent = apiNotice && (!apiNotice.details?.requestKey || apiNotice.details?.requestKey === currentPending?.requestKey);
@@ -113,6 +146,14 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       return;
     }
 
+    if (paymentMethod === 'BANK_TRANSFER_QR' && isBankConfigInvalid) {
+      setApiNotice({
+        type: 'error',
+        text: qrError || 'Chưa cấu hình tài khoản ngân hàng thụ hưởng hợp lệ để thanh toán QR.',
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     setApiNotice(null);
 
@@ -129,8 +170,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       checkoutRequest = activePending.requestPayload;
       updatePendingCheckoutStatus('submitting', undefined, undefined, activeUser, branchId);
     } else {
-      // Giao dịch mới: sinh UUID v4 RFC 4122 hợp lệ, không dùng chuỗi req-${Date.now()}
-      requestKey = generateUuidV4();
+      // Giao dịch mới: nếu phương thức là QR thì dùng activeRequestKey khớp với mã hiển thị; nếu là Tiền mặt thì sinh UUID v4 mới
+      requestKey = paymentMethod === 'BANK_TRANSFER_QR' ? activeRequestKey : generateUuidV4();
       checkoutRequest = {
         branchId: branchId || '00000000-0000-0000-0000-000000000000',
         channel: 'POS',
@@ -416,89 +457,88 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             </div>
           )}
 
-          {/* QR CODE SECTION */}
+          {/* QR CODE SECTION - S3-POS-B03: Thay thế Mã QR mô phỏng bằng VietQR thật chuẩn EMVCo/NAPAS 247 */}
           {paymentMethod === 'BANK_TRANSFER_QR' && (
             <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200/60 flex flex-col items-center text-center">
-              <div className="bg-white p-3 rounded-2xl shadow-md border border-slate-200 mb-3">
-                {/* Simulated VietQR SVG Code */}
-                <svg
-                  className="w-48 h-48"
-                  viewBox="0 0 200 200"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <rect width="200" height="200" fill="#ffffff" />
-                  {/* Outer QR Border & Pattern simulation */}
-                  <rect x="20" y="20" width="40" height="40" fill="#0f172a" />
-                  <rect x="25" y="25" width="30" height="30" fill="#ffffff" />
-                  <rect x="30" y="30" width="20" height="20" fill="#4f46e5" />
-
-                  <rect x="140" y="20" width="40" height="40" fill="#0f172a" />
-                  <rect x="145" y="25" width="30" height="30" fill="#ffffff" />
-                  <rect x="150" y="30" width="20" height="20" fill="#4f46e5" />
-
-                  <rect x="20" y="140" width="40" height="40" fill="#0f172a" />
-                  <rect x="25" y="145" width="30" height="30" fill="#ffffff" />
-                  <rect x="30" y="150" width="20" height="20" fill="#4f46e5" />
-
-                  {/* QR Dots Matrix */}
-                  <g fill="#1e293b">
-                    <rect x="70" y="25" width="10" height="10" />
-                    <rect x="90" y="25" width="10" height="10" />
-                    <rect x="110" y="25" width="10" height="10" />
-                    <rect x="70" y="45" width="10" height="10" />
-                    <rect x="100" y="45" width="20" height="10" />
-
-                    <rect x="30" y="75" width="20" height="10" />
-                    <rect x="60" y="75" width="30" height="10" />
-                    <rect x="100" y="75" width="10" height="20" />
-                    <rect x="120" y="75" width="20" height="10" />
-                    <rect x="150" y="75" width="20" height="20" />
-
-                    <rect x="25" y="95" width="20" height="10" />
-                    <rect x="60" y="95" width="20" height="20" />
-                    <rect x="90" y="105" width="20" height="10" />
-                    <rect x="130" y="105" width="10" height="20" />
-
-                    <rect x="75" y="125" width="20" height="10" />
-                    <rect x="110" y="125" width="30" height="10" />
-                    <rect x="150" y="125" width="20" height="10" />
-
-                    <rect x="75" y="145" width="10" height="20" />
-                    <rect x="95" y="145" width="30" height="10" />
-                    <rect x="140" y="145" width="20" height="20" />
-                    <rect x="80" y="170" width="30" height="10" />
-                    <rect x="120" y="170" width="40" height="10" />
-                  </g>
-
-                  {/* Center Brand Badge */}
-                  <rect x="85" y="85" width="30" height="30" rx="6" fill="#4f46e5" />
-                  <text
-                    x="100"
-                    y="104"
-                    fill="#ffffff"
-                    fontSize="11"
-                    fontWeight="bold"
-                    textAnchor="middle"
-                  >
-                    POS
-                  </text>
-                </svg>
-              </div>
-
-              <div className="space-y-2 text-xs text-slate-600 max-w-sm">
-                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-left">
-                  <div className="font-bold flex items-center gap-1.5 text-xs text-amber-800 mb-1">
-                    <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
-                    <span>Mã QR mô phỏng (Tính năng đang phát triển)</span>
+              {isBankConfigInvalid || !qrResult || !bankConfig ? (
+                <div className="w-full max-w-sm p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-900 text-left space-y-2">
+                  <div className="font-bold flex items-center gap-1.5 text-xs text-rose-800">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                    <span>Không thể tạo mã VietQR</span>
                   </div>
-                  <p className="text-[11px] leading-relaxed text-amber-700 m-0">
-                    Cổng VietQR động và Webhook đối soát ngân hàng đang được đội Backend hoàn thiện. <strong>Vui lòng KHÔNG chuyển tiền thật</strong> vì hệ thống chưa thể tự động ghi nhận thanh toán.
+                  <p className="text-xs leading-relaxed text-rose-700 m-0">
+                    {qrError || 'Chưa cấu hình thông tin ngân hàng thụ hưởng cho POS chi nhánh này. Vui lòng liên hệ quản trị viên hoặc chọn phương thức Tiền mặt.'}
+                  </p>
+                  <p className="text-[11px] text-rose-500 font-medium italic m-0 pt-1">
+                    Hệ thống không hiển thị mã QR giả lập để đảm bảo an toàn giao dịch. Nút thanh toán bị khóa cho tới khi có cấu hình hợp lệ.
                   </p>
                 </div>
-                <div className="pt-1 text-slate-500 text-[11px]">
-                  Số tiền cần thanh toán: <span className="font-bold text-slate-800 text-sm">{formatCurrency(totalAmount)}</span>
-                </div>
-              </div>
+              ) : (
+                <>
+                  <div className="bg-white p-3 rounded-2xl shadow-md border border-slate-200 mb-3 relative flex items-center justify-center min-w-[200px] min-h-[200px]">
+                    <img
+                      src={qrResult.quickLinkUrl}
+                      alt="VietQR Code"
+                      className="w-48 h-48 object-contain rounded-xl"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLElement).style.display = 'none';
+                        const fallback = document.getElementById('qr-offline-fallback');
+                        if (fallback) fallback.style.display = 'flex';
+                      }}
+                    />
+                    <div
+                      id="qr-offline-fallback"
+                      style={{ display: 'none' }}
+                      className="w-48 h-48 flex-col items-center justify-center p-3 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300 text-xs text-slate-500"
+                    >
+                      <QrCode className="w-8 h-8 text-slate-400 mb-2" />
+                      <span className="font-semibold text-slate-700">Mã QR ngoại tuyến</span>
+                      <span className="text-[10px] text-slate-500 mt-1 break-all line-clamp-3 font-mono">
+                        {qrResult.rawPayload.slice(0, 40)}...
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="w-full max-w-sm space-y-2 text-xs text-slate-700 text-left bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+                    <div className="flex justify-between items-center py-0.5 border-b border-slate-100">
+                      <span className="text-slate-500">Ngân hàng:</span>
+                      <span className="font-bold text-slate-800">{bankConfig.bankName} ({bankConfig.bankBin})</span>
+                    </div>
+                    <div className="flex justify-between items-center py-0.5 border-b border-slate-100">
+                      <span className="text-slate-500">Số tài khoản:</span>
+                      <span className="font-mono font-bold text-indigo-700 text-sm tracking-wide">{bankConfig.accountNumber}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-0.5 border-b border-slate-100">
+                      <span className="text-slate-500">Chủ tài khoản:</span>
+                      <span className="font-semibold text-slate-800 uppercase">{bankConfig.accountName}</span>
+                    </div>
+                    <div className="flex justify-between items-center py-0.5 border-b border-slate-100">
+                      <span className="text-slate-500">Số tiền:</span>
+                      <span className="font-extrabold text-emerald-600 text-sm">{formatCurrency(totalAmount)}</span>
+                    </div>
+                    <div className="flex justify-between items-start py-0.5">
+                      <span className="text-slate-500 shrink-0">Nội dung CK:</span>
+                      <span className="font-mono font-bold text-indigo-900 bg-indigo-50 px-2 py-0.5 rounded text-xs break-all text-right">
+                        {qrResult.transferContent}
+                      </span>
+                    </div>
+                    <div className="pt-1 text-[10px] text-slate-400 font-mono flex justify-between">
+                      <span>UUID:</span>
+                      <span className="truncate max-w-[200px]" title={activeRequestKey}>{activeRequestKey}</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-left max-w-sm">
+                    <div className="font-bold flex items-center gap-1.5 text-xs text-amber-800 mb-1">
+                      <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+                      <span>Xác nhận thủ công của thu ngân</span>
+                    </div>
+                    <p className="text-[11px] leading-relaxed text-amber-700 m-0">
+                      Hệ thống chưa tự động đối soát ngân hàng qua Webhook. Sau khi khách hàng quét mã và chuyển khoản thành công, <strong>thu ngân phải kiểm tra biến động số dư trên App ngân hàng hoặc tin nhắn SMS</strong> trước khi nhấn "Gửi Checkout đơn hàng (F4)".
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -587,10 +627,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
           <button
             type="button"
-            disabled={isSubmitting || isShortOfCash}
+            disabled={isSubmitting || isShortOfCash || isBankConfigInvalid}
             onClick={() => handleCheckout(false)}
             className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all ${
-              isSubmitting || isShortOfCash
+              isSubmitting || isShortOfCash || isBankConfigInvalid
                 ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
                 : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/30'
             }`}

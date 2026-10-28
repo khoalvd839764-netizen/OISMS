@@ -198,6 +198,18 @@ export function App() {
     if (!selectedBranchId) return;
     const unsubStock = subscribeBranchStock(selectedBranchId, (stocks) => {
       setStockMap(stocks);
+      setCart((prevCart) => {
+        let changed = false;
+        const next = prevCart.map((item) => {
+          const fresh = stocks[item.variantId] || (item.sku ? stocks[item.sku] : null);
+          if (fresh && fresh.available !== undefined && fresh.available !== item.available) {
+            changed = true;
+            return { ...item, available: fresh.available };
+          }
+          return item;
+        });
+        return changed ? next : prevCart;
+      });
     });
     return () => unsubStock();
   }, [selectedBranchId]);
@@ -269,6 +281,7 @@ export function App() {
         next[existingIndex] = {
           ...next[existingIndex],
           quantity: currentQty + 1,
+          available: availableStock,
         };
         return next;
       } else {
