@@ -1,0 +1,428 @@
+{
+  "provider": "Real production React in installed Edge, real HTTP backend + PostgreSQL. Loopback proxy injects response loss, invalid auth and Hub outage; only external QR image is substituted. No bank transfer.",
+  "head": "4197e28a4e2f43ae64b175a19d654d73890922b7",
+  "timestamp": "2026-10-28T11:44:20.305Z",
+  "environment": {
+    "backendUrl": "http://localhost:5001",
+    "backendContainer": "oisms_test_backend",
+    "postgresContainer": "oisms_test_pg_check",
+    "postgresPort": 5433,
+    "database": "oisms",
+    "user": "oisms_test_app",
+    "marker": "run_test_b02_v17"
+  },
+  "cases": [
+    {
+      "name": "cash, draft, reprint, replay, stock10->8 with Hub offline",
+      "status": "PASS",
+      "requestKey": "85a6e943-e4d6-48af-8ea4-d5ecf8d5a7ef",
+      "orders": 1,
+      "payments": 1,
+      "outs": 1,
+      "max": 8
+    },
+    {
+      "name": "QR close/open identity and branch-scoped receiver",
+      "status": "PASS",
+      "branchA": "123456789",
+      "branchB": "987654321"
+    },
+    {
+      "name": "QR response lost after commit -> reload -> UI retry single transaction",
+      "status": "PASS",
+      "requestKey": "abd52f96-3570-401e-8694-fef48313c36b",
+      "orders": 1,
+      "payments": 1,
+      "outs": 2,
+      "identicalPayload": true,
+      "frozenReceiver": "123456789"
+    },
+    {
+      "name": "real backend401, different owner isolation, same owner recovery",
+      "status": "PASS",
+      "requestKey": "869a33f8-a36f-4391-a4e2-7560234aa551",
+      "orders": 1,
+      "payments": 1,
+      "outs": 1
+    },
+    {
+      "name": "real Hub loss/reconnect/rejoin recovers missed stock",
+      "status": "PASS",
+      "before": 6,
+      "after": 5,
+      "newHubConnection": true
+    },
+    {
+      "name": "insufficient stock authoritative rejection preserves cart",
+      "status": 409,
+      "orders": 0
+    },
+    {
+      "name": "stock GET503 visible error, successful lookup recovery",
+      "status": "PASS",
+      "stockFailures": 1,
+      "recoveredAvailable": 6
+    },
+    {
+      "name": "late branch A response ignored after switching B",
+      "status": "PASS",
+      "branchBAvailable": 10,
+      "staleCartRows": 0
+    }
+  ],
+  "pageErrors": [],
+  "status": "PASS",
+  "fixture": {
+    "tenantId": "11111111-1111-1111-1111-111111111111",
+    "branchId": "11111111-0000-0000-0001-000000000001",
+    "otherBranchId": "6a72b2c5-66d0-44af-b50a-7260e5b51270",
+    "productId": "57042158-ff97-4260-b2d3-570d27a2eb52",
+    "skuIds": [
+      "a5676d10-c345-45e5-966c-706403190712",
+      "b4f64adf-7d86-4ec1-aaae-1966db015c47"
+    ],
+    "initialAvailable": 10
+  },
+  "executed": 8,
+  "checkoutTrace": [
+    {
+      "payload": {
+        "branchId": "11111111-0000-0000-0001-000000000001",
+        "channel": "POS",
+        "paymentMethod": "CASH",
+        "amountGiven": 200,
+        "changeDue": 0,
+        "requestKey": "85a6e943-e4d6-48af-8ea4-d5ecf8d5a7ef",
+        "items": [
+          {
+            "skuId": "a5676d10-c345-45e5-966c-706403190712",
+            "skuCode": "B03-72BDFBBB-B",
+            "productName": "B03-72BDFBBB",
+            "variantName": "B",
+            "quantity": 2,
+            "unitPrice": 100
+          }
+        ],
+        "totalAmount": 200
+      },
+      "status": 200,
+      "response": {
+        "success": true,
+        "message": "Thanh toán đơn hàng thành công.",
+        "orderId": "ea99c242-68c0-4ab9-a010-e8ebc985f47f",
+        "orderNumber": "POS-20261028-e9871f8",
+        "totalAmount": 200,
+        "amountGiven": 200,
+        "changeDue": 0,
+        "paymentMethod": "Cash",
+        "checkoutAt": "2026-10-28T11:44:27.3203756+00:00",
+        "receipt": {
+          "orderId": "ea99c242-68c0-4ab9-a010-e8ebc985f47f",
+          "receiptNumber": "POS-20261028-e9871f8",
+          "orderNumber": "POS-20261028-e9871f8",
+          "branchId": "11111111-0000-0000-0001-000000000001",
+          "branchName": "Chi nhánh Quận 1",
+          "branchAddress": "123 Lê Lợi, Phường Bến Thành, Quận 1, TP.HCM",
+          "branchPhone": null,
+          "cashierName": "Thu ngân shop A",
+          "customerName": null,
+          "customerPhone": null,
+          "totalAmount": 200,
+          "paymentMethod": "Cash",
+          "amountGiven": 200,
+          "changeDue": 0,
+          "createdAt": "2026-10-28T11:44:27.3203756+00:00",
+          "items": [
+            {
+              "skuId": "a5676d10-c345-45e5-966c-706403190712",
+              "skuCode": "B03-72BDFBBB-B",
+              "productName": "B03-72BDFBBB - B",
+              "variantName": null,
+              "quantity": 2,
+              "unitPrice": 100,
+              "subtotal": 200
+            }
+          ]
+        }
+      },
+      "dropped": false
+    },
+    {
+      "payload": {
+        "branchId": "11111111-0000-0000-0001-000000000001",
+        "channel": "POS",
+        "paymentMethod": "BANK_TRANSFER_QR",
+        "amountGiven": 200,
+        "changeDue": 0,
+        "requestKey": "abd52f96-3570-401e-8694-fef48313c36b",
+        "items": [
+          {
+            "skuId": "a5676d10-c345-45e5-966c-706403190712",
+            "skuCode": "B03-72BDFBBB-B",
+            "productName": "B03-72BDFBBB",
+            "variantName": "B",
+            "quantity": 1,
+            "unitPrice": 100
+          },
+          {
+            "skuId": "b4f64adf-7d86-4ec1-aaae-1966db015c47",
+            "skuCode": "B03-72BDFBBB-A",
+            "productName": "B03-72BDFBBB",
+            "variantName": "A",
+            "quantity": 1,
+            "unitPrice": 100
+          }
+        ],
+        "totalAmount": 200
+      },
+      "status": 200,
+      "response": {
+        "success": true,
+        "message": "Thanh toán đơn hàng thành công.",
+        "orderId": "f10f9baf-ead3-4ca1-85f8-8966f6860d47",
+        "orderNumber": "POS-20261028-66e2eb5",
+        "totalAmount": 200,
+        "amountGiven": null,
+        "changeDue": null,
+        "paymentMethod": "BankTransfer",
+        "checkoutAt": "2026-10-28T11:44:36.883586+00:00",
+        "receipt": {
+          "orderId": "f10f9baf-ead3-4ca1-85f8-8966f6860d47",
+          "receiptNumber": "POS-20261028-66e2eb5",
+          "orderNumber": "POS-20261028-66e2eb5",
+          "branchId": "11111111-0000-0000-0001-000000000001",
+          "branchName": "Chi nhánh Quận 1",
+          "branchAddress": "123 Lê Lợi, Phường Bến Thành, Quận 1, TP.HCM",
+          "branchPhone": null,
+          "cashierName": "Thu ngân shop A",
+          "customerName": null,
+          "customerPhone": null,
+          "totalAmount": 200,
+          "paymentMethod": "BankTransfer",
+          "amountGiven": null,
+          "changeDue": null,
+          "createdAt": "2026-10-28T11:44:36.883586+00:00",
+          "items": [
+            {
+              "skuId": "a5676d10-c345-45e5-966c-706403190712",
+              "skuCode": "B03-72BDFBBB-B",
+              "productName": "B03-72BDFBBB - B",
+              "variantName": null,
+              "quantity": 1,
+              "unitPrice": 100,
+              "subtotal": 100
+            },
+            {
+              "skuId": "b4f64adf-7d86-4ec1-aaae-1966db015c47",
+              "skuCode": "B03-72BDFBBB-A",
+              "productName": "B03-72BDFBBB - A",
+              "variantName": null,
+              "quantity": 1,
+              "unitPrice": 100,
+              "subtotal": 100
+            }
+          ]
+        }
+      },
+      "dropped": true
+    },
+    {
+      "payload": {
+        "branchId": "11111111-0000-0000-0001-000000000001",
+        "channel": "POS",
+        "paymentMethod": "BANK_TRANSFER_QR",
+        "amountGiven": 200,
+        "changeDue": 0,
+        "requestKey": "abd52f96-3570-401e-8694-fef48313c36b",
+        "items": [
+          {
+            "skuId": "a5676d10-c345-45e5-966c-706403190712",
+            "skuCode": "B03-72BDFBBB-B",
+            "productName": "B03-72BDFBBB",
+            "variantName": "B",
+            "quantity": 1,
+            "unitPrice": 100
+          },
+          {
+            "skuId": "b4f64adf-7d86-4ec1-aaae-1966db015c47",
+            "skuCode": "B03-72BDFBBB-A",
+            "productName": "B03-72BDFBBB",
+            "variantName": "A",
+            "quantity": 1,
+            "unitPrice": 100
+          }
+        ],
+        "totalAmount": 200
+      },
+      "status": 200,
+      "response": {
+        "success": true,
+        "message": "Thanh toán đơn hàng thành công (Idempotent replay).",
+        "orderId": "f10f9baf-ead3-4ca1-85f8-8966f6860d47",
+        "orderNumber": "POS-20261028-66e2eb5",
+        "totalAmount": 200,
+        "amountGiven": null,
+        "changeDue": null,
+        "paymentMethod": "BankTransfer",
+        "checkoutAt": "2026-10-28T11:44:36.883586+00:00",
+        "receipt": {
+          "orderId": "f10f9baf-ead3-4ca1-85f8-8966f6860d47",
+          "receiptNumber": "POS-20261028-66e2eb5",
+          "orderNumber": "POS-20261028-66e2eb5",
+          "branchId": "11111111-0000-0000-0001-000000000001",
+          "branchName": "Chi nhánh Quận 1",
+          "branchAddress": "123 Lê Lợi, Phường Bến Thành, Quận 1, TP.HCM",
+          "branchPhone": null,
+          "cashierName": "Thu ngân shop A",
+          "customerName": null,
+          "customerPhone": null,
+          "totalAmount": 200,
+          "paymentMethod": "BankTransfer",
+          "amountGiven": null,
+          "changeDue": null,
+          "createdAt": "2026-10-28T11:44:36.883586+00:00",
+          "items": [
+            {
+              "skuId": "b4f64adf-7d86-4ec1-aaae-1966db015c47",
+              "skuCode": "B03-72BDFBBB-A",
+              "productName": "B03-72BDFBBB - A",
+              "variantName": null,
+              "quantity": 1,
+              "unitPrice": 100,
+              "subtotal": 100
+            },
+            {
+              "skuId": "a5676d10-c345-45e5-966c-706403190712",
+              "skuCode": "B03-72BDFBBB-B",
+              "productName": "B03-72BDFBBB - B",
+              "variantName": null,
+              "quantity": 1,
+              "unitPrice": 100,
+              "subtotal": 100
+            }
+          ]
+        }
+      },
+      "dropped": false
+    },
+    {
+      "payload": {
+        "branchId": "11111111-0000-0000-0001-000000000001",
+        "channel": "POS",
+        "paymentMethod": "CASH",
+        "amountGiven": 100,
+        "changeDue": 0,
+        "requestKey": "869a33f8-a36f-4391-a4e2-7560234aa551",
+        "items": [
+          {
+            "skuId": "a5676d10-c345-45e5-966c-706403190712",
+            "skuCode": "B03-72BDFBBB-B",
+            "productName": "B03-72BDFBBB",
+            "variantName": "B",
+            "quantity": 1,
+            "unitPrice": 100
+          }
+        ],
+        "totalAmount": 100
+      },
+      "status": 401,
+      "response": null,
+      "dropped": false
+    },
+    {
+      "payload": {
+        "branchId": "11111111-0000-0000-0001-000000000001",
+        "channel": "POS",
+        "paymentMethod": "CASH",
+        "amountGiven": 100,
+        "changeDue": 0,
+        "requestKey": "869a33f8-a36f-4391-a4e2-7560234aa551",
+        "items": [
+          {
+            "skuId": "a5676d10-c345-45e5-966c-706403190712",
+            "skuCode": "B03-72BDFBBB-B",
+            "productName": "B03-72BDFBBB",
+            "variantName": "B",
+            "quantity": 1,
+            "unitPrice": 100
+          }
+        ],
+        "totalAmount": 100
+      },
+      "status": 200,
+      "response": {
+        "success": true,
+        "message": "Thanh toán đơn hàng thành công.",
+        "orderId": "5c7de87f-9ad0-4a9d-9f5e-bbf3fbbc3017",
+        "orderNumber": "POS-20261028-37516a8",
+        "totalAmount": 100,
+        "amountGiven": 100,
+        "changeDue": 0,
+        "paymentMethod": "Cash",
+        "checkoutAt": "2026-10-28T11:44:43.7724416+00:00",
+        "receipt": {
+          "orderId": "5c7de87f-9ad0-4a9d-9f5e-bbf3fbbc3017",
+          "receiptNumber": "POS-20261028-37516a8",
+          "orderNumber": "POS-20261028-37516a8",
+          "branchId": "11111111-0000-0000-0001-000000000001",
+          "branchName": "Chi nhánh Quận 1",
+          "branchAddress": "123 Lê Lợi, Phường Bến Thành, Quận 1, TP.HCM",
+          "branchPhone": null,
+          "cashierName": "Thu ngân shop A",
+          "customerName": null,
+          "customerPhone": null,
+          "totalAmount": 100,
+          "paymentMethod": "Cash",
+          "amountGiven": 100,
+          "changeDue": 0,
+          "createdAt": "2026-10-28T11:44:43.7724416+00:00",
+          "items": [
+            {
+              "skuId": "a5676d10-c345-45e5-966c-706403190712",
+              "skuCode": "B03-72BDFBBB-B",
+              "productName": "B03-72BDFBBB - B",
+              "variantName": null,
+              "quantity": 1,
+              "unitPrice": 100,
+              "subtotal": 100
+            }
+          ]
+        }
+      },
+      "dropped": false
+    },
+    {
+      "payload": {
+        "branchId": "11111111-0000-0000-0001-000000000001",
+        "channel": "POS",
+        "paymentMethod": "CASH",
+        "amountGiven": 900,
+        "changeDue": 0,
+        "requestKey": "905c1605-411c-4424-bbae-8b2761aa4993",
+        "items": [
+          {
+            "skuId": "b4f64adf-7d86-4ec1-aaae-1966db015c47",
+            "skuCode": "B03-72BDFBBB-A",
+            "productName": "B03-72BDFBBB",
+            "variantName": "A",
+            "quantity": 9,
+            "unitPrice": 100
+          }
+        ],
+        "totalAmount": 900
+      },
+      "status": 409,
+      "response": {
+        "type": "https://oisms.local/errors/INSUFFICIENT_STOCK",
+        "title": "Tồn kho không đủ",
+        "status": 409,
+        "detail": "SKU 'B03-72BDFBBB-A' chỉ còn 1 sản phẩm khả dụng, không đủ đáp ứng số lượng yêu cầu 9.",
+        "instance": "/api/pos/checkout",
+        "errorCode": "INSUFFICIENT_STOCK",
+        "timestamp": "2026-10-28T11:44:49.0692582+00:00"
+      },
+      "dropped": false
+    }
+  ],
+  "sourceState": "Identified HEAD plus uncommitted B03 fixes; exact application/test bytes in source-hashes.json. Later documentation commits do not change the tested runtime."
+}

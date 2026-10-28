@@ -18,6 +18,8 @@ import type {
   QrValidationResult,
   QrSnapshotData,
   TlvField,
+  ScopedBankConfig,
+  PosQrIntent,
 } from '../types/qr';
 
 /** Giới hạn tiền tệ hệ thống OISMS theo chuẩn QuickLink/NAPAS: tối đa 13 chữ số nguyên (9.999.999.999.999 đ) */
@@ -401,47 +403,65 @@ export function isPaymentConfirmedByScanOrTimeout(): boolean {
  * Lấy cấu hình tài khoản ngân hàng thụ hưởng cho POS.
  * 
  * Nguồn ưu tiên:
- * 1. window.__OISMS_POS_BANK_CONFIG__ (runtime injection cho test/config)
- * 2. localStorage.getItem('pos_bank_config') (cấu hình chi nhánh được lưu trữ)
- * 3. Environment variables (VITE_POS_DEFAULT_BANK_BIN, VITE_POS_DEFAULT_BANK_ACCOUNT,...)
- * 4. Nếu không có cấu hình: trả về null (giao diện phải cảnh báo rõ, không tự bịa).
+ * 1. window.__OISMS_POS_BANK_CONFIGS__: danh sách envelope gắn tenant + chi nhánh.
+ * 2. Nếu không inject danh sách, đọc localStorage theo getPosBankConfigKey.
+ * Chỉ nhận envelope version 1 khớp cả hai ID. Thiếu/sai cấu hình trả về null;
+ * không dùng cấu hình global cũ, biến môi trường hay tài khoản mẫu làm fallback.
  */
-export function getPosBankConfig(_branchId?: string): BankConfig | null {
-  if (typeof window !== 'undefined' && (window as any).__OISMS_POS_BANK_CONFIG__) {
-    const candidate = (window as any).__OISMS_POS_BANK_CONFIG__;
-    if (validateBankConfig(candidate).valid) {
-      return candidate;
-    }
-  }
-
+export function getPosBankConfig(branchId?: string, tenantId?: string): BankConfig | null {
+  if (!branchId || !tenantId) return null;
   try {
-    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem('pos_bank_config') : null;
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (validateBankConfig(parsed).valid) {
-        return parsed;
-      }
-    }
-  } catch {}
-
-  // Fallback cấu hình test fixture nếu đang chạy môi trường test/dev
-  const defaultBin = (import.meta as any).env?.VITE_POS_BANK_BIN || '970415';
-  const defaultAccount = (import.meta as any).env?.VITE_POS_BANK_ACCOUNT || '101088889999';
-  const defaultName = (import.meta as any).env?.VITE_POS_BANK_NAME || 'VietinBank Test';
-  const defaultOwner = (import.meta as any).env?.VITE_POS_ACCOUNT_NAME || 'OISMS TEST STORE VIETIN';
-
-  const defaultCandidate: BankConfig = {
-    bankBin: defaultBin,
-    bankName: defaultName,
-    accountNumber: defaultAccount,
-    accountName: defaultOwner,
-    template: 'compact2',
-    isTestFixture: true,
-  };
-
-  if (validateBankConfig(defaultCandidate).valid) {
-    return defaultCandidate;
+    // A deployment-provided array is authoritative; no cross-context fallback.
+    const configured = typeof window !== 'undefined' ? (window as any).__OISMS_POS_BANK_CONFIGS__ : undefined;
+    const candidate: ScopedBankConfig | undefined = configured !== undefined
+      ? (Array.isArray(configured) ? configured.find((item: ScopedBankConfig) => item?.tenantId === tenantId && item?.branchId === branchId) : undefined)
+      : JSON.parse(localStorage.getItem(getPosBankConfigKey(tenantId, branchId)) || 'null');
+    if (candidate?.version !== 1 || candidate.tenantId !== tenantId || candidate.branchId !== branchId || !validateBankConfig(candidate.bankConfig).valid) return null;
+    return { ...candidate.bankConfig };
+  } catch {
+    return null;
   }
+}
 
-  return null;
+export function getPosBankConfigKey(tenantId: string, branchId: string): string {
+  return `pos_bank_config_v1:${encodeURIComponent(tenantId)}:${encodeURIComponent(branchId)}`;
+}
+
+type QrUser = { id?: string; tenantId?: string } | null | undefined;
+const intentMemory = new Map<string, string>();
+function intentKey(user: QrUser, branchId: string): string | null {
+  return user?.id && user.tenantId && branchId
+    ? `pos_qr_intent_v1:${encodeURIComponent(user.tenantId)}:${encodeURIComponent(user.id)}:${encodeURIComponent(branchId)}` : null;
+}
+
+export function isPosQrIntentFor(intent: PosQrIntent | undefined | null, user: QrUser, branchId: string): intent is PosQrIntent {
+  return Boolean(intent?.version === 1 && user?.id && user.tenantId &&
+    intent.context?.userId === user.id && intent.context.tenantId === user.tenantId && intent.context.branchId === branchId &&
+    UUID_V4_REGEX.test(intent.requestKey) && Number.isFinite(intent.amount) && intent.amount > 0 &&
+    typeof intent.cartFingerprint === 'string' && validateBankConfig(intent.bankConfig).valid);
+}
+
+export function getOrCreatePosQrIntent(user: QrUser, branchId: string, cartFingerprint: string, amount: number, bank: BankConfig | null, createKey: () => string): PosQrIntent | null {
+  const key = intentKey(user, branchId);
+  if (!key) return null;
+  let saved: PosQrIntent | null = null;
+  try { saved = JSON.parse(sessionStorage.getItem(key) || intentMemory.get(key) || 'null'); } catch { try { saved = JSON.parse(intentMemory.get(key) || 'null'); } catch {} }
+  if (isPosQrIntentFor(saved, user, branchId) && saved.cartFingerprint === cartFingerprint && saved.amount === amount) return saved;
+  if (!bank || !validateBankConfig(bank).valid) return null;
+  const intent: PosQrIntent = {
+    version: 1, context: { tenantId: user!.tenantId!, userId: user!.id!, branchId },
+    cartFingerprint, amount, requestKey: createKey(), bankConfig: { ...bank },
+  };
+  if (!isPosQrIntentFor(intent, user, branchId)) return null;
+  const raw = JSON.stringify(intent);
+  intentMemory.set(key, raw);
+  try { sessionStorage.setItem(key, raw); } catch {}
+  return intent;
+}
+
+export function clearPosQrIntent(user: QrUser, branchId: string): void {
+  const key = intentKey(user, branchId);
+  if (!key) return;
+  intentMemory.delete(key);
+  try { sessionStorage.removeItem(key); } catch {}
 }

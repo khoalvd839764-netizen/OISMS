@@ -118,7 +118,7 @@ export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({ receipt, o
         }`}
       </style>
 
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden flex flex-col max-h-[95vh] no-print-border">
+      <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden flex flex-col max-h-[95vh] no-print-border" role="dialog" aria-label="Hóa đơn">
         {/* Header Modal Bar (hidden on print) */}
         <div className={`px-5 py-3 text-white flex items-center justify-between no-print ${receipt.isDraft ? 'bg-amber-900' : 'bg-slate-900'}`}>
           <div className="flex items-center gap-2">
@@ -149,6 +149,7 @@ export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({ receipt, o
           <button
             type="button"
             onClick={onClose}
+            aria-label="Đóng hóa đơn"
             className="p-1 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />

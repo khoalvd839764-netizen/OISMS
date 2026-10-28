@@ -18,6 +18,24 @@ export interface BankConfig {
   isTestFixture?: boolean;
 }
 
+/** Account settings are provisioned for one explicit tenant and branch. */
+export interface ScopedBankConfig {
+  version: 1;
+  tenantId: string;
+  branchId: string;
+  bankConfig: BankConfig;
+}
+
+/** Browser payment intent; retained before checkout, including close/reload. */
+export interface PosQrIntent {
+  version: 1;
+  context: { tenantId: string; userId: string; branchId: string };
+  cartFingerprint: string;
+  requestKey: string;
+  amount: number;
+  bankConfig: BankConfig;
+}
+
 export interface QrPaymentPayload {
   /** Số tiền cần thanh toán (VNĐ), phải > 0 và <= MaxMoneyAmount */
   amount: number;

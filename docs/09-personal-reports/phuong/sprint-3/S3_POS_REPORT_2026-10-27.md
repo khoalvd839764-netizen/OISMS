@@ -1,3 +1,5 @@
+Cập nhật nghiệm thu28/10/2026: T01/B01/B02 VERIFIED; B03 v1.3 có build +51 POS/24 B02/10 QR module và8 browser/backend/PostgreSQL PASS. Chưa chốt VERIFIED B03 trước khi CI/PR commit mới hoàn tất. Cấu hình bank riêng từng tenant/branch, thu ngân xác nhận đã nhận tiền; chưa có đối soát ngân hàng tự động. [Hồ sơ hiện tại](./pos-completion/batch-03-qr-final/handover.md).
+
 # BÁO CÁO CÁ NHÂN SPRINT 3: HOÀN THIỆN WEB POS PWA BÁN HÀNG TẠI QUẦY
 
 | Thông tin kiểm soát tài liệu | Chi tiết |
@@ -14,7 +16,7 @@
 
 ## I. MỤC TIÊU & PHẠM VI NHIỆM VỤ (GOALS & SCOPE)
 
-Triển khai hoàn thiện 100% phân hệ Web POS PWA bán hàng tại quầy siêu tốc theo đúng yêu cầu phân công Sprint 3 (`DOC-SPR-03`):
+Triển khai phân hệ Web POS PWA bán hàng tại quầy siêu tốc theo đúng yêu cầu phân công Sprint 3 (`DOC-SPR-03`):
 1. **SCR-POS-01 & SCR-POS-02 (Atomic Checkout & Payment):** Kết nối API Checkout toàn giỏ nguyên tử, hỗ trợ thanh toán Tiền mặt (tự động tính tiền thối) và VietQR động.
 2. **Bảo vệ tồn kho & Idempotency:** Ngăn chặn thao tác nhấn đúp bằng khóa `Idempotency-Key` / `RequestKey` UUID RFC 4122; hiển thị cảnh báo đỏ khi SKU bị kênh online giữ chỗ trước (`409 Conflict`).
 3. **SCR-POS-03 (In ấn nhiệt & Phím tắt):** Tối ưu hóa bản in nhiệt tiêu chuẩn 80mm / 58mm qua `window.print()`; hỗ trợ phím tắt thao tác nhanh `F2` (tìm kiếm/quét barcode), `F4` (thanh toán), `Esc` (đóng popup).
@@ -65,7 +67,7 @@ flowchart LR
 | **AC-POS-01** | Gọi đúng API Checkout toàn giỏ hàng nguyên tử | **ĐẠT** | Endpoint `POST /api/pos/checkout` kèm DTO đầy đủ |
 | **AC-POS-02** | Cơ chế chống nhấn đúp (Idempotency) | **ĐẠT** | Header `Idempotency-Key` UUID RFC 4122 + UI Lock |
 | **AC-POS-03** | Thanh toán tiền mặt tính tiền thối tự động | **ĐẠT** | Tính chính xác số dư trả khách theo thời gian thực |
-| **AC-POS-04** | Thanh toán QR Code động | **ĐẠT** | Hiển thị mã QR theo đúng số tiền thanh toán giỏ |
+| **AC-POS-04** | Thanh toán QR Code động | **PASS phạm vi payload + thu ngân xác nhận** | Config tenant/branch bắt buộc, QR/key/snapshot ổn định; chưa có đối soát ngân hàng tự động. Evidence B03 v1.3 |
 | **AC-POS-05** | Phím tắt nhanh quầy thu ngân (F2, F4, Esc) | **ĐẠT** | Thao tác không cần dùng chuột, tối ưu tốc độ bán |
 | **AC-POS-06** | In hóa đơn nhiệt chuẩn 80mm/58mm | **ĐẠT** | Khổ in `@media print` sắc nét, đúng cấu trúc bill |
 | **AC-POS-07** | Biên dịch TypeScript & Vite sạch sẽ | **ĐẠT** | `npm run build` hoàn thành với 0 lỗi |

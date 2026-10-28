@@ -16,6 +16,9 @@ import {
   getPosBankConfig,
   generateVietQrPayload,
   extractShortReference,
+  getOrCreatePosQrIntent,
+  isPosQrIntentFor,
+  clearPosQrIntent,
 } from '../services/qrService';
 import type { BankConfig, VietQrResult } from '../types/qr';
 
@@ -55,7 +58,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [userGivenAmount, setUserGivenAmount] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiNotice, setApiNotice] = useState<{ type: 'warning' | 'error' | 'success'; text: string; details?: any } | null>(null);
-  const [modalRequestKey, setModalRequestKey] = useState<string>(() => generateUuidV4());
   const [pendingAttempt, setPendingAttempt] = useState<PendingCheckoutRecord | null>(() => {
     return getPendingCheckout(activeUser, branchId);
   });
@@ -75,7 +77,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setPendingAttempt(fresh);
       if (!fresh) {
         setApiNotice(null);
-        setModalRequestKey(generateUuidV4());
+      } else {
+        setPaymentMethod(fresh.requestPayload.paymentMethod);
       }
     }
   }, [isOpen, activeUser?.id, activeUser?.tenantId, activeUser?.email, branchId]);
@@ -87,10 +90,15 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   const currentPending = getActivePendingRecord();
   const isRetry = Boolean(currentPending && (currentPending.status === 'unknown' || currentPending.status === 'submitting'));
-  const activeRequestKey = currentPending?.requestKey || modalRequestKey;
-
-  // B03-T04: Khởi tạo và kiểm tra cấu hình ngân hàng thụ hưởng cho VietQR
-  const bankConfig: BankConfig | null = getPosBankConfig(branchId);
+  const cartFingerprint = JSON.stringify(items.map(i => [i.variantId, i.sku, i.quantity, i.retailPrice]));
+  const savedQr = currentPending?.qrSnapshot;
+  const intent = paymentMethod === 'BANK_TRANSFER_QR'
+    ? (isRetry ? savedQr : getOrCreatePosQrIntent(activeUser, branchId, cartFingerprint, totalAmount, getPosBankConfig(branchId, activeUser?.tenantId), generateUuidV4))
+    : null;
+  const qrIntent = isPosQrIntentFor(intent, activeUser, branchId) &&
+    (!currentPending || (intent.requestKey === currentPending.requestKey && intent.amount === currentPending.requestPayload.totalAmount)) ? intent : null;
+  const activeRequestKey = currentPending?.requestKey || qrIntent?.requestKey || '';
+  const bankConfig: BankConfig | null = qrIntent?.bankConfig || null;
   let qrResult: VietQrResult | null = null;
   let qrError: string | null = null;
 
@@ -100,7 +108,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     } else {
       try {
         qrResult = generateVietQrPayload(bankConfig, {
-          amount: totalAmount,
+          amount: qrIntent!.amount,
           requestKey: activeRequestKey,
           branchId,
           orderDescription: `OISMS POS ${extractShortReference(activeRequestKey)}`,
@@ -111,7 +119,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     }
   }
 
-  const isBankConfigInvalid = paymentMethod === 'BANK_TRANSFER_QR' && (!bankConfig || Boolean(qrError));
+  // Older unknown QR attempts have no receiver snapshot: allow only their
+  // original checkout replay, without generating a QR to a new recipient.
+  const isBankConfigInvalid = paymentMethod === 'BANK_TRANSFER_QR' && !isRetry && (!bankConfig || Boolean(qrError));
 
   // POS-T01-F01: Cảnh báo API chỉ hiển thị nếu thuộc về giao dịch của người dùng hiện tại
   const isNoticeForCurrent = apiNotice && (!apiNotice.details?.requestKey || apiNotice.details?.requestKey === currentPending?.requestKey);
@@ -208,6 +218,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         updatedAt: Date.now(),
         status: 'submitting',
         requestPayload: checkoutRequest,
+        ...(paymentMethod === 'BANK_TRANSFER_QR' && qrIntent ? { qrSnapshot: qrIntent } : {}),
       };
       savePendingCheckout(newRecord);
       setPendingAttempt(newRecord);
@@ -231,6 +242,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
         // B01-F02: CHỈ xóa giỏ và pending sau khi mapping thành công trọn vẹn
         clearPendingCheckout(activeUser, branchId);
+        clearPosQrIntent(activeUser, branchId);
         setPendingAttempt(null);
 
         onSuccessAndPrint(officialReceipt);
@@ -244,7 +256,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           text: result.message,
           details: checkoutRequest,
         });
-      } else if (result.isUnknown) {
+      } else if (result.isUnknown || isRetryActive) {
         // Kết quả chưa xác định (timeout, mất kết nối sau commit, 500/502/503/504, 2xx lỗi JSON): giữ nguyên pending để retry (POS-T01-F02, POS-T01-F04)
         updatePendingCheckoutStatus('unknown', result.message, result.errorCode, activeUser, branchId);
         setPendingAttempt(getPendingCheckout(activeUser, branchId));
@@ -322,7 +334,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in no-print">
-      <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-xl w-full overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-xl w-full overflow-hidden flex flex-col max-h-[90vh]" role="dialog" aria-label="Thanh Toán Đơn Hàng">
         {/* Modal Header */}
         <div className="px-6 py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
           <div>
@@ -335,6 +347,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
             type="button"
             disabled={isSubmitting}
             onClick={handleSafeClose}
+            aria-label="Đóng thanh toán"
             className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors disabled:opacity-50"
           >
             <X className="w-5 h-5" />
@@ -470,11 +483,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     {qrError || 'Chưa cấu hình thông tin ngân hàng thụ hưởng cho POS chi nhánh này. Vui lòng liên hệ quản trị viên hoặc chọn phương thức Tiền mặt.'}
                   </p>
                   <p className="text-[11px] text-rose-500 font-medium italic m-0 pt-1">
-                    Hệ thống không hiển thị mã QR giả lập để đảm bảo an toàn giao dịch. Nút thanh toán bị khóa cho tới khi có cấu hình hợp lệ.
+                    {isRetry ? 'Giao dịch cũ chưa có snapshot người nhận hợp lệ. Chỉ thử lại yêu cầu gốc để đối soát; không quét/chuyển khoản thêm.' : 'Nút thanh toán QR bị khóa cho tới khi có cấu hình hợp lệ. Bạn vẫn có thể chọn Tiền mặt.'}
                   </p>
                 </div>
               ) : (
                 <>
+                  {bankConfig.isTestFixture && <p className="text-xs font-bold text-amber-800">DỮ LIỆU KIỂM THỬ — không chuyển tiền thật</p>}
                   <div className="bg-white p-3 rounded-2xl shadow-md border border-slate-200 mb-3 relative flex items-center justify-center min-w-[200px] min-h-[200px]">
                     <img
                       src={qrResult.quickLinkUrl}
@@ -514,7 +528,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                     </div>
                     <div className="flex justify-between items-center py-0.5 border-b border-slate-100">
                       <span className="text-slate-500">Số tiền:</span>
-                      <span className="font-extrabold text-emerald-600 text-sm">{formatCurrency(totalAmount)}</span>
+                      <span className="font-extrabold text-emerald-600 text-sm">{formatCurrency(qrIntent!.amount)}</span>
                     </div>
                     <div className="flex justify-between items-start py-0.5">
                       <span className="text-slate-500 shrink-0">Nội dung CK:</span>

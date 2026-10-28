@@ -1,3 +1,5 @@
+> Cập nhật v1.3 ngày28/10/2026: người dùng yêu cầu Codex trực tiếp hoàn tất B03; baseline fcf8fb2, B02 VERIFIED v1.8. Phạm vi tích hợp cho phép QR service/types/PaymentModal, test/guard/CI/tài liệu cần cho AC. Config riêng từng chi nhánh gắn đúng tenant. Giữ các AC gốc phía dưới; ràng buộc giai đoạn song song là lịch sử, không chặn việc tích hợp hiện tại. Trạng thái mới xem handover.md.
+
 # Brief Công việc — S3-POS-B03: QR và Nghiệm thu Cuối cùng POS
 
 | Thông tin kiểm soát | Chi tiết |

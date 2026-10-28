@@ -1,0 +1,215 @@
+TAP version 13
+# Subtest: F06: production without account configuration fails closed
+not ok 1 - F06: production without account configuration fails closed
+  ---
+  duration_ms: 1167.2381
+  location: 'D:\\OISMS\\src\\frontend\\pos-app\\test-b03-qr.mjs:8:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + {
+    +   accountName: 'OISMS TEST STORE VIETIN',
+    +   accountNumber: '101088889999',
+    +   bankBin: '970415',
+    +   bankName: 'VietinBank Test',
+    +   isTestFixture: true,
+    +   template: 'compact2'
+    + }
+    - null
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: ~
+  actual:
+    bankBin: '970415'
+    bankName: 'VietinBank Test'
+    accountNumber: '101088889999'
+    accountName: 'OISMS TEST STORE VIETIN'
+    template: 'compact2'
+    isTestFixture: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///D:/OISMS/src/frontend/pos-app/test-b03-qr.mjs:8:102)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.start (node:internal/test_runner/test:877:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: F06/F08: invalid scoped config and legacy global do not authorize QR
+not ok 2 - F06/F08: invalid scoped config and legacy global do not authorize QR
+  ---
+  duration_ms: 1222.1912
+  location: 'D:\\OISMS\\src\\frontend\\pos-app\\test-b03-qr.mjs:9:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + {
+    +   accountName: 'FIXTURE A',
+    +   accountNumber: '123456789',
+    +   bankBin: '970415',
+    +   bankName: 'Test bank',
+    +   isTestFixture: true
+    + }
+    - null
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: ~
+  actual:
+    bankBin: '970415'
+    accountNumber: '123456789'
+    accountName: 'FIXTURE A'
+    bankName: 'Test bank'
+    isTestFixture: true
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///D:/OISMS/src/frontend/pos-app/test-b03-qr.mjs:9:167)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+    Test.postRun (node:internal/test_runner/test:1090:19)
+    Test.run (node:internal/test_runner/test:1018:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: F08: account resolves only its explicit tenant and branch
+not ok 3 - F08: account resolves only its explicit tenant and branch
+  ---
+  duration_ms: 800.296
+  location: 'D:\\OISMS\\src\\frontend\\pos-app\\test-b03-qr.mjs:10:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + '987654321'
+    - '123456789'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: '123456789'
+  actual: '987654321'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///D:/OISMS/src/frontend/pos-app/test-b03-qr.mjs:10:163)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+    Test.postRun (node:internal/test_runner/test:1090:19)
+    Test.run (node:internal/test_runner/test:1018:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+  ...
+# Subtest: F07: shown QR identity survives close/open and module reload
+not ok 4 - F07: shown QR identity survives close/open and module reload
+  ---
+  duration_ms: 569.6758
+  location: 'D:\\OISMS\\src\\frontend\\pos-app\\test-b03-qr.mjs:11:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'https://img.vietqr.io/image/970415-123456789-compact2.png?amount=100000&addInfo=OISMS%20POS%2000000003&accountName=FIXTURE%20A'
+    - 'https://img.vietqr.io/image/970415-123456789-compact2.png?amount=100000&addInfo=OISMS%20POS%2000000002&accountName=FIXTURE%20A'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'https://img.vietqr.io/image/970415-123456789-compact2.png?amount=100000&addInfo=OISMS%20POS%2000000002&accountName=FIXTURE%20A'
+  actual: 'https://img.vietqr.io/image/970415-123456789-compact2.png?amount=100000&addInfo=OISMS%20POS%2000000003&accountName=FIXTURE%20A'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///D:/OISMS/src/frontend/pos-app/test-b03-qr.mjs:11:195)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+    Test.postRun (node:internal/test_runner/test:1090:19)
+    Test.run (node:internal/test_runner/test:1018:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+  ...
+# Subtest: F07: changed cart creates new intent; tab switch does not
+not ok 5 - F07: changed cart creates new intent; tab switch does not
+  ---
+  duration_ms: 542.8715
+  location: 'D:\\OISMS\\src\\frontend\\pos-app\\test-b03-qr.mjs:12:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'https://img.vietqr.io/image/970415-123456789-compact2.png?amount=100000&addInfo=OISMS%20POS%2000000003&accountName=FIXTURE%20A'
+    - 'https://img.vietqr.io/image/970415-123456789-compact2.png?amount=100000&addInfo=OISMS%20POS%2000000002&accountName=FIXTURE%20A'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'https://img.vietqr.io/image/970415-123456789-compact2.png?amount=100000&addInfo=OISMS%20POS%2000000002&accountName=FIXTURE%20A'
+  actual: 'https://img.vietqr.io/image/970415-123456789-compact2.png?amount=100000&addInfo=OISMS%20POS%2000000003&accountName=FIXTURE%20A'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///D:/OISMS/src/frontend/pos-app/test-b03-qr.mjs:12:174)
+    Test.runInAsyncScope (node:async_hooks:211:14)
+    Test.run (node:internal/test_runner/test:979:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+    Test.postRun (node:internal/test_runner/test:1090:19)
+    Test.run (node:internal/test_runner/test:1018:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+  ...
+# Subtest: F09: unknown snapshot freezes receiver through config change/reopen/reload/retry
+not ok 6 - F09: unknown snapshot freezes receiver through config change/reopen/reload/retry
+  ---
+  duration_ms: 617.335
+  location: 'D:\\OISMS\\src\\frontend\\pos-app\\test-b03-qr.mjs:13:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The expression evaluated to a falsy value:
+    
+      assert.ok(original.qrSnapshot)
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file:///D:/OISMS/src/frontend/pos-app/test-b03-qr.mjs:13:269)
+    async Test.run (node:internal/test_runner/test:980:9)
+    async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+  ...
+# Subtest: F08/F09: another owner cannot replay saved QR pending
+not ok 7 - F08/F09: another owner cannot replay saved QR pending
+  ---
+  duration_ms: 567.1719
+  location: 'D:\\OISMS\\src\\frontend\\pos-app\\test-b03-qr.mjs:14:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + 'https://img.vietqr.io/image/970415-123456789-compact2.png?amount=100000&addInfo=OISMS%20POS%2000000003&accountName=FIXTURE%20A'
+    - null
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: ~
+  actual: 'https://img.vietqr.io/image/970415-123456789-compact2.png?amount=100000&addInfo=OISMS%20POS%2000000003&accountName=FIXTURE%20A'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///D:/OISMS/src/frontend/pos-app/test-b03-qr.mjs:14:239)
+    async Test.run (node:internal/test_runner/test:980:9)
+    async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+  ...
+# Subtest: F09: legacy QR pending without receiver snapshot replays original, never generates new QR
+ok 8 - F09: legacy QR pending without receiver snapshot replays original, never generates new QR
+  ---
+  duration_ms: 1319.0859
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 1
+# fail 7
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 7701.1251

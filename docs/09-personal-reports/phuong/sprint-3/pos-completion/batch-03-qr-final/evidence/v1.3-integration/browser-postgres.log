@@ -1,0 +1,12 @@
+
+(!) outDir D:\OISMS\tmp\pos-b03-final\dist is not inside project root and will not be emptied.
+Use --emptyOutDir to override.
+
+PASS cash, draft, reprint, replay, stock10->8 with Hub offline {"requestKey":"85a6e943-e4d6-48af-8ea4-d5ecf8d5a7ef","orders":1,"payments":1,"outs":1,"max":8}
+PASS QR close/open identity and branch-scoped receiver {"branchA":"123456789","branchB":"987654321"}
+PASS QR response lost after commit -> reload -> UI retry single transaction {"requestKey":"abd52f96-3570-401e-8694-fef48313c36b","orders":1,"payments":1,"outs":2,"identicalPayload":true,"frozenReceiver":"123456789"}
+PASS real backend401, different owner isolation, same owner recovery {"requestKey":"869a33f8-a36f-4391-a4e2-7560234aa551","orders":1,"payments":1,"outs":1}
+PASS real Hub loss/reconnect/rejoin recovers missed stock {"before":6,"after":5,"newHubConnection":true}
+PASS insufficient stock authoritative rejection preserves cart {"status":409,"orders":0}
+PASS stock GET503 visible error, successful lookup recovery {"stockFailures":1,"recoveredAvailable":6}
+PASS late branch A response ignored after switching B {"branchBAvailable":10,"staleCartRows":0}

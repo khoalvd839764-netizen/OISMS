@@ -163,6 +163,8 @@ export interface PendingCheckoutRecord {
   updatedAt: number;
   status: PendingCheckoutStatus;
   requestPayload: PosCheckoutRequest;
+  /** Receiver and QR identity actually shown for this attempt, if available. */
+  qrSnapshot?: import('./qr').PosQrIntent;
   lastErrorMessage?: string;
   lastErrorCode?: string;
 }
