@@ -4,44 +4,63 @@ import { useSearchParams } from "react-router-dom";
 import { Button, Input, Modal, Select } from "../components/ui";
 import { apiAdapter, generateUuid, getPendingOrderStorageKey } from "../services/apiAdapter";
 import { useAuth } from "../context/AuthContext";
-import type { Order, Sku } from "../types/domain";
+import type { Sku } from "../types/domain";
 import type { OrderFilter, OrderSummary } from "../types/ordersCenter";
 import { orderService } from "../services/orderService";
 import { OrdersTable } from "../components/orders/OrdersTable";
 import { OrdersFilter } from "../components/orders/OrdersFilter";
 import { OrderDetailDrawer } from "../components/orders/OrderDetailDrawer";
 
-interface PendingOrderState {
+export interface PendingOrderSnapshot {
+  ownerTenantId: string;
+  ownerUserId: string;
   idempotencyKey: string;
-  branchId: string;
-  warehouseId: string;
-  skuId: string;
-  quantity: number;
-  channel: Order["channel"];
-  customer: string;
+  requestPayload: {
+    branchId: string;
+    channel: string;
+    customerName: string;
+    requestKey: string;
+    items: Array<{
+      skuId: string;
+      skuCode: string;
+      productName: string;
+      variantName?: string;
+      quantity: number;
+      unitPrice: number;
+    }>;
+  };
+  warehouseId?: string;
+  isUnknownState: boolean;
+  lastError?: string;
+  createdAt: number;
 }
 
-function loadSavedPendingOrder(tenantId?: string): PendingOrderState | null {
+function loadSavedPendingOrder(tenantId?: string, userId?: string): PendingOrderSnapshot | null {
   try {
-    const key = getPendingOrderStorageKey(tenantId);
+    const key = getPendingOrderStorageKey(tenantId, userId);
     const raw = sessionStorage.getItem(key);
     if (!raw) return null;
-    return JSON.parse(raw);
+    const parsed: PendingOrderSnapshot = JSON.parse(raw);
+    // B01-F02: Chặn replay chéo người dùng: tenantId VÀ userId phải khớp
+    if (parsed.ownerTenantId !== tenantId || parsed.ownerUserId !== userId) {
+      return null;
+    }
+    return parsed;
   } catch {
     return null;
   }
 }
 
-function savePendingOrder(data: PendingOrderState, tenantId?: string) {
+function savePendingOrder(data: PendingOrderSnapshot, tenantId?: string, userId?: string) {
   try {
-    const key = getPendingOrderStorageKey(tenantId);
+    const key = getPendingOrderStorageKey(tenantId, userId);
     sessionStorage.setItem(key, JSON.stringify(data));
   } catch {}
 }
 
-function clearSavedPendingOrder(tenantId?: string) {
+function clearSavedPendingOrder(tenantId?: string, userId?: string) {
   try {
-    const key = getPendingOrderStorageKey(tenantId);
+    const key = getPendingOrderStorageKey(tenantId, userId);
     sessionStorage.removeItem(key);
   } catch {}
 }
@@ -81,7 +100,6 @@ export function OrdersPage() {
   // Modal tạo đơn & giữ chỗ
   const [createModal, setCreateModal] = useState(false);
   const [newCustomer, setNewCustomer] = useState("Khách hàng Admin");
-  const [newChannel, setNewChannel] = useState<Order["channel"]>("Shopee");
   const [newBranchId, setNewBranchId] = useState("");
   const [newWarehouseId, setNewWarehouseId] = useState("");
   const [newSkuId, setNewSkuId] = useState("");
@@ -92,9 +110,11 @@ export function OrdersPage() {
   const isCreatingOrderRef = useRef(false);
   const whStockReqSeqRef = useRef(0);
 
-  // Idempotency-Key
+  // Idempotency-Key & Snapshot bảo toàn (B01-F02)
   const [orderIdempotencyKey, setOrderIdempotencyKey] = useState<string | null>(null);
+  const [pendingSnapshot, setPendingSnapshot] = useState<PendingOrderSnapshot | null>(null);
   const [isRetryingOrder, setIsRetryingOrder] = useState(false);
+  const [isUnknownState, setIsUnknownState] = useState(false);
 
   // Nạp danh sách đơn hàng từ backend (/api/orders) - Chống out-of-order responses (A02-AC-01)
   const loadOrders = useCallback(async () => {
@@ -189,39 +209,55 @@ export function OrdersPage() {
   // Mở Modal tạo đơn
   const openCreateModal = () => {
     setCreateError(null);
-    const pending = loadSavedPendingOrder(account.tenantId);
+    const pending = loadSavedPendingOrder(account.tenantId, account.id);
     if (pending) {
+      setPendingSnapshot(pending);
       setOrderIdempotencyKey(pending.idempotencyKey);
-      setNewBranchId(pending.branchId);
-      setNewWarehouseId(pending.warehouseId);
-      setNewSkuId(pending.skuId);
-      setNewQuantity(pending.quantity);
-      setNewChannel(pending.channel);
-      setNewCustomer(pending.customer);
+      setNewBranchId(pending.requestPayload.branchId);
+      if (pending.warehouseId) setNewWarehouseId(pending.warehouseId);
+      const firstItem = pending.requestPayload.items[0];
+      if (firstItem) {
+        setNewSkuId(firstItem.skuId);
+        setNewQuantity(firstItem.quantity);
+      }
+      setNewCustomer(pending.requestPayload.customerName);
       setIsRetryingOrder(true);
+      setIsUnknownState(pending.isUnknownState);
+      if (pending.lastError) {
+        setCreateError(pending.lastError);
+      }
     } else {
+      setPendingSnapshot(null);
       setOrderIdempotencyKey(generateUuid());
       setIsRetryingOrder(false);
+      setIsUnknownState(false);
     }
     setCreateModal(true);
   };
 
   const handleDiscardPendingOrder = () => {
-    if (isRetryingOrder) {
+    if (isRetryingOrder || isUnknownState) {
       const confirmDiscard = window.confirm(
-        "Bạn có chắc muốn hủy bỏ phiên tạo đơn đang chờ? Nếu thao tác trước đó đã thành công, việc tạo mới có thể sinh thêm đơn khác."
+        "Bạn có chắc muốn hủy bỏ yêu cầu tạo đơn đang chờ? Nếu máy chủ đã xử lý thành công yêu cầu trước đó, việc tạo mới có thể sinh thêm đơn khác."
       );
       if (!confirmDiscard) return;
     }
-    clearSavedPendingOrder(account.tenantId);
+    clearSavedPendingOrder(account.tenantId, account.id);
+    setPendingSnapshot(null);
     setOrderIdempotencyKey(generateUuid());
     setIsRetryingOrder(false);
+    setIsUnknownState(false);
     setCreateError(null);
   };
 
   const handleFormChange = () => {
+    // B01-F02: Nếu đang ở trạng thái unknown, KHÔNG tự xóa pending hoặc tự sinh key mới khi gõ phím
+    if (isUnknownState) {
+      return;
+    }
     if (isRetryingOrder) {
-      clearSavedPendingOrder(account.tenantId);
+      clearSavedPendingOrder(account.tenantId, account.id);
+      setPendingSnapshot(null);
       setIsRetryingOrder(false);
       setOrderIdempotencyKey(generateUuid());
     }
@@ -229,10 +265,20 @@ export function OrdersPage() {
 
   // Tạo đơn hàng & giữ chỗ
   const createOrder = async () => {
+    // 1. Kiểm tra khóa chống double-submit
     if (isCreatingOrderRef.current) return;
-    isCreatingOrderRef.current = true;
-    try {
-      setCreateError(null);
+
+    // 2. B01-F03: Validation thực hiện TRƯỚC KHI lấy khóa submit, giải phóng ngay lập tức nếu lỗi
+    setCreateError(null);
+
+    let payloadToSend: any;
+    let keyToSend: string;
+
+    if (isRetryingOrder && pendingSnapshot) {
+      // B01-F02: Retry giữ nguyên snapshot payload & requestKey, KHÔNG dựng lại từ catalog
+      keyToSend = pendingSnapshot.idempotencyKey;
+      payloadToSend = pendingSnapshot.requestPayload;
+    } else {
       const chosenSku = skusList.find((s) => s.id === newSkuId);
       if (!chosenSku) {
         setCreateError("Vui lòng chọn một sản phẩm / SKU hợp lệ.");
@@ -242,8 +288,8 @@ export function OrdersPage() {
         setCreateError(`Mã SKU ${chosenSku.code} đang ở trạng thái [Ngừng hoạt động], không thể tạo đơn bán.`);
         return;
       }
-      if (!newBranchId || !newWarehouseId) {
-        setCreateError("Vui lòng chọn Chi nhánh và Kho xuất hàng để giữ chỗ tồn kho.");
+      if (!newBranchId) {
+        setCreateError("Vui lòng chọn Chi nhánh xuất hàng để giữ chỗ tồn kho.");
         return;
       }
       if (newQuantity <= 0) {
@@ -251,66 +297,118 @@ export function OrdersPage() {
         return;
       }
 
-      const key = orderIdempotencyKey || generateUuid();
-      setOrderIdempotencyKey(key);
+      keyToSend = orderIdempotencyKey || generateUuid();
+      setOrderIdempotencyKey(keyToSend);
 
-      const pendingPayload: PendingOrderState = {
-        idempotencyKey: key,
+      payloadToSend = {
         branchId: newBranchId,
-        warehouseId: newWarehouseId,
-        skuId: chosenSku.id,
-        quantity: newQuantity,
-        channel: newChannel,
-        customer: newCustomer.trim() || "Khách lẻ",
+        channel: "Admin", // B01-F01: Khóa chặt contract channel Admin cho đơn tạo thủ công
+        customerName: newCustomer.trim() || "Khách lẻ",
+        requestKey: keyToSend,
+        items: [
+          {
+            skuId: chosenSku.id,
+            skuCode: chosenSku.code,
+            productName: chosenSku.name,
+            variantName: chosenSku.variant,
+            quantity: newQuantity,
+            unitPrice: chosenSku.sellingPrice || 0, // Lưu snapshot giá tại thời điểm tạo
+          },
+        ],
       };
-      savePendingOrder(pendingPayload, account.tenantId);
+    }
 
-      setLoadingCreate(true);
-      try {
-        await orderService.createOrder({
-          branchId: newBranchId,
-          channel: newChannel,
-          customerName: newCustomer.trim() || "Khách lẻ",
-          requestKey: key,
-          items: [
-            {
-              skuId: chosenSku.id,
-              skuCode: chosenSku.code,
-              productName: chosenSku.name,
-              variantName: chosenSku.variant,
-              quantity: newQuantity,
-              unitPrice: chosenSku.sellingPrice || 0,
-            },
-          ],
-        });
+    // 3. Lấy khóa submit và chuyển trạng thái loading
+    isCreatingOrderRef.current = true;
+    setLoadingCreate(true);
 
-        clearSavedPendingOrder(account.tenantId);
-        setOrderIdempotencyKey(null);
+    // Lưu snapshot với tenantId và userId cách ly (B01-F02)
+    const snapshotToSave: PendingOrderSnapshot = {
+      ownerTenantId: account.tenantId,
+      ownerUserId: account.id,
+      idempotencyKey: keyToSend,
+      requestPayload: payloadToSend,
+      warehouseId: newWarehouseId,
+      isUnknownState: false,
+      createdAt: Date.now(),
+    };
+    savePendingOrder(snapshotToSave, account.tenantId, account.id);
+    setPendingSnapshot(snapshotToSave);
+
+    try {
+      await orderService.createOrder(payloadToSend);
+
+      // Thành công dứt khoát: giải phóng pending
+      clearSavedPendingOrder(account.tenantId, account.id);
+      setPendingSnapshot(null);
+      setOrderIdempotencyKey(null);
+      setIsRetryingOrder(false);
+      setIsUnknownState(false);
+      setCreateModal(false);
+      setNewQuantity(1);
+      await loadOrders();
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const data = err?.response?.data;
+      const errorDetail = data?.detail || data?.message || err?.message || "Lỗi xử lý tạo đơn hàng.";
+      const errorCode = data?.errorCode || data?.extensions?.errorCode;
+
+      // Phân định Definite Failure vs Indeterminate / Unknown State (B01-F02)
+      if (status === 400) {
+        // Lỗi xác thực dứt khoát
+        const msg = `Lỗi xác thực dữ liệu (400): ${errorDetail}`;
+        setCreateError(msg);
+        clearSavedPendingOrder(account.tenantId, account.id);
+        setPendingSnapshot(null);
         setIsRetryingOrder(false);
-        setCreateModal(false);
-        setNewQuantity(1);
-        await loadOrders();
-      } catch (err: any) {
-        const errorDetail = err?.response?.data?.detail || err?.response?.data?.message || err?.message || "Lỗi xử lý tạo đơn hàng.";
-        const status = err?.response?.status;
-        const errorCode = err?.response?.data?.extensions?.errorCode || (status === 409 ? "INSUFFICIENT_STOCK" : status === 400 ? "VALIDATION_ERROR" : "NETWORK_ERROR");
-
-        let message = errorDetail;
-        if (errorCode === "INSUFFICIENT_STOCK") {
-          message = `Tồn kho không đủ để giữ chỗ: ${errorDetail}`;
-        } else if (status === 401 || status === 403) {
-          message = `Bạn không có quyền thực hiện thao tác tạo đơn (${status}).`;
+        setIsUnknownState(false);
+      } else if (status === 401 || status === 403) {
+        // Lỗi quyền truy cập dứt khoát
+        const msg = `Bạn không có quyền thực hiện thao tác tạo đơn (${status}).`;
+        setCreateError(msg);
+        clearSavedPendingOrder(account.tenantId, account.id);
+        setPendingSnapshot(null);
+        setIsRetryingOrder(false);
+        setIsUnknownState(false);
+      } else if (status === 409) {
+        // Phân biệt thiếu tồn kho vs xung đột Idempotency (B01-F02)
+        if (errorCode === "INSUFFICIENT_STOCK" || errorDetail.toLowerCase().includes("tồn kho") || errorDetail.toLowerCase().includes("không đủ")) {
+          const msg = `Tồn kho không đủ để giữ chỗ: ${errorDetail}`;
+          setCreateError(msg);
+          clearSavedPendingOrder(account.tenantId, account.id);
+          setPendingSnapshot(null);
+          setIsRetryingOrder(false);
+          setIsUnknownState(false);
+        } else if (errorCode === "IDEMPOTENCY_CONFLICT" || errorCode === "IDEMPOTENCY_PAYLOAD_MISMATCH") {
+          const msg = `Xung đột định danh (409 ${errorCode}): Dữ liệu yêu cầu không khớp với yêu cầu trước đó. Vui lòng bấm 'Hủy và tạo yêu cầu mới'.`;
+          setCreateError(msg);
+          setIsRetryingOrder(true);
+          setIsUnknownState(false);
+        } else {
+          const msg = `Xung đột trạng thái (409): ${errorDetail}`;
+          setCreateError(msg);
+          setIsRetryingOrder(true);
+          setIsUnknownState(false);
         }
-
-        setCreateError(`${message} (Định danh: ${key.slice(0, 8)}...)`);
+      } else {
+        // Timeout mạng, rớt kết nối, lỗi 5xx -> Trạng thái Unknown (B01-F02)
+        const msg = `Mất kết nối hoặc phản hồi chưa rõ từ máy chủ (${status || "Mạng"}). Đang bảo lưu nguyên vẹn yêu cầu để thử lại an toàn: ${errorDetail}`;
+        setCreateError(`${msg} (Định danh: ${keyToSend.slice(0, 8)}...)`);
         setIsRetryingOrder(true);
-      } finally {
-        setLoadingCreate(false);
-        isCreatingOrderRef.current = false;
+        setIsUnknownState(true);
+
+        const updatedSnapshot: PendingOrderSnapshot = {
+          ...snapshotToSave,
+          isUnknownState: true,
+          lastError: msg,
+        };
+        savePendingOrder(updatedSnapshot, account.tenantId, account.id);
+        setPendingSnapshot(updatedSnapshot);
       }
-    } catch (e: any) {
-      setCreateError(e?.message || "Đã xảy ra sự cố ngoài ý muốn.");
+    } finally {
+      // B01-F03: Luôn giải phóng khóa trên mọi đường thoát
       isCreatingOrderRef.current = false;
+      setLoadingCreate(false);
     }
   };
 
@@ -397,24 +495,12 @@ export function OrdersPage() {
               }}
             >
               <span>{createError}</span>
+              {/* B01-F03: Retry luôn gọi createOrder(), tuyệt đối không quay lại apiAdapter.checkout cũ */}
               <button
                 type="button"
                 onClick={() => {
-                  if (orderIdempotencyKey) {
-                    setIsRetryingOrder(true);
-                    createOrder();
-                  } else {
-                    const chosen = skusList.find((s) => s.id === newSkuId);
-                    const k = generateUuid();
-                    setOrderIdempotencyKey(k);
-                    setIsRetryingOrder(false);
-                    apiAdapter.checkout(chosen!, newQuantity, newChannel, newCustomer.trim() || "Khách lẻ", {
-                      branchId: newBranchId,
-                      warehouseId: newWarehouseId,
-                                            idempotencyKey: k,
-                      isRetry: false,
-                    });
-                  }
+                  setIsRetryingOrder(true);
+                  createOrder();
                 }}
                 style={{
                   background: "#dc2626",
@@ -424,10 +510,17 @@ export function OrdersPage() {
                   borderRadius: "4px",
                   cursor: "pointer",
                   fontSize: "11px",
+                  fontWeight: 600,
                 }}
               >
                 Thử lại
               </button>
+            </div>
+          )}
+
+          {isUnknownState && (
+            <div className="mb-3 p-3 bg-amber-50 border border-amber-300 rounded-lg text-xs text-amber-800">
+              ⚠️ <b>Yêu cầu đang chờ xác nhận:</b> Phản hồi trước đó bị gián đoạn mạng. Hệ thống đang bảo lưu chính xác dữ liệu (SKU, giá, số lượng, định danh). Bạn không thể thay đổi thông tin trên biểu mẫu để tránh tạo sai lệch. Hãy bấm <b>Thử lại giữ chỗ</b> để kiểm tra lại với máy chủ, hoặc bấm <b>Hủy và tạo yêu cầu mới</b> nếu muốn hủy bỏ.
             </div>
           )}
 
@@ -440,23 +533,18 @@ export function OrdersPage() {
                   setNewCustomer(e.target.value);
                   handleFormChange();
                 }}
+                disabled={isUnknownState}
                 required
               />
             </label>
             <label>
               <span>Kênh bán hàng *</span>
-              <Select
-                value={newChannel}
-                onChange={(e) => {
-                  setNewChannel(e.target.value as Order["channel"]);
-                  handleFormChange();
-                }}
-              >
-                <option value="Shopee">Shopee</option>
-                <option value="TikTok">TikTok Shop</option>
-                <option value="Lazada">Lazada</option>
-                <option value="POS">POS tại quầy</option>
-              </Select>
+              {/* B01-F01: Đơn tạo thủ công qua Admin bắt buộc channel Admin, hiển thị rõ ràng */}
+              <Input
+                value="Admin (Đơn tạo thủ công)"
+                disabled
+                readOnly
+              />
             </label>
             <label>
               <span>Chi nhánh xuất hàng *</span>
@@ -476,7 +564,7 @@ export function OrdersPage() {
               </Select>
             </label>
             <label>
-              <span>Kho xuất hàng *</span>
+              <span>Kho xuất hàng (Tra cứu khả dụng)</span>
               <Select
                 value={newWarehouseId}
                 onChange={(e) => {
@@ -561,7 +649,7 @@ export function OrdersPage() {
                       • Khả dụng tại kho đang chọn: <strong>{whAvail}</strong> (OnHand: {whOnHand}, Reserved: {whReserved})
                     </div>
                     <div>
-                      • Khả dụng toàn bộ hệ thống: <strong>{sysAvail}</strong>
+                      • Khả dụng chi nhánh (phạm vi giữ chỗ thực tế): <strong>{sysAvail}</strong>
                     </div>
                   </div>
                 )}

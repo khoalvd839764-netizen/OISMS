@@ -13,6 +13,7 @@ export interface StockTransferItem {
   skuId: string;
   skuCode: string;
   skuName?: string;
+  productName?: string;
   quantity: number;
   unitCost?: number;
 }
@@ -53,4 +54,23 @@ export interface CreateStockTransferRequest {
 
 export interface RejectStockTransferRequest {
   reason: string;
+}
+
+export interface StockTransferFilter {
+  branchId?: string;
+  warehouseId?: string;
+  status?: string;
+  pageNumber?: number;
+  pageIndex?: number;
+  pageSize?: number;
+}
+
+export interface StockTransferPagedResult {
+  items: StockTransfer[];
+  totalCount: number;
+  pageNumber: number;
+  pageSize: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
 }

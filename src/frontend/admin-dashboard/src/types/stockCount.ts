@@ -72,10 +72,21 @@ export interface CancelStockCountRequest {
   reason?: string;
 }
 
+export interface StockCountPagedResult {
+  items: StockCount[];
+  totalCount: number;
+  pageNumber: number;
+  pageSize: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+}
+
 export interface StockCountFilter {
   branchId?: string;
   warehouseId?: string;
   status?: StockCountStatus | '';
+  pageNumber?: number;
   pageIndex?: number;
   pageSize?: number;
 }

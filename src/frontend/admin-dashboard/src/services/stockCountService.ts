@@ -7,6 +7,7 @@ import type {
   ConfirmStockCountRequest,
   CancelStockCountRequest,
   StockCountFilter,
+  StockCountPagedResult,
 } from '../types/stockCount';
 
 function getStorageKey(): string {
@@ -59,17 +60,44 @@ export function parseProblemDetails(error: any): ProblemDetailsError {
 
 export const stockCountService = {
   /**
-   * Lấy danh sách các đợt kiểm kê
+   * Lấy danh sách các đợt kiểm kê có phân trang (PR26-F04)
    */
-  async getStockCounts(filter?: StockCountFilter): Promise<StockCount[]> {
-    const response = await httpClient.get('/api/stock-counts', { params: filter });
-    if (Array.isArray(response.data)) {
-      return response.data;
+  async getStockCounts(filter?: StockCountFilter): Promise<StockCountPagedResult> {
+    const params: Record<string, any> = {};
+    if (filter?.branchId) params.branchId = filter.branchId;
+    if (filter?.warehouseId) params.warehouseId = filter.warehouseId;
+    if (filter?.status) params.status = filter.status;
+    params.pageNumber = filter?.pageNumber || filter?.pageIndex || 1;
+    params.pageSize = filter?.pageSize || 20;
+
+    const response = await httpClient.get('/api/stock-counts', { params });
+    const data = response.data;
+
+    if (Array.isArray(data)) {
+      return {
+        items: data,
+        totalCount: data.length,
+        pageNumber: params.pageNumber,
+        pageSize: params.pageSize,
+        totalPages: Math.ceil(data.length / params.pageSize) || 1,
+        hasPreviousPage: params.pageNumber > 1,
+        hasNextPage: false,
+      };
     }
-    if (response.data && Array.isArray(response.data.items)) {
-      return response.data.items;
+
+    if (data && typeof data === 'object' && Array.isArray(data.items)) {
+      return {
+        items: data.items,
+        totalCount: typeof data.totalCount === 'number' ? data.totalCount : data.items.length,
+        pageNumber: typeof data.pageNumber === 'number' ? data.pageNumber : params.pageNumber,
+        pageSize: typeof data.pageSize === 'number' ? data.pageSize : params.pageSize,
+        totalPages: typeof data.totalPages === 'number' ? data.totalPages : (Math.ceil((data.totalCount || data.items.length) / params.pageSize) || 1),
+        hasPreviousPage: typeof data.hasPreviousPage === 'boolean' ? data.hasPreviousPage : (params.pageNumber > 1),
+        hasNextPage: typeof data.hasNextPage === 'boolean' ? data.hasNextPage : false,
+      };
     }
-    return [];
+
+    throw new Error('Dữ liệu danh sách kiểm kê kho không đúng định dạng từ máy chủ.');
   },
 
   /**
@@ -77,10 +105,10 @@ export const stockCountService = {
    */
   async getStockCountById(id: string): Promise<StockCount> {
     const response = await httpClient.get(`/api/stock-counts/${id}`);
-    if (response.data) {
+    if (response.data && typeof response.data === 'object' && response.data.id) {
       return response.data;
     }
-    throw new Error('Không tìm thấy đợt kiểm kê.');
+    throw new Error('Không tìm thấy đợt kiểm kê hoặc dữ liệu không hợp lệ.');
   },
 
   /**

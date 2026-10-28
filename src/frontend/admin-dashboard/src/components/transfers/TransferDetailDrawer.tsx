@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { StockTransfer } from '../../types/stockTransfer';
 import { TRANSFER_STATUS_LABEL } from '../../types/stockTransfer';
 import { stockTransferService } from '../../services/stockTransferService';
@@ -19,33 +19,47 @@ export const TransferDetailDrawer: React.FC<TransferDetailDrawerProps> = ({
   const [actionLoading, setActionLoading] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(false);
+  const activeReqRef = useRef(0);
 
   useEffect(() => {
+    setDetail(null);
     if (!transferId) {
-      setDetail(null);
+      setLoading(false);
       return;
     }
 
+    const reqSeq = ++activeReqRef.current;
+    setLoading(true);
+
     const fetchDetail = async () => {
-      setLoading(true);
       try {
         const data = await stockTransferService.getTransferById(transferId);
-        setDetail(data);
+        if (reqSeq === activeReqRef.current) {
+          setDetail(data);
+        }
       } catch (error) {
-        alert('Không thể tải chi tiết phiếu chuyển kho.');
+        if (reqSeq === activeReqRef.current) {
+          alert('Không thể tải chi tiết phiếu chuyển kho.');
+        }
       } finally {
-        setLoading(false);
+        if (reqSeq === activeReqRef.current) {
+          setLoading(false);
+        }
       }
     };
 
     fetchDetail();
+
+    return () => {
+      activeReqRef.current++;
+    };
   }, [transferId]);
 
   if (!transferId) return null;
 
   // Bước 1 -> 2: Xuất gửi hàng (Dispatch)
   const handleDispatch = async () => {
-    if (!detail) return;
+    if (!detail || detail.id !== transferId || loading || actionLoading) return;
     setActionLoading(true);
     try {
       await stockTransferService.dispatchTransfer(detail.id);
@@ -61,7 +75,7 @@ export const TransferDetailDrawer: React.FC<TransferDetailDrawerProps> = ({
 
   // Bước 2 -> 3A: Nhận hàng (Receive)
   const handleReceive = async () => {
-    if (!detail) return;
+    if (!detail || detail.id !== transferId || loading || actionLoading) return;
     setActionLoading(true);
     try {
       await stockTransferService.receiveTransfer(detail.id);
@@ -77,7 +91,8 @@ export const TransferDetailDrawer: React.FC<TransferDetailDrawerProps> = ({
 
   // Bước 2 -> 3B: Từ chối nhận hàng (Reject)
   const handleReject = async () => {
-    if (!detail || !rejectReason.trim()) {
+    if (!detail || detail.id !== transferId || loading || actionLoading) return;
+    if (!rejectReason.trim()) {
       alert('Vui lòng nhập lý do từ chối.');
       return;
     }
@@ -102,7 +117,7 @@ export const TransferDetailDrawer: React.FC<TransferDetailDrawerProps> = ({
         <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
           <div>
             <h2 className="text-lg font-bold text-gray-800">
-              Phiếu điều chuyển {detail?.transferNumber || ''}
+              Phiếu điều chuyển {detail?.number || detail?.transferNumber || ''}
             </h2>
             {detail && (
               <span className="text-xs text-gray-500">
@@ -166,7 +181,7 @@ export const TransferDetailDrawer: React.FC<TransferDetailDrawerProps> = ({
                       {detail.items.map((item, idx) => (
                         <tr key={item.id || idx}>
                           <td className="p-2 font-medium text-gray-800">{item.skuCode}</td>
-                          <td className="p-2 text-gray-500">{item.skuName || '-'}</td>
+                          <td className="p-2 text-gray-500">{item.productName || item.skuName || '-'}</td>
                           <td className="p-2 text-right font-bold text-gray-900">{item.quantity}</td>
                         </tr>
                       ))}

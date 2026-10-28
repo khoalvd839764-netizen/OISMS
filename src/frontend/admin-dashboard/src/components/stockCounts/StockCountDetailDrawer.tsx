@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { StockCount } from '../../types/stockCount';
 import {
   STOCK_COUNT_STATUS_LABEL,
@@ -36,6 +36,7 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
   // Cảnh báo & Lỗi ProblemDetails
   const [errorDetails, setErrorDetails] = useState<ProblemDetailsError | null>(null);
   const [sequenceDrift, setSequenceDrift] = useState(false);
+  const activeReqRef = useRef(0);
 
   useEffect(() => {
     if (!countId) {
@@ -43,12 +44,16 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
       return;
     }
 
+    const reqSeq = ++activeReqRef.current;
+    setDetail(null);
+    setLoading(true);
+    setErrorDetails(null);
+    setSequenceDrift(false);
+
     const fetchDetail = async () => {
-      setLoading(true);
-      setErrorDetails(null);
-      setSequenceDrift(false);
       try {
         const data = await stockCountService.getStockCountById(countId);
+        if (reqSeq !== activeReqRef.current) return;
         setDetail(data);
 
         // Khởi tạo map giá trị đếm
@@ -65,12 +70,15 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
         setCountedMap(initialCounted);
         setCostMap(initialCost);
       } catch (err: any) {
+        if (reqSeq !== activeReqRef.current) return;
         setErrorDetails({
           title: 'Không thể tải chi tiết đợt kiểm kê',
           detail: err?.message || 'Lỗi kết nối máy chủ.',
         });
       } finally {
-        setLoading(false);
+        if (reqSeq === activeReqRef.current) {
+          setLoading(false);
+        }
       }
     };
 

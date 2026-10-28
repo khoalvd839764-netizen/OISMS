@@ -2,9 +2,49 @@ import { httpClient } from './httpClient';
 import { generateUuid } from './apiAdapter';
 import type {
   StockTransfer,
+  StockTransferItem,
   CreateStockTransferRequest,
   RejectStockTransferRequest,
+  StockTransferFilter,
+  StockTransferPagedResult,
 } from '../types/stockTransfer';
+
+export function normalizeTransferItem(it: any): StockTransferItem {
+  if (!it || typeof it !== 'object') {
+    return {
+      skuId: '',
+      skuCode: '',
+      quantity: 0,
+    };
+  }
+  return {
+    id: it.id,
+    skuId: it.skuId || '',
+    skuCode: it.skuCode || '',
+    skuName: it.skuName || it.productName || '',
+    productName: it.productName || it.skuName || '',
+    quantity: Number(it.quantity) || 0,
+    unitCost: it.unitCost !== undefined && it.unitCost !== null ? Number(it.unitCost) : undefined,
+  };
+}
+
+export function normalizeTransfer(t: any): StockTransfer {
+  if (!t || typeof t !== 'object') {
+    throw new Error('Dữ liệu phiếu chuyển kho không hợp lệ.');
+  }
+  const rawItems = Array.isArray(t.items) ? t.items : [];
+  return {
+    ...t,
+    id: String(t.id || ''),
+    number: t.number || t.transferNumber || '',
+    transferNumber: t.transferNumber || t.number || '',
+    status: t.status || 'Draft',
+    fromWarehouseId: t.fromWarehouseId || '',
+    toWarehouseId: t.toWarehouseId || '',
+    items: rawItems.map(normalizeTransferItem),
+    createdAt: t.createdAt || new Date().toISOString(),
+  };
+}
 
 function getStorageKey(): string {
   const tenantId = localStorage.getItem('oism_tenant_id') || 'default';
@@ -30,28 +70,62 @@ function saveLocalTransfers(transfers: StockTransfer[]): void {
 
 export const stockTransferService = {
   /**
-   * Lấy danh sách phiếu chuyển kho
+   * Lấy danh sách phiếu chuyển kho có phân trang và bộ lọc (PR26-F04)
    */
-  async getTransfers(): Promise<StockTransfer[]> {
-    const response = await httpClient.get('/api/stock-transfers');
-    if (Array.isArray(response.data)) {
-      return response.data;
+  async getTransfers(filter?: StockTransferFilter): Promise<StockTransferPagedResult> {
+    const params: Record<string, any> = {};
+    if (filter?.branchId) params.branchId = filter.branchId;
+    if (filter?.warehouseId) params.warehouseId = filter.warehouseId;
+    if (filter?.status) params.status = filter.status;
+    params.pageNumber = filter?.pageNumber || filter?.pageIndex || 1;
+    params.pageSize = filter?.pageSize || 20;
+
+    const response = await httpClient.get('/api/stock-transfers', { params });
+    const data = response.data;
+
+    if (Array.isArray(data)) {
+      const items = data.map(normalizeTransfer);
+      return {
+        items,
+        totalCount: items.length,
+        pageNumber: params.pageNumber,
+        pageSize: params.pageSize,
+        totalPages: Math.ceil(items.length / params.pageSize) || 1,
+        hasPreviousPage: params.pageNumber > 1,
+        hasNextPage: false,
+      };
     }
-    if (response.data && Array.isArray(response.data.items)) {
-      return response.data.items;
+
+    if (data && typeof data === 'object' && Array.isArray(data.items)) {
+      const items = data.items.map(normalizeTransfer);
+      const totalCount = typeof data.totalCount === 'number' ? data.totalCount : items.length;
+      const pageNumber = data.pageNumber || params.pageNumber;
+      const pageSize = data.pageSize || params.pageSize;
+      const totalPages = data.totalPages || Math.ceil(totalCount / pageSize) || 1;
+      return {
+        items,
+        totalCount,
+        pageNumber,
+        pageSize,
+        totalPages,
+        hasPreviousPage: typeof data.hasPreviousPage === 'boolean' ? data.hasPreviousPage : pageNumber > 1,
+        hasNextPage: typeof data.hasNextPage === 'boolean' ? data.hasNextPage : pageNumber < totalPages,
+      };
     }
-    return [];
+
+    // Không nuốt lỗi định dạng sai thành mảng rỗng (PR26-F04)
+    throw new Error('Dữ liệu danh sách phiếu chuyển kho từ máy chủ không đúng định dạng.');
   },
 
   /**
-   * Lấy chi tiết phiếu chuyển kho theo ID
+   * Lấy chi tiết phiếu chuyển kho theo ID (PR26-F04)
    */
   async getTransferById(id: string): Promise<StockTransfer> {
     const response = await httpClient.get(`/api/stock-transfers/${id}`);
-    if (response.data) {
-      return response.data;
+    if (response.data && typeof response.data === 'object' && !Array.isArray(response.data)) {
+      return normalizeTransfer(response.data);
     }
-    throw new Error('Không tìm thấy phiếu chuyển kho.');
+    throw new Error('Không tìm thấy phiếu chuyển kho hoặc định dạng phản hồi không hợp lệ.');
   },
 
   /**

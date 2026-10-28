@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { OrderDetail } from '../../types/ordersCenter';
 import { ORDER_STATUS_LABEL, ORDER_ACTIONS } from '../../types/ordersCenter';
 import { orderService } from '../../services/orderService';
@@ -23,22 +23,37 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
   const [actionLoading, setActionLoading] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const activeReqRef = useRef(0);
 
   useEffect(() => {
+    setShowCancelModal(false);
+    setCancelReason('');
+    setError(null);
+
     if (!orderId) {
       setDetail(null);
       return;
     }
 
+    const reqSeq = ++activeReqRef.current;
+    // Clear previous order immediately to prevent showing or mutating stale order (B01-F04)
+    setDetail(null);
+    setLoading(true);
+
     const fetchDetail = async () => {
-      setLoading(true);
       try {
         const data = await orderService.getOrderById(orderId);
+        if (reqSeq !== activeReqRef.current) return;
         setDetail(data);
-      } catch (error) {
-        alert('Không thể tải chi tiết đơn hàng.');
+      } catch (err: any) {
+        if (reqSeq !== activeReqRef.current) return;
+        const msg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || 'Không thể tải chi tiết đơn hàng.';
+        setError(msg);
       } finally {
-        setLoading(false);
+        if (reqSeq === activeReqRef.current) {
+          setLoading(false);
+        }
       }
     };
 
@@ -48,8 +63,10 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
   if (!orderId) return null;
 
   const handleAction = async (action: 'confirm' | 'process' | 'complete') => {
-    if (!detail) return;
+    // Identity guard: verify detail is loaded and strictly matches current orderId (B01-F04)
+    if (!detail || detail.id !== orderId || loading || actionLoading) return;
     setActionLoading(true);
+    setError(null);
     try {
       if (action === 'confirm') await orderService.confirmOrder(detail.id);
       if (action === 'process') await orderService.processOrder(detail.id);
@@ -58,27 +75,45 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
       const updated = await orderService.getOrderById(detail.id);
       setDetail(updated);
       onRefresh();
-    } catch (error) {
-      alert(`Thao tác thất bại.`);
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || 'Thao tác thất bại.';
+      alert(`Thao tác thất bại: ${msg}`);
+      try {
+        const refreshed = await orderService.getOrderById(detail.id);
+        setDetail(refreshed);
+      } catch {
+        // ignore
+      }
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleCancel = async () => {
-    if (!detail || !cancelReason.trim()) {
+    // Identity guard: verify detail is loaded and strictly matches current orderId (B01-F04)
+    if (!detail || detail.id !== orderId || loading || actionLoading) return;
+    if (!cancelReason.trim()) {
       alert('Vui lòng nhập lý do hủy đơn.');
       return;
     }
     setActionLoading(true);
+    setError(null);
     try {
-      await orderService.cancelOrder(detail.id, { reason: cancelReason });
+      await orderService.cancelOrder(detail.id, { reason: cancelReason.trim() });
       setShowCancelModal(false);
+      setCancelReason('');
       const updated = await orderService.getOrderById(detail.id);
       setDetail(updated);
       onRefresh();
-    } catch (error) {
-      alert('Không thể hủy đơn hàng.');
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || 'Không thể hủy đơn hàng.';
+      alert(`Hủy đơn thất bại: ${msg}`);
+      try {
+        const refreshed = await orderService.getOrderById(detail.id);
+        setDetail(refreshed);
+      } catch {
+        // ignore
+      }
     } finally {
       setActionLoading(false);
     }
@@ -122,6 +157,29 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
 
         {/* Nội dung chi tiết */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {error && (
+            <div className="p-4 bg-rose-50 border border-rose-200 rounded-lg flex items-center justify-between text-xs text-rose-700">
+              <div className="flex items-center gap-1.5 font-medium">
+                <span>⚠️ {error}</span>
+              </div>
+              <button
+                onClick={() => {
+                  if (orderId) {
+                    setLoading(true);
+                    setError(null);
+                    orderService.getOrderById(orderId)
+                      .then((d) => setDetail(d))
+                      .catch((e) => setError(e?.message || 'Lỗi kết nối'))
+                      .finally(() => setLoading(false));
+                  }
+                }}
+                className="px-2.5 py-1 bg-rose-600 text-white rounded hover:bg-rose-700 font-semibold"
+              >
+                Thử lại
+              </button>
+            </div>
+          )}
+
           {loading ? (
             <div className="text-center py-12 text-gray-500">Đang tải chi tiết đơn hàng...</div>
           ) : detail ? (
