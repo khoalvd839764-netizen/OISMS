@@ -1,4 +1,4 @@
-Cập nhật hiện tại28/10/2026: T01/B01/B02 VERIFIED; B03 v1.3 đã pass kiểm chứng cục bộ, chờ CI/PR của commit mới. Xem [bàn giao B03](./pos-completion/batch-03-qr-final/handover.md). Các ghi nhận R4 dưới đây là lịch sử.
+Cập nhật hiện tại28/10/2026: **B03 VERIFIED v1.3-integration**, toàn bộ T04/T06 đạt trong phạm vi đã chốt; source becc76d có build,51 POS/24 B02/10 module QR và8 browser/backend/PostgreSQL PASS, CI frontend/backend SUCCESS. T01/B01/B02 giữ VERIFIED. [Bàn giao B03](./pos-completion/batch-03-qr-final/handover.md). Các ghi nhận R4 bên dưới là lịch sử.
 
 # Sprint 3 — Frontend POS / Phương Lê
 

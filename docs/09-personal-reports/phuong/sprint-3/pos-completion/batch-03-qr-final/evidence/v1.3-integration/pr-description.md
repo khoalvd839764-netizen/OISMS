@@ -36,9 +36,9 @@ Không thêm endpoint/schema. POS dùng `POST /api/pos/checkout` (alias tương 
 - Root B02 suite: **24/24 PASS**; module QR: **10/10 PASS**. Đây là source/VM/module tests, không đại diện PostgreSQL.
 - Live B03: **8/8 PASS**, Edge production + backend5001 + PostgreSQL5433 cách ly: cash/QR/receipt/reprint, stock10→8 không F5 khi Hub offline, replay, QR close/open/branch config, mất response sau commit/reload/UI retry,401/đổi tài khoản, reconnect Hub, thiếu tồn409, stock GET503/recovery, response branch cũ về trễ.
 - DB ca mất phản hồi/retry: **1 order,1 payment,2 OUT cho2 SKU**; key/payload/recipient không đổi. Không dùng SQL ghi dữ liệu hoặc chuyển tiền thật.
-- [Bàn giao và mapping AC gốc](docs/09-personal-reports/phuong/sprint-3/pos-completion/batch-03-qr-final/handover.md)
-- [JSON/log/ảnh/PDF/source hashes](docs/09-personal-reports/phuong/sprint-3/pos-completion/batch-03-qr-final/evidence/v1.3-integration/)
-- [Cấu hình QR và migration config cũ](docs/09-personal-reports/phuong/sprint-3/pos-completion/batch-03-qr-final/qr-configuration.md)
+- [Bàn giao và mapping AC gốc](https://github.com/khoalvd839764-netizen/OISMS/blob/feature/OISMS-44-pos-pwa-checkout-va-in-hoa-don/docs/09-personal-reports/phuong/sprint-3/pos-completion/batch-03-qr-final/handover.md)
+- [JSON/log/ảnh/PDF/source hashes](https://github.com/khoalvd839764-netizen/OISMS/tree/feature/OISMS-44-pos-pwa-checkout-va-in-hoa-don/docs/09-personal-reports/phuong/sprint-3/pos-completion/batch-03-qr-final/evidence/v1.3-integration/)
+- [Cấu hình QR và migration config cũ](https://github.com/khoalvd839764-netizen/OISMS/blob/feature/OISMS-44-pos-pwa-checkout-va-in-hoa-don/docs/09-personal-reports/phuong/sprint-3/pos-completion/batch-03-qr-final/qr-configuration.md)
 
 Giới hạn: chỉ thay ảnh VietQR external trong test bằng SVG fixture; business API dùng backend thật. Chưa thử chuyển tiền/quét bằng app ngân hàng, máy in vật lý hoặc webhook đối soát tự động. CI của từng HEAD xem Checks; kết quả cục bộ không thay thế CI.
 
@@ -66,3 +66,6 @@ Giới hạn: chỉ thay ảnh VietQR external trong test bằng SVG fixture; bu
 ### Lý do trễ hạn (nếu có)
 
 Chưa đối chiếu deadline; không tự xác nhận đã đúng/trễ hạn.
+
+
+**Nghiệm thu source B03:** commit becc76d9c002384d451c243ade3e9c66c6e23244 đã có [CI frontend và backend SUCCESS](https://github.com/khoalvd839764-netizen/OISMS/actions/runs/40682864038). T01/B01/B02/B03 VERIFIED trong phạm vi đã chốt. Commit chốt tài liệu giữ nguyên runtime; trạng thái CI của HEAD hiện tại xem tab Checks trước khi merge.

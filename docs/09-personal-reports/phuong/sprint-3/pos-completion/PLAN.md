@@ -1,4 +1,4 @@
-Cập nhật hiện tại28/10/2026: T01/B01/B02 VERIFIED; B03 v1.3 có build,51 POS/24 B02/10 QR module và8 browser+backend+PostgreSQL PASS, chờ CI/PR commit mới. Các đoạn review bên dưới giữ lịch sử; nguồn trạng thái hiện tại là [handover B03](./batch-03-qr-final/handover.md).
+Cập nhật hiện tại28/10/2026: **B03 VERIFIED v1.3-integration**, toàn bộ T04/T06 đạt trong phạm vi đã chốt; source becc76d có build,51 POS/24 B02/10 module QR và8 browser/backend/PostgreSQL PASS, CI frontend/backend SUCCESS. T01/B01/B02 giữ VERIFIED. [Bàn giao B03](./batch-03-qr-final/handover.md). Các đoạn review bên dưới giữ lịch sử.
 
 # Kế hoạch fix và hoàn thiện Frontend POS — OISMS-44
 
@@ -40,7 +40,7 @@ T01 đã được nghiệm thu độc lập. Phần còn lại giao tuần tự 
 | --- | --- | --- |
 | [S3-POS-B01 — Hóa đơn và in nhiệt](./batch-01-receipt-print/brief.md) | Toàn bộ T02-AC-01..05 + T05-AC-02; phần print preview/thiết bị in của T05-AC-05 | **VERIFIED v1.2 — R3**, B01-F01/F02/F03 CLOSED; [review](./batch-01-receipt-print/reviews/v1.2-review-r3.md) |
 | [S3-POS-B02 — Tồn realtime và thao tác quầy](./batch-02-stock-realtime-pwa/handover.md) | Toàn bộ T03-AC-01..07 + T05-AC-01/03/04/06; phần desktop/touch/barcode/keyboard/reopen/reconnect còn lại của T05-AC-05 | **VERIFIED v1.8**, F01..F06 CLOSED; [handover](./batch-02-stock-realtime-pwa/handover.md) |
-| [S3-POS-B03 — QR và nghiệm thu cuối](./batch-03-qr-final/handover.md) | Toàn bộ T04-AC-01..05 + T06-AC-01..07 | **READY_FOR_REVIEW v1.3-integration**; F04/F06/F07/F08/F09 đã đóng bằng test; F05 chờ CI/PR cuối. [Handover](./batch-03-qr-final/handover.md).
+| [S3-POS-B03 — QR và nghiệm thu cuối](./batch-03-qr-final/handover.md) | Toàn bộ T04-AC-01..05 + T06-AC-01..07 | **VERIFIED v1.3-integration**; B03-F01..F09 CLOSED, CI source becc76d frontend/backend SUCCESS; PR24 đã cập nhật. [Handover](./batch-03-qr-final/handover.md).
 
 T05 hoàn tất khi cả B01 và B02 đạt các phần AC được phân bổ; không đánh dấu toàn T05 xong sau B01. T06 kiểm chứng lại các luồng tích hợp của cả ba đợt, không thay thế bằng test stub ở B01/B02. QR thiếu quyết định chỉ chặn phần phụ thuộc QR trong B03; vẫn chuẩn bị/chạy các kiểm tra độc lập đã đủ điều kiện và ghi rõ phần chưa chạy. Không gọi B03 VERIFIED khi AC bắt buộc hoặc quyết định phạm vi QR còn thiếu.
 
@@ -51,9 +51,9 @@ Bảng dưới giữ mã task gốc cho lịch sử và báo cáo:
 | [S3-POS-T01](./task-01-checkout-safety/brief.md) | Checkout an toàn khi mất mạng, hết phiên, retry | POS-T01-F01/F02/F03/F04 CLOSED theo R4 | Không | VERIFIED v1.3 — R4 |
 | S3-POS-T02 | Map và in hóa đơn từ server receipt | PR24-F03 / FR-POS-03; B01-F01/F02/F03 CLOSED | T01 | VERIFIED qua B01 v1.2 — R3 |
 | S3-POS-T03 | Làm mới tồn ngay sau checkout, không F5; SignalR cho thay đổi từ máy/kênh khác | POS-STOCK-F01 / FR-SIM-02 | T01–T02 | VERIFIED qua B02 v1.8 |
-| S3-POS-T04 | Chốt QR, thực hiện đúng phạm vi và sửa claim nghiệm thu | PR24-F04 / FR-POS-03 | Hợp đồng QR được chốt | Runtime PASS trong B03 v1.3; chờ gate CI/PR |
+| S3-POS-T04 | Chốt QR, thực hiện đúng phạm vi và sửa claim nghiệm thu | PR24-F04 / FR-POS-03 | Hợp đồng QR được chốt | VERIFIED qua B03 v1.3-integration |
 | S3-POS-T05 | PWA, offline an toàn, phím tắt, cảm ứng và khổ in | FR-POS-01..03 | T01–T02 | VERIFIED qua B01 (in) & B02 (realtime/PWA) |
-| S3-POS-T06 | E2E, bằng chứng cuối, báo cáo và cập nhật PR #24 | Toàn bộ phạm vi đã chốt | Các task trước đạt | Runtime PASS trong B03 v1.3; chờ gate CI/PR |
+| S3-POS-T06 | E2E, bằng chứng cuối, báo cáo và cập nhật PR #24 | Toàn bộ phạm vi đã chốt | Các task trước đạt | VERIFIED qua B03 v1.3-integration |
 
 B01 đã VERIFIED; B02 đã có brief riêng và pin HEAD + working tree/hash thực tế sau B01 (code hiện chưa commit). Chỉ giao B02 trong prompt hiện tại; tới B03 tạo brief/baseline riêng sau B02, không tự triển khai cả hai đợt. Không tự gửi lệnh sang ứng dụng/agent khác.
 

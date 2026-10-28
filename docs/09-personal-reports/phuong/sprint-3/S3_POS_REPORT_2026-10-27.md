@@ -1,4 +1,4 @@
-Cập nhật nghiệm thu28/10/2026: T01/B01/B02 VERIFIED; B03 v1.3 có build +51 POS/24 B02/10 QR module và8 browser/backend/PostgreSQL PASS. Chưa chốt VERIFIED B03 trước khi CI/PR commit mới hoàn tất. Cấu hình bank riêng từng tenant/branch, thu ngân xác nhận đã nhận tiền; chưa có đối soát ngân hàng tự động. [Hồ sơ hiện tại](./pos-completion/batch-03-qr-final/handover.md).
+Cập nhật nghiệm thu28/10/2026: **B03 VERIFIED v1.3-integration**, toàn bộ T04/T06 đạt trong phạm vi đã chốt; source becc76d có build,51 POS/24 B02/10 module QR và8 browser/backend/PostgreSQL PASS, CI frontend/backend SUCCESS. T01/B01/B02 giữ VERIFIED. [Hồ sơ B03](./pos-completion/batch-03-qr-final/handover.md). Cấu hình ngân hàng tenant/branch và thu ngân xác nhận; chưa có đối soát ngân hàng tự động.
 
 # BÁO CÁO CÁ NHÂN SPRINT 3: HOÀN THIỆN WEB POS PWA BÁN HÀNG TẠI QUẦY
 
@@ -10,7 +10,7 @@ Cập nhật nghiệm thu28/10/2026: T01/B01/B02 VERIFIED; B03 v1.3 có build +5
 | **Cổng ứng dụng phục vụ** | `http://localhost:5174` |
 | **Nhánh Git làm việc** | `feature/OISMS-44-pos-pwa-checkout-va-in-hoa-don` |
 | **Thời gian thực hiện** | Sprint 3 (Lõi Vận hành Hoàn chỉnh) |
-| **Trạng thái bàn giao** | **SẴN SÀNG NGHIỆM THU (READY FOR REVIEW)** |
+| **Trạng thái bàn giao** | **VERIFIED phạm vi Sprint3 đã chốt** |
 
 ---
 
@@ -78,3 +78,14 @@ flowchart LR
 - **Phân hệ bàn giao:** 100% nằm trong `src/frontend/pos-app` và `docs/09-personal-reports/phuong/`.
 - **Tuyệt đối không đụng chạm:** Phân hệ Backend hay Admin của các thành viên khác.
 - **Tuân thủ quy tắc nhóm:** Commit Tiếng Việt chuẩn mực, gắn mã `[OISMS-44]`, sẵn sàng mở Pull Request trỏ vào nhánh `develop`.
+
+
+## Checklist tổng kết sau hoàn thiện POS
+
+- [x] T01 — Retry giữ key/payload, bảo toàn pending qua reload/401 và đúng owner/branch.
+- [x] T02 — Hóa đơn từ server snapshot, tạm tính tách checkout, in lại không tạo đơn.
+- [x] T03 — Checkout làm mới tồn không F5, response cũ không ghi đè, SignalR reconnect/refetch.
+- [x] T04 — Config QR riêng từng tenant/branch, không fallback tài khoản mẫu, identity/recipient ổn định; thu ngân xác nhận tiền vào.
+- [x] T05 — PWA/offline an toàn, thao tác quầy, PDF58/80mm theo evidence B01/B02; không coi là đã thử máy in vật lý.
+- [x] T06 —8 browser/backend/PostgreSQL thật, suites/build PASS, develop đồng bộ và CI source becc76d SUCCESS, PR24 đã cập nhật.
+- [ ] Phần chuyển tiếp: tự động đối soát ngân hàng/webhook, UI/API quản lý bank config, kiểm thử chuyển tiền/quét bằng app ngân hàng và máy in vật lý. Các mục này không được báo cáo đã thử.

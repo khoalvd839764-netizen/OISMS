@@ -1,6 +1,6 @@
 # Bàn giao S3-POS-B03 v1.3-integration
 
-Ngày 28/10/2026, Asia/Saigon. Trạng thái **READY_FOR_REVIEW — kiểm chứng cục bộ PASS, chờ CI và cập nhật PR24 ở commit mới**. Người dùng yêu cầu Codex trực tiếp hoàn tất B03. Nhánh feature/OISMS-44-pos-pwa-checkout-va-in-hoa-don. Baseline fcf8fb2a4d35954ff5c7909930981b21cdd0fc9e; đã merge develop ecc0c85 bằng4197e28, không conflict. Runtime/test đã kiểm tra được định danh bằng evidence/v1.3-integration/source-hashes.json; hash HEAD trong report live là HEAD trước khi commit các sửa đổi.
+Ngày 28/10/2026, Asia/Saigon. Trạng thái **VERIFIED v1.3-integration — source becc76d đã pass toàn bộ nghiệm thu và CI frontend/backend**. Người dùng yêu cầu Codex trực tiếp hoàn tất B03. Nhánh feature/OISMS-44-pos-pwa-checkout-va-in-hoa-don. Baseline fcf8fb2a4d35954ff5c7909930981b21cdd0fc9e; đã merge develop ecc0c85 bằng4197e28, không conflict. Runtime/test đã kiểm tra được định danh bằng evidence/v1.3-integration/source-hashes.json; hash HEAD trong report live là HEAD trước khi commit các sửa đổi.
 
 Quyết định người dùng: tài khoản thụ hưởng riêng từng chi nhánh, gắn đúng tenant. Service chỉ nhận envelope version1 khớp hai ID; thiếu/sai cấu hình khóa QR. Không có tài khoản mẫu tự động trong production. Hướng dẫn cấu hình và nâng cấp: [qr-configuration.md](./qr-configuration.md).
 
@@ -12,7 +12,7 @@ Quyết định người dùng: tài khoản thụ hưởng riêng từng chi nh
 | B03-F08 P1 | Config lookup exact tenant+branch, không nhận global context khác; browser2 chi nhánh và regression tenant/owner | CLOSED |
 | B03-F07 P2 | Ý định QR lưu session theo tenant/user/branch+cart fingerprint; UUID ổn định qua close/open/tab, đổi giỏ sinh ý định mới. Browser và regression caller | CLOSED |
 | B03-F09 P2 | Pending lưu QR snapshot người nhận/key/amount; config đổi không đổi QR cũ. Browser mất response, reload rồi retry đúng payload. Legacy pending không snapshot chỉ replay, không dựng QR mới | CLOSED |
-| B03-F05 P2 | Khôi phục toàn bộ mapping T04/T06 gốc; thay mock runner bằng8 luồng real browser/backend/PG; phân biệt rõ provider. Còn gate xuất bản CI/PR trước VERIFIED | CHỜ CI/PR |
+| B03-F05 P2 | Khôi phục toàn bộ mapping T04/T06 gốc; thay mock runner bằng8 luồng real browser/backend/PG; phân biệt rõ provider. PR24 đã cập nhật theo template; CI source becc76d frontend/backend SUCCESS | CLOSED |
 
 Bằng chứng trước/sau: before-qr-regression.log chạy cùng8 assertion trên baseline fcf8fb2:7 FAIL,1 PASS; pos-unit.log bản sửa:51/51 PASS, gồm34 baseline +8 QR +9 guard fixtures. before-r2-probes.log là counterexample tái hiện, không phải test feature đạt. Không ghi đè evidence v1.2 hoặc review R2.
 
@@ -27,4 +27,7 @@ Case mất response: trước khi retry DB đã có1 order/1 payment/2 OUT cho2 
 
 Mapping [AC gốc](./e2e/e2e-matrix.md). PR24-F01/F02 giữ kết quả T01 + live loss/401/owner; PR24-F03 giữ B01 + receipt/reprint từ server; PR24-F04 đóng bằng QR có config scoped/payload/identity và mô tả đúng phạm vi, không gọi QR là tự động đối soát.
 
-Giới hạn/phần tiếp theo: chưa có màn hình/API quản lý bank config; cấu hình qua deployment/localStorage có envelope. Chưa có webhook ngân hàng/auto reconciliation, chưa chuyển tiền thật, chưa kiểm chứng scan bằng ứng dụng ngân hàng hay máy in vật lý. Đây là phạm vi chuyển tiếp đã ghi, không phải kiểm thử PASS. Không thay backend/schema/ledger/WAC, không sửa Admin, không reset/truncate demo. Dữ liệu fixture tích lũy ở DB test qua API; không xóa dữ liệu người dùng. PR24 sẽ được cập nhật, không tạo PR khác, không tự merge develop.
+Giới hạn/phần tiếp theo: chưa có màn hình/API quản lý bank config; cấu hình qua deployment/localStorage có envelope. Chưa có webhook ngân hàng/auto reconciliation, chưa chuyển tiền thật, chưa kiểm chứng scan bằng ứng dụng ngân hàng hay máy in vật lý. Đây là phạm vi chuyển tiếp đã ghi, không phải kiểm thử PASS. Không thay backend/schema/ledger/WAC, không sửa Admin, không reset/truncate demo. Dữ liệu fixture tích lũy ở DB test qua API; không xóa dữ liệu người dùng. PR24 đã cập nhật theo template; không tạo PR khác hoặc tự merge develop.
+
+
+Nghiệm thu xuất bản: source commit becc76d9c002384d451c243ade3e9c66c6e23244 đã được push lên PR24, develop đã là ancestor, CI [frontend/backend SUCCESS](https://github.com/khoalvd839764-netizen/OISMS/actions/runs/40682864038). Chi tiết ci-source-head.json. Commit chốt hồ sơ sau đó chỉ sửa tài liệu; CI của HEAD xuất bản cuối được kiểm tra riêng trên PR24 Checks trước khi kết thúc lượt làm việc. Không có finding P0/P1 còn mở trong phạm vi B03. Jira In Review/bình luận Jira/deadline chưa xác minh và không được đánh dấu đã làm.
