@@ -1,3 +1,5 @@
+using OISM.Application;
+using OISM.Infrastructure;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -12,41 +14,17 @@ using OISM.Infrastructure.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Cấu hình Cơ sở dữ liệu (PostgreSQL qua EF Core & DatabaseConnectionHelper)
-var connectionStringBuilder = DatabaseConnectionHelper.BuildConnectionStringBuilder(builder.Configuration);
+// 1. Cấu hình Cơ sở dữ liệu và các dịch vụ tầng Infrastructure
+builder.Services.AddInfrastructureServices(builder.Configuration);
 
-builder.Services.AddDbContext<AppDbContext>(options =>
-{
-    options.UseNpgsql(connectionStringBuilder.ConnectionString, npgsqlOptions =>
-    {
-        npgsqlOptions.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName);
-        npgsqlOptions.EnableRetryOnFailure(3, TimeSpan.FromSeconds(5), null);
-    })
-    .UseSnakeCaseNamingConvention();
-});
+// 2. Đăng ký các use-case và nghiệp vụ tầng Application
+builder.Services.AddApplicationServices();
 
-builder.Services.AddScoped<IAppDbContext>(provider => provider.GetRequiredService<AppDbContext>());
-
-// 2. Đăng ký các dịch vụ hệ thống & HttpContextAccessor
+// 3. Đăng ký các dịch vụ WebApi, SignalR & HttpContextAccessor
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<ICurrentTenantService, CurrentTenantService>();
-builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddSingleton<IDatabaseReadinessService, NpgsqlDatabaseReadinessService>();
-builder.Services.AddScoped<IDatabaseMigrationService, DatabaseMigrationService>();
-builder.Services.AddSingleton<OISM.Application.Features.Inventory.Services.IWacCalculator, OISM.Application.Features.Inventory.Services.WacCalculator>();
-builder.Services.AddScoped<OISM.Application.Features.Inventory.Services.IGoodsReceiptService, OISM.Application.Features.Inventory.Services.GoodsReceiptService>();
-builder.Services.AddScoped<OISM.Application.Features.Inventory.Services.IInventoryService, OISM.Application.Features.Inventory.Services.InventoryService>();
-builder.Services.AddScoped<OISM.Application.Features.Inventory.Services.IReservationService, OISM.Application.Features.Inventory.Services.ReservationService>();
-builder.Services.AddScoped<OISM.Application.Features.Orders.Services.IPosCheckoutService, OISM.Application.Features.Orders.Services.OrderService>();
-builder.Services.AddScoped<OISM.Application.Features.Orders.Services.IOrderService, OISM.Application.Features.Orders.Services.OrderService>();
-builder.Services.AddScoped<OISM.Application.Features.Reports.Services.IReportService, OISM.Application.Features.Reports.Services.ReportService>();
-builder.Services.AddScoped<OISM.Application.Features.Simulator.Services.ISimulatorService, OISM.Application.Features.Simulator.Services.SimulatorService>();
-builder.Services.AddScoped<OISM.Application.Features.StockTransfers.Services.IStockTransferService, OISM.Application.Features.StockTransfers.Services.StockTransferService>();
-builder.Services.AddScoped<OISM.Application.Features.StockCounts.Services.IStockCountService, OISM.Application.Features.StockCounts.Services.StockCountService>();
 builder.Services.AddScoped<OISM.Application.Features.Realtime.IRealtimeNotifier, OISM.WebApi.Services.RealtimeNotifier>();
-builder.Services.AddScoped<OISM.Application.Features.Webhooks.Services.IWebhookService, OISM.Application.Features.Webhooks.Services.WebhookService>();
 builder.Services.AddSignalR();
-builder.Services.AddOismHangfire(builder.Configuration);
 
 // 3. Cấu hình Xác thực JWT Bearer (FR-AUTH-02, NFR-SEC-01)
 var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "SuperSecretKeyForOISMOmnichannelRetailSystem2026!#";
