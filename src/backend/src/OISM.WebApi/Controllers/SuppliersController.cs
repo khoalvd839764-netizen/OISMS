@@ -1,9 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using OISM.Application.Features.Suppliers;
-using OISM.Domain.Entities;
-using OISM.Infrastructure.Persistence;
+using OISM.Application.Features.Suppliers.Services;
 
 namespace OISM.WebApi.Controllers;
 
@@ -12,44 +10,20 @@ namespace OISM.WebApi.Controllers;
 [Authorize]
 public class SuppliersController : ControllerBase
 {
-    private readonly AppDbContext _context;
+    private readonly ISupplierService _supplierService;
 
-    public SuppliersController(AppDbContext context)
+    public SuppliersController(ISupplierService supplierService)
     {
-        _context = context;
+        _supplierService = supplierService;
     }
 
     /// <summary>
     /// Lấy danh sách Nhà cung cấp hàng hóa cho Cửa hàng (FR-INV-02).
     /// </summary>
     [HttpGet]
-    public async Task<IActionResult> GetSuppliers([FromQuery] string? search)
+    public async Task<IActionResult> GetSuppliers([FromQuery] string? search, CancellationToken ct)
     {
-        var query = _context.Suppliers.AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            var searchLower = search.Trim().ToLower();
-            query = query.Where(s => s.Name.ToLower().Contains(searchLower) ||
-                                     (s.Email != null && s.Email.ToLower().Contains(searchLower)) ||
-                                     (s.Phone != null && s.Phone.Contains(searchLower)));
-        }
-
-        var suppliers = await query
-            .OrderBy(s => s.Name)
-            .Select(s => new SupplierResponse
-            {
-                Id = s.Id,
-                Name = s.Name,
-                Code = s.Code,
-                ContactName = s.ContactName,
-                Phone = s.Phone,
-                Email = s.Email,
-                Address = s.Address,
-                IsActive = s.IsActive
-            })
-            .ToListAsync();
-
+        var suppliers = await _supplierService.GetSuppliersAsync(search, ct);
         return Ok(suppliers);
     }
 
@@ -57,25 +31,15 @@ public class SuppliersController : ControllerBase
     /// Lấy chi tiết thông tin một Nhà cung cấp theo Id.
     /// </summary>
     [HttpGet("{id}")]
-    public async Task<IActionResult> GetSupplierById(Guid id)
+    public async Task<IActionResult> GetSupplierById(Guid id, CancellationToken ct)
     {
-        var s = await _context.Suppliers.FirstOrDefaultAsync(s => s.Id == id);
-        if (s == null)
+        var supplier = await _supplierService.GetSupplierByIdAsync(id, ct);
+        if (supplier == null)
         {
             return NotFound(new { message = "Không tìm thấy nhà cung cấp." });
         }
 
-        return Ok(new SupplierResponse
-        {
-            Id = s.Id,
-            Name = s.Name,
-            Code = s.Code,
-            ContactName = s.ContactName,
-            Phone = s.Phone,
-            Email = s.Email,
-            Address = s.Address,
-            IsActive = s.IsActive
-        });
+        return Ok(supplier);
     }
 
     /// <summary>
@@ -83,39 +47,16 @@ public class SuppliersController : ControllerBase
     /// </summary>
     [HttpPost]
     [Authorize(Roles = "Owner,Staff")]
-    public async Task<IActionResult> CreateSupplier([FromBody] CreateSupplierRequest request)
+    public async Task<IActionResult> CreateSupplier([FromBody] CreateSupplierRequest request, CancellationToken ct)
     {
         var validator = new CreateSupplierValidator();
-        var validationResult = await validator.ValidateAsync(request);
+        var validationResult = await validator.ValidateAsync(request, ct);
         if (!validationResult.IsValid)
         {
             return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
         }
 
-        var supplier = new Supplier
-        {
-            Name = request.Name.Trim(),
-            Code = request.Code?.Trim().ToUpper(),
-            ContactName = request.ContactName?.Trim(),
-            Phone = request.Phone?.Trim(),
-            Email = request.Email?.Trim(),
-            Address = request.Address?.Trim(),
-            IsActive = true
-        };
-
-        _context.Suppliers.Add(supplier);
-        await _context.SaveChangesAsync();
-
-        return StatusCode(201, new SupplierResponse
-        {
-            Id = supplier.Id,
-            Name = supplier.Name,
-            Code = supplier.Code,
-            ContactName = supplier.ContactName,
-            Phone = supplier.Phone,
-            Email = supplier.Email,
-            Address = supplier.Address,
-            IsActive = supplier.IsActive
-        });
+        var response = await _supplierService.CreateSupplierAsync(request, ct);
+        return StatusCode(201, response);
     }
 }

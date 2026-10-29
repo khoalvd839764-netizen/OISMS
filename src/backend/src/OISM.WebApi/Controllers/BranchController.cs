@@ -1,9 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using OISM.Application.Features.Branches;
-using OISM.Domain.Entities;
-using OISM.Infrastructure.Persistence;
+using OISM.Application.Features.Branches.Services;
 
 namespace OISM.WebApi.Controllers;
 
@@ -12,30 +10,20 @@ namespace OISM.WebApi.Controllers;
 [Authorize]
 public class BranchController : ControllerBase
 {
-    private readonly AppDbContext _context;
+    private readonly IBranchService _branchService;
 
-    public BranchController(AppDbContext context)
+    public BranchController(IBranchService branchService)
     {
-        _context = context;
+        _branchService = branchService;
     }
 
     /// <summary>
     /// Lấy danh sách chi nhánh thuộc về Cửa hàng của phiên đăng nhập (FR-AUTH-04).
     /// </summary>
     [HttpGet]
-    public async Task<IActionResult> GetBranches()
+    public async Task<IActionResult> GetBranches(CancellationToken ct)
     {
-        var branches = await _context.Branches
-            .Select(b => new BranchResponse
-            {
-                Id = b.Id,
-                Name = b.Name,
-                Address = b.Address,
-                Phone = b.Phone,
-                IsActive = b.IsActive
-            })
-            .ToListAsync();
-
+        var branches = await _branchService.GetBranchesAsync(ct);
         return Ok(branches);
     }
 
@@ -43,22 +31,15 @@ public class BranchController : ControllerBase
     /// Lấy thông tin chi tiết một chi nhánh theo Id.
     /// </summary>
     [HttpGet("{id}")]
-    public async Task<IActionResult> GetBranchById(Guid id)
+    public async Task<IActionResult> GetBranchById(Guid id, CancellationToken ct)
     {
-        var branch = await _context.Branches.FirstOrDefaultAsync(b => b.Id == id);
+        var branch = await _branchService.GetBranchByIdAsync(id, ct);
         if (branch == null)
         {
             return NotFound(new { message = "Không tìm thấy chi nhánh." });
         }
 
-        return Ok(new BranchResponse
-        {
-            Id = branch.Id,
-            Name = branch.Name,
-            Address = branch.Address,
-            Phone = branch.Phone,
-            IsActive = branch.IsActive
-        });
+        return Ok(branch);
     }
 
     /// <summary>
@@ -66,36 +47,16 @@ public class BranchController : ControllerBase
     /// </summary>
     [HttpPost]
     [Authorize(Roles = "Owner")]
-    public async Task<IActionResult> CreateBranch([FromBody] CreateBranchRequest request)
+    public async Task<IActionResult> CreateBranch([FromBody] CreateBranchRequest request, CancellationToken ct)
     {
         var validator = new CreateBranchValidator();
-        var validationResult = await validator.ValidateAsync(request);
+        var validationResult = await validator.ValidateAsync(request, ct);
         if (!validationResult.IsValid)
         {
             return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
         }
 
-        var branch = new Branch
-        {
-            Name = request.Name.Trim(),
-            Address = request.Address?.Trim(),
-            Phone = request.Phone?.Trim(),
-            IsActive = true
-            // TenantId được tự động gán bởi AppDbContext.ApplyAuditAndTenantInfo()
-        };
-
-        _context.Branches.Add(branch);
-        await _context.SaveChangesAsync();
-
-        var response = new BranchResponse
-        {
-            Id = branch.Id,
-            Name = branch.Name,
-            Address = branch.Address,
-            Phone = branch.Phone,
-            IsActive = branch.IsActive
-        };
-
+        var response = await _branchService.CreateBranchAsync(request, ct);
         return StatusCode(201, response);
     }
 
@@ -104,36 +65,22 @@ public class BranchController : ControllerBase
     /// </summary>
     [HttpPut("{id}")]
     [Authorize(Roles = "Owner")]
-    public async Task<IActionResult> UpdateBranch(Guid id, [FromBody] UpdateBranchRequest request)
+    public async Task<IActionResult> UpdateBranch(Guid id, [FromBody] UpdateBranchRequest request, CancellationToken ct)
     {
         var validator = new UpdateBranchValidator();
-        var validationResult = await validator.ValidateAsync(request);
+        var validationResult = await validator.ValidateAsync(request, ct);
         if (!validationResult.IsValid)
         {
             return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
         }
 
-        var branch = await _context.Branches.FirstOrDefaultAsync(b => b.Id == id);
-        if (branch == null)
+        var response = await _branchService.UpdateBranchAsync(id, request, ct);
+        if (response == null)
         {
             return NotFound(new { message = "Không tìm thấy chi nhánh." });
         }
 
-        branch.Name = request.Name.Trim();
-        branch.Address = request.Address?.Trim();
-        branch.Phone = request.Phone?.Trim();
-        branch.IsActive = request.IsActive;
-
-        await _context.SaveChangesAsync();
-
-        return Ok(new BranchResponse
-        {
-            Id = branch.Id,
-            Name = branch.Name,
-            Address = branch.Address,
-            Phone = branch.Phone,
-            IsActive = branch.IsActive
-        });
+        return Ok(response);
     }
 
     /// <summary>
@@ -141,17 +88,14 @@ public class BranchController : ControllerBase
     /// </summary>
     [HttpPut("{id}/toggle-status")]
     [Authorize(Roles = "Owner")]
-    public async Task<IActionResult> ToggleStatus(Guid id)
+    public async Task<IActionResult> ToggleStatus(Guid id, CancellationToken ct)
     {
-        var branch = await _context.Branches.FirstOrDefaultAsync(b => b.Id == id);
-        if (branch == null)
+        var result = await _branchService.ToggleStatusAsync(id, ct);
+        if (result == null)
         {
             return NotFound(new { message = "Không tìm thấy chi nhánh." });
         }
 
-        branch.IsActive = !branch.IsActive;
-        await _context.SaveChangesAsync();
-
-        return Ok(new { message = $"Đã {(branch.IsActive ? "kích hoạt" : "ngưng hoạt động")} chi nhánh thành công.", isActive = branch.IsActive });
+        return Ok(new { message = result.Message, isActive = result.IsActive });
     }
 }
