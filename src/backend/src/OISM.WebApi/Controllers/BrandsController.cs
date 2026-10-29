@@ -1,9 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using OISM.Application.Features.Catalog.Brands;
-using OISM.Domain.Entities;
-using OISM.Infrastructure.Persistence;
+using OISM.Application.Features.Catalog.Brands.Services;
 
 namespace OISM.WebApi.Controllers;
 
@@ -12,30 +10,20 @@ namespace OISM.WebApi.Controllers;
 [Authorize]
 public class BrandsController : ControllerBase
 {
-    private readonly AppDbContext _context;
+    private readonly IBrandService _brandService;
 
-    public BrandsController(AppDbContext context)
+    public BrandsController(IBrandService brandService)
     {
-        _context = context;
+        _brandService = brandService;
     }
 
     /// <summary>
     /// Lấy danh sách Thương hiệu sản phẩm (FR-PROD-01).
     /// </summary>
     [HttpGet]
-    public async Task<IActionResult> GetBrands()
+    public async Task<IActionResult> GetBrands(CancellationToken ct)
     {
-        var brands = await _context.Brands
-            .OrderBy(b => b.Name)
-            .Select(b => new BrandResponse
-            {
-                Id = b.Id,
-                Name = b.Name,
-                Description = b.Description,
-                IsActive = b.IsActive
-            })
-            .ToListAsync();
-
+        var brands = await _brandService.GetBrandsAsync(ct);
         return Ok(brands);
     }
 
@@ -44,32 +32,17 @@ public class BrandsController : ControllerBase
     /// </summary>
     [HttpPost]
     [Authorize(Roles = "Owner,Staff")]
-    public async Task<IActionResult> CreateBrand([FromBody] CreateBrandRequest request)
+    public async Task<IActionResult> CreateBrand([FromBody] CreateBrandRequest request, CancellationToken ct)
     {
         var validator = new CreateBrandValidator();
-        var validationResult = await validator.ValidateAsync(request);
+        var validationResult = await validator.ValidateAsync(request, ct);
         if (!validationResult.IsValid)
         {
             return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
         }
 
-        var brand = new Brand
-        {
-            Name = request.Name.Trim(),
-            Description = request.Description?.Trim(),
-            IsActive = true
-        };
-
-        _context.Brands.Add(brand);
-        await _context.SaveChangesAsync();
-
-        return StatusCode(201, new BrandResponse
-        {
-            Id = brand.Id,
-            Name = brand.Name,
-            Description = brand.Description,
-            IsActive = brand.IsActive
-        });
+        var response = await _brandService.CreateBrandAsync(request, ct);
+        return StatusCode(201, response);
     }
 
     /// <summary>
@@ -77,34 +50,22 @@ public class BrandsController : ControllerBase
     /// </summary>
     [HttpPut("{id}")]
     [Authorize(Roles = "Owner,Staff")]
-    public async Task<IActionResult> UpdateBrand(Guid id, [FromBody] UpdateBrandRequest request)
+    public async Task<IActionResult> UpdateBrand(Guid id, [FromBody] UpdateBrandRequest request, CancellationToken ct)
     {
         var validator = new UpdateBrandValidator();
-        var validationResult = await validator.ValidateAsync(request);
+        var validationResult = await validator.ValidateAsync(request, ct);
         if (!validationResult.IsValid)
         {
             return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
         }
 
-        var brand = await _context.Brands.FirstOrDefaultAsync(b => b.Id == id);
-        if (brand == null)
+        var response = await _brandService.UpdateBrandAsync(id, request, ct);
+        if (response == null)
         {
             return NotFound(new { message = "Không tìm thấy thương hiệu." });
         }
 
-        brand.Name = request.Name.Trim();
-        brand.Description = request.Description?.Trim();
-        brand.IsActive = request.IsActive;
-
-        await _context.SaveChangesAsync();
-
-        return Ok(new BrandResponse
-        {
-            Id = brand.Id,
-            Name = brand.Name,
-            Description = brand.Description,
-            IsActive = brand.IsActive
-        });
+        return Ok(response);
     }
 
     /// <summary>
@@ -112,16 +73,13 @@ public class BrandsController : ControllerBase
     /// </summary>
     [HttpDelete("{id}")]
     [Authorize(Roles = "Owner")]
-    public async Task<IActionResult> DeleteBrand(Guid id)
+    public async Task<IActionResult> DeleteBrand(Guid id, CancellationToken ct)
     {
-        var brand = await _context.Brands.FirstOrDefaultAsync(b => b.Id == id);
-        if (brand == null)
+        var success = await _brandService.DeleteBrandAsync(id, ct);
+        if (!success)
         {
             return NotFound(new { message = "Không tìm thấy thương hiệu." });
         }
-
-        brand.IsActive = false;
-        await _context.SaveChangesAsync();
 
         return Ok(new { message = "Đã vô hiệu hóa thương hiệu thành công." });
     }
