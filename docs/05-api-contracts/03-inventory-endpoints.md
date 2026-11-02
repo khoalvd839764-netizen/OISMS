@@ -29,6 +29,13 @@
 | `POST` | `/api/inventory/goods-receipts/{id}/confirm` | `Owner, Staff` | `FR-INV-02`, `FR-COST-01` | Xác nhận phiếu nhập nguyên tử: Ghi Sổ cái `IN` + Tăng `OnHand` + Tính lại giá vốn bình quân `WAC`. Chặn xác nhận lặp (`409 Conflict`). |
 | `POST` | `/api/inventory/reserve` | `Owner, Staff, Cashier` | `FR-RSE-02` | Giữ chỗ tồn kho chống bán vượt với khóa dòng CSDL và `Idempotency-Key` / `RequestKey`. |
 
+**Nhiều đơn vị tính (Upgrade 05):**
+
+- Dòng phiếu nhập nhận `unitId` tùy chọn; để trống là đơn vị gốc. Đơn vị không cho mua trả `422 UNIT_NOT_ALLOWED`; số lượng sai số lẻ trả `400 INVALID_UNIT_QUANTITY`.
+- Đơn vị và hệ số được chụp khi lập phiếu; đổi hệ số sau đó không ảnh hưởng phiếu đã lập.
+- Khi xác nhận: tồn và sổ cái tăng theo `baseQuantity`; giá vốn đưa vào WAC là `unitPrice / factorSnapshot`.
+- Chuyển kho, kiểm kê, sổ cái và số dư chỉ dùng đơn vị gốc.
+
 ---
 
 ## 2. Danh Mục Endpoints Chuyển Kho 2 Bước & Kiểm Kê (`FR-INV-03..04`)

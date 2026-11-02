@@ -6,7 +6,7 @@
 
 ## Trạng thái triển khai (02/11/2026)
 
-**Tóm tắt:** mới xong phần nền (P1). Người dùng chỉ cấu hình được đơn vị cho SKU qua API; đơn hàng và phiếu nhập mới vẫn tính theo đơn vị gốc, hệ số 1.
+**Tóm tắt:** xong backend (P1, P2). Bán, nhập, giữ chỗ, giá vốn và báo cáo đã theo đơn vị qua API; chưa có giao diện (P3), nên người dùng chưa thao tác được trên Admin và POS.
 
 ### Đã xong (P1 — nền backend)
 
@@ -18,26 +18,30 @@
 - [x] Một đơn có thể chứa cùng SKU ở hai đơn vị (ở mức schema).
 - [x] API `/api/units` và API đơn vị theo SKU, đúng RBAC; bộ đơn vị mặc định theo tenant.
 - [x] Quy tắc danh mục: nhóm đo tương thích, hệ số hợp lệ, mặc định mua/bán, mã vạch không trùng, khóa đổi đơn vị gốc, lịch sử hệ số có người đổi.
-- [x] `SkuUnitResolver` (bộ phân giải đơn vị, chưa được luồng nhập, bán gọi tới).
+- [x] `SkuUnitResolver` (bộ phân giải đơn vị).
 - [x] Docs: API, mã lỗi, RBAC, từ điển dữ liệu, ERD.
 
 Kiểm chứng ngày 02/11/2026 trên PostgreSQL 16: unit 169/169, integration 300/300 trên bản làm việc; migration chạy 2 lần trên DB mẫu schema cũ, số liệu ledger, số dư, đơn hàng không đổi.
 
+### Đã xong (P2 — lõi backend)
+
+- [x] Nhập kho theo đơn vị: `GoodsReceiptService` chụp hệ số, tồn và WAC theo đơn vị gốc (bước 5).
+- [x] Trigger `protect_receipt_item` chặn sửa, xóa dòng phiếu nhập đã xác nhận.
+- [x] Đơn hàng và POS: chọn đơn vị trên từng dòng, tách dòng theo `(SKU, đơn vị)`, snapshot hệ số, chia phân bổ kho theo dòng (bước 6).
+- [x] Giữ chỗ, xuất kho, COGS theo `BaseQuantity`; idempotency so theo `(SKU, đơn vị)` (bước 6).
+- [x] Giá bán theo đơn vị; báo `UNIT_PRICE_NOT_CONFIGURED` khi đơn vị chưa có giá (giá tạm, xem bước 4).
+- [x] POS catalog: trả danh sách đơn vị; quét mã vạch quy cách chọn đúng đơn vị.
+- [x] `ReportService`, `TotalCogs` tính theo lượng gốc (bước 7).
+- [x] Webhook sàn, chuyển kho, kiểm kê: giữ theo đơn vị gốc, không cần đổi mã (bước 7).
+- [x] Docs API đơn hàng, POS, phiếu nhập, mã lỗi, khái niệm cốt lõi.
+- [x] Quy tắc đơn vị đang tắt: không đặt làm mặc định; bật lại phải xác nhận hệ số; đơn vị tắt trong danh mục không thêm, không bán được; đơn vị đang là gốc không tắt được.
+- [x] Đổi đơn vị gốc: dòng gốc cũ giữ ở trạng thái tắt; dòng làm gốc mới đổi hệ số về 1 có ghi lịch sử.
+
+Kiểm chứng P2: `MultiUnitFlowIntegrationTests` trên PostgreSQL thật, gồm kịch bản ví dụ 1 tấn, bán đồng thời, retry, đổi hệ số và cách ly tenant.
+
 ### Chưa xong
 
-**P2 — lõi backend**
-
-- [ ] Nhập kho theo đơn vị: `GoodsReceiptService` tính `BaseQuantity`, tồn và WAC theo đơn vị gốc (bước 5).
-- [ ] Trigger chặn đổi hệ số, đơn vị trên phiếu nhập đã xác nhận.
-- [ ] Đơn hàng và POS: chọn đơn vị trên từng dòng, tách dòng theo `(SKU, đơn vị)`, snapshot hệ số (bước 6).
-- [ ] Giữ chỗ, xuất kho, COGS theo `BaseQuantity`: `OrderService`, `ReservationService` (bước 6).
-- [ ] Giá bán theo đơn vị, báo lỗi khi đơn vị chưa có giá (giá tạm, xem bước 4).
-- [ ] POS catalog: trả danh sách đơn vị, quét mã vạch quy cách chọn đúng đơn vị.
-- [ ] `ReportService`, `TotalCogs` tính theo lượng gốc (bước 7).
-- [ ] Rà lại webhook sàn, chuyển kho, kiểm kê, ghi rõ chỉ nhập theo đơn vị gốc (bước 7).
-- [ ] Docs nghiệp vụ và API đơn hàng, phiếu nhập, POS.
-
-**P3 — giao diện**
+**P3 — giao diện (team frontend làm sau)**
 
 - [ ] Admin: cấu hình đơn vị gốc và đơn vị quy đổi trên `ProductsPage` (bước 3).
 - [ ] Admin: chọn đơn vị trên phiếu nhập và đơn hàng; hiển thị cả lượng giao dịch và lượng gốc (bước 5, 6).
@@ -54,34 +58,25 @@ Kiểm chứng ngày 02/11/2026 trên PostgreSQL 16: unit 169/169, integration 3
 - [ ] Hoàn trả theo đơn vị: chờ CS-01.
 - [ ] Bảng giá theo thời gian thay `sku_units.sale_price`: chờ [Upgrade 04](./04-bang-gia-theo-thoi-gian.md).
 
-**Lỗi nhỏ còn lại (không chặn)**
-
-- [ ] Đặt mặc định trên đơn vị đang tắt làm SKU mất mặc định.
-- [ ] Bật lại đơn vị quy đổi sau khi đổi gốc vẫn giữ hệ số cũ.
-- [ ] Dòng được chọn làm gốc mới đổi hệ số về 1 mà không ghi lịch sử.
-- [ ] Đơn vị đang tắt trong danh mục vẫn thêm được vào SKU.
-
 ### Tiêu chí nghiệm thu mục 8
 
 | # | Nội dung ngắn | Trạng thái |
 | --- | --- | --- |
-| 1 | Nhập 1 tấn, bán 2,5 kg và một bao, còn 972,5 kg | Chưa, cần P2 |
-| 2 | Dòng bán bao đúng số lượng, giá, lượng gốc, giá vốn | Chưa, cần P2 |
-| 3 | Giỏ POS hai đơn vị, quét mã vạch quy cách | Chưa, cần P2 và P3 |
-| 4 | Không tin hệ số từ client, từ chối đơn vị chưa bật | Chưa; mới có resolver, chưa nối vào luồng bán |
-| 5 | Đổi hệ số không ảnh hưởng chứng từ cũ | Một phần: trigger bảo vệ đơn đã xác nhận; chưa có phiếu nhập và hoàn trả |
-| 6 | Mọi luồng dùng đúng lượng gốc | Chưa, cần P2 |
-| 7 | Retry không tạo thêm tồn hoặc dòng sổ kho | Chưa kiểm với đơn vị khác gốc, cần P2 |
+| 1 | Nhập 1 tấn, bán 2,5 kg và một bao, còn 972,5 kg | Đạt qua API |
+| 2 | Dòng bán bao đúng số lượng, giá, lượng gốc, giá vốn | Đạt qua API |
+| 3 | Giỏ POS hai đơn vị, quét mã vạch quy cách | Đạt ở backend; chờ giao diện POS |
+| 4 | Không tin hệ số từ client, từ chối đơn vị chưa bật | Đạt |
+| 5 | Đổi hệ số không ảnh hưởng chứng từ cũ | Đạt với đơn hàng, phiếu nhập; hoàn trả chờ CS-01 |
+| 6 | Mọi luồng dùng đúng lượng gốc | Đạt ở backend; nhãn "theo đơn vị gốc" trên chuyển kho, kiểm kê chờ P3 |
+| 7 | Retry không tạo thêm tồn hoặc dòng sổ kho | Đạt |
 | 8 | Dữ liệu cũ giữ nguyên sau migration | Đạt trên DB mẫu về tồn, WAC, ledger, tiền; chưa đối soát trên bản sao dữ liệu thật |
 
-### Cần chốt trước P2
+### Quyết định đã chốt (02/11/2026)
 
-Mặc định kỹ thuật đang áp dụng, chưa được xác nhận từng điểm:
-
-- [ ] Giá theo đơn vị tạm lưu ở `sku_units.sale_price` đến khi có Upgrade 04; đơn vị gốc dùng giá bán lẻ của SKU.
-- [ ] `base_unit_id`, `unit_id` cho phép NULL trong giai đoạn chuyển tiếp, NULL hiểu là đơn vị gốc.
-- [ ] Mỗi SKU một dòng trên một phiếu nhập.
-- [ ] SKU còn đơn vị quy đổi đang bật thì không được đổi đơn vị gốc.
+- Giá theo đơn vị tạm lưu ở `sku_units.sale_price` đến khi có Upgrade 04; đơn vị gốc dùng giá bán lẻ của SKU.
+- `base_unit_id`, `unit_id` cho phép NULL trong giai đoạn chuyển tiếp, NULL hiểu là đơn vị gốc.
+- Mỗi SKU một dòng trên một phiếu nhập.
+- SKU còn đơn vị quy đổi đang bật thì không được đổi đơn vị gốc.
 
 ## 1. Mục tiêu và ví dụ chuẩn
 
@@ -169,7 +164,7 @@ Backend tự tra `FactorToBase` từ cấu hình theo SKU và đơn vị; không
 - **Độ chính xác:** các cột lượng hiện có ba chữ số lẻ. Giai đoạn đầu chỉ cho phép giao dịch mà `BaseQuantity` biểu diễn chính xác trong giới hạn đó; backend từ chối lượng quá nhỏ hoặc kết quả quy đổi phải làm tròn. Không âm thầm làm tròn lượng kho. Mở rộng precision là migration riêng nếu cần nhỏ hơn 1 g khi gốc là kg.
 - **Số lẻ:** SKU bán theo bao nguyên có thể yêu cầu số lượng bao là số nguyên; SKU bán theo kg có thể nhận 2,5 kg. Quy tắc này nằm trên `sku_units`, được backend kiểm tra.
 - **Thay hệ số:** không sửa hệ số trên chứng từ đã chốt. Cấu hình mới áp dụng cho giao dịch mới; nếu thay quy cách làm thay đổi bản chất hàng tồn thì phải tạm dừng SKU và đối soát trước khi bật.
-- **Đổi đơn vị gốc:** bị từ chối (`BASE_UNIT_LOCKED`) khi SKU đã có giao dịch hoặc số dư, và khi còn đơn vị quy đổi đang bật, vì hệ số của chúng tính theo đơn vị gốc cũ. Quy tắc thứ hai đang là mặc định, chưa được xác nhận.
+- **Đổi đơn vị gốc:** bị từ chối (`BASE_UNIT_LOCKED`) khi SKU đã có giao dịch hoặc số dư, và khi còn đơn vị quy đổi đang bật, vì hệ số của chúng tính theo đơn vị gốc cũ.
 - **Mã vạch:** mã vạch của đơn vị quy cách phải ánh xạ đến `(SKU, UnitId)`; quét bao phải chọn đúng đơn vị bao, không chỉ tìm SKU. Chặn trùng mã vạch trong tenant.
 - **Hoàn trả/hủy:** dùng đơn vị và hệ số snapshot của dòng gốc để đảo lượng kho; không tra hệ số hiện tại. Giá tiền trả dựa trên dòng giao dịch gốc và quy tắc trả hàng.
 - **Đa tenant và retry:** mọi đơn vị/cấu hình/giá phải được giới hạn theo tenant. Xác nhận lại cùng chứng từ không được ghi thêm lượng gốc lần hai.

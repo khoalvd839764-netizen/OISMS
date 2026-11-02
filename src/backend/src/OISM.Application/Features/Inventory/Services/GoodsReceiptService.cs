@@ -1,6 +1,7 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
 using OISM.Application.Common.Interfaces;
+using OISM.Application.Features.Catalog.Units.Services;
 using OISM.Application.Features.Inventory.Dtos;
 using OISM.Application.Features.Realtime;
 using OISM.Domain.Entities;
@@ -83,6 +84,8 @@ public class GoodsReceiptService : IGoodsReceiptService
         var skuIds = dto.Items.Select(i => i.SkuId).Distinct().ToList();
         var existingSkus = await _context.ProductVariants
             .Include(v => v.Product)
+            .Include(v => v.SkuUnits)
+                .ThenInclude(u => u.Unit)
             .Where(v => skuIds.Contains(v.Id))
             .ToDictionaryAsync(v => v.Id, ct);
 
@@ -134,10 +137,18 @@ public class GoodsReceiptService : IGoodsReceiptService
                 throw new ArgumentException($"Đơn giá SKU '{existingSkus[itemDto.SkuId].SKU}' không được âm.");
             }
 
+            // Chụp đơn vị và hệ số tại thời điểm lập phiếu; xác nhận về sau không tra lại cấu hình hiện tại
+            var sku = existingSkus[itemDto.SkuId];
+            var resolvedUnit = SkuUnitResolver.ResolveForPurchase(sku, sku.SkuUnits, itemDto.UnitId);
+            SkuUnitResolver.ComputeBaseQuantity(itemDto.Quantity, resolvedUnit);
+
             receipt.Items.Add(new GoodsReceiptItem
             {
                 TenantId = tenantId,
                 SkuId = itemDto.SkuId,
+                UnitId = resolvedUnit.UnitId,
+                UnitNameSnapshot = resolvedUnit.UnitName,
+                FactorSnapshot = resolvedUnit.Factor,
                 Quantity = itemDto.Quantity,
                 UnitPrice = itemDto.UnitPrice,
                 CreatedAt = DateTimeOffset.UtcNow
@@ -336,20 +347,23 @@ public class GoodsReceiptService : IGoodsReceiptService
                 // BE1-07: Tính lại Giá vốn WAC cho Chi nhánh
                 var oldOnHand = branchBalance.OnHand;
                 var oldWac = branchBalance.AverageCost;
-                var newWac = _wacCalculator.CalculateWac(oldOnHand, oldWac, item.Quantity, item.UnitPrice);
+                // Tồn, WAC và sổ cái luôn theo đơn vị gốc; đơn giá dòng nhập là theo đơn vị giao dịch
+                var baseQuantity = item.BaseQuantity;
+                var baseUnitCost = item.UnitPrice / item.FactorSnapshot;
+                var newWac = _wacCalculator.CalculateWac(oldOnHand, oldWac, baseQuantity, baseUnitCost);
 
                 // Tăng sequence
                 var newSequence = branchBalance.LastSequence + 1;
-                var newBalanceAfter = oldOnHand + item.Quantity;
+                var newBalanceAfter = oldOnHand + baseQuantity;
 
                 // Cập nhật số dư chi nhánh
-                branchBalance.OnHand += item.Quantity;
+                branchBalance.OnHand += baseQuantity;
                 branchBalance.AverageCost = newWac;
                 branchBalance.LastSequence = newSequence;
                 branchBalance.UpdatedAt = now;
 
                 // Cập nhật số dư kho
-                warehouseBalance.OnHand += item.Quantity;
+                warehouseBalance.OnHand += baseQuantity;
                 warehouseBalance.LastSequence = newSequence;
                 warehouseBalance.UpdatedAt = now;
 
@@ -361,8 +375,8 @@ public class GoodsReceiptService : IGoodsReceiptService
                     WarehouseId = receipt.WarehouseId,
                     SkuId = item.SkuId,
                     Type = "IN",
-                    Quantity = item.Quantity,
-                    UnitCost = item.UnitPrice,
+                    Quantity = baseQuantity,
+                    UnitCost = decimal.Round(baseUnitCost, 6, MidpointRounding.AwayFromZero),
                     BalanceAfter = newBalanceAfter,
                     SequenceNo = newSequence,
                     ReceiptItemId = item.Id,
@@ -491,6 +505,10 @@ public class GoodsReceiptService : IGoodsReceiptService
                 SkuId = i.SkuId,
                 SkuCode = i.Sku?.SKU ?? string.Empty,
                 ProductName = i.Sku?.Product?.Name ?? string.Empty,
+                UnitId = i.UnitId,
+                UnitName = i.UnitNameSnapshot,
+                FactorSnapshot = i.FactorSnapshot,
+                BaseQuantity = i.BaseQuantity,
                 Quantity = i.Quantity,
                 UnitPrice = i.UnitPrice
             }).ToList()

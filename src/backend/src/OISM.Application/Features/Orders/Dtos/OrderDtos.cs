@@ -19,6 +19,11 @@ public class OrderItemRequestDto
     public string ProductName { get; set; } = string.Empty;
     public string VariantName { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Đơn vị bán; để trống nghĩa là đơn vị gốc của SKU. Hệ số quy đổi luôn do backend quyết định.
+    /// </summary>
+    public Guid? UnitId { get; set; }
+
     [Range(typeof(decimal), "0.001", "999999999999999.999", ErrorMessage = "Số lượng mua phải lớn hơn 0 và không vượt quá giới hạn tối đa.")]
     public decimal Quantity { get; set; }
 
@@ -155,11 +160,15 @@ public class OrderItemResponseDto
     public Guid SkuId { get; set; }
     public string SkuCodeSnapshot { get; set; } = string.Empty;
     public string SkuNameSnapshot { get; set; } = string.Empty;
+    public Guid? UnitId { get; set; }
+    public string UnitName { get; set; } = string.Empty;
+    public decimal FactorSnapshot { get; set; } = 1m;
+    public decimal BaseQuantity { get; set; }
     public decimal Quantity { get; set; }
     public decimal UnitPrice { get; set; }
-    public decimal? CostPrice { get; set; } // WAC snapshot tại thời điểm Confirm/Checkout
+    public decimal? CostPrice { get; set; } // WAC snapshot theo đơn vị gốc tại thời điểm Confirm/Checkout
     public decimal Subtotal => Quantity * UnitPrice;
-    public decimal? TotalCost => CostPrice.HasValue ? Quantity * CostPrice.Value : null;
+    public decimal? TotalCost => CostPrice.HasValue ? BaseQuantity * CostPrice.Value : null;
 }
 
 /// <summary>
@@ -222,6 +231,8 @@ public class PosReceiptItemDto
     public string SkuCode { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
     public string? VariantName { get; set; }
+    public Guid? UnitId { get; set; }
+    public string UnitName { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal Subtotal => Quantity * UnitPrice;
@@ -294,6 +305,10 @@ public class OrderItemDto
     public Guid SkuId { get; set; }
     public string SkuCode { get; set; } = string.Empty;
     public string SkuName { get; set; } = string.Empty;
+    public Guid? UnitId { get; set; }
+    public string UnitName { get; set; } = string.Empty;
+    public decimal FactorSnapshot { get; set; } = 1m;
+    public decimal BaseQuantity { get; set; }
     public decimal Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal? CostPrice { get; set; }
@@ -331,6 +346,8 @@ public class CreateOrderItemRequestDto
 {
     [Required(ErrorMessage = "Mã SKU (SkuId) là bắt buộc.")]
     public Guid SkuId { get; set; }
+
+    public Guid? UnitId { get; set; }
 
     [Range(0.001, 1000000, ErrorMessage = "Số lượng đặt hàng phải lớn hơn 0.")]
     public decimal Quantity { get; set; }

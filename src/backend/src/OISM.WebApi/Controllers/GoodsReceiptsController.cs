@@ -1,3 +1,4 @@
+using OISM.Application.Common.Exceptions;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -55,6 +56,10 @@ public class GoodsReceiptsController : ControllerBase
             var userId = GetCurrentUserId();
             var result = await _goodsReceiptService.CreateReceiptAsync(dto, userId, ct);
             return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
+        }
+        catch (OismException ex)
+        {
+            return StatusCode(ex.StatusCode, new { errorCode = ex.ErrorCode, message = ex.Message });
         }
         catch (KeyNotFoundException ex)
         {

@@ -44,12 +44,10 @@ public class UnitConfiguration : IEntityTypeConfiguration<Unit>
 
         builder.Property(u => u.DecimalPlaces)
             .HasColumnName("decimal_places")
-            .HasDefaultValue((short)3)
             .IsRequired();
 
         builder.Property(u => u.IsActive)
             .HasColumnName("is_active")
-            .HasDefaultValue(true)
             .IsRequired();
 
         builder.Property(u => u.CreatedAt)

@@ -52,22 +52,18 @@ public class SkuUnitConfiguration : IEntityTypeConfiguration<SkuUnit>
 
         builder.Property(u => u.CanPurchase)
             .HasColumnName("can_purchase")
-            .HasDefaultValue(true)
             .IsRequired();
 
         builder.Property(u => u.CanSell)
             .HasColumnName("can_sell")
-            .HasDefaultValue(true)
             .IsRequired();
 
         builder.Property(u => u.IsDefaultPurchase)
             .HasColumnName("is_default_purchase")
-            .HasDefaultValue(false)
             .IsRequired();
 
         builder.Property(u => u.IsDefaultSale)
             .HasColumnName("is_default_sale")
-            .HasDefaultValue(false)
             .IsRequired();
 
         builder.Property(u => u.Barcode)
@@ -77,7 +73,6 @@ public class SkuUnitConfiguration : IEntityTypeConfiguration<SkuUnit>
 
         builder.Property(u => u.QuantityDecimalPlaces)
             .HasColumnName("quantity_decimal_places")
-            .HasDefaultValue((short)3)
             .IsRequired();
 
         builder.Property(u => u.SalePrice)
@@ -87,12 +82,10 @@ public class SkuUnitConfiguration : IEntityTypeConfiguration<SkuUnit>
 
         builder.Property(u => u.Version)
             .HasColumnName("version")
-            .HasDefaultValue(1)
             .IsRequired();
 
         builder.Property(u => u.IsActive)
             .HasColumnName("is_active")
-            .HasDefaultValue(true)
             .IsRequired();
 
         builder.Property(u => u.UpdatedBy)

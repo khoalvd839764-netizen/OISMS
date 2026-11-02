@@ -303,6 +303,11 @@ public class UnitService : IUnitService
 
             if (request.IsActive.HasValue)
             {
+                if (!request.IsActive.Value && await _context.Skus.AnyAsync(s => s.BaseUnitId == id, ct))
+                {
+                    await tx.RollbackAsync(ct);
+                    throw new OismException("UNIT_IN_USE", "Không thể tắt đơn vị tính đang là đơn vị gốc của sản phẩm.", 409);
+                }
                 unit.IsActive = request.IsActive.Value;
             }
 
@@ -414,6 +419,12 @@ public class UnitService : IUnitService
             {
                 await tx.RollbackAsync(ct);
                 throw new OismException("UNIT_NOT_FOUND", "Không tìm thấy đơn vị tính yêu cầu.", 404);
+            }
+
+            if (!targetUnit.IsActive)
+            {
+                await tx.RollbackAsync(ct);
+                throw new OismException("UNIT_NOT_ALLOWED", $"Đơn vị tính '{targetUnit.Name}' đang ngừng hoạt động.", 422);
             }
 
             // Đơn vị giao dịch hợp lệ khi cùng measure_group với đơn vị gốc, hoặc thuộc nhóm Packaging. Ngược lại: UNIT_GROUP_INCOMPATIBLE
@@ -594,6 +605,38 @@ public class UnitService : IUnitService
             {
                 await tx.RollbackAsync(ct);
                 throw new OismException("INVALID_UNIT_FACTOR", "Hệ số quy đổi phải lớn hơn 0, tối đa 12 chữ số nguyên và tối đa 6 chữ số thập phân.", 400);
+            }
+
+            var willBeActive = request.IsActive ?? skuUnit.IsActive;
+            if (!willBeActive && (request.IsDefaultSale == true || request.IsDefaultPurchase == true))
+            {
+                await tx.RollbackAsync(ct);
+                throw new OismException("INVALID_OPERATION", "Không thể đặt đơn vị đang tắt làm mặc định.", 400);
+            }
+
+            // Bật lại đơn vị: hệ số cũ có thể đã sai nghĩa nếu đơn vị gốc đã đổi trong lúc tắt, nên phải xác nhận lại
+            if (!isBase && request.IsActive == true && !skuUnit.IsActive)
+            {
+                if (!request.FactorToBase.HasValue)
+                {
+                    await tx.RollbackAsync(ct);
+                    throw new OismException("INVALID_UNIT_FACTOR", "Bật lại đơn vị tính phải gửi kèm hệ số quy đổi để xác nhận.", 400);
+                }
+
+                if (skuUnit.Unit is { IsActive: false })
+                {
+                    await tx.RollbackAsync(ct);
+                    throw new OismException("UNIT_NOT_ALLOWED", $"Đơn vị tính '{skuUnit.Unit.Name}' đang ngừng hoạt động.", 422);
+                }
+
+                var currentBaseUnit = await _context.Units.FirstOrDefaultAsync(u => u.Id == variant.BaseUnitId, ct);
+                if (currentBaseUnit != null && skuUnit.Unit != null &&
+                    !string.Equals(skuUnit.Unit.MeasureGroup, currentBaseUnit.MeasureGroup, StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(skuUnit.Unit.MeasureGroup, MeasureGroups.Packaging, StringComparison.OrdinalIgnoreCase))
+                {
+                    await tx.RollbackAsync(ct);
+                    throw new OismException("UNIT_GROUP_INCOMPATIBLE", $"Đơn vị tính '{skuUnit.Unit.Name}' không tương thích với đơn vị gốc '{currentBaseUnit.Name}'.", 422);
+                }
             }
 
             // Thay đổi hệ số -> version + 1 và ghi lịch sử

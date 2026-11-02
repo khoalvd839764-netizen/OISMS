@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
+using OISM.Domain.Entities;
 
 namespace OISM.Application.Features.Pos;
 
@@ -37,10 +38,13 @@ public class PosCatalogService : IPosCatalogService
         var variants = await _context.ProductVariants
             .AsNoTracking()
             .Include(v => v.Product)
+            .Include(v => v.SkuUnits)
+                .ThenInclude(u => u.Unit)
             .Where(v => v.IsActive && v.Product != null && v.Product.IsActive &&
                        (v.SKU.ToLower().Contains(keyword) ||
                         v.Product.Name.ToLower().Contains(keyword) ||
-                        (v.Barcode != null && v.Barcode.ToLower().Contains(keyword))))
+                        (v.Barcode != null && v.Barcode.ToLower().Contains(keyword)) ||
+                        v.SkuUnits.Any(u => u.IsActive && u.CanSell && u.Barcode != null && u.Barcode.ToLower().Contains(keyword))))
             .Take(20)
             .ToListAsync(ct);
 
@@ -92,6 +96,7 @@ public class PosCatalogService : IPosCatalogService
                 Color = v.Color,
                 Size = v.Size,
                 Attributes = v.GetAttributes(),
+                Units = MapSaleUnits(v),
                 OnHand = onHand,
                 Reserved = reserved,
                 Available = available
@@ -115,10 +120,14 @@ public class PosCatalogService : IPosCatalogService
             }
         }
 
+        var code = barcode.Trim();
         var v = await _context.ProductVariants
             .AsNoTracking()
             .Include(v => v.Product)
-            .Where(v => v.IsActive && v.Product != null && v.Product.IsActive && v.Barcode == barcode.Trim())
+            .Include(v => v.SkuUnits)
+                .ThenInclude(u => u.Unit)
+            .Where(v => v.IsActive && v.Product != null && v.Product.IsActive &&
+                       (v.Barcode == code || v.SkuUnits.Any(u => u.IsActive && u.CanSell && u.Barcode == code)))
             .FirstOrDefaultAsync(ct);
 
         if (v == null)
@@ -155,9 +164,36 @@ public class PosCatalogService : IPosCatalogService
             Color = v.Color,
             Size = v.Size,
             Attributes = v.GetAttributes(),
+            Units = MapSaleUnits(v),
+            MatchedUnitId = v.Barcode == code ? null : v.SkuUnits.First(u => u.Barcode == code).UnitId,
             OnHand = onHand,
             Reserved = reserved,
             Available = available
         };
+    }
+
+    private static List<PosSkuUnitResponse> MapSaleUnits(ProductVariant variant)
+    {
+        return variant.SkuUnits
+            .Where(u => u.IsActive && u.CanSell)
+            .OrderByDescending(u => u.UnitId == variant.BaseUnitId)
+            .ThenBy(u => u.FactorToBase)
+            .Select(u =>
+            {
+                var isBase = u.UnitId == variant.BaseUnitId;
+                return new PosSkuUnitResponse
+                {
+                    UnitId = u.UnitId,
+                    UnitCode = u.Unit?.Code ?? string.Empty,
+                    UnitName = u.Unit?.Name ?? string.Empty,
+                    Factor = u.FactorToBase,
+                    DecimalPlaces = u.QuantityDecimalPlaces,
+                    SalePrice = isBase ? variant.RetailPrice : u.SalePrice,
+                    Barcode = u.Barcode,
+                    IsBase = isBase,
+                    IsDefaultSale = u.IsDefaultSale
+                };
+            })
+            .ToList();
     }
 }

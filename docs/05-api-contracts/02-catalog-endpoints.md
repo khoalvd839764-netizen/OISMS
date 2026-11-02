@@ -43,6 +43,8 @@
 | `PUT` | `/api/products/{pId}/variants/{vId}/prices` | `Owner, Staff` | `FR-PROD-04` | Cập nhật Giá bán lẻ (`RetailPrice`) và Giá bán sỉ (`WholesalePrice`) độc lập với giá vốn WAC. |
 | `DELETE` | `/api/products/{pId}/variants/{vId}` | `Owner, Staff` | `FR-PROD-02` | Vô hiệu hóa mềm (`Soft delete: IsActive = false`) biến thể SKU. |
 
+> **Thay đổi dự kiến ở Upgrade 04 (chưa triển khai):** `PUT .../prices` sẽ bị đóng và thay bằng API phiếu đổi giá; API sửa biến thể và đơn vị không còn đổi được giá. Contract chi tiết sẽ được bổ sung khi triển khai. Xem [tài liệu 04](../Upgrade-recommended/04-bang-gia-theo-thoi-gian.md#thay-đổi-cần-làm).
+
 ---
 
 ## 3. Danh Mục Endpoints Đơn Vị Tính & Quy Cách SKU (`OISMS-47-U05`)
@@ -65,4 +67,6 @@
 - `PUT .../variants/{vId}` nhận `baseUnitId`; SKU đã có giao dịch, số dư, hoặc còn đơn vị quy đổi đang bật trả `409 BASE_UNIT_LOCKED`.
 - Response biến thể có thêm `baseUnitId`, `baseUnitCode`, `baseUnitName`, `units[]`; biến thể trả về theo thứ tự tạo.
 - `changed_by`, `updated_by` lấy từ JWT, client không gửi được.
-- Đơn hàng, POS, phiếu nhập **chưa** nhận `unitId` ở bản này (Upgrade 05 phần P2).
+- Bật lại đơn vị đã tắt (`isActive = true`) phải gửi kèm `factorToBase`, nếu không trả `400 INVALID_UNIT_FACTOR`. Đơn vị đang tắt không được đặt làm mặc định (`400 INVALID_OPERATION`).
+- Đơn vị tắt trong danh mục không thêm được vào SKU, không làm đơn vị gốc được, không bán, nhập được (`422 UNIT_NOT_ALLOWED`). Đơn vị đang là gốc của SKU không tắt được (`409 UNIT_IN_USE`).
+- Đơn hàng, POS, phiếu nhập nhận `unitId`: xem `03-inventory-endpoints.md`, `04-order-endpoints.md`, `05-pos-endpoints.md`.

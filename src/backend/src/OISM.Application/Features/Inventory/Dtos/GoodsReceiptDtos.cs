@@ -29,6 +29,11 @@ public class CreateGoodsReceiptItemDto
     [Required(ErrorMessage = "Mặt hàng SKU là bắt buộc.")]
     public Guid SkuId { get; set; }
 
+    /// <summary>
+    /// Đơn vị nhập; để trống nghĩa là đơn vị gốc của SKU.
+    /// </summary>
+    public Guid? UnitId { get; set; }
+
     [Range(0.001, 100000000, ErrorMessage = "Số lượng nhập phải lớn hơn 0.")]
     public decimal Quantity { get; set; }
 
@@ -66,6 +71,10 @@ public class GoodsReceiptItemResponseDto
     public Guid SkuId { get; set; }
     public string SkuCode { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
+    public Guid? UnitId { get; set; }
+    public string UnitName { get; set; } = string.Empty;
+    public decimal FactorSnapshot { get; set; }
+    public decimal BaseQuantity { get; set; }
     public decimal Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal LineTotal => Quantity * UnitPrice;

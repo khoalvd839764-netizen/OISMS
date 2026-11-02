@@ -268,4 +268,61 @@ public class ReportServiceTests
         warnAlert.AlertLevel.Should().Be("Warning");
         warnAlert.Available.Should().Be(15);
     }
+
+    [Fact]
+    public async Task GetRevenueProfitReport_ShouldIncludeSubSecondEndOfDay_AndGroupDailyTrendInVietnamTime()
+    {
+        // Arrange (BF-011)
+        var (context, mockTenant, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var reportService = new ReportService(context, mockTenant.Object);
+
+        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh Q1" };
+        var sku = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, SKU = "SKU-VN" };
+        context.Branches.Add(branch);
+        context.Skus.Add(sku);
+
+        // Đơn 1: Lúc 01:00 sáng ngày 28/10/2026 giờ Việt Nam (= 2026-10-27T18:00:00Z)
+        var orderEarlyMorningVn = new Order
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Number = "ORD-VN-01",
+            BranchId = branch.Id,
+            Channel = "Admin",
+            Status = "Confirmed",
+            TotalAmount = 300000,
+            CreatedAt = new DateTimeOffset(2026, 10, 27, 18, 0, 0, TimeSpan.Zero)
+        };
+
+        // Đơn 2: Lúc 23:59:59.999 giờ Việt Nam ngày 28/10/2026 (= 2026-10-28T16:59:59.999Z)
+        var orderSubSecondEndVn = new Order
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Number = "ORD-VN-02",
+            BranchId = branch.Id,
+            Channel = "Admin",
+            Status = "Completed",
+            TotalAmount = 450000,
+            CreatedAt = new DateTimeOffset(2026, 10, 28, 16, 59, 59, 999, TimeSpan.Zero)
+        };
+
+        context.Orders.AddRange(orderEarlyMorningVn, orderSubSecondEndVn);
+        await context.SaveChangesAsync();
+
+        // Act: Lọc ngày 28/10/2026 giờ Việt Nam với EndDate gửi dạng 23:59:59.999+07:00 (= 2026-10-28T16:59:59.999Z)
+        var filter = new ReportFilterDto
+        {
+            Channel = "Admin",
+            StartDate = new DateTimeOffset(2026, 10, 27, 17, 0, 0, TimeSpan.Zero),
+            EndDate = new DateTimeOffset(2026, 10, 28, 16, 59, 59, 999, TimeSpan.Zero)
+        };
+        var report = await reportService.GetRevenueProfitReportAsync(filter);
+
+        // Assert
+        report.TotalOrders.Should().Be(2);
+        report.TotalNetRevenue.Should().Be(750000);
+        report.DailyTrend.Should().ContainSingle();
+        report.DailyTrend[0].Date.Should().Be("2026-10-28");
+    }
 }

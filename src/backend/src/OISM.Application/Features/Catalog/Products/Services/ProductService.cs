@@ -259,6 +259,10 @@ public class ProductService : IProductService
                         {
                             throw new OismException("UNIT_NOT_FOUND", "Không tìm thấy đơn vị tính gốc yêu cầu.", 404);
                         }
+                        if (!baseUnit.IsActive)
+                        {
+                            throw new OismException("UNIT_NOT_ALLOWED", $"Đơn vị tính '{baseUnit.Name}' đang ngừng hoạt động.", 422);
+                        }
                     }
                     else
                     {
@@ -421,6 +425,11 @@ public class ProductService : IProductService
                     await tx.RollbackAsync(ct);
                     throw new OismException("UNIT_NOT_FOUND", "Không tìm thấy đơn vị tính gốc yêu cầu.", 404);
                 }
+                if (!baseUnit.IsActive)
+                {
+                    await tx.RollbackAsync(ct);
+                    throw new OismException("UNIT_NOT_ALLOWED", $"Đơn vị tính '{baseUnit.Name}' đang ngừng hoạt động.", 422);
+                }
             }
             else
             {
@@ -496,7 +505,7 @@ public class ProductService : IProductService
         });
     }
 
-    public async Task<ProductVariantResponse> UpdateVariantAsync(Guid productId, Guid variantId, UpdateVariantRequest request, CancellationToken ct = default)
+    public async Task<ProductVariantResponse> UpdateVariantAsync(Guid productId, Guid variantId, UpdateVariantRequest request, Guid? userId = null, CancellationToken ct = default)
     {
         var strategy = _context.CreateExecutionStrategy();
         return await strategy.ExecuteAsync(async () =>
@@ -612,6 +621,11 @@ public class ProductService : IProductService
                     await tx.RollbackAsync(ct);
                     throw new OismException("UNIT_NOT_FOUND", "Không tìm thấy đơn vị tính gốc yêu cầu.", 404);
                 }
+                if (!newBaseUnit.IsActive)
+                {
+                    await tx.RollbackAsync(ct);
+                    throw new OismException("UNIT_NOT_ALLOWED", $"Đơn vị tính '{newBaseUnit.Name}' đang ngừng hoạt động.", 422);
+                }
 
                 var oldBaseUnitId = variant.BaseUnitId;
                 variant.BaseUnitId = newBaseUnit.Id;
@@ -623,9 +637,11 @@ public class ProductService : IProductService
                 {
                     oldBaseSkuUnit.IsDefaultPurchase = false;
                     oldBaseSkuUnit.IsDefaultSale = false;
+                    // Giữ dòng cũ ở trạng thái tắt vì có thể đã có lịch sử hệ số (chỉ thêm, không xóa được)
+                    oldBaseSkuUnit.IsActive = false;
+                    oldBaseSkuUnit.UpdatedBy = userId;
+                    oldBaseSkuUnit.UpdatedAt = DateTimeOffset.UtcNow;
                     await _context.SaveChangesAsync(ct);
-                    _context.SkuUnits.Remove(oldBaseSkuUnit);
-                    variant.SkuUnits.Remove(oldBaseSkuUnit);
                 }
 
                 var newBaseSkuUnit = variant.SkuUnits.FirstOrDefault(u => u.UnitId == newBaseUnit.Id);
@@ -650,7 +666,28 @@ public class ProductService : IProductService
                 }
                 else
                 {
-                    newBaseSkuUnit.FactorToBase = 1m;
+                    if (newBaseSkuUnit.FactorToBase != 1m)
+                    {
+                        var oldVersion = newBaseSkuUnit.Version;
+                        _context.SkuUnitFactorHistories.Add(new SkuUnitFactorHistory
+                        {
+                            TenantId = tenantId,
+                            SkuUnitId = newBaseSkuUnit.Id,
+                            OldFactor = newBaseSkuUnit.FactorToBase,
+                            NewFactor = 1m,
+                            OldVersion = oldVersion,
+                            NewVersion = oldVersion + 1,
+                            ChangedBy = userId,
+                            ChangedAt = DateTimeOffset.UtcNow
+                        });
+                        newBaseSkuUnit.Version = oldVersion + 1;
+                        newBaseSkuUnit.FactorToBase = 1m;
+                    }
+                    newBaseSkuUnit.SalePrice = null;
+                    newBaseSkuUnit.CanPurchase = true;
+                    newBaseSkuUnit.CanSell = true;
+                    newBaseSkuUnit.UpdatedBy = userId;
+                    newBaseSkuUnit.UpdatedAt = DateTimeOffset.UtcNow;
                     newBaseSkuUnit.IsDefaultPurchase = true;
                     newBaseSkuUnit.IsDefaultSale = true;
                     newBaseSkuUnit.IsActive = true;

@@ -282,6 +282,8 @@ public class ReservationService : IReservationService
                     SkuId = dto.SkuId,
                     SkuCodeSnapshot = sku.SKU,
                     SkuNameSnapshot = sku.Product?.Name ?? sku.SKU,
+                    UnitId = sku.BaseUnitId,
+                    UnitNameSnapshot = sku.Unit,
                     Quantity = dto.Quantity,
                     UnitPrice = sku.RetailPrice,
                     CreatedAt = DateTimeOffset.UtcNow

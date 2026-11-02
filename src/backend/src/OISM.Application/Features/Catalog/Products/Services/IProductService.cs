@@ -13,7 +13,7 @@ public interface IProductService
     Task<ProductResponse?> GetProductByIdAsync(Guid id, CancellationToken ct = default);
     Task<Guid> CreateProductAsync(CreateProductRequest request, CancellationToken ct = default);
     Task<ProductVariantResponse> CreateVariantAsync(Guid productId, CreateVariantRequest request, CancellationToken ct = default);
-    Task<ProductVariantResponse> UpdateVariantAsync(Guid productId, Guid variantId, UpdateVariantRequest request, CancellationToken ct = default);
+    Task<ProductVariantResponse> UpdateVariantAsync(Guid productId, Guid variantId, UpdateVariantRequest request, Guid? userId = null, CancellationToken ct = default);
     Task<ProductVariantResponse?> UpdateVariantPricesAsync(Guid productId, Guid variantId, UpdateVariantPricesRequest request, CancellationToken ct = default);
     Task<bool> DeleteVariantAsync(Guid productId, Guid variantId, CancellationToken ct = default);
     Task<ToggleVariantResult?> ToggleVariantStatusAsync(Guid productId, Guid variantId, CancellationToken ct = default);

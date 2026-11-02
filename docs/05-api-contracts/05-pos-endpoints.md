@@ -28,3 +28,12 @@
 | `GET` | `/api/pos/search` | `Owner, Staff, Cashier` | `FR-POS-01`, `FR-POS-02` | Tìm kiếm nhanh sản phẩm/SKU theo từ khóa (`keyword`) và chi nhánh (`branchId`). Trả về thông tin SKU, Giá bán lẻ/sỉ và số lượng tồn khả dụng thực tế (`Available = Math.Max(0, OnHand - Reserved)`). Độ trễ `p95 < 200ms`. |
 | `GET` | `/api/pos/barcode/{code}` | `Owner, Staff, Cashier` | `FR-POS-01`, `FR-POS-02` | Tra cứu chính xác SKU theo mã vạch `EAN-13`/`Code128` kèm tồn khả dụng tại chi nhánh. Độ trễ `p95 < 200ms`. |
 | `POST` | `/api/pos/checkout`<br/>*(Alias: `/api/orders/checkout`)* | `Owner, Staff, Cashier` | `FR-POS-03`, `FR-POS-04`, `FR-COST-02` | **Thanh toán nhanh tại quầy POS:** Chạy chuỗi `Reserve -> Confirm -> Deduct` + Ghi Sổ cái `OUT` + Chụp `OrderItem.CostPrice` (WAC snapshot) trong **1 giao dịch CSDL nguyên tử duy nhất**. Hỗ trợ cả 2 đường dẫn tương thích 100%. Phản hồi trả về `PosReceiptDto` chuẩn bán lẻ, **tuyệt đối không để lộ giá vốn (CostPrice/COGS)**. Chi tiết xem [`DOC-CTR-S3-01`](../08-sprints/sprint-3/01-api-contracts-sprint-3.md). |
+
+**Nhiều đơn vị tính (Upgrade 05):**
+
+- Mỗi dòng giỏ có thêm `unitId` tùy chọn; để trống là đơn vị gốc. Hệ số và lượng gốc do backend quyết định, client không gửi được.
+- `unitPrice` phải khớp giá của đúng đơn vị: đơn vị gốc so với `RetailPrice`, đơn vị khác so với `sku_units.sale_price`. Sai trả `400 PRICE_MISMATCH`; chưa có giá trả `422 UNIT_PRICE_NOT_CONFIGURED`.
+- Đơn vị chưa bật hoặc không cho bán trả `422 UNIT_NOT_ALLOWED`; số lượng sai số lẻ trả `400 INVALID_UNIT_QUANTITY`.
+- Cùng SKU khác đơn vị là hai dòng; cùng (SKU, đơn vị) được gộp. Tồn khả dụng kiểm theo tổng lượng gốc của SKU.
+- `search`, `barcode` trả thêm `units[]` gồm đơn vị được bán (giá, hệ số, số lẻ). `barcode` quét trúng mã quy cách thì `matchedUnitId` là đơn vị đó; quét mã SKU thì `matchedUnitId = null`. `onHand`, `reserved`, `available` luôn theo đơn vị gốc.
+- Hóa đơn (`receipt.items`) có thêm `unitId`, `unitName`.

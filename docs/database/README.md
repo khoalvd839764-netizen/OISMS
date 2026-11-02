@@ -1399,5 +1399,6 @@ Lịch sử đổi hệ số, chỉ thêm. Trigger `factor_history_append_only` 
 - `order_items`, `goods_receipt_items`: `unit_id uuid NULL` → `units`; `unit_name_snapshot varchar(100)`; `factor_snapshot numeric(18,6) DEFAULT 1`, lớn hơn 0; `base_quantity numeric(18,3) GENERATED ALWAYS AS (quantity * factor_snapshot) STORED`.
 - `uq_order_items_2` đổi thành `UNIQUE NULLS NOT DISTINCT (tenant_id, order_id, sku_id, unit_id)`. `uq_goods_receipt_items_2` giữ nguyên.
 - `oisms_check_stock` so giữ chỗ với `base_quantity`; `oisms_protect_order_item` chặn đổi `factor_snapshot`, `unit_id`, `unit_name_snapshot` trên dòng đã xác nhận.
+- Trigger `protect_receipt_item` (`oisms_protect_receipt_item`) chặn sửa số lượng, đơn giá, đơn vị, hệ số và chặn xóa dòng của phiếu nhập đã xác nhận.
 
 <!-- DATABASE_DICTIONARY_END -->

@@ -37,6 +37,14 @@
 | `POST` | `/api/webhooks/simulator/{channel}` | `Owner, Staff / Webhook Key` | `FR-SIM-01`, `FR-ORD-01` | **Tiếp nhận đơn TMĐT (Shopee, TikTok, Lazada):**<br/>- Xác thực kép: Header `X-Webhook-Secret` (production/simulator webhook) hoặc `Bearer JWT` (`Owner`, `Staff`; `Cashier` bị từ chối 403 `FORBIDDEN`). Tuyệt đối không đọc `TenantId` từ request body.<br/>- Tự động ánh xạ chi nhánh fulfillment từ bảng `shop_integrations` theo `(tenant_id, channel, external_shop_id)`.<br/>- Khóa chống trùng: `(tenant_id, channel, external_shop_id, external_order_id)`. Cùng khóa + cùng payload &rarr; 200 OK replay; Cùng khóa + khác payload &rarr; 409 Conflict (`WEBHOOK_PAYLOAD_MISMATCH`).<br/>- Kênh URL khác payload channel &rarr; 400 Bad Request (`CHANNEL_MISMATCH`).<br/>- Áp dụng đơn giá tin cậy từ sàn TMĐT, kiểm tra tổng tiền và làm tròn `AwayFromZero` (lệch trả 400 `TOTAL_AMOUNT_MISMATCH`).<br/>- Giữ chỗ tồn kho bằng lõi chung `CreateReservedOrderCoreAsync`: tạo đơn `Reserved`, sinh `Reservation` `Active` 15 phút, tăng `Reserved` ở kho/chi nhánh, OnHand/WAC không đổi. |
 | `WS/SSE` | `/hubs/notifications` | `Owner, Staff, Cashier` | `FR-SIM-02` | **SignalR Hub thông báo thời gian thực:**<br/>- Xác thực JWT Bearer qua Query Token (`/hubs/notifications?access_token=...`) dành riêng cho Hub path.<br/>- Tự động join nhóm `tenant_{tenantId}`. Client có thể gọi `JoinBranchGroup(Guid branchId)` và `LeaveBranchGroup(Guid branchId)` sau khi server xác thực chi nhánh hợp lệ.<br/>- Các sự kiện phát ra: `OrderCreated` (đơn Reserved mới), `StockLevelChanged` (khi tồn khả dụng thay đổi), `LowStockWarning` (khi tồn khả dụng &le; `reorder_point`). Payload cam kết không chứa giá vốn / bí mật. |
 
+**Nhiều đơn vị tính (Upgrade 05):**
+
+- `POST /api/orders`: dòng hàng nhận `unitId` tùy chọn, cùng quy tắc giá và mã lỗi như POS. Giữ chỗ tính theo lượng gốc và được chia theo từng dòng.
+- Dòng trong response có thêm `unitId`, `unitName`, `factorSnapshot`, `baseQuantity`. `quantity`, `unitPrice`, `subtotal` theo đơn vị giao dịch; `costPrice` là WAC trên đơn vị gốc, `totalCost = baseQuantity × costPrice`.
+- Replay cùng `RequestKey` so theo (SKU, đơn vị); gửi `unitId` của đơn vị gốc được coi như để trống.
+- Đơn từ sàn TMĐT luôn tính theo đơn vị gốc.
+- Báo cáo: `totalCostOfGoodsSold`, `totalItemsSold`, `quantitySold` tính theo lượng gốc.
+
 ---
 
 ## 2. Danh Mục Endpoints Báo Cáo & Dự Báo AI (`FR-REP-01..03`, `FR-AI-01`)

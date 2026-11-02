@@ -58,7 +58,7 @@ public static class SkuUnitResolver
 
         // 2. Tra cứu cấu hình đơn vị quy cách
         var targetConfig = unitsList.FirstOrDefault(u => u.UnitId == unitId.Value);
-        if (targetConfig == null || !targetConfig.IsActive)
+        if (targetConfig == null || !targetConfig.IsActive || targetConfig.Unit is { IsActive: false })
         {
             throw new OismException("UNIT_NOT_ALLOWED", $"Đơn vị tính '{unitId.Value}' chưa được kích hoạt hoặc không khả dụng cho SKU này.", 422);
         }

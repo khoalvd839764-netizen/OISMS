@@ -982,6 +982,26 @@ END $$;
 CREATE TRIGGER protect_order BEFORE UPDATE ON public.orders
 FOR EACH ROW EXECUTE FUNCTION public.oisms_protect_order();
 
+CREATE FUNCTION public.oisms_protect_receipt_item() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+DECLARE confirmed timestamptz;
+BEGIN
+  SELECT confirmed_at INTO confirmed FROM public.goods_receipts WHERE id=OLD.receipt_id AND tenant_id=OLD.tenant_id FOR UPDATE;
+  IF TG_OP='DELETE' AND confirmed IS NOT NULL THEN
+    RAISE EXCEPTION 'Confirmed goods receipt items cannot be deleted' USING ERRCODE='23514';
+  END IF;
+  IF TG_OP='UPDATE' AND confirmed IS NOT NULL AND
+     ((NEW.tenant_id,NEW.receipt_id,NEW.sku_id,NEW.quantity,NEW.unit_price,NEW.factor_snapshot) IS DISTINCT FROM
+      (OLD.tenant_id,OLD.receipt_id,OLD.sku_id,OLD.quantity,OLD.unit_price,OLD.factor_snapshot)
+      OR (OLD.unit_id IS NOT NULL AND (NEW.unit_id,NEW.unit_name_snapshot) IS DISTINCT FROM (OLD.unit_id,OLD.unit_name_snapshot))) THEN
+    RAISE EXCEPTION 'Confirmed goods receipt item snapshot is immutable' USING ERRCODE='23514';
+  END IF;
+  IF TG_OP='UPDATE' THEN RETURN NEW; END IF;
+  RETURN OLD;
+END $$;
+CREATE TRIGGER protect_receipt_item BEFORE UPDATE OR DELETE ON public.goods_receipt_items
+FOR EACH ROW EXECUTE FUNCTION public.oisms_protect_receipt_item();
+
 CREATE TRIGGER factor_history_append_only BEFORE UPDATE OR DELETE OR TRUNCATE ON public.sku_unit_factor_history
 FOR EACH STATEMENT EXECUTE FUNCTION public.oisms_deny_mutation();
 

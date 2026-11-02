@@ -126,6 +126,7 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         new("order_items", "item_cost_snapshot", "oisms_order_cost_constraint", "public", "AFTER", true, HasInsert: true, HasUpdate: true, IsDeferrable: true, InitiallyDeferred: true),
 
         // sku_unit_factor_history
+        new("goods_receipt_items", "protect_receipt_item", "oisms_protect_receipt_item", "public", "BEFORE", true, HasUpdate: true, HasDelete: true),
         new("sku_unit_factor_history", "factor_history_append_only", "oisms_deny_mutation", "public", "BEFORE", false, HasUpdate: true, HasDelete: true, HasTruncate: true)
     ];
 
@@ -719,6 +720,36 @@ BEGIN
     RETURN NEW;
   END IF;
   RETURN OLD;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.oisms_protect_receipt_item() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+DECLARE confirmed timestamptz;
+BEGIN
+  SELECT confirmed_at INTO confirmed FROM public.goods_receipts WHERE id=OLD.receipt_id AND tenant_id=OLD.tenant_id FOR UPDATE;
+  IF TG_OP='DELETE' AND confirmed IS NOT NULL THEN
+    RAISE EXCEPTION 'Confirmed goods receipt items cannot be deleted' USING ERRCODE='23514';
+  END IF;
+  IF TG_OP='UPDATE' AND confirmed IS NOT NULL AND
+     ((NEW.tenant_id,NEW.receipt_id,NEW.sku_id,NEW.quantity,NEW.unit_price,NEW.factor_snapshot) IS DISTINCT FROM
+      (OLD.tenant_id,OLD.receipt_id,OLD.sku_id,OLD.quantity,OLD.unit_price,OLD.factor_snapshot)
+      OR (OLD.unit_id IS NOT NULL AND (NEW.unit_id,NEW.unit_name_snapshot) IS DISTINCT FROM (OLD.unit_id,OLD.unit_name_snapshot))) THEN
+    RAISE EXCEPTION 'Confirmed goods receipt item snapshot is immutable' USING ERRCODE='23514';
+  END IF;
+  IF TG_OP='UPDATE' THEN RETURN NEW; END IF;
+  RETURN OLD;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger tg
+        JOIN pg_class c ON tg.tgrelid = c.oid
+        WHERE c.relname = 'goods_receipt_items' AND tg.tgname = 'protect_receipt_item'
+    ) THEN
+        CREATE TRIGGER protect_receipt_item BEFORE UPDATE OR DELETE ON public.goods_receipt_items
+        FOR EACH ROW EXECUTE FUNCTION public.oisms_protect_receipt_item();
+    END IF;
 END $$;
 
 DO $$

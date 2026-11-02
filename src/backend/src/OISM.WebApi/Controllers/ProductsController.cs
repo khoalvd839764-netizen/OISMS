@@ -75,6 +75,10 @@ public class ProductsController : ControllerBase
         {
             return BadRequest(new { errorCode = ex.ErrorCode, message = ex.Message });
         }
+        catch (OismException ex) when (ex.StatusCode == 422)
+        {
+            return UnprocessableEntity(new { errorCode = ex.ErrorCode, message = ex.Message });
+        }
     }
 
     /// <summary>
@@ -109,6 +113,10 @@ public class ProductsController : ControllerBase
         {
             return BadRequest(new { errorCode = ex.ErrorCode, message = ex.Message });
         }
+        catch (OismException ex) when (ex.StatusCode == 422)
+        {
+            return UnprocessableEntity(new { errorCode = ex.ErrorCode, message = ex.Message });
+        }
     }
 
     /// <summary>
@@ -128,7 +136,7 @@ public class ProductsController : ControllerBase
 
         try
         {
-            var variantResponse = await _productService.UpdateVariantAsync(productId, variantId, request, ct);
+            var variantResponse = await _productService.UpdateVariantAsync(productId, variantId, request, GetCurrentUserId(), ct);
             return Ok(variantResponse);
         }
         catch (OismException ex) when (ex.StatusCode == 404)
@@ -142,6 +150,10 @@ public class ProductsController : ControllerBase
         catch (OismException ex) when (ex.StatusCode == 400)
         {
             return BadRequest(new { errorCode = ex.ErrorCode, message = ex.Message });
+        }
+        catch (OismException ex) when (ex.StatusCode == 422)
+        {
+            return UnprocessableEntity(new { errorCode = ex.ErrorCode, message = ex.Message });
         }
     }
 
@@ -245,5 +257,11 @@ public class ProductsController : ControllerBase
         }
 
         return Ok(new { message = "Đã vô hiệu hóa sản phẩm thành công." });
+    }
+
+    private Guid? GetCurrentUserId()
+    {
+        var claim = User.FindFirst("userId")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(claim, out var userId) ? userId : null;
     }
 }

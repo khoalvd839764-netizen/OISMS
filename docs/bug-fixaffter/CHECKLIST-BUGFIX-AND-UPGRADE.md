@@ -74,10 +74,11 @@ Tài liệu đối chiếu: [BUG-LIST.md](Report%20Bugfix/BUG-LIST.md), [report 
 #### C1. Backend Nâng cấp Nghiệp vụ Lõi theo GVHD (`docs/Upgrade-recommended/`)
 - [ ] **Bước 1 — `Upgrade 05`: Nhiều đơn vị tính cho hàng hóa vật lý (`Đăng Khoa` & `Nhựt`):**
   - [x] Tạo bảng `units`, `sku_units`, `sku_unit_factor_history`, API cấu hình đơn vị (P1); thêm `BaseUnitId` trên SKU và `UnitId`, `FactorSnapshot`, `BaseQuantity = Quantity × FactorSnapshot` trên `GoodsReceiptItem` & `OrderItem`.
-  - [ ] Cập nhật `GoodsReceiptService`, `OrderService`, `ReservationService` tính tồn/giữ chỗ/WAC/COGS theo `BaseQuantity`; hỗ trợ tương thích ngược dữ liệu cũ (`FactorSnapshot = 1`).
+  - [x] Cập nhật `GoodsReceiptService`, `OrderService`, `ReservationService` tính tồn/giữ chỗ/WAC/COGS theo `BaseQuantity`; hỗ trợ tương thích ngược dữ liệu cũ (`FactorSnapshot = 1`).
 - [ ] **Bước 2 — `Upgrade 04`: Bảng giá bán có thời gian hiệu lực (`Nhựt` & `Đăng Khoa`):**
-  - [ ] Tạo bảng `price_lists`, `price_versions` theo khóa `(SKU, UnitId, Loại giá, Phạm vi, [valid_from, valid_to))`, quy trình duyệt `Draft → Approved → Active/Expired`.
-  - [ ] Lưu snapshot phiên bản giá vào dòng đơn và đóng API sửa giá trực tiếp trên biến thể SKU.
+  - [ ] Tạo bảng `price_lists` (giá lẻ, giá sỉ), `price_change_requests`, `price_change_request_items` và `sku_unit_prices` chỉ thêm dòng mới theo khóa `(Bảng giá, SKU, UnitId, valid_from)`; phiếu đổi giá có trạng thái `Pending`, `Approved`, `Rejected`.
+  - [ ] Thêm resolver giá dùng chung cho POS, đơn Admin và giữ chỗ; chuyển dữ liệu giá cũ bằng phiếu "Giá đầu kỳ".
+  - [ ] Lưu đơn giá, ID dòng giá và nguồn giá vào dòng đơn; đóng API sửa giá trực tiếp trên biến thể SKU và đơn vị.
 - [ ] **Bước 3 — `Upgrade 01`: Mua hàng, nhập kho và giá vốn WAC (`Đăng Khoa` & `Nhựt`):**
   - [ ] Tạo bảng `purchase_orders`, bắt buộc phiếu nhập kho NCC gắn phiếu mua đã duyệt, đối chiếu hóa đơn NCC (`supplier_invoices`) và xử lý chứng từ chênh lệch (`purchase_variances`).
 - [ ] **Bước 4 — `Upgrade 02`: Truy vết chứng từ xuất kho (`Đăng Khoa`):**
@@ -106,7 +107,7 @@ Tài liệu đối chiếu: [BUG-LIST.md](Report%20Bugfix/BUG-LIST.md), [report 
   - [ ] Trên **Web Admin (`ProductsPage`, `InventoryPage`, `OrdersPage`)**: Cấu hình đơn vị gốc & danh sách đơn vị quy đổi cho SKU; chọn đơn vị mua/bán trên phiếu nhập và đơn hàng; hiển thị cả số lượng giao dịch (`1 bao`) và lượng quy đổi gốc (`25 kg`).
   - [ ] Trên **Web POS (`pos-app/src/App.tsx`, `CartTable.tsx`)**: Chọn đơn vị bán trên từng dòng giỏ hàng (khóa dòng theo `variantId + unitId`), quét barcode quy cách chọn đúng đơn vị và in hóa đơn giữ nguyên đơn vị đã bán.
 - [ ] **`Upgrade 04` (Web Admin — `Phúc Hữu & Nam Nguyễn`):**
-  - [ ] Giao diện quản lý Đề xuất bảng giá & Phê duyệt bảng giá theo thời gian hiệu lực (`[valid_from, valid_to)`); đóng ô sửa trực tiếp giá bán trên form biến thể SKU.
+  - [ ] Giao diện lập và duyệt Phiếu đổi giá, lịch giá sắp tới và lịch sử giá theo SKU; bỏ ô sửa giá trên form sửa SKU, chỉ giữ ô giá ban đầu khi tạo mới; hiện giá mới khi gặp `PRICE_MISMATCH`.
 - [ ] **`Upgrade 01 & 02` (Admin & POS — `Phúc Hữu, Nam Nguyễn & Phương Lê`):**
   - [ ] Giao diện tạo/duyệt Phiếu mua hàng (`purchase_orders`), chọn phiếu mua đã duyệt khi lập Phiếu nhập kho, đối chiếu Hóa đơn NCC & chứng từ chênh lệch; hiển thị liên kết truy vết Hóa đơn bán ↔ Đơn hàng ↔ Sổ cái kho `OUT`.
 - [ ] **`Upgrade 03` (Web Admin — `Phúc Hữu & Nam Nguyễn`):**
