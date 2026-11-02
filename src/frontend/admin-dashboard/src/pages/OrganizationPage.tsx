@@ -1,6 +1,6 @@
-import { Building2, MoreHorizontal, Plus, Search, ShieldCheck, UserRoundCog, AlertCircle } from "lucide-react";
+import { Building2, Plus, Search, ShieldCheck, UserRoundCog, AlertCircle } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Badge, Button, ComingSoonBadge, ComingSoonPanel, Input, Modal, PageTitle, Select } from "../components/ui";
+import { Badge, Button, Input, Modal, PageTitle, Select } from "../components/ui";
 import { apiAdapter } from "../services/apiAdapter";
 import { useAuth } from "../context/AuthContext";
 

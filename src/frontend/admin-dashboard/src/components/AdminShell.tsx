@@ -20,7 +20,7 @@ import {
   ArrowLeftRight,
   ClipboardCheck,
 } from "lucide-react";
-import { Button, ComingSoonBadge } from "./ui";
+import { Button } from "./ui";
 import { useAuth } from "../context/AuthContext";
 import { NotificationCenter } from "./NotificationCenter";
 import { apiAdapter } from "../services/apiAdapter";
