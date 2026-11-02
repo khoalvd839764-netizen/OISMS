@@ -1,0 +1,31 @@
+{
+  "provider": "Actual LoginModal form, App callbacks, PaymentModal handlers and API production TS/TSX; Node VM hooks/storage/fetch stub; no browser/HTTP/PostgreSQL",
+  "observations": [
+    {
+      "scenario": "expiry-switch-back",
+      "authenticatedUserId": "user-a",
+      "expectedBranch": "11111111-1111-4111-8111-111111111111",
+      "actualBranch": "11111111-1111-4111-8111-111111111111",
+      "expectedCartRows": 1,
+      "actualCartRows": 1,
+      "ownPendingRetained": true,
+      "pendingVisibleForSelectedBranch": true,
+      "reusedOriginalKey": true,
+      "retryBranch": "11111111-1111-4111-8111-111111111111",
+      "addNewItemBlocked": true
+    },
+    {
+      "scenario": "two-owners-logout-relogin",
+      "authenticatedUserId": "user-b",
+      "expectedBranch": "22222222-2222-4222-8222-222222222222",
+      "actualBranch": "22222222-2222-4222-8222-222222222222",
+      "expectedCartRows": 1,
+      "actualCartRows": 1,
+      "ownPendingRetained": true,
+      "pendingVisibleForSelectedBranch": true,
+      "reusedOriginalKey": true,
+      "retryBranch": "22222222-2222-4222-8222-222222222222",
+      "addNewItemBlocked": true
+    }
+  ]
+}

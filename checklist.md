@@ -46,6 +46,8 @@ Quy ước: mục FR bao gồm nhiều người hoặc nhiều sprint chỉ đư
 
 ## 0A. Checklist hiện trạng sản phẩm — cập nhật 29/10/2026
 
+**Cập nhật tích hợp:** develop đã nhận POS mới từ PR #24; phạm vi lỗi POS riêng và QR/PWA thay đổi so với audit gốc. Xem [tổng hợp Sprint 3 và tồn đọng sau tích hợp](docs/bug-fixaffter/SPRINT-3-RELEASE.md). BF-003/BF-015/BF-019 phần POS riêng và BF-020 cần kiểm chứng lại, không tự đóng; QR Coming soon còn áp dụng cho POS Admin.
+
 **Chưa nghiệm thu toàn bộ sản phẩm.** Các dấu `[x]` ở phần Sprint 2 và báo cáo BE1 bên dưới phản ánh baseline/bằng chứng được ghi tại thời điểm đó. Khi đánh giá khả năng sử dụng hiện tại, phải đối chiếu các mục còn mở trong phần này. Trạng thái bàn giao READY_FOR_REVIEW chỉ có nghĩa chờ review.
 
 Baseline rà soát: nhánh `feature/OISMS-43-orders-transfers`, HEAD `f276eeed72782f7272f32a62f4bb61ba761f3e89` cộng working tree chưa commit. Chi tiết tái hiện, ảnh hưởng, vị trí code và điều kiện đóng: [BUG-LIST.md](docs/bug-fixaffter/BUG-LIST.md).

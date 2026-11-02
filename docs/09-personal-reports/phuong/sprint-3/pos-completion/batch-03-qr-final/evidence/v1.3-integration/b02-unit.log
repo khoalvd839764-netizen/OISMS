@@ -1,0 +1,244 @@
+TAP version 13
+# [2026-10-28T11:39:57.671Z] Warning: Error from HTTP request. TypeError: fetch failed.
+# [2026-10-28T11:39:57.677Z] Error: Failed to complete negotiation with the server: TypeError: fetch failed
+# [2026-10-28T11:39:57.678Z] Error: Failed to start the connection: Error: Failed to complete negotiation with the server: TypeError: fetch failed
+# Không thể kết nối SignalR Hub (máy chủ offline hoặc token không hợp lệ): FailedToNegotiateWithServerError: Failed to complete negotiation with the server: TypeError: fetch failed
+#     at HttpConnection._getNegotiationResponse (D:\\OISMS\\src\\frontend\\pos-app\\node_modules\\@microsoft\\signalr\\dist\\cjs\\HttpConnection.js:259:35)
+#     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+#     at async HttpConnection._startInternal (D:\\OISMS\\src\\frontend\\pos-app\\node_modules\\@microsoft\\signalr\\dist\\cjs\\HttpConnection.js:172:41)
+#     at async HttpConnection.start (D:\\OISMS\\src\\frontend\\pos-app\\node_modules\\@microsoft\\signalr\\dist\\cjs\\HttpConnection.js:75:9)
+#     at async HubConnection._startInternal (D:\\OISMS\\src\\frontend\\pos-app\\node_modules\\@microsoft\\signalr\\dist\\cjs\\HubConnection.js:135:9)
+#     at async HubConnection._startWithStateTransitions (D:\\OISMS\\src\\frontend\\pos-app\\node_modules\\@microsoft\\signalr\\dist\\cjs\\HubConnection.js:112:13)
+#     at async Object.startRealtimeConnection (src/services/realtimeService.ts:348:9)
+#     at async TestContext.<anonymous> (file:///D:/OISMS/src/frontend/pos-app/test-b02-realtime-pwa.mjs:130:3)
+#     at async Test.run (node:internal/test_runner/test:980:9)
+#     at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3) {
+#   errorType: 'FailedToNegotiateWithServerError'
+# }
+# Lỗi tra cứu sản phẩm: Error: Mất kết nối mạng ngoại tuyến
+#     at global.fetch (file:///D:/OISMS/src/frontend/pos-app/test-b02-realtime-pwa.mjs:330:13)
+#     at fetch (file:///D:/OISMS/src/frontend/pos-app/test-b02-realtime-pwa.mjs:46:59)
+#     at searchPosProducts (src/services/api.ts:612:27)
+#     at src/services/api.ts:1177:46
+#     at Array.map (<anonymous>)
+#     at Object.invalidateAndRefetchStock (src/services/api.ts:1155:38)
+#     at TestContext.<anonymous> (file:///D:/OISMS/src/frontend/pos-app/test-b02-realtime-pwa.mjs:333:44)
+#     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+#     at async Test.run (node:internal/test_runner/test:980:9)
+#     at async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+# Lỗi tra cứu sản phẩm: Error: Mất kết nối mạng ngoại tuyến
+#     at global.fetch (file:///D:/OISMS/src/frontend/pos-app/test-b02-realtime-pwa.mjs:330:13)
+#     at fetch (file:///D:/OISMS/src/frontend/pos-app/test-b02-realtime-pwa.mjs:46:59)
+#     at searchPosProducts (src/services/api.ts:612:27)
+#     at src/services/api.ts:1191:50
+#     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+#     at async Promise.all (index 0)
+#     at async Object.invalidateAndRefetchStock (src/services/api.ts:1155:5)
+#     at async TestContext.<anonymous> (file:///D:/OISMS/src/frontend/pos-app/test-b02-realtime-pwa.mjs:333:34)
+#     at async Test.run (node:internal/test_runner/test:980:9)
+#     at async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+#   [Instrumentation] Search in-memory processing p95: 0.122ms (Mục tiêu < 200ms: ĐẠT)
+# Lỗi tra cứu sản phẩm: Error: network failure on refresh
+#     at file:///D:/OISMS/src/frontend/pos-app/test-b02-realtime-pwa.mjs:802:11
+#     at fetch (D:\\OISMS\\docs\\09-personal-reports\\phuong\\sprint-3\\pos-completion\\batch-02-stock-realtime-pwa\\evidence\\review-r2\\harness.cjs:13:117)
+#     at searchPosProducts (src/services/api.ts:612:27)
+#     at src/services/api.ts:1177:46
+#     at Array.map (<anonymous>)
+#     at Object.invalidateAndRefetchStock (src/services/api.ts:1155:38)
+#     at TestContext.<anonymous> (file:///D:/OISMS/src/frontend/pos-app/test-b02-realtime-pwa.mjs:818:31)
+#     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+#     at async Test.run (node:internal/test_runner/test:980:9)
+#     at async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+# Lỗi tra cứu sản phẩm: Error: network failure on newer refresh
+#     at file:///D:/OISMS/src/frontend/pos-app/test-b02-realtime-pwa.mjs:845:11
+#     at fetch (D:\\OISMS\\docs\\09-personal-reports\\phuong\\sprint-3\\pos-completion\\batch-02-stock-realtime-pwa\\evidence\\review-r2\\harness.cjs:13:117)
+#     at searchPosProducts (src/services/api.ts:612:27)
+#     at src/services/api.ts:1177:46
+#     at Array.map (<anonymous>)
+#     at Object.invalidateAndRefetchStock (src/services/api.ts:1155:38)
+#     at TestContext.<anonymous> (file:///D:/OISMS/src/frontend/pos-app/test-b02-realtime-pwa.mjs:856:36)
+#     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+#     at async Test.run (node:internal/test_runner/test:980:9)
+#     at async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+# Lỗi tra cứu sản phẩm: Error: temporary network failure
+#     at file:///D:/OISMS/src/frontend/pos-app/test-b02-realtime-pwa.mjs:875:27
+#     at fetch (D:\\OISMS\\docs\\09-personal-reports\\phuong\\sprint-3\\pos-completion\\batch-02-stock-realtime-pwa\\evidence\\review-r2\\harness.cjs:13:117)
+#     at searchPosProducts (src/services/api.ts:612:27)
+#     at src/services/api.ts:1177:46
+#     at Array.map (<anonymous>)
+#     at Object.invalidateAndRefetchStock (src/services/api.ts:1155:38)
+#     at TestContext.<anonymous> (file:///D:/OISMS/src/frontend/pos-app/test-b02-realtime-pwa.mjs:883:35)
+#     at Test.runInAsyncScope (node:async_hooks:211:14)
+#     at Test.run (node:internal/test_runner/test:979:25)
+#     at Test.processPendingSubtests (node:internal/test_runner/test:677:18)
+# Subtest: B02-AC-01: SignalR Hub Token & Lifecycle Management (T03-AC-01 & T03-AC-05)
+ok 1 - B02-AC-01: SignalR Hub Token & Lifecycle Management (T03-AC-01 & T03-AC-05)
+  ---
+  duration_ms: 363.1784
+  ...
+# Subtest: B02-AC-02: Realtime DTO Normalization & Safe Audio Notifications (T03-AC-02)
+ok 2 - B02-AC-02: Realtime DTO Normalization & Safe Audio Notifications (T03-AC-02)
+  ---
+  duration_ms: 13.1149
+  ...
+# Subtest: B02-AC-03: Branch Group Segregation & Deduplication (T03-AC-03)
+ok 3 - B02-AC-03: Branch Group Segregation & Deduplication (T03-AC-03)
+  ---
+  duration_ms: 3.9359
+  ...
+# Subtest: B02-AC-04: API Stock vs Cart Warning (T03-AC-04)
+ok 4 - B02-AC-04: API Stock vs Cart Warning (T03-AC-04)
+  ---
+  duration_ms: 0.9224
+  ...
+# Subtest: B02-AC-06: POS-STOCK-F01 Close Verification (10 -> 8 without F5, Replay/Event stays 8, Hub Offline)
+ok 5 - B02-AC-06: POS-STOCK-F01 Close Verification (10 -> 8 without F5, Replay/Event stays 8, Hub Offline)
+  ---
+  duration_ms: 6.1765
+  ...
+# Subtest: B02-AC-07: Search Results Invalidation & Outdated Dropdown Prevention (T03-AC-07)
+ok 6 - B02-AC-07: Search Results Invalidation & Outdated Dropdown Prevention (T03-AC-07)
+  ---
+  duration_ms: 1.0003
+  ...
+# Subtest: B02-AC-08: Keyboard Shortcuts F2, F4, Esc & Concurrency Safety (T05-AC-01)
+ok 7 - B02-AC-08: Keyboard Shortcuts F2, F4, Esc & Concurrency Safety (T05-AC-01)
+  ---
+  duration_ms: 1.4554
+  ...
+# Subtest: B02-AC-09: Service Worker Namespace & Strict Cache Isolation (T05-AC-03 & T05-AC-04)
+ok 8 - B02-AC-09: Service Worker Namespace & Strict Cache Isolation (T05-AC-03 & T05-AC-04)
+  ---
+  duration_ms: 0.7874
+  ...
+# Subtest: B02-AC-10: Search Race Condition & Lookup p95 Latency Measurement (T05-AC-06)
+ok 9 - B02-AC-10: Search Race Condition & Lookup p95 Latency Measurement (T05-AC-06)
+  ---
+  duration_ms: 3.713
+  ...
+# Subtest: B02-F01-REGRESSION: Hub lifecycle, starting cancellation and multi-session isolation
+ok 10 - B02-F01-REGRESSION: Hub lifecycle, starting cancellation and multi-session isolation
+  ---
+  duration_ms: 309.5488
+  ...
+# Subtest: B02-F02-REGRESSION: Unified stock store across api and stockService, fresh barcode stock 8
+ok 11 - B02-F02-REGRESSION: Unified stock store across api and stockService, fresh barcode stock 8
+  ---
+  duration_ms: 357.2119
+  ...
+# Subtest: B02-F03-REGRESSION: Exact absent SKU marked stale, never assigned unrelated SKU stock
+ok 12 - B02-F03-REGRESSION: Exact absent SKU marked stale, never assigned unrelated SKU stock
+  ---
+  duration_ms: 463.8687
+  ...
+# Subtest: B02-F04-REGRESSION-CONTRACT: StockLevelChanged with UUID only resolves via balance API without stale
+ok 13 - B02-F04-REGRESSION-CONTRACT: StockLevelChanged with UUID only resolves via balance API without stale
+  ---
+  duration_ms: 294.0289
+  ...
+# Subtest: B02-F04-REGRESSION-ALIAS-RACE: Older search query response does not overwrite newer barcode refetch
+ok 14 - B02-F04-REGRESSION-ALIAS-RACE: Older search query response does not overwrite newer barcode refetch
+  ---
+  duration_ms: 141.3657
+  ...
+# Subtest: B02-F04-REGRESSION-CHECKOUT-CALLER: Checkout callback with receipt items preserves UUID canonical mapping against stale GET 10
+ok 15 - B02-F04-REGRESSION-CHECKOUT-CALLER: Checkout callback with receipt items preserves UUID canonical mapping against stale GET 10
+  ---
+  duration_ms: 153.5059
+  ...
+# Subtest: B02-F04-REGRESSION-BARCODE-COMPONENT: In-flight refresh GET 10 does not overwrite actual ProductSearch barcode write 8
+ok 16 - B02-F04-REGRESSION-BARCODE-COMPONENT: In-flight refresh GET 10 does not overwrite actual ProductSearch barcode write 8
+  ---
+  duration_ms: 202.0129
+  ...
+# Subtest: B02-F04-REGRESSION-RECONNECT: Hub reconnect triggers GET refetch and updates stock from 10 to 8
+ok 17 - B02-F04-REGRESSION-RECONNECT: Hub reconnect triggers GET refetch and updates stock from 10 to 8
+  ---
+  duration_ms: 175.4462
+  ...
+# Subtest: B02-F05-REGRESSION-BRANCH-SWITCH: In-flight barcode request across branch switch is discarded
+ok 18 - B02-F05-REGRESSION-BRANCH-SWITCH: In-flight barcode request across branch switch is discarded
+  ---
+  duration_ms: 172.9857
+  ...
+# Subtest: B02-F05-REGRESSION-QUERY-CLEAR: Clearing search input while search request is in-flight does not reopen dropdown
+ok 19 - B02-F05-REGRESSION-QUERY-CLEAR: Clearing search input while search request is in-flight does not reopen dropdown
+  ---
+  duration_ms: 167.0672
+  ...
+# Subtest: B02-F04-REGRESSION-PROBE-1: In-flight older barcode 10 returns after newer refetch 8 -> cache remains 8 and item adds with 8
+ok 20 - B02-F04-REGRESSION-PROBE-1: In-flight older barcode 10 returns after newer refetch 8 -> cache remains 8 and item adds with 8
+  ---
+  duration_ms: 345.3649
+  ...
+# Subtest: B02-F04-REGRESSION-PROBE-2: Fresh search 8 with existing cache 10 -> updates cache to 8 and row selection adds with 8
+ok 21 - B02-F04-REGRESSION-PROBE-2: Fresh search 8 with existing cache 10 -> updates cache to 8 and row selection adds with 8
+  ---
+  duration_ms: 308.2507
+  ...
+# Subtest: B02-F04-REGRESSION-PROBE-3: In-flight older barcode 10 returns after newer refresh fails -> cache retains isStale and error, barcode does not add as fresh
+ok 22 - B02-F04-REGRESSION-PROBE-3: In-flight older barcode 10 returns after newer refresh fails -> cache retains isStale and error, barcode does not add as fresh
+  ---
+  duration_ms: 367.7046
+  ...
+# Subtest: B02-F04-REGRESSION-PROBE-4: In-flight older refetch 10 returns after newer refresh fails -> cache retains isStale and error
+ok 23 - B02-F04-REGRESSION-PROBE-4: In-flight older refetch 10 returns after newer refresh fails -> cache retains isStale and error
+  ---
+  duration_ms: 357.6075
+  ...
+# Subtest: B02-F04-REGRESSION-PROBE-5: Newer retry 8 succeeds after failed refresh -> clears stale/error and updates to fresh 8
+ok 24 - B02-F04-REGRESSION-PROBE-5: Newer retry 8 succeeds after failed refresh -> clears stale/error and updates to fresh 8
+  ---
+  duration_ms: 276.1079
+  ...
+# Lỗi tra cứu sản phẩm: TypeError: fetch failed
+#     at node:internal/deps/undici/undici:13502:13
+#     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+#     at async searchPosProducts (src/services/api.ts:612:21)
+#     at async src/services/api.ts:1177:40
+#     at async Promise.all (index 0)
+#     at async invalidateAndRefetchStock (src/services/api.ts:1155:5) {
+#   [cause]: AggregateError [EACCES]: 
+#       at internalConnectMultiple (node:net:1139:18)
+#       at afterConnectMultiple (node:net:1712:7) {
+#     code: 'EACCES',
+#     [errors]: [ [Error], [Error] ]
+#   }
+# }
+# Lỗi tra cứu sản phẩm: TypeError: fetch failed
+#     at node:internal/deps/undici/undici:13502:13
+#     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+#     at async searchPosProducts (src/services/api.ts:612:21)
+#     at async src/services/api.ts:1191:44
+#     at async Promise.all (index 0)
+#     at async invalidateAndRefetchStock (src/services/api.ts:1155:5) {
+#   [cause]: AggregateError [EACCES]: 
+#       at internalConnectMultiple (node:net:1139:18)
+#       at afterConnectMultiple (node:net:1712:7) {
+#     code: 'EACCES',
+#     [errors]: [ [Error], [Error] ]
+#   }
+# }
+# Lỗi tra cứu sản phẩm: TypeError: fetch failed
+#     at node:internal/deps/undici/undici:13502:13
+#     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+#     at async searchPosProducts (src/services/api.ts:612:21)
+#     at async src/services/api.ts:1191:44
+#     at async Promise.all (index 0)
+#     at async invalidateAndRefetchStock (src/services/api.ts:1155:5) {
+#   [cause]: AggregateError [EACCES]: 
+#       at internalConnectMultiple (node:net:1139:18)
+#       at afterConnectMultiple (node:net:1712:7) {
+#     code: 'EACCES',
+#     [errors]: [ [Error], [Error] ]
+#   }
+# }
+1..24
+# tests 24
+# suites 0
+# pass 24
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6036.4186

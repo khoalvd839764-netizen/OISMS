@@ -1,0 +1,44 @@
+{
+  "head": "44317f3b5188c276fa3ef25c8faf30323e503079",
+  "provider": "Actual TS/TSX functions transpiled in Node VM; mocked React hooks, fetch and server persistence model; no real HTTP/PostgreSQL/browser E2E",
+  "observations": [
+    {
+      "probe": "Canonical headers match body",
+      "result": true
+    },
+    {
+      "probe": "Lost response followed by retry using actual PaymentModal handler",
+      "keys": [
+        "95c388c4-997f-4eb3-99d9-2702bb258d3b",
+        "5c958d0e-474d-465a-a7da-00a1cdf00dd3"
+      ],
+      "modeledPersistedOrders": 2,
+      "bugReproduced": true
+    },
+    {
+      "probe": "Server receipt metadata versus item snapshot",
+      "printedBranch": "Branch server",
+      "serverBranch": "Branch server",
+      "printedItemName": "Ten ao cu",
+      "serverItemName": "Ten ao moi trong snapshot server",
+      "bugReproduced": true
+    },
+    {
+      "probe": "409 ProblemDetails detail",
+      "expectedDetail": "SKU-A: yeu cau 2, kha dung 1",
+      "actualMessage": "Xung đột dữ liệu: Tồn kho khả dụng không đủ do kênh online vừa giữ chỗ trước hoặc trùng lặp RequestKey.",
+      "bugReproduced": true
+    },
+    {
+      "probe": "Checkout 401 through actual App auth-expired listener",
+      "cartBefore": 1,
+      "cartAfter": 0,
+      "authEvents": [
+        "pos-auth-expired"
+      ],
+      "paymentOpenAfter": false,
+      "loginOpenAfter": true,
+      "bugReproduced": true
+    }
+  ]
+}

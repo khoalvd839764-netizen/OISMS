@@ -1,0 +1,26 @@
+{
+  "timestamp": "2026-10-28T14:42:00+07:00",
+  "branch": "feature/OISMS-44-pos-pwa-checkout-va-in-hoa-don",
+  "head": "44317f3b5188c276fa3ef25c8faf30323e503079",
+  "scope": "S3-POS-B03-parallel-phase",
+  "protectedFiles": {
+    "src/frontend/pos-app/src/App.tsx": "9ae94d1c90cbb3cca900b35a922fa146a9ee69a74f38155336f1bf65cf00a80c",
+    "src/frontend/pos-app/src/components/PaymentModal.tsx": "419b8ac9641ad904c4f9b037773b800f2b49f8b44a2fe5a3a77efaf7fe1affa3",
+    "src/frontend/pos-app/src/components/ProductSearch.tsx": "d1dffd79537d50af1a80cb16b8a06e4cf1f7c48dd1eb011770a1052707085bea",
+    "src/frontend/pos-app/src/services/api.ts": "b98a47b818e9109bde0543a9efa6e39a14d060c4bea78f8fffdad4ae9ef21988",
+    "src/frontend/pos-app/src/services/stockService.ts": "8f6d015a79e4232cc621cec7a77df34a94f227ba50edaae883064517cf7ac477",
+    "src/frontend/pos-app/src/services/realtimeService.ts": "5f4aec88cdd9a224b3315a4e463ded8fe7844788d979a8e90f3afeeef8c70110",
+    "src/frontend/pos-app/src/types/pos.ts": "43f20da53c6840109dbc95a9233a155ea06aa5a33fd09a0a0b32c29eecfe3aea",
+    "src/frontend/pos-app/package.json": "25b964b6c066372e0f170fdaa32103f81b70cca2889f5a274704ee1b153e8861",
+    "src/frontend/pos-app/package-lock.json": "15dbb95c34c0a0555a586704b4536671c6a9bf52e0de2e59a2f2197a46f0f259",
+    "src/frontend/pos-app/public/sw.js": "a23f3be270d28ed0774e7c8680f32d783a653f81c1d605ae36a9243f44b48ed2",
+    "docs/09-personal-reports/phuong/sprint-3/pos-completion/PLAN.md": "ed61445f79925f60bb10d97d8c030aa2ac70c4fd81e403f52d387d5c2dc7fd3c"
+  },
+  "parallelConstraints": [
+    "DO NOT edit any file in protectedFiles during parallel phase",
+    "DO NOT edit B02 tests or B02 review/evidence documents",
+    "DO NOT edit PLAN.md or general sprint summary reports",
+    "DO NOT reset, clean, stash, switch branch, commit, push or merge",
+    "ONLY add files inside docs/09-personal-reports/phuong/sprint-3/pos-completion/batch-03-qr-final/"
+  ]
+}

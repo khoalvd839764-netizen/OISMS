@@ -1,0 +1,25 @@
+=== RUNNING S3-POS-B02 v1.5 PROBES ===
+Timestamp: 2026-10-28T08:27:35.334Z
+
+[TEST 1] Older barcode returns after newer refresh fails:
+  State after older barcode completion: { isStale: false, error: null, addedCount: 1 }
+Lỗi tra cứu sản phẩm: Error: network failure on refresh
+    at D:\OISMS\src\frontend\pos-app\test-probe-v15.cjs:22:13
+    at fetch (D:\OISMS\docs\09-personal-reports\phuong\sprint-3\pos-completion\batch-02-stock-realtime-pwa\evidence\review-r4\harness.cjs:13:117)
+    at searchPosProducts (src/services/api.ts:612:27)
+    at src/services/api.ts:1136:46
+    at Array.map (<anonymous>)
+    at Object.invalidateAndRefetchStock (src/services/api.ts:1114:38)
+    at D:\OISMS\src\frontend\pos-app\test-probe-v15.cjs:38:33
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+
+[PROBE FAILURE DETECTED]: Older barcode must NOT clear isStale flag of newer failed refresh
+
+false !== true
+
+AssertionError [ERR_ASSERTION]: Older barcode must NOT clear isStale flag of newer failed refresh
+
+false !== true
+
+    at D:\OISMS\src\frontend\pos-app\test-probe-v15.cjs:53:12
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)

@@ -1,0 +1,210 @@
+{
+  "checkedAt": "2026-10-28T07:58:23.574Z",
+  "head": "a20ebe9d8580a3426e764497ac306fe620942498",
+  "scope": "B03 parallel preparation; no product edits, network payment calls or DB mutations",
+  "observations": [
+    {
+      "case": "B03-F01-browser-globals",
+      "provider": "actual TS module in VM without Node Buffer",
+      "actual": "ReferenceError: Buffer is not defined",
+      "reproduced": true
+    },
+    {
+      "case": "B03-F02-serializer-boundaries",
+      "provider": "actual generator; independent two-digit TLV reader; no HTTP request",
+      "actual": {
+        "acceptedAmountDigits": 15,
+        "acceptedAccountLength": 30,
+        "acceptedDescriptionLength": 100,
+        "malformedTlv": {
+          "offset": 109,
+          "id": "AA",
+          "lengthText": "AA"
+        },
+        "crcStillReportedValid": true
+      },
+      "reproduced": true
+    },
+    {
+      "case": "B03-F03-full-request-identity",
+      "provider": "actual generator and assertion",
+      "actual": {
+        "firstRequestKey": "a1b2c3d4-e5f6-4789-abcd-ef1234567890",
+        "differentRequestKey": "a1b2c3d4-0000-4000-8000-000000000001",
+        "sameRawPayload": true,
+        "assertIdempotentPayload": true
+      },
+      "reproduced": true
+    },
+    {
+      "case": "B03-F04-guard-actual-demo-name-without-marker",
+      "provider": "actual runner subprocess; no backend or DB operations exist in runner",
+      "input": {
+        "POSTGRES_TEST_PORT": "5432",
+        "POSTGRES_TEST_DB": "oism_db"
+      },
+      "actual": {
+        "exitCode": 0,
+        "guardPassed": true,
+        "output": "================================================================\n  OISMS SPRINT 3 POS — FINAL E2E ACCEPTANCE RUNNER (GUARDED)\n================================================================\nThời điểm kiểm tra: 2026-10-28T07:58:23.223Z\nMục tiêu kiểm thử: T06-AC-01..07 (S3-POS-B03)\n----------------------------------------------------------------\n[GUARD CHECK] Target PostgreSQL: localhost:5432/oism_db\n[GUARD CHECK] Environment Flag POS_TEST_ENV: NOT_SET\n\n[GUARD PASSED] Đang kết nối tới PostgreSQL Test độc lập (port 5432)...\nThực thi 7 ca kiểm thử tích hợp E2E...\n"
+      },
+      "reproduced": true
+    },
+    {
+      "case": "B03-F04-guard-alternate-port-without-marker",
+      "provider": "actual runner subprocess; no backend or DB operations exist in runner",
+      "input": {
+        "POSTGRES_TEST_PORT": "5433",
+        "POSTGRES_TEST_DB": "oisms"
+      },
+      "actual": {
+        "exitCode": 0,
+        "guardPassed": true,
+        "output": "================================================================\n  OISMS SPRINT 3 POS — FINAL E2E ACCEPTANCE RUNNER (GUARDED)\n================================================================\nThời điểm kiểm tra: 2026-10-28T07:58:23.309Z\nMục tiêu kiểm thử: T06-AC-01..07 (S3-POS-B03)\n----------------------------------------------------------------\n[GUARD CHECK] Target PostgreSQL: localhost:5433/oisms\n[GUARD CHECK] Environment Flag POS_TEST_ENV: NOT_SET\n\n[GUARD PASSED] Đang kết nối tới PostgreSQL Test độc lập (port 5433)...\nThực thi 7 ca kiểm thử tích hợp E2E...\n"
+      },
+      "reproduced": true
+    },
+    {
+      "case": "B03-F04-guard-invalid-port-without-marker",
+      "provider": "actual runner subprocess; no backend or DB operations exist in runner",
+      "input": {
+        "POSTGRES_TEST_PORT": "not-a-port",
+        "POSTGRES_TEST_DB": "oisms"
+      },
+      "actual": {
+        "exitCode": 0,
+        "guardPassed": true,
+        "output": "================================================================\n  OISMS SPRINT 3 POS — FINAL E2E ACCEPTANCE RUNNER (GUARDED)\n================================================================\nThời điểm kiểm tra: 2026-10-28T07:58:23.396Z\nMục tiêu kiểm thử: T06-AC-01..07 (S3-POS-B03)\n----------------------------------------------------------------\n[GUARD CHECK] Target PostgreSQL: localhost:NaN/oisms\n[GUARD CHECK] Environment Flag POS_TEST_ENV: NOT_SET\n\n[GUARD PASSED] Đang kết nối tới PostgreSQL Test độc lập (port NaN)...\nThực thi 7 ca kiểm thử tích hợp E2E...\n"
+      },
+      "reproduced": true
+    },
+    {
+      "case": "B03-F04-guard-demo-bypass-switch",
+      "provider": "actual runner subprocess; no backend or DB operations exist in runner",
+      "input": {
+        "POSTGRES_TEST_PORT": "5432",
+        "POSTGRES_TEST_DB": "oisms",
+        "ALLOW_DEMO_MUTATION": "1"
+      },
+      "actual": {
+        "exitCode": 0,
+        "guardPassed": true,
+        "output": "================================================================\n  OISMS SPRINT 3 POS — FINAL E2E ACCEPTANCE RUNNER (GUARDED)\n================================================================\nThời điểm kiểm tra: 2026-10-28T07:58:23.479Z\nMục tiêu kiểm thử: T06-AC-01..07 (S3-POS-B03)\n----------------------------------------------------------------\n[GUARD CHECK] Target PostgreSQL: localhost:5432/oisms\n[GUARD CHECK] Environment Flag POS_TEST_ENV: NOT_SET\n\n[GUARD PASSED] Đang kết nối tới PostgreSQL Test độc lập (port 5432)...\nThực thi 7 ca kiểm thử tích hợp E2E...\n"
+      },
+      "reproduced": true
+    },
+    {
+      "case": "B03-F04-guard-claimed-test-env-no-server",
+      "provider": "actual runner subprocess; no backend or DB operations exist in runner",
+      "input": {
+        "POSTGRES_TEST_PORT": "5433",
+        "POSTGRES_TEST_DB": "oisms_test",
+        "POS_TEST_ENV": "1"
+      },
+      "actual": {
+        "exitCode": 0,
+        "guardPassed": true,
+        "output": "================================================================\n  OISMS SPRINT 3 POS — FINAL E2E ACCEPTANCE RUNNER (GUARDED)\n================================================================\nThời điểm kiểm tra: 2026-10-28T07:58:23.559Z\nMục tiêu kiểm thử: T06-AC-01..07 (S3-POS-B03)\n----------------------------------------------------------------\n[GUARD CHECK] Target PostgreSQL: localhost:5433/oisms_test\n[GUARD CHECK] Environment Flag POS_TEST_ENV: 1\n\n[GUARD PASSED] Đang kết nối tới PostgreSQL Test độc lập (port 5433)...\nThực thi 7 ca kiểm thử tích hợp E2E...\n"
+      },
+      "reproduced": true
+    }
+  ],
+  "protectedFiles": [
+    {
+      "path": "src/frontend/pos-app/src/App.tsx",
+      "expected": "9ae94d1c90cbb3cca900b35a922fa146a9ee69a74f38155336f1bf65cf00a80c",
+      "actual": "9ae94d1c90cbb3cca900b35a922fa146a9ee69a74f38155336f1bf65cf00a80c",
+      "matches": true
+    },
+    {
+      "path": "src/frontend/pos-app/src/components/PaymentModal.tsx",
+      "expected": "419b8ac9641ad904c4f9b037773b800f2b49f8b44a2fe5a3a77efaf7fe1affa3",
+      "actual": "419b8ac9641ad904c4f9b037773b800f2b49f8b44a2fe5a3a77efaf7fe1affa3",
+      "matches": true
+    },
+    {
+      "path": "src/frontend/pos-app/src/components/ProductSearch.tsx",
+      "expected": "d1dffd79537d50af1a80cb16b8a06e4cf1f7c48dd1eb011770a1052707085bea",
+      "actual": "d1dffd79537d50af1a80cb16b8a06e4cf1f7c48dd1eb011770a1052707085bea",
+      "matches": true
+    },
+    {
+      "path": "src/frontend/pos-app/src/services/api.ts",
+      "expected": "b98a47b818e9109bde0543a9efa6e39a14d060c4bea78f8fffdad4ae9ef21988",
+      "actual": "b98a47b818e9109bde0543a9efa6e39a14d060c4bea78f8fffdad4ae9ef21988",
+      "matches": true
+    },
+    {
+      "path": "src/frontend/pos-app/src/services/stockService.ts",
+      "expected": "8f6d015a79e4232cc621cec7a77df34a94f227ba50edaae883064517cf7ac477",
+      "actual": "8f6d015a79e4232cc621cec7a77df34a94f227ba50edaae883064517cf7ac477",
+      "matches": true
+    },
+    {
+      "path": "src/frontend/pos-app/src/services/realtimeService.ts",
+      "expected": "5f4aec88cdd9a224b3315a4e463ded8fe7844788d979a8e90f3afeeef8c70110",
+      "actual": "5f4aec88cdd9a224b3315a4e463ded8fe7844788d979a8e90f3afeeef8c70110",
+      "matches": true
+    },
+    {
+      "path": "src/frontend/pos-app/src/types/pos.ts",
+      "expected": "43f20da53c6840109dbc95a9233a155ea06aa5a33fd09a0a0b32c29eecfe3aea",
+      "actual": "43f20da53c6840109dbc95a9233a155ea06aa5a33fd09a0a0b32c29eecfe3aea",
+      "matches": true
+    },
+    {
+      "path": "src/frontend/pos-app/package.json",
+      "expected": "25b964b6c066372e0f170fdaa32103f81b70cca2889f5a274704ee1b153e8861",
+      "actual": "25b964b6c066372e0f170fdaa32103f81b70cca2889f5a274704ee1b153e8861",
+      "matches": true
+    },
+    {
+      "path": "src/frontend/pos-app/package-lock.json",
+      "expected": "15dbb95c34c0a0555a586704b4536671c6a9bf52e0de2e59a2f2197a46f0f259",
+      "actual": "15dbb95c34c0a0555a586704b4536671c6a9bf52e0de2e59a2f2197a46f0f259",
+      "matches": true
+    },
+    {
+      "path": "src/frontend/pos-app/public/sw.js",
+      "expected": "a23f3be270d28ed0774e7c8680f32d783a653f81c1d605ae36a9243f44b48ed2",
+      "actual": "a23f3be270d28ed0774e7c8680f32d783a653f81c1d605ae36a9243f44b48ed2",
+      "matches": true
+    },
+    {
+      "path": "docs/09-personal-reports/phuong/sprint-3/pos-completion/PLAN.md",
+      "expected": "ed61445f79925f60bb10d97d8c030aa2ac70c4fd81e403f52d387d5c2dc7fd3c",
+      "actual": "ed61445f79925f60bb10d97d8c030aa2ac70c4fd81e403f52d387d5c2dc7fd3c",
+      "matches": true
+    }
+  ],
+  "sourceHashes": [
+    {
+      "path": "qr-module/qr-service.ts",
+      "sha256": "bf066ab8667ee52fa98de61f5ab7cbea12dc5495142c209f5cd75ab05bc3daf8"
+    },
+    {
+      "path": "qr-module/qr-types.ts",
+      "sha256": "dbc4eb33f3b6f69f420c68d041f33699ed158039e8b2c6696f4bf126dcbaead1"
+    },
+    {
+      "path": "qr-module/qr-fixtures.ts",
+      "sha256": "10604f4c3282b20966ca4a6636e0f1ff8183ae41f4d7a98cc3156bdce7e6dcd1"
+    },
+    {
+      "path": "qr-module/test-qr-module.mjs",
+      "sha256": "418cecf57d1f7cddccc4cb6602911d249494f6314a8730ed5742d8dcc85eb79c"
+    },
+    {
+      "path": "e2e/test-runner-e2e-guard.mjs",
+      "sha256": "158df0230f524a5109ce6a75610aa6546bfee6ced0e6612472297fbc02f4aebb"
+    },
+    {
+      "path": "brief.md",
+      "sha256": "5f3897aa5079c486730d144c05c5ad1e2ad5808ac32be1d9728156d2b85d41a3"
+    },
+    {
+      "path": "handover.md",
+      "sha256": "38a84f15eb9b0e13b53ffcf08eeb8bd367581d8c25fb078424fc14884e362dae"
+    }
+  ]
+}

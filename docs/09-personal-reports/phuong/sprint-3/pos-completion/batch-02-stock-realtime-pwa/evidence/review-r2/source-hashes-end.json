@@ -1,0 +1,157 @@
+[
+  {
+    "Algorithm": "SHA256",
+    "Hash": "C2571CE7245629994B8ADC84F6C48E1920F047A4E7E29C89A4AEB51EEB1B5433",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\src\\App.css"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "16FD4F76933B0BFDA156FA6BE59D45FFA3F1E9F8540F6E79C9CA1A4124E74E06",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\src\\App.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "760EF1B50A530BF719328658967ADB50515B2010A15B57C59EC12F9370932A79",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\src\\index.css"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "6C94C38CA9568F8F93A39A3D545848FB2F29628A7B62426E442246DC152DCD17",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\src\\main.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "35EF61ED53B323AE94A16A8EC659B3D0AF3880698791133F23B084085AB1C2E5",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\src\\assets\\react.svg"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "2F1F6C6F90A0EF7422CBB4CFAFCD8AD329C507A18AFDC34CC21FA72179B9C54A",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\src\\assets\\vite.svg"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "34F8C3603753163CDD9BEAE1CAE2A58C580C0C8EA119C61F08FD2347C6D67F44",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\src\\components\\CartTable.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "C800F3DAF92DDDB6827FD2465180DE8AE652CB21FA5E10B49BB2046473656FC7",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\src\\components\\LoginModal.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "419B8AC9641AD904C4F9B037773B800F2B49F8B44A2FE5A3A77EFAF7FE1AFFA3",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\src\\components\\PaymentModal.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "468A98ECCA9D1DF582FCB2BFF1794E1BE6DCF589063CDE4B613AF8C1316B1A52",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\src\\components\\PosHeader.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "B7EE959A170077491C0ED1B29AED9137403D8A8E06E6C29B0D4AD54956FBA801",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\src\\components\\ProductSearch.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "941C4E448B6019BD624EBD30935FCB6CDD11A042138164B35EFBBA19B8BEA9A1",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\src\\components\\ReceiptPrintModal.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "0504B780273C39C5103CD9B20C9E3343A1B176C59CA08C96092DCF70C848E26C",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\src\\services\\api.ts"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "5066491E494561FD0933BACB0851B4556DA760FDA248B3E5B1E04C0168E9AA59",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\src\\services\\pendingCheckoutStore.ts"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "C4399FB3D18C7DD279AB781FF2AB6DB93F414D5CF881A665CE2EEC08A415437B",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\src\\services\\realtimeService.ts"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "9F3AD439B32DC27E514677B42723F6D7C859C7E71C7D692A23805884988EC903",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\src\\services\\receiptMapper.ts"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "9E8A6433420A181583C261F22E154E53886D863671708BB6BC30188B42A51B60",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\src\\services\\stockService.ts"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "38C6F75864C6D7D8BF7B6CAA5DC771DCA003C0C0BCF2DE3AF3CF8B6B6878DD1A",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\src\\types\\pos.ts"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "61BC9A161DE58248288E6905425D7180F0624C2865007B97D763FDAC12043A66",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\public\\favicon.svg"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "7CA2D67C9C3AEBF50CDC8709EE8AACF8CDB8CC7EA6325EA94939CAEF5DA1C53D",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\public\\icons.svg"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "3E7C3F1EA7456C697C008C6C7289B4980F31AF2AD3C07B007211FD1178E4828A",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\public\\manifest.webmanifest"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "A23F3BE270D28ED0774E7C8680F32D783A653F81C1D605AE36A9243F44B48ED2",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\public\\sw.js"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "25B964B6C066372E0F170FDAA32103F81B70CCA2889F5A274704EE1B153E8861",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\package.json"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "15DBB95C34C0A0555A586704B4536671C6A9BF52E0DE2E59A2F2197A46F0F259",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\package-lock.json"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "D0D8DDBEB82E709DDDA6B6006003397E01AC9F9309F566679969C2093CDCC8B9",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\index.html"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "0C03207436C9EB3F2F35EC9FF13D17C6AE7E4C8D46AD394A556578CF12C80D74",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\vite.config.ts"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "71901BA4F50AC22658935F395E7185E558A4236C01DCFB5F504AF3EC7E5B626D",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\test-pos-e2e.mjs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "A2AA109ADDCBB83D4B6C0DD50CA0562B6A3E3FC644E33048B1DA0EF1DA68FF9C",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\test-b02-realtime-pwa.mjs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "598A70A0E1D7DCE0B68F94DE7BAA523CE1E4C65E386CC1585077E4EEB9955B19",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\test-b02-hub-transport.mjs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "63C78B480BF537D300722E7669D2B189AF8077DECEF6034D81CEF0DB569AE050",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\test-b02-browser-production.mjs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "E506D7C67F86EA4A0DC313A1BB9502FBEA2CAEBA529D8C15985644800DE861B9",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\measure-pos-latency.mjs"
+  }
+]

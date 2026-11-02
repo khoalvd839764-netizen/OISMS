@@ -1,0 +1,26 @@
+{
+  "timestamp": "2026-10-28T08:38:40.053Z",
+  "provider": "Real production dist in installed Edge; fixture REST APIs, Hub offline. Server changes after initial search.",
+  "serverAvailable": 8,
+  "cartInputMaxAfterFreshSearch": "8",
+  "requests": [
+    {
+      "method": "GET",
+      "path": "/api/branches",
+      "availableAtRequest": 10
+    },
+    {
+      "method": "GET",
+      "path": "/api/pos/search",
+      "availableAtRequest": 10
+    },
+    {
+      "method": "GET",
+      "path": "/api/pos/search",
+      "availableAtRequest": 8
+    }
+  ],
+  "pageErrors": [],
+  "status": "PASS",
+  "defectFixed": "B02-F04 probe 2: Search with stock 8 updates cache and cart from 10 to 8"
+}

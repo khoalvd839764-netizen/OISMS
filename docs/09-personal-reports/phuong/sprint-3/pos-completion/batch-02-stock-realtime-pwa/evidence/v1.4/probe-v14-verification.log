@@ -1,0 +1,8 @@
+=== VERIFYING R4 PROBES AFTER FIX (v1.4) ===
+Timestamp: 2026-10-28T08:10:18.025Z
+[PROBE 1 - Older Barcode vs Newer Refetch]: PASS! Cache=8, Added=8
+[PROBE 2 - Fresh Search 8 with Existing Cache 10]: PASS! Cache=8, Added=8
+[PROBE 3 - Search old 10 completes after direct write 8]: PASS! Cache=8
+[PROBE 4 - Refetch old 10 completes after direct write 8]: PASS! Cache=8
+
+=== ALL v1.4 PROBES PASSED 100% ===

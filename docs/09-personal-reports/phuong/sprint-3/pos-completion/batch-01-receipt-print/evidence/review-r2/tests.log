@@ -1,0 +1,184 @@
+
+> pos-app@0.0.0 test
+> node --test test-pos-e2e.mjs
+
+TAP version 13
+# Subtest: 1. File Structure & TypeScript Artifacts Integrity
+ok 1 - 1. File Structure & TypeScript Artifacts Integrity
+  ---
+  duration_ms: 3.1073
+  ...
+# Subtest: 2. api.ts Real Endpoints & Strict No-Demo Contract
+ok 2 - 2. api.ts Real Endpoints & Strict No-Demo Contract
+  ---
+  duration_ms: 0.5232
+  ...
+# Subtest: 3. Search & Barcode Matching Simulation with Real API Logic
+ok 3 - 3. Search & Barcode Matching Simulation with Real API Logic
+  ---
+  duration_ms: 0.5307
+  ...
+# Subtest: 4. Cart Operations & Stock Constraint Validation
+ok 4 - 4. Cart Operations & Stock Constraint Validation
+  ---
+  duration_ms: 0.328
+  ...
+# Subtest: 5. Cash Payment & Quick Cash Auto Change Calculations
+ok 5 - 5. Cash Payment & Quick Cash Auto Change Calculations
+  ---
+  duration_ms: 0.1387
+  ...
+# Subtest: 6. 80mm Thermal Receipt Layout & Draft Watermark Contract
+ok 6 - 6. 80mm Thermal Receipt Layout & Draft Watermark Contract
+  ---
+  duration_ms: 1.0901
+  ...
+# Subtest: 7. Checkout Contract & Draft Preview Decoupling
+ok 7 - 7. Checkout Contract & Draft Preview Decoupling
+  ---
+  duration_ms: 1.7476
+  ...
+# Subtest: 8. Negative Case: Barcode Miss does NOT add results[0]
+ok 8 - 8. Negative Case: Barcode Miss does NOT add results[0]
+  ---
+  duration_ms: 1.0427
+  ...
+# Subtest: 9. Negative Case: Branch Change & Logout Clears Cart
+ok 9 - 9. Negative Case: Branch Change & Logout Clears Cart
+  ---
+  duration_ms: 1.6454
+  ...
+# Subtest: 10. Negative Case: Available stock boundary enforcement
+ok 10 - 10. Negative Case: Available stock boundary enforcement
+  ---
+  duration_ms: 1.6885
+  ...
+# Subtest: 11. PWA Baseline Configuration
+ok 11 - 11. PWA Baseline Configuration
+  ---
+  duration_ms: 2.6467
+  ...
+# Subtest: 12. Direct Runtime API Logic & Status Code Handling
+ok 12 - 12. Direct Runtime API Logic & Status Code Handling
+  ---
+  duration_ms: 0.8184
+  ...
+# Subtest: 13. Workflow: Failed Checkout & Preview Receipt preserves Cart
+ok 13 - 13. Workflow: Failed Checkout & Preview Receipt preserves Cart
+  ---
+  duration_ms: 0.2138
+  ...
+# Subtest: 14. S3-POS-T01 AC-01 & AC-06: UUID RFC 4122 Compliance & Fallback Without crypto.randomUUID
+ok 14 - 14. S3-POS-T01 AC-01 & AC-06: UUID RFC 4122 Compliance & Fallback Without crypto.randomUUID
+  ---
+  duration_ms: 197.7038
+  ...
+# Subtest: 15. S3-POS-T01 AC-01 & AC-02: Response Lost after Server Commit -> Retry Preserves Key and Payload Snapshot (Closes PR24-F01)
+ok 15 - 15. S3-POS-T01 AC-01 & AC-02: Response Lost after Server Commit -> Retry Preserves Key and Payload Snapshot (Closes PR24-F01)
+  ---
+  duration_ms: 150.1483
+  ...
+# Subtest: 16. S3-POS-T01 AC-01: Pending Checkout Preserved across Modal Close/Open & Reload
+ok 16 - 16. S3-POS-T01 AC-01: Pending Checkout Preserved across Modal Close/Open & Reload
+  ---
+  duration_ms: 78.6949
+  ...
+# Subtest: 17. S3-POS-T01 AC-03: Checkout 401 preserves Cart; Same-User restores, Cross-User clears (Closes PR24-F02)
+ok 17 - 17. S3-POS-T01 AC-03: Checkout 401 preserves Cart; Same-User restores, Cross-User clears (Closes PR24-F02)
+  ---
+  duration_ms: 75.2524
+  ...
+# Subtest: 18. S3-POS-T01 AC-04: Concurrency Control (Parallel Submit Blocked & Cart Protection while Pending)
+ok 18 - 18. S3-POS-T01 AC-04: Concurrency Control (Parallel Submit Blocked & Cart Protection while Pending)
+  ---
+  duration_ms: 39.5658
+  ...
+# Subtest: 19. S3-POS-T01 AC-05: RFC 7807 ProblemDetails Error Classification & Canonical/Alias Route Fallback
+ok 19 - 19. S3-POS-T01 AC-05: RFC 7807 ProblemDetails Error Classification & Canonical/Alias Route Fallback
+  ---
+  duration_ms: 44.5393
+  ...
+# Subtest: 20. S3-POS-T01 AC-06: Confirmed Success Single-Clear & Database E2E Gate Transparency
+ok 20 - 20. S3-POS-T01 AC-06: Confirmed Success Single-Clear & Database E2E Gate Transparency
+  ---
+  duration_ms: 31.5856
+  ...
+# Subtest: 21. S3-POS-T01-F01: Authenticated identity lifecycle across LoginModal, App & persistent PaymentModal
+ok 21 - 21. S3-POS-T01-F01: Authenticated identity lifecycle across LoginModal, App & persistent PaymentModal
+  ---
+  duration_ms: 245.2484
+  ...
+# Subtest: 22. S3-POS-T01-F02: Reset control & HTTP 500 retain unknown pending attempt, retry keeps same key
+ok 22 - 22. S3-POS-T01-F02: Reset control & HTTP 500 retain unknown pending attempt, retry keeps same key
+  ---
+  duration_ms: 75.9395
+  ...
+# Subtest: 23. S3-POS-T01-F03: Reload recovery restores branch & payload snapshot without API order dependency
+ok 23 - 23. S3-POS-T01-F03: Reload recovery restores branch & payload snapshot without API order dependency
+  ---
+  duration_ms: 44.738
+  ...
+# Subtest: 24. S3-POS-T01-F04: Safe success confirmation, unreadable JSON or missing minimal order confirmation retains pending for verification
+ok 24 - 24. S3-POS-T01-F04: Safe success confirmation, unreadable JSON or missing minimal order confirmation retains pending for verification
+  ---
+  duration_ms: 119.5998
+  ...
+# Subtest: 25. S3-POS-T01-F01 v1.3: Accurate recovery by incoming user across multi-owner storage and account switching
+ok 25 - 25. S3-POS-T01-F01 v1.3: Accurate recovery by incoming user across multi-owner storage and account switching
+  ---
+  duration_ms: 130.9688
+  ...
+# Subtest: 26. S3-POS-B01 T02-AC-01 & T02-AC-02: Server Snapshot Overrides Local Cart (Closes PR24-F03)
+ok 26 - 26. S3-POS-B01 T02-AC-01 & T02-AC-02: Server Snapshot Overrides Local Cart (Closes PR24-F03)
+  ---
+  duration_ms: 53.0801
+  ...
+# Subtest: 27. S3-POS-B01 T02-AC-03: 2xx with Corrupt/Missing Server Receipt snapshot retains pending attempt as unknown
+ok 27 - 27. S3-POS-B01 T02-AC-03: 2xx with Corrupt/Missing Server Receipt snapshot retains pending attempt as unknown
+  ---
+  duration_ms: 68.0362
+  ...
+# Subtest: 28. S3-POS-B01 T02-AC-04: Draft preview decoupling & Re-print confirmed receipt without re-checkout
+ok 28 - 28. S3-POS-B01 T02-AC-04: Draft preview decoupling & Re-print confirmed receipt without re-checkout
+  ---
+  duration_ms: 64.6951
+  ...
+# Subtest: 29. S3-POS-B01 T02-AC-05: Nullable branch/customer attributes, no fabricated data, no COGS leak
+ok 29 - 29. S3-POS-B01 T02-AC-05: Nullable branch/customer attributes, no fabricated data, no COGS leak
+  ---
+  duration_ms: 50.8869
+  ...
+# Subtest: 30. S3-POS-B01 T05-AC-02 & T05-AC-05: 58mm and 80mm layout switching, storage persistence, and table formatting
+ok 30 - 30. S3-POS-B01 T05-AC-02 & T05-AC-05: 58mm and 80mm layout switching, storage persistence, and table formatting
+  ---
+  duration_ms: 42.79
+  ...
+# Subtest: 31. S3-POS-B01 T05-AC-02 & T05-AC-05: Real Browser PDF Evidence Verification (80mm & 58mm, Official & Draft)
+ok 31 - 31. S3-POS-B01 T05-AC-02 & T05-AC-05: Real Browser PDF Evidence Verification (80mm & 58mm, Official & Draft)
+  ---
+  duration_ms: 7.8487
+  ...
+# Subtest: 32. B01-F01 Print Visibility Regression: Ancestor display and receipt-paper visibility
+ok 32 - 32. B01-F01 Print Visibility Regression: Ancestor display and receipt-paper visibility
+  ---
+  duration_ms: 4.9153
+  ...
+# Subtest: 33. B01-F02 Backend Contract Validation & Pending Retention Regression
+ok 33 - 33. B01-F02 Backend Contract Validation & Pending Retention Regression
+  ---
+  duration_ms: 59.1656
+  ...
+# Subtest: 34. B01-F03 CSS Paged Media Syntax & MediaBox Measurement Regression
+ok 34 - 34. B01-F03 CSS Paged Media Syntax & MediaBox Measurement Regression
+  ---
+  duration_ms: 1.9364
+  ...
+1..34
+# tests 34
+# suites 0
+# pass 34
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1943.1933

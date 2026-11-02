@@ -1,0 +1,20 @@
+{
+  "src/frontend/pos-app/src/App.tsx": "8922007fa7db85190627477eda05574ea60f8522b7a02859674bb416791bc2ba",
+  "src/frontend/pos-app/src/components/ProductSearch.tsx": "102cbe12b5069c302418b49764e283a5961a83ddd0ca41118d652e161c720aec",
+  "src/frontend/pos-app/src/services/api.ts": "dcb32ddf7fc375823ff5cb5974d5ebe5876e492d10679cffe7250278896e83e6",
+  "src/frontend/pos-app/src/services/stockService.ts": "ead0a301f768d8d29b9a4f28fbef71385f5f46decf13f9095351df9e5fa367bd",
+  "src/frontend/pos-app/src/services/realtimeService.ts": "5f4aec88cdd9a224b3315a4e463ded8fe7844788d979a8e90f3afeeef8c70110",
+  "src/frontend/pos-app/src/components/PaymentModal.tsx": "419b8ac9641ad904c4f9b037773b800f2b49f8b44a2fe5a3a77efaf7fe1affa3",
+  "src/frontend/pos-app/src/components/PosHeader.tsx": "468a98ecca9d1df582fcb2bff1794e1be6dcf589063cde4b613af8c1316b1a52",
+  "src/frontend/pos-app/src/components/ReceiptPrintModal.tsx": "941c4e448b6019bd624ebd30935fcb6cdd11a042138164b35efbba19b8bea9a1",
+  "src/frontend/pos-app/src/components/LoginModal.tsx": "c800f3daf92dddb6827fd2465180de8ae652cb21fa5e10b49bb2046473656fc7",
+  "src/frontend/pos-app/src/types/pos.ts": "43f20da53c6840109dbc95a9233a155ea06aa5a33fd09a0a0b32c29eecfe3aea",
+  "src/frontend/pos-app/src/services/pendingCheckoutStore.ts": "5066491e494561fd0933bacb0851b4556da760fda248b3e5b1e04c0168e9aa59",
+  "src/frontend/pos-app/src/services/receiptMapper.ts": "9f3ad439b32dc27e514677b42723f6d7c859c7e71c7d692a23805884988ec903",
+  "src/frontend/pos-app/public/sw.js": "a23f3be270d28ed0774e7c8680f32d783a653f81c1d605ae36a9243f44b48ed2",
+  "src/frontend/pos-app/test-b02-realtime-pwa.mjs": "b15f0e93e58f0a680beed8bef277072d000c0f1f8a3a9d21536a5eb94f517dd5",
+  "src/frontend/pos-app/test-b02-hub-transport.mjs": "6ee7e7ca9b34b89092a497495bf6067ed2caea99a9308933eed0c40acb86290b",
+  "src/frontend/pos-app/test-b02-browser-production.mjs": "41539bf1214c1fa51ae2a77869dee2506afa32d69ec7fbc9d6c5ec40261acfd4",
+  "src/frontend/pos-app/test-pos-e2e.mjs": "71901ba4f50ac22658935f395e7185e558a4236c01dcfb5f504af3ec7e5b626d",
+  "src/frontend/pos-app/measure-pos-latency.mjs": "dbf9cc2d9b9a36f7142bc90540da6cb387fa27299504452e92fe6396294e76aa"
+}

@@ -1,0 +1,74 @@
+{
+  "provider": "Actual production TS/TSX under Node VM with hook, storage, events and fetch stubs; no browser/HTTP/PostgreSQL",
+  "observations": [
+    {
+      "scenario": "lost: reset then retry",
+      "pendingKept": true,
+      "sameKey": true,
+      "modeledOrders": 1
+    },
+    {
+      "scenario": "500: reset then retry",
+      "pendingKept": true,
+      "sameKey": true,
+      "modeledOrders": 1
+    },
+    {
+      "scenario": "parse-error",
+      "printedOfficialReceipt": 0,
+      "pendingKept": true
+    },
+    {
+      "scenario": "missing-order",
+      "printedOfficialReceipt": 0,
+      "pendingKept": true
+    },
+    {
+      "scenario": "Reload with submitting and B listed first",
+      "branchRecovered": "11111111-1111-4111-8111-111111111111",
+      "cartRows": 1,
+      "status": "unknown"
+    },
+    {
+      "scenario": "Persistent modal after different-user",
+      "storageLookupForB": false,
+      "oldKeyDisplayed": false,
+      "currentCartSku": "SKU-B",
+      "submittedSku": "SKU-B",
+      "newKeyGeneratedForUserB": true,
+      "userARecordPreserved": true,
+      "authorization": "Bearer fixture-token-B"
+    },
+    {
+      "scenario": "Persistent modal after different-tenant",
+      "storageLookupForB": false,
+      "oldKeyDisplayed": false,
+      "currentCartSku": "SKU-B",
+      "submittedSku": "SKU-B",
+      "newKeyGeneratedForUserB": true,
+      "userARecordPreserved": true,
+      "authorization": "Bearer fixture-token-B"
+    },
+    {
+      "scenario": "Same-user reauthentication through actual LoginModal",
+      "callbackUser": {
+        "id": "user-a",
+        "email": "a@fixture.local",
+        "tenantId": "tenant-a",
+        "tenantName": "Fixture Shop",
+        "fullName": "Cashier A"
+      },
+      "storedTenantId": "tenant-a",
+      "cartRowsAfterLogin": 1,
+      "pendingAccessibleForUi": true,
+      "originalPendingRetained": true
+    },
+    {
+      "scenario": "Retry attempt after real relogin",
+      "checkoutCalls": 2,
+      "reusedOriginalKey": true,
+      "sparseOwnerCreated": false,
+      "retryLookupForUi": true
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "provider": "Actual benchmark runner in VM, fixture fetch, output intercepted in memory; no network/DB or historical evidence writes",
+  "reject404": {
+    "rejected": "Tra cứu barcode thất bại với HTTP status 404",
+    "writes": 0
+  },
+  "bad200": {
+    "status": "PASS",
+    "verifiedSku": "UNRELATED-SKU",
+    "verifiedAvailable": "not-a-number",
+    "outputPaths": [
+      "D:\\OISMS\\docs\\09-personal-reports\\phuong\\sprint-3\\pos-completion\\batch-02-stock-realtime-pwa\\evidence\\v1.2\\latency-benchmark.json",
+      "D:\\OISMS\\docs\\09-personal-reports\\phuong\\sprint-3\\pos-completion\\batch-02-stock-realtime-pwa\\evidence\\v1.1\\latency-benchmark.json"
+    ],
+    "note": "Unrelated identity and nonnumeric available were accepted"
+  }
+}

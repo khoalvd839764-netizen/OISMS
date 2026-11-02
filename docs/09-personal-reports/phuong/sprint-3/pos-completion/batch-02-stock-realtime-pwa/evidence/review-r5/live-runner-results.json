@@ -1,0 +1,63 @@
+{
+  "provider": "Unchanged live runner and production TS loaders, fixture HTTP + fake SDK; no external requests or DB writes",
+  "configuredTestHost": "http://localhost:5001",
+  "error": "TypeError: testRealtime.subscribeOrder is not a function",
+  "requests": [
+    {
+      "url": "http://localhost:5000/health/live",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:5000/api/auth/login",
+      "method": "POST"
+    },
+    {
+      "url": "http://localhost:5000/api/auth/login",
+      "method": "POST"
+    },
+    {
+      "url": "http://localhost:5000/api/branches",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:5001/health/live",
+      "method": "GET"
+    },
+    {
+      "url": "http://localhost:5001/api/auth/login",
+      "method": "POST"
+    }
+  ],
+  "loadedModules": [
+    {
+      "file": "src/services/api.ts",
+      "injectedToken": "fixture-DEMO-token",
+      "embedsDemoBackend": true
+    },
+    {
+      "file": "src/services/realtimeService.ts",
+      "injectedToken": "fixture-DEMO-token",
+      "embedsDemoBackend": true
+    },
+    {
+      "file": "src/services/api.ts",
+      "injectedToken": "fixture-DEMO-token",
+      "embedsDemoBackend": true
+    },
+    {
+      "file": "src/services/realtimeService.ts",
+      "injectedToken": "fixture-DEMO-token",
+      "embedsDemoBackend": true
+    }
+  ],
+  "smokeConnections": [
+    {
+      "url": "http://localhost:5000/hubs/notifications",
+      "token": "fixture-DEMO-token"
+    },
+    {
+      "url": "http://localhost:5000/hubs/notifications",
+      "token": "fixture-DEMO-token"
+    }
+  ]
+}

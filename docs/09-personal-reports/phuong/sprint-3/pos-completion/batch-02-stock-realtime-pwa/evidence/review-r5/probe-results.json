@@ -1,0 +1,181 @@
+{
+  "provider": "Actual TS/TSX in R4 hook harness with controlled HTTP; no backend or DB writes",
+  "observations": [
+    {
+      "case": "F04-R4-old-barcode-after-new-refresh",
+      "status": "PASS",
+      "final": 8,
+      "added": 8
+    },
+    {
+      "case": "F04-R4-fresh-search-cached10",
+      "status": "PASS",
+      "final": 8,
+      "added": 8
+    },
+    {
+      "case": "F04-old-refresh-after-new-barcode",
+      "status": "PASS",
+      "final": 8
+    },
+    {
+      "case": "F04-old-barcode-clears-newer-refresh-error",
+      "status": "REPRODUCED",
+      "beforeOlderCompletion": {
+        "available": 10,
+        "skuId": "33333333-3333-4333-8333-333333333333",
+        "skuCode": "SKU-A",
+        "barcode": "BAR-A",
+        "isStale": true,
+        "error": "Dữ liệu tồn chưa đồng bộ do lỗi kết nối. Bấm để thử lại.",
+        "updatedAt": 1793175360361
+      },
+      "afterOlderCompletion": {
+        "available": 10,
+        "onHand": 10,
+        "reserved": 0,
+        "skuId": "33333333-3333-4333-8333-333333333333",
+        "skuCode": "SKU-A",
+        "barcode": "BAR-A",
+        "isStale": false,
+        "error": null,
+        "updatedAt": 1793175360362
+      },
+      "cartAddedAvailable": 10
+    },
+    {
+      "case": "F04-old-refresh-clears-newer-refresh-error",
+      "status": "REPRODUCED",
+      "beforeOlderCompletion": {
+        "available": 10,
+        "skuId": "33333333-3333-4333-8333-333333333333",
+        "skuCode": "SKU-A",
+        "barcode": "BAR-A",
+        "isStale": true,
+        "error": "Dữ liệu tồn chưa đồng bộ do lỗi kết nối. Bấm để thử lại.",
+        "updatedAt": 1793175360443
+      },
+      "afterOlderCompletion": {
+        "available": 10,
+        "onHand": 10,
+        "reserved": 0,
+        "skuId": "33333333-3333-4333-8333-333333333333",
+        "skuCode": "SKU-A",
+        "barcode": "BAR-A",
+        "isStale": false,
+        "error": null,
+        "updatedAt": 1793175360443
+      }
+    }
+  ],
+  "hashes": [
+    {
+      "path": "src/frontend/pos-app/src/App.tsx",
+      "expected": "8922007fa7db85190627477eda05574ea60f8522b7a02859674bb416791bc2ba",
+      "actual": "8922007fa7db85190627477eda05574ea60f8522b7a02859674bb416791bc2ba",
+      "matches": true
+    },
+    {
+      "path": "src/frontend/pos-app/src/components/ProductSearch.tsx",
+      "expected": "102cbe12b5069c302418b49764e283a5961a83ddd0ca41118d652e161c720aec",
+      "actual": "102cbe12b5069c302418b49764e283a5961a83ddd0ca41118d652e161c720aec",
+      "matches": true
+    },
+    {
+      "path": "src/frontend/pos-app/src/services/api.ts",
+      "expected": "dcb32ddf7fc375823ff5cb5974d5ebe5876e492d10679cffe7250278896e83e6",
+      "actual": "dcb32ddf7fc375823ff5cb5974d5ebe5876e492d10679cffe7250278896e83e6",
+      "matches": true
+    },
+    {
+      "path": "src/frontend/pos-app/src/services/stockService.ts",
+      "expected": "ead0a301f768d8d29b9a4f28fbef71385f5f46decf13f9095351df9e5fa367bd",
+      "actual": "ead0a301f768d8d29b9a4f28fbef71385f5f46decf13f9095351df9e5fa367bd",
+      "matches": true
+    },
+    {
+      "path": "src/frontend/pos-app/src/services/realtimeService.ts",
+      "expected": "5f4aec88cdd9a224b3315a4e463ded8fe7844788d979a8e90f3afeeef8c70110",
+      "actual": "5f4aec88cdd9a224b3315a4e463ded8fe7844788d979a8e90f3afeeef8c70110",
+      "matches": true
+    },
+    {
+      "path": "src/frontend/pos-app/src/components/PaymentModal.tsx",
+      "expected": "419b8ac9641ad904c4f9b037773b800f2b49f8b44a2fe5a3a77efaf7fe1affa3",
+      "actual": "419b8ac9641ad904c4f9b037773b800f2b49f8b44a2fe5a3a77efaf7fe1affa3",
+      "matches": true
+    },
+    {
+      "path": "src/frontend/pos-app/src/components/PosHeader.tsx",
+      "expected": "468a98ecca9d1df582fcb2bff1794e1be6dcf589063cde4b613af8c1316b1a52",
+      "actual": "468a98ecca9d1df582fcb2bff1794e1be6dcf589063cde4b613af8c1316b1a52",
+      "matches": true
+    },
+    {
+      "path": "src/frontend/pos-app/src/components/ReceiptPrintModal.tsx",
+      "expected": "941c4e448b6019bd624ebd30935fcb6cdd11a042138164b35efbba19b8bea9a1",
+      "actual": "941c4e448b6019bd624ebd30935fcb6cdd11a042138164b35efbba19b8bea9a1",
+      "matches": true
+    },
+    {
+      "path": "src/frontend/pos-app/src/components/LoginModal.tsx",
+      "expected": "c800f3daf92dddb6827fd2465180de8ae652cb21fa5e10b49bb2046473656fc7",
+      "actual": "c800f3daf92dddb6827fd2465180de8ae652cb21fa5e10b49bb2046473656fc7",
+      "matches": true
+    },
+    {
+      "path": "src/frontend/pos-app/src/types/pos.ts",
+      "expected": "43f20da53c6840109dbc95a9233a155ea06aa5a33fd09a0a0b32c29eecfe3aea",
+      "actual": "43f20da53c6840109dbc95a9233a155ea06aa5a33fd09a0a0b32c29eecfe3aea",
+      "matches": true
+    },
+    {
+      "path": "src/frontend/pos-app/src/services/pendingCheckoutStore.ts",
+      "expected": "5066491e494561fd0933bacb0851b4556da760fda248b3e5b1e04c0168e9aa59",
+      "actual": "5066491e494561fd0933bacb0851b4556da760fda248b3e5b1e04c0168e9aa59",
+      "matches": true
+    },
+    {
+      "path": "src/frontend/pos-app/src/services/receiptMapper.ts",
+      "expected": "9f3ad439b32dc27e514677b42723f6d7c859c7e71c7d692a23805884988ec903",
+      "actual": "9f3ad439b32dc27e514677b42723f6d7c859c7e71c7d692a23805884988ec903",
+      "matches": true
+    },
+    {
+      "path": "src/frontend/pos-app/public/sw.js",
+      "expected": "a23f3be270d28ed0774e7c8680f32d783a653f81c1d605ae36a9243f44b48ed2",
+      "actual": "a23f3be270d28ed0774e7c8680f32d783a653f81c1d605ae36a9243f44b48ed2",
+      "matches": true
+    },
+    {
+      "path": "src/frontend/pos-app/test-b02-realtime-pwa.mjs",
+      "expected": "b15f0e93e58f0a680beed8bef277072d000c0f1f8a3a9d21536a5eb94f517dd5",
+      "actual": "b15f0e93e58f0a680beed8bef277072d000c0f1f8a3a9d21536a5eb94f517dd5",
+      "matches": true
+    },
+    {
+      "path": "src/frontend/pos-app/test-b02-hub-transport.mjs",
+      "expected": "6ee7e7ca9b34b89092a497495bf6067ed2caea99a9308933eed0c40acb86290b",
+      "actual": "6ee7e7ca9b34b89092a497495bf6067ed2caea99a9308933eed0c40acb86290b",
+      "matches": true
+    },
+    {
+      "path": "src/frontend/pos-app/test-b02-browser-production.mjs",
+      "expected": "41539bf1214c1fa51ae2a77869dee2506afa32d69ec7fbc9d6c5ec40261acfd4",
+      "actual": "41539bf1214c1fa51ae2a77869dee2506afa32d69ec7fbc9d6c5ec40261acfd4",
+      "matches": true
+    },
+    {
+      "path": "src/frontend/pos-app/test-pos-e2e.mjs",
+      "expected": "71901ba4f50ac22658935f395e7185e558a4236c01dcfb5f504af3ec7e5b626d",
+      "actual": "71901ba4f50ac22658935f395e7185e558a4236c01dcfb5f504af3ec7e5b626d",
+      "matches": true
+    },
+    {
+      "path": "src/frontend/pos-app/measure-pos-latency.mjs",
+      "expected": "dbf9cc2d9b9a36f7142bc90540da6cb387fa27299504452e92fe6396294e76aa",
+      "actual": "dbf9cc2d9b9a36f7142bc90540da6cb387fa27299504452e92fe6396294e76aa",
+      "matches": true
+    }
+  ]
+}

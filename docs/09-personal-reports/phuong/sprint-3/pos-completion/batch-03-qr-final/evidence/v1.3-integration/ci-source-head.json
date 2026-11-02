@@ -1,0 +1,21 @@
+{
+  "checkedAt": "2026-10-28T11:58:19.963Z",
+  "sourceHead": "becc76d9c002384d451c243ade3e9c66c6e23244",
+  "base": "develop",
+  "mergeable": true,
+  "checks": [
+    {
+      "name": "Build & Test Backend (.NET 8)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/khoalvd839764-netizen/OISMS/actions/runs/40682864038/job/122797722028"
+    },
+    {
+      "name": "Build Frontend (Admin & POS)",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/khoalvd839764-netizen/OISMS/actions/runs/40682864038/job/122797720069"
+    }
+  ],
+  "finalDocumentationCommit": "No runtime changes; its new CI is checked separately in the final task response and PR Checks."
+}

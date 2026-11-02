@@ -1,0 +1,125 @@
+{
+  "provider": "Actual API/validator/mapper/PaymentModal TS/TSX under Node VM; hooks/storage/fetch stubs, client clock 2099/2100 and controlled mapper exception. No backend/PostgreSQL/browser E2E.",
+  "observations": [
+    {
+      "kind": "created-201",
+      "printedCount": 1,
+      "pendingKeptAfterFirst": false,
+      "pendingKeptAfterRetry": false,
+      "sourceCreatedAt": "2026-10-27T07:00:00Z",
+      "mappedCreatedAt": "14:00:00 27/10/2026",
+      "clientClock": "2099-01-01T00:00:00Z",
+      "requestCount": 1
+    },
+    {
+      "kind": "replay-200",
+      "printedCount": 1,
+      "pendingKeptAfterFirst": true,
+      "pendingKeptAfterRetry": false,
+      "sourceCreatedAt": "2026-10-27T07:00:00Z",
+      "mappedCreatedAt": "14:00:00 27/10/2026",
+      "clientClock": "2100-01-01T00:00:00Z",
+      "requestCount": 2,
+      "retrySameKey": true
+    },
+    {
+      "kind": "empty-item",
+      "printedCount": 0,
+      "pendingKeptAfterFirst": true,
+      "pendingKeptAfterRetry": true,
+      "sourceCreatedAt": "2026-10-27T07:00:00Z",
+      "mappedCreatedAt": null,
+      "clientClock": "2100-01-01T00:00:00Z",
+      "requestCount": 2,
+      "retrySameKey": true
+    },
+    {
+      "kind": "bad-metadata",
+      "printedCount": 0,
+      "pendingKeptAfterFirst": true,
+      "pendingKeptAfterRetry": true,
+      "sourceCreatedAt": "2026-10-27T07:00:00Z",
+      "mappedCreatedAt": null,
+      "clientClock": "2100-01-01T00:00:00Z",
+      "requestCount": 2,
+      "retrySameKey": true
+    },
+    {
+      "kind": "bad-date",
+      "printedCount": 0,
+      "pendingKeptAfterFirst": true,
+      "pendingKeptAfterRetry": true,
+      "sourceCreatedAt": "invalid-date",
+      "mappedCreatedAt": null,
+      "clientClock": "2100-01-01T00:00:00Z",
+      "requestCount": 2,
+      "retrySameKey": true
+    },
+    {
+      "kind": "missing-date",
+      "printedCount": 0,
+      "pendingKeptAfterFirst": true,
+      "pendingKeptAfterRetry": true,
+      "sourceCreatedAt": null,
+      "mappedCreatedAt": null,
+      "clientClock": "2100-01-01T00:00:00Z",
+      "requestCount": 2,
+      "retrySameKey": true
+    },
+    {
+      "kind": "null-date",
+      "printedCount": 0,
+      "pendingKeptAfterFirst": true,
+      "pendingKeptAfterRetry": true,
+      "sourceCreatedAt": null,
+      "mappedCreatedAt": null,
+      "clientClock": "2100-01-01T00:00:00Z",
+      "requestCount": 2,
+      "retrySameKey": true
+    },
+    {
+      "kind": "empty-date",
+      "printedCount": 0,
+      "pendingKeptAfterFirst": true,
+      "pendingKeptAfterRetry": true,
+      "sourceCreatedAt": "",
+      "mappedCreatedAt": null,
+      "clientClock": "2100-01-01T00:00:00Z",
+      "requestCount": 2,
+      "retrySameKey": true
+    },
+    {
+      "kind": "whitespace-date",
+      "printedCount": 0,
+      "pendingKeptAfterFirst": true,
+      "pendingKeptAfterRetry": true,
+      "sourceCreatedAt": "   ",
+      "mappedCreatedAt": null,
+      "clientClock": "2100-01-01T00:00:00Z",
+      "requestCount": 2,
+      "retrySameKey": true
+    },
+    {
+      "kind": "number-date",
+      "printedCount": 0,
+      "pendingKeptAfterFirst": true,
+      "pendingKeptAfterRetry": true,
+      "sourceCreatedAt": 12345,
+      "mappedCreatedAt": null,
+      "clientClock": "2100-01-01T00:00:00Z",
+      "requestCount": 2,
+      "retrySameKey": true
+    },
+    {
+      "kind": "mapper-throws",
+      "printedCount": 0,
+      "pendingKeptAfterFirst": true,
+      "pendingKeptAfterRetry": true,
+      "sourceCreatedAt": "2026-10-27T07:00:00Z",
+      "mappedCreatedAt": null,
+      "clientClock": "2100-01-01T00:00:00Z",
+      "requestCount": 2,
+      "retrySameKey": true
+    }
+  ]
+}

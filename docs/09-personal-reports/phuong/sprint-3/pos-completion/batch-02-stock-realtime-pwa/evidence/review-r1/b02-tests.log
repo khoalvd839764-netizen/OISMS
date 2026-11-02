@@ -1,0 +1,83 @@
+TAP version 13
+# [2026-10-28T05:45:24.461Z] Warning: Error from HTTP request. TypeError: fetch failed.
+# [2026-10-28T05:45:24.463Z] Error: Failed to complete negotiation with the server: TypeError: fetch failed
+# [2026-10-28T05:45:24.463Z] Error: Failed to start the connection: Error: Failed to complete negotiation with the server: TypeError: fetch failed
+# Không thể kết nối SignalR Hub (máy chủ offline hoặc token không hợp lệ): FailedToNegotiateWithServerError: Failed to complete negotiation with the server: TypeError: fetch failed
+#     at HttpConnection._getNegotiationResponse (D:\\OISMS\\src\\frontend\\pos-app\\node_modules\\@microsoft\\signalr\\dist\\cjs\\HttpConnection.js:259:35)
+#     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+#     at async HttpConnection._startInternal (D:\\OISMS\\src\\frontend\\pos-app\\node_modules\\@microsoft\\signalr\\dist\\cjs\\HttpConnection.js:172:41)
+#     at async HttpConnection.start (D:\\OISMS\\src\\frontend\\pos-app\\node_modules\\@microsoft\\signalr\\dist\\cjs\\HttpConnection.js:75:9)
+#     at async HubConnection._startInternal (D:\\OISMS\\src\\frontend\\pos-app\\node_modules\\@microsoft\\signalr\\dist\\cjs\\HubConnection.js:135:9)
+#     at async HubConnection._startWithStateTransitions (D:\\OISMS\\src\\frontend\\pos-app\\node_modules\\@microsoft\\signalr\\dist\\cjs\\HubConnection.js:112:13)
+#     at async Object.startRealtimeConnection (src/services/realtimeService.ts:315:9)
+#     at async TestContext.<anonymous> (file:///D:/OISMS/src/frontend/pos-app/test-b02-realtime-pwa.mjs:125:3)
+#     at async Test.run (node:internal/test_runner/test:980:9)
+#     at async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3) {
+#   errorType: 'FailedToNegotiateWithServerError'
+# }
+# Lỗi tra cứu sản phẩm: Error: Mất kết nối mạng ngoại tuyến
+#     at global.fetch (file:///D:/OISMS/src/frontend/pos-app/test-b02-realtime-pwa.mjs:325:13)
+#     at fetch (file:///D:/OISMS/src/frontend/pos-app/test-b02-realtime-pwa.mjs:46:59)
+#     at searchPosProducts (src/services/api.ts:600:27)
+#     at src/services/api.ts:950:42
+#     at Array.map (<anonymous>)
+#     at Object.invalidateAndRefetchStock (src/services/api.ts:936:38)
+#     at TestContext.<anonymous> (file:///D:/OISMS/src/frontend/pos-app/test-b02-realtime-pwa.mjs:328:44)
+#     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+#     at async Test.run (node:internal/test_runner/test:980:9)
+#     at async Test.processPendingSubtests (node:internal/test_runner/test:677:7)
+#   [Instrumentation] Search in-memory processing p95: 0.072ms (Mục tiêu < 200ms: ĐẠT)
+# Subtest: B02-AC-01: SignalR Hub Token & Lifecycle Management (T03-AC-01 & T03-AC-05)
+ok 1 - B02-AC-01: SignalR Hub Token & Lifecycle Management (T03-AC-01 & T03-AC-05)
+  ---
+  duration_ms: 129.959
+  ...
+# Subtest: B02-AC-02: Realtime DTO Normalization & Safe Audio Notifications (T03-AC-02)
+ok 2 - B02-AC-02: Realtime DTO Normalization & Safe Audio Notifications (T03-AC-02)
+  ---
+  duration_ms: 0.8952
+  ...
+# Subtest: B02-AC-03: Branch Group Segregation & Deduplication (T03-AC-03)
+ok 3 - B02-AC-03: Branch Group Segregation & Deduplication (T03-AC-03)
+  ---
+  duration_ms: 0.3212
+  ...
+# Subtest: B02-AC-04: API Stock vs Cart Warning (T03-AC-04)
+ok 4 - B02-AC-04: API Stock vs Cart Warning (T03-AC-04)
+  ---
+  duration_ms: 0.2432
+  ...
+# Subtest: B02-AC-06: POS-STOCK-F01 Close Verification (10 -> 8 without F5, Replay/Event stays 8, Hub Offline)
+ok 5 - B02-AC-06: POS-STOCK-F01 Close Verification (10 -> 8 without F5, Replay/Event stays 8, Hub Offline)
+  ---
+  duration_ms: 1.2851
+  ...
+# Subtest: B02-AC-07: Search Results Invalidation & Outdated Dropdown Prevention (T03-AC-07)
+ok 6 - B02-AC-07: Search Results Invalidation & Outdated Dropdown Prevention (T03-AC-07)
+  ---
+  duration_ms: 0.2075
+  ...
+# Subtest: B02-AC-08: Keyboard Shortcuts F2, F4, Esc & Concurrency Safety (T05-AC-01)
+ok 7 - B02-AC-08: Keyboard Shortcuts F2, F4, Esc & Concurrency Safety (T05-AC-01)
+  ---
+  duration_ms: 0.7471
+  ...
+# Subtest: B02-AC-09: Service Worker Namespace & Strict Cache Isolation (T05-AC-03 & T05-AC-04)
+ok 8 - B02-AC-09: Service Worker Namespace & Strict Cache Isolation (T05-AC-03 & T05-AC-04)
+  ---
+  duration_ms: 0.4418
+  ...
+# Subtest: B02-AC-10: Search Race Condition & Lookup p95 Latency Measurement (T05-AC-06)
+ok 9 - B02-AC-10: Search Race Condition & Lookup p95 Latency Measurement (T05-AC-06)
+  ---
+  duration_ms: 2.7112
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 765.2132

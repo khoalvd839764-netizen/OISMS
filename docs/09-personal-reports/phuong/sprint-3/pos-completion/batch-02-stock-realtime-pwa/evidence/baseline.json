@@ -1,0 +1,110 @@
+{
+  "batch": "S3-POS-B02",
+  "revision": "v1.0",
+  "date": "2026-10-28",
+  "branch": "feature/OISMS-44-pos-pwa-checkout-va-in-hoa-don",
+  "head": "44317f3b5188c276fa3ef25c8faf30323e503079",
+  "working_tree": "Includes uncommitted T01 v1.3 and B01 v1.2 verified fixes; HEAD alone is not this baseline",
+  "files": [
+    {
+      "path": "src/frontend/pos-app/src/App.tsx",
+      "sha256": "991E50B8A85F98D2FBA74386A0F432B2D30C0ED21DA0795B36361D8C89957264"
+    },
+    {
+      "path": "src/frontend/pos-app/src/components/LoginModal.tsx",
+      "sha256": "C800F3DAF92DDDB6827FD2465180DE8AE652CB21FA5E10B49BB2046473656FC7"
+    },
+    {
+      "path": "src/frontend/pos-app/src/components/PaymentModal.tsx",
+      "sha256": "419B8AC9641AD904C4F9B037773B800F2B49F8B44A2FE5A3A77EFAF7FE1AFFA3"
+    },
+    {
+      "path": "src/frontend/pos-app/src/components/ReceiptPrintModal.tsx",
+      "sha256": "941C4E448B6019BD624EBD30935FCB6CDD11A042138164B35EFBBA19B8BEA9A1"
+    },
+    {
+      "path": "src/frontend/pos-app/src/components/ProductSearch.tsx",
+      "sha256": "3A428E29267DAF0B089BE0F1D05C16C6F4AAE7752275768982A081BE0BBBF908"
+    },
+    {
+      "path": "src/frontend/pos-app/src/components/CartTable.tsx",
+      "sha256": "34F8C3603753163CDD9BEAE1CAE2A58C580C0C8EA119C61F08FD2347C6D67F44"
+    },
+    {
+      "path": "src/frontend/pos-app/src/components/PosHeader.tsx",
+      "sha256": "203F054BEC808CE47D47CAD0B4AE1F1E00FADD280927056D6749FEBF16C124AD"
+    },
+    {
+      "path": "src/frontend/pos-app/src/services/api.ts",
+      "sha256": "1B311D9605B62A02B7A95314FABDF05F519A11FFAAA796C13A575BC28AD20BFE"
+    },
+    {
+      "path": "src/frontend/pos-app/src/services/receiptMapper.ts",
+      "sha256": "9F3AD439B32DC27E514677B42723F6D7C859C7E71C7D692A23805884988EC903"
+    },
+    {
+      "path": "src/frontend/pos-app/src/services/pendingCheckoutStore.ts",
+      "sha256": "5066491E494561FD0933BACB0851B4556DA760FDA248B3E5B1E04C0168E9AA59"
+    },
+    {
+      "path": "src/frontend/pos-app/src/types/pos.ts",
+      "sha256": "F65BEB383B0A71316257A80AB301093F96BA58B9F9236A54C68FC7346FFA7D7B"
+    },
+    {
+      "path": "src/frontend/pos-app/src/index.css",
+      "sha256": "068DE3111278F3B9E97C499BA72DAB79E04450364358B713ABB943DA43EE74CF"
+    },
+    {
+      "path": "src/frontend/pos-app/index.html",
+      "sha256": "465450EDB8859CB7CF0859C92706214670A0454172DF0356FE9A279906010753"
+    },
+    {
+      "path": "src/frontend/pos-app/public/sw.js",
+      "sha256": "544C033D66D028C9F2B6057CC3C62E88CD7A5814F648891F95AAE935D7DE683A"
+    },
+    {
+      "path": "src/frontend/pos-app/public/manifest.webmanifest",
+      "sha256": "3E7C3F1EA7456C697C008C6C7289B4980F31AF2AD3C07B007211FD1178E4828A"
+    },
+    {
+      "path": "src/frontend/pos-app/public/favicon.svg",
+      "sha256": "61BC9A161DE58248288E6905425D7180F0624C2865007B97D763FDAC12043A66"
+    },
+    {
+      "path": "src/frontend/pos-app/package.json",
+      "sha256": "81928B51C9830FB56BE362B21C7797722F768DA42FA9EED259A3516591942483"
+    },
+    {
+      "path": "src/frontend/pos-app/package-lock.json",
+      "sha256": "A7B70D9E5B0BC31C7C141C47674BC4642FB4FD71E25FCB3B2749228AF8CF04FA"
+    },
+    {
+      "path": "src/frontend/pos-app/vite.config.ts",
+      "sha256": "F58EDCC886DBF642F0AAD60DCE0C36A378DF3022AA88CEC76592532B12D529CC"
+    },
+    {
+      "path": "src/frontend/pos-app/test-pos-e2e.mjs",
+      "sha256": "71901BA4F50AC22658935F395E7185E558A4236C01DCFB5F504AF3EC7E5B626D"
+    },
+    {
+      "path": "src/frontend/pos-app/generate-print-evidence.mjs",
+      "sha256": "F8E3598CADBFB2D7BC10E697E4C86B88C6B1CA9E46F6D7550E58A36BE36E1085"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/Hubs/NotificationHub.cs",
+      "sha256": "087B30B4241AA4120F70B6367A88EE0AA95F3AA9FEED797CE499B8B9A70331FC"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/Services/RealtimeNotifier.cs",
+      "sha256": "88A3E933CD889757D1107E47217C720F802D7C7A713A543DA51C97F83DC6560B"
+    },
+    {
+      "path": "src/backend/src/OISM.Application/Features/Realtime/Dtos/RealtimeDtos.cs",
+      "sha256": "A47CA6F81F5E006D0B51BBD7FBA9104231AAB83CCC8D3113C2F1E18E73BBF893"
+    },
+    {
+      "path": "src/backend/src/OISM.WebApi/Program.cs",
+      "sha256": "459E3022C1D6959BE4F07CEA87DA8DB2764CB8D9C138672E8118702C36B90FA1"
+    }
+  ]
+}

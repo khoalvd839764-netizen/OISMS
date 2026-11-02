@@ -1,0 +1,80 @@
+{
+  "provider": "Actual TypeScript/TSX in Node VM; React hook/JSX and API/I/O doubles; no browser, network, bank or database calls",
+  "head": "fcf8fb2a4d35954ff5c7909930981b21cdd0fc9e",
+  "probes": {
+    "productionMissingConfig": {
+      "expected": "null and checkout blocked",
+      "actual": {
+        "bankBin": "970415",
+        "bankName": "VietinBank Test",
+        "accountNumber": "101088889999",
+        "accountName": "OISMS TEST STORE VIETIN",
+        "template": "compact2",
+        "isTestFixture": true
+      }
+    },
+    "bankContextIgnored": {
+      "branchA": {
+        "bankBin": "970415",
+        "bankName": "Fixture A",
+        "accountNumber": "123456789",
+        "accountName": "TEST A",
+        "isTestFixture": true
+      },
+      "branchB": {
+        "bankBin": "970415",
+        "bankName": "Fixture A",
+        "accountNumber": "123456789",
+        "accountName": "TEST A",
+        "isTestFixture": true
+      }
+    },
+    "reopenBeforeSubmit": {
+      "expected": "same intent keeps QR reference",
+      "first": "https://img.vietqr.io/image/970415-123456789-compact2.png?amount=100000&addInfo=OISMS%20POS%2000000002&accountName=TEST%20A",
+      "reopened": "https://img.vietqr.io/image/970415-123456789-compact2.png?amount=100000&addInfo=OISMS%20POS%2000000003&accountName=TEST%20A",
+      "checkoutCalls": 0
+    },
+    "pendingBankChanged": {
+      "expected": "freeze bank snapshot for same unknown attempt",
+      "requestKey": "00000003-0000-4000-8000-000000000001",
+      "before": "https://img.vietqr.io/image/970415-123456789-compact2.png?amount=100000&addInfo=OISMS%20POS%2000000003&accountName=TEST%20A",
+      "after": "https://img.vietqr.io/image/970415-987654321-compact2.png?amount=100000&addInfo=OISMS%20POS%2000000003&accountName=TEST%20B",
+      "pendingHasBankSnapshot": false
+    },
+    "guard": [
+      {
+        "port": "5434",
+        "backend": "http://different-backend.test:5000",
+        "markerContainer": "separate-marker-container",
+        "readinessDatabase": "other_db",
+        "guardPassed": true,
+        "reachedLogin": true,
+        "markerCalls": 1
+      },
+      {
+        "port": "not-a-port",
+        "backend": "http://different-backend.test:5000",
+        "markerContainer": "separate-marker-container",
+        "readinessDatabase": "other_db",
+        "guardPassed": true,
+        "reachedLogin": true,
+        "markerCalls": 1
+      },
+      {
+        "port": "5433",
+        "backend": "http://different-backend.test:5000",
+        "markerContainer": "separate-marker-container",
+        "readinessDatabase": "other_db",
+        "guardPassed": true,
+        "reachedLogin": true,
+        "markerCalls": 1
+      }
+    ]
+  },
+  "sourceHashes": {
+    "src/frontend/pos-app/src/services/qrService.ts": "1b1212666a4e11f151868dac9ad88107512076f172571b4d6edcb57ee571d810",
+    "src/frontend/pos-app/src/components/PaymentModal.tsx": "45c8d9c6d4035977d0bc6bf2b8d17ebd3cfedb84bd4877981538126981d787ee",
+    "docs/09-personal-reports/phuong/sprint-3/pos-completion/batch-03-qr-final/e2e/test-runner-e2e-guard.mjs": "e54dc79c6a769de855609e8d199a6810033253a75f00f5ba7194cd6ff97857e2"
+  }
+}

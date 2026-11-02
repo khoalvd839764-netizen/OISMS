@@ -1,0 +1,57 @@
+{
+  "provider": "Installed Edge headless + Playwright; production ReceiptPrintModal rendered by real ReactDOMServer and exact current index.css. No alternate receipt template; no Tailwind CDN or backend/DB required for ancestor display:none/page-size checks.",
+  "observations": [
+    {
+      "width": "58mm",
+      "draft": false,
+      "visibleBeforePrint": true,
+      "receiptVisible": false,
+      "ancestorDisplay": "none",
+      "paperRectWidth": 0,
+      "pageSizeSyntaxSupported": false,
+      "parsedPageRules": [
+        "@page { margin: 0px; }",
+        "@page { margin: 0px; }"
+      ]
+    },
+    {
+      "width": "58mm",
+      "draft": true,
+      "visibleBeforePrint": true,
+      "receiptVisible": false,
+      "ancestorDisplay": "none",
+      "paperRectWidth": 0,
+      "pageSizeSyntaxSupported": false,
+      "parsedPageRules": [
+        "@page { margin: 0px; }",
+        "@page { margin: 0px; }"
+      ]
+    },
+    {
+      "width": "80mm",
+      "draft": false,
+      "visibleBeforePrint": true,
+      "receiptVisible": false,
+      "ancestorDisplay": "none",
+      "paperRectWidth": 0,
+      "pageSizeSyntaxSupported": false,
+      "parsedPageRules": [
+        "@page { margin: 0px; }",
+        "@page { margin: 0px; }"
+      ]
+    },
+    {
+      "width": "80mm",
+      "draft": true,
+      "visibleBeforePrint": true,
+      "receiptVisible": false,
+      "ancestorDisplay": "none",
+      "paperRectWidth": 0,
+      "pageSizeSyntaxSupported": false,
+      "parsedPageRules": [
+        "@page { margin: 0px; }",
+        "@page { margin: 0px; }"
+      ]
+    }
+  ]
+}

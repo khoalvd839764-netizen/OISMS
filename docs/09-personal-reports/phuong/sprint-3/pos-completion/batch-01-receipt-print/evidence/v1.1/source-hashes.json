@@ -1,0 +1,59 @@
+{
+  "version": "v1.1",
+  "timestamp": "2026-10-27T16:33:14.958Z",
+  "gitBranch": "feature/OISMS-44-pos-pwa-checkout-va-in-hoa-don",
+  "files": {
+    "src/frontend/pos-app/src/services/api.ts": {
+      "sha256": "3ad2c689590983ccb22c9839fb37bdb5525a317b16159de7c073541fcc970a6b",
+      "sizeBytes": 34225
+    },
+    "src/frontend/pos-app/src/services/receiptMapper.ts": {
+      "sha256": "9f3ad439b32dc27e514677b42723f6d7c859c7e71c7d692a23805884988ec903",
+      "sizeBytes": 215
+    },
+    "src/frontend/pos-app/src/components/ReceiptPrintModal.tsx": {
+      "sha256": "941c4e448b6019bd624ebd30935fcb6cdd11a042138164b35efbba19b8bea9a1",
+      "sizeBytes": 18112
+    },
+    "src/frontend/pos-app/src/components/PaymentModal.tsx": {
+      "sha256": "419b8ac9641ad904c4f9b037773b800f2b49f8b44a2fe5a3a77efaf7fe1affa3",
+      "sizeBytes": 27686
+    },
+    "src/frontend/pos-app/src/types/pos.ts": {
+      "sha256": "f65beb383b0a71316257a80ab301093f96ba58b9f9236a54c68fc7346ffa7d7b",
+      "sizeBytes": 3838
+    },
+    "src/frontend/pos-app/src/index.css": {
+      "sha256": "068de3111278f3b9e97c499ba72dab79e04450364358b713abb943da43ee74cf",
+      "sizeBytes": 3488
+    },
+    "src/frontend/pos-app/test-pos-e2e.mjs": {
+      "sha256": "bb60fb54146c44677e801ba81565f2b608c0a3165f086baf1ec07edc6ad09944",
+      "sizeBytes": 122563
+    },
+    "src/frontend/pos-app/generate-print-evidence.mjs": {
+      "sha256": "f8e3598cadbfb2d7bc10e697e4c86b88c6b1ca9e46f6d7550e58a36be36e1085",
+      "sizeBytes": 12015
+    },
+    "docs/09-personal-reports/phuong/sprint-3/pos-completion/batch-01-receipt-print/evidence/v1.1/receipt-80mm-official.pdf": {
+      "sha256": "dd36d9d6f0ccf540b22f92f979497f24fc040a92ecbae3023642898d2fb4a3bf",
+      "sizeBytes": 74358
+    },
+    "docs/09-personal-reports/phuong/sprint-3/pos-completion/batch-01-receipt-print/evidence/v1.1/receipt-58mm-official.pdf": {
+      "sha256": "e9e0aee7246e1487a041a739c78f5c2e84e77fbb33092cbe31387d86f80c1b14",
+      "sizeBytes": 72171
+    },
+    "docs/09-personal-reports/phuong/sprint-3/pos-completion/batch-01-receipt-print/evidence/v1.1/receipt-80mm-draft.pdf": {
+      "sha256": "f39c727171eceeb34a3e21d2b47e7404147825a42a1fa795888cf79403e58f57",
+      "sizeBytes": 74555
+    },
+    "docs/09-personal-reports/phuong/sprint-3/pos-completion/batch-01-receipt-print/evidence/v1.1/receipt-58mm-draft.pdf": {
+      "sha256": "e9c4d06aeed95bd73c484f80c955cf59e165c5153720fe73749f8a07ff147064",
+      "sizeBytes": 72655
+    },
+    "docs/09-personal-reports/phuong/sprint-3/pos-completion/batch-01-receipt-print/evidence/v1.1/print-verification-report.json": {
+      "sha256": "379f2bfd07b1a68e1ef38058a3012825740c3082d32cc736b78eb910a21f1018",
+      "sizeBytes": 3203
+    }
+  }
+}

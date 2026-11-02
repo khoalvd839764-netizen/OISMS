@@ -1,0 +1,57 @@
+[
+  {
+    "Algorithm": "SHA256",
+    "Hash": "991E50B8A85F98D2FBA74386A0F432B2D30C0ED21DA0795B36361D8C89957264",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\src\\App.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "C800F3DAF92DDDB6827FD2465180DE8AE652CB21FA5E10B49BB2046473656FC7",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\src\\components\\LoginModal.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "5BF0938AD656C5F69FE75CE798351594F526E73FE998CFD33B71022655D6C5F3",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\src\\components\\PaymentModal.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "E819EDF931D3CC864775A743DD0D943B9C33F7EC1B27804D52D16203C0203D7F",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\src\\components\\ReceiptPrintModal.tsx"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "6D530DFEA087839BB15BFF6422B711E300DF941E1D11F4F71467F527BF6E5CBA",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\src\\index.css"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "F61AF0512C4774903051F565FF7C19753C0AC8C10791DB782EA02099B8AF11D3",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\src\\services\\api.ts"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "C6F6E57C5EF7B6F862B58DDBEFBA062BD58D7A840259899648E68631C88585CA",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\src\\services\\receiptMapper.ts"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "5066491E494561FD0933BACB0851B4556DA760FDA248B3E5B1E04C0168E9AA59",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\src\\services\\pendingCheckoutStore.ts"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "F65BEB383B0A71316257A80AB301093F96BA58B9F9236A54C68FC7346FFA7D7B",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\src\\types\\pos.ts"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "127AC13A13B693F4973FDABD0F56E5548E13AF9809F42EB1BB1C21FBF37EDE3F",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\test-pos-e2e.mjs"
+  },
+  {
+    "Algorithm": "SHA256",
+    "Hash": "7210FBB44730777307C5DE095586F2A314B340D7F69BA3C0E698923E9211E4C3",
+    "Path": "D:\\OISMS\\src\\frontend\\pos-app\\generate-print-evidence.mjs"
+  }
+]

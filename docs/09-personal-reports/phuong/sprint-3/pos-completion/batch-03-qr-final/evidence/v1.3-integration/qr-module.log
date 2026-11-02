@@ -1,0 +1,60 @@
+TAP version 13
+# Subtest: TC-QR-01: B03-F01 - CRC-16/CCITT-FALSE vector kiểm chuẩn không dùng Node Buffer
+ok 1 - TC-QR-01: B03-F01 - CRC-16/CCITT-FALSE vector kiểm chuẩn không dùng Node Buffer
+  ---
+  duration_ms: 2.1698
+  ...
+# Subtest: TC-QR-02: B03-F01 & T04-AC-02 - Sinh chuỗi EMVCo VietQR và QuickLink URL hợp lệ trong Browser
+ok 2 - TC-QR-02: B03-F01 & T04-AC-02 - Sinh chuỗi EMVCo VietQR và QuickLink URL hợp lệ trong Browser
+  ---
+  duration_ms: 5.6178
+  ...
+# Subtest: TC-QR-03: B03-F02 - Bộ parser TLV độc lập giải mã và kiểm chứng cấu trúc chuỗi EMVCo
+ok 3 - TC-QR-03: B03-F02 - Bộ parser TLV độc lập giải mã và kiểm chứng cấu trúc chuỗi EMVCo
+  ---
+  duration_ms: 1.1025
+  ...
+# Subtest: TC-QR-04: B03-F02 - Kiểm tra biên và từ chối cấu hình ngân hàng lỗi (account > 19 ký tự)
+ok 4 - TC-QR-04: B03-F02 - Kiểm tra biên và từ chối cấu hình ngân hàng lỗi (account > 19 ký tự)
+  ---
+  duration_ms: 0.9673
+  ...
+# Subtest: TC-QR-05: B03-F02 - Kiểm tra biên số tiền (tiền âm, 0, tiền vượt 13 chữ số, số lẻ quá 2 thập phân)
+ok 5 - TC-QR-05: B03-F02 - Kiểm tra biên số tiền (tiền âm, 0, tiền vượt 13 chữ số, số lẻ quá 2 thập phân)
+  ---
+  duration_ms: 29.6618
+  ...
+# Subtest: TC-QR-06: B03-F02 - Kiểm tra biên nội dung chuyển khoản (vượt 50 ký tự, ký tự đặc biệt, trim rỗng)
+ok 6 - TC-QR-06: B03-F02 - Kiểm tra biên nội dung chuyển khoản (vượt 50 ký tự, ký tự đặc biệt, trim rỗng)
+  ---
+  duration_ms: 1.0237
+  ...
+# Subtest: TC-QR-07: Kiểm tra RequestKey UUID v4 hợp lệ
+ok 7 - TC-QR-07: Kiểm tra RequestKey UUID v4 hợp lệ
+  ---
+  duration_ms: 0.2689
+  ...
+# Subtest: TC-QR-08: T04-AC-03 - Guard bảo mật: Tuyệt đối KHÔNG tự động xác nhận thanh toán do hiển thị/quét mã
+ok 8 - TC-QR-08: T04-AC-03 - Guard bảo mật: Tuyệt đối KHÔNG tự động xác nhận thanh toán do hiển thị/quét mã
+  ---
+  duration_ms: 0.1548
+  ...
+# Subtest: TC-QR-09: B03-F03 - Idempotency & Full Request Identity (phân biệt hai UUID trùng 8 ký tự đầu)
+ok 9 - TC-QR-09: B03-F03 - Idempotency & Full Request Identity (phân biệt hai UUID trùng 8 ký tự đầu)
+  ---
+  duration_ms: 2.5701
+  ...
+# Subtest: TC-QR-10: B03-F01 - Khẳng định module chạy độc lập trong môi trường VM không có Node Buffer
+ok 10 - TC-QR-10: B03-F01 - Khẳng định module chạy độc lập trong môi trường VM không có Node Buffer
+  ---
+  duration_ms: 80.1674
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 161.2115

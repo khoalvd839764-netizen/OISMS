@@ -1,0 +1,14 @@
+
+> pos-app@0.0.0 build
+> tsc -b && vite build
+
+[36mvite v8.3.4 [32mbuilding client environment for production...[36m[39m
+transforming...
+✓ 1942 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   1.71 kB │ gzip:   0.82 kB
+dist/assets/index-CTZyTd9D.css   45.57 kB │ gzip:   8.49 kB
+dist/assets/index-9cMt1VnV.js   381.33 kB │ gzip: 110.85 kB
+
+[32m✓ built in 608ms[39m

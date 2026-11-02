@@ -1,0 +1,16 @@
+=== RUNNING OFFLINE PREFLIGHT & AUDIT HARNESS FOR F06 (v1.6) ===
+Timestamp: 2026-10-28T09:13:24.331Z
+
+[PREFLIGHT TEST 1] Full Live Workflow on Isolated Test Host:
+  -> TEST 1 PASSED: OrderCreated, StockLevelChanged, Reconnect, and Stock Refetch fully verified!
+
+[PREFLIGHT TEST 2] Demo Target Guard (Fail Closed on localhost:5000):
+  -> TEST 2 PASSED: Demo target guard successfully rejected and prevented mutation on localhost:5000
+
+[PREFLIGHT TEST 3] Defect Catch: Missing StockLevelChanged event:
+  -> TEST 3 PASSED: Runner caught missing StockLevelChanged defect!
+
+[PREFLIGHT TEST 4] Defect Catch: Missing Automatic Reconnect:
+  -> TEST 4 PASSED: Runner caught missing automatic reconnect defect!
+
+=== ALL PREFLIGHT AUDIT TESTS PASSED 100% ===

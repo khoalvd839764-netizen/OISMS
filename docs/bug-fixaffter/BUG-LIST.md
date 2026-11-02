@@ -2,6 +2,8 @@
 
 Ngày: **28–29/10/2026**. Source: baseline và working tree trong [README](README.md).
 
+**Ghi chú tích hợp 29/10:** bản develop mới nhận POS riêng từ PR #24 (`8c53b7b`). Bằng chứng audit dưới đây thuộc source `e3813da`; các phần POS riêng của BF-003/BF-015/BF-019 và toàn bộ BF-020 phải kiểm chứng lại trên source mới, chưa tự CLOSED/VERIFIED. Các finding Admin giữ nguyên phạm vi. Xem [SPRINT-3-RELEASE.md](SPRINT-3-RELEASE.md).
+
 ## Cách đọc
 
 - **P1:** ưu tiên cao — có nguy cơ sai phiên/quyền, giao dịch lặp, số liệu hoặc kết quả nghiệp vụ sai.

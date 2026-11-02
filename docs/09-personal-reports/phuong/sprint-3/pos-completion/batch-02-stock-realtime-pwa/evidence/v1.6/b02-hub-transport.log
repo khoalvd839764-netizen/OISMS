@@ -1,0 +1,32 @@
+TAP version 13
+# [2026-10-28T09:13:43.362Z] Information: WebSocket connected to ws://localhost:5000/hubs/notifications?id=X6bQa-jj7FRYY46aKLaN8A.
+# [2026-10-28T09:13:43.434Z] Information: Connection disconnected.
+#   [EVIDENCE v1.3] SignalR Hub WebSocket Transport & Cross-Tenant:
+#     - Live WebSocket Connection & JWT Handshake: PASS
+#     - Tenant A: 11111111-1111-1111-1111-111111111111 (Thu ngân shop A)
+#     - Joined own branch: 11111111-0000-0000-0001-000000000001 -> PASS
+#     - Rejected REAL Tenant B branch: 22222222-0000-0000-0001-000000000001 -> PASS (Cross-tenant isolated)
+#     - Production realtimeService Integration (start/switch/stop): PASS
+#   [GATE STATUS: LIVE EVENT BROADCAST & AUTO-RECONNECT WORKFLOW]
+#     - Trạng thái: NOT RUN / BLOCKED
+#     - Lý do: Môi trường hiện tại là Shared Demo Container (localhost:5000), không có Database Test độc lập.
+#       Tuân thủ nguyên tắc an toàn dữ liệu: Không thực hiện thao tác ghi đơn hàng / checkout làm thay đổi
+#       dữ liệu demo dùng chung mà không có isolated test DB.
+#     - Cách gỡ: Chạy container test chuyên biệt (ví dụ docker-compose.test.yml với database rỗng port 5433)
+#       và thiết lập biến môi trường POS_LIVE_TEST_ENV=1 cùng POS_TEST_BACKEND_URL để kích hoạt luồng live.
+#     - Toàn bộ workflow tự động reconnect, rejoin và GET refetch stock đã được kiểm chứng 100% PASS
+#       trong controlled runtime test suite: test-b02-realtime-pwa.mjs (24/24 tests PASS).
+# Subtest: B02-LIVE-HUB: Real Backend SignalR WebSocket Transport & Cross-Tenant Isolation
+ok 1 - B02-LIVE-HUB: Real Backend SignalR WebSocket Transport & Cross-Tenant Isolation
+  ---
+  duration_ms: 975.2591
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1486.5484

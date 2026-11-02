@@ -1,0 +1,47 @@
+{
+  "version": "v1.2",
+  "timestamp": "2026-10-27T16:47:06.589Z",
+  "gitBranch": "feature/OISMS-44-pos-pwa-checkout-va-in-hoa-don",
+  "files": {
+    "src/frontend/pos-app/src/services/api.ts": {
+      "sha256": "1b311d9605b62a02b7a95314fabdf05f519a11ffaaa796c13a575bc28ad20bfe",
+      "sizeBytes": 34595
+    },
+    "src/frontend/pos-app/src/services/receiptMapper.ts": {
+      "sha256": "9f3ad439b32dc27e514677b42723f6d7c859c7e71c7d692a23805884988ec903",
+      "sizeBytes": 215
+    },
+    "src/frontend/pos-app/src/components/ReceiptPrintModal.tsx": {
+      "sha256": "941c4e448b6019bd624ebd30935fcb6cdd11a042138164b35efbba19b8bea9a1",
+      "sizeBytes": 18112
+    },
+    "src/frontend/pos-app/src/components/PaymentModal.tsx": {
+      "sha256": "419b8ac9641ad904c4f9b037773b800f2b49f8b44a2fe5a3a77efaf7fe1affa3",
+      "sizeBytes": 27686
+    },
+    "src/frontend/pos-app/src/types/pos.ts": {
+      "sha256": "f65beb383b0a71316257a80ab301093f96ba58b9f9236a54c68fc7346ffa7d7b",
+      "sizeBytes": 3838
+    },
+    "src/frontend/pos-app/src/index.css": {
+      "sha256": "068de3111278f3b9e97c499ba72dab79e04450364358b713abb943da43ee74cf",
+      "sizeBytes": 3488
+    },
+    "src/frontend/pos-app/test-pos-e2e.mjs": {
+      "sha256": "71901ba4f50ac22658935f395e7185e558a4236c01dcfb5f504af3ec7e5b626d",
+      "sizeBytes": 127796
+    },
+    "docs/09-personal-reports/phuong/sprint-3/pos-completion/batch-01-receipt-print/evidence/v1.2/receipt-results.json": {
+      "sha256": "0cdae6bf4b90199d835cf4e7c212995d5b66ce2480a2c1a87fcb92ba5ec28b8f",
+      "sizeBytes": 1807
+    },
+    "docs/09-personal-reports/phuong/sprint-3/pos-completion/batch-01-receipt-print/evidence/v1.2/build.log": {
+      "sha256": "6a2aa13a35fbac6643f152441e2a1250b8cba80796090158107339c1bd88618d",
+      "sizeBytes": 884
+    },
+    "docs/09-personal-reports/phuong/sprint-3/pos-completion/batch-01-receipt-print/evidence/v1.2/tests.log": {
+      "sha256": "8b42aa249c5d90d353b7047f9beddce74b5c80dd4b5382b5d63f2a067b8414fd",
+      "sizeBytes": 15402
+    }
+  }
+}

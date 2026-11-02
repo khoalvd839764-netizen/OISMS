@@ -10,6 +10,7 @@
 | [COMING-SOON.md](COMING-SOON.md) | Chức năng chưa hoàn thiện, đã/đang để Coming soon; tách khỏi lỗi của chức năng đang dùng |
 | [TEST-RESULTS.md](TEST-RESULTS.md) | Kết quả kiểm tra, phạm vi đã quét, giới hạn và việc còn cần kiểm chứng |
 | `evidence/` | Bằng chứng kỹ thuật, mã kiểm tra, log và ảnh; chỉ cần khi triển khai hoặc review bản sửa |
+| [SPRINT-3-RELEASE.md](SPRINT-3-RELEASE.md) | Tổng hợp Sprint 3, phần mới so với main và phạm vi finding sau khi tích hợp POS mới từ PR #24 |
 
 ## Kết quả hiện có
 

@@ -1,0 +1,37 @@
+[
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "EC88B88116751CF159AE56CBBD864F287D2E25969EF55D1774B005643B34D6FF",
+        "Path":  "D:\\OISMS\\src\\frontend\\pos-app\\src\\App.tsx"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "53BCD7A5CDF84CD8328E26D686BC0113872B1633E53F516D379B82885503B597",
+        "Path":  "D:\\OISMS\\src\\frontend\\pos-app\\src\\components\\PaymentModal.tsx"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "C800F3DAF92DDDB6827FD2465180DE8AE652CB21FA5E10B49BB2046473656FC7",
+        "Path":  "D:\\OISMS\\src\\frontend\\pos-app\\src\\components\\LoginModal.tsx"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "4FC371F1907C493EF86F879118FBFE84F6C49B1844AF60F1919947C1296AC5AA",
+        "Path":  "D:\\OISMS\\src\\frontend\\pos-app\\src\\services\\api.ts"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "5066491E494561FD0933BACB0851B4556DA760FDA248B3E5B1E04C0168E9AA59",
+        "Path":  "D:\\OISMS\\src\\frontend\\pos-app\\src\\services\\pendingCheckoutStore.ts"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "A18E6AB34628A3C8C87D1AFD7256BA221A9F6D68A53C6EDFD78A7AC666098B1B",
+        "Path":  "D:\\OISMS\\src\\frontend\\pos-app\\src\\types\\pos.ts"
+    },
+    {
+        "Algorithm":  "SHA256",
+        "Hash":  "5C3F7A327A06C9DB5ABF1003D5E406545DC53F7627505E1D4330234AA34C67DA",
+        "Path":  "D:\\OISMS\\src\\frontend\\pos-app\\test-pos-e2e.mjs"
+    }
+]

@@ -1,0 +1,56 @@
+{
+  "task": "S3-POS-B02",
+  "version": "v1.8",
+  "status": "VERIFIED",
+  "verifiedBy": "Codex, after direct final fix authorized by the user",
+  "date": "2026-10-28 Asia/Saigon",
+  "branch": "feature/OISMS-44-pos-pwa-checkout-va-in-hoa-don",
+  "head": "a20ebe9d8580a3426e764497ac306fe620942498",
+  "source": "HEAD plus existing Antigravity v1.7 working tree and Codex final F06 test fix; exact source hashes in working-tree-hashes.json",
+  "findings": { "F01": "CLOSED, preserved", "F02": "CLOSED, preserved", "F03": "CLOSED, preserved", "F04": "CLOSED, preserved", "F05": "CLOSED, preserved", "F06": "CLOSED" },
+  "change": "Remove weaker live-only stock assertion. Read actual baseline directly from isolated backend with no-store; verify online and offline business stock changes; derive expectedFinalAvailable=baseline-onlineQuantity-offlineQuantity and compare recovered client cache exactly. Backend oracle is separate from proxy/client fetch. Add two live negative controls for wrong123 and missed offline decrease.",
+  "regressionBefore": {
+    "command": "node --test src/frontend/pos-app/test-b02-live-stock-regression.mjs",
+    "environment": "POS_LIVE_TEST_ENV=1 POS_TEST_BACKEND_URL=http://localhost:5001",
+    "result": "Both negative controls correctly expose baseline defect: child live runner exits0 and falsely PASSes; parent regression exits1. This is the valid pre-fix FAIL evidence.",
+    "values": [{ "mode": "wrong", "actual": 47, "injected": 123 }, { "mode": "stale", "actual": 54, "injected": 55 }],
+    "log": "before-live-stock-regression.log"
+  },
+  "regressionAfter": {
+    "command": "node --test src/frontend/pos-app/test-b02-live-stock-regression.mjs",
+    "result": "PASS both negative controls; each child live runner exits1 specifically with exact-stock assertion; parent reports3/3 including suite parent, zero skipped",
+    "values": [{ "mode": "wrong", "actual": 61, "injected": 123 }, { "mode": "stale", "actual": 68, "injected": 69 }],
+    "log": "after-live-stock-regression.log"
+  },
+  "livePositive": {
+    "command": "node --test src/frontend/pos-app/test-b02-hub-transport.mjs",
+    "environment": "POS_LIVE_TEST_ENV=1 POS_TEST_BACKEND_URL=http://localhost:5001 POS_PREFLIGHT_HARNESS=0",
+    "result": "1/1 PASS, zero skipped; real PostgreSQL, real SignalR SDK, real socket drop, offline mutation, automatic reconnect/rejoin and stock GET",
+    "initialAvailable": 78,
+    "onlineQuantity": 2,
+    "offlineQuantity": 1,
+    "expectedFinalAvailable": 75,
+    "clientAvailable": 75,
+    "log": "live-positive.log"
+  },
+  "preflight": {
+    "command": "node src/frontend/pos-app/test-b02-hub-preflight.cjs",
+    "result": "8/8 PASS on final v1.8 source. Offline fixtures: positive, demo guard, role guard, missing stock event, missing reconnect, wrong stock, rejected rejoin, missing stock GET.",
+    "log": "preflight-runner.log",
+    "details": "preflight-runner-results.json"
+  },
+  "previousChecksPreserved": {
+    "buildAndBatch": "Build PASS and24/24 B02 tests independently rerun in R8/v1.7; application/runtime source unchanged by this v1.8 test-only fix",
+    "baseline": "34/34 baseline and prior stock/browser/PWA checks preserved from preceding reviews; not repeated because related source/risk unchanged",
+    "historicalHandover": "handover-v1.7-before-fix.md is the prior READY_FOR_REVIEW claim, not final v1.8 proof"
+  },
+  "providerAndIsolation": {
+    "backend": "oisms_test_backend on localhost5001, Config.Env Database__Host=oisms_test_pg_check Database__Database=oisms Database__Username=oisms_test_app; verified before live runs",
+    "postgres": "Separate postgres16 container oisms_test_pg_check, host5433, dedicated volume distinct from demo oisms_postgres_data",
+    "marker": "_oisms_test_fixture_marker run_test_b02_v17; readiness healthy,31 tables, currentUseroisms_test_app (independently checked R8)",
+    "traffic": "Demo5000 only authentication/read-only hub smoke; all goods-receipt/Admin-order/POS-checkout business mutations use test5001",
+    "negativeControls": "Same unmodified live runner and real SDK/proxy/database. Test preload changes only post-drop proxy barcode GET response for client, never the direct backend oracle or database stock.",
+    "limits": "Verification applies to the identified current test setup and hashed source. Test fixtures accumulate in the dedicated DB through existing runner behavior; no destructive database cleanup performed. Current runner role readiness check alone is not proof for arbitrary future target DBs."
+  },
+  "git": "No branch switch, reset, clean, stash, commit, push or merge. Existing Antigravity changes preserved; no Admin/B03/application engine changes."
+}

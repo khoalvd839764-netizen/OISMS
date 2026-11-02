@@ -1,0 +1,47 @@
+{
+  "timestamp": "2026-10-28T10:51:48.175Z",
+  "environment": {
+    "backendUrl": "http://localhost:5001",
+    "postgresPort": 5433,
+    "postgresRole": "oisms_test_app",
+    "postgresDatabase": "oisms",
+    "postgresContainer": "oisms_test_pg_check",
+    "isolationConfirmed": true
+  },
+  "summary": {
+    "total": 7,
+    "passed": 7,
+    "failed": 0,
+    "blocked": 0
+  },
+  "criteria": {
+    "T06-AC-01": {
+      "status": "PASS",
+      "details": "Cashier auth, branch resolution, and product catalog verified."
+    },
+    "T06-AC-02": {
+      "status": "PASS",
+      "details": "Idempotency retry preserved single order, single payment, and single ledger OUT entry in PostgreSQL."
+    },
+    "T06-AC-03": {
+      "status": "PASS",
+      "details": "VietQR checkout accepted, payment recorded with BankTransfer, manual cashier guard honored."
+    },
+    "T06-AC-04": {
+      "status": "PASS",
+      "details": "Negative path: Insufficient stock rejected with HTTP 400 ProblemDetails, zero DB mutations."
+    },
+    "T06-AC-05": {
+      "status": "PASS",
+      "details": "Stock decrement verified through live backend queries: initial - 3 = updated."
+    },
+    "T06-AC-06": {
+      "status": "PASS",
+      "details": "Inventory ledger OUT transaction and PostgreSQL trigger immutability verified."
+    },
+    "T06-AC-07": {
+      "status": "PASS",
+      "details": "Complete structured JSON evidence generated and saved to evidence directory."
+    }
+  }
+}
