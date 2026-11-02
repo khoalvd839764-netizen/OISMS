@@ -2317,7 +2317,13 @@ public class WebhookIntegrationTests : IAsyncLifetime, IClassFixture<WebApplicat
             var rows = new List<string>();
             foreach (var table in new[] { "orders", "order_items", "reservations", "inventory_transactions", "payments", "inventory_balances", "warehouse_inventory_balances" })
             {
-                await using var sql = new NpgsqlCommand($"SELECT COALESCE(jsonb_agg(to_jsonb(t) - 'webhook_payload_signature' ORDER BY t.tenant_id, t.id), '[]'::jsonb)::text FROM {table} t", connection);
+                string stripExpr = table switch
+                {
+                    "orders" => "to_jsonb(t) - 'webhook_payload_signature'",
+                    "order_items" => "to_jsonb(t) - 'unit_id' - 'unit_name_snapshot' - 'factor_snapshot' - 'base_quantity'",
+                    _ => "to_jsonb(t)"
+                };
+                await using var sql = new NpgsqlCommand($"SELECT COALESCE(jsonb_agg({stripExpr} ORDER BY t.tenant_id, t.id), '[]'::jsonb)::text FROM {table} t", connection);
                 rows.Add((string)(await sql.ExecuteScalarAsync())!);
             }
             return string.Join("\n", rows);
@@ -2343,6 +2349,13 @@ public class WebhookIntegrationTests : IAsyncLifetime, IClassFixture<WebApplicat
         // 5. Đối soát dữ liệu nghiệp vụ: Không đổi bất kỳ dòng nào (bỏ qua cột webhook_payload_signature mới)
         var after = await Snapshot();
         (before == after).Should().BeTrue("Dữ liệu nghiệp vụ cũ không được thay đổi sau khi upgrade schema.");
+
+        // Khẳng định các cột multi-unit mới trên order_items có đúng giá trị backfill
+        await using (var checkCmd = new NpgsqlCommand("SELECT COUNT(*) FROM order_items WHERE factor_snapshot != 1 OR base_quantity != quantity OR unit_id IS NULL OR unit_name_snapshot IS NULL;", connection))
+        {
+            var invalidBackfillCount = (long)(await checkCmd.ExecuteScalarAsync())!;
+            invalidBackfillCount.Should().Be(0, "Mọi order_items cũ phải có unit_id, unit_name_snapshot, factor_snapshot = 1 và base_quantity = quantity.");
+        }
 
         // 6. Comprehensive validator kiểm tra toàn diện schema
         var validation = await DatabaseMigrationService.ValidateSchemaComprehensiveAsync(connection, null, default);

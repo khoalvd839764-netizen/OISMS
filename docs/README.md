@@ -25,4 +25,4 @@
 | **08** | [`08-sprints/`](./08-sprints/README.md) | `MOD-SPR-08` | Tài liệu kế hoạch và hướng dẫn tổng hợp theo từng giai đoạn (`sprint-2` đến `sprint-5`). |
 | **09** | [`09-personal-reports/`](./09-personal-reports/README.md) | `MOD-PER-09` | Báo cáo bàn giao và biên bản nghiệm thu cá nhân của từng thành viên (`dang-khoa`, `nhut`, `phuc-huu`, `phuong`). |
 | **10** | [`10-ai-skills/`](./10-ai-skills/README.md) | `MOD-SKL-10` | Danh mục 12 AI Skills được cài đặt tại `skills/`, bản đồ ánh xạ kiến trúc OISMS và hướng dẫn kích hoạt/tích hợp trong Antigravity. |
-| **DB** | [`database/`](./database/README.md) | `MOD-DB-00` | Toàn văn kịch bản SQL khởi tạo 29 bảng, ràng buộc khóa ngoại kép, trigger và seed data (`oisms_schema.sql`). |
+| **DB** | [`database/`](./database/README.md) | `MOD-DB-00` | Toàn văn kịch bản SQL khởi tạo 33 bảng, ràng buộc khóa ngoại kép, trigger và seed data (`oisms_schema.sql`). |

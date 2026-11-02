@@ -276,7 +276,8 @@ public class NpgsqlDatabaseReadinessService : IDatabaseReadinessService
         "stock_counts", "stock_count_items", "inventory_adjustments",
         "inventory_adjustment_items", "orders", "order_items", "reservations",
         "payments", "sales_returns", "sales_return_items", "inventory_transactions",
-        "daily_sales_summaries", "replenishment_suggestions", "shop_integrations"
+        "daily_sales_summaries", "replenishment_suggestions", "shop_integrations",
+        "units", "sku_units", "sku_unit_factor_history"
     };
 
     public NpgsqlDatabaseReadinessService(IConfiguration configuration, ILogger<NpgsqlDatabaseReadinessService> logger)

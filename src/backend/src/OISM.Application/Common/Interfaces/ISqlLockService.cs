@@ -25,4 +25,9 @@ public interface ISqlLockService
     /// Khóa bi quan bản ghi Kho hàng (FOR UPDATE) để chống xung đột đồng thời khi đổi chi nhánh hoặc cập nhật kho.
     /// </summary>
     Task LockWarehouseAsync(Guid warehouseId, Guid tenantId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Khóa toàn bộ danh mục đơn vị của Tenant bằng advisory lock ({tenant}/unit_catalog) để đảm bảo an toàn đồng thời khi khởi tạo hoặc sửa đổi đơn vị.
+    /// </summary>
+    Task LockUnitCatalogAsync(Guid tenantId, CancellationToken ct = default);
 }

@@ -63,13 +63,17 @@ public class ProductsController : ControllerBase
             var productId = await _productService.CreateProductAsync(request, ct);
             return StatusCode(201, new { message = "Tạo sản phẩm và biến thể thành công!", productId });
         }
+        catch (OismException ex) when (ex.StatusCode == 404)
+        {
+            return NotFound(new { errorCode = ex.ErrorCode, message = ex.Message });
+        }
         catch (OismException ex) when (ex.StatusCode == 409)
         {
-            return Conflict(new { message = ex.Message });
+            return Conflict(new { errorCode = ex.ErrorCode, message = ex.Message });
         }
         catch (OismException ex) when (ex.StatusCode == 400)
         {
-            return BadRequest(new { message = ex.Message });
+            return BadRequest(new { errorCode = ex.ErrorCode, message = ex.Message });
         }
     }
 
@@ -95,15 +99,15 @@ public class ProductsController : ControllerBase
         }
         catch (OismException ex) when (ex.StatusCode == 404)
         {
-            return NotFound(new { message = ex.Message });
+            return NotFound(new { errorCode = ex.ErrorCode, message = ex.Message });
         }
         catch (OismException ex) when (ex.StatusCode == 409)
         {
-            return Conflict(new { message = ex.Message });
+            return Conflict(new { errorCode = ex.ErrorCode, message = ex.Message });
         }
         catch (OismException ex) when (ex.StatusCode == 400)
         {
-            return BadRequest(new { message = ex.Message });
+            return BadRequest(new { errorCode = ex.ErrorCode, message = ex.Message });
         }
     }
 
@@ -129,15 +133,15 @@ public class ProductsController : ControllerBase
         }
         catch (OismException ex) when (ex.StatusCode == 404)
         {
-            return NotFound(new { message = ex.Message });
+            return NotFound(new { errorCode = ex.ErrorCode, message = ex.Message });
         }
         catch (OismException ex) when (ex.StatusCode == 409)
         {
-            return Conflict(new { message = ex.Message });
+            return Conflict(new { errorCode = ex.ErrorCode, message = ex.Message });
         }
         catch (OismException ex) when (ex.StatusCode == 400)
         {
-            return BadRequest(new { message = ex.Message });
+            return BadRequest(new { errorCode = ex.ErrorCode, message = ex.Message });
         }
     }
 

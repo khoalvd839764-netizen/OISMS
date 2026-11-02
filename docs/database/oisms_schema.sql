@@ -108,6 +108,25 @@ CREATE TABLE "brands" (
   CONSTRAINT "uq_brands_1" UNIQUE ("tenant_id", "id")
 );
 
+-- Danh mục đơn vị tính chuẩn của từng tenant.
+CREATE TABLE "units" (
+  "id" uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+  "tenant_id" uuid NOT NULL,
+  "code" varchar(30) NOT NULL,
+  "name" varchar(100) NOT NULL,
+  "symbol" varchar(20) NOT NULL,
+  "measure_group" varchar(20) NOT NULL,
+  "decimal_places" smallint DEFAULT 3 NOT NULL,
+  "is_active" boolean DEFAULT true NOT NULL,
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  "updated_at" timestamptz,
+  CONSTRAINT "uq_units_1" UNIQUE ("tenant_id", "id"),
+  CONSTRAINT "uq_units_2" UNIQUE ("tenant_id", "code"),
+  CONSTRAINT "ck_units_measure_group" CHECK (measure_group IN ('Mass', 'Volume', 'Length', 'Count', 'Packaging')),
+  CONSTRAINT "ck_units_decimal_places" CHECK (decimal_places >= 0 AND decimal_places <= 3),
+  CONSTRAINT "ck_units_code_normalized" CHECK (code = lower(btrim(code)) AND length(code) > 0)
+);
+
 -- Thông tin chung; sản phẩm đơn giản vẫn có một SKU.
 CREATE TABLE "products" (
   "id" uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
@@ -134,6 +153,7 @@ CREATE TABLE "skus" (
   "barcode" varchar(128),
   "retail_price" numeric(20,2) NOT NULL,
   "wholesale_price" numeric(20,2) NOT NULL,
+  "base_unit_id" uuid,
   "is_active" boolean DEFAULT true NOT NULL,
   "created_at" timestamptz DEFAULT now() NOT NULL,
   "updated_at" timestamptz,
@@ -147,6 +167,47 @@ CREATE TABLE "skus" (
   CONSTRAINT "ck_skus_ean_shape" CHECK (barcode_type <> 'EAN13' OR barcode ~ '^[0-9]{13}$'),
   CONSTRAINT "ck_skus_retail_price_nonnegative" CHECK (retail_price >= 0),
   CONSTRAINT "ck_skus_wholesale_price_nonnegative" CHECK (wholesale_price >= 0)
+);
+
+-- Cấu hình quy cách đơn vị theo từng SKU.
+CREATE TABLE "sku_units" (
+  "id" uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+  "tenant_id" uuid NOT NULL,
+  "sku_id" uuid NOT NULL,
+  "unit_id" uuid NOT NULL,
+  "factor_to_base" numeric(18,6) NOT NULL,
+  "can_purchase" boolean DEFAULT true NOT NULL,
+  "can_sell" boolean DEFAULT true NOT NULL,
+  "is_default_purchase" boolean DEFAULT false NOT NULL,
+  "is_default_sale" boolean DEFAULT false NOT NULL,
+  "barcode" varchar(128),
+  "quantity_decimal_places" smallint DEFAULT 3 NOT NULL,
+  "sale_price" numeric(20,2),
+  "version" integer DEFAULT 1 NOT NULL,
+  "is_active" boolean DEFAULT true NOT NULL,
+  "updated_by" uuid,
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  "updated_at" timestamptz,
+  CONSTRAINT "uq_sku_units_1" UNIQUE ("tenant_id", "id"),
+  CONSTRAINT "uq_sku_units_2" UNIQUE ("tenant_id", "sku_id", "unit_id"),
+  CONSTRAINT "ck_sku_units_factor_positive" CHECK (factor_to_base > 0),
+  CONSTRAINT "ck_sku_units_sale_price_nonnegative" CHECK (sale_price IS NULL OR sale_price >= 0),
+  CONSTRAINT "ck_sku_units_decimal_places" CHECK (quantity_decimal_places >= 0 AND quantity_decimal_places <= 3)
+);
+
+-- Lịch sử thay đổi hệ số quy đổi đơn vị theo SKU (bảng append-only).
+CREATE TABLE "sku_unit_factor_history" (
+  "id" uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+  "tenant_id" uuid NOT NULL,
+  "sku_unit_id" uuid NOT NULL,
+  "old_factor" numeric(18,6),
+  "new_factor" numeric(18,6) NOT NULL,
+  "old_version" integer,
+  "new_version" integer NOT NULL,
+  "changed_by" uuid,
+  "changed_at" timestamptz DEFAULT now() NOT NULL,
+  CONSTRAINT "uq_sku_unit_factor_history_1" UNIQUE ("tenant_id", "id"),
+  CONSTRAINT "ck_sku_unit_factor_history_new_factor" CHECK (new_factor > 0)
 );
 
 -- Nhà cung cấp của phiếu nhập.
@@ -190,12 +251,17 @@ CREATE TABLE "goods_receipt_items" (
   "tenant_id" uuid NOT NULL,
   "receipt_id" uuid NOT NULL,
   "sku_id" uuid NOT NULL,
+  "unit_id" uuid,
+  "unit_name_snapshot" varchar(100) DEFAULT '' NOT NULL,
+  "factor_snapshot" numeric(18,6) DEFAULT 1 NOT NULL,
   "quantity" numeric(18,3) NOT NULL,
+  "base_quantity" numeric(18,3) GENERATED ALWAYS AS (quantity * factor_snapshot) STORED,
   "unit_price" numeric(20,6) NOT NULL,
   "created_at" timestamptz DEFAULT now() NOT NULL,
   "updated_at" timestamptz,
   CONSTRAINT "uq_goods_receipt_items_1" UNIQUE ("tenant_id", "id"),
   CONSTRAINT "uq_goods_receipt_items_2" UNIQUE ("tenant_id", "receipt_id", "sku_id"),
+  CONSTRAINT "ck_goods_receipt_items_factor_snapshot_positive" CHECK (factor_snapshot > 0),
   CONSTRAINT "ck_goods_receipt_items_quantity_positive" CHECK (quantity > 0),
   CONSTRAINT "ck_goods_receipt_items_unit_price_nonnegative" CHECK (unit_price >= 0)
 );
@@ -416,14 +482,19 @@ CREATE TABLE "order_items" (
   "sku_id" uuid NOT NULL,
   "sku_code_snapshot" varchar(80) NOT NULL,
   "sku_name_snapshot" varchar(250) NOT NULL,
+  "unit_id" uuid,
+  "unit_name_snapshot" varchar(100) DEFAULT '' NOT NULL,
+  "factor_snapshot" numeric(18,6) DEFAULT 1 NOT NULL,
   "quantity" numeric(18,3) NOT NULL,
+  "base_quantity" numeric(18,3) GENERATED ALWAYS AS (quantity * factor_snapshot) STORED,
   "unit_price" numeric(20,2) NOT NULL,
   "cost_price" numeric(20,6),
   "created_at" timestamptz DEFAULT now() NOT NULL,
   "updated_at" timestamptz,
   CONSTRAINT "uq_order_items_1" UNIQUE ("tenant_id", "id"),
-  CONSTRAINT "uq_order_items_2" UNIQUE ("tenant_id", "order_id", "sku_id"),
+  CONSTRAINT "uq_order_items_2" UNIQUE NULLS NOT DISTINCT ("tenant_id", "order_id", "sku_id", "unit_id"),
   CONSTRAINT "uq_order_items_3" UNIQUE ("tenant_id", "id", "order_id", "sku_id"),
+  CONSTRAINT "ck_order_items_factor_snapshot_positive" CHECK (factor_snapshot > 0),
   CONSTRAINT "ck_order_items_quantity_positive" CHECK (quantity > 0),
   CONSTRAINT "ck_order_items_unit_price_nonnegative" CHECK (unit_price >= 0),
   CONSTRAINT "ck_order_items_cost_price_nonnegative" CHECK (cost_price >= 0)
@@ -715,6 +786,17 @@ ALTER TABLE "replenishment_suggestions" ADD CONSTRAINT "fk_replenishment_suggest
 
 ALTER TABLE "shop_integrations" ADD CONSTRAINT "fk_shop_integrations_tenant" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 ALTER TABLE "shop_integrations" ADD CONSTRAINT "fk_shop_integrations_branch" FOREIGN KEY ("tenant_id", "branch_id") REFERENCES "branches" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "units" ADD CONSTRAINT "fk_units_tenant_id" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "skus" ADD CONSTRAINT "fk_skus_base_unit_id" FOREIGN KEY ("tenant_id", "base_unit_id") REFERENCES "units" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "sku_units" ADD CONSTRAINT "fk_sku_units_tenant_id" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "sku_units" ADD CONSTRAINT "fk_sku_units_sku_id" FOREIGN KEY ("tenant_id", "sku_id") REFERENCES "skus" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "sku_units" ADD CONSTRAINT "fk_sku_units_unit_id" FOREIGN KEY ("tenant_id", "unit_id") REFERENCES "units" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "sku_units" ADD CONSTRAINT "fk_sku_units_updated_by" FOREIGN KEY ("tenant_id", "updated_by") REFERENCES "users" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "sku_unit_factor_history" ADD CONSTRAINT "fk_sku_unit_factor_history_tenant_id" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "sku_unit_factor_history" ADD CONSTRAINT "fk_sku_unit_factor_history_sku_unit_id" FOREIGN KEY ("tenant_id", "sku_unit_id") REFERENCES "sku_units" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "sku_unit_factor_history" ADD CONSTRAINT "fk_sku_unit_factor_history_changed_by" FOREIGN KEY ("tenant_id", "changed_by") REFERENCES "users" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "goods_receipt_items" ADD CONSTRAINT "fk_goods_receipt_items_unit_id" FOREIGN KEY ("tenant_id", "unit_id") REFERENCES "units" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "order_items" ADD CONSTRAINT "fk_order_items_unit_id" FOREIGN KEY ("tenant_id", "unit_id") REFERENCES "units" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 
 -- Query and partial unique indexes.
 CREATE INDEX "ix_skus_product" ON "skus" ("tenant_id", "product_id");
@@ -728,6 +810,9 @@ CREATE INDEX "ix_order_items_sku_orders" ON "order_items" ("tenant_id", "sku_id"
 CREATE INDEX "ix_reservations_expiry" ON "reservations" ("status", "expires_at", "tenant_id");
 CREATE INDEX "ix_refresh_tokens_user" ON "refresh_tokens" ("tenant_id", "user_id");
 CREATE INDEX "ix_goods_receipts_status_time" ON "goods_receipts" ("tenant_id", "status", "created_at", "id");
+CREATE UNIQUE INDEX "ux_sku_units_default_sale" ON "sku_units" ("tenant_id", "sku_id") WHERE is_default_sale AND is_active;
+CREATE UNIQUE INDEX "ux_sku_units_default_purchase" ON "sku_units" ("tenant_id", "sku_id") WHERE is_default_purchase AND is_active;
+CREATE UNIQUE INDEX "ux_sku_units_barcode" ON "sku_units" ("tenant_id", "barcode") WHERE barcode IS NOT NULL;
 CREATE INDEX "ix_stock_transfers_status_time" ON "stock_transfers" ("tenant_id", "status", "created_at", "id");
 CREATE INDEX "ix_stock_counts_status_time" ON "stock_counts" ("tenant_id", "status", "created_at", "id");
 CREATE INDEX "ix_sales_returns_status_time" ON "sales_returns" ("tenant_id", "status", "created_at", "id");
@@ -816,7 +901,7 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM public.reservations r JOIN public.order_items i ON i.id=r.order_item_id AND i.tenant_id=r.tenant_id
     WHERE r.tenant_id=p_tenant AND r.branch_id=p_branch AND r.sku_id=p_sku AND r.status IN ('Active','Consumed')
-    GROUP BY i.id,i.quantity HAVING sum(r.quantity)>i.quantity
+    GROUP BY i.id,i.base_quantity HAVING sum(r.quantity)>i.base_quantity
   ) THEN
     RAISE EXCEPTION 'Reservation allocation exceeds order quantity' USING ERRCODE='23514';
   END IF;
@@ -870,7 +955,10 @@ BEGIN
   IF TG_OP='UPDATE' THEN
     IF (NEW.tenant_id,NEW.order_id,NEW.sku_id) IS DISTINCT FROM (OLD.tenant_id,OLD.order_id,OLD.sku_id)
       OR (confirmed IS NOT NULL AND OLD.cost_price IS NOT NULL AND
-          (NEW.cost_price,NEW.quantity,NEW.unit_price) IS DISTINCT FROM (OLD.cost_price,OLD.quantity,OLD.unit_price)) THEN
+          (
+            (NEW.cost_price,NEW.quantity,NEW.unit_price,NEW.factor_snapshot) IS DISTINCT FROM (OLD.cost_price,OLD.quantity,OLD.unit_price,OLD.factor_snapshot)
+            OR (OLD.unit_id IS NOT NULL AND (NEW.unit_id,NEW.unit_name_snapshot) IS DISTINCT FROM (OLD.unit_id,OLD.unit_name_snapshot))
+          )) THEN
       RAISE EXCEPTION 'Order item identity or confirmed financial snapshot is immutable' USING ERRCODE='23514';
     END IF;
     RETURN NEW;
@@ -894,6 +982,9 @@ END $$;
 CREATE TRIGGER protect_order BEFORE UPDATE ON public.orders
 FOR EACH ROW EXECUTE FUNCTION public.oisms_protect_order();
 
+CREATE TRIGGER factor_history_append_only BEFORE UPDATE OR DELETE OR TRUNCATE ON public.sku_unit_factor_history
+FOR EACH STATEMENT EXECUTE FUNCTION public.oisms_deny_mutation();
+
 -- Validate existing data before enabling this migration on v0.4.
 DO $$ DECLARE k record; BEGIN
   FOR k IN
@@ -914,8 +1005,10 @@ END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='oisms_runtime') THEN CREATE ROLE oisms_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS; END IF; END $$;
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA public TO oisms_runtime;
-REVOKE ALL ON public."tenants", public."users", public."refresh_tokens", public."branches", public."warehouses", public."categories", public."brands", public."products", public."skus", public."suppliers", public."goods_receipts", public."goods_receipt_items", public."inventory_balances", public."warehouse_inventory_balances", public."stock_transfers", public."stock_transfer_items", public."stock_counts", public."stock_count_items", public."inventory_adjustments", public."inventory_adjustment_items", public."orders", public."order_items", public."reservations", public."payments", public."sales_returns", public."sales_return_items", public."inventory_transactions", public."daily_sales_summaries", public."replenishment_suggestions", public."shop_integrations" FROM PUBLIC, oisms_runtime;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public."tenants", public."users", public."refresh_tokens", public."branches", public."warehouses", public."categories", public."brands", public."products", public."skus", public."suppliers", public."goods_receipts", public."goods_receipt_items", public."inventory_balances", public."warehouse_inventory_balances", public."stock_transfers", public."stock_transfer_items", public."stock_counts", public."stock_count_items", public."inventory_adjustments", public."inventory_adjustment_items", public."orders", public."order_items", public."reservations", public."payments", public."sales_returns", public."sales_return_items", public."inventory_transactions", public."daily_sales_summaries", public."replenishment_suggestions", public."shop_integrations" TO oisms_runtime;
+REVOKE ALL ON public."tenants", public."users", public."refresh_tokens", public."branches", public."warehouses", public."categories", public."brands", public."products", public."skus", public."suppliers", public."goods_receipts", public."goods_receipt_items", public."inventory_balances", public."warehouse_inventory_balances", public."stock_transfers", public."stock_transfer_items", public."stock_counts", public."stock_count_items", public."inventory_adjustments", public."inventory_adjustment_items", public."orders", public."order_items", public."reservations", public."payments", public."sales_returns", public."sales_return_items", public."inventory_transactions", public."daily_sales_summaries", public."replenishment_suggestions", public."shop_integrations", public."units", public."sku_units", public."sku_unit_factor_history" FROM PUBLIC, oisms_runtime;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public."tenants", public."users", public."refresh_tokens", public."branches", public."warehouses", public."categories", public."brands", public."products", public."skus", public."suppliers", public."goods_receipts", public."goods_receipt_items", public."inventory_balances", public."warehouse_inventory_balances", public."stock_transfers", public."stock_transfer_items", public."stock_counts", public."stock_count_items", public."inventory_adjustments", public."inventory_adjustment_items", public."orders", public."order_items", public."reservations", public."payments", public."sales_returns", public."sales_return_items", public."inventory_transactions", public."daily_sales_summaries", public."replenishment_suggestions", public."shop_integrations", public."units", public."sku_units" TO oisms_runtime;
+GRANT SELECT, INSERT ON public."sku_unit_factor_history" TO oisms_runtime;
+REVOKE UPDATE, DELETE, TRUNCATE ON public.sku_unit_factor_history FROM oisms_runtime;
 REVOKE UPDATE, DELETE, TRUNCATE ON public.inventory_transactions FROM oisms_runtime;
 REVOKE DELETE, TRUNCATE ON public.inventory_balances, public.warehouse_inventory_balances, public.reservations FROM oisms_runtime;
 -- Balance writes are allowed only when deferred checks reconcile ledger/reservations at COMMIT.

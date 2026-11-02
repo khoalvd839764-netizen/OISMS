@@ -50,8 +50,12 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<InventoryAdjustment> InventoryAdjustments { get; set; } = null!;
     public DbSet<InventoryAdjustmentItem> InventoryAdjustmentItems { get; set; } = null!;
     public DbSet<ShopIntegration> ShopIntegrations { get; set; } = null!;
+    public DbSet<Unit> Units { get; set; } = null!;
+    public DbSet<SkuUnit> SkuUnits { get; set; } = null!;
+    public DbSet<SkuUnitFactorHistory> SkuUnitFactorHistories { get; set; } = null!;
 
     public bool IsRelationalDatabase => Database.IsRelational();
+    public bool HasActiveTransaction => Database.CurrentTransaction != null;
 
     public Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
     {
@@ -158,6 +162,15 @@ public class AppDbContext : DbContext, IAppDbContext
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
 
         modelBuilder.Entity<ShopIntegration>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<Unit>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<SkuUnit>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<SkuUnitFactorHistory>()
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
     }
 

@@ -16,6 +16,11 @@ public class OrderItem : BaseEntity, IMustHaveTenant
     public string SkuCodeSnapshot { get; set; } = string.Empty;
     public string SkuNameSnapshot { get; set; } = string.Empty;
 
+    public Guid? UnitId { get; set; }
+    public string UnitNameSnapshot { get; set; } = string.Empty;
+    public decimal FactorSnapshot { get; set; } = 1m;
+    public decimal BaseQuantity { get => Quantity * FactorSnapshot; private set { } }
+
     public decimal Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal? CostPrice { get; set; }
@@ -24,4 +29,5 @@ public class OrderItem : BaseEntity, IMustHaveTenant
     public Tenant? Tenant { get; set; }
     public Order? Order { get; set; }
     public ProductVariant? Sku { get; set; }
+    public Unit? Unit { get; set; }
 }

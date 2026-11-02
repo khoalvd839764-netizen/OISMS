@@ -57,4 +57,15 @@ public class SqlLockService : ISqlLockService
                 ct);
         }
     }
+
+    public async Task LockUnitCatalogAsync(Guid tenantId, CancellationToken ct = default)
+    {
+        if (_context.Database.IsNpgsql())
+        {
+            var tenantStr = tenantId.ToString();
+            await _context.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_xact_lock(hashtextextended({tenantStr} || '/unit_catalog', 0));",
+                ct);
+        }
+    }
 }

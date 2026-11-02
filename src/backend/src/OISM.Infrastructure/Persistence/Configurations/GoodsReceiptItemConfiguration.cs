@@ -30,6 +30,27 @@ public class GoodsReceiptItemConfiguration : IEntityTypeConfiguration<GoodsRecei
             .HasColumnName("sku_id")
             .IsRequired();
 
+        builder.Property(i => i.UnitId)
+            .HasColumnName("unit_id")
+            .IsRequired(false);
+
+        builder.Property(i => i.UnitNameSnapshot)
+            .HasColumnName("unit_name_snapshot")
+            .HasMaxLength(100)
+            .HasDefaultValue("")
+            .IsRequired();
+
+        builder.Property(i => i.FactorSnapshot)
+            .HasColumnName("factor_snapshot")
+            .HasPrecision(18, 6)
+            .HasDefaultValue(1m)
+            .IsRequired();
+
+        builder.Property(i => i.BaseQuantity)
+            .HasColumnName("base_quantity")
+            .HasPrecision(18, 3)
+            .HasComputedColumnSql("quantity * factor_snapshot", stored: true);
+
         builder.Property(i => i.Quantity)
             .HasColumnName("quantity")
             .HasPrecision(18, 3)
@@ -63,6 +84,12 @@ public class GoodsReceiptItemConfiguration : IEntityTypeConfiguration<GoodsRecei
         builder.HasOne(i => i.Sku)
             .WithMany()
             .HasForeignKey(i => new { i.TenantId, i.SkuId })
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(i => i.Unit)
+            .WithMany()
+            .HasForeignKey(i => new { i.TenantId, i.UnitId })
+            .HasPrincipalKey(u => new { u.TenantId, u.Id })
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

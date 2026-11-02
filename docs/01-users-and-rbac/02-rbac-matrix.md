@@ -47,6 +47,7 @@ Các trường định danh bắt buộc bên trong Payload của JWT:
 | **Danh mục & Sản phẩm** | Tạo, cập nhật Sản phẩm (`Product`) & Biến thể (`SKU`) | `FR-PROD-02` | ✅ Toàn quyền | ✅ Toàn quyền | 👁️ Chỉ tra cứu POS |
 | **Danh mục & Sản phẩm** | Sinh tự động / Cập nhật Mã vạch (`EAN-13`/`Code128`) | `FR-PROD-03` | ✅ Toàn quyền | ✅ Toàn quyền | 👁️ Chỉ quét mã |
 | **Danh mục & Sản phẩm** | Thiết lập / Cập nhật Giá bán lẻ & Giá bán sỉ theo SKU | `FR-PROD-04` | ✅ Toàn quyền | ✅ Toàn quyền | 👁️ Chỉ đọc giá bán |
+| **Danh mục & Sản phẩm** | Quản lý Đơn vị tính (`Unit`) & Quy cách SKU (`SkuUnit`) | `OISMS-47-U05` | ✅ Toàn quyền | ✅ Toàn quyền | 👁️ Chỉ xem (`GET`), trừ lịch sử hệ số |
 | **Kho & Sổ cái** | Xem lịch sử Sổ cái kho (`InventoryTransaction`) & Số dư tồn kho | `FR-INV-01` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (Chỉ xem `available` tại POS) |
 | **Kho & Sổ cái** | Tạo & Xác nhận Phiếu nhập hàng từ Nhà cung cấp (`Goods Receipt`) | `FR-INV-02` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |
 | **Kho & Sổ cái** | Thực hiện Chuyển kho 2 bước (Xuất đi & Xác nhận nhập) | `FR-INV-03` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |

@@ -42,3 +42,27 @@
 | `PUT` | `/api/products/{pId}/variants/{vId}` | `Owner, Staff` | `FR-PROD-02..03` | Cập nhật biến thể SKU, bảo toàn kiểu dữ liệu JSON và `null` lồng nhau. |
 | `PUT` | `/api/products/{pId}/variants/{vId}/prices` | `Owner, Staff` | `FR-PROD-04` | Cập nhật Giá bán lẻ (`RetailPrice`) và Giá bán sỉ (`WholesalePrice`) độc lập với giá vốn WAC. |
 | `DELETE` | `/api/products/{pId}/variants/{vId}` | `Owner, Staff` | `FR-PROD-02` | Vô hiệu hóa mềm (`Soft delete: IsActive = false`) biến thể SKU. |
+
+---
+
+## 3. Danh Mục Endpoints Đơn Vị Tính & Quy Cách SKU (`OISMS-47-U05`)
+
+| Method | Endpoint | Quyền (RBAC) | Mô tả & Quy tắc xử lý |
+| :---: | :--- | :---: | :--- |
+| `GET` | `/api/units` | `Owner, Staff, Cashier` | Lấy danh sách đơn vị tính của Tenant; tự bổ sung các đơn vị thuộc bộ mặc định còn thiếu. |
+| `GET` | `/api/units/{id}` | `Owner, Staff, Cashier` | Xem thông tin chi tiết một đơn vị tính theo Id. |
+| `POST` | `/api/units` | `Owner, Staff` | Tạo mới đơn vị tính; kiểm tra trùng mã `code` trong cùng Tenant (`409 Conflict`). |
+| `PUT` | `/api/units/{id}` | `Owner, Staff` | Cập nhật tên, ký hiệu, số lẻ, trạng thái; không được đổi `code` và `measure_group` nếu đã được SKU sử dụng (`409 UNIT_IN_USE`). |
+| `GET` | `/api/products/{productId}/variants/{variantId}/units` | `Owner, Staff, Cashier` | Lấy danh sách các đơn vị tính và quy cách đã cấu hình cho biến thể SKU. |
+| `POST` | `/api/products/{productId}/variants/{variantId}/units` | `Owner, Staff` | Thêm đơn vị quy đổi cho SKU; kiểm tra tương thích `measure_group` (`422`), trùng mã vạch trong tenant (`409`), hệ số > 0, tối đa 12 chữ số nguyên và 6 số lẻ (`400`). Đặt mặc định mới thì tự bỏ mặc định cũ. |
+| `PUT` | `/api/products/{productId}/variants/{variantId}/units/{skuUnitId}` | `Owner, Staff` | Cập nhật quy cách, giá bán, hệ số (tăng version và ghi lịch sử); không sửa hệ số đơn vị gốc (`400`). |
+| `DELETE` | `/api/products/{productId}/variants/{variantId}/units/{skuUnitId}` | `Owner, Staff` | Tắt mềm quy cách đơn vị cho SKU (`IsActive = false`); không được tắt đơn vị gốc (`400`). Tắt đơn vị đang mặc định thì mặc định chuyển về dòng gốc. |
+| `GET` | `/api/products/{productId}/variants/{variantId}/units/{skuUnitId}/history` | `Owner, Staff` | Xem lịch sử thay đổi hệ số quy đổi của đơn vị quy cách SKU. |
+
+**Quy tắc đơn vị trên API sản phẩm:**
+
+- `POST /api/products`, `POST .../variants` nhận `baseUnitId` hoặc `unit` (mã đơn vị); không gửi thì dùng `piece`. `baseUnitId` không thuộc tenant trả `404 UNIT_NOT_FOUND`. SKU luôn có một dòng `sku_units` gốc hệ số 1.
+- `PUT .../variants/{vId}` nhận `baseUnitId`; SKU đã có giao dịch, số dư, hoặc còn đơn vị quy đổi đang bật trả `409 BASE_UNIT_LOCKED`.
+- Response biến thể có thêm `baseUnitId`, `baseUnitCode`, `baseUnitName`, `units[]`; biến thể trả về theo thứ tự tạo.
+- `changed_by`, `updated_by` lấy từ JWT, client không gửi được.
+- Đơn hàng, POS, phiếu nhập **chưa** nhận `unitId` ở bản này (Upgrade 05 phần P2).

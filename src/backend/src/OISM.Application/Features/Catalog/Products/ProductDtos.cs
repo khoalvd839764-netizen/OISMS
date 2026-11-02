@@ -1,5 +1,6 @@
 using FluentValidation;
 using OISM.Application.Common.Helpers;
+using OISM.Application.Features.Catalog.Units;
 
 namespace OISM.Application.Features.Catalog.Products;
 
@@ -22,6 +23,8 @@ public class CreateVariantRequest
     public string? Color { get; set; }
     public string? Size { get; set; }
     public Dictionary<string, object>? Attributes { get; set; }
+    public Guid? BaseUnitId { get; set; }
+    public string? Unit { get; set; }
 }
 
 public class UpdateVariantRequest
@@ -34,6 +37,7 @@ public class UpdateVariantRequest
     public string? Color { get; set; }
     public string? Size { get; set; }
     public Dictionary<string, object>? Attributes { get; set; }
+    public Guid? BaseUnitId { get; set; }
     public bool IsActive { get; set; } = true;
 }
 
@@ -78,6 +82,10 @@ public class ProductVariantResponse
     public string? Color { get; set; }
     public string? Size { get; set; }
     public Dictionary<string, object>? Attributes { get; set; }
+    public Guid? BaseUnitId { get; set; }
+    public string? BaseUnitCode { get; set; }
+    public string? BaseUnitName { get; set; }
+    public List<SkuUnitResponse> Units { get; set; } = new();
     public bool IsActive { get; set; }
 }
 

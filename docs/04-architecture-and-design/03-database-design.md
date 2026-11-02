@@ -6,7 +6,7 @@
 | **Phiên bản (Version)** | `v1.0.0` |
 | **Ngày hiệu lực (Effective Date)** | `2026-10-22` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-INV-01`, `NFR-TENANT-02`, `NFR-SEC-03`, `3.2.e` (Trang 2, 4, 5) |
-| **Phạm vi áp dụng** | PostgreSQL 16+ Schema (`docs/database/oisms_schema.sql` — 29 bảng) |
+| **Phạm vi áp dụng** | PostgreSQL 16+ Schema (`docs/database/oisms_schema.sql` — 33 bảng) |
 
 ---
 
@@ -27,6 +27,11 @@ erDiagram
     TENANTS ||--o{ PRODUCTS : "danh mục"
     BRANCHES ||--o{ WAREHOUSES : "chứa"
     PRODUCTS ||--o{ SKUS : "biến thể"
+    TENANTS ||--o{ UNITS : "danh mục đơn vị"
+    UNITS ||--o{ SKUS : "đơn vị gốc"
+    SKUS ||--o{ SKU_UNITS : "đơn vị quy đổi"
+    UNITS ||--o{ SKU_UNITS : "dùng cho"
+    SKU_UNITS ||--o{ SKU_UNIT_FACTOR_HISTORY : "lịch sử hệ số"
     SKUS ||--o{ INVENTORY_BALANCES : "tồn chi nhánh"
     SKUS ||--o{ WAREHOUSE_INVENTORY_BALANCES : "tồn kho"
     SKUS ||--o{ INVENTORY_TRANSACTIONS : "ghi sổ cái"
@@ -48,6 +53,14 @@ erDiagram
         decimal retail_price
         decimal wholesale_price
         decimal unit_cost "Giá vốn WAC"
+    }
+    SKU_UNITS {
+        uuid id PK
+        uuid tenant_id FK
+        uuid sku_id FK
+        uuid unit_id FK
+        decimal factor_to_base "Hệ số về đơn vị gốc"
+        int version
     }
     INVENTORY_BALANCES {
         uuid id PK
@@ -84,4 +97,4 @@ erDiagram
 | `inventory_transactions` | `ix_ledger_tenant_sku` | `(tenant_id, sku_id, created_at DESC)` | Tra cứu thẻ kho theo từng SKU tức thì (`NFR-TENANT-02`). |
 | `reservations` | `uq_reservations_2` | `(tenant_id, order_item_id, warehouse_id)` | Bảo vệ tính Idempotent, chống giữ chỗ lặp cho cùng 1 dòng đơn hàng. |
 
-> **Tham chiếu chi tiết DDL:** Xem toàn bộ 29 bảng và trigger bảo vệ Sổ cái tại [`docs/database/oisms_schema.sql`](../database/oisms_schema.sql) và [`docs/database/README.md`](../database/README.md).
+> **Tham chiếu chi tiết DDL:** Xem toàn bộ 33 bảng và trigger bảo vệ Sổ cái tại [`docs/database/oisms_schema.sql`](../database/oisms_schema.sql) và [`docs/database/README.md`](../database/README.md).

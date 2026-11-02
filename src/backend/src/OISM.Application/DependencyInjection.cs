@@ -4,6 +4,7 @@ using OISM.Application.Features.Branches.Services;
 using OISM.Application.Features.Catalog.Brands.Services;
 using OISM.Application.Features.Catalog.Categories.Services;
 using OISM.Application.Features.Catalog.Products.Services;
+using OISM.Application.Features.Catalog.Units.Services;
 using OISM.Application.Features.Inventory.Services;
 using OISM.Application.Features.Orders.Services;
 using OISM.Application.Features.Pos;
@@ -42,6 +43,7 @@ public static class DependencyInjection
         services.AddScoped<IBranchService, BranchService>();
         services.AddScoped<ICategoryService, CategoryService>();
         services.AddScoped<IProductService, ProductService>();
+        services.AddScoped<IUnitService, UnitService>();
         services.AddScoped<ISupplierService, SupplierService>();
         services.AddScoped<IWarehouseService, WarehouseService>();
         services.AddScoped<IPosCatalogService, PosCatalogService>();

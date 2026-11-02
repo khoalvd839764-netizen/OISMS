@@ -11,6 +11,7 @@ namespace OISM.Application.Common.Interfaces;
 public interface IAppDbContext
 {
     bool IsRelationalDatabase { get; }
+    bool HasActiveTransaction { get; }
     Task<int> ExecuteSqlRawAsync(string sql, object[] parameters, CancellationToken cancellationToken = default);
     DbSet<Tenant> Tenants { get; }
     DbSet<User> Users { get; }
@@ -39,6 +40,9 @@ public interface IAppDbContext
     DbSet<InventoryAdjustment> InventoryAdjustments { get; }
     DbSet<InventoryAdjustmentItem> InventoryAdjustmentItems { get; }
     DbSet<ShopIntegration> ShopIntegrations { get; }
+    DbSet<Unit> Units { get; }
+    DbSet<SkuUnit> SkuUnits { get; }
+    DbSet<SkuUnitFactorHistory> SkuUnitFactorHistories { get; }
 
     int SaveChanges();
     int SaveChanges(bool acceptAllChangesOnSuccess);
