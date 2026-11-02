@@ -84,6 +84,44 @@ function saveLocalTransfers(transfers: StockTransfer[]): void {
   }
 }
 
+// [BF-004] Lưu và khôi phục ý định tạo phiếu chuyển theo chữ ký payload (qua retry / reopen / reload)
+let lastTransferIntent: { signature: string; requestKey: string; timestamp: number } | null = null;
+
+function getTransferIntentStorageKey(): string {
+  const tenantId = localStorage.getItem('oism_tenant_id') || 'default';
+  return `oism_transfer_intent_${tenantId}`;
+}
+
+function resolveTransferRequestKey(sig: string, explicitKey?: string): string {
+  if (lastTransferIntent && lastTransferIntent.signature === sig) {
+    return lastTransferIntent.requestKey;
+  }
+  try {
+    const raw = sessionStorage.getItem(getTransferIntentStorageKey());
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.signature === sig && parsed.requestKey) {
+        lastTransferIntent = parsed;
+        return parsed.requestKey;
+      }
+    }
+  } catch {}
+  const key = explicitKey || generateUuid();
+  const intent = { signature: sig, requestKey: key, timestamp: Date.now() };
+  lastTransferIntent = intent;
+  try {
+    sessionStorage.setItem(getTransferIntentStorageKey(), JSON.stringify(intent));
+  } catch {}
+  return key;
+}
+
+function clearTransferIntent(): void {
+  lastTransferIntent = null;
+  try {
+    sessionStorage.removeItem(getTransferIntentStorageKey());
+  } catch {}
+}
+
 export const stockTransferService = {
   /**
    * Lấy danh sách phiếu chuyển kho có phân trang và bộ lọc (PR26-F04)
@@ -146,9 +184,19 @@ export const stockTransferService = {
 
   /**
    * Tạo phiếu chuyển kho mới (Trạng thái Draft)
+   * [BF-004] Giữ nguyên requestKey khi retry cùng payload
    */
   async createTransfer(data: CreateStockTransferRequest): Promise<StockTransfer> {
-    const requestKey = generateUuid();
+    const sig = JSON.stringify({
+      fromBranchId: data.fromBranchId,
+      toBranchId: data.toBranchId,
+      fromWarehouseId: data.fromWarehouseId,
+      toWarehouseId: data.toWarehouseId,
+      items: data.items,
+    });
+
+    const requestKey = resolveTransferRequestKey(sig, data.requestKey);
+
     const payload = {
       ...data,
       requestKey,
@@ -160,6 +208,7 @@ export const stockTransferService = {
         'X-Request-Key': requestKey,
       },
     });
+    clearTransferIntent();
     const createdTransfer = normalizeTransfer(response.data);
 
     // Đồng bộ vào cache danh sách

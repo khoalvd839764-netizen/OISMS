@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { apiAdapter } from '../../services/apiAdapter';
+import { apiAdapter, generateUuid } from '../../services/apiAdapter';
 import { stockCountService } from '../../services/stockCountService';
 import type { Sku } from '../../types/domain';
 import { X, AlertCircle, Check } from 'lucide-react';
@@ -28,6 +28,10 @@ export const CreateStockCountModal: React.FC<CreateStockCountModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [intentState, setIntentState] = useState<{ sig: string; key: string }>(() => ({
+    sig: '',
+    key: generateUuid ? generateUuid() : (crypto.randomUUID ? crypto.randomUUID() : `sc-${Date.now()}`),
+  }));
 
   useEffect(() => {
     if (!isOpen) return;
@@ -104,7 +108,19 @@ export const CreateStockCountModal: React.FC<CreateStockCountModalProps> = ({
 
     setSubmitting(true);
     try {
+      const currentSig = JSON.stringify({
+        branchId: selectedBranchId,
+        warehouseId: selectedWarehouseId,
+        skuIds: scopeMode === 'PARTIAL' ? selectedSkuIds : null,
+      });
+      let activeKey = intentState.key;
+      if (intentState.sig !== currentSig) {
+        activeKey = generateUuid ? generateUuid() : (crypto.randomUUID ? crypto.randomUUID() : `sc-${Date.now()}`);
+        setIntentState({ sig: currentSig, key: activeKey });
+      }
+
       await stockCountService.createStockCount({
+        requestKey: activeKey,
         branchId: selectedBranchId,
         warehouseId: selectedWarehouseId,
         skuIds: scopeMode === 'PARTIAL' ? selectedSkuIds : null,

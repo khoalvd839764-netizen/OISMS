@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Role } from "../types/domain";
 import { clearAuthSession, clearSessionOrdersStorage, httpClient } from "../services/httpClient";
+import { realtimeAdapter } from "../services/realtimeAdapter";
 
 export interface UserAccount {
   id: string;
@@ -125,6 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (credentials: { email: string; password: string }) => {
     try {
       setNetworkError(null);
+      await realtimeAdapter.stop().catch(() => {});
       const res = await httpClient.post("/api/auth/login", {
         email: credentials.email,
         password: credentials.password,
@@ -132,7 +134,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const { accessToken, refreshToken, user: userData } = res.data;
 
-      // [A01] Xóa sạch dữ liệu đơn hàng phiên cũ (mọi tenant) trước khi khởi tạo phiên mới
+      // [A01, BF-001] Reset thế hệ xác thực và xóa sạch dữ liệu đơn hàng phiên cũ trước khi khởi tạo phiên mới
+      clearAuthSession();
       sessionStorage.removeItem("oism_session_orders");
       clearSessionOrdersStorage();
 
@@ -177,6 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
+      await realtimeAdapter.stop().catch(() => {});
       const refreshToken = localStorage.getItem("oism_refresh_token");
       if (refreshToken) {
         await httpClient.post("/api/auth/logout", { refreshToken }).catch(() => {});

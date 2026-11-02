@@ -19,6 +19,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge, Button, ComingSoonBadge, Input, Modal, PageTitle, Select } from "../components/ui";
 import { apiAdapter, generateUuid } from "../services/apiAdapter";
+import { realtimeAdapter } from "../services/realtimeAdapter";
 import { useAuth } from "../context/AuthContext";
 import type { LedgerEntry, Sku } from "../types/domain";
 import { GoodsReceiptList } from "../components/GoodsReceiptList";
@@ -321,15 +322,37 @@ export function InventoryPage() {
   }, [branchFilter, balanceWarehouseFilter]);
 
   // Returning from a stock operation in another tab must read the authoritative balances and ledger.
+  // [BF-016] Tham gia nhóm chi nhánh SignalR (cụ thể hoặc toàn bộ chi nhánh đang hoạt động) và lắng nghe biến động tồn kho realtime
   useEffect(() => {
-    const refreshStock = () => { void loadBalances(branchFilter, balanceWarehouseFilter); void loadLedger(); };
-    window.addEventListener('focus', refreshStock);
+    const targetBranchIds =
+      branchFilter && branchFilter !== "all"
+        ? [branchFilter]
+        : branches.map((b) => b.id).filter(Boolean);
+
+    targetBranchIds.forEach((bId) => {
+      realtimeAdapter.joinBranch(bId);
+    });
+
+    const refreshStock = () => {
+      void loadBalances(branchFilter, balanceWarehouseFilter);
+      void loadLedger();
+    };
+    window.addEventListener("focus", refreshStock);
+    window.addEventListener("oism:stock-changed", refreshStock);
+    window.addEventListener("oism:reservation-expired", refreshStock);
+    window.addEventListener("oism:realtime-reconnected", refreshStock);
     return () => {
-      window.removeEventListener('focus', refreshStock);
+      window.removeEventListener("focus", refreshStock);
+      window.removeEventListener("oism:stock-changed", refreshStock);
+      window.removeEventListener("oism:reservation-expired", refreshStock);
+      window.removeEventListener("oism:realtime-reconnected", refreshStock);
+      targetBranchIds.forEach((bId) => {
+        realtimeAdapter.leaveBranch(bId);
+      });
       balanceReqSeqRef.current++;
       ledgerReqSeqRef.current++;
     };
-  }, [branchFilter, balanceWarehouseFilter]);
+  }, [branchFilter, balanceWarehouseFilter, branches]);
 
   // [A03 & F3] Khi mở Modal Nhập kho và chọn Chi nhánh / Kho, tải số dư thực tế tại đúng Kho đó để mô phỏng WAC chuẩn xác
   const loadModalWhStock = async (branch = selectedBranch, warehouse = selectedWarehouse) => {
@@ -902,15 +925,23 @@ export function InventoryPage() {
     setReserveSuccess(null);
   };
 
-  // [F2] Khi người dùng thay đổi chi nhánh/kho/SKU/số lượng, sinh key mới cho ý định mới
+  // [F2, BF-013] Khi người dùng thay đổi chi nhánh/kho/SKU/số lượng, yêu cầu xác nhận nếu đang có thao tác retry/unknown
   const handleReserveFormChange = () => {
     if (isRetryingReserve) {
+      const confirmDiscard = window.confirm(
+        `Thao tác giữ chỗ trước đó (mã ${reserveIdempotencyKey.slice(
+          0,
+          8
+        )}...) chưa rõ kết quả và có thể đã thành công trên máy chủ. Bạn có chắc chắn muốn bỏ theo dõi để tạo giữ chỗ mới?`
+      );
+      if (!confirmDiscard) return false;
       clearSavedPendingReservation(currentTenantId);
       setIsRetryingReserve(false);
     }
     setReserveIdempotencyKey(generateUuid());
     setReserveError(null);
     setReserveSuccess(null);
+    return true;
   };
 
   const handleReserveStock = async () => {
@@ -2148,6 +2179,7 @@ export function InventoryPage() {
             <label>
               <span>Chọn Chi nhánh *</span>
               <Select
+                disabled={isRetryingReserve}
                 value={reserveBranchId}
                 onChange={(e) => {
                   const nextBr = e.target.value;
@@ -2167,6 +2199,7 @@ export function InventoryPage() {
             <label>
               <span>Chọn Kho giữ chỗ (Thuộc chi nhánh) *</span>
               <Select
+                disabled={isRetryingReserve}
                 value={reserveWarehouseId}
                 onChange={(e) => {
                   setReserveWarehouseId(e.target.value);
@@ -2183,6 +2216,7 @@ export function InventoryPage() {
             <label>
               <span>Chọn Sản phẩm / SKU *</span>
               <Select
+                disabled={isRetryingReserve}
                 value={reserveSkuId}
                 onChange={(e) => {
                   setReserveSkuId(e.target.value);
@@ -2199,6 +2233,7 @@ export function InventoryPage() {
             <label>
               <span>Số lượng giữ chỗ *</span>
               <Input
+                disabled={isRetryingReserve}
                 type="number"
                 min="1"
                 value={reserveQty}

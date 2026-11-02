@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { reportService } from '../services/reportService';
@@ -27,6 +27,40 @@ import {
   XCircle,
 } from 'lucide-react';
 
+// [BF-011] Tiện ích tính ngày theo múi giờ kinh doanh Việt Nam (Asia/Saigon UTC+7)
+function getVietnamDateParts(d: Date = new Date()): string {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Saigon',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(d);
+}
+
+function getVietnamDateString(): string {
+  return getVietnamDateParts(new Date());
+}
+
+function getVietnamDateShifted(daysBack: number): string {
+  const d = new Date(Date.now() - daysBack * 86400000);
+  return getVietnamDateParts(d);
+}
+
+function getVietnamMonthStart(): string {
+  const today = getVietnamDateParts(new Date());
+  const [year, month] = today.split('-');
+  return `${year}-${month}-01`;
+}
+
+function formatVietnamDateToUtcStart(dateStr: string): string {
+  return new Date(`${dateStr}T00:00:00+07:00`).toISOString();
+}
+
+function formatVietnamDateToUtcEnd(dateStr: string): string {
+  return new Date(`${dateStr}T23:59:59.999+07:00`).toISOString();
+}
+
 export const ReportsPage: React.FC = () => {
   const { user } = useAuth();
 
@@ -35,8 +69,52 @@ export const ReportsPage: React.FC = () => {
     return <Navigate to="/403" replace />;
   }
 
-  // Active tab
-  const [activeTab, setActiveTab] = useState<'pnl' | 'velocity' | 'alerts'>('pnl');
+  // Active tab (BF-017: Đọc và đồng bộ 2 chiều tham số query ?tab= từ URL cho direct link, notification, reload, back/forward)
+  const readTabFromUrl = (searchStr?: string): 'pnl' | 'velocity' | 'alerts' => {
+    if (typeof window !== 'undefined') {
+      const raw = searchStr !== undefined ? searchStr : window.location.search;
+      const tabParam = new URLSearchParams(raw).get('tab');
+      if (tabParam === 'alerts' || tabParam === 'velocity' || tabParam === 'pnl') {
+        return tabParam;
+      }
+    }
+    return 'pnl';
+  };
+
+  const [activeTab, setActiveTabState] = useState<'pnl' | 'velocity' | 'alerts'>(() => readTabFromUrl());
+
+  const setActiveTab = useCallback((nextTab: 'pnl' | 'velocity' | 'alerts') => {
+    setActiveTabState(nextTab);
+    if (typeof window !== 'undefined' && window.history?.replaceState) {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', nextTab);
+        window.history.replaceState({}, '', url.toString());
+      } catch {}
+    }
+  }, []);
+
+  useEffect(() => {
+    const syncFromUrl = () => {
+      setActiveTabState(readTabFromUrl());
+    };
+    const handleNavigateEvent = (e: Event) => {
+      const custom = e as CustomEvent<{ href?: string }>;
+      const href = custom.detail?.href || '';
+      const qIdx = href.indexOf('?');
+      if (qIdx >= 0) {
+        setActiveTabState(readTabFromUrl(href.slice(qIdx)));
+      } else {
+        syncFromUrl();
+      }
+    };
+    window.addEventListener('popstate', syncFromUrl);
+    window.addEventListener('oism:navigate', handleNavigateEvent);
+    return () => {
+      window.removeEventListener('popstate', syncFromUrl);
+      window.removeEventListener('oism:navigate', handleNavigateEvent);
+    };
+  }, []);
 
   // Master data for filters
   const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([]);
@@ -54,26 +132,21 @@ export const ReportsPage: React.FC = () => {
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const activeReqRef = useRef(0);
 
-  // Tính ngày theo preset
+  // Tính ngày theo preset theo múi giờ Việt Nam (BF-011)
   const calculateDates = useCallback(() => {
-    const now = new Date();
-    const end = now.toISOString().split('T')[0];
+    const end = getVietnamDateString();
     let start = '';
 
     if (datePreset === 'today') {
       start = end;
     } else if (datePreset === '7days') {
-      const d = new Date();
-      d.setDate(d.getDate() - 7);
-      start = d.toISOString().split('T')[0];
+      start = getVietnamDateShifted(7);
     } else if (datePreset === '30days') {
-      const d = new Date();
-      d.setDate(d.getDate() - 30);
-      start = d.toISOString().split('T')[0];
+      start = getVietnamDateShifted(30);
     } else if (datePreset === 'month') {
-      const d = new Date(now.getFullYear(), now.getMonth(), 1);
-      start = d.toISOString().split('T')[0];
+      start = getVietnamMonthStart();
     }
 
     if (datePreset !== 'custom') {
@@ -98,34 +171,45 @@ export const ReportsPage: React.FC = () => {
     loadBranches();
   }, []);
 
-  // Fetch report data
+  // Fetch report data có generation guard chống race condition (BF-009, BF-010, BF-011)
   const loadReports = useCallback(async () => {
+    const reqSeq = ++activeReqRef.current;
     setLoading(true);
     setErrorMessage(null);
 
     const filter: ReportFilter = {
       branchId: selectedBranch || undefined,
       channel: selectedChannel || undefined,
-      startDate: startDate ? `${startDate}T00:00:00Z` : undefined,
-      endDate: endDate ? `${endDate}T23:59:59Z` : undefined,
+      startDate: startDate ? formatVietnamDateToUtcStart(startDate) : undefined,
+      endDate: endDate ? formatVietnamDateToUtcEnd(endDate) : undefined,
       topN: 10,
     };
 
     try {
       if (activeTab === 'pnl') {
         const data = await reportService.getRevenueProfit(filter);
+        if (reqSeq !== activeReqRef.current) return;
         setPnlData(data);
       } else if (activeTab === 'velocity') {
         const data = await reportService.getInventoryVelocity(filter);
+        if (reqSeq !== activeReqRef.current) return;
         setVelocityData(data);
       } else if (activeTab === 'alerts') {
         const data = await reportService.getStockAlerts(selectedBranch || undefined);
+        if (reqSeq !== activeReqRef.current) return;
         setAlertsData(data);
       }
     } catch (err: any) {
+      if (reqSeq !== activeReqRef.current) return;
+      // [BF-010] Khi lỗi, xóa sạch số liệu cũ để không hiển thị số liệu cũ dưới bộ lọc mới
+      setPnlData(null);
+      setVelocityData(null);
+      setAlertsData([]);
       setErrorMessage(err?.detail || err?.message || 'Không thể tải báo cáo từ máy chủ.');
     } finally {
-      setLoading(false);
+      if (reqSeq === activeReqRef.current) {
+        setLoading(false);
+      }
     }
   }, [activeTab, selectedBranch, selectedChannel, startDate, endDate]);
 
@@ -205,7 +289,7 @@ export const ReportsPage: React.FC = () => {
           onClick={() => setActiveTab('pnl')}
           className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
             activeTab === 'pnl'
-              ? 'bg-white text-indigo-700 shadow-sm border border-gray-200'
+              ? 'active bg-white text-indigo-700 shadow-sm border border-gray-200'
               : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
           }`}
         >
@@ -217,7 +301,7 @@ export const ReportsPage: React.FC = () => {
           onClick={() => setActiveTab('velocity')}
           className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
             activeTab === 'velocity'
-              ? 'bg-white text-indigo-700 shadow-sm border border-gray-200'
+              ? 'active bg-white text-indigo-700 shadow-sm border border-gray-200'
               : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
           }`}
         >
@@ -229,7 +313,7 @@ export const ReportsPage: React.FC = () => {
           onClick={() => setActiveTab('alerts')}
           className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
             activeTab === 'alerts'
-              ? 'bg-white text-indigo-700 shadow-sm border border-gray-200'
+              ? 'active bg-white text-indigo-700 shadow-sm border border-gray-200'
               : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
           }`}
         >
@@ -303,10 +387,10 @@ export const ReportsPage: React.FC = () => {
           >
             <option value="">Tất cả kênh bán</option>
             <option value="POS">Điểm bán lẻ (POS)</option>
+            <option value="Admin">Tạo đơn Admin (Thủ công)</option>
             <option value="Shopee">Shopee</option>
             <option value="TikTok">TikTok Shop</option>
             <option value="Lazada">Lazada</option>
-            <option value="Web">Website Online</option>
           </select>
         )}
 
