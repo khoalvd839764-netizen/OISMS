@@ -91,3 +91,27 @@ public class StockAlertDto
     /// </summary>
     public string AlertLevel { get; set; } = "Warning";
 }
+
+public class RecentOrderDto
+{
+    public Guid Id { get; set; }
+    public string Number { get; set; } = string.Empty;
+    public string Channel { get; set; } = string.Empty;
+    public string? CustomerName { get; set; }
+    public decimal TotalAmount { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+public class DashboardSummaryDto
+{
+    public decimal TotalRevenue { get; set; }
+    public int TotalOrders { get; set; }
+    public decimal? TotalGrossProfit { get; set; }
+    public decimal GrossMarginPercentage { get; set; }
+    public int SkuCount { get; set; }
+    public decimal TotalInventoryValue { get; set; }
+    public int LowStockCount { get; set; }
+    public List<RecentOrderDto> RecentOrders { get; set; } = new();
+    public List<DailyRevenueBreakdownDto> RecentRevenueTrend { get; set; } = new();
+}

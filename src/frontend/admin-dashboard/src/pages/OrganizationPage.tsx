@@ -18,23 +18,35 @@ export function OrganizationPage() {
   // Danh sách chi nhánh & kho hàng thật
   const [branches, setBranches] = useState<Array<{ id: string; name: string; address?: string; phone?: string; isActive?: boolean }>>([]);
   const [warehouses, setWarehouses] = useState<Array<{ id: string; name: string; code?: string; address?: string; branchId: string; isActive?: boolean }>>([]);
+  const [users, setUsers] = useState<Array<{ id: string; tenantId: string; email: string; displayName: string; phone?: string; role: string; isActive: boolean; createdAt: string }>>([]);
 
   // Form Thêm chi nhánh mới
   const [branchName, setBranchName] = useState("");
   const [branchAddress, setBranchAddress] = useState("");
   const [branchPhone, setBranchPhone] = useState("");
 
+  // Form Thêm nhân viên mới (CS-02)
+  const [userDisplayName, setUserDisplayName] = useState("");
+  const [userEmail, setUserEmail] = useState("");
+  const [userPhone, setUserPhone] = useState("");
+  const [userPassword, setUserPassword] = useState("");
+  const [userRole, setUserRole] = useState("Staff");
+
   const loadOrgData = async () => {
     setLoading(true);
-    const [brRes, whRes] = await Promise.all([
+    const [brRes, whRes, usRes] = await Promise.all([
       apiAdapter.getBranches(),
       apiAdapter.getWarehouses(),
+      apiAdapter.getUsers(),
     ]);
     if ("data" in brRes && Array.isArray(brRes.data)) {
       setBranches(brRes.data);
     }
     if ("data" in whRes && Array.isArray(whRes.data)) {
       setWarehouses(whRes.data);
+    }
+    if ("data" in usRes && Array.isArray(usRes.data)) {
+      setUsers(usRes.data);
     }
     setLoading(false);
   };
@@ -104,9 +116,69 @@ export function OrganizationPage() {
     setLoading(false);
   };
 
+  const handleCreateUser = async () => {
+    setError(null);
+    if (!userDisplayName.trim()) {
+      setError("Vui lòng nhập họ và tên nhân viên.");
+      return;
+    }
+    if (!userEmail.trim()) {
+      setError("Vui lòng nhập email đăng nhập.");
+      return;
+    }
+    if (!userPassword || userPassword.length < 6) {
+      setError("Mật khẩu phải chứa ít nhất 6 ký tự.");
+      return;
+    }
+
+    setLoading(true);
+    const res = await apiAdapter.createUser({
+      displayName: userDisplayName.trim(),
+      email: userEmail.trim(),
+      phone: userPhone.trim() || undefined,
+      password: userPassword,
+      role: userRole,
+    });
+    setLoading(false);
+
+    if (res.error) {
+      setError(res.error.message || "Tạo nhân viên thất bại.");
+    } else {
+      setOpen(false);
+      setUserDisplayName("");
+      setUserEmail("");
+      setUserPhone("");
+      setUserPassword("");
+      setUserRole("Staff");
+      loadOrgData();
+    }
+  };
+
+  const handleToggleUserStatus = async (userId: string, currentActive: boolean) => {
+    setError(null);
+    setLoading(true);
+    const res = await apiAdapter.updateUserStatus(userId, !currentActive);
+    setLoading(false);
+    if (res.error) {
+      setError(res.error.message || "Không thể cập nhật trạng thái nhân viên.");
+    } else {
+      loadOrgData();
+    }
+  };
+
   const filteredBranches = branches.filter((b) => {
     const matchesSearch = `${b.name} ${b.address || ""} ${b.phone || ""}`.toLowerCase().includes(searchQuery.toLowerCase());
     const active = b.isActive !== false;
+    const matchesStatus =
+      statusFilter === "all" ||
+      (statusFilter === "active" && active) ||
+      (statusFilter === "inactive" && !active);
+    return matchesSearch && matchesStatus;
+  });
+
+  const filteredUsers = users.filter((u) => {
+    const matchesSearch = `${u.displayName} ${u.email} ${u.phone || ""}`.toLowerCase().includes(searchQuery.toLowerCase());
+    const active = u.isActive !== false;
     const matchesStatus =
       statusFilter === "all" ||
       (statusFilter === "active" && active) ||
@@ -119,13 +191,12 @@ export function OrganizationPage() {
       <PageTitle
         eyebrow="FR-AUTH · PHÂN QUYỀN RBAC"
         title="Nhân viên & chi nhánh"
-        description="Quản lý chi nhánh và kho hàng trực thuộc. Quản lý nhân viên đang được hoàn thiện."
+        description="Quản lý chi nhánh, kho hàng trực thuộc và danh sách nhân sự phân quyền theo vai trò (Owner, Staff, Cashier)."
         actions={
           user?.role === "Owner" ? (
-            <Button disabled={tab === "people"} title={tab === "people" ? "Quản lý nhân viên chưa khả dụng." : undefined} onClick={() => { setError(null); setOpen(true); }}>
+            <Button onClick={() => { setError(null); setOpen(true); }}>
               <Plus size={17} />
               {tab === "people" ? "Thêm nhân viên" : "Thêm chi nhánh"}
-              {tab === "people" && <ComingSoonBadge />}
             </Button>
           ) : undefined
         }
@@ -137,7 +208,7 @@ export function OrganizationPage() {
             <Building2 size={16} />Chi nhánh & kho ({branches.length} chi nhánh · {warehouses.length} kho)
           </button>
           <button className={tab === "people" ? "active" : ""} onClick={() => setTab("people")}>
-            <UserRoundCog size={16} />Nhân viên <ComingSoonBadge />
+            <UserRoundCog size={16} />Nhân viên ({users.length} người)
           </button>
         </div>
 
@@ -145,13 +216,12 @@ export function OrganizationPage() {
           <label className="search-field">
             <Search size={18} />
             <Input
-              disabled={tab === "people"}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={tab === "people" ? "Tìm tên hoặc email nhân viên..." : "Tìm chi nhánh hoặc địa chỉ..."}
+              placeholder={tab === "people" ? "Tìm tên, email hoặc số điện thoại..." : "Tìm chi nhánh hoặc địa chỉ..."}
             />
           </label>
-          <Select disabled={tab === "people"} aria-label="Bộ lọc trạng thái" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <Select aria-label="Bộ lọc trạng thái" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="all">Tất cả trạng thái</option>
             <option value="active">Đang hoạt động</option>
             <option value="inactive">Đã tạm dừng</option>
@@ -159,8 +229,6 @@ export function OrganizationPage() {
         </div>
 
         {tab === "people" ? (
-          <div>
-          <ComingSoonPanel title="Quản lý nhân viên" description="Thêm nhân viên, phân quyền và phân công chi nhánh chưa khả dụng. Bên dưới là tài khoản đang đăng nhập." />
           <div className="table-wrap">
             <table>
               <thead>
@@ -169,42 +237,71 @@ export function OrganizationPage() {
                   <th>Vai trò</th>
                   <th>Cửa hàng / Doanh nghiệp</th>
                   <th>Trạng thái</th>
-                  <th></th>
+                  <th style={{ textAlign: "right" }}>Thao tác</th>
                 </tr>
               </thead>
               <tbody>
-                {user ? (
+                {filteredUsers.length === 0 ? (
                   <tr>
-                    <td>
-                      <div className="person-cell">
-                        <div className="avatar">{user.initials}</div>
-                        <div>
-                          <strong>{user.name}</strong>
-                          <span>{user.email || "Tài khoản hiện tại"}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <Badge tone={user.role === "Owner" ? "info" : "neutral"}>{user.role}</Badge>
-                    </td>
-                    <td>{user.tenantName || "Cửa hàng chính"}</td>
-                    <td>
-                      <Badge tone="success">Đang hoạt động</Badge>
-                    </td>
-                    <td>
-                      <Button variant="ghost" disabled aria-label="Quản lý nhân viên — Coming soon" title="Quản lý nhân viên — Coming soon"><MoreHorizontal size={18} /><ComingSoonBadge /></Button>
+                    <td colSpan={5} style={{ textAlign: "center", padding: "28px 0", color: "#64748b" }}>
+                      {loading ? "Đang tải danh sách nhân viên..." : "Chưa có nhân viên nào phù hợp bộ lọc."}
                     </td>
                   </tr>
                 ) : (
-                  <tr>
-                    <td colSpan={5} style={{ textAlign: "center", padding: "24px 0", color: "#64748b" }}>
-                      Đang tải danh sách nhân viên...
-                    </td>
-                  </tr>
+                  filteredUsers.map((u) => {
+                    const isSelf = user?.email === u.email;
+                    const initials = u.displayName.slice(0, 2).toUpperCase();
+                    return (
+                      <tr key={u.id}>
+                        <td>
+                          <div className="person-cell">
+                            <div className="avatar" style={{ background: u.role === "Owner" ? "#2563eb" : "#475569" }}>
+                              {initials}
+                            </div>
+                            <div>
+                              <strong>{u.displayName} {isSelf && <span style={{ fontSize: "11px", color: "#2563eb" }}>(Bạn)</span>}</strong>
+                              <span>{u.email} {u.phone ? `· ${u.phone}` : ""}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <Badge tone={u.role === "Owner" ? "info" : u.role === "Cashier" ? "warning" : "neutral"}>
+                            {u.role}
+                          </Badge>
+                        </td>
+                        <td>{user?.tenantName || "Cửa hàng chính"}</td>
+                        <td>
+                          <Badge tone={u.isActive ? "success" : "neutral"}>
+                            {u.isActive ? "Đang hoạt động" : "Đã tạm dừng"}
+                          </Badge>
+                        </td>
+                        <td style={{ textAlign: "right" }}>
+                          {user?.role === "Owner" && !isSelf && u.role !== "Owner" && (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleUserStatus(u.id, u.isActive)}
+                              disabled={loading}
+                              style={{
+                                background: u.isActive ? "#fee2e2" : "#f0fdf4",
+                                border: `1px solid ${u.isActive ? "#f87171" : "#86efac"}`,
+                                color: u.isActive ? "#b91c1c" : "#15803d",
+                                borderRadius: "6px",
+                                padding: "4px 10px",
+                                fontSize: "11px",
+                                fontWeight: 600,
+                                cursor: "pointer",
+                              }}
+                            >
+                              {u.isActive ? "Tạm dừng" : "Kích hoạt"}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
-          </div>
           </div>
         ) : (
           <div className="branch-grid" style={{ padding: "16px", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "14px" }}>
@@ -308,26 +405,46 @@ export function OrganizationPage() {
               <>
                 <label>
                   <span>Họ và tên nhân viên *</span>
-                  <Input placeholder="Ví dụ: Trần Quốc Tuấn" required />
+                  <Input
+                    placeholder="Ví dụ: Trần Quốc Tuấn"
+                    value={userDisplayName}
+                    onChange={(e) => setUserDisplayName(e.target.value)}
+                    required
+                  />
                 </label>
                 <label>
                   <span>Email đăng nhập *</span>
-                  <Input type="email" placeholder="staff@cuahang.vn" required />
+                  <Input
+                    type="email"
+                    placeholder="staff@cuahang.vn"
+                    value={userEmail}
+                    onChange={(e) => setUserEmail(e.target.value)}
+                    required
+                  />
                 </label>
                 <label>
-                  <span>Vai trò</span>
-                  <Select>
+                  <span>Số điện thoại</span>
+                  <Input
+                    placeholder="0912345678"
+                    value={userPhone}
+                    onChange={(e) => setUserPhone(e.target.value)}
+                  />
+                </label>
+                <label>
+                  <span>Mật khẩu khởi tạo * (tối thiểu 6 ký tự)</span>
+                  <Input
+                    type="password"
+                    placeholder="Mật khẩu ít nhất 6 ký tự..."
+                    value={userPassword}
+                    onChange={(e) => setUserPassword(e.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  <span>Vai trò phân quyền</span>
+                  <Select value={userRole} onChange={(e) => setUserRole(e.target.value)}>
                     <option value="Staff">Nhân viên kho & Bán hàng (Staff)</option>
                     <option value="Cashier">Thu ngân (Cashier - chỉ truy cập POS)</option>
-                    <option value="Owner">Đồng quản trị (Owner)</option>
-                  </Select>
-                </label>
-                <label>
-                  <span>Chi nhánh phân công</span>
-                  <Select>
-                    {branches.map((b) => (
-                      <option key={b.id} value={b.id}>{b.name}</option>
-                    ))}
                   </Select>
                 </label>
               </>
@@ -365,7 +482,7 @@ export function OrganizationPage() {
           <div className="modal-actions">
             <Button variant="secondary" onClick={() => setOpen(false)}>Hủy</Button>
             <Button
-              onClick={tab === "branches" ? handleCreateBranch : () => setOpen(false)}
+              onClick={tab === "branches" ? handleCreateBranch : handleCreateUser}
               disabled={loading}
             >
               {loading ? "Đang lưu..." : "Lưu thông tin"}

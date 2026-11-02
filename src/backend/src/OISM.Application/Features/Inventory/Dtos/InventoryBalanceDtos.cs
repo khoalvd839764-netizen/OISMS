@@ -1,3 +1,5 @@
+using FluentValidation;
+
 namespace OISM.Application.Features.Inventory.Dtos;
 
 public class InventoryBalanceDto
@@ -30,6 +32,54 @@ public class InventoryBalanceDto
     /// Giá vốn bình quân gia quyền (WAC).
     /// </summary>
     public decimal AverageCost { get; set; }
+
+    /// <summary>
+    /// Ngưỡng cảnh báo hết hàng / đặt hàng lại (ReorderPoint - CS-03).
+    /// </summary>
+    public decimal ReorderPoint { get; set; }
+}
+
+public class UpdateReorderPointDto
+{
+    public Guid BranchId { get; set; }
+    public Guid SkuId { get; set; }
+    public decimal ReorderPoint { get; set; }
+}
+
+public class BulkUpdateReorderPointDto
+{
+    public Guid BranchId { get; set; }
+    public List<SkuReorderPointItemDto> Items { get; set; } = new();
+}
+
+public class SkuReorderPointItemDto
+{
+    public Guid SkuId { get; set; }
+    public decimal ReorderPoint { get; set; }
+}
+
+public class UpdateReorderPointValidator : FluentValidation.AbstractValidator<UpdateReorderPointDto>
+{
+    public UpdateReorderPointValidator()
+    {
+        RuleFor(x => x.BranchId).NotEmpty().WithMessage("Chi nhánh không được để trống.");
+        RuleFor(x => x.SkuId).NotEmpty().WithMessage("SKU không được để trống.");
+        RuleFor(x => x.ReorderPoint).GreaterThanOrEqualTo(0).WithMessage("Ngưỡng cảnh báo tồn kho không được âm.");
+    }
+}
+
+public class BulkUpdateReorderPointValidator : FluentValidation.AbstractValidator<BulkUpdateReorderPointDto>
+{
+    public BulkUpdateReorderPointValidator()
+    {
+        RuleFor(x => x.BranchId).NotEmpty().WithMessage("Chi nhánh không được để trống.");
+        RuleFor(x => x.Items).NotEmpty().WithMessage("Danh sách sản phẩm cấu hình không được để trống.");
+        RuleForEach(x => x.Items).ChildRules(item =>
+        {
+            item.RuleFor(i => i.SkuId).NotEmpty().WithMessage("Mã SKU không được để trống.");
+            item.RuleFor(i => i.ReorderPoint).GreaterThanOrEqualTo(0).WithMessage("Ngưỡng cảnh báo tồn kho không được âm.");
+        });
+    }
 }
 
 public class InventoryBalanceFilterDto

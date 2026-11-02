@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using OISM.Application.Common.Exceptions;
 using OISM.Application.Features.Inventory.Dtos;
 using OISM.Application.Features.Inventory.Services;
 
@@ -124,6 +125,56 @@ public class InventoryController : ControllerBase
         catch (ArgumentException ex)
         {
             return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Cập nhật ngưỡng cảnh báo hết hàng (ReorderPoint) cho một SKU tại một Chi nhánh (CS-03).
+    /// </summary>
+    [HttpPut("reorder-point")]
+    [Authorize(Roles = "Owner,Staff")]
+    public async Task<IActionResult> UpdateReorderPoint([FromBody] UpdateReorderPointDto request, CancellationToken ct)
+    {
+        var validator = new UpdateReorderPointValidator();
+        var validationResult = await validator.ValidateAsync(request, ct);
+        if (!validationResult.IsValid)
+        {
+            return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
+        }
+
+        try
+        {
+            var result = await _inventoryService.UpdateReorderPointAsync(request, ct);
+            return Ok(result);
+        }
+        catch (OismException ex) when (ex.StatusCode == 404)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Cập nhật hàng loạt ngưỡng cảnh báo hết hàng cho nhiều SKU tại một Chi nhánh (CS-03).
+    /// </summary>
+    [HttpPut("reorder-point/bulk")]
+    [Authorize(Roles = "Owner,Staff")]
+    public async Task<IActionResult> BulkUpdateReorderPoint([FromBody] BulkUpdateReorderPointDto request, CancellationToken ct)
+    {
+        var validator = new BulkUpdateReorderPointValidator();
+        var validationResult = await validator.ValidateAsync(request, ct);
+        if (!validationResult.IsValid)
+        {
+            return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
+        }
+
+        try
+        {
+            var updatedCount = await _inventoryService.BulkUpdateReorderPointAsync(request, ct);
+            return Ok(new { updatedCount, message = $"Đã cập nhật ngưỡng cảnh báo cho {updatedCount} sản phẩm." });
+        }
+        catch (OismException ex) when (ex.StatusCode == 404)
+        {
+            return NotFound(new { message = ex.Message });
         }
     }
 }

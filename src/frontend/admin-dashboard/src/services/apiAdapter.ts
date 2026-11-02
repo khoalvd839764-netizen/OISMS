@@ -774,6 +774,106 @@ export const apiAdapter = {
     }
   },
 
+  // --- GLOBAL SEARCH (CS-04) ---
+  async globalSearch(query: string, limit = 5) {
+    try {
+      const res = await httpClient.get(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+      return { data: res.data };
+    } catch (err: any) {
+      return {
+        error: {
+          message: err?.response?.data?.message || "Tìm kiếm toàn hệ thống thất bại.",
+        },
+      };
+    }
+  },
+
+  // --- USERS & RBAC (CS-02) ---
+  async getUsers(params?: { search?: string; role?: string; isActive?: boolean }) {
+    try {
+      const query = new URLSearchParams();
+      if (params?.search) query.append("search", params.search);
+      if (params?.role && params.role !== "all") query.append("role", params.role);
+      if (params?.isActive !== undefined) query.append("isActive", String(params.isActive));
+      const qs = query.toString();
+      const url = qs ? `/api/users?${qs}` : "/api/users";
+      const res = await httpClient.get(url);
+      return { data: Array.isArray(res.data) ? res.data : [] };
+    } catch (err: any) {
+      return {
+        error: {
+          message: err?.response?.data?.message || "Không thể tải danh sách nhân viên từ máy chủ.",
+        },
+      };
+    }
+  },
+
+  async createUser(payload: { displayName: string; email: string; phone?: string; password: string; role: string }) {
+    try {
+      const res = await httpClient.post("/api/users", payload);
+      return { data: res.data };
+    } catch (err: any) {
+      return {
+        error: {
+          message: err?.response?.data?.message || err?.response?.data?.errors?.[0] || "Thêm nhân viên thất bại",
+        },
+      };
+    }
+  },
+
+  async updateUser(id: string, payload: { displayName: string; phone?: string; role: string; isActive: boolean }) {
+    try {
+      const res = await httpClient.put(`/api/users/${id}`, payload);
+      return { data: res.data };
+    } catch (err: any) {
+      return {
+        error: {
+          message: err?.response?.data?.message || err?.response?.data?.errors?.[0] || "Cập nhật nhân viên thất bại",
+        },
+      };
+    }
+  },
+
+  async updateUserStatus(id: string, isActive: boolean) {
+    try {
+      const res = await httpClient.patch(`/api/users/${id}/status`, { isActive });
+      return { data: res.data };
+    } catch (err: any) {
+      return {
+        error: {
+          message: err?.response?.data?.message || "Không thể đổi trạng thái nhân viên",
+        },
+      };
+    }
+  },
+
+  // --- INVENTORY REORDER POINT (CS-03) ---
+  async updateReorderPoint(payload: { branchId: string; skuId: string; reorderPoint: number }) {
+    try {
+      const res = await httpClient.put("/api/inventory/reorder-point", payload);
+      return { data: res.data };
+    } catch (err: any) {
+      return {
+        error: {
+          message: err?.response?.data?.message || err?.response?.data?.errors?.[0] || "Cập nhật ngưỡng cảnh báo thất bại",
+        },
+      };
+    }
+  },
+
+  async bulkUpdateReorderPoint(payload: { branchId: string; items: Array<{ skuId: string; reorderPoint: number }> }) {
+    try {
+      const res = await httpClient.put("/api/inventory/reorder-point/bulk", payload);
+      return { data: res.data };
+    } catch (err: any) {
+      return {
+        error: {
+          message: err?.response?.data?.message || err?.response?.data?.errors?.[0] || "Cập nhật hàng loạt ngưỡng cảnh báo thất bại",
+        },
+      };
+    }
+  },
+
   // --- BRANCHES & WAREHOUSES ---
   async getBranches() {
     try {
