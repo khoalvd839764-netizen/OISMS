@@ -50,6 +50,17 @@ public class InventoryController : ControllerBase
     }
 
     /// <summary>
+    /// Tra cứu lịch sử xuất kho theo đơn vị tồn gốc phục vụ AI dự báo nhu cầu (CS-08).
+    /// </summary>
+    [HttpGet("export-history")]
+    [Authorize(Roles = "Owner,Staff")]
+    public async Task<IActionResult> GetExportHistory([FromServices] OISM.Application.Features.Ai.Services.IAiForecastingService aiService, [FromQuery] OISM.Application.Features.Ai.Dtos.ExportHistoryQueryDto query, CancellationToken ct)
+    {
+        var result = await aiService.GetExportHistoryAsync(query, ct);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Tra cứu tồn kho chi tiết của một SKU tại một Chi nhánh cụ thể (BE1-08, phục vụ POS).
     /// </summary>
     [HttpGet("balances/sku/{skuId}/branch/{branchId}")]
