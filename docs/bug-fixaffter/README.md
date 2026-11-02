@@ -3,6 +3,10 @@
 Đợt rà soát & khắc phục: **28–30/10/2026 · Asia/Saigon**  
 Trạng thái tổng thể: ✅ **20/20 Lỗi Hệ Thống (BF-001 ➔ BF-020) Đã Khắc Phục & Kiểm Thử Thành Công (100% VERIFIED PASS)**
 
+> **Cập nhật 02/11/2026, kết quả trên ghi theo đợt 28–30/10:**
+> - Bản sửa cho Web Admin trước đó chỉ nằm trên máy local, nay đã lên nhánh `featch/FIx-and-Uprade` ở commit `97b3418`. Chưa chạy lại toàn bộ kiểm thử BF sau khi đưa lên.
+> - POS riêng (`pos-app`) không đưa bản sửa cũ lên vì xung đột với bản mới của `develop`, nên đang giữ code `develop`. Bản này có cơ chế riêng cho thử lại, hết phiên và kiểm tra biên lai, nhưng chưa có phần khóa giỏ hàng và chi nhánh trong lúc checkout như bản sửa cũ. **BF-020 trên `pos-app` cần kiểm tra lại**; các lỗi BF-003, BF-015, BF-019 trên `pos-app` cũng cần kiểm chứng lại theo code mới.
+
 ---
 
 ## 1. Cấu Trúc Thư Mục & Tham Chiếu Tài Liệu

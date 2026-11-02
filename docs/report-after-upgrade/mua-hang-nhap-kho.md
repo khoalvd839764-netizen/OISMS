@@ -27,7 +27,11 @@ Chạy trên PostgreSQL 16 riêng, cổng `55447`, biến `OISM_TEST_PORT`; khô
 | --- | --- |
 | `dotnet build src/backend/OISM.sln -p:UseAppHost=false -v:minimal` | 0 lỗi |
 | `dotnet test src/backend/tests/OISM.UnitTests/OISM.UnitTests.csproj -p:UseAppHost=false` | PASS 173/173 |
-| `dotnet test src/backend/tests/OISM.IntegrationTests/OISM.IntegrationTests.csproj -p:UseAppHost=false` | PASS 335/335 trên bản cuối |
+| `dotnet test src/backend/tests/OISM.IntegrationTests/OISM.IntegrationTests.csproj -p:UseAppHost=false`, trước khi đồng bộ `develop` | PASS 335/335 |
+| Cùng lệnh, trên bản đã đồng bộ `develop` (`df3bac7` về sau) | **Chưa có kết quả tại thời điểm cập nhật báo cáo** |
+| `cd src/frontend/admin-dashboard && npm run build` | Đạt |
+| `cd src/frontend/pos-app && npm install && npm run build && npm test` | Build đạt; test PASS 51/51 |
+| `cd src/frontend/pos-app && npm run lint` | **Thoát mã 1** (xem mục Điểm còn lưu ý) |
 | Lọc `PurchaseOrderIntegrationTests`, chạy 3 lần | PASS 7/7 cả 3 lần |
 | 10 phiếu 20 kg trên dòng 100 kg xác nhận song song | Đúng 5 thành công, 5 `PURCHASE_ORDER_OVER_RECEIPT`, không có 500 |
 | Tạo database từ `oisms_schema.sql`, chạy file migration 2 lần bằng `psql` | Cả 2 lần thoát mã 0; đủ 3 trigger; hàm bảo vệ dòng nhập đúng |
@@ -47,6 +51,8 @@ Các lỗi trên do người nghiệm thu vừa sửa vừa tự kiểm, chưa q
 
 - **Test có thể chập chờn:** `WebhookIntegrationTests.AC11_Concurrency_50SubmissionsSameKey...` FAIL 1 lần trong lần chạy toàn bộ đầu tiên (48 thay vì 49 phản hồi 200). Sau đó PASS 8/8 khi chạy riêng và PASS ở lần chạy toàn bộ cuối. Chưa xác định nguyên nhân; luồng webhook không gọi code phiếu mua.
 - **Lệch nhỏ so với thiết kế:** `ISqlLockService` trong `GoodsReceiptService` là tham số tùy chọn, có bản rỗng và SQL dự phòng để test cũ giữ constructor 3 tham số. Chạy thật vẫn dùng bản Infrastructure qua DI. Nên dọn khi có dịp.
+- **Lint `pos-app`:** lỗi đã thấy là `react-hooks(rules-of-hooks)` tại `src/components/ReceiptPrintModal.tsx:15`, trên code của `develop`; đợt này không sửa `pos-app`.
+- **Cài lại thư viện:** `develop` thêm thư viện mới cho POS, nên sau khi kéo code cần chạy `npm install` trong `src/frontend/pos-app`.
 - **Chưa kiểm chứng đầu cuối từ giao diện**, vì frontend chưa làm.
 - **Quy tắc chưa có GVHD xác nhận:** ngoài yêu cầu có phiếu mua, các chi tiết như giá 0, Staff không được hủy, tồn đầu kỳ qua kiểm kê vẫn là đề xuất của nhóm.
 
