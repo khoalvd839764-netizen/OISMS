@@ -168,21 +168,7 @@ public class WebhookIntegrationTests : IAsyncLifetime, IClassFixture<WebApplicat
 
             if (initialOnHand > 0)
             {
-                var wacCalc = new WacCalculator();
-                var grService = new GoodsReceiptService(context, tenantService, wacCalc);
-                var receiptDto = new CreateGoodsReceiptDto
-                {
-                    BranchId = branch.Id,
-                    WarehouseId = wh.Id,
-                    SupplierId = supplier.Id,
-                    Note = "Seed stock via GoodsReceipt",
-                    Items = new List<CreateGoodsReceiptItemDto>
-                    {
-                        new() { SkuId = sku.Id, Quantity = initialOnHand, UnitPrice = 50_000m }
-                    }
-                };
-                var receipt = await grService.CreateReceiptAsync(receiptDto, user.Id);
-                await grService.ConfirmReceiptAsync(receipt.Id, user.Id);
+                await PurchaseOrderSeed.ReceiveStockAsync(context, tenantService, branch.Id, wh.Id, supplier.Id, user.Id, (sku.Id, initialOnHand, 50_000m));
             }
 
             var bBal = await context.InventoryBalances.FirstAsync(b => b.TenantId == OismsDatabaseSeeder.TenantAId && b.BranchId == branch.Id && b.SkuId == sku.Id);
@@ -1988,20 +1974,15 @@ public class WebhookIntegrationTests : IAsyncLifetime, IClassFixture<WebApplicat
 
             var user = await setupDb.Users.FirstAsync(u => u.TenantId == infra.TenantId && u.Email == "owner@shopa.local");
             var supplier = await setupDb.Suppliers.FirstAsync(s => s.TenantId == infra.TenantId);
-            var grService = new GoodsReceiptService(setupDb, tService, new WacCalculator());
-            var receipt = await grService.CreateReceiptAsync(new CreateGoodsReceiptDto
-            {
-                BranchId = infra.BranchId,
-                WarehouseId = infra.WarehouseId,
-                SupplierId = supplier.Id,
-                Note = "Seed stock multi-sku",
-                Items = new List<CreateGoodsReceiptItemDto>
-                {
-                    new() { SkuId = infra.SkuId, Quantity = 10m, UnitPrice = 50_000m },
-                    new() { SkuId = sku2.Id, Quantity = 10m, UnitPrice = 60_000m }
-                }
-            }, user.Id);
-            await grService.ConfirmReceiptAsync(receipt.Id, user.Id);
+            await PurchaseOrderSeed.ReceiveStockAsync(
+                setupDb,
+                tService,
+                infra.BranchId,
+                infra.WarehouseId,
+                supplier.Id,
+                user.Id,
+                (infra.SkuId, 10m, 50_000m),
+                (sku2.Id, 10m, 60_000m));
         }
 
         // Đua 2 tác vụ đảo thứ tự SKU kèm theo Observer quan sát mọi mã lỗi SQL trước retry:

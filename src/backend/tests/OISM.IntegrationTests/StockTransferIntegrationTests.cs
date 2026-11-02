@@ -231,23 +231,7 @@ public class StockTransferIntegrationTests : IAsyncLifetime, IClassFixture<WebAp
         var (context, tenantService) = CreatePostgresDbContext(tenantId);
         await using (context)
         {
-            var wacCalc = new WacCalculator();
-            var service = new GoodsReceiptService(context, tenantService, wacCalc);
-
-            var receiptDto = new CreateGoodsReceiptDto
-            {
-                BranchId = branchId,
-                WarehouseId = warehouseId,
-                SupplierId = supplierId,
-                Note = "Seed tồn kho cho stock transfer test",
-                Items = new List<CreateGoodsReceiptItemDto>
-                {
-                    new() { SkuId = skuId, Quantity = quantity, UnitPrice = unitPrice }
-                }
-            };
-
-            var receipt = await service.CreateReceiptAsync(receiptDto, userId);
-            await service.ConfirmReceiptAsync(receipt.Id, userId);
+            await PurchaseOrderSeed.ReceiveStockAsync(context, tenantService, branchId, warehouseId, supplierId, userId, (skuId, quantity, unitPrice));
         }
     }
 

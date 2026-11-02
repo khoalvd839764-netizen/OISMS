@@ -84,6 +84,19 @@ Tài liệu này là **từ điển tra cứu danh mục mã lỗi toàn hệ th
 
 ---
 
+### 2.3a. Phân Hệ Phiếu Mua Hàng (`PURCHASE_ORDER`, `OISMS-47-U01A`)
+*Liên kết hợp đồng API:* [`../05-api-contracts/03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md)
+
+| Mã lỗi (`ErrorCode`) | HTTP Status | Tiêu đề lỗi | Thông báo chi tiết mẫu | Nguyên nhân phát sinh | Hướng dẫn khắc phục trên UI |
+| :--- | :---: | :--- | :--- | :--- | :--- |
+| `PURCHASE_ORDER_REQUIRED` | `422` | Yêu cầu phiếu mua hàng | *Phiếu nhập chưa gắn với phiếu mua hàng hợp lệ.* | Lập phiếu thiếu phiếu mua, hoặc xác nhận phiếu nháp cũ. | Chọn phiếu mua đã duyệt; hủy phiếu nháp cũ rồi lập lại. |
+| `PURCHASE_ORDER_NOT_RECEIVABLE` | `409` | Phiếu mua không ở trạng thái nhận hàng | *Phiếu mua đang ở trạng thái '{status}', không thể xác nhận nhập kho.* | Phiếu chưa duyệt, đã đóng hoặc đã hủy. | Tải lại phiếu mua; cần thì lập phiếu mua mới. |
+| `PURCHASE_ORDER_OVER_RECEIPT` | `409` | Vượt số lượng đặt mua | *Số lượng nhận vượt quá số lượng còn được nhận trên dòng phiếu mua.* | Nhập dư, hoặc phiếu khác đã nhận hết phần còn lại. | Tải lại lượng còn lại; hàng dư thì lập phiếu mua bổ sung. |
+| `PURCHASE_ORDER_ITEM_MISMATCH` | `422` | Dòng hàng không khớp phiếu mua | *Dòng phiếu mua không thuộc phiếu mua đã chọn.* | Dòng không thuộc phiếu, bị trùng, hoặc lệch dữ liệu phiếu mua. | Tải lại phiếu mua và chọn lại dòng. |
+| `PURCHASE_ORDER_ZERO_PRICE_CONFIRM_REQUIRED` | `422` | Yêu cầu xác nhận đơn giá 0 | *Phiếu mua có dòng giá 0, cần xác nhận trước khi duyệt.* | Duyệt phiếu có giá 0 với `confirmZeroPrice = false`. | Hỏi Owner xác nhận rồi gửi lại với `confirmZeroPrice = true`. |
+
+---
+
 ### 2.4. Phân Hệ Chuyển Kho 2 Bước (`TRANSFER`)
 *Liên kết hợp đồng API:* [`../05-api-contracts/03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md)  
 *Liên kết màn hình:* [`../11-ui-screens/04-inventory-screens.md`](../11-ui-screens/04-inventory-screens.md)

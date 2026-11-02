@@ -88,4 +88,16 @@ public class SqlLockService : ISqlLockService
                 ct);
         }
     }
+
+    public async Task LockPurchaseOrderAsync(Guid tenantId, Guid purchaseOrderId, CancellationToken ct = default)
+    {
+        if (_context.Database.IsNpgsql())
+        {
+            var tenantStr = tenantId.ToString();
+            var poStr = purchaseOrderId.ToString();
+            await _context.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_xact_lock(hashtextextended({tenantStr} || '/purchase_order/' || {poStr}, 0));",
+                ct);
+        }
+    }
 }

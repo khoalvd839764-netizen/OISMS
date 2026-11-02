@@ -11,6 +11,7 @@ using OISM.Application.Features.Catalog.Units;
 using OISM.Application.Features.Inventory.Dtos;
 using OISM.Application.Features.Orders.Dtos;
 using OISM.Application.Features.Pos;
+using OISM.Application.Features.PurchaseOrders.Dtos;
 using OISM.Application.Features.Reports.Dtos;
 using Xunit;
 
@@ -133,13 +134,14 @@ public class MultiUnitFlowIntegrationTests : IAsyncLifetime, IClassFixture<WebAp
 
     private async Task<GoodsReceiptResponseDto> CreateReceiptAsync(Shop shop, Guid? unitId, decimal quantity, decimal unitPrice, Guid? warehouseId = null)
     {
-        var res = await shop.Client.PostAsJsonAsync("/api/goods-receipts", new CreateGoodsReceiptDto
-        {
-            BranchId = shop.BranchId,
-            WarehouseId = warehouseId ?? shop.WarehouseId,
-            SupplierId = shop.SupplierId,
-            Items = new() { new() { SkuId = shop.Sku.Id, UnitId = unitId, Quantity = quantity, UnitPrice = unitPrice } }
-        });
+        var dto = await PurchaseOrderSeed.CreateDraftReceiptDtoViaApiAsync(
+            shop.Client,
+            shop.BranchId,
+            warehouseId ?? shop.WarehouseId,
+            shop.SupplierId,
+            "MultiUnitFlow test receipt",
+            (shop.Sku.Id, quantity, unitPrice, unitId));
+        var res = await shop.Client.PostAsJsonAsync("/api/goods-receipts", dto);
         res.StatusCode.Should().Be(HttpStatusCode.Created, await res.Content.ReadAsStringAsync());
         return (await res.Content.ReadFromJsonAsync<GoodsReceiptResponseDto>(_json))!;
     }
@@ -294,15 +296,19 @@ public class MultiUnitFlowIntegrationTests : IAsyncLifetime, IClassFixture<WebAp
         await ExpectAsync("INVALID_UNIT_QUANTITY", Line(shop, shop.BaoId, 1.5m, BaoPrice));
         await ExpectAsync("INSUFFICIENT_STOCK", Line(shop, shop.BaoId, 41, BaoPrice));
 
-        var receiptRes = await shop.Client.PostAsJsonAsync("/api/goods-receipts", new CreateGoodsReceiptDto
+        using var req = new HttpRequestMessage(HttpMethod.Post, "/api/purchase-orders")
         {
-            BranchId = shop.BranchId,
-            WarehouseId = shop.WarehouseId,
-            SupplierId = shop.SupplierId,
-            Items = new() { new() { SkuId = shop.Sku.Id, UnitId = shop.LitId, Quantity = 1, UnitPrice = 1 } }
-        });
-        receiptRes.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
-        (await receiptRes.Content.ReadAsStringAsync()).Should().Contain("UNIT_NOT_ALLOWED");
+            Content = JsonContent.Create(new CreatePurchaseOrderDto
+            {
+                BranchId = shop.BranchId,
+                SupplierId = shop.SupplierId,
+                Items = new() { new() { SkuId = shop.Sku.Id, UnitId = shop.LitId, Quantity = 1, UnitPrice = 1 } }
+            })
+        };
+        req.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        var poRes = await shop.Client.SendAsync(req);
+        poRes.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await poRes.Content.ReadAsStringAsync()).Should().Contain("UNIT_NOT_ALLOWED");
 
         (await OnHandAsync(shop)).Should().Be(1000m);
         (await LedgerCountAsync(shop)).Should().Be(ledgerBefore);
@@ -332,21 +338,44 @@ public class MultiUnitFlowIntegrationTests : IAsyncLifetime, IClassFixture<WebAp
         (await ScalarAsync<bool>("SELECT can_purchase FROM public.sku_units WHERE id=@i", ("i", kien.Id))).Should().BeFalse();
         (await ScalarAsync<bool>("SELECT can_sell FROM public.sku_units WHERE id=@i", ("i", kien.Id))).Should().BeFalse();
 
-        var receipt = await shop.Client.PostAsJsonAsync("/api/goods-receipts", new CreateGoodsReceiptDto
+        using var reqDisabled = new HttpRequestMessage(HttpMethod.Post, "/api/purchase-orders")
         {
-            BranchId = shop.BranchId,
-            WarehouseId = shop.WarehouseId,
-            SupplierId = shop.SupplierId,
-            Items = new() { new() { SkuId = shop.Sku.Id, UnitId = custom.Id, Quantity = 1, UnitPrice = 1 } }
-        });
-        receipt.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity, "đơn vị đã tắt chiều mua");
+            Content = JsonContent.Create(new CreatePurchaseOrderDto
+            {
+                BranchId = shop.BranchId,
+                SupplierId = shop.SupplierId,
+                Items = new() { new() { SkuId = shop.Sku.Id, UnitId = custom.Id, Quantity = 1, UnitPrice = 1 } }
+            })
+        };
+        reqDisabled.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        var poDisabledUnit = await shop.Client.SendAsync(reqDisabled);
+        poDisabledUnit.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity, "đơn vị đã tắt chiều mua");
+        (await poDisabledUnit.Content.ReadAsStringAsync()).Should().Contain("UNIT_NOT_ALLOWED");
 
+        using var reqTenth = new HttpRequestMessage(HttpMethod.Post, "/api/purchase-orders")
+        {
+            Content = JsonContent.Create(new CreatePurchaseOrderDto
+            {
+                BranchId = shop.BranchId,
+                SupplierId = shop.SupplierId,
+                Items = new() { new() { SkuId = shop.Sku.Id, UnitId = shop.BaoId, Quantity = 1.5m, UnitPrice = 1 } }
+            })
+        };
+        reqTenth.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        var tenthBaoPo = await shop.Client.SendAsync(reqTenth);
+        tenthBaoPo.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await tenthBaoPo.Content.ReadAsStringAsync()).Should().Contain("INVALID_UNIT_QUANTITY");
+
+        var validBaoPo = await PurchaseOrderSeed.CreateApprovedPoViaApiAsync(
+            shop.Client,
+            shop.BranchId,
+            shop.SupplierId,
+            (shop.Sku.Id, 2m, 1m, shop.BaoId));
         var tenthBao = await shop.Client.PostAsJsonAsync("/api/goods-receipts", new CreateGoodsReceiptDto
         {
-            BranchId = shop.BranchId,
+            PurchaseOrderId = validBaoPo.Id,
             WarehouseId = shop.WarehouseId,
-            SupplierId = shop.SupplierId,
-            Items = new() { new() { SkuId = shop.Sku.Id, UnitId = shop.BaoId, Quantity = 1.5m, UnitPrice = 1 } }
+            Items = new() { new() { PurchaseOrderItemId = validBaoPo.Items[0].Id, Quantity = 1.5m } }
         });
         tenthBao.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         (await tenthBao.Content.ReadAsStringAsync()).Should().Contain("INVALID_UNIT_QUANTITY");
@@ -532,14 +561,19 @@ public class MultiUnitFlowIntegrationTests : IAsyncLifetime, IClassFixture<WebAp
         sale.IsSuccessStatusCode.Should().BeFalse();
         (await sale.Content.ReadAsStringAsync()).Should().Contain("UNIT_NOT_ALLOWED");
 
-        var receipt = await b.Client.PostAsJsonAsync("/api/goods-receipts", new CreateGoodsReceiptDto
+        using var reqCross = new HttpRequestMessage(HttpMethod.Post, "/api/purchase-orders")
         {
-            BranchId = b.BranchId,
-            WarehouseId = b.WarehouseId,
-            SupplierId = b.SupplierId,
-            Items = new() { new() { SkuId = b.Sku.Id, UnitId = a.BaoId, Quantity = 1, UnitPrice = 1 } }
-        });
-        receipt.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+            Content = JsonContent.Create(new CreatePurchaseOrderDto
+            {
+                BranchId = b.BranchId,
+                SupplierId = b.SupplierId,
+                Items = new() { new() { SkuId = b.Sku.Id, UnitId = a.BaoId, Quantity = 1, UnitPrice = 1 } }
+            })
+        };
+        reqCross.Headers.Add("Idempotency-Key", Guid.NewGuid().ToString());
+        var poCrossTenantUnit = await b.Client.SendAsync(reqCross);
+        poCrossTenantUnit.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
+        (await poCrossTenantUnit.Content.ReadAsStringAsync()).Should().Contain("UNIT_NOT_ALLOWED");
 
         (await OnHandAsync(b)).Should().Be(100m);
     }

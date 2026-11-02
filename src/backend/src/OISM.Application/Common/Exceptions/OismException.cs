@@ -98,3 +98,44 @@ public class PriceMismatchException : OismException
         CurrentPrices = currentPrices;
     }
 }
+
+public class PurchaseOrderRequiredException : OismException
+{
+    public PurchaseOrderRequiredException(string message = "Xác nhận phiếu nhập kho bắt buộc phải gắn với phiếu mua hàng đã duyệt.")
+        : base("PURCHASE_ORDER_REQUIRED", message, 422)
+    {
+    }
+}
+
+public class PurchaseOrderNotReceivableException : OismException
+{
+    public PurchaseOrderNotReceivableException(string message = "Phiếu mua hàng không ở trạng thái cho phép nhận hàng ('Approved' hoặc 'PartiallyReceived').")
+        : base("PURCHASE_ORDER_NOT_RECEIVABLE", message, 409)
+    {
+    }
+}
+
+public class PurchaseOrderOverReceiptException : OismException
+{
+    public PurchaseOrderOverReceiptException(string message = "Số lượng nhập vượt quá số lượng còn được nhận trên phiếu mua hàng.")
+        : base("PURCHASE_ORDER_OVER_RECEIPT", message, 409)
+    {
+    }
+}
+
+public class PurchaseOrderItemMismatchException : OismException
+{
+    public PurchaseOrderItemMismatchException(string message = "Dòng hàng nhập kho không khớp với dòng phiếu mua hàng tương ứng.")
+        : base("PURCHASE_ORDER_ITEM_MISMATCH", message, 422)
+    {
+    }
+}
+
+public class PurchaseOrderZeroPriceConfirmRequiredException : OismException
+{
+    public PurchaseOrderZeroPriceConfirmRequiredException(string message = "Phiếu mua có mặt hàng đơn giá bằng 0, yêu cầu xác nhận rõ ràng trước khi duyệt.")
+        : base("PURCHASE_ORDER_ZERO_PRICE_CONFIRM_REQUIRED", message, 422)
+    {
+    }
+}
+

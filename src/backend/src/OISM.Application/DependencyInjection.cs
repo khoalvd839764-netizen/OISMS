@@ -9,6 +9,7 @@ using OISM.Application.Features.Inventory.Services;
 using OISM.Application.Features.Orders.Services;
 using OISM.Application.Features.Pos;
 using OISM.Application.Features.Pricing.Services;
+using OISM.Application.Features.PurchaseOrders.Services;
 using OISM.Application.Features.Reports.Services;
 using OISM.Application.Features.Simulator.Services;
 using OISM.Application.Features.StockCounts.Services;
@@ -53,6 +54,9 @@ public static class DependencyInjection
         services.AddScoped<ISkuPriceResolver, SkuPriceResolver>();
         services.AddScoped<IPriceChangeService, PriceChangeService>();
         services.AddScoped<IPriceQueryService, PriceQueryService>();
+
+        // Purchase Order services
+        services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
 
         return services;
     }

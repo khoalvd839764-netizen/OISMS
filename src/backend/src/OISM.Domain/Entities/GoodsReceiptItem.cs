@@ -10,6 +10,7 @@ public class GoodsReceiptItem : BaseEntity, IMustHaveTenant
 {
     public Guid TenantId { get; set; }
     public Guid ReceiptId { get; set; }
+    public Guid? PurchaseOrderItemId { get; set; }
     public Guid SkuId { get; set; }
 
     public Guid? UnitId { get; set; }
@@ -30,6 +31,7 @@ public class GoodsReceiptItem : BaseEntity, IMustHaveTenant
     // Navigation properties
     public Tenant? Tenant { get; set; }
     public GoodsReceipt? Receipt { get; set; }
+    public PurchaseOrderItem? PurchaseOrderItem { get; set; }
     public ProductVariant? Sku { get; set; }
     public Unit? Unit { get; set; }
 }

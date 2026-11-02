@@ -141,9 +141,11 @@ public class DatabaseBaselineValidatorTests
             "price_lists",
             "price_change_requests",
             "price_change_request_items",
-            "sku_unit_prices"
+            "sku_unit_prices",
+            "purchase_orders",
+            "purchase_order_items"
         ]);
-        DatabaseMigrationService.RequiredTables.Length.Should().Be(37);
+        DatabaseMigrationService.RequiredTables.Length.Should().Be(39);
     }
 
     [Fact]

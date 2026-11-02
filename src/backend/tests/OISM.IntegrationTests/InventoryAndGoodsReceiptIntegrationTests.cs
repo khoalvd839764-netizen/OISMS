@@ -9,14 +9,18 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
+using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
 using OISM.Application.Features.Auth.Login;
 using OISM.Application.Features.Auth.RegisterTenant;
 using OISM.Application.Features.Inventory.Dtos;
 using OISM.Application.Features.Inventory.Services;
+using OISM.Application.Features.PurchaseOrders.Dtos;
+using OISM.Application.Features.PurchaseOrders.Services;
 using OISM.Domain.Entities;
 using Microsoft.Extensions.DependencyInjection;
 using OISM.Infrastructure.Persistence;
+using OISM.Infrastructure.Services;
 using Xunit;
 
 namespace OISM.IntegrationTests;
@@ -150,18 +154,16 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
             var wacCalc = new WacCalculator();
             var service = new GoodsReceiptService(context, tenantService, wacCalc);
 
-            var createDto = new CreateGoodsReceiptDto
-            {
-                BranchId = branch.Id,
-                WarehouseId = warehouse.Id,
-                SupplierId = supplier.Id,
-                Note = "Phiếu nhập thử nghiệm 2 mặt hàng",
-                Items = new List<CreateGoodsReceiptItemDto>
-                {
-                    new() { SkuId = skus[0].Id, Quantity = 10m, UnitPrice = 100000m },
-                    new() { SkuId = skus[1].Id, Quantity = 5m, UnitPrice = 150000m }
-                }
-            };
+            var createDto = await PurchaseOrderSeed.CreateDraftReceiptDtoAsync(
+                context,
+                OismsDatabaseSeeder.TenantAId,
+                branch.Id,
+                warehouse.Id,
+                supplier.Id,
+                user.Id,
+                "Phiếu nhập thử nghiệm 2 mặt hàng",
+                (skus[0].Id, 10m, 100000m, null),
+                (skus[1].Id, 5m, 150000m, null));
 
             // Act
             var response = await service.CreateReceiptAsync(createDto, user.Id);
@@ -207,17 +209,15 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
             var service = new GoodsReceiptService(context, tenantService, wacCalc);
 
             // Đợt 1: Nhập 10 cái @ 100.000đ
-            var receipt1Dto = new CreateGoodsReceiptDto
-            {
-                BranchId = branch.Id,
-                WarehouseId = warehouse.Id,
-                SupplierId = supplier.Id,
-                Note = "Lô 1 - 10 cái x 100k",
-                Items = new List<CreateGoodsReceiptItemDto>
-                {
-                    new() { SkuId = sku.Id, Quantity = 10m, UnitPrice = 100000m }
-                }
-            };
+            var receipt1Dto = await PurchaseOrderSeed.CreateDraftReceiptDtoAsync(
+                context,
+                OismsDatabaseSeeder.TenantAId,
+                branch.Id,
+                warehouse.Id,
+                supplier.Id,
+                user.Id,
+                "Lô 1 - 10 cái x 100k",
+                (sku.Id, 10m, 100000m, null));
             var receipt1 = await service.CreateReceiptAsync(receipt1Dto, user.Id);
             var confirmedReceipt1 = await service.ConfirmReceiptAsync(receipt1.Id, user.Id);
 
@@ -225,17 +225,15 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
             confirmedReceipt1.ConfirmedAt.Should().NotBeNull();
 
             // Đợt 2: Nhập 20 cái @ 130.000đ (Ca kiểm thử bắt buộc BE1-07)
-            var receipt2Dto = new CreateGoodsReceiptDto
-            {
-                BranchId = branch.Id,
-                WarehouseId = warehouse.Id,
-                SupplierId = supplier.Id,
-                Note = "Lô 2 - 20 cái x 130k",
-                Items = new List<CreateGoodsReceiptItemDto>
-                {
-                    new() { SkuId = sku.Id, Quantity = 20m, UnitPrice = 130000m }
-                }
-            };
+            var receipt2Dto = await PurchaseOrderSeed.CreateDraftReceiptDtoAsync(
+                context,
+                OismsDatabaseSeeder.TenantAId,
+                branch.Id,
+                warehouse.Id,
+                supplier.Id,
+                user.Id,
+                "Lô 2 - 20 cái x 130k",
+                (sku.Id, 20m, 130000m, null));
             var receipt2 = await service.CreateReceiptAsync(receipt2Dto, user.Id);
             var confirmedReceipt2 = await service.ConfirmReceiptAsync(receipt2.Id, user.Id);
 
@@ -303,16 +301,14 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
             var wacCalc = new WacCalculator();
             var service = new GoodsReceiptService(context, tenantService, wacCalc);
 
-            var receiptDto = new CreateGoodsReceiptDto
-            {
-                BranchId = branch.Id,
-                WarehouseId = warehouse.Id,
-                SupplierId = supplier.Id,
-                Items = new List<CreateGoodsReceiptItemDto>
-                {
-                    new() { SkuId = sku.Id, Quantity = 5m, UnitPrice = 50000m }
-                }
-            };
+            var receiptDto = await PurchaseOrderSeed.CreateDraftReceiptDtoAsync(
+                context,
+                OismsDatabaseSeeder.TenantAId,
+                branch.Id,
+                warehouse.Id,
+                supplier.Id,
+                user.Id,
+                (sku.Id, 5m, 50000m));
             var receipt = await service.CreateReceiptAsync(receiptDto, user.Id);
             await service.ConfirmReceiptAsync(receipt.Id, user.Id);
 
@@ -345,13 +341,15 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
             var wacCalc = new WacCalculator();
             var serviceA = new GoodsReceiptService(context, tenantService, wacCalc);
 
-            var receiptA = await serviceA.CreateReceiptAsync(new CreateGoodsReceiptDto
-            {
-                BranchId = branchA.Id,
-                WarehouseId = warehouseA.Id,
-                SupplierId = supplierA.Id,
-                Items = new List<CreateGoodsReceiptItemDto> { new() { SkuId = skuA.Id, Quantity = 5m, UnitPrice = 50000m } }
-            }, userA.Id);
+            var receiptADto = await PurchaseOrderSeed.CreateDraftReceiptDtoAsync(
+                context,
+                OismsDatabaseSeeder.TenantAId,
+                branchA.Id,
+                warehouseA.Id,
+                supplierA.Id,
+                userA.Id,
+                (skuA.Id, 5m, 50000m));
+            var receiptA = await serviceA.CreateReceiptAsync(receiptADto, userA.Id);
 
             // Chuyển sang phiên của Tenant B
             tenantService.SetTenant(OismsDatabaseSeeder.TenantBId);
@@ -383,13 +381,15 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
             var sku = await context.ProductVariants.FirstAsync(v => v.TenantId == OismsDatabaseSeeder.TenantAId);
 
             var service = new GoodsReceiptService(context, tenantService, new WacCalculator());
-            var receipt = await service.CreateReceiptAsync(new CreateGoodsReceiptDto
-            {
-                BranchId = branch.Id,
-                WarehouseId = warehouse.Id,
-                SupplierId = supplier.Id,
-                Items = new List<CreateGoodsReceiptItemDto> { new() { SkuId = sku.Id, Quantity = 8m, UnitPrice = 60000m } }
-            }, user.Id);
+            var receiptDto = await PurchaseOrderSeed.CreateDraftReceiptDtoAsync(
+                context,
+                OismsDatabaseSeeder.TenantAId,
+                branch.Id,
+                warehouse.Id,
+                supplier.Id,
+                user.Id,
+                (sku.Id, 8m, 60000m));
+            var receipt = await service.CreateReceiptAsync(receiptDto, user.Id);
             await service.ConfirmReceiptAsync(receipt.Id, user.Id);
 
             // Thử thực thi UPDATE trực tiếp trên inventory_transactions bằng runtime account
@@ -433,13 +433,15 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
 
             // Nhập 10 cái vào kho
             var grService = new GoodsReceiptService(context, tenantService, new WacCalculator());
-            var receipt = await grService.CreateReceiptAsync(new CreateGoodsReceiptDto
-            {
-                BranchId = branch.Id,
-                WarehouseId = warehouse.Id,
-                SupplierId = supplier.Id,
-                Items = new List<CreateGoodsReceiptItemDto> { new() { SkuId = sku.Id, Quantity = 10m, UnitPrice = 50000m } }
-            }, user.Id);
+            var receiptDto = await PurchaseOrderSeed.CreateDraftReceiptDtoAsync(
+                context,
+                OismsDatabaseSeeder.TenantAId,
+                branch.Id,
+                warehouse.Id,
+                supplier.Id,
+                user.Id,
+                (sku.Id, 10m, 50000m));
+            var receipt = await grService.CreateReceiptAsync(receiptDto, user.Id);
             await grService.ConfirmReceiptAsync(receipt.Id, user.Id);
 
             // Giữ chỗ 4 cái
@@ -495,13 +497,15 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
 
             // Nhập đúng 1 sản phẩm
             var grService = new GoodsReceiptService(initContext, initTenantService, new WacCalculator());
-            var receipt = await grService.CreateReceiptAsync(new CreateGoodsReceiptDto
-            {
-                BranchId = branchId,
-                WarehouseId = warehouseId,
-                SupplierId = supplier.Id,
-                Items = new List<CreateGoodsReceiptItemDto> { new() { SkuId = skuId, Quantity = 1m, UnitPrice = 99000m } }
-            }, userId);
+            var receiptDto = await PurchaseOrderSeed.CreateDraftReceiptDtoAsync(
+                initContext,
+                OismsDatabaseSeeder.TenantAId,
+                branchId,
+                warehouseId,
+                supplier.Id,
+                userId,
+                (skuId, 1m, 99000m));
+            var receipt = await grService.CreateReceiptAsync(receiptDto, userId);
             await grService.ConfirmReceiptAsync(receipt.Id, userId);
         }
 
@@ -681,10 +685,9 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", cashierToken);
         var cashierCreateGrRes = await _client.PostAsJsonAsync("/api/goods-receipts", new CreateGoodsReceiptDto
         {
-            BranchId = branchId,
+            PurchaseOrderId = Guid.NewGuid(),
             WarehouseId = warehouseId,
-            SupplierId = supplierId,
-            Items = new List<CreateGoodsReceiptItemDto> { new() { SkuId = skuId, Quantity = 10m, UnitPrice = 100000m } }
+            Items = new List<CreateGoodsReceiptItemDto> { new() { PurchaseOrderItemId = Guid.NewGuid(), Quantity = 10m } }
         });
         cashierCreateGrRes.StatusCode.Should().Be(HttpStatusCode.Forbidden, "Thu ngân (Cashier) không được phép tạo phiếu nhập kho");
 
@@ -694,17 +697,14 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
 
         // 5. Chủ shop (Owner) lập phiếu nhập và xác nhận nhập kho
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
-        var ownerCreateGrRes = await _client.PostAsJsonAsync("/api/goods-receipts", new CreateGoodsReceiptDto
-        {
-            BranchId = branchId,
-            WarehouseId = warehouseId,
-            SupplierId = supplierId,
-            Note = "Phiếu nhập E2E lô đầu",
-            Items = new List<CreateGoodsReceiptItemDto>
-            {
-                new() { SkuId = skuId, Quantity = 50m, UnitPrice = 120000m }
-            }
-        });
+        var ownerGrDto = await PurchaseOrderSeed.CreateDraftReceiptDtoViaApiAsync(
+            _client,
+            branchId,
+            warehouseId,
+            supplierId,
+            "Phiếu nhập E2E lô đầu",
+            (skuId, 50m, 120000m, null));
+        var ownerCreateGrRes = await _client.PostAsJsonAsync("/api/goods-receipts", ownerGrDto);
         ownerCreateGrRes.StatusCode.Should().Be(HttpStatusCode.Created);
         var createdGr = await ownerCreateGrRes.Content.ReadFromJsonAsync<GoodsReceiptResponseDto>(_jsonOptions);
 
@@ -796,42 +796,55 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
 
             var wacCalc = new WacCalculator();
             var grService = new GoodsReceiptService(context, tenantService, wacCalc);
+            var poService = new PurchaseOrderService(context, tenantService, new SqlLockService(context));
             var invService = new InventoryService(context, tenantService);
             var resService = new ReservationService(context, tenantService);
 
-            // 1. Test validation khi tạo phiếu nhập:
+            var (basePo, basePoItems) = await PurchaseOrderSeed.CreateApprovedPurchaseOrderAsync(
+                context,
+                OismsDatabaseSeeder.TenantAId,
+                branch.Id,
+                supplier.Id,
+                user.Id,
+                (sku.Id, 100m, 100000m, null));
+
+            // 1. Test validation khi tạo phiếu nhập & phiếu mua:
             // a. Số lượng <= 0
             var invQtyDto = new CreateGoodsReceiptDto
             {
-                BranchId = branch.Id,
+                PurchaseOrderId = basePo.Id,
                 WarehouseId = warehouse.Id,
-                SupplierId = supplier.Id,
-                Items = new List<CreateGoodsReceiptItemDto> { new() { SkuId = sku.Id, Quantity = 0m, UnitPrice = 100000m } }
+                Items = new List<CreateGoodsReceiptItemDto> { new() { PurchaseOrderItemId = basePoItems[0].Id, Quantity = 0m } }
             };
             Func<Task> actZeroQty = async () => await grService.CreateReceiptAsync(invQtyDto, user.Id);
             await actZeroQty.Should().ThrowAsync<ArgumentException>().WithMessage("*phải lớn hơn 0*");
 
-            // b. Đơn giá < 0
-            var negPriceDto = new CreateGoodsReceiptDto
+            // b. Đơn giá < 0 (trên phiếu mua hàng theo hợp đồng U01-A)
+            var negPricePoDto = new CreatePurchaseOrderDto
             {
                 BranchId = branch.Id,
-                WarehouseId = warehouse.Id,
                 SupplierId = supplier.Id,
-                Items = new List<CreateGoodsReceiptItemDto> { new() { SkuId = sku.Id, Quantity = 10m, UnitPrice = -500m } }
+                Items = new List<CreatePurchaseOrderItemDto> { new() { SkuId = sku.Id, Quantity = 10m, UnitPrice = -500m } }
             };
-            Func<Task> actNegPrice = async () => await grService.CreateReceiptAsync(negPriceDto, user.Id);
-            await actNegPrice.Should().ThrowAsync<ArgumentException>().WithMessage("*không được âm*");
+            Func<Task> actNegPrice = async () => await poService.CreateAsync(negPricePoDto, Guid.NewGuid(), user.Id);
+            await actNegPrice.Should().ThrowAsync<OismException>().WithMessage("*không được âm*");
 
-            // c. Kho không thuộc chi nhánh
+            // c. Kho không thuộc chi nhánh của phiếu mua
             var branch2 = new Branch { TenantId = OismsDatabaseSeeder.TenantAId, Name = "Chi nhánh phụ" };
             context.Branches.Add(branch2);
             await context.SaveChangesAsync();
+            var (branch2Po, branch2PoItems) = await PurchaseOrderSeed.CreateApprovedPurchaseOrderAsync(
+                context,
+                OismsDatabaseSeeder.TenantAId,
+                branch2.Id,
+                supplier.Id,
+                user.Id,
+                (sku.Id, 10m, 50000m, null));
             var badBranchDto = new CreateGoodsReceiptDto
             {
-                BranchId = branch2.Id,
+                PurchaseOrderId = branch2Po.Id,
                 WarehouseId = warehouse.Id, // warehouse thuộc branch 1
-                SupplierId = supplier.Id,
-                Items = new List<CreateGoodsReceiptItemDto> { new() { SkuId = sku.Id, Quantity = 10m, UnitPrice = 50000m } }
+                Items = new List<CreateGoodsReceiptItemDto> { new() { PurchaseOrderItemId = branch2PoItems[0].Id, Quantity = 10m } }
             };
             Func<Task> actMismatch = async () => await grService.CreateReceiptAsync(badBranchDto, user.Id);
             await actMismatch.Should().ThrowAsync<InvalidOperationException>().WithMessage("*không thuộc chi nhánh*");
@@ -839,34 +852,42 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
             // d. Không có items
             var emptyItemsDto = new CreateGoodsReceiptDto
             {
-                BranchId = branch.Id,
+                PurchaseOrderId = basePo.Id,
                 WarehouseId = warehouse.Id,
-                SupplierId = supplier.Id,
                 Items = new List<CreateGoodsReceiptItemDto>()
             };
             Func<Task> actEmpty = async () => await grService.CreateReceiptAsync(emptyItemsDto, user.Id);
             await actEmpty.Should().ThrowAsync<InvalidOperationException>().WithMessage("*ít nhất 1 dòng*");
 
-            // e. SKU không tồn tại
-            var nonExistentSkuDto = new CreateGoodsReceiptDto
+            // e. SKU không tồn tại trên phiếu mua & dòng phiếu mua không khớp trên phiếu nhập
+            var nonExistentSkuPoDto = new CreatePurchaseOrderDto
             {
                 BranchId = branch.Id,
-                WarehouseId = warehouse.Id,
                 SupplierId = supplier.Id,
-                Items = new List<CreateGoodsReceiptItemDto> { new() { SkuId = Guid.NewGuid(), Quantity = 5m, UnitPrice = 50000m } }
+                Items = new List<CreatePurchaseOrderItemDto> { new() { SkuId = Guid.NewGuid(), Quantity = 5m, UnitPrice = 50000m } }
             };
-            Func<Task> actBadSku = async () => await grService.CreateReceiptAsync(nonExistentSkuDto, user.Id);
-            await actBadSku.Should().ThrowAsync<KeyNotFoundException>().WithMessage("*không tồn tại*");
+            Func<Task> actBadSku = async () => await poService.CreateAsync(nonExistentSkuPoDto, Guid.NewGuid(), user.Id);
+            await actBadSku.Should().ThrowAsync<OismException>().WithMessage("*không tồn tại*");
+
+            var mismatchItemDto = new CreateGoodsReceiptDto
+            {
+                PurchaseOrderId = basePo.Id,
+                WarehouseId = warehouse.Id,
+                Items = new List<CreateGoodsReceiptItemDto> { new() { PurchaseOrderItemId = Guid.NewGuid(), Quantity = 5m } }
+            };
+            Func<Task> actBadPoItem = async () => await grService.CreateReceiptAsync(mismatchItemDto, user.Id);
+            await actBadPoItem.Should().ThrowAsync<PurchaseOrderItemMismatchException>();
 
             // 2. Tạo và xác nhận phiếu nhập hợp lệ để kiểm tra query
-            var validDto = new CreateGoodsReceiptDto
-            {
-                BranchId = branch.Id,
-                WarehouseId = warehouse.Id,
-                SupplierId = supplier.Id,
-                Note = "Phiếu kiểm thử tra cứu",
-                Items = new List<CreateGoodsReceiptItemDto> { new() { SkuId = sku.Id, Quantity = 25m, UnitPrice = 80000m } }
-            };
+            var validDto = await PurchaseOrderSeed.CreateDraftReceiptDtoAsync(
+                context,
+                OismsDatabaseSeeder.TenantAId,
+                branch.Id,
+                warehouse.Id,
+                supplier.Id,
+                user.Id,
+                "Phiếu kiểm thử tra cứu",
+                (sku.Id, 25m, 80000m, null));
             var receipt = await grService.CreateReceiptAsync(validDto, user.Id);
             await grService.ConfirmReceiptAsync(receipt.Id, user.Id);
 
@@ -969,13 +990,15 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
 
             // Ca B: Nhập hàng vào kho, sau đó lọc theo từ khóa không khớp
             var grService = new GoodsReceiptService(context, tenantService, new WacCalculator());
-            var receipt = await grService.CreateReceiptAsync(new CreateGoodsReceiptDto
-            {
-                BranchId = branch.Id,
-                WarehouseId = warehouse.Id,
-                SupplierId = supplier.Id,
-                Items = new List<CreateGoodsReceiptItemDto> { new() { SkuId = sku.Id, Quantity = 15m, UnitPrice = 75000m } }
-            }, user.Id);
+            var receiptDto = await PurchaseOrderSeed.CreateDraftReceiptDtoAsync(
+                context,
+                OismsDatabaseSeeder.TenantAId,
+                branch.Id,
+                warehouse.Id,
+                supplier.Id,
+                user.Id,
+                (sku.Id, 15m, 75000m));
+            var receipt = await grService.CreateReceiptAsync(receiptDto, user.Id);
             await grService.ConfirmReceiptAsync(receipt.Id, user.Id);
 
             var noMatchResult = await invService.GetBalancesAsync(new InventoryBalanceFilterDto
@@ -1056,17 +1079,16 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
             userId = user.Id;
 
             var grService = new GoodsReceiptService(initContext, initTenantService, new WacCalculator());
-            var receipt = await grService.CreateReceiptAsync(new CreateGoodsReceiptDto
-            {
-                BranchId = branchId,
-                WarehouseId = warehouseId,
-                SupplierId = supplier.Id,
-                Items = new List<CreateGoodsReceiptItemDto>
-                {
-                    new() { SkuId = sku1.Id, Quantity = 10m, UnitPrice = 100000m },
-                    new() { SkuId = sku2.Id, Quantity = 20m, UnitPrice = 150000m }
-                }
-            }, userId);
+            var receiptDto = await PurchaseOrderSeed.CreateDraftReceiptDtoAsync(
+                initContext,
+                tenantId,
+                branchId,
+                warehouseId,
+                supplier.Id,
+                userId,
+                (sku1.Id, 10m, 100000m),
+                (sku2.Id, 20m, 150000m));
+            var receipt = await grService.CreateReceiptAsync(receiptDto, userId);
 
             receiptId = receipt.Id;
         }
@@ -1188,21 +1210,25 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
 
             var grService = new GoodsReceiptService(initContext, initTenantService, new WacCalculator());
 
-            var r1 = await grService.CreateReceiptAsync(new CreateGoodsReceiptDto
-            {
-                BranchId = branchId,
-                WarehouseId = warehouseId,
-                SupplierId = supplier.Id,
-                Items = new List<CreateGoodsReceiptItemDto> { new() { SkuId = skuId, Quantity = 10m, UnitPrice = 100000m } }
-            }, userId);
+            var r1Dto = await PurchaseOrderSeed.CreateDraftReceiptDtoAsync(
+                initContext,
+                tenantId,
+                branchId,
+                warehouseId,
+                supplier.Id,
+                userId,
+                (skuId, 10m, 100000m));
+            var r1 = await grService.CreateReceiptAsync(r1Dto, userId);
 
-            var r2 = await grService.CreateReceiptAsync(new CreateGoodsReceiptDto
-            {
-                BranchId = branchId,
-                WarehouseId = warehouseId,
-                SupplierId = supplier.Id,
-                Items = new List<CreateGoodsReceiptItemDto> { new() { SkuId = skuId, Quantity = 20m, UnitPrice = 130000m } }
-            }, userId);
+            var r2Dto = await PurchaseOrderSeed.CreateDraftReceiptDtoAsync(
+                initContext,
+                tenantId,
+                branchId,
+                warehouseId,
+                supplier.Id,
+                userId,
+                (skuId, 20m, 130000m));
+            var r2 = await grService.CreateReceiptAsync(r2Dto, userId);
 
             receiptId1 = r1.Id;
             receiptId2 = r2.Id;
@@ -1294,16 +1320,15 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
             
             // 1. Tạo tồn ban đầu cho SKU 1 (10 cái @ 100.000 VNĐ) để kiểm thử dữ liệu hiện hữu không bị ảnh hưởng khi rollback
             var setupGrService = new GoodsReceiptService(setupContext, setupTenantService, new WacCalculator());
-            var initReceipt = await setupGrService.CreateReceiptAsync(new CreateGoodsReceiptDto
-            {
-                BranchId = branch.Id,
-                WarehouseId = warehouse.Id,
-                SupplierId = supplier.Id,
-                Items = new List<CreateGoodsReceiptItemDto>
-                {
-                    new() { SkuId = sku1.Id, Quantity = 10m, UnitPrice = 100000m }
-                }
-            }, user.Id);
+            var initReceiptDto = await PurchaseOrderSeed.CreateDraftReceiptDtoAsync(
+                setupContext,
+                OismsDatabaseSeeder.TenantAId,
+                branch.Id,
+                warehouse.Id,
+                supplier.Id,
+                user.Id,
+                (sku1.Id, 10m, 100000m));
+            var initReceipt = await setupGrService.CreateReceiptAsync(initReceiptDto, user.Id);
             await setupGrService.ConfirmReceiptAsync(initReceipt.Id, user.Id);
 
             // Kiểm tra trạng thái ban đầu của SKU 1
@@ -1327,18 +1352,17 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
             await PriceSeed.SyncFromLegacyColumnsAsync(setupContext);
 
             // 2. Tạo phiếu nhập nhiều dòng mới (SKU 1 nhập 20 cái @ 130.000 VNĐ, SKU 2 nhập 15 cái @ 80.000 VNĐ)
-            var receiptToConfirm = await setupGrService.CreateReceiptAsync(new CreateGoodsReceiptDto
-            {
-                BranchId = branch.Id,
-                WarehouseId = warehouse.Id,
-                SupplierId = supplier.Id,
-                Note = "Phiếu nhập nhiều dòng kiểm thử rollback",
-                Items = new List<CreateGoodsReceiptItemDto>
-                {
-                    new() { SkuId = sku1.Id, Quantity = 20m, UnitPrice = 130000m },
-                    new() { SkuId = sku2.Id, Quantity = 15m, UnitPrice = 80000m }
-                }
-            }, user.Id);
+            var receiptToConfirmDto = await PurchaseOrderSeed.CreateDraftReceiptDtoAsync(
+                setupContext,
+                OismsDatabaseSeeder.TenantAId,
+                branch.Id,
+                warehouse.Id,
+                supplier.Id,
+                user.Id,
+                "Phiếu nhập nhiều dòng kiểm thử rollback",
+                (sku1.Id, 20m, 130000m, null),
+                (sku2.Id, 15m, 80000m, null));
+            var receiptToConfirm = await setupGrService.CreateReceiptAsync(receiptToConfirmDto, user.Id);
             receiptToConfirm.Status.Should().Be("Draft");
 
             // 3. Khởi tạo GoodsReceiptService với Interceptor gây lỗi có kiểm soát ngay sau SaveChangesAsync nhưng trước COMMIT
@@ -1469,16 +1493,15 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
             var sku = await setupContext.ProductVariants.FirstAsync(v => v.TenantId == OismsDatabaseSeeder.TenantAId);
 
             var setupGrService = new GoodsReceiptService(setupContext, setupTenantService, new WacCalculator());
-            var receipt = await setupGrService.CreateReceiptAsync(new CreateGoodsReceiptDto
-            {
-                BranchId = branch.Id,
-                WarehouseId = warehouse.Id,
-                SupplierId = supplier.Id,
-                Items = new List<CreateGoodsReceiptItemDto>
-                {
-                    new() { SkuId = sku.Id, Quantity = 10m, UnitPrice = 120000m }
-                }
-            }, user.Id);
+            var receiptDto = await PurchaseOrderSeed.CreateDraftReceiptDtoAsync(
+                setupContext,
+                OismsDatabaseSeeder.TenantAId,
+                branch.Id,
+                warehouse.Id,
+                supplier.Id,
+                user.Id,
+                (sku.Id, 10m, 120000m));
+            var receipt = await setupGrService.CreateReceiptAsync(receiptDto, user.Id);
 
             // Gắn Interceptor cố tình làm sai lệch tồn kho Warehouse (+999m) so với Branch
             var violationInterceptor = new DeferredStockConsistencyViolationInterceptor();
@@ -1681,16 +1704,14 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
         var skuId = prodDoc.GetProperty("variants")[0].GetProperty("id").GetGuid();
 
         // Nhập kho 10 sản phẩm vào Kho 1
-        var grRes = await _client.PostAsJsonAsync("/api/goods-receipts", new CreateGoodsReceiptDto
-        {
-            BranchId = branch1Id,
-            WarehouseId = wh1Id,
-            SupplierId = supplierId,
-            Items = new List<CreateGoodsReceiptItemDto>
-            {
-                new() { SkuId = skuId, Quantity = 10m, UnitPrice = 100000m }
-            }
-        });
+        var grDto = await PurchaseOrderSeed.CreateDraftReceiptDtoViaApiAsync(
+            _client,
+            branch1Id,
+            wh1Id,
+            supplierId,
+            null,
+            (skuId, 10m, 100000m, null));
+        var grRes = await _client.PostAsJsonAsync("/api/goods-receipts", grDto);
         grRes.StatusCode.Should().Be(HttpStatusCode.Created);
         var gr = await grRes.Content.ReadFromJsonAsync<GoodsReceiptResponseDto>(_jsonOptions);
         var cfRes = await _client.PostAsync($"/api/goods-receipts/{gr!.Id}/confirm", null);
@@ -2057,18 +2078,16 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
         var sku3Id = prod2Doc.GetProperty("variants")[0].GetProperty("id").GetGuid();
 
         // 5. Nhập kho 10 chiếc cho mỗi SKU vào Warehouse1
-        var grRes = await _client.PostAsJsonAsync("/api/goods-receipts", new CreateGoodsReceiptDto
-        {
-            BranchId = branch1Id,
-            WarehouseId = wh1Id,
-            SupplierId = supplierId,
-            Items = new List<CreateGoodsReceiptItemDto>
-            {
-                new() { SkuId = sku1Id, Quantity = 10m, UnitPrice = 80000m },
-                new() { SkuId = sku2Id, Quantity = 10m, UnitPrice = 90000m },
-                new() { SkuId = sku3Id, Quantity = 10m, UnitPrice = 120000m }
-            }
-        });
+        var grDto = await PurchaseOrderSeed.CreateDraftReceiptDtoViaApiAsync(
+            _client,
+            branch1Id,
+            wh1Id,
+            supplierId,
+            null,
+            (sku1Id, 10m, 80000m, null),
+            (sku2Id, 10m, 90000m, null),
+            (sku3Id, 10m, 120000m, null));
+        var grRes = await _client.PostAsJsonAsync("/api/goods-receipts", grDto);
         var gr = await grRes.Content.ReadFromJsonAsync<GoodsReceiptResponseDto>(_jsonOptions);
         await _client.PostAsync($"/api/goods-receipts/{gr!.Id}/confirm", null);
 
@@ -2489,16 +2508,14 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
         var skuAId = prodADoc.GetProperty("variants")[0].GetProperty("id").GetGuid();
 
         // Nhập kho 20 cái cho Tenant A
-        var createReceiptA = await _client.PostAsJsonAsync("/api/goods-receipts", new CreateGoodsReceiptDto
-        {
-            BranchId = branchAId,
-            WarehouseId = whAId,
-            SupplierId = supAId,
-            Items = new List<CreateGoodsReceiptItemDto>
-            {
-                new() { SkuId = skuAId, Quantity = 20m, UnitPrice = 120000m }
-            }
-        });
+        var createReceiptADto = await PurchaseOrderSeed.CreateDraftReceiptDtoViaApiAsync(
+            _client,
+            branchAId,
+            whAId,
+            supAId,
+            null,
+            (skuAId, 20m, 120000m, null));
+        var createReceiptA = await _client.PostAsJsonAsync("/api/goods-receipts", createReceiptADto);
         var receiptADoc = await createReceiptA.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
         var receiptAId = receiptADoc.GetProperty("id").GetGuid();
         await _client.PostAsync($"/api/goods-receipts/{receiptAId}/confirm", null);
@@ -2719,16 +2736,14 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
         var skuBId = prodBDoc.GetProperty("variants")[0].GetProperty("id").GetGuid();
 
         // Nhập kho 15 cái cho Tenant B
-        var createReceiptB = await _client.PostAsJsonAsync("/api/goods-receipts", new CreateGoodsReceiptDto
-        {
-            BranchId = branchBId,
-            WarehouseId = whBId,
-            SupplierId = supBId,
-            Items = new List<CreateGoodsReceiptItemDto>
-            {
-                new() { SkuId = skuBId, Quantity = 15m, UnitPrice = 180000m }
-            }
-        });
+        var createReceiptBDto = await PurchaseOrderSeed.CreateDraftReceiptDtoViaApiAsync(
+            _client,
+            branchBId,
+            whBId,
+            supBId,
+            null,
+            (skuBId, 15m, 180000m, null));
+        var createReceiptB = await _client.PostAsJsonAsync("/api/goods-receipts", createReceiptBDto);
         var receiptBDoc = await createReceiptB.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions);
         var receiptBId = receiptBDoc.GetProperty("id").GetGuid();
         await _client.PostAsync($"/api/goods-receipts/{receiptBId}/confirm", null);

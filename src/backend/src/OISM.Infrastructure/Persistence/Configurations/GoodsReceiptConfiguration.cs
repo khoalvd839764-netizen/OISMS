@@ -20,12 +20,19 @@ public class GoodsReceiptConfiguration : IEntityTypeConfiguration<GoodsReceipt>
             .IsUnique()
             .HasDatabaseName("uq_goods_receipts_2");
 
+        builder.HasIndex(r => new { r.TenantId, r.PurchaseOrderId })
+            .HasDatabaseName("ix_goods_receipts_purchase_order");
+
         builder.Property(r => r.TenantId).IsRequired();
 
         builder.Property(r => r.Number)
             .HasColumnName("number")
             .HasMaxLength(50)
             .IsRequired();
+
+        builder.Property(r => r.PurchaseOrderId)
+            .HasColumnName("purchase_order_id")
+            .IsRequired(false);
 
         builder.Property(r => r.BranchId)
             .HasColumnName("branch_id")
@@ -74,6 +81,12 @@ public class GoodsReceiptConfiguration : IEntityTypeConfiguration<GoodsReceipt>
         builder.HasOne(r => r.Tenant)
             .WithMany()
             .HasForeignKey(r => r.TenantId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(r => r.PurchaseOrder)
+            .WithMany()
+            .HasForeignKey(r => new { r.TenantId, r.PurchaseOrderId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(r => r.Branch)

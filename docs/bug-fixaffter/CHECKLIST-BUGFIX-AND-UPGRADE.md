@@ -80,7 +80,9 @@ Tài liệu đối chiếu: [BUG-LIST.md](Report%20Bugfix/BUG-LIST.md), [report 
   - [x] Thêm resolver giá dùng chung cho POS, đơn Admin và giữ chỗ; chuyển dữ liệu giá cũ bằng phiếu "Giá đầu kỳ".
   - [x] Lưu đơn giá, ID dòng giá và nguồn giá vào dòng đơn; đóng API sửa giá trực tiếp trên biến thể SKU và đơn vị.
 - [ ] **Bước 3 — `Upgrade 01`: Mua hàng, nhập kho và giá vốn WAC (`Đăng Khoa` & `Nhựt`):**
-  - [ ] Tạo bảng `purchase_orders`, bắt buộc phiếu nhập kho NCC gắn phiếu mua đã duyệt, đối chiếu hóa đơn NCC (`supplier_invoices`) và xử lý chứng từ chênh lệch (`purchase_variances`).
+  - [x] **U01-A:** Tạo bảng `purchase_orders`, `purchase_order_items` (có chi nhánh, đơn vị và hệ số snapshot), bước duyệt, đóng và hủy phiếu; API hủy phiếu nhập nháp.
+  - [x] **U01-A:** Bắt buộc phiếu nhập kho NCC gắn phiếu mua đã duyệt, lấy giá và hệ số từ phiếu mua, chặn nhập vượt; có test đồng thời trên PostgreSQL thật.
+  - [ ] **U01-B (làm sau U01-A):** Đối chiếu hóa đơn NCC (`supplier_invoices`) và xử lý chứng từ chênh lệch (`purchase_variances`).
 - [ ] **Bước 4 — `Upgrade 02`: Truy vết chứng từ xuất kho (`Đăng Khoa`):**
   - [ ] Liên kết mọi dòng `InventoryTransaction.OUT` với chứng từ nguồn hợp lệ và hóa đơn/biên nhận bán hàng (`sales_invoices`).
 - [ ] **Bước 5 — `Upgrade 03`: Quy định kiểm kê định kỳ & đột xuất (`Đăng Khoa` & `Nhựt`):**
@@ -109,6 +111,8 @@ Tài liệu đối chiếu: [BUG-LIST.md](Report%20Bugfix/BUG-LIST.md), [report 
 - [ ] **`Upgrade 04` (Web Admin — `Phúc Hữu & Nam Nguyễn`):**
   - [ ] Giao diện lập và duyệt Phiếu đổi giá, lịch giá sắp tới và lịch sử giá theo SKU; bỏ ô sửa giá trên form sửa SKU, chỉ giữ ô giá ban đầu khi tạo mới; hiện giá mới khi gặp `PRICE_MISMATCH`.
 - [ ] **`Upgrade 01 & 02` (Admin & POS — `Phúc Hữu, Nam Nguyễn & Phương Lê`):**
-  - [ ] Giao diện tạo/duyệt Phiếu mua hàng (`purchase_orders`), chọn phiếu mua đã duyệt khi lập Phiếu nhập kho, đối chiếu Hóa đơn NCC & chứng từ chênh lệch; hiển thị liên kết truy vết Hóa đơn bán ↔ Đơn hàng ↔ Sổ cái kho `OUT`.
+  - [ ] **U01-A:** Giao diện tạo, duyệt, đóng và hủy Phiếu mua hàng (`purchase_orders`); lập Phiếu nhập kho từ phiếu mua đã duyệt, khóa ô giá, hiện đơn vị và lượng còn được nhận; hủy phiếu nhập nháp.
+  - [ ] **U01-B (làm sau U01-A):** Giao diện đối chiếu Hóa đơn NCC & chứng từ chênh lệch.
+  - [ ] **Upgrade 02:** Hiển thị liên kết truy vết Hóa đơn bán ↔ Đơn hàng ↔ Sổ cái kho `OUT`.
 - [ ] **`Upgrade 03` (Web Admin — `Phúc Hữu & Nam Nguyễn`):**
   - [ ] Giao diện cấu hình Lịch kiểm kê định kỳ (ngày 15 / cuối tháng), tạo kiểm kê đột xuất có lý do và màn hình Phê duyệt chênh lệch kiểm kê (`PendingApproval`).

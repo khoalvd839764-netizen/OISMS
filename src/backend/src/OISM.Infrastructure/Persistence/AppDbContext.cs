@@ -57,6 +57,8 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<PriceChangeRequest> PriceChangeRequests { get; set; } = null!;
     public DbSet<PriceChangeRequestItem> PriceChangeRequestItems { get; set; } = null!;
     public DbSet<SkuUnitPrice> SkuUnitPrices { get; set; } = null!;
+    public DbSet<PurchaseOrder> PurchaseOrders { get; set; } = null!;
+    public DbSet<PurchaseOrderItem> PurchaseOrderItems { get; set; } = null!;
 
     public bool IsRelationalDatabase => Database.IsRelational();
     public bool HasActiveTransaction => Database.CurrentTransaction != null;
@@ -187,6 +189,12 @@ public class AppDbContext : DbContext, IAppDbContext
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
 
         modelBuilder.Entity<SkuUnitPrice>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<PurchaseOrder>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<PurchaseOrderItem>()
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
     }
 

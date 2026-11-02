@@ -20,11 +20,18 @@ public class GoodsReceiptItemConfiguration : IEntityTypeConfiguration<GoodsRecei
             .IsUnique()
             .HasDatabaseName("uq_goods_receipt_items_2");
 
+        builder.HasIndex(i => new { i.TenantId, i.PurchaseOrderItemId })
+            .HasDatabaseName("ix_goods_receipt_items_purchase_order_item");
+
         builder.Property(i => i.TenantId).IsRequired();
 
         builder.Property(i => i.ReceiptId)
             .HasColumnName("receipt_id")
             .IsRequired();
+
+        builder.Property(i => i.PurchaseOrderItemId)
+            .HasColumnName("purchase_order_item_id")
+            .IsRequired(false);
 
         builder.Property(i => i.SkuId)
             .HasColumnName("sku_id")
@@ -79,6 +86,12 @@ public class GoodsReceiptItemConfiguration : IEntityTypeConfiguration<GoodsRecei
         builder.HasOne(i => i.Receipt)
             .WithMany(r => r.Items)
             .HasForeignKey(i => new { i.TenantId, i.ReceiptId })
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(i => i.PurchaseOrderItem)
+            .WithMany()
+            .HasForeignKey(i => new { i.TenantId, i.PurchaseOrderItemId, i.SkuId })
+            .HasPrincipalKey(pi => new { pi.TenantId, pi.Id, pi.SkuId })
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(i => i.Sku)

@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-ARC-04` |
-| **Phiên bản (Version)** | `v1.0.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-10-22` |
+| **Phiên bản (Version)** | `v1.1.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-02` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-ORD-02`, `FR-INV-02..03`, `FR-RSE-02..03` (Trang 2, 3) |
 | **Phạm vi áp dụng** | Đơn hàng (`Order`), Giữ chỗ (`Reservation`), Phiếu nhập (`GoodsReceipt`) & Chuyển kho (`StockTransfer`) |
 
@@ -15,6 +15,7 @@
 | Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả thay đổi | Mã tham chiếu |
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả máy trạng thái chuẩn UML 2.0 cho Đơn hàng, Giữ chỗ, Phiếu nhập và Phiếu chuyển kho 2 bước. | `INIT-ARC-04` |
+| `v1.1.0` | `2026-11-02` | Nhóm dự án OISMS | Thêm máy trạng thái Phiếu mua hàng. | `OISMS-47-U01A` |
 
 ---
 
@@ -39,6 +40,23 @@ stateDiagram-v2
     [*] --> Draft : Lập phiếu nhập nhiều dòng (Chưa tác động kho)
     Draft --> Confirmed : Xác nhận nhập kho (Atomic: Ghi Ledger IN + Tăng on_hand + Tính lại WAC)
     Draft --> Cancelled : Hủy phiếu nháp
+```
+
+Từ `OISMS-47-U01A`, xác nhận phiếu nhập yêu cầu phiếu mua còn nhận được và không vượt lượng còn lại.
+
+### 2.1. Máy Trạng Thái Phiếu Mua Hàng (`OISMS-47-U01A`)
+
+```mermaid
+stateDiagram-v2
+    [*] --> Draft : Staff hoặc Owner lập phiếu
+    Draft --> Approved : Owner duyệt (Khóa giá, lượng, đơn vị, hệ số)
+    Draft --> Cancelled : Owner hủy
+    Approved --> Cancelled : Owner hủy khi chưa nhận hàng
+    Approved --> PartiallyReceived : Xác nhận phiếu nhập, chưa đủ
+    Approved --> Received : Xác nhận phiếu nhập, đủ mọi dòng
+    PartiallyReceived --> Received : Xác nhận phiếu nhập, đủ mọi dòng
+    Approved --> Closed : Owner đóng, bắt buộc lý do
+    PartiallyReceived --> Closed : Owner đóng phần còn lại, bắt buộc lý do
 ```
 
 ---

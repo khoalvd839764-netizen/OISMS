@@ -95,7 +95,9 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         "price_lists",
         "price_change_requests",
         "price_change_request_items",
-        "sku_unit_prices"
+        "sku_unit_prices",
+        "purchase_orders",
+        "purchase_order_items"
     ];
 
     public static readonly ExpectedTrigger[] ExpectedTriggers =
@@ -142,7 +144,12 @@ public class DatabaseMigrationService : IDatabaseMigrationService
 
         // sku_unit_prices
         new("sku_unit_prices", "sku_unit_price_guard", "oisms_sku_unit_price_guard", "public", "BEFORE", true, HasUpdate: true),
-        new("sku_unit_prices", "sku_unit_price_no_delete", "oisms_deny_mutation", "public", "BEFORE", false, HasDelete: true, HasTruncate: true)
+        new("sku_unit_prices", "sku_unit_price_no_delete", "oisms_deny_mutation", "public", "BEFORE", false, HasDelete: true, HasTruncate: true),
+
+        // purchase_orders & purchase_order_items
+        new("purchase_orders", "purchase_order_guard", "oisms_purchase_order_guard", "public", "BEFORE", true, HasUpdate: true),
+        new("purchase_orders", "purchase_order_no_delete", "oisms_deny_mutation", "public", "BEFORE", false, HasDelete: true, HasTruncate: true),
+        new("purchase_order_items", "purchase_order_item_guard", "oisms_purchase_order_item_guard", "public", "BEFORE", true, HasInsert: true, HasUpdate: true, HasDelete: true)
     ];
 
     public static readonly ExpectedForeignKey[] ExpectedForeignKeys =
@@ -222,7 +229,22 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         new("fk_sku_unit_prices_source_item_id", "sku_unit_prices", ["tenant_id", "source_item_id"], "price_change_request_items", ["tenant_id", "id"]),
         new("fk_sku_unit_prices_sku_unit", "sku_unit_prices", ["tenant_id", "sku_id", "unit_id"], "sku_units", ["tenant_id", "sku_id", "unit_id"]),
         new("fk_sku_unit_prices_cancelled_by", "sku_unit_prices", ["tenant_id", "cancelled_by"], "users", ["tenant_id", "id"]),
-        new("fk_order_items_sku_unit_price_id", "order_items", ["tenant_id", "sku_unit_price_id"], "sku_unit_prices", ["tenant_id", "id"])
+        new("fk_order_items_sku_unit_price_id", "order_items", ["tenant_id", "sku_unit_price_id"], "sku_unit_prices", ["tenant_id", "id"]),
+
+        // Purchase Orders Foreign Keys (U01-A)
+        new("fk_purchase_orders_tenant_id", "purchase_orders", ["tenant_id"], "tenants", ["id"]),
+        new("fk_purchase_orders_supplier_id", "purchase_orders", ["tenant_id", "supplier_id"], "suppliers", ["tenant_id", "id"]),
+        new("fk_purchase_orders_branch_id", "purchase_orders", ["tenant_id", "branch_id"], "branches", ["tenant_id", "id"]),
+        new("fk_purchase_orders_created_by", "purchase_orders", ["tenant_id", "created_by"], "users", ["tenant_id", "id"]),
+        new("fk_purchase_orders_approved_by", "purchase_orders", ["tenant_id", "approved_by"], "users", ["tenant_id", "id"]),
+        new("fk_purchase_orders_closed_by", "purchase_orders", ["tenant_id", "closed_by"], "users", ["tenant_id", "id"]),
+        new("fk_purchase_orders_cancelled_by", "purchase_orders", ["tenant_id", "cancelled_by"], "users", ["tenant_id", "id"]),
+        new("fk_purchase_order_items_tenant_id", "purchase_order_items", ["tenant_id"], "tenants", ["id"]),
+        new("fk_purchase_order_items_purchase_order_id", "purchase_order_items", ["tenant_id", "purchase_order_id"], "purchase_orders", ["tenant_id", "id"]),
+        new("fk_purchase_order_items_sku_id", "purchase_order_items", ["tenant_id", "sku_id"], "skus", ["tenant_id", "id"]),
+        new("fk_purchase_order_items_unit_id", "purchase_order_items", ["tenant_id", "unit_id"], "units", ["tenant_id", "id"]),
+        new("fk_goods_receipts_purchase_order_id", "goods_receipts", ["tenant_id", "purchase_order_id"], "purchase_orders", ["tenant_id", "id"]),
+        new("fk_goods_receipt_items_po_item", "goods_receipt_items", ["tenant_id", "purchase_order_item_id", "sku_id"], "purchase_order_items", ["tenant_id", "id", "sku_id"])
     ];
 
     public static readonly ExpectedConstraint[] ExpectedCriticalConstraints =
@@ -329,7 +351,26 @@ public class DatabaseMigrationService : IDatabaseMigrationService
 
         // order_items price source constraints
         new("ck_order_items_price_source", 'c', "order_items", ExpectedNormalizedExpression: "((price_source)::text = ANY ((ARRAY['PriceList'::character varying, 'Marketplace'::character varying, 'Legacy'::character varying])::text[]))"),
-        new("ck_order_items_price_source_ref", 'c', "order_items", ExpectedNormalizedExpression: "(((price_source)::text = 'PriceList'::text) = (sku_unit_price_id IS NOT NULL))")
+        new("ck_order_items_price_source_ref", 'c', "order_items", ExpectedNormalizedExpression: "(((price_source)::text = 'PriceList'::text) = (sku_unit_price_id IS NOT NULL))"),
+
+        // purchase_orders
+        new("uq_purchase_orders_1", 'u', "purchase_orders", Columns: ["tenant_id", "id"]),
+        new("uq_purchase_orders_2", 'u', "purchase_orders", Columns: ["tenant_id", "number"]),
+        new("uq_purchase_orders_3", 'u', "purchase_orders", Columns: ["tenant_id", "request_key"]),
+        new("ck_purchase_orders_status", 'c', "purchase_orders", ExpectedNormalizedExpression: "((status)::text = ANY ((ARRAY['Draft'::character varying, 'Approved'::character varying, 'PartiallyReceived'::character varying, 'Received'::character varying, 'Closed'::character varying, 'Cancelled'::character varying])::text[]))"),
+        new("ck_purchase_orders_approved", 'c', "purchase_orders", ExpectedNormalizedExpression: "(((approved_at IS NULL) = (approved_by IS NULL)) AND (((status)::text <> ALL ((ARRAY['Approved'::character varying, 'PartiallyReceived'::character varying, 'Received'::character varying, 'Closed'::character varying])::text[])) OR (approved_at IS NOT NULL)))"),
+        new("ck_purchase_orders_closed", 'c', "purchase_orders", ExpectedNormalizedExpression: "((((status)::text = 'Closed'::text) = (closed_at IS NOT NULL)) AND ((closed_at IS NULL) = (closed_by IS NULL)) AND ((closed_at IS NULL) OR (btrim((close_reason)::text) <> ''::text)))"),
+        new("ck_purchase_orders_cancelled", 'c', "purchase_orders", ExpectedNormalizedExpression: "((((status)::text = 'Cancelled'::text) = (cancelled_at IS NOT NULL)) AND ((cancelled_at IS NULL) = (cancelled_by IS NULL)))"),
+
+        // purchase_order_items
+        new("uq_purchase_order_items_1", 'u', "purchase_order_items", Columns: ["tenant_id", "id"]),
+        new("uq_purchase_order_items_2", 'u', "purchase_order_items", Columns: ["tenant_id", "purchase_order_id", "sku_id"]),
+        new("uq_purchase_order_items_3", 'u', "purchase_order_items", Columns: ["tenant_id", "id", "sku_id"]),
+        new("ck_purchase_order_items_factor_snapshot", 'c', "purchase_order_items", ExpectedNormalizedExpression: "(factor_snapshot > (0)::numeric)"),
+        new("ck_purchase_order_items_quantity", 'c', "purchase_order_items", ExpectedNormalizedExpression: "(quantity > (0)::numeric)"),
+        new("ck_purchase_order_items_unit_price", 'c', "purchase_order_items", ExpectedNormalizedExpression: "(unit_price >= (0)::numeric)"),
+        new("ck_purchase_order_items_decimal_places", 'c', "purchase_order_items", ExpectedNormalizedExpression: "((quantity_decimal_places >= 0) AND (quantity_decimal_places <= 3))"),
+        new("ck_purchase_order_items_received_range", 'c', "purchase_order_items", ExpectedNormalizedExpression: "((received_base_quantity >= (0)::numeric) AND (received_base_quantity <= (quantity * factor_snapshot)))")
     ];
 
 
@@ -1274,13 +1315,324 @@ END $$;
                 await priceListCmd.ExecuteNonQueryAsync(cancellationToken);
             }
 
+            const string purchaseOrderUpgradeSql = @"
+SELECT pg_advisory_xact_lock(hashtext('oisms_purchase_order_schema_upgrade'));
+
+CREATE TABLE IF NOT EXISTS public.purchase_orders (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    number varchar(50) NOT NULL,
+    request_key uuid NOT NULL,
+    supplier_id uuid NOT NULL,
+    branch_id uuid NOT NULL,
+    status varchar(20) NOT NULL,
+    note varchar(1000) NULL,
+    created_by uuid NOT NULL,
+    approved_by uuid NULL,
+    approved_at timestamptz NULL,
+    closed_by uuid NULL,
+    closed_at timestamptz NULL,
+    close_reason varchar(500) NULL,
+    cancelled_by uuid NULL,
+    cancelled_at timestamptz NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NULL,
+    CONSTRAINT uq_purchase_orders_1 UNIQUE (tenant_id, id),
+    CONSTRAINT uq_purchase_orders_2 UNIQUE (tenant_id, number),
+    CONSTRAINT uq_purchase_orders_3 UNIQUE (tenant_id, request_key),
+    CONSTRAINT ck_purchase_orders_status CHECK (status IN ('Draft','Approved','PartiallyReceived','Received','Closed','Cancelled')),
+    CONSTRAINT ck_purchase_orders_approved CHECK ((approved_at IS NULL) = (approved_by IS NULL) AND (status NOT IN ('Approved','PartiallyReceived','Received','Closed') OR approved_at IS NOT NULL)),
+    CONSTRAINT ck_purchase_orders_closed CHECK ((status = 'Closed') = (closed_at IS NOT NULL) AND (closed_at IS NULL) = (closed_by IS NULL) AND (closed_at IS NULL OR btrim(close_reason) <> '')),
+    CONSTRAINT ck_purchase_orders_cancelled CHECK ((status = 'Cancelled') = (cancelled_at IS NOT NULL) AND (cancelled_at IS NULL) = (cancelled_by IS NULL))
+);
+
+CREATE INDEX IF NOT EXISTS ix_purchase_orders_status_time
+ON public.purchase_orders (tenant_id, status, created_at, id);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_purchase_orders_tenant_id') THEN
+        ALTER TABLE public.purchase_orders ADD CONSTRAINT fk_purchase_orders_tenant_id
+        FOREIGN KEY (tenant_id) REFERENCES public.tenants (id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_purchase_orders_supplier_id') THEN
+        ALTER TABLE public.purchase_orders ADD CONSTRAINT fk_purchase_orders_supplier_id
+        FOREIGN KEY (tenant_id, supplier_id) REFERENCES public.suppliers (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_purchase_orders_branch_id') THEN
+        ALTER TABLE public.purchase_orders ADD CONSTRAINT fk_purchase_orders_branch_id
+        FOREIGN KEY (tenant_id, branch_id) REFERENCES public.branches (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_purchase_orders_created_by') THEN
+        ALTER TABLE public.purchase_orders ADD CONSTRAINT fk_purchase_orders_created_by
+        FOREIGN KEY (tenant_id, created_by) REFERENCES public.users (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_purchase_orders_approved_by') THEN
+        ALTER TABLE public.purchase_orders ADD CONSTRAINT fk_purchase_orders_approved_by
+        FOREIGN KEY (tenant_id, approved_by) REFERENCES public.users (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_purchase_orders_closed_by') THEN
+        ALTER TABLE public.purchase_orders ADD CONSTRAINT fk_purchase_orders_closed_by
+        FOREIGN KEY (tenant_id, closed_by) REFERENCES public.users (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_purchase_orders_cancelled_by') THEN
+        ALTER TABLE public.purchase_orders ADD CONSTRAINT fk_purchase_orders_cancelled_by
+        FOREIGN KEY (tenant_id, cancelled_by) REFERENCES public.users (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS public.purchase_order_items (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    purchase_order_id uuid NOT NULL,
+    sku_id uuid NOT NULL,
+    unit_id uuid NULL,
+    unit_name_snapshot varchar(100) NOT NULL DEFAULT '',
+    factor_snapshot numeric(18,6) NOT NULL DEFAULT 1,
+    quantity_decimal_places smallint NOT NULL DEFAULT 3,
+    quantity numeric(18,3) NOT NULL,
+    ordered_base_quantity numeric(18,3) GENERATED ALWAYS AS (quantity * factor_snapshot) STORED,
+    unit_price numeric(20,6) NOT NULL,
+    received_base_quantity numeric(18,3) NOT NULL DEFAULT 0,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NULL,
+    CONSTRAINT uq_purchase_order_items_1 UNIQUE (tenant_id, id),
+    CONSTRAINT uq_purchase_order_items_2 UNIQUE (tenant_id, purchase_order_id, sku_id),
+    CONSTRAINT uq_purchase_order_items_3 UNIQUE (tenant_id, id, sku_id),
+    CONSTRAINT ck_purchase_order_items_factor_snapshot CHECK (factor_snapshot > 0),
+    CONSTRAINT ck_purchase_order_items_quantity CHECK (quantity > 0),
+    CONSTRAINT ck_purchase_order_items_unit_price CHECK (unit_price >= 0),
+    CONSTRAINT ck_purchase_order_items_decimal_places CHECK (quantity_decimal_places BETWEEN 0 AND 3),
+    CONSTRAINT ck_purchase_order_items_received_range CHECK (received_base_quantity >= 0 AND received_base_quantity <= quantity * factor_snapshot)
+);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_purchase_order_items_tenant_id') THEN
+        ALTER TABLE public.purchase_order_items ADD CONSTRAINT fk_purchase_order_items_tenant_id
+        FOREIGN KEY (tenant_id) REFERENCES public.tenants (id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_purchase_order_items_purchase_order_id') THEN
+        ALTER TABLE public.purchase_order_items ADD CONSTRAINT fk_purchase_order_items_purchase_order_id
+        FOREIGN KEY (tenant_id, purchase_order_id) REFERENCES public.purchase_orders (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_purchase_order_items_sku_id') THEN
+        ALTER TABLE public.purchase_order_items ADD CONSTRAINT fk_purchase_order_items_sku_id
+        FOREIGN KEY (tenant_id, sku_id) REFERENCES public.skus (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_purchase_order_items_unit_id') THEN
+        ALTER TABLE public.purchase_order_items ADD CONSTRAINT fk_purchase_order_items_unit_id
+        FOREIGN KEY (tenant_id, unit_id) REFERENCES public.units (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+END $$;
+
+ALTER TABLE public.goods_receipts ADD COLUMN IF NOT EXISTS purchase_order_id uuid NULL;
+ALTER TABLE public.goods_receipt_items ADD COLUMN IF NOT EXISTS purchase_order_item_id uuid NULL;
+
+CREATE INDEX IF NOT EXISTS ix_goods_receipts_purchase_order
+ON public.goods_receipts (tenant_id, purchase_order_id);
+
+CREATE INDEX IF NOT EXISTS ix_goods_receipt_items_purchase_order_item
+ON public.goods_receipt_items (tenant_id, purchase_order_item_id);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_goods_receipts_purchase_order_id') THEN
+        ALTER TABLE public.goods_receipts ADD CONSTRAINT fk_goods_receipts_purchase_order_id
+        FOREIGN KEY (tenant_id, purchase_order_id) REFERENCES public.purchase_orders (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_goods_receipt_items_po_item') THEN
+        ALTER TABLE public.goods_receipt_items ADD CONSTRAINT fk_goods_receipt_items_po_item
+        FOREIGN KEY (tenant_id, purchase_order_item_id, sku_id) REFERENCES public.purchase_order_items (tenant_id, id, sku_id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.oisms_purchase_order_guard() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+BEGIN
+  IF OLD.status = 'Draft' THEN
+    IF NEW.status NOT IN ('Draft', 'Approved', 'Cancelled') THEN
+      RAISE EXCEPTION 'Invalid purchase order state transition from % to %', OLD.status, NEW.status USING ERRCODE = '23514';
+    END IF;
+    IF (NEW.tenant_id, NEW.id, NEW.created_at) IS DISTINCT FROM (OLD.tenant_id, OLD.id, OLD.created_at) THEN
+      RAISE EXCEPTION 'Purchase order identity is immutable' USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF (NEW.tenant_id, NEW.id, NEW.number, NEW.request_key, NEW.supplier_id, NEW.branch_id, NEW.note, NEW.created_by, NEW.created_at, NEW.approved_by, NEW.approved_at)
+     IS DISTINCT FROM
+     (OLD.tenant_id, OLD.id, OLD.number, OLD.request_key, OLD.supplier_id, OLD.branch_id, OLD.note, OLD.created_by, OLD.created_at, OLD.approved_by, OLD.approved_at) THEN
+    RAISE EXCEPTION 'Purchase order header attributes are immutable outside Draft' USING ERRCODE = '23514';
+  END IF;
+
+  IF OLD.status = 'Approved' THEN
+    IF NEW.status NOT IN ('Approved', 'PartiallyReceived', 'Received', 'Closed', 'Cancelled') THEN
+      RAISE EXCEPTION 'Invalid purchase order state transition from % to %', OLD.status, NEW.status USING ERRCODE = '23514';
+    END IF;
+  ELSIF OLD.status = 'PartiallyReceived' THEN
+    IF NEW.status NOT IN ('PartiallyReceived', 'Received', 'Closed') THEN
+      RAISE EXCEPTION 'Invalid purchase order state transition from % to %', OLD.status, NEW.status USING ERRCODE = '23514';
+    END IF;
+  ELSIF OLD.status IN ('Received', 'Closed', 'Cancelled') THEN
+    RAISE EXCEPTION 'Terminal purchase order in state % is immutable', OLD.status USING ERRCODE = '23514';
+  ELSE
+    RAISE EXCEPTION 'Invalid purchase order state %', OLD.status USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger tg
+        JOIN pg_class c ON tg.tgrelid = c.oid
+        WHERE c.relname = 'purchase_orders' AND tg.tgname = 'purchase_order_guard'
+    ) THEN
+        CREATE TRIGGER purchase_order_guard BEFORE UPDATE ON public.purchase_orders
+        FOR EACH ROW EXECUTE FUNCTION public.oisms_purchase_order_guard();
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger tg
+        JOIN pg_class c ON tg.tgrelid = c.oid
+        WHERE c.relname = 'purchase_orders' AND tg.tgname = 'purchase_order_no_delete'
+    ) THEN
+        CREATE TRIGGER purchase_order_no_delete BEFORE DELETE OR TRUNCATE ON public.purchase_orders
+        FOR EACH STATEMENT EXECUTE FUNCTION public.oisms_deny_mutation();
+    END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.oisms_purchase_order_item_guard() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+DECLARE
+  v_po_status varchar(20);
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    SELECT status INTO v_po_status FROM public.purchase_orders
+    WHERE id = NEW.purchase_order_id AND tenant_id = NEW.tenant_id FOR UPDATE;
+
+    IF v_po_status IS DISTINCT FROM 'Draft' THEN
+      RAISE EXCEPTION 'Cannot insert purchase order item when purchase order is in state %', v_po_status USING ERRCODE = '23514';
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  SELECT status INTO v_po_status FROM public.purchase_orders
+  WHERE id = OLD.purchase_order_id AND tenant_id = OLD.tenant_id FOR UPDATE;
+
+  IF TG_OP = 'DELETE' THEN
+    IF v_po_status IS DISTINCT FROM 'Draft' THEN
+      RAISE EXCEPTION 'Cannot delete purchase order item when purchase order is in state %', v_po_status USING ERRCODE = '23514';
+    END IF;
+    RETURN OLD;
+  END IF;
+
+  IF TG_OP = 'UPDATE' THEN
+    IF v_po_status = 'Draft' THEN
+      IF (NEW.tenant_id, NEW.id, NEW.purchase_order_id, NEW.created_at) IS DISTINCT FROM (OLD.tenant_id, OLD.id, OLD.purchase_order_id, OLD.created_at) THEN
+        RAISE EXCEPTION 'Purchase order item identity is immutable' USING ERRCODE = '23514';
+      END IF;
+      RETURN NEW;
+    END IF;
+
+    IF (NEW.tenant_id, NEW.id, NEW.purchase_order_id, NEW.sku_id, NEW.unit_id, NEW.unit_name_snapshot, NEW.factor_snapshot, NEW.quantity_decimal_places, NEW.quantity, NEW.unit_price, NEW.created_at)
+       IS DISTINCT FROM
+       (OLD.tenant_id, OLD.id, OLD.purchase_order_id, OLD.sku_id, OLD.unit_id, OLD.unit_name_snapshot, OLD.factor_snapshot, OLD.quantity_decimal_places, OLD.quantity, OLD.unit_price, OLD.created_at) THEN
+      RAISE EXCEPTION 'Purchase order item attributes other than received_base_quantity and updated_at are immutable outside Draft' USING ERRCODE = '23514';
+    END IF;
+
+    IF NEW.received_base_quantity < OLD.received_base_quantity THEN
+      RAISE EXCEPTION 'received_base_quantity cannot decrease' USING ERRCODE = '23514';
+    END IF;
+
+    IF NEW.received_base_quantity > OLD.received_base_quantity AND v_po_status NOT IN ('Approved', 'PartiallyReceived') THEN
+      RAISE EXCEPTION 'Cannot increase received_base_quantity when purchase order is in state %', v_po_status USING ERRCODE = '23514';
+    END IF;
+
+    RETURN NEW;
+  END IF;
+
+  RETURN NULL;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger tg
+        JOIN pg_class c ON tg.tgrelid = c.oid
+        WHERE c.relname = 'purchase_order_items' AND tg.tgname = 'purchase_order_item_guard'
+    ) THEN
+        CREATE TRIGGER purchase_order_item_guard BEFORE INSERT OR UPDATE OR DELETE ON public.purchase_order_items
+        FOR EACH ROW EXECUTE FUNCTION public.oisms_purchase_order_item_guard();
+    END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.oisms_protect_receipt_item() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+DECLARE confirmed timestamptz;
+BEGIN
+  SELECT confirmed_at INTO confirmed FROM public.goods_receipts WHERE id=OLD.receipt_id AND tenant_id=OLD.tenant_id FOR UPDATE;
+  IF TG_OP='DELETE' AND confirmed IS NOT NULL THEN
+    RAISE EXCEPTION 'Confirmed goods receipt items cannot be deleted' USING ERRCODE='23514';
+  END IF;
+  IF TG_OP='UPDATE' AND confirmed IS NOT NULL AND
+     ((NEW.tenant_id,NEW.receipt_id,NEW.sku_id,NEW.purchase_order_item_id,NEW.quantity,NEW.unit_price,NEW.factor_snapshot) IS DISTINCT FROM
+      (OLD.tenant_id,OLD.receipt_id,OLD.sku_id,OLD.purchase_order_item_id,OLD.quantity,OLD.unit_price,OLD.factor_snapshot)
+      OR (OLD.unit_id IS NOT NULL AND (NEW.unit_id,NEW.unit_name_snapshot) IS DISTINCT FROM (OLD.unit_id,OLD.unit_name_snapshot))) THEN
+    RAISE EXCEPTION 'Confirmed goods receipt item snapshot is immutable' USING ERRCODE='23514';
+  END IF;
+  IF TG_OP='UPDATE' THEN RETURN NEW; END IF;
+  RETURN OLD;
+END $$;
+
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'oisms_runtime') THEN
+        REVOKE ALL ON TABLE public.purchase_orders FROM oisms_runtime;
+        GRANT SELECT, INSERT, UPDATE ON TABLE public.purchase_orders TO oisms_runtime;
+        REVOKE DELETE, TRUNCATE ON TABLE public.purchase_orders FROM oisms_runtime;
+
+        REVOKE ALL ON TABLE public.purchase_order_items FROM oisms_runtime;
+        GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.purchase_order_items TO oisms_runtime;
+        REVOKE TRUNCATE ON TABLE public.purchase_order_items FROM oisms_runtime;
+    END IF;
+END $$;
+
+DO $$
+DECLARE
+    v_orphan_draft_count bigint;
+BEGIN
+    SELECT count(*) INTO v_orphan_draft_count
+    FROM public.goods_receipts
+    WHERE status = 'Draft' AND purchase_order_id IS NULL;
+
+    RAISE NOTICE 'Số phiếu nhập Draft chưa có phiếu mua: %', v_orphan_draft_count;
+END $$;
+";
+            await using (var purchaseOrderCmd = new NpgsqlCommand(purchaseOrderUpgradeSql, connection, tx))
+            {
+                await purchaseOrderCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
             await tx.CommitAsync(cancellationToken);
             return new MigrationExecutionResult(
                 Success: true,
                 IsFreshInstall: false,
                 IsBaselineAdopted: false,
                 TableCount: RequiredTables.Length,
-                Message: "Nâng cấp schema v0.5 stock_transfers, shop_integrations, multi_unit và price_lists thành công.");
+                Message: "Nâng cấp schema v0.5 stock_transfers, shop_integrations, multi_unit, price_lists và purchase_orders thành công.");
         }
         catch (Exception ex)
         {
@@ -1770,7 +2122,8 @@ WHERE n.nspname = 'public';";
 
         string[] requiredFunctions = [
             "oisms_deny_mutation", "oisms_lock_stock", "oisms_stock_constraint", "oisms_check_stock",
-            "oisms_price_change_request_guard", "oisms_sku_unit_price_guard"
+            "oisms_price_change_request_guard", "oisms_sku_unit_price_guard",
+            "oisms_purchase_order_guard", "oisms_purchase_order_item_guard"
         ];
         foreach (var fn in requiredFunctions)
         {
@@ -1812,12 +2165,15 @@ WHERE table_schema = 'public';";
             "order_items.unit_id", "order_items.unit_name_snapshot", "order_items.factor_snapshot", "order_items.base_quantity",
             "order_items.sku_unit_price_id", "order_items.price_source",
             "goods_receipt_items.unit_id", "goods_receipt_items.unit_name_snapshot", "goods_receipt_items.factor_snapshot", "goods_receipt_items.base_quantity",
+            "goods_receipts.purchase_order_id", "goods_receipt_items.purchase_order_item_id",
             "units.code", "units.name", "units.measure_group", "units.decimal_places",
             "sku_units.factor_to_base", "sku_units.quantity_decimal_places",
             "sku_unit_factor_history.new_factor", "sku_unit_factor_history.new_version",
             "price_lists.code", "price_change_requests.status", "price_change_requests.request_key",
             "price_change_request_items.new_price",
-            "sku_unit_prices.price", "sku_unit_prices.valid_from"
+            "sku_unit_prices.price", "sku_unit_prices.valid_from",
+            "purchase_orders.number", "purchase_orders.request_key", "purchase_orders.status",
+            "purchase_order_items.ordered_base_quantity", "purchase_order_items.received_base_quantity", "purchase_order_items.unit_price"
         ];
         foreach (var col in crucialColumns)
         {
@@ -2016,13 +2372,13 @@ WHERE grantee = 'oisms_runtime'
             }
         }
 
-        // Kiểm tra oisms_runtime KHÔNG có quyền DELETE trên price_lists, price_change_requests, sku_unit_prices
+        // Kiểm tra oisms_runtime KHÔNG có quyền DELETE trên price_lists, price_change_requests, sku_unit_prices, purchase_orders
         const string checkPriceNoDeletePrivilegesSql = @"
 SELECT table_name, privilege_type 
 FROM information_schema.role_table_grants 
 WHERE grantee = 'oisms_runtime' 
   AND table_schema = 'public' 
-  AND table_name IN ('price_lists', 'price_change_requests', 'sku_unit_prices') 
+  AND table_name IN ('price_lists', 'price_change_requests', 'sku_unit_prices', 'purchase_orders') 
   AND privilege_type IN ('DELETE', 'TRUNCATE');";
 
         await using (var cmdPriceNoDel = new NpgsqlCommand(checkPriceNoDeletePrivilegesSql, connection, tx))
