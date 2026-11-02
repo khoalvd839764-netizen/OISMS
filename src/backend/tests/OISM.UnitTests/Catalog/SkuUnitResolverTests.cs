@@ -162,7 +162,6 @@ public class SkuUnitResolverTests
         resolved.UnitName.Should().Be("Kilôgam");
         resolved.Factor.Should().Be(1m);
         resolved.DecimalPlaces.Should().Be(3);
-        resolved.SalePrice.Should().Be(20000m);
     }
 
     [Fact]
@@ -270,7 +269,6 @@ public class SkuUnitResolverTests
             UnitName: "Odd",
             Factor: oddUnit.FactorToBase,
             DecimalPlaces: oddUnit.QuantityDecimalPlaces,
-            SalePrice: null,
             IsBase: false,
             Version: 1);
 

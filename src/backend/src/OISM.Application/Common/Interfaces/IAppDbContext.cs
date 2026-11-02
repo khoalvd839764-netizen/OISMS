@@ -43,6 +43,10 @@ public interface IAppDbContext
     DbSet<Unit> Units { get; }
     DbSet<SkuUnit> SkuUnits { get; }
     DbSet<SkuUnitFactorHistory> SkuUnitFactorHistories { get; }
+    DbSet<PriceList> PriceLists { get; }
+    DbSet<PriceChangeRequest> PriceChangeRequests { get; }
+    DbSet<PriceChangeRequestItem> PriceChangeRequestItems { get; }
+    DbSet<SkuUnitPrice> SkuUnitPrices { get; }
 
     int SaveChanges();
     int SaveChanges(bool acceptAllChangesOnSuccess);

@@ -420,6 +420,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
             }
 
             await context.SaveChangesAsync();
+            await PriceSeed.SyncFromLegacyColumnsAsync(context);
 
             return new TestInfrastructure(
                 tenantId,

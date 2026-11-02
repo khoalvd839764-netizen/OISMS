@@ -9,7 +9,6 @@ public record ResolvedSkuUnit(
     string UnitName,
     decimal Factor,
     int DecimalPlaces,
-    decimal? SalePrice,
     bool IsBase,
     int Version);
 
@@ -51,7 +50,6 @@ public static class SkuUnitResolver
                 UnitName: unitName,
                 Factor: 1m,
                 DecimalPlaces: decimalPlaces,
-                SalePrice: sku.RetailPrice,
                 IsBase: true,
                 Version: version);
         }
@@ -80,7 +78,6 @@ public static class SkuUnitResolver
             UnitName: name,
             Factor: targetConfig.FactorToBase,
             DecimalPlaces: targetConfig.QuantityDecimalPlaces,
-            SalePrice: targetConfig.SalePrice,
             IsBase: false,
             Version: targetConfig.Version);
     }

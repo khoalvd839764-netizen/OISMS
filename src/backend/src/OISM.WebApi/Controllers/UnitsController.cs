@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Features.Catalog.Units;
 using OISM.Application.Features.Catalog.Units.Services;
+using OISM.Application.Features.Pricing.Dtos;
 
 namespace OISM.WebApi.Controllers;
 
@@ -121,7 +122,8 @@ public class UnitsController : ControllerBase
         try
         {
             var userId = GetCurrentUserId();
-            var unit = await _unitService.CreateSkuUnitAsync(productId, variantId, request, userId, ct);
+            var actor = new PriceActor(userId, User.IsInRole("Owner"));
+            var unit = await _unitService.CreateSkuUnitAsync(productId, variantId, request, userId, actor, ct);
             return Ok(unit);
         }
         catch (OismException ex)

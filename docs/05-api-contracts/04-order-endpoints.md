@@ -42,6 +42,9 @@
 - `POST /api/orders`: dòng hàng nhận `unitId` tùy chọn, cùng quy tắc giá và mã lỗi như POS. Giữ chỗ tính theo lượng gốc và được chia theo từng dòng.
 - Dòng trong response có thêm `unitId`, `unitName`, `factorSnapshot`, `baseQuantity`. `quantity`, `unitPrice`, `subtotal` theo đơn vị giao dịch; `costPrice` là WAC trên đơn vị gốc, `totalCost = baseQuantity × costPrice`.
 - Replay cùng `RequestKey` so theo (SKU, đơn vị); gửi `unitId` của đơn vị gốc được coi như để trống.
+- `POST /api/orders` nhận `priceListCode`: `retail` (mặc định) hoặc `wholesale`; mã khác trả `404 PRICE_LIST_NOT_FOUND`. Replay với bảng giá khác trả `409 IDEMPOTENCY_PAYLOAD_MISMATCH`.
+- Giá được kiểm lại sau khi khóa SKU. Lệch trả `400 PRICE_MISMATCH` kèm `extensions.currentPrices`, cấu trúc như POS. Dòng đơn lưu `sku_unit_price_id` và `price_source` (`PriceList`, `Marketplace`, `Legacy`). Xác nhận, hoàn tất, hủy đơn và hết hạn giữ chỗ dùng giá đã chụp.
+- Đơn từ sàn không tra bảng giá, dùng giá do sàn gửi với nguồn `Marketplace`.
 - Đơn từ sàn TMĐT luôn tính theo đơn vị gốc.
 - Báo cáo: `totalCostOfGoodsSold`, `totalItemsSold`, `quantitySold` tính theo lượng gốc.
 

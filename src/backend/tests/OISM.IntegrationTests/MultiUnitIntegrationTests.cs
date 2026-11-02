@@ -101,10 +101,10 @@ public class MultiUnitIntegrationTests : IAsyncLifetime, IClassFixture<WebApplic
         var upgrade2 = await migrator.UpgradeDatabaseSchemaAsync(adminConnStr);
         upgrade2.Success.Should().BeTrue("Upgrade migration lần 2 phải hoàn toàn idempotent.");
 
-        // 2. Chạy baseline validator -> Success = true, table count = 33
+        // 2. Chạy baseline validator -> Success = true, table count = 37
         var baseline = await migrator.InitializeOrBaselineDatabaseAsync(adminConnStr);
         baseline.Success.Should().BeTrue();
-        baseline.TableCount.Should().Be(33);
+        baseline.TableCount.Should().Be(DatabaseMigrationService.RequiredTables.Length);
 
         // 3. Kiểm tra 3 bảng tồn tại và các composite foreign keys
         await using var conn = new NpgsqlConnection(adminConnStr);

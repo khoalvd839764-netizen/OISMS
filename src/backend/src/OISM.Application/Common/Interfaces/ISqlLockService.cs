@@ -30,4 +30,14 @@ public interface ISqlLockService
     /// Khóa toàn bộ danh mục đơn vị của Tenant bằng advisory lock ({tenant}/unit_catalog) để đảm bảo an toàn đồng thời khi khởi tạo hoặc sửa đổi đơn vị.
     /// </summary>
     Task LockUnitCatalogAsync(Guid tenantId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Khóa bi quan bản ghi Phiếu đổi giá (FOR UPDATE) có lọc tenant để chống duyệt/từ chối đồng thời.
+    /// </summary>
+    Task LockPriceChangeRequestAsync(Guid tenantId, Guid requestId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Khóa bi quan bản ghi Giá đơn vị SKU (FOR UPDATE) có lọc tenant để chống hủy đồng thời.
+    /// </summary>
+    Task LockSkuUnitPriceAsync(Guid tenantId, Guid priceId, CancellationToken ct = default);
 }

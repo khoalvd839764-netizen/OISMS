@@ -53,6 +53,10 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<Unit> Units { get; set; } = null!;
     public DbSet<SkuUnit> SkuUnits { get; set; } = null!;
     public DbSet<SkuUnitFactorHistory> SkuUnitFactorHistories { get; set; } = null!;
+    public DbSet<PriceList> PriceLists { get; set; } = null!;
+    public DbSet<PriceChangeRequest> PriceChangeRequests { get; set; } = null!;
+    public DbSet<PriceChangeRequestItem> PriceChangeRequestItems { get; set; } = null!;
+    public DbSet<SkuUnitPrice> SkuUnitPrices { get; set; } = null!;
 
     public bool IsRelationalDatabase => Database.IsRelational();
     public bool HasActiveTransaction => Database.CurrentTransaction != null;
@@ -171,6 +175,18 @@ public class AppDbContext : DbContext, IAppDbContext
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
 
         modelBuilder.Entity<SkuUnitFactorHistory>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<PriceList>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<PriceChangeRequest>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<PriceChangeRequestItem>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<SkuUnitPrice>()
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
     }
 

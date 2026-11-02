@@ -120,6 +120,7 @@ public class OnlineOrderLifecycleIntegrationTests : IAsyncLifetime, IClassFixtur
         var (context, tenantService) = CreatePostgresDbContext(tenantId);
         await using (context)
         {
+            await PriceSeed.SyncFromLegacyColumnsAsync(context);
             var wacCalc = new WacCalculator();
             var service = new GoodsReceiptService(context, tenantService, wacCalc);
 
@@ -192,6 +193,7 @@ public class OnlineOrderLifecycleIntegrationTests : IAsyncLifetime, IClassFixtur
             };
             db.ProductVariants.Add(sku2);
             await db.SaveChangesAsync();
+            await PriceSeed.SyncFromLegacyColumnsAsync(db);
         }
 
         // Nhập kho 10 đơn vị cho mỗi SKU
@@ -1134,6 +1136,7 @@ public class OnlineOrderLifecycleIntegrationTests : IAsyncLifetime, IClassFixtur
             };
             db.ProductVariants.Add(sku2);
             await db.SaveChangesAsync();
+            await PriceSeed.SyncFromLegacyColumnsAsync(db);
         }
 
         // SKU 1 có 10 chiếc, SKU 2 có 0 chiếc

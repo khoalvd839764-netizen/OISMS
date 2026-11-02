@@ -316,23 +316,20 @@ public class PostgresBackend2RegressionTests : IAsyncLifetime, IClassFixture<Web
         var product = await _client.GetFromJsonAsync<ProductResponse>($"/api/products/{productId}", _jsonOptions);
         var variantId = product!.Variants.First().Id;
 
-        // 2. Cập nhật bảng giá SKU qua /prices (BE2-06)
-        var updatePricesRes = await _client.PutAsJsonAsync($"/api/products/{productId}/variants/{variantId}/prices", new UpdateVariantPricesRequest
+        // 2. Cập nhật bảng giá SKU qua /prices (BE2-06) -> Nâng cấp U04 trả 410 Gone
+        var updatePricesRes = await _client.PutAsJsonAsync($"/api/products/{productId}/variants/{variantId}/prices", new
         {
             RetailPrice = 490000,
             WholesalePrice = 320000
         });
-        updatePricesRes.StatusCode.Should().Be(HttpStatusCode.OK);
-        var updatedVariant = await updatePricesRes.Content.ReadFromJsonAsync<ProductVariantResponse>(_jsonOptions);
-        updatedVariant!.RetailPrice.Should().Be(490000);
-        updatedVariant.WholesalePrice.Should().Be(320000);
+        updatePricesRes.StatusCode.Should().Be(HttpStatusCode.Gone);
 
         // 3. Cập nhật thông tin chi tiết biến thể và thuộc tính tùy ý (BE2-05)
         var updateVariantRes = await _client.PutAsJsonAsync($"/api/products/{productId}/variants/{variantId}", new UpdateVariantRequest
         {
             VariantName = "Xanh Đậm Co Giãn Size 30",
-            RetailPrice = 495000,
-            WholesalePrice = 325000,
+            RetailPrice = 450000,
+            WholesalePrice = 300000,
             Color = "Xanh Đậm",
             Size = "30",
             Attributes = new Dictionary<string, object> { ["stretch"] = "high", ["pockets"] = 5 },
@@ -589,7 +586,7 @@ VALUES (@id, @tenantId, 'Thu Ngân 1', @email, '+84912345678', @hash, 'Cashier',
         {
             VariantName = "Polo Xanh Cập Nhật",
             Color = null,
-            RetailPrice = 210000,
+            RetailPrice = 200000,
             Attributes = new Dictionary<string, object> { ["CoLoR"] = "  rEd  " }
         });
         caseSpaceRes.StatusCode.Should().Be(HttpStatusCode.Conflict);
@@ -600,7 +597,7 @@ VALUES (@id, @tenantId, 'Thu Ngân 1', @email, '+84912345678', @hash, 'Cashier',
         {
             VariantName = "Polo Vàng Mới",
             Color = "Yellow",
-            RetailPrice = 220000,
+            RetailPrice = 200000,
             Attributes = new Dictionary<string, object> { ["color"] = "Red" }
         });
         explicitPrecedenceRes.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -905,7 +902,7 @@ VALUES (@id, @tenantId, 'Thu Ngân 1', @email, '+84912345678', @hash, 'Cashier',
         var updateNestedRes = await _client.PutAsJsonAsync($"/api/products/{productId}/variants/{variantId}", new UpdateVariantRequest
         {
             VariantName = "Biến thể Đã Cập Nhật Lồng Nhau",
-            RetailPrice = 150000,
+            RetailPrice = 120000,
             Attributes = new Dictionary<string, object>
             {
                 ["dimensions"] = new Dictionary<string, object> { ["width"] = 15, ["height"] = 25, ["depth"] = 30 },
@@ -932,7 +929,7 @@ VALUES (@id, @tenantId, 'Thu Ngân 1', @email, '+84912345678', @hash, 'Cashier',
         var deleteAttrRes = await _client.PutAsJsonAsync($"/api/products/{productId}/variants/{variantId}", new UpdateVariantRequest
         {
             VariantName = "Biến thể Sau Xóa Thuộc Tính",
-            RetailPrice = 150000,
+            RetailPrice = 120000,
             Attributes = new Dictionary<string, object>
             {
                 ["sizes"] = null! // Xóa key sizes
@@ -1090,7 +1087,7 @@ VALUES (@id, @tenantId, 'Thu Ngân 1', @email, '+84912345678', @hash, 'Cashier',
         var updateNestedRes = await _client.PutAsJsonAsync($"/api/products/{productId}/variants/{variantId}", new UpdateVariantRequest
         {
             VariantName = "Biến thể Đã Cập Nhật Null Lồng Nhau",
-            RetailPrice = 260000,
+            RetailPrice = 250000,
             Attributes = new Dictionary<string, object>
             {
                 ["positions"] = new List<object?> { null, "L", null },
@@ -1120,7 +1117,7 @@ VALUES (@id, @tenantId, 'Thu Ngân 1', @email, '+84912345678', @hash, 'Cashier',
         var deleteTopRes = await _client.PutAsJsonAsync($"/api/products/{productId}/variants/{variantId}", new UpdateVariantRequest
         {
             VariantName = "Biến thể Xóa Positions Cấp Ngoài",
-            RetailPrice = 260000,
+            RetailPrice = 250000,
             Attributes = new Dictionary<string, object>
             {
                 ["positions"] = null! // Xóa key cấp ngoài

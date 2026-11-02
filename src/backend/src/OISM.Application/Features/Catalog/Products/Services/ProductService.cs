@@ -4,6 +4,8 @@ using OISM.Application.Common.Helpers;
 using OISM.Application.Common.Interfaces;
 using OISM.Application.Features.Catalog.Units;
 using OISM.Application.Features.Catalog.Units.Services;
+using OISM.Application.Features.Pricing.Dtos;
+using OISM.Application.Features.Pricing.Services;
 using OISM.Domain.Entities;
 
 namespace OISM.Application.Features.Catalog.Products.Services;
@@ -17,17 +19,23 @@ public class ProductService : IProductService
     private readonly ISqlLockService _lockService;
     private readonly ICurrentTenantService _currentTenantService;
     private readonly IUnitService _unitService;
+    private readonly IPriceChangeService _priceChangeService;
+    private readonly ISkuPriceResolver _skuPriceResolver;
 
     public ProductService(
         IAppDbContext context,
         ISqlLockService lockService,
         ICurrentTenantService currentTenantService,
-        IUnitService unitService)
+        IUnitService unitService,
+        IPriceChangeService priceChangeService,
+        ISkuPriceResolver? skuPriceResolver = null)
     {
         _context = context;
         _lockService = lockService;
         _currentTenantService = currentTenantService;
         _unitService = unitService;
+        _priceChangeService = priceChangeService;
+        _skuPriceResolver = skuPriceResolver ?? new SkuPriceResolver(context);
     }
 
     public async Task<List<ProductResponse>> GetProductsAsync(string? search, Guid? categoryId, Guid? brandId, CancellationToken ct = default)
@@ -64,6 +72,10 @@ public class ProductService : IProductService
             .OrderByDescending(p => p.CreatedAt)
             .ToListAsync(ct);
 
+        var allVariants = productList.SelectMany(p => p.Variants).ToList();
+        var variantResponses = await MapVariantsToResponseAsync(allVariants, DateTimeOffset.UtcNow, ct);
+        var variantMap = variantResponses.ToDictionary(v => v.Id);
+
         return productList.Select(p => new ProductResponse
         {
             Id = p.Id,
@@ -74,7 +86,7 @@ public class ProductService : IProductService
             BrandId = p.BrandId,
             BrandName = p.Brand?.Name,
             IsActive = p.IsActive,
-            Variants = p.Variants.OrderBy(v => v.CreatedAt).ThenBy(v => v.Id).Select(MapVariantToResponse).ToList()
+            Variants = p.Variants.OrderBy(v => v.CreatedAt).ThenBy(v => v.Id).Select(v => variantMap[v.Id]).ToList()
         }).ToList();
     }
 
@@ -95,6 +107,11 @@ public class ProductService : IProductService
             return null;
         }
 
+        var variantResponses = await MapVariantsToResponseAsync(
+            product.Variants.OrderBy(v => v.CreatedAt).ThenBy(v => v.Id),
+            DateTimeOffset.UtcNow,
+            ct);
+
         return new ProductResponse
         {
             Id = product.Id,
@@ -105,11 +122,11 @@ public class ProductService : IProductService
             BrandId = product.BrandId,
             BrandName = product.Brand?.Name,
             IsActive = product.IsActive,
-            Variants = product.Variants.OrderBy(v => v.CreatedAt).ThenBy(v => v.Id).Select(MapVariantToResponse).ToList()
+            Variants = variantResponses
         };
     }
 
-    public async Task<Guid> CreateProductAsync(CreateProductRequest request, CancellationToken ct = default)
+    public async Task<Guid> CreateProductAsync(CreateProductRequest request, PriceActor actor, CancellationToken ct = default)
     {
         if (request.CategoryId.HasValue)
         {
@@ -178,6 +195,7 @@ public class ProductService : IProductService
             {
                 await _lockService.LockUnitCatalogAsync(tenantId, ct);
                 await _unitService.EnsureTenantDefaultUnitsAsync(tenantId, ct);
+                await _priceChangeService.EnsureTenantDefaultPriceListsAsync(tenantId, ct);
 
                 // 4. Kiểm tra trùng lặp SKU với dữ liệu trong database thuộc Tenant hiện tại (NFR-TENANT / FR-PROD-02)
                 var existingSku = await _context.ProductVariants
@@ -320,6 +338,28 @@ public class ProductService : IProductService
 
                 _context.Products.Add(product);
                 await _context.SaveChangesAsync(ct);
+
+                var priceLines = new List<InitialPriceLine>();
+                var variantsList = product.Variants.ToList();
+                for (int i = 0; i < variantsList.Count && i < request.Variants.Count; i++)
+                {
+                    var v = variantsList[i];
+                    var variantReq = request.Variants[i];
+                    var baseUId = v.BaseUnitId ?? v.SkuUnits.First().UnitId;
+                    if (variantReq.RetailPrice > 0)
+                    {
+                        priceLines.Add(new InitialPriceLine("retail", v.Id, baseUId, variantReq.RetailPrice));
+                    }
+                    if (variantReq.WholesalePrice > 0)
+                    {
+                        priceLines.Add(new InitialPriceLine("wholesale", v.Id, baseUId, variantReq.WholesalePrice));
+                    }
+                }
+                if (priceLines.Count > 0)
+                {
+                    await _priceChangeService.AddInitialPricesAsync(priceLines, actor, ct);
+                }
+
                 await tx.CommitAsync(ct);
 
                 return product.Id;
@@ -342,7 +382,7 @@ public class ProductService : IProductService
         });
     }
 
-    public async Task<ProductVariantResponse> CreateVariantAsync(Guid productId, CreateVariantRequest request, CancellationToken ct = default)
+    public async Task<ProductVariantResponse> CreateVariantAsync(Guid productId, CreateVariantRequest request, PriceActor actor, CancellationToken ct = default)
     {
         var strategy = _context.CreateExecutionStrategy();
         return await strategy.ExecuteAsync(async () =>
@@ -353,6 +393,7 @@ public class ProductService : IProductService
             var tenantId = _currentTenantService.TenantId ?? Guid.Empty;
             await _lockService.LockUnitCatalogAsync(tenantId, ct);
             await _unitService.EnsureTenantDefaultUnitsAsync(tenantId, ct);
+            await _priceChangeService.EnsureTenantDefaultPriceListsAsync(tenantId, ct);
 
             var product = await _context.Products
                 .Include(p => p.Variants)
@@ -487,10 +528,25 @@ public class ProductService : IProductService
             {
                 _context.ProductVariants.Add(variant);
                 await _context.SaveChangesAsync(ct);
+
+                var priceLines = new List<InitialPriceLine>();
+                if (request.RetailPrice > 0)
+                {
+                    priceLines.Add(new InitialPriceLine("retail", variant.Id, baseUnit.Id, request.RetailPrice));
+                }
+                if (request.WholesalePrice > 0)
+                {
+                    priceLines.Add(new InitialPriceLine("wholesale", variant.Id, baseUnit.Id, request.WholesalePrice));
+                }
+                if (priceLines.Count > 0)
+                {
+                    await _priceChangeService.AddInitialPricesAsync(priceLines, actor, ct);
+                }
+
                 await tx.CommitAsync(ct);
 
                 variant.BaseUnit = baseUnit;
-                return MapVariantToResponse(variant);
+                return await MapVariantToResponseAsync(variant, DateTimeOffset.UtcNow, ct);
             }
             catch (DbUpdateException ex) when (IsBarcodeUniqueViolation(ex))
             {
@@ -516,6 +572,7 @@ public class ProductService : IProductService
             var tenantId = _currentTenantService.TenantId ?? Guid.Empty;
             await _lockService.LockUnitCatalogAsync(tenantId, ct);
             await _unitService.EnsureTenantDefaultUnitsAsync(tenantId, ct);
+            await _priceChangeService.EnsureTenantDefaultPriceListsAsync(tenantId, ct);
 
             var product = await _context.Products
                 .Include(p => p.Variants)
@@ -575,8 +632,14 @@ public class ProductService : IProductService
                 throw new OismException("DUPLICATE_COMBINATION", $"Sản phẩm đã có biến thể khác mang cùng tổ hợp thuộc tính (Mã SKU '{duplicate.SKU}').", 409);
             }
 
-            variant.RetailPrice = request.RetailPrice;
-            variant.WholesalePrice = request.WholesalePrice;
+            // Giá gửi kèm chỉ để đối chiếu, mọi thay đổi giá phải đi qua phiếu đổi giá
+            if ((request.RetailPrice.HasValue && !await IsSubmittedPriceUnchangedAsync("retail", variant, request.BaseUnitId, request.RetailPrice.Value, ct))
+                || (request.WholesalePrice.HasValue && !await IsSubmittedPriceUnchangedAsync("wholesale", variant, request.BaseUnitId, request.WholesalePrice.Value, ct)))
+            {
+                await tx.RollbackAsync(ct);
+                throw new DirectPriceUpdateNotAllowedException();
+            }
+
             variant.IsActive = request.IsActive;
 
             if (!string.IsNullOrWhiteSpace(request.Barcode))
@@ -701,7 +764,7 @@ public class ProductService : IProductService
                 await _context.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);
 
-                return MapVariantToResponse(variant);
+                return await MapVariantToResponseAsync(variant, DateTimeOffset.UtcNow, ct);
             }
             catch (DbUpdateException ex) when (IsBarcodeUniqueViolation(ex))
             {
@@ -714,27 +777,6 @@ public class ProductService : IProductService
                 throw new OismException("DUPLICATE_SKU", "Mã SKU đã tồn tại trong cửa hàng.", 409);
             }
         });
-    }
-
-    public async Task<ProductVariantResponse?> UpdateVariantPricesAsync(Guid productId, Guid variantId, UpdateVariantPricesRequest request, CancellationToken ct = default)
-    {
-        var variant = await _context.ProductVariants
-            .Include(v => v.BaseUnit)
-            .Include(v => v.SkuUnits)
-                .ThenInclude(u => u.Unit)
-            .FirstOrDefaultAsync(v => v.ProductId == productId && v.Id == variantId, ct);
-
-        if (variant == null)
-        {
-            return null;
-        }
-
-        variant.RetailPrice = request.RetailPrice;
-        variant.WholesalePrice = request.WholesalePrice;
-
-        await _context.SaveChangesAsync(ct);
-
-        return MapVariantToResponse(variant);
     }
 
     public async Task<bool> DeleteVariantAsync(Guid productId, Guid variantId, CancellationToken ct = default)
@@ -826,8 +868,88 @@ public class ProductService : IProductService
         return true;
     }
 
-    private static ProductVariantResponse MapVariantToResponse(ProductVariant v)
+    /// <summary>
+    /// Giá gửi lên được coi là không đổi khi trùng giá hiện hành của đơn vị gốc hiện tại hoặc đơn vị gốc sắp đổi sang;
+    /// đơn vị gốc hiện tại chưa có giá thì chấp nhận thêm giá trị 0 (frontend gửi 0 khi giá đang trống).
+    /// </summary>
+    private async Task<bool> IsSubmittedPriceUnchangedAsync(
+        string priceListCode,
+        ProductVariant variant,
+        Guid? targetBaseUnitId,
+        decimal submittedPrice,
+        CancellationToken ct)
     {
+        var keys = new[] { variant.BaseUnitId, targetBaseUnitId }
+            .Where(id => id.HasValue)
+            .Select(id => new SkuUnitPriceKey(variant.Id, id!.Value))
+            .Distinct()
+            .ToList();
+        var prices = await _skuPriceResolver.ResolveAsync(priceListCode, keys, DateTimeOffset.UtcNow, ct);
+
+        if (prices.Values.Any(p => p.Price == submittedPrice))
+        {
+            return true;
+        }
+
+        var hasCurrentPrice = variant.BaseUnitId.HasValue
+            && prices.ContainsKey(new SkuUnitPriceKey(variant.Id, variant.BaseUnitId.Value));
+        return submittedPrice == 0 && !hasCurrentPrice;
+    }
+
+    private async Task<List<ProductVariantResponse>> MapVariantsToResponseAsync(
+        IEnumerable<ProductVariant> variants,
+        DateTimeOffset atUtc,
+        CancellationToken ct = default)
+    {
+        var variantList = variants.ToList();
+        if (variantList.Count == 0) return new List<ProductVariantResponse>();
+
+        var keys = new HashSet<SkuUnitPriceKey>();
+        foreach (var v in variantList)
+        {
+            if (v.BaseUnitId.HasValue)
+            {
+                keys.Add(new SkuUnitPriceKey(v.Id, v.BaseUnitId.Value));
+            }
+            if (v.SkuUnits != null)
+            {
+                foreach (var u in v.SkuUnits)
+                {
+                    keys.Add(new SkuUnitPriceKey(v.Id, u.UnitId));
+                }
+            }
+        }
+
+        var retailPrices = await _skuPriceResolver.ResolveAsync("retail", keys, atUtc, ct);
+        var wholesalePrices = await _skuPriceResolver.ResolveAsync("wholesale", keys, atUtc, ct);
+
+        return variantList.Select(v => MapVariantToResponseCore(v, retailPrices, wholesalePrices)).ToList();
+    }
+
+    private async Task<ProductVariantResponse> MapVariantToResponseAsync(
+        ProductVariant v,
+        DateTimeOffset atUtc,
+        CancellationToken ct = default)
+    {
+        var list = await MapVariantsToResponseAsync(new[] { v }, atUtc, ct);
+        return list[0];
+    }
+
+    private static ProductVariantResponse MapVariantToResponseCore(
+        ProductVariant v,
+        IReadOnlyDictionary<SkuUnitPriceKey, ResolvedPrice> retailPrices,
+        IReadOnlyDictionary<SkuUnitPriceKey, ResolvedPrice> wholesalePrices)
+    {
+        decimal? retailPrice = null;
+        decimal? wholesalePrice = null;
+
+        if (v.BaseUnitId.HasValue)
+        {
+            var baseKey = new SkuUnitPriceKey(v.Id, v.BaseUnitId.Value);
+            if (retailPrices.TryGetValue(baseKey, out var rp)) retailPrice = rp.Price;
+            if (wholesalePrices.TryGetValue(baseKey, out var wp)) wholesalePrice = wp.Price;
+        }
+
         return new ProductVariantResponse
         {
             Id = v.Id,
@@ -835,8 +957,8 @@ public class ProductService : IProductService
             SKU = v.SKU,
             VariantName = v.VariantName,
             Barcode = v.Barcode,
-            RetailPrice = v.RetailPrice,
-            WholesalePrice = v.WholesalePrice,
+            RetailPrice = retailPrice,
+            WholesalePrice = wholesalePrice,
             CostPrice = v.CostPrice,
             Color = v.Color,
             Size = v.Size,
@@ -844,26 +966,40 @@ public class ProductService : IProductService
             BaseUnitId = v.BaseUnitId,
             BaseUnitCode = v.BaseUnit?.Code ?? v.Unit,
             BaseUnitName = v.BaseUnit?.Name ?? v.Unit,
-            Units = v.SkuUnits?.Select(u => new SkuUnitResponse
+            BaseUnitPriceMissing = retailPrice == null,
+            Units = v.SkuUnits?.Select(u =>
             {
-                Id = u.Id,
-                SkuId = u.SkuId,
-                UnitId = u.UnitId,
-                UnitCode = u.Unit?.Code ?? string.Empty,
-                UnitName = u.Unit?.Name ?? string.Empty,
-                UnitSymbol = u.Unit?.Symbol ?? string.Empty,
-                MeasureGroup = u.Unit?.MeasureGroup ?? string.Empty,
-                FactorToBase = u.FactorToBase,
-                CanPurchase = u.CanPurchase,
-                CanSell = u.CanSell,
-                IsDefaultPurchase = u.IsDefaultPurchase,
-                IsDefaultSale = u.IsDefaultSale,
-                Barcode = u.Barcode,
-                QuantityDecimalPlaces = u.QuantityDecimalPlaces,
-                SalePrice = u.SalePrice,
-                Version = u.Version,
-                IsActive = u.IsActive,
-                IsBase = v.BaseUnitId.HasValue && u.UnitId == v.BaseUnitId.Value
+                var isBase = v.BaseUnitId.HasValue && u.UnitId == v.BaseUnitId.Value;
+                decimal? unitSalePrice = null;
+                if (!isBase)
+                {
+                    if (retailPrices.TryGetValue(new SkuUnitPriceKey(v.Id, u.UnitId), out var up))
+                    {
+                        unitSalePrice = up.Price;
+                    }
+                }
+
+                return new SkuUnitResponse
+                {
+                    Id = u.Id,
+                    SkuId = u.SkuId,
+                    UnitId = u.UnitId,
+                    UnitCode = u.Unit?.Code ?? string.Empty,
+                    UnitName = u.Unit?.Name ?? string.Empty,
+                    UnitSymbol = u.Unit?.Symbol ?? string.Empty,
+                    MeasureGroup = u.Unit?.MeasureGroup ?? string.Empty,
+                    FactorToBase = u.FactorToBase,
+                    CanPurchase = u.CanPurchase,
+                    CanSell = u.CanSell,
+                    IsDefaultPurchase = u.IsDefaultPurchase,
+                    IsDefaultSale = u.IsDefaultSale,
+                    Barcode = u.Barcode,
+                    QuantityDecimalPlaces = u.QuantityDecimalPlaces,
+                    SalePrice = unitSalePrice,
+                    Version = u.Version,
+                    IsActive = u.IsActive,
+                    IsBase = isBase
+                };
             }).ToList() ?? new List<SkuUnitResponse>(),
             IsActive = v.IsActive
         };

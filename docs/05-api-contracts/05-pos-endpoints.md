@@ -32,7 +32,7 @@
 **Nhiều đơn vị tính (Upgrade 05):**
 
 - Mỗi dòng giỏ có thêm `unitId` tùy chọn; để trống là đơn vị gốc. Hệ số và lượng gốc do backend quyết định, client không gửi được.
-- `unitPrice` phải khớp giá của đúng đơn vị: đơn vị gốc so với `RetailPrice`, đơn vị khác so với `sku_units.sale_price`. Sai trả `400 PRICE_MISMATCH`; chưa có giá trả `422 UNIT_PRICE_NOT_CONFIGURED`.
+- `unitPrice` phải khớp giá lẻ đang hiệu lực của đúng đơn vị, đọc sau khi đã khóa SKU. POS luôn dùng bảng giá `retail`. Sai trả `400 PRICE_MISMATCH` kèm `extensions.currentPrices` liệt kê mọi dòng lệch (`skuId`, `skuCode`, `unitId`, `currentPrice`); chưa có giá trả `422 UNIT_PRICE_NOT_CONFIGURED`. Giá `retailPrice`, `salePrice` khi tra cứu có thể là `null`.
 - Đơn vị chưa bật hoặc không cho bán trả `422 UNIT_NOT_ALLOWED`; số lượng sai số lẻ trả `400 INVALID_UNIT_QUANTITY`.
 - Cùng SKU khác đơn vị là hai dòng; cùng (SKU, đơn vị) được gộp. Tồn khả dụng kiểm theo tổng lượng gốc của SKU.
 - `search`, `barcode` trả thêm `units[]` gồm đơn vị được bán (giá, hệ số, số lẻ). `barcode` quét trúng mã quy cách thì `matchedUnitId` là đơn vị đó; quét mã SKU thì `matchedUnitId = null`. `onHand`, `reserved`, `available` luôn theo đơn vị gốc.

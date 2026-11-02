@@ -1984,6 +1984,7 @@ public class WebhookIntegrationTests : IAsyncLifetime, IClassFixture<WebApplicat
             };
             setupDb.ProductVariants.Add(sku2);
             await setupDb.SaveChangesAsync();
+            await PriceSeed.SyncFromLegacyColumnsAsync(setupDb);
 
             var user = await setupDb.Users.FirstAsync(u => u.TenantId == infra.TenantId && u.Email == "owner@shopa.local");
             var supplier = await setupDb.Suppliers.FirstAsync(s => s.TenantId == infra.TenantId);

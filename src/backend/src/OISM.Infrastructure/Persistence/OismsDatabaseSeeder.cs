@@ -210,6 +210,28 @@ public static class OismsDatabaseSeeder
             });
         }
 
+        // 5. Đơn vị cơ sở & SKU Tenant A
+        var unitAId = Guid.Parse("11111111-0000-0000-0004-000000000001");
+        var unitA = await context.Units
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.TenantId == TenantAId && u.Code == "piece", ct);
+        if (unitA == null)
+        {
+            unitA = new Unit
+            {
+                Id = unitAId,
+                TenantId = TenantAId,
+                Code = "piece",
+                Name = "Cái",
+                Symbol = "cái",
+                MeasureGroup = "Count",
+                DecimalPlaces = 3,
+                IsActive = true,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+            context.Units.Add(unitA);
+        }
+
         var skuAId = Guid.Parse("11111111-0000-0000-0006-000000000001");
         var skuAExists = await context.ProductVariants
             .IgnoreQueryFilters()
@@ -224,12 +246,36 @@ public static class OismsDatabaseSeeder
                 ProductId = productAId,
                 Code = "POLO-NAM-DEN-M",
                 Unit = "piece",
+                BaseUnitId = unitA.Id,
                 BarcodeType = "Code128",
                 Barcode = "POLONAMDENM",
                 RetailPrice = 299000,
                 WholesalePrice = 199000,
                 AttributesJson = "{\"color\":\"Đen\",\"size\":\"M\",\"variant_name\":\"Đen / Size M\"}",
                 IsActive = true
+            });
+        }
+
+        var skuUnitAExists = await context.SkuUnits
+            .IgnoreQueryFilters()
+            .AnyAsync(su => su.TenantId == TenantAId && su.SkuId == skuAId && su.UnitId == unitA.Id, ct);
+        if (!skuUnitAExists)
+        {
+            context.SkuUnits.Add(new SkuUnit
+            {
+                Id = Guid.NewGuid(),
+                TenantId = TenantAId,
+                SkuId = skuAId,
+                UnitId = unitA.Id,
+                FactorToBase = 1m,
+                CanPurchase = true,
+                CanSell = true,
+                IsDefaultPurchase = true,
+                IsDefaultSale = true,
+                QuantityDecimalPlaces = 3,
+                Version = 1,
+                IsActive = true,
+                CreatedAt = DateTimeOffset.UtcNow
             });
         }
 
@@ -271,6 +317,98 @@ public static class OismsDatabaseSeeder
                 OnHand = 0,
                 Reserved = 0,
                 AverageCost = 0
+            });
+        }
+
+        // 8. Bảng giá mặc định Tenant A & Giá khởi tạo
+        var retailAList = await context.PriceLists.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.TenantId == TenantAId && p.Code == "retail", ct);
+        if (retailAList == null)
+        {
+            retailAList = new PriceList { Id = Guid.NewGuid(), TenantId = TenantAId, Code = "retail", Name = "Giá lẻ", IsActive = true, CreatedAt = DateTimeOffset.UtcNow };
+            context.PriceLists.Add(retailAList);
+        }
+
+        var wholesaleAList = await context.PriceLists.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.TenantId == TenantAId && p.Code == "wholesale", ct);
+        if (wholesaleAList == null)
+        {
+            wholesaleAList = new PriceList { Id = Guid.NewGuid(), TenantId = TenantAId, Code = "wholesale", Name = "Giá sỉ", IsActive = true, CreatedAt = DateTimeOffset.UtcNow };
+            context.PriceLists.Add(wholesaleAList);
+        }
+
+        var openReqA = await context.PriceChangeRequests.IgnoreQueryFilters().FirstOrDefaultAsync(r => r.TenantId == TenantAId && r.Kind == "Opening", ct);
+        if (openReqA == null)
+        {
+            openReqA = new PriceChangeRequest
+            {
+                Id = Guid.NewGuid(),
+                TenantId = TenantAId,
+                RequestKey = Guid.NewGuid(),
+                Kind = "Opening",
+                Status = "Approved",
+                Reason = "Giá đầu kỳ",
+                CreatedAt = DateTimeOffset.UtcNow.AddDays(-1),
+                ReviewedAt = DateTimeOffset.UtcNow.AddDays(-1)
+            };
+            context.PriceChangeRequests.Add(openReqA);
+        }
+
+        var priceRetailAExists = await context.SkuUnitPrices.IgnoreQueryFilters().AnyAsync(p => p.TenantId == TenantAId && p.PriceListId == retailAList.Id && p.SkuId == skuAId && p.UnitId == unitA.Id, ct);
+        if (!priceRetailAExists)
+        {
+            var reqItem = new PriceChangeRequestItem
+            {
+                Id = Guid.NewGuid(),
+                TenantId = TenantAId,
+                RequestId = openReqA.Id,
+                PriceListId = retailAList.Id,
+                SkuId = skuAId,
+                UnitId = unitA.Id,
+                NewPrice = 299000,
+                CreatedAt = DateTimeOffset.UtcNow.AddDays(-1)
+            };
+            context.PriceChangeRequestItems.Add(reqItem);
+
+            context.SkuUnitPrices.Add(new SkuUnitPrice
+            {
+                Id = Guid.NewGuid(),
+                TenantId = TenantAId,
+                PriceListId = retailAList.Id,
+                SkuId = skuAId,
+                UnitId = unitA.Id,
+                Price = 299000,
+                ValidFrom = DateTimeOffset.UtcNow.AddDays(-1),
+                SourceItemId = reqItem.Id,
+                CreatedAt = DateTimeOffset.UtcNow.AddDays(-1)
+            });
+        }
+
+        var priceWholesaleAExists = await context.SkuUnitPrices.IgnoreQueryFilters().AnyAsync(p => p.TenantId == TenantAId && p.PriceListId == wholesaleAList.Id && p.SkuId == skuAId && p.UnitId == unitA.Id, ct);
+        if (!priceWholesaleAExists)
+        {
+            var reqItem = new PriceChangeRequestItem
+            {
+                Id = Guid.NewGuid(),
+                TenantId = TenantAId,
+                RequestId = openReqA.Id,
+                PriceListId = wholesaleAList.Id,
+                SkuId = skuAId,
+                UnitId = unitA.Id,
+                NewPrice = 199000,
+                CreatedAt = DateTimeOffset.UtcNow.AddDays(-1)
+            };
+            context.PriceChangeRequestItems.Add(reqItem);
+
+            context.SkuUnitPrices.Add(new SkuUnitPrice
+            {
+                Id = Guid.NewGuid(),
+                TenantId = TenantAId,
+                PriceListId = wholesaleAList.Id,
+                SkuId = skuAId,
+                UnitId = unitA.Id,
+                Price = 199000,
+                ValidFrom = DateTimeOffset.UtcNow.AddDays(-1),
+                SourceItemId = reqItem.Id,
+                CreatedAt = DateTimeOffset.UtcNow.AddDays(-1)
             });
         }
     }
@@ -415,6 +553,42 @@ public static class OismsDatabaseSeeder
             });
         }
 
+        // Bảng giá mặc định Tenant B & Đơn vị cơ sở
+        var unitBId = Guid.Parse("22222222-0000-0000-0004-000000000001");
+        var unitB = await context.Units
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(u => u.TenantId == TenantBId && u.Code == "bottle", ct);
+        if (unitB == null)
+        {
+            unitB = new Unit
+            {
+                Id = unitBId,
+                TenantId = TenantBId,
+                Code = "bottle",
+                Name = "Chai",
+                Symbol = "chai",
+                MeasureGroup = "Count",
+                DecimalPlaces = 3,
+                IsActive = true,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+            context.Units.Add(unitB);
+        }
+
+        var retailBList = await context.PriceLists.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.TenantId == TenantBId && p.Code == "retail", ct);
+        if (retailBList == null)
+        {
+            retailBList = new PriceList { Id = Guid.NewGuid(), TenantId = TenantBId, Code = "retail", Name = "Giá lẻ", IsActive = true, CreatedAt = DateTimeOffset.UtcNow };
+            context.PriceLists.Add(retailBList);
+        }
+
+        var wholesaleBList = await context.PriceLists.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.TenantId == TenantBId && p.Code == "wholesale", ct);
+        if (wholesaleBList == null)
+        {
+            wholesaleBList = new PriceList { Id = Guid.NewGuid(), TenantId = TenantBId, Code = "wholesale", Name = "Giá sỉ", IsActive = true, CreatedAt = DateTimeOffset.UtcNow };
+            context.PriceLists.Add(wholesaleBList);
+        }
+
         // 5. Sản phẩm & SKU
         var productBId = Guid.Parse("22222222-0000-0000-0005-000000000001");
         var prodBExists = await context.Products
@@ -449,12 +623,113 @@ public static class OismsDatabaseSeeder
                 ProductId = productBId,
                 Code = "SERUM-B5-30ML",
                 Unit = "bottle",
+                BaseUnitId = unitB.Id,
                 BarcodeType = "Code128",
                 Barcode = "SERUMB530ML",
                 RetailPrice = 450000,
                 WholesalePrice = 320000,
                 AttributesJson = "{\"capacity\":\"30ml\",\"variant_name\":\"Chai 30ml\"}",
                 IsActive = true
+            });
+        }
+
+        var skuUnitBExists = await context.SkuUnits
+            .IgnoreQueryFilters()
+            .AnyAsync(su => su.TenantId == TenantBId && su.SkuId == skuBId && su.UnitId == unitB.Id, ct);
+        if (!skuUnitBExists)
+        {
+            context.SkuUnits.Add(new SkuUnit
+            {
+                Id = Guid.NewGuid(),
+                TenantId = TenantBId,
+                SkuId = skuBId,
+                UnitId = unitB.Id,
+                FactorToBase = 1m,
+                CanPurchase = true,
+                CanSell = true,
+                IsDefaultPurchase = true,
+                IsDefaultSale = true,
+                QuantityDecimalPlaces = 3,
+                Version = 1,
+                IsActive = true,
+                CreatedAt = DateTimeOffset.UtcNow
+            });
+        }
+
+        var openReqB = await context.PriceChangeRequests.IgnoreQueryFilters().FirstOrDefaultAsync(r => r.TenantId == TenantBId && r.Kind == "Opening", ct);
+        if (openReqB == null)
+        {
+            openReqB = new PriceChangeRequest
+            {
+                Id = Guid.NewGuid(),
+                TenantId = TenantBId,
+                RequestKey = Guid.NewGuid(),
+                Kind = "Opening",
+                Status = "Approved",
+                Reason = "Giá đầu kỳ",
+                CreatedAt = DateTimeOffset.UtcNow.AddDays(-1),
+                ReviewedAt = DateTimeOffset.UtcNow.AddDays(-1)
+            };
+            context.PriceChangeRequests.Add(openReqB);
+        }
+
+        var priceRetailBExists = await context.SkuUnitPrices.IgnoreQueryFilters().AnyAsync(p => p.TenantId == TenantBId && p.PriceListId == retailBList.Id && p.SkuId == skuBId && p.UnitId == unitB.Id, ct);
+        if (!priceRetailBExists)
+        {
+            var reqItem = new PriceChangeRequestItem
+            {
+                Id = Guid.NewGuid(),
+                TenantId = TenantBId,
+                RequestId = openReqB.Id,
+                PriceListId = retailBList.Id,
+                SkuId = skuBId,
+                UnitId = unitB.Id,
+                NewPrice = 450000,
+                CreatedAt = DateTimeOffset.UtcNow.AddDays(-1)
+            };
+            context.PriceChangeRequestItems.Add(reqItem);
+
+            context.SkuUnitPrices.Add(new SkuUnitPrice
+            {
+                Id = Guid.NewGuid(),
+                TenantId = TenantBId,
+                PriceListId = retailBList.Id,
+                SkuId = skuBId,
+                UnitId = unitB.Id,
+                Price = 450000,
+                ValidFrom = DateTimeOffset.UtcNow.AddDays(-1),
+                SourceItemId = reqItem.Id,
+                CreatedAt = DateTimeOffset.UtcNow.AddDays(-1)
+            });
+        }
+
+        var priceWholesaleBExists = await context.SkuUnitPrices.IgnoreQueryFilters().AnyAsync(p => p.TenantId == TenantBId && p.PriceListId == wholesaleBList.Id && p.SkuId == skuBId && p.UnitId == unitB.Id, ct);
+        if (!priceWholesaleBExists)
+        {
+            var reqItem = new PriceChangeRequestItem
+            {
+                Id = Guid.NewGuid(),
+                TenantId = TenantBId,
+                RequestId = openReqB.Id,
+                PriceListId = wholesaleBList.Id,
+                SkuId = skuBId,
+                UnitId = unitB.Id,
+                NewPrice = 320000,
+                CreatedAt = DateTimeOffset.UtcNow.AddDays(-1)
+            };
+            context.PriceChangeRequestItems.Add(reqItem);
+
+            context.SkuUnitPrices.Add(new SkuUnitPrice
+            {
+                Id = Guid.NewGuid(),
+                TenantId = TenantBId,
+                PriceListId = wholesaleBList.Id,
+                SkuId = skuBId,
+                UnitId = unitB.Id,
+                Price = 320000,
+                ValidFrom = DateTimeOffset.UtcNow.AddDays(-1),
+                SourceItemId = reqItem.Id,
+                CreatedAt = DateTimeOffset.UtcNow.AddDays(-1)
             });
         }
 

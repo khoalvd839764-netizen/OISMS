@@ -86,6 +86,8 @@ public class CreateOrderRequestDto
     [Required(ErrorMessage = "Kênh bán là bắt buộc.")]
     public string Channel { get; set; } = "Admin"; // 'Admin', 'POS', 'Shopee', 'TikTok', 'Lazada'
 
+    public string PriceListCode { get; set; } = "retail";
+
     public string? ExternalShopId { get; set; }
     public string? ExternalOrderId { get; set; }
 
@@ -367,6 +369,8 @@ public class CreateOrderDto
     /// Kênh bán: 'POS', 'Admin', 'Shopee', 'TikTok', 'Lazada'. Mặc định 'Admin'.
     /// </summary>
     public string Channel { get; set; } = "Admin";
+
+    public string PriceListCode { get; set; } = "retail";
 
     public string? ExternalShopId { get; set; }
     public string? ExternalOrderId { get; set; }

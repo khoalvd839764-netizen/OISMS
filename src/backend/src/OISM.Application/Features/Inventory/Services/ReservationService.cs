@@ -1,8 +1,11 @@
-using OISM.Application.Features.Realtime;
 using System.Data;
 using Microsoft.EntityFrameworkCore;
+using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
 using OISM.Application.Features.Inventory.Dtos;
+using OISM.Application.Features.Pricing.Dtos;
+using OISM.Application.Features.Pricing.Services;
+using OISM.Application.Features.Realtime;
 using OISM.Domain.Entities;
 
 namespace OISM.Application.Features.Inventory.Services;
@@ -17,15 +20,18 @@ public class ReservationService : IReservationService
     private readonly IAppDbContext _context;
     private readonly ICurrentTenantService _currentTenantService;
     private readonly IRealtimeNotifier? _realtimeNotifier;
+    private readonly ISkuPriceResolver _skuPriceResolver;
 
     public ReservationService(
         IAppDbContext context,
         ICurrentTenantService currentTenantService,
-        IRealtimeNotifier? realtimeNotifier = null)
+        IRealtimeNotifier? realtimeNotifier = null,
+        ISkuPriceResolver? skuPriceResolver = null)
     {
         _context = context;
         _currentTenantService = currentTenantService;
         _realtimeNotifier = realtimeNotifier;
+        _skuPriceResolver = skuPriceResolver ?? new SkuPriceResolver(context);
     }
 
     private Guid RequireTenantId()
@@ -259,6 +265,22 @@ public class ReservationService : IReservationService
 
             if (!dto.OrderId.HasValue || !dto.OrderItemId.HasValue)
             {
+                if (!sku.BaseUnitId.HasValue)
+                {
+                    throw new OismException("UNIT_PRICE_NOT_CONFIGURED", $"Mặt hàng '{sku.SKU}' chưa được cấu hình đơn vị gốc.", 422);
+                }
+
+                var resolvedPrices = await _skuPriceResolver.ResolveAsync(
+                    "retail",
+                    new[] { new SkuUnitPriceKey(sku.Id, sku.BaseUnitId.Value) },
+                    DateTimeOffset.UtcNow,
+                    ct);
+
+                if (!resolvedPrices.TryGetValue(new SkuUnitPriceKey(sku.Id, sku.BaseUnitId.Value), out var priceInfo))
+                {
+                    throw new OismException("UNIT_PRICE_NOT_CONFIGURED", $"Đơn vị gốc của mặt hàng '{sku.SKU}' chưa được cấu hình giá bán.", 422);
+                }
+
                 // Tự sinh đơn hàng nháp tối thiểu cho luồng giữ chỗ (POS hoặc Test harness)
                 var orderNumber = $"ORD-RES-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N")[..4].ToUpperInvariant()}";
                 order = new Order
@@ -268,7 +290,7 @@ public class ReservationService : IReservationService
                     BranchId = dto.BranchId,
                     Channel = "POS",
                     Status = "Draft",
-                    TotalAmount = dto.Quantity * sku.RetailPrice,
+                    TotalAmount = dto.Quantity * priceInfo.Price,
                     RequestKey = dto.RequestKey ?? Guid.NewGuid(),
                     CreatedBy = userId,
                     CreatedAt = DateTimeOffset.UtcNow
@@ -285,7 +307,9 @@ public class ReservationService : IReservationService
                     UnitId = sku.BaseUnitId,
                     UnitNameSnapshot = sku.Unit,
                     Quantity = dto.Quantity,
-                    UnitPrice = sku.RetailPrice,
+                    UnitPrice = priceInfo.Price,
+                    SkuUnitPriceId = priceInfo.SkuUnitPriceId,
+                    PriceSource = "PriceList",
                     CreatedAt = DateTimeOffset.UtcNow
                 };
                 _context.OrderItems.Add(orderItem);

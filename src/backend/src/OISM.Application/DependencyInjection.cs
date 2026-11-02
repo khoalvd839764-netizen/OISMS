@@ -8,6 +8,7 @@ using OISM.Application.Features.Catalog.Units.Services;
 using OISM.Application.Features.Inventory.Services;
 using OISM.Application.Features.Orders.Services;
 using OISM.Application.Features.Pos;
+using OISM.Application.Features.Pricing.Services;
 using OISM.Application.Features.Reports.Services;
 using OISM.Application.Features.Simulator.Services;
 using OISM.Application.Features.StockCounts.Services;
@@ -47,6 +48,11 @@ public static class DependencyInjection
         services.AddScoped<ISupplierService, SupplierService>();
         services.AddScoped<IWarehouseService, WarehouseService>();
         services.AddScoped<IPosCatalogService, PosCatalogService>();
+
+        // Pricing services
+        services.AddScoped<ISkuPriceResolver, SkuPriceResolver>();
+        services.AddScoped<IPriceChangeService, PriceChangeService>();
+        services.AddScoped<IPriceQueryService, PriceQueryService>();
 
         return services;
     }

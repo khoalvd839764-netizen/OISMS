@@ -76,9 +76,9 @@ Tài liệu đối chiếu: [BUG-LIST.md](Report%20Bugfix/BUG-LIST.md), [report 
   - [x] Tạo bảng `units`, `sku_units`, `sku_unit_factor_history`, API cấu hình đơn vị (P1); thêm `BaseUnitId` trên SKU và `UnitId`, `FactorSnapshot`, `BaseQuantity = Quantity × FactorSnapshot` trên `GoodsReceiptItem` & `OrderItem`.
   - [x] Cập nhật `GoodsReceiptService`, `OrderService`, `ReservationService` tính tồn/giữ chỗ/WAC/COGS theo `BaseQuantity`; hỗ trợ tương thích ngược dữ liệu cũ (`FactorSnapshot = 1`).
 - [ ] **Bước 2 — `Upgrade 04`: Bảng giá bán có thời gian hiệu lực (`Nhựt` & `Đăng Khoa`):**
-  - [ ] Tạo bảng `price_lists` (giá lẻ, giá sỉ), `price_change_requests`, `price_change_request_items` và `sku_unit_prices` chỉ thêm dòng mới theo khóa `(Bảng giá, SKU, UnitId, valid_from)`; phiếu đổi giá có trạng thái `Pending`, `Approved`, `Rejected`.
-  - [ ] Thêm resolver giá dùng chung cho POS, đơn Admin và giữ chỗ; chuyển dữ liệu giá cũ bằng phiếu "Giá đầu kỳ".
-  - [ ] Lưu đơn giá, ID dòng giá và nguồn giá vào dòng đơn; đóng API sửa giá trực tiếp trên biến thể SKU và đơn vị.
+  - [x] Tạo bảng `price_lists` (giá lẻ, giá sỉ), `price_change_requests`, `price_change_request_items` và `sku_unit_prices` chỉ thêm dòng mới theo khóa `(Bảng giá, SKU, UnitId, valid_from)`; phiếu đổi giá có trạng thái `Pending`, `Approved`, `Rejected`.
+  - [x] Thêm resolver giá dùng chung cho POS, đơn Admin và giữ chỗ; chuyển dữ liệu giá cũ bằng phiếu "Giá đầu kỳ".
+  - [x] Lưu đơn giá, ID dòng giá và nguồn giá vào dòng đơn; đóng API sửa giá trực tiếp trên biến thể SKU và đơn vị.
 - [ ] **Bước 3 — `Upgrade 01`: Mua hàng, nhập kho và giá vốn WAC (`Đăng Khoa` & `Nhựt`):**
   - [ ] Tạo bảng `purchase_orders`, bắt buộc phiếu nhập kho NCC gắn phiếu mua đã duyệt, đối chiếu hóa đơn NCC (`supplier_invoices`) và xử lý chứng từ chênh lệch (`purchase_variances`).
 - [ ] **Bước 4 — `Upgrade 02`: Truy vết chứng từ xuất kho (`Đăng Khoa`):**

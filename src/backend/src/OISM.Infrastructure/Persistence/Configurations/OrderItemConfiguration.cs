@@ -80,6 +80,15 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
             .HasPrecision(20, 6)
             .IsRequired(false);
 
+        builder.Property(i => i.SkuUnitPriceId)
+            .HasColumnName("sku_unit_price_id")
+            .IsRequired(false);
+
+        builder.Property(i => i.PriceSource)
+            .HasColumnName("price_source")
+            .HasMaxLength(20)
+            .IsRequired();
+
         builder.Property(i => i.CreatedAt)
             .HasColumnName("created_at")
             .HasDefaultValueSql("now()")
@@ -109,6 +118,12 @@ public class OrderItemConfiguration : IEntityTypeConfiguration<OrderItem>
             .WithMany()
             .HasForeignKey(i => new { i.TenantId, i.UnitId })
             .HasPrincipalKey(u => new { u.TenantId, u.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(i => i.SkuUnitPrice)
+            .WithMany()
+            .HasForeignKey(i => new { i.TenantId, i.SkuUnitPriceId })
+            .HasPrincipalKey(p => new { p.TenantId, p.Id })
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

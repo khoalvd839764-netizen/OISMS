@@ -120,6 +120,7 @@ public class PosCheckoutIntegrationTests : IAsyncLifetime, IClassFixture<WebAppl
         var (context, tenantService) = CreatePostgresDbContext(tenantId);
         await using (context)
         {
+            await PriceSeed.SyncFromLegacyColumnsAsync(context);
             var wacCalc = new WacCalculator();
             var service = new GoodsReceiptService(context, tenantService, wacCalc);
 
@@ -2367,6 +2368,7 @@ public class PosCheckoutIntegrationTests : IAsyncLifetime, IClassFixture<WebAppl
             };
             seedCtx.ProductVariants.Add(bigSku);
             await seedCtx.SaveChangesAsync();
+            await PriceSeed.SyncFromLegacyColumnsAsync(seedCtx);
         }
 
         var overTotalReq = new PosCheckoutRequestDto

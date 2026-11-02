@@ -210,6 +210,81 @@ CREATE TABLE "sku_unit_factor_history" (
   CONSTRAINT "ck_sku_unit_factor_history_new_factor" CHECK (new_factor > 0)
 );
 
+-- Bảng giá của tenant: Giá lẻ, Giá sỉ
+CREATE TABLE "price_lists" (
+  "id" uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+  "tenant_id" uuid NOT NULL,
+  "code" varchar(30) NOT NULL,
+  "name" varchar(100) NOT NULL,
+  "is_active" boolean DEFAULT true NOT NULL,
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  "updated_at" timestamptz,
+  CONSTRAINT "uq_price_lists_1" UNIQUE ("tenant_id", "id"),
+  CONSTRAINT "uq_price_lists_2" UNIQUE ("tenant_id", "code"),
+  CONSTRAINT "ck_price_lists_code" CHECK (code IN ('retail', 'wholesale'))
+);
+
+-- Phiếu thay đổi / phê duyệt giá
+CREATE TABLE "price_change_requests" (
+  "id" uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+  "tenant_id" uuid NOT NULL,
+  "request_key" uuid NOT NULL,
+  "kind" varchar(20) NOT NULL,
+  "status" varchar(20) NOT NULL,
+  "reason" varchar(500) NOT NULL,
+  "requested_valid_from" timestamptz,
+  "created_by" uuid,
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  "reviewed_by" uuid,
+  "reviewed_at" timestamptz,
+  "review_note" varchar(500),
+  CONSTRAINT "uq_price_change_requests_1" UNIQUE ("tenant_id", "id"),
+  CONSTRAINT "uq_price_change_requests_2" UNIQUE ("tenant_id", "request_key"),
+  CONSTRAINT "ck_price_change_requests_kind" CHECK (kind IN ('Opening', 'Initial', 'Change')),
+  CONSTRAINT "ck_price_change_requests_status" CHECK (status IN ('Pending', 'Approved', 'Rejected')),
+  CONSTRAINT "ck_price_change_requests_created_by" CHECK (kind = 'Opening' OR created_by IS NOT NULL),
+  CONSTRAINT "ck_price_change_requests_pending_reviewed" CHECK ((status = 'Pending') = (reviewed_at IS NULL)),
+  CONSTRAINT "ck_price_change_requests_reason" CHECK (btrim(reason) <> '')
+);
+
+-- Chi tiết phiếu thay đổi giá (append-only)
+CREATE TABLE "price_change_request_items" (
+  "id" uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+  "tenant_id" uuid NOT NULL,
+  "request_id" uuid NOT NULL,
+  "price_list_id" uuid NOT NULL,
+  "sku_id" uuid NOT NULL,
+  "unit_id" uuid NOT NULL,
+  "new_price" numeric(20,2) NOT NULL,
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  CONSTRAINT "uq_price_change_request_items_1" UNIQUE ("tenant_id", "id"),
+  CONSTRAINT "uq_price_change_request_items_2" UNIQUE ("tenant_id", "request_id", "price_list_id", "sku_id", "unit_id"),
+  CONSTRAINT "ck_price_change_request_items_new_price" CHECK (new_price >= 0)
+);
+
+-- Giá áp dụng có thời gian hiệu lực
+CREATE TABLE "sku_unit_prices" (
+  "id" uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+  "tenant_id" uuid NOT NULL,
+  "price_list_id" uuid NOT NULL,
+  "sku_id" uuid NOT NULL,
+  "unit_id" uuid NOT NULL,
+  "price" numeric(20,2) NOT NULL,
+  "valid_from" timestamptz NOT NULL,
+  "source_item_id" uuid NOT NULL,
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  "cancelled_at" timestamptz,
+  "cancelled_by" uuid,
+  "cancel_reason" varchar(500),
+  CONSTRAINT "uq_sku_unit_prices_1" UNIQUE ("tenant_id", "id"),
+  CONSTRAINT "uq_sku_unit_prices_2" UNIQUE ("tenant_id", "source_item_id"),
+  CONSTRAINT "ck_sku_unit_prices_price" CHECK (price >= 0),
+  CONSTRAINT "ck_sku_unit_prices_cancel_state" CHECK (
+    (cancelled_at IS NULL AND cancelled_by IS NULL AND cancel_reason IS NULL)
+    OR (cancelled_at IS NOT NULL AND cancelled_by IS NOT NULL AND cancel_reason IS NOT NULL AND btrim(cancel_reason) <> '')
+  )
+);
+
 -- Nhà cung cấp của phiếu nhập.
 CREATE TABLE "suppliers" (
   "id" uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
@@ -489,6 +564,8 @@ CREATE TABLE "order_items" (
   "base_quantity" numeric(18,3) GENERATED ALWAYS AS (quantity * factor_snapshot) STORED,
   "unit_price" numeric(20,2) NOT NULL,
   "cost_price" numeric(20,6),
+  "sku_unit_price_id" uuid,
+  "price_source" varchar(20) DEFAULT 'Legacy' NOT NULL,
   "created_at" timestamptz DEFAULT now() NOT NULL,
   "updated_at" timestamptz,
   CONSTRAINT "uq_order_items_1" UNIQUE ("tenant_id", "id"),
@@ -497,7 +574,9 @@ CREATE TABLE "order_items" (
   CONSTRAINT "ck_order_items_factor_snapshot_positive" CHECK (factor_snapshot > 0),
   CONSTRAINT "ck_order_items_quantity_positive" CHECK (quantity > 0),
   CONSTRAINT "ck_order_items_unit_price_nonnegative" CHECK (unit_price >= 0),
-  CONSTRAINT "ck_order_items_cost_price_nonnegative" CHECK (cost_price >= 0)
+  CONSTRAINT "ck_order_items_cost_price_nonnegative" CHECK (cost_price >= 0),
+  CONSTRAINT "ck_order_items_price_source" CHECK (price_source IN ('PriceList', 'Marketplace', 'Legacy')),
+  CONSTRAINT "ck_order_items_price_source_ref" CHECK ((price_source = 'PriceList') = (sku_unit_price_id IS NOT NULL))
 );
 
 -- Phân bổ giữ chỗ xuống kho thuộc chi nhánh đơn; một dòng đơn có thể phân bổ nhiều kho. Tổng lượng phân bổ phải khớp dòng đơn dưới khóa.
@@ -798,6 +877,25 @@ ALTER TABLE "sku_unit_factor_history" ADD CONSTRAINT "fk_sku_unit_factor_history
 ALTER TABLE "goods_receipt_items" ADD CONSTRAINT "fk_goods_receipt_items_unit_id" FOREIGN KEY ("tenant_id", "unit_id") REFERENCES "units" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 ALTER TABLE "order_items" ADD CONSTRAINT "fk_order_items_unit_id" FOREIGN KEY ("tenant_id", "unit_id") REFERENCES "units" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 
+ALTER TABLE "price_lists" ADD CONSTRAINT "fk_price_lists_tenant_id" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+
+ALTER TABLE "price_change_requests" ADD CONSTRAINT "fk_price_change_requests_tenant_id" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "price_change_requests" ADD CONSTRAINT "fk_price_change_requests_created_by" FOREIGN KEY ("tenant_id", "created_by") REFERENCES "users" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "price_change_requests" ADD CONSTRAINT "fk_price_change_requests_reviewed_by" FOREIGN KEY ("tenant_id", "reviewed_by") REFERENCES "users" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+
+ALTER TABLE "price_change_request_items" ADD CONSTRAINT "fk_price_change_request_items_tenant_id" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "price_change_request_items" ADD CONSTRAINT "fk_price_change_request_items_request_id" FOREIGN KEY ("tenant_id", "request_id") REFERENCES "price_change_requests" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "price_change_request_items" ADD CONSTRAINT "fk_price_change_request_items_price_list_id" FOREIGN KEY ("tenant_id", "price_list_id") REFERENCES "price_lists" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "price_change_request_items" ADD CONSTRAINT "fk_price_change_request_items_sku_unit" FOREIGN KEY ("tenant_id", "sku_id", "unit_id") REFERENCES "sku_units" ("tenant_id", "sku_id", "unit_id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+
+ALTER TABLE "sku_unit_prices" ADD CONSTRAINT "fk_sku_unit_prices_tenant_id" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "sku_unit_prices" ADD CONSTRAINT "fk_sku_unit_prices_price_list_id" FOREIGN KEY ("tenant_id", "price_list_id") REFERENCES "price_lists" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "sku_unit_prices" ADD CONSTRAINT "fk_sku_unit_prices_source_item_id" FOREIGN KEY ("tenant_id", "source_item_id") REFERENCES "price_change_request_items" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "sku_unit_prices" ADD CONSTRAINT "fk_sku_unit_prices_sku_unit" FOREIGN KEY ("tenant_id", "sku_id", "unit_id") REFERENCES "sku_units" ("tenant_id", "sku_id", "unit_id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "sku_unit_prices" ADD CONSTRAINT "fk_sku_unit_prices_cancelled_by" FOREIGN KEY ("tenant_id", "cancelled_by") REFERENCES "users" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+
+ALTER TABLE "order_items" ADD CONSTRAINT "fk_order_items_sku_unit_price_id" FOREIGN KEY ("tenant_id", "sku_unit_price_id") REFERENCES "sku_unit_prices" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+
 -- Query and partial unique indexes.
 CREATE INDEX "ix_skus_product" ON "skus" ("tenant_id", "product_id");
 CREATE INDEX "ix_inventory_balances_sku_branches" ON "inventory_balances" ("tenant_id", "sku_id", "branch_id");
@@ -813,6 +911,7 @@ CREATE INDEX "ix_goods_receipts_status_time" ON "goods_receipts" ("tenant_id", "
 CREATE UNIQUE INDEX "ux_sku_units_default_sale" ON "sku_units" ("tenant_id", "sku_id") WHERE is_default_sale AND is_active;
 CREATE UNIQUE INDEX "ux_sku_units_default_purchase" ON "sku_units" ("tenant_id", "sku_id") WHERE is_default_purchase AND is_active;
 CREATE UNIQUE INDEX "ux_sku_units_barcode" ON "sku_units" ("tenant_id", "barcode") WHERE barcode IS NOT NULL;
+CREATE UNIQUE INDEX "ux_sku_unit_prices_active_key" ON "sku_unit_prices" ("tenant_id", "price_list_id", "sku_id", "unit_id", "valid_from") WHERE cancelled_at IS NULL;
 CREATE INDEX "ix_stock_transfers_status_time" ON "stock_transfers" ("tenant_id", "status", "created_at", "id");
 CREATE INDEX "ix_stock_counts_status_time" ON "stock_counts" ("tenant_id", "status", "created_at", "id");
 CREATE INDEX "ix_sales_returns_status_time" ON "sales_returns" ("tenant_id", "status", "created_at", "id");
@@ -1005,6 +1104,49 @@ FOR EACH ROW EXECUTE FUNCTION public.oisms_protect_receipt_item();
 CREATE TRIGGER factor_history_append_only BEFORE UPDATE OR DELETE OR TRUNCATE ON public.sku_unit_factor_history
 FOR EACH STATEMENT EXECUTE FUNCTION public.oisms_deny_mutation();
 
+CREATE FUNCTION public.oisms_price_change_request_guard() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+BEGIN
+  IF OLD.status <> 'Pending' OR NEW.status NOT IN ('Approved', 'Rejected') THEN
+    RAISE EXCEPTION 'Price change request can only transition from Pending to Approved or Rejected' USING ERRCODE = '23514';
+  END IF;
+
+  IF (NEW.tenant_id, NEW.id, NEW.request_key, NEW.kind, NEW.reason, NEW.requested_valid_from, NEW.created_by, NEW.created_at)
+     IS DISTINCT FROM
+     (OLD.tenant_id, OLD.id, OLD.request_key, OLD.kind, OLD.reason, OLD.requested_valid_from, OLD.created_by, OLD.created_at) THEN
+    RAISE EXCEPTION 'Price change request attributes other than review fields are immutable' USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END $$;
+CREATE TRIGGER price_change_request_guard BEFORE UPDATE ON public.price_change_requests
+FOR EACH ROW EXECUTE FUNCTION public.oisms_price_change_request_guard();
+CREATE TRIGGER price_change_request_no_delete BEFORE DELETE OR TRUNCATE ON public.price_change_requests
+FOR EACH STATEMENT EXECUTE FUNCTION public.oisms_deny_mutation();
+
+CREATE TRIGGER price_change_item_append_only BEFORE UPDATE OR DELETE OR TRUNCATE ON public.price_change_request_items
+FOR EACH STATEMENT EXECUTE FUNCTION public.oisms_deny_mutation();
+
+CREATE FUNCTION public.oisms_sku_unit_price_guard() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+BEGIN
+  IF OLD.cancelled_at IS NOT NULL OR NEW.cancelled_at IS NULL THEN
+    RAISE EXCEPTION 'Sku unit price can only transition from active to cancelled' USING ERRCODE = '23514';
+  END IF;
+
+  IF (NEW.tenant_id, NEW.id, NEW.price_list_id, NEW.sku_id, NEW.unit_id, NEW.price, NEW.valid_from, NEW.source_item_id, NEW.created_at)
+     IS DISTINCT FROM
+     (OLD.tenant_id, OLD.id, OLD.price_list_id, OLD.sku_id, OLD.unit_id, OLD.price, OLD.valid_from, OLD.source_item_id, OLD.created_at) THEN
+    RAISE EXCEPTION 'Sku unit price attributes other than cancellation fields are immutable' USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END $$;
+CREATE TRIGGER sku_unit_price_guard BEFORE UPDATE ON public.sku_unit_prices
+FOR EACH ROW EXECUTE FUNCTION public.oisms_sku_unit_price_guard();
+CREATE TRIGGER sku_unit_price_no_delete BEFORE DELETE OR TRUNCATE ON public.sku_unit_prices
+FOR EACH STATEMENT EXECUTE FUNCTION public.oisms_deny_mutation();
+
 -- Validate existing data before enabling this migration on v0.4.
 DO $$ DECLARE k record; BEGIN
   FOR k IN
@@ -1025,9 +1167,12 @@ END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='oisms_runtime') THEN CREATE ROLE oisms_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS; END IF; END $$;
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA public TO oisms_runtime;
-REVOKE ALL ON public."tenants", public."users", public."refresh_tokens", public."branches", public."warehouses", public."categories", public."brands", public."products", public."skus", public."suppliers", public."goods_receipts", public."goods_receipt_items", public."inventory_balances", public."warehouse_inventory_balances", public."stock_transfers", public."stock_transfer_items", public."stock_counts", public."stock_count_items", public."inventory_adjustments", public."inventory_adjustment_items", public."orders", public."order_items", public."reservations", public."payments", public."sales_returns", public."sales_return_items", public."inventory_transactions", public."daily_sales_summaries", public."replenishment_suggestions", public."shop_integrations", public."units", public."sku_units", public."sku_unit_factor_history" FROM PUBLIC, oisms_runtime;
+REVOKE ALL ON public."tenants", public."users", public."refresh_tokens", public."branches", public."warehouses", public."categories", public."brands", public."products", public."skus", public."suppliers", public."goods_receipts", public."goods_receipt_items", public."inventory_balances", public."warehouse_inventory_balances", public."stock_transfers", public."stock_transfer_items", public."stock_counts", public."stock_count_items", public."inventory_adjustments", public."inventory_adjustment_items", public."orders", public."order_items", public."reservations", public."payments", public."sales_returns", public."sales_return_items", public."inventory_transactions", public."daily_sales_summaries", public."replenishment_suggestions", public."shop_integrations", public."units", public."sku_units", public."sku_unit_factor_history", public."price_lists", public."price_change_requests", public."price_change_request_items", public."sku_unit_prices" FROM PUBLIC, oisms_runtime;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public."tenants", public."users", public."refresh_tokens", public."branches", public."warehouses", public."categories", public."brands", public."products", public."skus", public."suppliers", public."goods_receipts", public."goods_receipt_items", public."inventory_balances", public."warehouse_inventory_balances", public."stock_transfers", public."stock_transfer_items", public."stock_counts", public."stock_count_items", public."inventory_adjustments", public."inventory_adjustment_items", public."orders", public."order_items", public."reservations", public."payments", public."sales_returns", public."sales_return_items", public."inventory_transactions", public."daily_sales_summaries", public."replenishment_suggestions", public."shop_integrations", public."units", public."sku_units" TO oisms_runtime;
-GRANT SELECT, INSERT ON public."sku_unit_factor_history" TO oisms_runtime;
+GRANT SELECT, INSERT, UPDATE ON public."price_lists", public."price_change_requests", public."sku_unit_prices" TO oisms_runtime;
+GRANT SELECT, INSERT ON public."price_change_request_items", public."sku_unit_factor_history" TO oisms_runtime;
+REVOKE DELETE, TRUNCATE ON public.price_lists, public.price_change_requests, public.sku_unit_prices FROM oisms_runtime;
+REVOKE UPDATE, DELETE, TRUNCATE ON public.price_change_request_items FROM oisms_runtime;
 REVOKE UPDATE, DELETE, TRUNCATE ON public.sku_unit_factor_history FROM oisms_runtime;
 REVOKE UPDATE, DELETE, TRUNCATE ON public.inventory_transactions FROM oisms_runtime;
 REVOKE DELETE, TRUNCATE ON public.inventory_balances, public.warehouse_inventory_balances, public.reservations FROM oisms_runtime;

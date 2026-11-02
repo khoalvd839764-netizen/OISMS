@@ -7,6 +7,8 @@ using OISM.Application.Common.Interfaces;
 using OISM.Application.Features.Catalog.Units.Services;
 using OISM.Application.Features.Inventory.Dtos;
 using OISM.Application.Features.Orders.Dtos;
+using OISM.Application.Features.Pricing.Dtos;
+using OISM.Application.Features.Pricing.Services;
 using OISM.Application.Features.Realtime;
 using OISM.Application.Features.Realtime.Dtos;
 using OISM.Domain.Entities;
@@ -21,6 +23,7 @@ public class OrderService : IOrderService, IPosCheckoutService
 {
     private readonly IAppDbContext _context;
     private readonly ICurrentTenantService _currentTenantService;
+    private readonly ISkuPriceResolver _skuPriceResolver;
     private readonly ILogger<OrderService> _logger;
 
     public const decimal MaxMoneyAmount = 999_999_999_999_999_999.99m; // numeric(20,2) limit (18 integer digits, 2 decimals)
@@ -31,13 +34,24 @@ public class OrderService : IOrderService, IPosCheckoutService
     public OrderService(
         IAppDbContext context,
         ICurrentTenantService currentTenantService,
+        ISkuPriceResolver skuPriceResolver,
         ILogger<OrderService>? logger = null,
         IRealtimeNotifier? realtimeNotifier = null)
     {
         _context = context;
         _currentTenantService = currentTenantService;
+        _skuPriceResolver = skuPriceResolver;
         _logger = logger ?? NullLogger<OrderService>.Instance;
         _realtimeNotifier = realtimeNotifier;
+    }
+
+    public OrderService(
+        IAppDbContext context,
+        ICurrentTenantService currentTenantService,
+        ILogger<OrderService>? logger = null,
+        IRealtimeNotifier? realtimeNotifier = null)
+        : this(context, currentTenantService, new SkuPriceResolver(context), logger, realtimeNotifier)
+    {
     }
 
     /// <summary>
@@ -191,6 +205,8 @@ public class OrderService : IOrderService, IPosCheckoutService
             // 6. Kiểm tra Idempotency dưới khóa
             var existingOrder = await _context.Orders
                 .Include(o => o.Items)
+                    .ThenInclude(i => i.SkuUnitPrice)
+                        .ThenInclude(p => p.PriceList)
                 .Include(o => o.Payment)
                 .FirstOrDefaultAsync(o => o.TenantId == tenantId.Value && o.RequestKey == dto.RequestKey, ct);
 
@@ -203,6 +219,18 @@ public class OrderService : IOrderService, IPosCheckoutService
                     existingOrder.Payment.Status != "Succeeded")
                 {
                     throw new IdempotencyPayloadMismatchException("RequestKey đã được sử dụng cho một đơn hàng không phải thanh toán POS hoàn tất.");
+                }
+
+                var priceListItems = existingOrder.Items
+                    .Where(i => i.PriceSource == "PriceList" && i.SkuUnitPrice != null)
+                    .ToList();
+                if (priceListItems.Count > 0)
+                {
+                    var existingCode = priceListItems.First().SkuUnitPrice?.PriceList?.Code;
+                    if (existingCode != null && !string.Equals(existingCode, "retail", StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new IdempotencyPayloadMismatchException("RequestKey đã được sử dụng với bảng giá khác.");
+                    }
                 }
 
                 // So sánh BranchId
@@ -388,10 +416,26 @@ public class OrderService : IOrderService, IPosCheckoutService
             }
 
             // 9. Phân giải đơn vị, gom dòng theo (SKU, đơn vị) và xác thực giá bán theo giá niêm yết của đúng đơn vị đó
+            var priceKeys = new HashSet<SkuUnitPriceKey>();
+            foreach (var item in dto.Items)
+            {
+                var sku = skus[item.SkuId];
+                var resolved = SkuUnitResolver.ResolveForSale(sku, sku.SkuUnits, item.UnitId);
+                if (!resolved.UnitId.HasValue)
+                {
+                    throw new OismException("UNIT_PRICE_NOT_CONFIGURED", $"Đơn vị của mặt hàng '{sku.SKU}' chưa được cấu hình đơn vị gốc.", 422);
+                }
+                priceKeys.Add(new SkuUnitPriceKey(item.SkuId, resolved.UnitId.Value));
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var resolvedPrices = await _skuPriceResolver.ResolveAsync("retail", priceKeys, now, ct);
+
             var orderLines = BuildOrderLines(
                 dto.Items.Select(i => new OrderLineInput(i.SkuId, i.UnitId, i.Quantity, i.UnitPrice)),
                 skus,
-                trustRequestedPrice: false);
+                trustRequestedPrice: false,
+                resolvedPrices: resolvedPrices);
             var groupedItems = SumBaseQuantityBySku(orderLines);
 
             // 10. Tính toán tổng tiền đơn hàng phía Server (kiểm tra tràn số CLR và giới hạn numeric(20,2))
@@ -547,7 +591,6 @@ public class OrderService : IOrderService, IPosCheckoutService
             }
 
             // 14. Tạo đơn hàng và ghi sổ cái trong CSDL
-            var now = DateTimeOffset.UtcNow;
             var orderId = Guid.NewGuid();
             var orderNumber = $"POS-{now:yyyyMMdd}-{Guid.NewGuid():N}"[..20];
 
@@ -613,6 +656,8 @@ public class OrderService : IOrderService, IPosCheckoutService
                     Quantity = line.Quantity,
                     UnitPrice = Math.Round(line.UnitPrice, 2, MidpointRounding.AwayFromZero),
                     CostPrice = Math.Round(bBal.AverageCost, 4, MidpointRounding.AwayFromZero), // Snapshot WAC theo đơn vị gốc
+                    SkuUnitPriceId = line.SkuUnitPriceId,
+                    PriceSource = line.PriceSource,
                     CreatedAt = now
                 };
                 _context.OrderItems.Add(orderItem);
@@ -832,7 +877,8 @@ public class OrderService : IOrderService, IPosCheckoutService
             ExpectedTotalAmount: null,
             CreatedByUserId: createdByUserId,
             IsTrustedMarketplace: false,
-            Items: dto.Items?.Select(i => new InternalOrderCoreItem(i.SkuId, i.SkuCode, i.Quantity, i.UnitPrice, i.UnitId)).ToList() ?? new());
+            Items: dto.Items?.Select(i => new InternalOrderCoreItem(i.SkuId, i.SkuCode, i.Quantity, i.UnitPrice, i.UnitId)).ToList() ?? new(),
+            PriceListCode: !string.IsNullOrWhiteSpace(dto.PriceListCode) ? dto.PriceListCode : "retail");
 
         return await CreateReservedOrderCoreAsync(coreReq, ct);
     }
@@ -858,7 +904,8 @@ public class OrderService : IOrderService, IPosCheckoutService
             ExpectedTotalAmount: context.ExpectedTotalAmount,
             CreatedByUserId: context.CreatedByUserId,
             IsTrustedMarketplace: true,
-            Items: context.Items.Select(i => new InternalOrderCoreItem(null, i.SkuCode, i.Quantity, i.UnitPrice)).ToList());
+            Items: context.Items.Select(i => new InternalOrderCoreItem(null, i.SkuCode, i.Quantity, i.UnitPrice)).ToList(),
+            PriceListCode: "retail");
 
         return await CreateReservedOrderCoreAsync(coreReq, ct);
     }
@@ -877,7 +924,8 @@ public class OrderService : IOrderService, IPosCheckoutService
         decimal? ExpectedTotalAmount,
         Guid? CreatedByUserId,
         bool IsTrustedMarketplace,
-        List<InternalOrderCoreItem> Items);
+        List<InternalOrderCoreItem> Items,
+        string PriceListCode = "retail");
 
     private record InternalOrderCoreItem(
         Guid? SkuId,
@@ -895,6 +943,8 @@ public class OrderService : IOrderService, IPosCheckoutService
         public required decimal UnitPrice { get; init; }
         public decimal Quantity { get; set; }
         public decimal BaseQuantity { get; set; }
+        public Guid? SkuUnitPriceId { get; set; }
+        public required string PriceSource { get; init; }
     }
 
     /// <summary>
@@ -903,24 +953,71 @@ public class OrderService : IOrderService, IPosCheckoutService
     private static List<OrderLinePlan> BuildOrderLines(
         IEnumerable<OrderLineInput> items,
         IReadOnlyDictionary<Guid, ProductVariant> skus,
-        bool trustRequestedPrice)
+        bool trustRequestedPrice,
+        IReadOnlyDictionary<SkuUnitPriceKey, ResolvedPrice>? resolvedPrices = null)
     {
-        var lines = new List<OrderLinePlan>();
-        foreach (var item in items)
+        var itemsList = items.ToList();
+        var resolvedUnits = new Dictionary<OrderLineInput, ResolvedSkuUnit>();
+
+        foreach (var item in itemsList)
         {
             var sku = skus[item.SkuId];
             var resolved = SkuUnitResolver.ResolveForSale(sku, sku.SkuUnits, item.UnitId);
-
-            if (!trustRequestedPrice)
+            if (!trustRequestedPrice && !resolved.UnitId.HasValue)
             {
-                if (!resolved.SalePrice.HasValue)
+                throw new OismException("UNIT_PRICE_NOT_CONFIGURED", $"Đơn vị của mặt hàng '{sku.SKU}' chưa được cấu hình đơn vị gốc.", 422);
+            }
+            resolvedUnits[item] = resolved;
+        }
+
+        if (!trustRequestedPrice)
+        {
+            var mismatches = new List<PriceMismatchItem>();
+
+            foreach (var item in itemsList)
+            {
+                var sku = skus[item.SkuId];
+                var resolved = resolvedUnits[item];
+                var key = new SkuUnitPriceKey(item.SkuId, resolved.UnitId!.Value);
+
+                if (resolvedPrices == null || !resolvedPrices.TryGetValue(key, out var price))
                 {
                     throw new OismException("UNIT_PRICE_NOT_CONFIGURED", $"Đơn vị '{resolved.UnitName}' của mặt hàng '{sku.SKU}' chưa được cấu hình giá bán.", 422);
                 }
-                if (item.UnitPrice != resolved.SalePrice.Value)
+
+                if (item.UnitPrice != price.Price)
                 {
-                    throw new OismException("PRICE_MISMATCH", $"Đơn giá của mặt hàng '{sku.SKU}' ({item.UnitPrice:N0}đ) không khớp với giá bán lẻ niêm yết của hệ thống ({resolved.SalePrice.Value:N0}đ).", 400);
+                    mismatches.Add(new PriceMismatchItem(item.SkuId, sku.SKU, resolved.UnitId, price.Price));
                 }
+            }
+
+            if (mismatches.Count > 0)
+            {
+                var distinctMismatches = mismatches
+                    .GroupBy(m => (m.SkuId, m.UnitId))
+                    .Select(g => g.First())
+                    .ToList();
+                throw new PriceMismatchException("Đơn giá của mặt hàng trong giỏ hàng không khớp với giá niêm yết của hệ thống.", distinctMismatches);
+            }
+        }
+
+        var lines = new List<OrderLinePlan>();
+        foreach (var item in itemsList)
+        {
+            var sku = skus[item.SkuId];
+            var resolved = resolvedUnits[item];
+
+            Guid? skuUnitPriceId = null;
+            string priceSource = "Marketplace";
+            decimal finalUnitPrice = item.UnitPrice;
+
+            if (!trustRequestedPrice)
+            {
+                var key = new SkuUnitPriceKey(item.SkuId, resolved.UnitId!.Value);
+                var price = resolvedPrices![key];
+                skuUnitPriceId = price.SkuUnitPriceId;
+                priceSource = "PriceList";
+                finalUnitPrice = price.Price;
             }
 
             var line = lines.FirstOrDefault(l => l.SkuId == item.SkuId && l.Unit.UnitId == resolved.UnitId);
@@ -930,8 +1027,10 @@ public class OrderService : IOrderService, IPosCheckoutService
                 {
                     SkuId = item.SkuId,
                     Unit = resolved,
-                    UnitPrice = trustRequestedPrice ? item.UnitPrice : resolved.SalePrice!.Value,
-                    Quantity = item.Quantity
+                    UnitPrice = finalUnitPrice,
+                    Quantity = item.Quantity,
+                    SkuUnitPriceId = skuUnitPriceId,
+                    PriceSource = priceSource
                 });
                 continue;
             }
@@ -1076,6 +1175,20 @@ public class OrderService : IOrderService, IPosCheckoutService
                 throw new IdempotencyPayloadMismatchException($"RequestKey đã được sử dụng với đơn giá khác cho SKU '{kv.Key.SkuId}'.");
             }
         }
+
+        // So sánh Bảng giá
+        var priceListItems = existingOrder.Items
+            .Where(i => i.PriceSource == "PriceList" && i.SkuUnitPrice != null)
+            .ToList();
+        if (priceListItems.Count > 0)
+        {
+            var existingPriceListCode = priceListItems.First().SkuUnitPrice?.PriceList?.Code;
+            var reqPriceListCode = !string.IsNullOrWhiteSpace(req.PriceListCode) ? req.PriceListCode : "retail";
+            if (existingPriceListCode != null && !string.Equals(existingPriceListCode, reqPriceListCode, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new IdempotencyPayloadMismatchException("RequestKey đã được sử dụng với bảng giá khác.");
+            }
+        }
     }
 
     private async Task<OrderResponseDto> CreateReservedOrderCoreAsync(InternalOrderCoreRequest req, CancellationToken ct)
@@ -1173,6 +1286,8 @@ public class OrderService : IOrderService, IPosCheckoutService
         {
             var existingOrderByKey = await _context.Orders
                 .Include(o => o.Items)
+                    .ThenInclude(i => i.SkuUnitPrice)
+                        .ThenInclude(p => p.PriceList)
                 .Include(o => o.Payment)
                 .FirstOrDefaultAsync(o => o.TenantId == tenantId && o.RequestKey == req.RequestKey, ct);
 
@@ -1267,6 +1382,31 @@ public class OrderService : IOrderService, IPosCheckoutService
             }
         }
 
+        var priceListCode = !string.IsNullOrWhiteSpace(req.PriceListCode) ? req.PriceListCode.Trim().ToLowerInvariant() : "retail";
+        IReadOnlyDictionary<SkuUnitPriceKey, ResolvedPrice>? resolvedPrices = null;
+        if (!req.IsTrustedMarketplace)
+        {
+            if (priceListCode != "retail" && priceListCode != "wholesale")
+            {
+                throw new PriceListNotFoundException(priceListCode);
+            }
+
+            var priceKeys = new HashSet<SkuUnitPriceKey>();
+            foreach (var item in req.Items)
+            {
+                var skuId = item.SkuId!.Value;
+                var sku = skus[skuId];
+                var resolved = SkuUnitResolver.ResolveForSale(sku, sku.SkuUnits, item.UnitId);
+                if (!resolved.UnitId.HasValue)
+                {
+                    throw new OismException("UNIT_PRICE_NOT_CONFIGURED", $"Đơn vị của mặt hàng '{sku.SKU}' chưa được cấu hình đơn vị gốc.", 422);
+                }
+                priceKeys.Add(new SkuUnitPriceKey(skuId, resolved.UnitId.Value));
+            }
+
+            resolvedPrices = await _skuPriceResolver.ResolveAsync(priceListCode, priceKeys, DateTimeOffset.UtcNow, ct);
+        }
+
         // Phân giải đơn vị, gom dòng theo (SKU, đơn vị); Admin kiểm giá theo niêm yết của đúng đơn vị, sàn TMĐT giữ giá từ payload
         var orderLines = BuildOrderLines(
             req.Items.Select(i => new OrderLineInput(
@@ -1275,7 +1415,8 @@ public class OrderService : IOrderService, IPosCheckoutService
                 i.Quantity,
                 i.UnitPrice)),
             skus,
-            trustRequestedPrice: req.IsTrustedMarketplace);
+            trustRequestedPrice: req.IsTrustedMarketplace,
+            resolvedPrices: resolvedPrices);
         var groupedItems = SumBaseQuantityBySku(orderLines);
 
         // Tính tổng tiền đơn hàng phía Server
@@ -1365,6 +1506,8 @@ public class OrderService : IOrderService, IPosCheckoutService
                 {
                     var existingOrder = await _context.Orders
                         .Include(o => o.Items)
+                            .ThenInclude(i => i.SkuUnitPrice)
+                                .ThenInclude(p => p.PriceList)
                         .Include(o => o.Payment)
                         .FirstOrDefaultAsync(o => o.TenantId == tenantId && o.RequestKey == req.RequestKey, ct);
 
@@ -1401,6 +1544,38 @@ public class OrderService : IOrderService, IPosCheckoutService
                         var replayDto = await MapToOrderResponseDtoAsync(existingOrder, ct);
                         replayDto.IsReplay = true;
                         return replayDto;
+                    }
+                }
+
+                // 6b. Đọc lại giá dưới khóa SKU: giá mới có thể đã có hiệu lực trong lúc đơn đợi khóa
+                if (!req.IsTrustedMarketplace)
+                {
+                    var lockedPrices = await _skuPriceResolver.ResolveAsync(
+                        priceListCode,
+                        orderLines.Select(l => new SkuUnitPriceKey(l.SkuId, l.Unit.UnitId!.Value)).ToHashSet(),
+                        DateTimeOffset.UtcNow,
+                        ct);
+
+                    var changedPrices = new List<PriceMismatchItem>();
+                    foreach (var line in orderLines)
+                    {
+                        if (!lockedPrices.TryGetValue(new SkuUnitPriceKey(line.SkuId, line.Unit.UnitId!.Value), out var lockedPrice))
+                        {
+                            throw new OismException("UNIT_PRICE_NOT_CONFIGURED", $"Đơn vị '{line.Unit.UnitName}' của mặt hàng '{skus[line.SkuId].SKU}' chưa được cấu hình giá bán.", 422);
+                        }
+
+                        if (lockedPrice.Price != line.UnitPrice)
+                        {
+                            changedPrices.Add(new PriceMismatchItem(line.SkuId, skus[line.SkuId].SKU, line.Unit.UnitId, lockedPrice.Price));
+                            continue;
+                        }
+
+                        line.SkuUnitPriceId = lockedPrice.SkuUnitPriceId;
+                    }
+
+                    if (changedPrices.Count > 0)
+                    {
+                        throw new PriceMismatchException("Đơn giá của mặt hàng trong giỏ hàng không khớp với giá niêm yết của hệ thống.", changedPrices);
                     }
                 }
 
@@ -1557,6 +1732,8 @@ public class OrderService : IOrderService, IPosCheckoutService
                         Quantity = line.Quantity,
                         UnitPrice = Math.Round(unitPrice, 2, MidpointRounding.AwayFromZero),
                         CostPrice = null, // CostPrice chỉ được snapshot khi Confirmed/Completed
+                        SkuUnitPriceId = line.SkuUnitPriceId,
+                        PriceSource = line.PriceSource,
                         CreatedAt = now
                     };
                     _context.OrderItems.Add(orderItem);

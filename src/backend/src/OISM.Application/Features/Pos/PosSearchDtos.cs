@@ -8,7 +8,7 @@ public class PosProductSearchResponse
     public string ProductName { get; set; } = string.Empty;
     public string VariantName { get; set; } = string.Empty;
     public string? Barcode { get; set; }
-    public decimal RetailPrice { get; set; }
+    public decimal? RetailPrice { get; set; }
     public string? Color { get; set; }
     public string? Size { get; set; }
     public Dictionary<string, object>? Attributes { get; set; }

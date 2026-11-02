@@ -208,6 +208,7 @@ public class StockTransferIntegrationTests : IAsyncLifetime, IClassFixture<WebAp
             }
 
             await context.SaveChangesAsync();
+            await PriceSeed.SyncFromLegacyColumnsAsync(context);
 
             return new TestInfrastructure(
                 tenantId,
@@ -481,6 +482,7 @@ public class StockTransferIntegrationTests : IAsyncLifetime, IClassFixture<WebAp
             var sku = await context.ProductVariants.FirstAsync(v => v.Id == infra.Sku1Id);
             sku.IsActive = false;
             await context.SaveChangesAsync();
+            await PriceSeed.SyncFromLegacyColumnsAsync(context);
         }
 
         // Gửi lại cùng key và payload -> Phải trả về 200 OK replay phiếu cũ
@@ -1181,6 +1183,7 @@ public class StockTransferIntegrationTests : IAsyncLifetime, IClassFixture<WebAp
             var item = await context.StockTransferItems.FirstAsync(i => i.TransferId == transfer.Id);
             item.UnitCost = null;
             await context.SaveChangesAsync();
+            await PriceSeed.SyncFromLegacyColumnsAsync(context);
         }
 
         // Gọi Receive -> Phải nhận 409 INVALID_STATE_TRANSITION
@@ -1232,6 +1235,7 @@ public class StockTransferIntegrationTests : IAsyncLifetime, IClassFixture<WebAp
             var item = await context.StockTransferItems.FirstAsync(i => i.TransferId == transfer.Id);
             item.UnitCost = 0m;
             await context.SaveChangesAsync();
+            await PriceSeed.SyncFromLegacyColumnsAsync(context);
         }
 
         var resReceive = await _client.PostAsJsonAsync($"/api/stock-transfers/{transfer.Id}/receive", new ReceiveStockTransferRequestDto());
@@ -2128,6 +2132,7 @@ public class StockTransferIntegrationTests : IAsyncLifetime, IClassFixture<WebAp
             });
             context.StockTransfers.Add(legacy);
             await context.SaveChangesAsync();
+            await PriceSeed.SyncFromLegacyColumnsAsync(context);
         }
 
         var ownerToken = await LoginAsAsync("owner@shopa.local", PostgresTestEnvironment.AppPassword);

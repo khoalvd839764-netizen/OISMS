@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
+using OISM.Application.Features.Pricing.Dtos;
+using OISM.Application.Features.Pricing.Services;
 using OISM.Domain.Entities;
 
 namespace OISM.Application.Features.Catalog.Units.Services;
@@ -10,15 +12,21 @@ public class UnitService : IUnitService
     private readonly IAppDbContext _context;
     private readonly ICurrentTenantService _currentTenantService;
     private readonly ISqlLockService _sqlLockService;
+    private readonly IPriceChangeService _priceChangeService;
+    private readonly ISkuPriceResolver _skuPriceResolver;
 
     public UnitService(
         IAppDbContext context,
         ICurrentTenantService currentTenantService,
-        ISqlLockService sqlLockService)
+        ISqlLockService sqlLockService,
+        IPriceChangeService priceChangeService,
+        ISkuPriceResolver? skuPriceResolver = null)
     {
         _context = context;
         _currentTenantService = currentTenantService;
         _sqlLockService = sqlLockService;
+        _priceChangeService = priceChangeService;
+        _skuPriceResolver = skuPriceResolver ?? new SkuPriceResolver(context);
     }
 
     private Guid RequireTenantId()
@@ -355,10 +363,13 @@ public class UnitService : IUnitService
             .ThenBy(u => u.FactorToBase)
             .ToListAsync(ct);
 
-        return skuUnits.Select(u => MapSkuUnitToResponse(u, variant.BaseUnitId)).ToList();
+        var priceKeys = skuUnits.Where(u => u.UnitId != variant.BaseUnitId).Select(u => new SkuUnitPriceKey(variantId, u.UnitId)).ToList();
+        var effectivePrices = await _skuPriceResolver.ResolveAsync("retail", priceKeys, DateTimeOffset.UtcNow, ct);
+
+        return skuUnits.Select(u => MapSkuUnitToResponse(u, variant.BaseUnitId, effectivePrices)).ToList();
     }
 
-    public async Task<SkuUnitResponse> CreateSkuUnitAsync(Guid productId, Guid variantId, CreateSkuUnitRequest request, Guid? userId = null, CancellationToken ct = default)
+    public async Task<SkuUnitResponse> CreateSkuUnitAsync(Guid productId, Guid variantId, CreateSkuUnitRequest request, Guid? userId, PriceActor actor, CancellationToken ct = default)
     {
         var tenantId = RequireTenantId();
         await EnsureTenantDefaultUnitsAsync(tenantId, ct);
@@ -391,6 +402,7 @@ public class UnitService : IUnitService
             // Thứ tự khóa bắt buộc: LockProductAsync -> LockUnitCatalogAsync
             await _sqlLockService.LockProductAsync(productId, ct);
             await _sqlLockService.LockUnitCatalogAsync(tenantId, ct);
+            await _priceChangeService.EnsureTenantDefaultPriceListsAsync(tenantId, ct);
 
             var variant = await _context.ProductVariants
                 .Include(v => v.BaseUnit)
@@ -524,10 +536,22 @@ public class UnitService : IUnitService
             _context.SkuUnitFactorHistories.Add(history);
 
             await _context.SaveChangesAsync(ct);
+
+            if (request.SalePrice.HasValue && request.SalePrice.Value > 0)
+            {
+                var priceLines = new[]
+                {
+                    new InitialPriceLine("retail", variantId, request.UnitId, request.SalePrice.Value)
+                };
+                await _priceChangeService.AddInitialPricesAsync(priceLines, actor, ct);
+            }
+
             await tx.CommitAsync(ct);
 
             skuUnit.Unit = targetUnit;
-            return MapSkuUnitToResponse(skuUnit, variant.BaseUnitId);
+            var priceKey = new SkuUnitPriceKey(skuUnit.SkuId, skuUnit.UnitId);
+            var effectivePrices = await _skuPriceResolver.ResolveAsync("retail", new[] { priceKey }, DateTimeOffset.UtcNow, ct);
+            return MapSkuUnitToResponse(skuUnit, variant.BaseUnitId, effectivePrices);
         });
     }
 
@@ -731,7 +755,18 @@ public class UnitService : IUnitService
 
             if (request.SalePrice.HasValue && !isBase)
             {
-                skuUnit.SalePrice = request.SalePrice.Value;
+                // Giá gửi kèm chỉ để đối chiếu; chưa có giá hiện hành thì chấp nhận 0 (frontend gửi 0 khi giá đang trống)
+                var priceKey = new SkuUnitPriceKey(variantId, skuUnit.UnitId);
+                var resolved = await _skuPriceResolver.ResolveAsync("retail", new[] { priceKey }, DateTimeOffset.UtcNow, ct);
+                var isUnchanged = resolved.TryGetValue(priceKey, out var currentPrice)
+                    ? request.SalePrice.Value == currentPrice.Price
+                    : request.SalePrice.Value == 0;
+
+                if (!isUnchanged)
+                {
+                    await tx.RollbackAsync(ct);
+                    throw new DirectPriceUpdateNotAllowedException();
+                }
             }
 
             if (request.IsActive.HasValue && !isBase)
@@ -765,7 +800,9 @@ public class UnitService : IUnitService
             await _context.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
 
-            return MapSkuUnitToResponse(skuUnit, variant.BaseUnitId);
+            var returnPriceKey = new SkuUnitPriceKey(skuUnit.SkuId, skuUnit.UnitId);
+            var effectivePrices = await _skuPriceResolver.ResolveAsync("retail", new[] { returnPriceKey }, DateTimeOffset.UtcNow, ct);
+            return MapSkuUnitToResponse(skuUnit, variant.BaseUnitId, effectivePrices);
         });
     }
 
@@ -918,25 +955,38 @@ public class UnitService : IUnitService
         CreatedAt = u.CreatedAt
     };
 
-    private static SkuUnitResponse MapSkuUnitToResponse(SkuUnit u, Guid? baseUnitId) => new()
+    private static SkuUnitResponse MapSkuUnitToResponse(SkuUnit u, Guid? baseUnitId, IReadOnlyDictionary<SkuUnitPriceKey, ResolvedPrice>? effectivePrices = null)
     {
-        Id = u.Id,
-        SkuId = u.SkuId,
-        UnitId = u.UnitId,
-        UnitCode = u.Unit?.Code ?? string.Empty,
-        UnitName = u.Unit?.Name ?? string.Empty,
-        UnitSymbol = u.Unit?.Symbol ?? string.Empty,
-        MeasureGroup = u.Unit?.MeasureGroup ?? string.Empty,
-        FactorToBase = u.FactorToBase,
-        CanPurchase = u.CanPurchase,
-        CanSell = u.CanSell,
-        IsDefaultPurchase = u.IsDefaultPurchase,
-        IsDefaultSale = u.IsDefaultSale,
-        Barcode = u.Barcode,
-        QuantityDecimalPlaces = u.QuantityDecimalPlaces,
-        SalePrice = u.SalePrice,
-        Version = u.Version,
-        IsActive = u.IsActive,
-        IsBase = baseUnitId.HasValue && u.UnitId == baseUnitId.Value
-    };
+        var isBase = baseUnitId.HasValue && u.UnitId == baseUnitId.Value;
+        decimal? salePrice = null;
+        if (!isBase && effectivePrices != null)
+        {
+            if (effectivePrices.TryGetValue(new SkuUnitPriceKey(u.SkuId, u.UnitId), out var p))
+            {
+                salePrice = p.Price;
+            }
+        }
+
+        return new SkuUnitResponse
+        {
+            Id = u.Id,
+            SkuId = u.SkuId,
+            UnitId = u.UnitId,
+            UnitCode = u.Unit?.Code ?? string.Empty,
+            UnitName = u.Unit?.Name ?? string.Empty,
+            UnitSymbol = u.Unit?.Symbol ?? string.Empty,
+            MeasureGroup = u.Unit?.MeasureGroup ?? string.Empty,
+            FactorToBase = u.FactorToBase,
+            CanPurchase = u.CanPurchase,
+            CanSell = u.CanSell,
+            IsDefaultPurchase = u.IsDefaultPurchase,
+            IsDefaultSale = u.IsDefaultSale,
+            Barcode = u.Barcode,
+            QuantityDecimalPlaces = u.QuantityDecimalPlaces,
+            SalePrice = salePrice,
+            Version = u.Version,
+            IsActive = u.IsActive,
+            IsBase = isBase
+        };
+    }
 }

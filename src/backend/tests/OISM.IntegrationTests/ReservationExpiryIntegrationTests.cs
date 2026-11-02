@@ -172,6 +172,7 @@ public class ReservationExpiryIntegrationTests : IAsyncLifetime, IClassFixture<W
         var (context, tenantService) = CreatePostgresDbContext(tenantId);
         await using (context)
         {
+            await PriceSeed.SyncFromLegacyColumnsAsync(context);
             var supplier = await context.Suppliers.FirstAsync(s => s.TenantId == tenantId);
             var user = await context.Users.FirstAsync(u => u.TenantId == tenantId);
             var wacCalc = new WacCalculator();

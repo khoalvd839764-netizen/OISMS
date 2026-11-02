@@ -46,7 +46,9 @@ Các trường định danh bắt buộc bên trong Payload của JWT:
 | **Danh mục & Sản phẩm** | Thêm, sửa, xóa Danh mục phân cấp (`Category`) & Thương hiệu (`Brand`) | `FR-PROD-01` | ✅ Toàn quyền | ✅ Toàn quyền | 👁️ Chỉ xem |
 | **Danh mục & Sản phẩm** | Tạo, cập nhật Sản phẩm (`Product`) & Biến thể (`SKU`) | `FR-PROD-02` | ✅ Toàn quyền | ✅ Toàn quyền | 👁️ Chỉ tra cứu POS |
 | **Danh mục & Sản phẩm** | Sinh tự động / Cập nhật Mã vạch (`EAN-13`/`Code128`) | `FR-PROD-03` | ✅ Toàn quyền | ✅ Toàn quyền | 👁️ Chỉ quét mã |
-| **Danh mục & Sản phẩm** | Thiết lập / Cập nhật Giá bán lẻ & Giá bán sỉ theo SKU | `FR-PROD-04` | ✅ Toàn quyền | ✅ Toàn quyền | 👁️ Chỉ đọc giá bán |
+| **Danh mục & Sản phẩm** | Tạo phiếu đổi giá, xem phiếu và lịch sử giá | `FR-PROD-04`, `OISMS-47-U04` | ✅ Phiếu được duyệt ngay | ✅ Phiếu chờ `Owner` duyệt | ❌ Cấm (`403 Forbidden`) |
+| **Danh mục & Sản phẩm** | Duyệt, từ chối phiếu đổi giá; hủy giá đã lên lịch | `OISMS-47-U04` | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) | ❌ Cấm (`403 Forbidden`) |
+| **Danh mục & Sản phẩm** | Đọc bảng giá và giá hiệu lực | `OISMS-47-U04` | ✅ Mọi thời điểm | ✅ Mọi thời điểm | 👁️ Chỉ giá hiện tại |
 | **Danh mục & Sản phẩm** | Quản lý Đơn vị tính (`Unit`) & Quy cách SKU (`SkuUnit`) | `OISMS-47-U05` | ✅ Toàn quyền | ✅ Toàn quyền | 👁️ Chỉ xem (`GET`), trừ lịch sử hệ số |
 | **Kho & Sổ cái** | Xem lịch sử Sổ cái kho (`InventoryTransaction`) & Số dư tồn kho | `FR-INV-01` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (Chỉ xem `available` tại POS) |
 | **Kho & Sổ cái** | Tạo & Xác nhận Phiếu nhập hàng từ Nhà cung cấp (`Goods Receipt`) | `FR-INV-02` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |
@@ -59,6 +61,8 @@ Các trường định danh bắt buộc bên trong Payload của JWT:
 | **Báo cáo & AI** | Báo cáo Doanh thu thuần, Tổng giá vốn (`COGS`), Lợi nhuận gộp | `FR-REP-01` | ✅ Toàn quyền | ❌ Cấm xem lãi gộp | ❌ Cấm (`403 Forbidden`) |
 | **Báo cáo & AI** | Báo cáo Giá trị tồn kho, Hàng bán chạy/chậm & Cảnh báo tồn tối thiểu | `FR-REP-02..03` | ✅ Toàn quyền | ✅ Xem cảnh báo kho | ❌ Cấm (`403 Forbidden`) |
 | **Báo cáo & AI** | Xem dự báo nhu cầu AI & Gợi ý nhập lại hàng | `FR-AI-01` | ✅ Toàn quyền | ✅ Xem gợi ý nhập | ❌ Cấm (`403 Forbidden`) |
+
+> **Từ Upgrade 04:** không còn đường sửa giá trực tiếp, kể cả với `Owner`. Giá ban đầu trên form tạo SKU hoặc đơn vị cũng đi qua phiếu: của `Owner` có hiệu lực ngay, của `Staff` chờ duyệt. Vai trò lấy từ JWT, client không tự khai được. Xem [tài liệu 04](../Upgrade-recommended/04-bang-gia-theo-thoi-gian.md#phân-quyền).
 
 ---
 

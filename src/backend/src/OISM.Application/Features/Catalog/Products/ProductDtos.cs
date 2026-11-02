@@ -32,19 +32,13 @@ public class UpdateVariantRequest
     public string? SKU { get; set; }
     public string VariantName { get; set; } = string.Empty;
     public string? Barcode { get; set; }
-    public decimal RetailPrice { get; set; }
-    public decimal WholesalePrice { get; set; }
+    public decimal? RetailPrice { get; set; }
+    public decimal? WholesalePrice { get; set; }
     public string? Color { get; set; }
     public string? Size { get; set; }
     public Dictionary<string, object>? Attributes { get; set; }
     public Guid? BaseUnitId { get; set; }
     public bool IsActive { get; set; } = true;
-}
-
-public class UpdateVariantPricesRequest
-{
-    public decimal RetailPrice { get; set; }
-    public decimal WholesalePrice { get; set; }
 }
 
 public class UpdateProductRequest
@@ -76,8 +70,8 @@ public class ProductVariantResponse
     public string SKU { get; set; } = string.Empty;
     public string VariantName { get; set; } = string.Empty;
     public string? Barcode { get; set; }
-    public decimal RetailPrice { get; set; }
-    public decimal WholesalePrice { get; set; }
+    public decimal? RetailPrice { get; set; }
+    public decimal? WholesalePrice { get; set; }
     public decimal CostPrice { get; set; }
     public string? Color { get; set; }
     public string? Size { get; set; }
@@ -85,6 +79,7 @@ public class ProductVariantResponse
     public Guid? BaseUnitId { get; set; }
     public string? BaseUnitCode { get; set; }
     public string? BaseUnitName { get; set; }
+    public bool BaseUnitPriceMissing { get; set; }
     public List<SkuUnitResponse> Units { get; set; } = new();
     public bool IsActive { get; set; }
 }
@@ -161,14 +156,14 @@ public class UpdateVariantValidator : AbstractValidator<UpdateVariantRequest>
             .NotEmpty().WithMessage("Tên biến thể không được để trống.");
 
         RuleFor(x => x.RetailPrice)
-            .GreaterThanOrEqualTo(0).WithMessage("Giá bán lẻ không được là số âm.")
-            .LessThan(1_000_000_000_000_000_000m).WithMessage("Giá bán lẻ vượt quá giới hạn cho phép.")
-            .Must(val => decimal.Round(val, 2) == val).WithMessage("Giá bán lẻ tối đa 2 chữ số thập phân.");
+            .GreaterThanOrEqualTo(0).When(x => x.RetailPrice.HasValue).WithMessage("Giá bán lẻ không được là số âm.")
+            .LessThan(1_000_000_000_000_000_000m).When(x => x.RetailPrice.HasValue).WithMessage("Giá bán lẻ vượt quá giới hạn cho phép.")
+            .Must(val => !val.HasValue || decimal.Round(val.Value, 2) == val.Value).WithMessage("Giá bán lẻ tối đa 2 chữ số thập phân.");
 
         RuleFor(x => x.WholesalePrice)
-            .GreaterThanOrEqualTo(0).WithMessage("Giá bán buôn không được là số âm.")
-            .LessThan(1_000_000_000_000_000_000m).WithMessage("Giá bán buôn vượt quá giới hạn cho phép.")
-            .Must(val => decimal.Round(val, 2) == val).WithMessage("Giá bán buôn tối đa 2 chữ số thập phân.");
+            .GreaterThanOrEqualTo(0).When(x => x.WholesalePrice.HasValue).WithMessage("Giá bán buôn không được là số âm.")
+            .LessThan(1_000_000_000_000_000_000m).When(x => x.WholesalePrice.HasValue).WithMessage("Giá bán buôn vượt quá giới hạn cho phép.")
+            .Must(val => !val.HasValue || decimal.Round(val.Value, 2) == val.Value).WithMessage("Giá bán buôn tối đa 2 chữ số thập phân.");
 
         RuleFor(x => x.Barcode)
             .MaximumLength(128).WithMessage("Mã vạch không được vượt quá 128 ký tự.")
@@ -177,18 +172,3 @@ public class UpdateVariantValidator : AbstractValidator<UpdateVariantRequest>
     }
 }
 
-public class UpdateVariantPricesValidator : AbstractValidator<UpdateVariantPricesRequest>
-{
-    public UpdateVariantPricesValidator()
-    {
-        RuleFor(x => x.RetailPrice)
-            .GreaterThanOrEqualTo(0).WithMessage("Giá bán lẻ không được là số âm.")
-            .LessThan(1_000_000_000_000_000_000m).WithMessage("Giá bán lẻ vượt quá giới hạn cho phép.")
-            .Must(val => decimal.Round(val, 2) == val).WithMessage("Giá bán lẻ tối đa 2 chữ số thập phân.");
-
-        RuleFor(x => x.WholesalePrice)
-            .GreaterThanOrEqualTo(0).WithMessage("Giá bán buôn không được là số âm.")
-            .LessThan(1_000_000_000_000_000_000m).WithMessage("Giá bán buôn vượt quá giới hạn cho phép.")
-            .Must(val => decimal.Round(val, 2) == val).WithMessage("Giá bán buôn tối đa 2 chữ số thập phân.");
-    }
-}

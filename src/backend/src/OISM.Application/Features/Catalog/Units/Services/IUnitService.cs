@@ -1,3 +1,5 @@
+using OISM.Application.Features.Pricing.Dtos;
+
 namespace OISM.Application.Features.Catalog.Units.Services;
 
 public interface IUnitService
@@ -8,7 +10,7 @@ public interface IUnitService
     Task<UnitResponse> UpdateUnitAsync(Guid id, UpdateUnitRequest request, CancellationToken ct = default);
 
     Task<List<SkuUnitResponse>> GetSkuUnitsAsync(Guid productId, Guid variantId, CancellationToken ct = default);
-    Task<SkuUnitResponse> CreateSkuUnitAsync(Guid productId, Guid variantId, CreateSkuUnitRequest request, Guid? userId = null, CancellationToken ct = default);
+    Task<SkuUnitResponse> CreateSkuUnitAsync(Guid productId, Guid variantId, CreateSkuUnitRequest request, Guid? userId, PriceActor actor, CancellationToken ct = default);
     Task<SkuUnitResponse> UpdateSkuUnitAsync(Guid productId, Guid variantId, Guid skuUnitId, UpdateSkuUnitRequest request, Guid? userId = null, CancellationToken ct = default);
     Task DeleteSkuUnitAsync(Guid productId, Guid variantId, Guid skuUnitId, Guid? userId = null, CancellationToken ct = default);
     Task<List<SkuUnitFactorHistoryResponse>> GetSkuUnitHistoryAsync(Guid productId, Guid variantId, Guid skuUnitId, CancellationToken ct = default);

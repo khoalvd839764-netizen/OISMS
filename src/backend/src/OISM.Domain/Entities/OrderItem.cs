@@ -25,9 +25,13 @@ public class OrderItem : BaseEntity, IMustHaveTenant
     public decimal UnitPrice { get; set; }
     public decimal? CostPrice { get; set; }
 
+    public Guid? SkuUnitPriceId { get; set; }
+    public string PriceSource { get; set; } = "Legacy";
+
     // Navigation properties
     public Tenant? Tenant { get; set; }
     public Order? Order { get; set; }
     public ProductVariant? Sku { get; set; }
     public Unit? Unit { get; set; }
+    public SkuUnitPrice? SkuUnitPrice { get; set; }
 }

@@ -143,6 +143,7 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
             };
             context.ProductVariants.Add(sku2);
             await context.SaveChangesAsync();
+            await PriceSeed.SyncFromLegacyColumnsAsync(context);
 
             var skus = await context.ProductVariants.Where(v => v.TenantId == OismsDatabaseSeeder.TenantAId).OrderBy(v => v.SKU).Take(2).ToListAsync();
 
@@ -1046,6 +1047,7 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
             };
             initContext.ProductVariants.Add(sku2);
             await initContext.SaveChangesAsync();
+            await PriceSeed.SyncFromLegacyColumnsAsync(initContext);
 
             branchId = branch.Id;
             warehouseId = warehouse.Id;
@@ -1322,6 +1324,7 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
             };
             setupContext.ProductVariants.Add(sku2);
             await setupContext.SaveChangesAsync();
+            await PriceSeed.SyncFromLegacyColumnsAsync(setupContext);
 
             // 2. Tạo phiếu nhập nhiều dòng mới (SKU 1 nhập 20 cái @ 130.000 VNĐ, SKU 2 nhập 15 cái @ 80.000 VNĐ)
             var receiptToConfirm = await setupGrService.CreateReceiptAsync(new CreateGoodsReceiptDto

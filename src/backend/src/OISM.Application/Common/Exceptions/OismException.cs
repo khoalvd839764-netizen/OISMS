@@ -45,3 +45,56 @@ public class IdempotencyPayloadMismatchException : OismException
     {
     }
 }
+
+public class PriceValidFromInPastException : OismException
+{
+    public PriceValidFromInPastException(string message = "Thời điểm hiệu lực của phiếu đổi giá phải lớn hơn hoặc bằng thời điểm hiện tại.")
+        : base("PRICE_VALID_FROM_IN_PAST", message, 400)
+    {
+    }
+}
+
+public class PriceValidFromConflictException : OismException
+{
+    public PriceValidFromConflictException(string message = "Đã tồn tại giá có hiệu lực cùng mốc thời gian cho mặt hàng và đơn vị này.")
+        : base("PRICE_VALID_FROM_CONFLICT", message, 409)
+    {
+    }
+}
+
+public class PriceAlreadyEffectiveException : OismException
+{
+    public PriceAlreadyEffectiveException(string message = "Không thể hủy giá đã đến thời điểm hoặc đang có hiệu lực.")
+        : base("PRICE_ALREADY_EFFECTIVE", message, 409)
+    {
+    }
+}
+
+public class PriceListNotFoundException : OismException
+{
+    public PriceListNotFoundException(string code)
+        : base("PRICE_LIST_NOT_FOUND", $"Không tìm thấy bảng giá '{code}' trong cửa hàng.", 404)
+    {
+    }
+}
+
+public class DirectPriceUpdateNotAllowedException : OismException
+{
+    public DirectPriceUpdateNotAllowedException(string message = "Hệ thống đã nâng cấp sang bảng giá theo thời gian. Mọi thay đổi giá phải thông qua phiếu đổi giá.")
+        : base("DIRECT_PRICE_UPDATE_NOT_ALLOWED", message, 409)
+    {
+    }
+}
+
+public sealed record PriceMismatchItem(Guid SkuId, string SkuCode, Guid? UnitId, decimal CurrentPrice);
+
+public class PriceMismatchException : OismException
+{
+    public IReadOnlyList<PriceMismatchItem> CurrentPrices { get; }
+
+    public PriceMismatchException(string message, IReadOnlyList<PriceMismatchItem> currentPrices)
+        : base("PRICE_MISMATCH", message, 400)
+    {
+        CurrentPrices = currentPrices;
+    }
+}

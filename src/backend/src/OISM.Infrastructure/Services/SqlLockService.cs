@@ -68,4 +68,24 @@ public class SqlLockService : ISqlLockService
                 ct);
         }
     }
+
+    public async Task LockPriceChangeRequestAsync(Guid tenantId, Guid requestId, CancellationToken ct = default)
+    {
+        if (_context.Database.IsNpgsql())
+        {
+            await _context.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT id FROM price_change_requests WHERE id = {requestId} AND tenant_id = {tenantId} FOR UPDATE",
+                ct);
+        }
+    }
+
+    public async Task LockSkuUnitPriceAsync(Guid tenantId, Guid priceId, CancellationToken ct = default)
+    {
+        if (_context.Database.IsNpgsql())
+        {
+            await _context.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT id FROM sku_unit_prices WHERE id = {priceId} AND tenant_id = {tenantId} FOR UPDATE",
+                ct);
+        }
+    }
 }
