@@ -2,13 +2,6 @@
 
 Đợt thực hiện: 28–29/10/2026. Cập nhật chốt tài liệu: 29/10/2026. Checklist tổng: [checklist.md](../../checklist.md), mục 0A.
 
-## Kiểm tra sau tích hợp develop / POS mới
-
-- Backend và Admin được so sánh Git tree với `e3813da`: không đổi source/tests. Kết quả 443 backend và 13 frontend bên dưới được tái sử dụng, không nhận là vừa chạy lại.
-- POS riêng giữ nguyên source/tests/dependency của develop `8c53b7b` sau PR #24. Các probe POS riêng trong audit cũ không đại diện cho source mới.
-- Chạy mới build Admin và POS: **PASS**; POS `npm test`: **51 PASS**; B02 realtime/PWA: **24 PASS**; QR module: **10 PASS**. Log trong `evidence/release-integration/`. Lần B02 đầu sai cwd được giữ riêng, lần chạy đúng cwd đạt.
-- CI theo commit mới và browser/backend/PostgreSQL toàn luồng chưa được thay thế bằng kết quả test component này. Tổng hợp: [SPRINT-3-RELEASE.md](SPRINT-3-RELEASE.md).
-
 ## Đã thực hiện
 
 | Hạng mục | Kết quả hiện tại | Bằng chứng / giới hạn |
