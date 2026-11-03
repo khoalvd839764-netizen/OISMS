@@ -160,10 +160,11 @@ public class StockCountsController : ControllerBase
     }
 
     /// <summary>
-    /// Chốt đợt kiểm kê, đối soát sequence drift, tạo chứng từ điều chỉnh và hạch toán Sổ cái (Counting -> Confirmed).
+    /// Chốt đợt kiểm kê, đối soát sequence drift, tạo chứng từ điều chỉnh và hạch toán Sổ cái (PendingApproval -> Confirmed).
+    /// Chỉ Owner mới có quyền phê duyệt chốt kiểm kê.
     /// </summary>
     [HttpPost("{id:guid}/confirm")]
-    [Authorize(Roles = "Owner,Staff")]
+    [Authorize(Roles = "Owner")]
     public async Task<IActionResult> ConfirmStockCount(
         [FromRoute] Guid id,
         [FromBody] ConfirmStockCountRequestDto? dto,
@@ -184,6 +185,120 @@ public class StockCountsController : ControllerBase
         {
             var userId = GetCurrentUserId() ?? Guid.Empty;
             var result = await _stockCountService.ConfirmStockCountAsync(id, dto ?? new ConfirmStockCountRequestDto(), userId, ct);
+            return Ok(result);
+        }
+        catch (OismException ex)
+        {
+            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Nộp đợt kiểm kê để trình duyệt (Counting -> PendingApproval).
+    /// </summary>
+    [HttpPost("{id:guid}/submit")]
+    [Authorize(Roles = "Owner,Staff")]
+    public async Task<IActionResult> SubmitStockCount(
+        [FromRoute] Guid id,
+        [FromBody] SubmitStockCountRequestDto? dto,
+        CancellationToken ct)
+    {
+        if (id == Guid.Empty)
+        {
+            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã đợt kiểm kê không được để trống (Guid.Empty).");
+        }
+
+        if (!ModelState.IsValid)
+        {
+            var firstError = ModelState.Values.SelectMany(v => v.Errors).FirstOrDefault()?.ErrorMessage ?? "Dữ liệu yêu cầu không hợp lệ.";
+            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, firstError);
+        }
+
+        try
+        {
+            var userId = GetCurrentUserId() ?? Guid.Empty;
+            var result = await _stockCountService.SubmitStockCountAsync(id, dto ?? new SubmitStockCountRequestDto(), userId, ct);
+            return Ok(result);
+        }
+        catch (OismException ex)
+        {
+            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Nhân viên cập nhật số lượng đếm lại cho các SKU bị lệch sequence (PendingApproval -> Counting).
+    /// </summary>
+    [HttpPost("{id:guid}/recount")]
+    [Authorize(Roles = "Owner,Staff")]
+    public async Task<IActionResult> RecountDrifted(
+        [FromRoute] Guid id,
+        [FromBody] RecountStockCountRequestDto dto,
+        CancellationToken ct)
+    {
+        if (id == Guid.Empty)
+        {
+            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã đợt kiểm kê không được để trống (Guid.Empty).");
+        }
+
+        if (dto == null)
+        {
+            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Dữ liệu yêu cầu không được để trống.");
+        }
+
+        if (dto.SkuIds == null || dto.SkuIds.Count == 0)
+        {
+            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Danh sách SKU kiểm đếm lại không được rỗng.");
+        }
+
+        if (!ModelState.IsValid)
+        {
+            var firstError = ModelState.Values.SelectMany(v => v.Errors).FirstOrDefault()?.ErrorMessage ?? "Dữ liệu yêu cầu không hợp lệ.";
+            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, firstError);
+        }
+
+        try
+        {
+            var userId = GetCurrentUserId() ?? Guid.Empty;
+            var result = await _stockCountService.RecountDriftedAsync(id, dto, userId, ct);
+            return Ok(result);
+        }
+        catch (OismException ex)
+        {
+            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Owner yêu cầu đếm lại các SKU bị lệch sequence (PendingApproval -> PendingApproval).
+    /// </summary>
+    [HttpPost("{id:guid}/request-recount")]
+    [Authorize(Roles = "Owner")]
+    public async Task<IActionResult> RequestRecount(
+        [FromRoute] Guid id,
+        [FromBody] RequestRecountRequestDto dto,
+        CancellationToken ct)
+    {
+        if (id == Guid.Empty)
+        {
+            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã đợt kiểm kê không được để trống (Guid.Empty).");
+        }
+
+        if (dto == null)
+        {
+            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Dữ liệu yêu cầu không được để trống.");
+        }
+
+        if (!ModelState.IsValid)
+        {
+            var firstError = ModelState.Values.SelectMany(v => v.Errors).FirstOrDefault()?.ErrorMessage ?? "Dữ liệu yêu cầu không hợp lệ.";
+            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, firstError);
+        }
+
+        try
+        {
+            var userId = GetCurrentUserId() ?? Guid.Empty;
+            var result = await _stockCountService.RequestRecountAsync(id, dto, userId, ct);
             return Ok(result);
         }
         catch (OismException ex)
@@ -251,6 +366,10 @@ public class StockCountsController : ControllerBase
         "IDEMPOTENCY_PAYLOAD_MISMATCH" => "Xung đột khóa Idempotency",
         "STOCK_COUNT_DRIFT_DETECTED" => "Sai lệch sequence kiểm kê (drift)",
         "STOCK_COUNT_SEQUENCE_DRIFT" => "Sai lệch sequence kiểm kê",
+        "STOCK_COUNT_SELF_APPROVAL" => "Không được tự duyệt phiếu kiểm kê",
+        "STOCK_COUNT_APPROVAL_REASON_REQUIRED" => "Bắt buộc nhập lý do duyệt",
+        "STOCK_COUNT_SKU_NOT_DRIFTED" => "Sản phẩm không bị lệch sequence",
+        "STOCK_COUNT_SCHEDULE_DUPLICATE" => "Lịch kiểm kê bị trùng lặp",
         "EMPTY_WAREHOUSE_STOCK_COUNT" => "Kho không có sản phẩm để kiểm kê",
         "INVALID_COUNT_ITEM" => "Sản phẩm kiểm đếm không hợp lệ",
         "INCOMPLETE_STOCK_COUNT" => "Chưa kiểm đếm đủ sản phẩm",

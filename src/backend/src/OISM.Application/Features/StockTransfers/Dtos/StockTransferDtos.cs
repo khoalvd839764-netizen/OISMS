@@ -84,6 +84,7 @@ public class StockTransferResponseDto
     public string? ToWarehouseName { get; set; }
     public string Status { get; set; } = "Draft"; // 'Draft', 'InTransit', 'Received', 'Cancelled'
     public Guid CreatedBy { get; set; }
+    public Guid? DispatchedBy { get; set; }
     public DateTimeOffset? DispatchedAt { get; set; }
     public DateTimeOffset? ReceivedAt { get; set; }
     public Guid? ReceivedBy { get; set; }

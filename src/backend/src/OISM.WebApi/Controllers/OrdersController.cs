@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Features.Orders.Dtos;
 using OISM.Application.Features.Orders.Services;
+using OISM.Application.Features.SalesInvoices.Services;
 
 namespace OISM.WebApi.Controllers;
 
@@ -18,13 +19,16 @@ public class OrdersController : ControllerBase
 {
     private readonly IPosCheckoutService _posCheckoutService;
     private readonly IOrderService _orderService;
+    private readonly ISalesInvoiceService _salesInvoiceService;
 
     public OrdersController(
         IPosCheckoutService posCheckoutService,
-        IOrderService orderService)
+        IOrderService orderService,
+        ISalesInvoiceService salesInvoiceService)
     {
         _posCheckoutService = posCheckoutService;
         _orderService = orderService;
+        _salesInvoiceService = salesInvoiceService;
     }
 
     private Guid? GetCurrentUserId()
@@ -61,6 +65,29 @@ public class OrdersController : ControllerBase
             return NotFound(new { message = $"Không tìm thấy Đơn hàng với ID '{id}'." });
         }
         return Ok(order);
+    }
+
+    /// <summary>
+    /// Truy vết toàn bộ chuỗi chứng từ và dòng sổ kho bắt đầu từ đơn hàng.
+    /// </summary>
+    [HttpGet("{id:guid}/trace")]
+    [Authorize(Roles = "Owner,Staff")]
+    public async Task<IActionResult> TraceById(Guid id, CancellationToken ct)
+    {
+        if (id == Guid.Empty)
+        {
+            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã đơn hàng không được để trống.");
+        }
+
+        try
+        {
+            var trace = await _salesInvoiceService.TraceByOrderIdAsync(id, ct);
+            return Ok(trace);
+        }
+        catch (OismException ex)
+        {
+            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
+        }
     }
 
     /// <summary>
@@ -129,6 +156,24 @@ public class OrdersController : ControllerBase
             }
 
             return StatusCode(StatusCodes.Status201Created, result);
+        }
+        catch (PriceMismatchException ex)
+        {
+            var problem = new ProblemDetails
+            {
+                Type = $"https://oisms.local/errors/{ex.ErrorCode}",
+                Title = GetTitleForErrorCode(ex.ErrorCode),
+                Status = ex.StatusCode,
+                Detail = ex.Message,
+                Instance = HttpContext.Request.Path.Value ?? string.Empty,
+                Extensions =
+                {
+                    ["errorCode"] = ex.ErrorCode,
+                    ["currentPrices"] = ex.CurrentPrices,
+                    ["timestamp"] = DateTimeOffset.UtcNow
+                }
+            };
+            return StatusCode(ex.StatusCode, problem);
         }
         catch (OismException ex)
         {

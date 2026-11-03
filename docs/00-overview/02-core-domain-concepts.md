@@ -76,6 +76,8 @@ Ngay tại thời điểm xác nhận Phiếu nhập hàng từ Nhà cung cấp 
 
 $$\text{NewCost} = \frac{(\text{OldStock} \times \text{OldCost}) + (\text{ImportQty} \times \text{ImportPrice})}{\text{OldStock} + \text{ImportQty}}$$
 
+> **Nhiều đơn vị tính (Upgrade 05):** tồn và WAC luôn theo đơn vị gốc của SKU. Dòng chứng từ giữ `Quantity`, `UnitPrice` theo đơn vị giao dịch và chụp `FactorSnapshot`; `BaseQuantity = Quantity × FactorSnapshot`. Khi nhập, giá vốn đưa vào công thức là `UnitPrice / FactorSnapshot`. Giữ chỗ, xuất kho và giá vốn hàng bán dùng `BaseQuantity`; thành tiền dùng `Quantity × UnitPrice`. Chi tiết: [tài liệu 05](../Upgrade-recommended/05-nhieu-don-vi-tinh.md).
+
 ### 4.2. Chụp giá vốn tại thời điểm xuất bán (`FR-COST-02`)
 - Khi một đơn hàng chuyển sang trạng thái **Confirmed** hoặc được **thanh toán tại quầy POS**, hệ thống chụp (snapshot) chính xác giá vốn bình quân hiện hành của SKU vào trường `OrderItem.CostPrice`.
 - **Bảo toàn lịch sử lợi nhuận:** Các lần nhập hàng sau làm thay đổi giá vốn hiện tại sẽ **không bao giờ** làm sai lệch giá vốn và lợi nhuận gộp của các đơn hàng đã bán trong quá khứ.

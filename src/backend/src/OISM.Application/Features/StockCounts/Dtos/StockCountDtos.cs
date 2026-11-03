@@ -23,6 +23,11 @@ public class CreateStockCountRequestDto
     /// </summary>
     public List<Guid>? SkuIds { get; set; }
 
+    /// <summary>
+    /// Lý do kiểm kê đột xuất (bắt buộc khi tạo phiếu kiểm kê trực tiếp/đột xuất).
+    /// </summary>
+    public string? Reason { get; set; }
+
     public string? Note { get; set; }
 }
 
@@ -78,6 +83,10 @@ public class StockCountItemResponseDto
     public decimal? DifferenceQuantity => CountedQuantity.HasValue ? CountedQuantity.Value - ExpectedQuantity : null;
     public long BalanceSequenceAtSnapshot { get; set; }
     public decimal? AdjustmentUnitCost { get; set; }
+    public Guid? CountedBy { get; set; }
+    public DateTimeOffset? CountedAt { get; set; }
+    public DateTimeOffset? SnapshotAt { get; set; }
+    public bool IsDrifted { get; set; }
 }
 
 public class StockCountResponseDto
@@ -89,7 +98,12 @@ public class StockCountResponseDto
     public string? BranchName { get; set; }
     public Guid WarehouseId { get; set; }
     public string? WarehouseName { get; set; }
-    public string Status { get; set; } = "Draft"; // 'Draft', 'Counting', 'Confirmed', 'Cancelled'
+    public string Status { get; set; } = "Draft"; // 'Draft', 'Counting', 'PendingApproval', 'Confirmed', 'Cancelled'
+    public string CountType { get; set; } = "AdHoc";
+    public string? AdHocReason { get; set; }
+    public Guid? PeriodId { get; set; }
+    public Guid? SubmittedBy { get; set; }
+    public DateTimeOffset? SubmittedAt { get; set; }
     public Guid CreatedBy { get; set; }
     public Guid? ConfirmedBy { get; set; }
     public DateTimeOffset? ConfirmedAt { get; set; }
@@ -99,6 +113,7 @@ public class StockCountResponseDto
     public Guid? GeneratedAdjustmentId { get; set; }
     public bool IsReplay { get; set; }
     public List<StockCountItemResponseDto> Items { get; set; } = new();
+    public List<StockCountApprovalResponseDto>? Approvals { get; set; }
 }
 
 public class StockCountFilterRequestDto
@@ -108,4 +123,51 @@ public class StockCountFilterRequestDto
     public string? Status { get; set; }
     public int PageNumber { get; set; } = 1;
     public int PageSize { get; set; } = 20;
+}
+
+public class SubmitStockCountRequestDto
+{
+    public string? Note { get; set; }
+}
+
+public class RecountDriftedRequestDto
+{
+    [Required(ErrorMessage = "Danh sách SKU kiểm đếm lại là bắt buộc.")]
+    [MinLength(1, ErrorMessage = "Cần ít nhất 1 SKU để kiểm đếm lại.")]
+    public List<Guid> SkuIds { get; set; } = new();
+}
+
+public class RecountStockCountRequestDto : RecountDriftedRequestDto
+{
+}
+
+public class RequestRecountRequestDto
+{
+    [Required(ErrorMessage = "Danh sách SKU yêu cầu kiểm đếm lại là bắt buộc.")]
+    [MinLength(1, ErrorMessage = "Cần ít nhất 1 SKU để yêu cầu kiểm đếm lại.")]
+    public List<Guid> SkuIds { get; set; } = new();
+
+    [Required(ErrorMessage = "Lý do yêu cầu kiểm đếm lại là bắt buộc.")]
+    public string Reason { get; set; } = string.Empty;
+}
+
+public class StockCountDifferenceEntry
+{
+    public Guid SkuId { get; set; }
+    public string SkuCode { get; set; } = string.Empty;
+    public decimal ExpectedQuantity { get; set; }
+    public decimal? CountedQuantity { get; set; }
+    public decimal? Delta => CountedQuantity.HasValue ? CountedQuantity.Value - ExpectedQuantity : null;
+}
+
+public class StockCountApprovalResponseDto
+{
+    public Guid Id { get; set; }
+    public Guid StockCountId { get; set; }
+    public string Action { get; set; } = string.Empty;
+    public Guid ActorUserId { get; set; }
+    public string? ActorName { get; set; }
+    public string? Reason { get; set; }
+    public List<StockCountDifferenceEntry> Differences { get; set; } = new();
+    public DateTimeOffset CreatedAt { get; set; }
 }

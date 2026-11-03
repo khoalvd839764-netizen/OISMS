@@ -16,9 +16,15 @@ public class StockCount : BaseEntity, IMustHaveTenant
     public Guid WarehouseId { get; set; }
 
     /// <summary>
-    /// Trạng thái kiểm kê: 'Draft', 'Counting', 'Confirmed', 'Cancelled'.
+    /// Trạng thái kiểm kê: 'Draft', 'Counting', 'PendingApproval', 'Confirmed', 'Cancelled'.
     /// </summary>
     public string Status { get; set; } = "Draft";
+
+    public string CountType { get; set; } = "AdHoc";
+    public string? AdHocReason { get; set; }
+    public Guid? PeriodId { get; set; }
+    public Guid? SubmittedBy { get; set; }
+    public DateTimeOffset? SubmittedAt { get; set; }
 
     public Guid CreatedBy { get; set; }
     public Guid? ConfirmedBy { get; set; }
@@ -30,9 +36,12 @@ public class StockCount : BaseEntity, IMustHaveTenant
     public Tenant? Tenant { get; set; }
     public Branch? Branch { get; set; }
     public Warehouse? Warehouse { get; set; }
+    public StockCountPeriod? Period { get; set; }
+    public User? SubmittedByUser { get; set; }
     public User? CreatedByUser { get; set; }
     public User? ConfirmedByUser { get; set; }
     public InventoryAdjustment? GeneratedAdjustment { get; set; }
 
     public ICollection<StockCountItem> Items { get; set; } = new List<StockCountItem>();
+    public ICollection<StockCountApproval> Approvals { get; set; } = new List<StockCountApproval>();
 }

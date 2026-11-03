@@ -38,6 +38,44 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   onPreviewReceipt,
 }) => {
   const submittingRef = useRef(false);
+  // [BF-003] Request key ổn định gắn với snapshot (chi nhánh + thu ngân + giỏ hàng), lưu qua đóng/mở và reload
+  const cartSignature = JSON.stringify({
+    branchId,
+    cashierName,
+    items: items.map((i) => ({ skuId: i.variantId, qty: i.quantity, price: i.retailPrice })),
+  });
+  const checkoutIntentRef = useRef<{ signature: string; key: string } | null>(null);
+
+  const getOrCreateRequestKey = (): string => {
+    if (checkoutIntentRef.current && checkoutIntentRef.current.signature === cartSignature) {
+      return checkoutIntentRef.current.key;
+    }
+    const storageKey = `oism_pos_intent_${branchId || 'default'}`;
+    try {
+      const savedRaw = sessionStorage.getItem(storageKey);
+      if (savedRaw) {
+        const saved = JSON.parse(savedRaw);
+        if (saved && saved.signature === cartSignature && saved.key) {
+          checkoutIntentRef.current = { signature: cartSignature, key: saved.key };
+          return saved.key;
+        }
+      }
+    } catch {}
+    const freshKey = crypto.randomUUID ? crypto.randomUUID() : `req-${Date.now()}`;
+    checkoutIntentRef.current = { signature: cartSignature, key: freshKey };
+    try {
+      sessionStorage.setItem(storageKey, JSON.stringify({ signature: cartSignature, key: freshKey }));
+    } catch {}
+    return freshKey;
+  };
+
+  const clearRequestKey = () => {
+    checkoutIntentRef.current = null;
+    try {
+      sessionStorage.removeItem(`oism_pos_intent_${branchId || 'default'}`);
+    } catch {}
+  };
+
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'BANK_TRANSFER_QR'>('CASH');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -83,6 +121,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     setApiNotice(null);
 
     const orderNumber = `ORD-POS-${Date.now().toString().slice(-6)}`;
+    const currentRequestKey = getOrCreateRequestKey();
     const checkoutRequest: PosCheckoutRequest = {
       branchId: branchId || '00000000-0000-0000-0000-000000000000',
       channel: 'POS',
@@ -91,7 +130,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       paymentMethod,
       amountGiven: paymentMethod === 'CASH' ? amountGiven : totalAmount,
       changeDue: paymentMethod === 'CASH' ? changeDue : 0,
-      requestKey: crypto.randomUUID ? crypto.randomUUID() : `req-${Date.now()}`,
+      requestKey: currentRequestKey,
       items: items.map((i) => ({
         skuId: i.variantId,
         skuCode: i.sku,
@@ -131,15 +170,17 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     try {
       const result = await checkoutPosOrder(checkoutRequest);
 
-      if (result.success) {
-        receiptData.receiptNumber = result.orderNumber || orderNumber;
+      // [BF-019] Chỉ xác nhận thành công khi server trả về mã đơn hàng hợp lệ
+      if (result.success && result.orderNumber) {
+        clearRequestKey();
+        receiptData.receiptNumber = result.orderNumber;
         onSuccessAndPrint(receiptData);
         onClose();
       } else {
         // Checkout thất bại hoặc API chưa sẵn sàng: Giữ nguyên giỏ hàng, thông báo rõ ràng
         setApiNotice({
-          type: 'warning',
-          text: result.message,
+          type: result.isPendingBackend ? 'warning' : 'error',
+          text: result.message || 'Thanh toán không thành công. Giỏ hàng được bảo lưu.',
           details: checkoutRequest,
         });
       }

@@ -21,16 +21,21 @@ type RetriableRequest = InternalAxiosRequestConfig & { _retry?: boolean };
 // - failedQueue: các request 401 đến sau sẽ xếp hàng chờ newAccessToken rồi tự động gửi lại.
 let isRefreshing = false;
 let failedQueue: Array<{
+  generation: number;
   resolve: (token: string) => void;
   reject: (error: unknown) => void;
 }> = [];
 
-function processQueue(error: unknown, token: string | null = null) {
+// [BF-001] Quản lý generation phiên và chuỗi token thuộc cùng một phiên đăng nhập
+let currentAuthGeneration = 0;
+const sessionPreviousTokens = new Set<string>();
+
+function processQueue(error: unknown, token: string | null = null, targetGen = currentAuthGeneration) {
   const queue = failedQueue;
   failedQueue = [];
   queue.forEach((prom) => {
-    if (error || !token) {
-      prom.reject(error ?? new Error('Không nhận được access token mới.'));
+    if (error || !token || prom.generation !== targetGen) {
+      prom.reject(error ?? new Error('Phiên làm việc đã thay đổi hoặc không nhận được access token mới.'));
     } else {
       prom.resolve(token);
     }
@@ -66,6 +71,14 @@ export function clearSessionOrdersStorage() {
 
 /** Xóa toàn bộ token + dữ liệu phiên (dùng chung cho logout / refresh thất bại). */
 export function clearAuthSession() {
+  currentAuthGeneration++;
+  sessionPreviousTokens.clear();
+  isRefreshing = false;
+  failedQueue.forEach((prom) => {
+    prom.reject(new Error('Phiên làm việc đã kết thúc.'));
+  });
+  failedQueue = [];
+
   localStorage.removeItem(ACCESS_TOKEN_KEY);
   localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(TENANT_ID_KEY);
@@ -94,32 +107,55 @@ export function setAuthHeader(config: InternalAxiosRequestConfig, token: string)
 }
 
 /**
- * [A06] Làm mới access token với khóa đơn (single-flight).
- * Nếu đang có một lượt refresh chạy, lời gọi sau chỉ xếp hàng chờ kết quả, KHÔNG gửi thêm request
- * refresh thứ hai (tránh làm hỏng cơ chế Rotation nguyên tử của Backend).
+ * [A06, BF-001] Làm mới access token với khóa đơn (single-flight) và ràng buộc chủ sở hữu phiên.
+ * Nếu đang có một lượt refresh chạy, lời gọi sau chỉ xếp hàng chờ kết quả.
+ * Nếu phiên đăng nhập đổi sang tài khoản khác trước khi refresh cũ trả về, hủy bỏ token cũ.
  */
 export function refreshAccessToken(): Promise<string> {
-  if (isRefreshing) {
-    return new Promise<string>((resolve, reject) => {
-      failedQueue.push({ resolve, reject });
-    });
-  }
-
   const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+  const currentAccess = localStorage.getItem(ACCESS_TOKEN_KEY);
   if (!refreshToken) {
     return Promise.reject(new Error('Không có refresh token.'));
   }
 
+  if (isRefreshing) {
+    const queueGen = currentAuthGeneration;
+    return new Promise<string>((resolve, reject) => {
+      failedQueue.push({ generation: queueGen, resolve, reject });
+    });
+  }
+
+  const startGeneration = currentAuthGeneration;
+  const startRefreshToken = refreshToken;
+  const startAccessToken = currentAccess;
   isRefreshing = true;
 
   return (async () => {
     try {
       // Dùng axios gốc (không qua interceptor) để tránh vòng lặp 401 vô hạn
-      const res = await axios.post(`${API_BASE_URL}/api/auth/refresh-token`, { refreshToken }, { timeout: 15000 });
+      const res = await axios.post(`${API_BASE_URL}/api/auth/refresh-token`, { refreshToken: startRefreshToken }, { timeout: 15000 });
+
+      // [BF-001] Kiểm tra xem phiên có bị đổi (logout/login tài khoản khác) trong lúc request đang gửi không
+      const latestRefreshAfter = localStorage.getItem(REFRESH_TOKEN_KEY);
+      const latestAccessAfter = localStorage.getItem(ACCESS_TOKEN_KEY);
+      if (
+        startGeneration !== currentAuthGeneration ||
+        latestRefreshAfter !== startRefreshToken ||
+        (startAccessToken && latestAccessAfter && latestAccessAfter !== startAccessToken)
+      ) {
+        const staleErr: any = new Error('Phiên đăng nhập đã thay đổi trong lúc làm mới token. Bỏ qua token cũ.');
+        staleErr.isStaleSession = true;
+        throw staleErr;
+      }
+
       const newAccessToken: string | undefined = res.data?.accessToken;
       const newRefreshToken: string | undefined = res.data?.refreshToken;
       if (!newAccessToken) {
         throw new Error('Phản hồi refresh-token không chứa accessToken.');
+      }
+
+      if (startAccessToken) {
+        sessionPreviousTokens.add(startAccessToken);
       }
 
       localStorage.setItem(ACCESS_TOKEN_KEY, newAccessToken);
@@ -128,19 +164,22 @@ export function refreshAccessToken(): Promise<string> {
       }
       httpClient.defaults.headers.common.Authorization = `Bearer ${newAccessToken}`;
 
-      processQueue(null, newAccessToken);
+      processQueue(null, newAccessToken, startGeneration);
       return newAccessToken;
-    } catch (refreshErr) {
-      // Trường hợp tab khác đã xoay vòng (rotate) token thành công trong lúc tab này đang refresh:
-      // refresh token trong localStorage đã đổi → dùng luôn access token mới thay vì đăng xuất người dùng.
-      const latestRefresh = localStorage.getItem(REFRESH_TOKEN_KEY);
-      const latestAccess = localStorage.getItem(ACCESS_TOKEN_KEY);
-      if (latestRefresh && latestRefresh !== refreshToken && latestAccess) {
-        processQueue(null, latestAccess);
-        return latestAccess;
+    } catch (refreshErr: any) {
+      if (
+        refreshErr?.isStaleSession ||
+        startGeneration !== currentAuthGeneration ||
+        localStorage.getItem(REFRESH_TOKEN_KEY) !== startRefreshToken
+      ) {
+        if (refreshErr && typeof refreshErr === 'object') {
+          refreshErr.isStaleSession = true;
+        }
+        processQueue(refreshErr, null, startGeneration);
+        throw refreshErr;
       }
 
-      processQueue(refreshErr, null);
+      processQueue(refreshErr, null, startGeneration);
       throw refreshErr;
     } finally {
       isRefreshing = false;
@@ -195,24 +234,40 @@ httpClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    // [A06] Lỗi 401: Token hết hạn -> Tự động Refresh Token có hàng đợi chống Race Condition
+    // [A06, BF-001] Lỗi 401: Token hết hạn -> Tự động Refresh Token có hàng đợi chống Race Condition
     if (error.response.status === 401 && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true;
 
       // 1. Request này được gửi bằng token cũ nhưng một lượt refresh khác đã hoàn tất trước đó
-      // → chỉ cần gửi lại với access token hiện tại, KHÔNG refresh thêm lần nữa.
       const usedToken = extractBearer(originalRequest);
       const currentToken = localStorage.getItem(ACCESS_TOKEN_KEY);
-      if (!isRefreshing && currentToken && usedToken && usedToken !== currentToken) {
+      if (usedToken && currentToken && usedToken !== currentToken) {
+        // [BF-001 Kịch bản 2] Kiểm tra chủ sở hữu ý định:
+        // Nếu usedToken không thuộc chuỗi token của cùng phiên đăng nhập (ví dụ: người dùng A gửi request,
+        // sau đó người dùng B đăng nhập), TUYỆT ĐỐI KHÔNG replay mutation hay request của A bằng token B.
+        const isSameSession = sessionPreviousTokens.has(usedToken);
+        if (!isSameSession) {
+          return Promise.reject(
+            new Error('Yêu cầu thuộc về phiên đăng nhập trước đó đã kết thúc. Từ chối gửi lại tự động.')
+          );
+        }
+
         setAuthHeader(originalRequest, currentToken);
         return httpClient(originalRequest);
       }
 
       // 2. Nếu đang có một lượt refresh token chạy: đưa vào failedQueue xếp hàng chờ token mới
+      const reqGeneration = currentAuthGeneration;
+      const reqRefreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({
+            generation: reqGeneration,
             resolve: (token: string) => {
+              if (reqGeneration !== currentAuthGeneration) {
+                reject(new Error('Phiên làm việc đã thay đổi.'));
+                return;
+              }
               setAuthHeader(originalRequest, token);
               resolve(httpClient(originalRequest));
             },
@@ -223,7 +278,7 @@ httpClient.interceptors.response.use(
         });
       }
 
-      if (!localStorage.getItem(REFRESH_TOKEN_KEY)) {
+      if (!reqRefreshToken) {
         clearAuthSession();
         if (window.location.pathname !== '/login') {
           window.location.href = '/login';
@@ -233,12 +288,22 @@ httpClient.interceptors.response.use(
 
       try {
         const newToken = await refreshAccessToken();
+        if (reqGeneration !== currentAuthGeneration) {
+          return Promise.reject(new Error('Phiên làm việc đã thay đổi.'));
+        }
         setAuthHeader(originalRequest, newToken);
         return httpClient(originalRequest);
-      } catch (refreshErr) {
-        clearAuthSession();
-        if (window.location.pathname !== '/session-expired') {
-          window.location.href = '/session-expired';
+      } catch (refreshErr: any) {
+        // [BF-001] Chỉ xóa phiên khi lỗi thuộc đúng phiên hiện tại (không xóa nhầm phiên mới B vừa đăng nhập)
+        if (
+          !refreshErr?.isStaleSession &&
+          reqGeneration === currentAuthGeneration &&
+          localStorage.getItem(REFRESH_TOKEN_KEY) === reqRefreshToken
+        ) {
+          clearAuthSession();
+          if (window.location.pathname !== '/session-expired') {
+            window.location.href = '/session-expired';
+          }
         }
         return Promise.reject(refreshErr);
       }

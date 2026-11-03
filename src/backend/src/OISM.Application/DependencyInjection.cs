@@ -4,10 +4,14 @@ using OISM.Application.Features.Branches.Services;
 using OISM.Application.Features.Catalog.Brands.Services;
 using OISM.Application.Features.Catalog.Categories.Services;
 using OISM.Application.Features.Catalog.Products.Services;
+using OISM.Application.Features.Catalog.Units.Services;
 using OISM.Application.Features.Inventory.Services;
 using OISM.Application.Features.Orders.Services;
 using OISM.Application.Features.Pos;
+using OISM.Application.Features.Pricing.Services;
+using OISM.Application.Features.PurchaseOrders.Services;
 using OISM.Application.Features.Reports.Services;
+using OISM.Application.Features.SalesInvoices.Services;
 using OISM.Application.Features.Simulator.Services;
 using OISM.Application.Features.StockCounts.Services;
 using OISM.Application.Features.StockTransfers.Services;
@@ -34,6 +38,7 @@ public static class DependencyInjection
         services.AddScoped<ISimulatorService, SimulatorService>();
         services.AddScoped<IStockTransferService, StockTransferService>();
         services.AddScoped<IStockCountService, StockCountService>();
+        services.AddScoped<IStockCountScheduleService, StockCountScheduleService>();
         services.AddScoped<IWebhookService, WebhookService>();
 
         // Catalog & Management services
@@ -42,9 +47,21 @@ public static class DependencyInjection
         services.AddScoped<IBranchService, BranchService>();
         services.AddScoped<ICategoryService, CategoryService>();
         services.AddScoped<IProductService, ProductService>();
+        services.AddScoped<IUnitService, UnitService>();
         services.AddScoped<ISupplierService, SupplierService>();
         services.AddScoped<IWarehouseService, WarehouseService>();
         services.AddScoped<IPosCatalogService, PosCatalogService>();
+
+        // Pricing services
+        services.AddScoped<ISkuPriceResolver, SkuPriceResolver>();
+        services.AddScoped<IPriceChangeService, PriceChangeService>();
+        services.AddScoped<IPriceQueryService, PriceQueryService>();
+
+        // Purchase Order services
+        services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
+
+        // Sales Invoice services
+        services.AddScoped<ISalesInvoiceService, SalesInvoiceService>();
 
         return services;
     }

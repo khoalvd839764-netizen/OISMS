@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
+using OISM.Application.Features.Pricing.Dtos;
+using OISM.Application.Features.Pricing.Services;
+using OISM.Domain.Entities;
 
 namespace OISM.Application.Features.Pos;
 
@@ -10,10 +13,12 @@ namespace OISM.Application.Features.Pos;
 public class PosCatalogService : IPosCatalogService
 {
     private readonly IAppDbContext _context;
+    private readonly ISkuPriceResolver _skuPriceResolver;
 
-    public PosCatalogService(IAppDbContext context)
+    public PosCatalogService(IAppDbContext context, ISkuPriceResolver? skuPriceResolver = null)
     {
         _context = context;
+        _skuPriceResolver = skuPriceResolver ?? new SkuPriceResolver(context);
     }
 
     public async Task<List<PosProductSearchResponse>> SearchAsync(string query, Guid? branchId, CancellationToken ct = default)
@@ -37,10 +42,13 @@ public class PosCatalogService : IPosCatalogService
         var variants = await _context.ProductVariants
             .AsNoTracking()
             .Include(v => v.Product)
+            .Include(v => v.SkuUnits)
+                .ThenInclude(u => u.Unit)
             .Where(v => v.IsActive && v.Product != null && v.Product.IsActive &&
                        (v.SKU.ToLower().Contains(keyword) ||
                         v.Product.Name.ToLower().Contains(keyword) ||
-                        (v.Barcode != null && v.Barcode.ToLower().Contains(keyword))))
+                        (v.Barcode != null && v.Barcode.ToLower().Contains(keyword)) ||
+                        v.SkuUnits.Any(u => u.IsActive && u.CanSell && u.Barcode != null && u.Barcode.ToLower().Contains(keyword))))
             .Take(20)
             .ToListAsync(ct);
 
@@ -57,6 +65,21 @@ public class PosCatalogService : IPosCatalogService
 
             stockMap = balances.ToDictionary(b => b.SkuId, b => (b.OnHand, b.Reserved));
         }
+
+        var priceKeys = new HashSet<SkuUnitPriceKey>();
+        foreach (var v in variants)
+        {
+            if (v.BaseUnitId.HasValue)
+            {
+                priceKeys.Add(new SkuUnitPriceKey(v.Id, v.BaseUnitId.Value));
+            }
+            foreach (var u in v.SkuUnits.Where(u => u.IsActive && u.CanSell))
+            {
+                priceKeys.Add(new SkuUnitPriceKey(v.Id, u.UnitId));
+            }
+        }
+
+        var retailPrices = await _skuPriceResolver.ResolveAsync("retail", priceKeys, DateTimeOffset.UtcNow, ct);
 
         return variants.Select(v =>
         {
@@ -80,6 +103,10 @@ public class PosCatalogService : IPosCatalogService
                 }
             }
 
+            decimal? baseRetailPrice = v.BaseUnitId.HasValue && retailPrices.TryGetValue(new SkuUnitPriceKey(v.Id, v.BaseUnitId.Value), out var rPrice)
+                ? rPrice.Price
+                : null;
+
             return new PosProductSearchResponse
             {
                 VariantId = v.Id,
@@ -88,10 +115,11 @@ public class PosCatalogService : IPosCatalogService
                 ProductName = v.Product!.Name,
                 VariantName = v.VariantName,
                 Barcode = v.Barcode,
-                RetailPrice = v.RetailPrice,
+                RetailPrice = baseRetailPrice,
                 Color = v.Color,
                 Size = v.Size,
                 Attributes = v.GetAttributes(),
+                Units = MapSaleUnits(v, retailPrices),
                 OnHand = onHand,
                 Reserved = reserved,
                 Available = available
@@ -115,10 +143,14 @@ public class PosCatalogService : IPosCatalogService
             }
         }
 
+        var code = barcode.Trim();
         var v = await _context.ProductVariants
             .AsNoTracking()
             .Include(v => v.Product)
-            .Where(v => v.IsActive && v.Product != null && v.Product.IsActive && v.Barcode == barcode.Trim())
+            .Include(v => v.SkuUnits)
+                .ThenInclude(u => u.Unit)
+            .Where(v => v.IsActive && v.Product != null && v.Product.IsActive &&
+                       (v.Barcode == code || v.SkuUnits.Any(u => u.IsActive && u.CanSell && u.Barcode == code)))
             .FirstOrDefaultAsync(ct);
 
         if (v == null)
@@ -143,6 +175,22 @@ public class PosCatalogService : IPosCatalogService
             available = Math.Max(0, onHand.Value - reserved.Value);
         }
 
+        var priceKeys = new HashSet<SkuUnitPriceKey>();
+        if (v.BaseUnitId.HasValue)
+        {
+            priceKeys.Add(new SkuUnitPriceKey(v.Id, v.BaseUnitId.Value));
+        }
+        foreach (var u in v.SkuUnits.Where(u => u.IsActive && u.CanSell))
+        {
+            priceKeys.Add(new SkuUnitPriceKey(v.Id, u.UnitId));
+        }
+
+        var retailPrices = await _skuPriceResolver.ResolveAsync("retail", priceKeys, DateTimeOffset.UtcNow, ct);
+
+        decimal? baseRetailPrice = v.BaseUnitId.HasValue && retailPrices.TryGetValue(new SkuUnitPriceKey(v.Id, v.BaseUnitId.Value), out var rPrice)
+            ? rPrice.Price
+            : null;
+
         return new PosProductSearchResponse
         {
             VariantId = v.Id,
@@ -151,13 +199,43 @@ public class PosCatalogService : IPosCatalogService
             ProductName = v.Product?.Name ?? string.Empty,
             VariantName = v.VariantName,
             Barcode = v.Barcode,
-            RetailPrice = v.RetailPrice,
+            RetailPrice = baseRetailPrice,
             Color = v.Color,
             Size = v.Size,
             Attributes = v.GetAttributes(),
+            Units = MapSaleUnits(v, retailPrices),
+            MatchedUnitId = v.Barcode == code ? null : v.SkuUnits.First(u => u.Barcode == code).UnitId,
             OnHand = onHand,
             Reserved = reserved,
             Available = available
         };
+    }
+
+    private static List<PosSkuUnitResponse> MapSaleUnits(ProductVariant variant, IReadOnlyDictionary<SkuUnitPriceKey, ResolvedPrice> retailPrices)
+    {
+        return variant.SkuUnits
+            .Where(u => u.IsActive && u.CanSell)
+            .OrderByDescending(u => u.UnitId == variant.BaseUnitId)
+            .ThenBy(u => u.FactorToBase)
+            .Select(u =>
+            {
+                var isBase = u.UnitId == variant.BaseUnitId;
+                decimal? unitSalePrice = retailPrices.TryGetValue(new SkuUnitPriceKey(variant.Id, u.UnitId), out var uPrice)
+                    ? uPrice.Price
+                    : null;
+                return new PosSkuUnitResponse
+                {
+                    UnitId = u.UnitId,
+                    UnitCode = u.Unit?.Code ?? string.Empty,
+                    UnitName = u.Unit?.Name ?? string.Empty,
+                    Factor = u.FactorToBase,
+                    DecimalPlaces = u.QuantityDecimalPlaces,
+                    SalePrice = unitSalePrice,
+                    Barcode = u.Barcode,
+                    IsBase = isBase,
+                    IsDefaultSale = u.IsDefaultSale
+                };
+            })
+            .ToList();
     }
 }

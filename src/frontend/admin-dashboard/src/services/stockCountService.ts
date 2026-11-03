@@ -58,6 +58,44 @@ export function parseProblemDetails(error: any): ProblemDetailsError {
   };
 }
 
+// [BF-005] Lưu và khôi phục ý định tạo kiểm kê theo chữ ký payload (qua retry / reopen / reload)
+let lastCountIntent: { signature: string; requestKey: string; timestamp: number } | null = null;
+
+function getCountIntentStorageKey(): string {
+  const tenantId = localStorage.getItem('oism_tenant_id') || 'default';
+  return `oism_count_intent_${tenantId}`;
+}
+
+function resolveCountRequestKey(sig: string, explicitKey?: string): string {
+  if (lastCountIntent && lastCountIntent.signature === sig) {
+    return lastCountIntent.requestKey;
+  }
+  try {
+    const raw = sessionStorage.getItem(getCountIntentStorageKey());
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.signature === sig && parsed.requestKey) {
+        lastCountIntent = parsed;
+        return parsed.requestKey;
+      }
+    }
+  } catch {}
+  const key = explicitKey || generateUuid();
+  const intent = { signature: sig, requestKey: key, timestamp: Date.now() };
+  lastCountIntent = intent;
+  try {
+    sessionStorage.setItem(getCountIntentStorageKey(), JSON.stringify(intent));
+  } catch {}
+  return key;
+}
+
+function clearCountIntent(): void {
+  lastCountIntent = null;
+  try {
+    sessionStorage.removeItem(getCountIntentStorageKey());
+  } catch {}
+}
+
 export const stockCountService = {
   /**
    * Lấy danh sách các đợt kiểm kê có phân trang (PR26-F04)
@@ -123,9 +161,17 @@ export const stockCountService = {
 
   /**
    * Khởi tạo đợt kiểm kê mới (POST /api/stock-counts)
+   * [BF-005] Bảo toàn requestKey khi retry cùng payload
    */
   async createStockCount(req: CreateStockCountRequest): Promise<StockCount> {
-    const requestKey = req.requestKey || generateUuid();
+    const sig = JSON.stringify({
+      branchId: req.branchId,
+      warehouseId: req.warehouseId,
+      skuIds: req.skuIds && req.skuIds.length > 0 ? req.skuIds : null,
+    });
+
+    const requestKey = resolveCountRequestKey(sig, req.requestKey);
+
     const payload = {
       requestKey,
       branchId: req.branchId,
@@ -143,6 +189,7 @@ export const stockCountService = {
           'X-Request-Key': requestKey,
         },
       });
+      clearCountIntent();
       result = response.data;
     } catch (error: any) {
       // Ném lỗi ProblemDetails để UI hiển thị thông báo chi tiết

@@ -43,6 +43,7 @@ public class Order : BaseEntity, IMustHaveTenant
     public string? WebhookPayloadSignature { get; set; }
 
     public Guid? CreatedBy { get; set; }
+    public Guid? ConfirmedBy { get; set; }
     public DateTimeOffset? ConfirmedAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
     public DateTimeOffset? CancelledAt { get; set; }
@@ -51,8 +52,10 @@ public class Order : BaseEntity, IMustHaveTenant
     public Tenant? Tenant { get; set; }
     public Branch? Branch { get; set; }
     public User? CreatedByUser { get; set; }
+    public User? ConfirmedByUser { get; set; }
 
     public ICollection<OrderItem> Items { get; set; } = new List<OrderItem>();
     public ICollection<Reservation> Reservations { get; set; } = new List<Reservation>();
     public Payment? Payment { get; set; }
+    public SalesInvoice? SalesInvoice { get; set; }
 }

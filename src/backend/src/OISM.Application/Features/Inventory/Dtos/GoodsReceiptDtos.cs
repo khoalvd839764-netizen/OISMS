@@ -4,14 +4,11 @@ namespace OISM.Application.Features.Inventory.Dtos;
 
 public class CreateGoodsReceiptDto
 {
-    [Required(ErrorMessage = "Chi nhánh là bắt buộc.")]
-    public Guid BranchId { get; set; }
+    [Required(ErrorMessage = "Phiếu mua hàng là bắt buộc.")]
+    public Guid PurchaseOrderId { get; set; }
 
     [Required(ErrorMessage = "Kho nhập là bắt buộc.")]
     public Guid WarehouseId { get; set; }
-
-    [Required(ErrorMessage = "Nhà cung cấp là bắt buộc.")]
-    public Guid SupplierId { get; set; }
 
     [MaxLength(50)]
     public string? Number { get; set; }
@@ -26,20 +23,19 @@ public class CreateGoodsReceiptDto
 
 public class CreateGoodsReceiptItemDto
 {
-    [Required(ErrorMessage = "Mặt hàng SKU là bắt buộc.")]
-    public Guid SkuId { get; set; }
+    [Required(ErrorMessage = "Dòng phiếu mua hàng là bắt buộc.")]
+    public Guid PurchaseOrderItemId { get; set; }
 
     [Range(0.001, 100000000, ErrorMessage = "Số lượng nhập phải lớn hơn 0.")]
     public decimal Quantity { get; set; }
-
-    [Range(0, 1000000000000, ErrorMessage = "Đơn giá nhập không được âm.")]
-    public decimal UnitPrice { get; set; }
 }
 
 public class GoodsReceiptResponseDto
 {
     public Guid Id { get; set; }
     public string Number { get; set; } = string.Empty;
+    public Guid? PurchaseOrderId { get; set; }
+    public string? PurchaseOrderNumber { get; set; }
     public Guid BranchId { get; set; }
     public string BranchName { get; set; } = string.Empty;
     public Guid WarehouseId { get; set; }
@@ -63,9 +59,14 @@ public class GoodsReceiptResponseDto
 public class GoodsReceiptItemResponseDto
 {
     public Guid Id { get; set; }
+    public Guid? PurchaseOrderItemId { get; set; }
     public Guid SkuId { get; set; }
     public string SkuCode { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
+    public Guid? UnitId { get; set; }
+    public string UnitName { get; set; } = string.Empty;
+    public decimal FactorSnapshot { get; set; }
+    public decimal BaseQuantity { get; set; }
     public decimal Quantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal LineTotal => Quantity * UnitPrice;
@@ -76,6 +77,7 @@ public class GoodsReceiptFilterDto
     public Guid? BranchId { get; set; }
     public Guid? WarehouseId { get; set; }
     public Guid? SupplierId { get; set; }
+    public Guid? PurchaseOrderId { get; set; }
     public string? Status { get; set; }
     public DateTimeOffset? FromDate { get; set; }
     public DateTimeOffset? ToDate { get; set; }

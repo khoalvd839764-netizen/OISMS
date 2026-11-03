@@ -1,6 +1,8 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
+using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
+using OISM.Application.Features.Catalog.Units.Services;
 using OISM.Application.Features.Inventory.Dtos;
 using OISM.Application.Features.Realtime;
 using OISM.Domain.Entities;
@@ -13,6 +15,7 @@ public interface IGoodsReceiptService
     Task<PagedResult<GoodsReceiptResponseDto>> GetReceiptsAsync(GoodsReceiptFilterDto filter, CancellationToken ct = default);
     Task<GoodsReceiptResponseDto?> GetReceiptByIdAsync(Guid id, CancellationToken ct = default);
     Task<GoodsReceiptResponseDto> ConfirmReceiptAsync(Guid id, Guid userId, CancellationToken ct = default);
+    Task<GoodsReceiptResponseDto> CancelReceiptAsync(Guid id, Guid userId, CancellationToken ct = default);
 }
 
 public class GoodsReceiptService : IGoodsReceiptService
@@ -20,19 +23,34 @@ public class GoodsReceiptService : IGoodsReceiptService
     private readonly IAppDbContext _context;
     private readonly ICurrentTenantService _currentTenantService;
     private readonly IWacCalculator _wacCalculator;
-
+    private readonly ISqlLockService _sqlLockService;
     private readonly IRealtimeNotifier? _realtimeNotifier;
 
     public GoodsReceiptService(
         IAppDbContext context,
         ICurrentTenantService currentTenantService,
         IWacCalculator wacCalculator,
+        ISqlLockService? sqlLockService = null,
         IRealtimeNotifier? realtimeNotifier = null)
     {
         _context = context;
         _currentTenantService = currentTenantService;
         _wacCalculator = wacCalculator;
+        _sqlLockService = sqlLockService ?? NoOpSqlLockService.Instance;
         _realtimeNotifier = realtimeNotifier;
+    }
+
+    private sealed class NoOpSqlLockService : ISqlLockService
+    {
+        public static readonly NoOpSqlLockService Instance = new();
+        public Task LockCategoryTreeAsync(Guid tenantId, CancellationToken ct = default) => Task.CompletedTask;
+        public Task LockProductAsync(Guid productId, CancellationToken ct = default) => Task.CompletedTask;
+        public Task LockRefreshTokenAsync(string tokenHash, CancellationToken ct = default) => Task.CompletedTask;
+        public Task LockWarehouseAsync(Guid warehouseId, Guid tenantId, CancellationToken ct = default) => Task.CompletedTask;
+        public Task LockUnitCatalogAsync(Guid tenantId, CancellationToken ct = default) => Task.CompletedTask;
+        public Task LockPriceChangeRequestAsync(Guid tenantId, Guid requestId, CancellationToken ct = default) => Task.CompletedTask;
+        public Task LockSkuUnitPriceAsync(Guid tenantId, Guid priceId, CancellationToken ct = default) => Task.CompletedTask;
+        public Task LockPurchaseOrderAsync(Guid tenantId, Guid purchaseOrderId, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private Guid RequireTenantId()
@@ -49,28 +67,43 @@ public class GoodsReceiptService : IGoodsReceiptService
     {
         var tenantId = RequireTenantId();
 
-        // 1. Kiểm tra Chi nhánh
-        var branch = await _context.Branches.FirstOrDefaultAsync(b => b.Id == dto.BranchId, ct);
-        if (branch == null)
+        if (dto == null)
         {
-            throw new KeyNotFoundException($"Không tìm thấy Chi nhánh với ID '{dto.BranchId}'.");
+            throw new ArgumentException("Dữ liệu phiếu nhập không được để trống.");
         }
 
-        // 2. Kiểm tra Kho hàng thuộc đúng Chi nhánh
-        var warehouse = await _context.Warehouses.FirstOrDefaultAsync(w => w.Id == dto.WarehouseId && w.BranchId == dto.BranchId, ct);
+        if (dto.PurchaseOrderId == Guid.Empty)
+        {
+            throw new PurchaseOrderRequiredException();
+        }
+
+        // 1. Tải phiếu mua; phải là Approved hoặc PartiallyReceived
+        var po = await _context.PurchaseOrders
+            .Include(p => p.Branch)
+            .Include(p => p.Supplier)
+            .Include(p => p.Items)
+            .FirstOrDefaultAsync(p => p.Id == dto.PurchaseOrderId, ct);
+
+        if (po == null)
+        {
+            throw new KeyNotFoundException($"Không tìm thấy Phiếu mua hàng với ID '{dto.PurchaseOrderId}'.");
+        }
+
+        if (po.Status != "Approved" && po.Status != "PartiallyReceived")
+        {
+            throw new PurchaseOrderNotReceivableException(
+                $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', chỉ cho phép lập phiếu nhập khi ở 'Approved' hoặc 'PartiallyReceived'.");
+        }
+
+        // 2. Kho phải thuộc branch_id của phiếu mua
+        var warehouse = await _context.Warehouses
+            .FirstOrDefaultAsync(w => w.Id == dto.WarehouseId && w.BranchId == po.BranchId, ct);
         if (warehouse == null)
         {
-            throw new InvalidOperationException($"Kho hàng ID '{dto.WarehouseId}' không tồn tại hoặc không thuộc Chi nhánh '{branch.Name}'.");
+            throw new InvalidOperationException($"Kho hàng ID '{dto.WarehouseId}' không tồn tại hoặc không thuộc chi nhánh của phiếu mua '{po.Number}'.");
         }
 
-        // 3. Kiểm tra Nhà cung cấp
-        var supplier = await _context.Suppliers.FirstOrDefaultAsync(s => s.Id == dto.SupplierId, ct);
-        if (supplier == null)
-        {
-            throw new KeyNotFoundException($"Không tìm thấy Nhà cung cấp với ID '{dto.SupplierId}'.");
-        }
-
-        // 4. Kiểm tra các dòng SKU
+        // 3. Kiểm tra các dòng hàng
         if (dto.Items == null || dto.Items.Count == 0)
         {
             throw new InvalidOperationException("Phiếu nhập phải có ít nhất 1 dòng mặt hàng.");
@@ -80,67 +113,89 @@ public class GoodsReceiptService : IGoodsReceiptService
             throw new ArgumentException("Danh sách mặt hàng không được chứa phần tử rỗng (null).");
         }
 
-        var skuIds = dto.Items.Select(i => i.SkuId).Distinct().ToList();
-        var existingSkus = await _context.ProductVariants
-            .Include(v => v.Product)
-            .Where(v => skuIds.Contains(v.Id))
-            .ToDictionaryAsync(v => v.Id, ct);
+        var poItemsById = po.Items.ToDictionary(i => i.Id);
+        var seenPoItemIds = new HashSet<Guid>();
+        var seenSkuIds = new HashSet<Guid>();
 
-        if (existingSkus.Count != skuIds.Count)
+        foreach (var itemDto in dto.Items)
         {
-            var missing = skuIds.Except(existingSkus.Keys).First();
-            throw new KeyNotFoundException($"Mặt hàng SKU với ID '{missing}' không tồn tại trong gian hàng.");
+            if (itemDto.PurchaseOrderItemId == Guid.Empty || !poItemsById.TryGetValue(itemDto.PurchaseOrderItemId, out var poItem))
+            {
+                throw new PurchaseOrderItemMismatchException($"Dòng phiếu mua '{itemDto.PurchaseOrderItemId}' không thuộc phiếu mua '{po.Number}'.");
+            }
+
+            if (!seenPoItemIds.Add(itemDto.PurchaseOrderItemId) || !seenSkuIds.Add(poItem.SkuId))
+            {
+                throw new PurchaseOrderItemMismatchException("Phiếu nhập không được chứa các dòng phiếu mua hoặc SKU trùng lặp.");
+            }
         }
 
-        // Kiểm tra không trùng SKU trên cùng 1 phiếu
-        if (dto.Items.Count != skuIds.Count)
-        {
-            throw new InvalidOperationException("Phiếu nhập không được chứa các dòng SKU trùng lặp.");
-        }
-
-        // 5. Sinh mã phiếu nhập nếu chưa có
+        // 4. Sinh mã phiếu nhập nếu chưa có
         var number = string.IsNullOrWhiteSpace(dto.Number)
             ? $"GR-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..6].ToUpperInvariant()}"
             : dto.Number.Trim();
 
-        // Kiểm tra mã phiếu đã tồn tại chưa
         var exists = await _context.GoodsReceipts.AnyAsync(r => r.Number == number, ct);
         if (exists)
         {
             throw new InvalidOperationException($"Mã phiếu nhập '{number}' đã tồn tại trong gian hàng.");
         }
 
+        var now = DateTimeOffset.UtcNow;
         var receipt = new GoodsReceipt
         {
             TenantId = tenantId,
             Number = number,
-            BranchId = dto.BranchId,
+            PurchaseOrderId = po.Id,
+            BranchId = po.BranchId,
             WarehouseId = dto.WarehouseId,
-            SupplierId = dto.SupplierId,
+            SupplierId = po.SupplierId,
             Status = "Draft",
             Note = dto.Note,
             CreatedBy = userId,
-            CreatedAt = DateTimeOffset.UtcNow
+            CreatedAt = now
         };
 
         foreach (var itemDto in dto.Items)
         {
             if (itemDto.Quantity <= 0)
             {
-                throw new ArgumentException($"Số lượng SKU '{existingSkus[itemDto.SkuId].SKU}' phải lớn hơn 0.");
+                throw new ArgumentException("Số lượng nhập phải lớn hơn 0.");
             }
-            if (itemDto.UnitPrice < 0)
+
+            var poItem = poItemsById[itemDto.PurchaseOrderItemId];
+
+            // Chép snapshot từ dòng phiếu mua; KHÔNG gọi ResolveForPurchase
+            var resolvedFromSnapshot = new ResolvedSkuUnit(
+                UnitId: poItem.UnitId,
+                UnitName: poItem.UnitNameSnapshot,
+                Factor: poItem.FactorSnapshot,
+                DecimalPlaces: poItem.QuantityDecimalPlaces,
+                IsBase: poItem.FactorSnapshot == 1m,
+                Version: 1);
+
+            var baseQuantity = SkuUnitResolver.ComputeBaseQuantity(itemDto.Quantity, resolvedFromSnapshot);
+            var orderedBaseQuantity = poItem.Quantity * poItem.FactorSnapshot;
+
+            // 5. Vượt lượng còn lại thì trả PURCHASE_ORDER_OVER_RECEIPT để báo sớm
+            if (poItem.ReceivedBaseQuantity + baseQuantity > orderedBaseQuantity)
             {
-                throw new ArgumentException($"Đơn giá SKU '{existingSkus[itemDto.SkuId].SKU}' không được âm.");
+                var remainingBase = Math.Max(0m, orderedBaseQuantity - poItem.ReceivedBaseQuantity);
+                throw new PurchaseOrderOverReceiptException(
+                    $"Số lượng quy đổi {baseQuantity:G29} vượt lượng còn được nhận ({remainingBase:G29}) của dòng phiếu mua.");
             }
 
             receipt.Items.Add(new GoodsReceiptItem
             {
                 TenantId = tenantId,
-                SkuId = itemDto.SkuId,
+                PurchaseOrderItemId = poItem.Id,
+                SkuId = poItem.SkuId,
+                UnitId = poItem.UnitId,
+                UnitNameSnapshot = poItem.UnitNameSnapshot,
+                FactorSnapshot = poItem.FactorSnapshot,
                 Quantity = itemDto.Quantity,
-                UnitPrice = itemDto.UnitPrice,
-                CreatedAt = DateTimeOffset.UtcNow
+                UnitPrice = poItem.UnitPrice,
+                CreatedAt = now
             });
         }
 
@@ -162,6 +217,7 @@ public class GoodsReceiptService : IGoodsReceiptService
         RequireTenantId();
 
         var query = _context.GoodsReceipts
+            .Include(r => r.PurchaseOrder)
             .Include(r => r.Branch)
             .Include(r => r.Warehouse)
             .Include(r => r.Supplier)
@@ -180,6 +236,9 @@ public class GoodsReceiptService : IGoodsReceiptService
 
         if (filter.SupplierId.HasValue)
             query = query.Where(r => r.SupplierId == filter.SupplierId.Value);
+
+        if (filter.PurchaseOrderId.HasValue)
+            query = query.Where(r => r.PurchaseOrderId == filter.PurchaseOrderId.Value);
 
         if (!string.IsNullOrWhiteSpace(filter.Status))
             query = query.Where(r => r.Status == filter.Status);
@@ -222,8 +281,6 @@ public class GoodsReceiptService : IGoodsReceiptService
     {
         var tenantId = RequireTenantId();
 
-        // BE1-05: Toàn bộ quá trình xác nhận nhập kho diễn ra trong một Transaction READ COMMITTED nguyên tử
-        // và được bao bọc bởi IExecutionStrategy tương thích với NpgsqlRetryingExecutionStrategy
         List<Func<Task>> pendingNotifications = new();
         var strategy = _context.CreateExecutionStrategy();
         var result = await strategy.ExecuteAsync(async () =>
@@ -234,7 +291,7 @@ public class GoodsReceiptService : IGoodsReceiptService
 
             try
             {
-                // 1. BE1-05: Khóa chứng từ phiếu nhập bằng PostgreSQL Advisory Lock để tuần tự hóa các yêu cầu xác nhận cùng 1 phiếu
+                // 1. Advisory lock phiếu nhập
                 if (_context.IsRelationalDatabase)
                 {
                     await _context.ExecuteSqlRawAsync(
@@ -260,7 +317,7 @@ public class GoodsReceiptService : IGoodsReceiptService
 
                 if (receipt.Status == "Cancelled")
                 {
-                    throw new InvalidOperationException($"Không thể xác nhận phiếu nhập '{receipt.Number}' đã bị hủy.");
+                    throw new OismException("INVALID_STATE_TRANSITION", $"Không thể xác nhận phiếu nhập '{receipt.Number}' đã bị hủy.", 409);
                 }
 
                 if (receipt.Items.Count == 0)
@@ -268,11 +325,81 @@ public class GoodsReceiptService : IGoodsReceiptService
                     throw new InvalidOperationException("Phiếu nhập không có dòng hàng nào để xác nhận.");
                 }
 
-                // 3. Sắp xếp SKU theo thứ tự tăng dần cố định để phòng ngừa Deadlock giữa nhiều phiếu nhập cùng SKU
+                // 3. PurchaseOrderId hoặc bất kỳ PurchaseOrderItemId nào trống thì trả PURCHASE_ORDER_REQUIRED
+                if (!receipt.PurchaseOrderId.HasValue || receipt.PurchaseOrderId.Value == Guid.Empty ||
+                    receipt.Items.Any(i => !i.PurchaseOrderItemId.HasValue || i.PurchaseOrderItemId.Value == Guid.Empty))
+                {
+                    throw new PurchaseOrderRequiredException($"Phiếu nhập '{receipt.Number}' chưa gắn với phiếu mua hàng hợp lệ.");
+                }
+
+                var poId = receipt.PurchaseOrderId.Value;
+
+                // 4. LockPurchaseOrderAsync (đúng thứ tự: phiếu nhập -> phiếu mua -> SKU)
+                await _sqlLockService.LockPurchaseOrderAsync(tenantId, poId, ct);
+                if (_context.IsRelationalDatabase && ReferenceEquals(_sqlLockService, NoOpSqlLockService.Instance))
+                {
+                    await _context.ExecuteSqlRawAsync(
+                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/purchase_order/' || {1}::text, 0));",
+                        new object[] { tenantId.ToString(), poId.ToString() },
+                        ct);
+                }
+
+                // 5. Tải phiếu mua và các dòng SAU KHÓA
+                var po = await _context.PurchaseOrders
+                    .Include(p => p.Items)
+                    .FirstOrDefaultAsync(p => p.Id == poId, ct);
+
+                if (po == null)
+                {
+                    throw new PurchaseOrderItemMismatchException("Không tìm thấy phiếu mua hàng tương ứng với phiếu nhập.");
+                }
+
+                if (po.Status != "Approved" && po.Status != "PartiallyReceived" && po.Status != "Received")
+                {
+                    throw new PurchaseOrderNotReceivableException(
+                        $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', không thể xác nhận nhập kho.");
+                }
+
+                if (po.SupplierId != receipt.SupplierId || po.BranchId != receipt.BranchId)
+                {
+                    throw new PurchaseOrderItemMismatchException("Nhà cung cấp hoặc Chi nhánh trên phiếu nhập không khớp với phiếu mua.");
+                }
+
+                var poItemsById = po.Items.ToDictionary(i => i.Id);
+                var seenPoItemIds = new HashSet<Guid>();
+
+                foreach (var item in receipt.Items)
+                {
+                    var poItemId = item.PurchaseOrderItemId!.Value;
+                    if (!seenPoItemIds.Add(poItemId) || !poItemsById.TryGetValue(poItemId, out var poItem))
+                    {
+                        throw new PurchaseOrderItemMismatchException($"Dòng nhập không khớp với dòng phiếu mua '{poItemId}'.");
+                    }
+
+                    if (poItem.SkuId != item.SkuId ||
+                        poItem.UnitId != item.UnitId ||
+                        poItem.UnitNameSnapshot != item.UnitNameSnapshot ||
+                        poItem.FactorSnapshot != item.FactorSnapshot ||
+                        poItem.UnitPrice != item.UnitPrice)
+                    {
+                        throw new PurchaseOrderItemMismatchException("Thông tin SKU, đơn vị, hệ số quy đổi hoặc đơn giá của dòng nhập không khớp với dòng phiếu mua.");
+                    }
+
+                    // 6. Kiểm tra vượt lượng còn được nhận trên từng dòng
+                    var itemBaseQuantity = item.Quantity * item.FactorSnapshot;
+                    var orderedBaseQuantity = poItem.Quantity * poItem.FactorSnapshot;
+                    if (po.Status == "Received" || poItem.ReceivedBaseQuantity + itemBaseQuantity > orderedBaseQuantity)
+                    {
+                        var remainingBase = Math.Max(0m, orderedBaseQuantity - poItem.ReceivedBaseQuantity);
+                        throw new PurchaseOrderOverReceiptException(
+                            $"Số lượng nhận ({itemBaseQuantity:G29}) vượt quá số lượng còn được nhận ({remainingBase:G29}) trên dòng phiếu mua.");
+                    }
+                }
+
+                // 7. Sắp xếp SKU theo thứ tự tăng dần cố định để phòng ngừa Deadlock giữa nhiều phiếu nhập cùng SKU
                 var sortedItems = receipt.Items.OrderBy(i => i.SkuId).ToList();
                 var skuIds = sortedItems.Select(i => i.SkuId).Distinct().ToList();
 
-                // Lấy pg_advisory_xact_lock theo từng SKU
                 if (_context.IsRelationalDatabase)
                 {
                     foreach (var skuId in skuIds)
@@ -284,144 +411,153 @@ public class GoodsReceiptService : IGoodsReceiptService
                     }
                 }
 
-            // Tải tồn kho hiện tại cấp Chi nhánh và cấp Kho
-            var branchBalances = await _context.InventoryBalances
-                .Where(b => b.BranchId == receipt.BranchId && skuIds.Contains(b.SkuId))
-                .ToDictionaryAsync(b => b.SkuId, ct);
+                // 8. Tải tồn kho hiện tại cấp Chi nhánh và cấp Kho, cộng tồn, tính WAC, ghi sổ kho
+                var branchBalances = await _context.InventoryBalances
+                    .Where(b => b.BranchId == receipt.BranchId && skuIds.Contains(b.SkuId))
+                    .ToDictionaryAsync(b => b.SkuId, ct);
 
-            var warehouseBalances = await _context.WarehouseInventoryBalances
-                .Where(b => b.WarehouseId == receipt.WarehouseId && skuIds.Contains(b.SkuId))
-                .ToDictionaryAsync(b => b.SkuId, ct);
+                var warehouseBalances = await _context.WarehouseInventoryBalances
+                    .Where(b => b.WarehouseId == receipt.WarehouseId && skuIds.Contains(b.SkuId))
+                    .ToDictionaryAsync(b => b.SkuId, ct);
 
-            var now = DateTimeOffset.UtcNow;
+                var now = DateTimeOffset.UtcNow;
 
-            foreach (var item in sortedItems)
-            {
-                // 1. Tồn cấp Chi nhánh (Tổng tồn + WAC)
-                if (!branchBalances.TryGetValue(item.SkuId, out var branchBalance))
+                foreach (var item in sortedItems)
                 {
-                    branchBalance = new InventoryBalance
+                    if (!branchBalances.TryGetValue(item.SkuId, out var branchBalance))
                     {
-                        TenantId = tenantId,
-                        BranchId = receipt.BranchId,
-                        SkuId = item.SkuId,
-                        OnHand = 0,
-                        Reserved = 0,
-                        AverageCost = 0,
-                        LastSequence = 0,
-                        CreatedAt = now
-                    };
-                    _context.InventoryBalances.Add(branchBalance);
-                    branchBalances[item.SkuId] = branchBalance;
-                }
+                        branchBalance = new InventoryBalance
+                        {
+                            TenantId = tenantId,
+                            BranchId = receipt.BranchId,
+                            SkuId = item.SkuId,
+                            OnHand = 0,
+                            Reserved = 0,
+                            AverageCost = 0,
+                            LastSequence = 0,
+                            CreatedAt = now
+                        };
+                        _context.InventoryBalances.Add(branchBalance);
+                        branchBalances[item.SkuId] = branchBalance;
+                    }
 
-                // 2. Tồn cấp Kho
-                if (!warehouseBalances.TryGetValue(item.SkuId, out var warehouseBalance))
-                {
-                    warehouseBalance = new WarehouseInventoryBalance
+                    if (!warehouseBalances.TryGetValue(item.SkuId, out var warehouseBalance))
+                    {
+                        warehouseBalance = new WarehouseInventoryBalance
+                        {
+                            TenantId = tenantId,
+                            BranchId = receipt.BranchId,
+                            WarehouseId = receipt.WarehouseId,
+                            SkuId = item.SkuId,
+                            OnHand = 0,
+                            Reserved = 0,
+                            LastSequence = 0,
+                            CreatedAt = now
+                        };
+                        _context.WarehouseInventoryBalances.Add(warehouseBalance);
+                        warehouseBalances[item.SkuId] = warehouseBalance;
+                    }
+
+                    var oldOnHand = branchBalance.OnHand;
+                    var oldWac = branchBalance.AverageCost;
+                    var baseQuantity = item.BaseQuantity;
+                    var baseUnitCost = item.UnitPrice / item.FactorSnapshot;
+                    var newWac = _wacCalculator.CalculateWac(oldOnHand, oldWac, baseQuantity, baseUnitCost);
+
+                    var newSequence = branchBalance.LastSequence + 1;
+                    var newBalanceAfter = oldOnHand + baseQuantity;
+
+                    branchBalance.OnHand += baseQuantity;
+                    branchBalance.AverageCost = newWac;
+                    branchBalance.LastSequence = newSequence;
+                    branchBalance.UpdatedAt = now;
+
+                    warehouseBalance.OnHand += baseQuantity;
+                    warehouseBalance.LastSequence = newSequence;
+                    warehouseBalance.UpdatedAt = now;
+
+                    var ledgerEntry = new InventoryTransaction
                     {
                         TenantId = tenantId,
                         BranchId = receipt.BranchId,
                         WarehouseId = receipt.WarehouseId,
                         SkuId = item.SkuId,
-                        OnHand = 0,
-                        Reserved = 0,
-                        LastSequence = 0,
+                        Type = "IN",
+                        Quantity = baseQuantity,
+                        UnitCost = decimal.Round(baseUnitCost, 6, MidpointRounding.AwayFromZero),
+                        BalanceAfter = newBalanceAfter,
+                        SequenceNo = newSequence,
+                        ReceiptItemId = item.Id,
                         CreatedAt = now
                     };
-                    _context.WarehouseInventoryBalances.Add(warehouseBalance);
-                    warehouseBalances[item.SkuId] = warehouseBalance;
+                    _context.InventoryTransactions.Add(ledgerEntry);
+
+                    // 9. Cộng lượng đã nhận trên dòng phiếu mua
+                    var poItem = poItemsById[item.PurchaseOrderItemId!.Value];
+                    poItem.ReceivedBaseQuantity += baseQuantity;
+                    poItem.UpdatedAt = now;
                 }
 
-                // BE1-07: Tính lại Giá vốn WAC cho Chi nhánh
-                var oldOnHand = branchBalance.OnHand;
-                var oldWac = branchBalance.AverageCost;
-                var newWac = _wacCalculator.CalculateWac(oldOnHand, oldWac, item.Quantity, item.UnitPrice);
+                // Cập nhật trạng thái phiếu mua: đủ mọi dòng thì Received, còn lại PartiallyReceived
+                var allFullyReceived = po.Items.All(pi => pi.ReceivedBaseQuantity >= pi.Quantity * pi.FactorSnapshot);
+                po.Status = allFullyReceived ? "Received" : "PartiallyReceived";
+                po.UpdatedAt = now;
 
-                // Tăng sequence
-                var newSequence = branchBalance.LastSequence + 1;
-                var newBalanceAfter = oldOnHand + item.Quantity;
+                // Cập nhật trạng thái phiếu nhập
+                receipt.Status = "Confirmed";
+                receipt.ConfirmedAt = now;
+                receipt.ConfirmedBy = userId;
+                receipt.UpdatedAt = now;
 
-                // Cập nhật số dư chi nhánh
-                branchBalance.OnHand += item.Quantity;
-                branchBalance.AverageCost = newWac;
-                branchBalance.LastSequence = newSequence;
-                branchBalance.UpdatedAt = now;
+                // 10. SaveChanges, SET CONSTRAINTS ALL IMMEDIATE, commit
+                await _context.SaveChangesAsync(ct);
 
-                // Cập nhật số dư kho
-                warehouseBalance.OnHand += item.Quantity;
-                warehouseBalance.LastSequence = newSequence;
-                warehouseBalance.UpdatedAt = now;
-
-                // BE1-06: Ghi Sổ cái kho (Inventory Transactions - Append-Only)
-                var ledgerEntry = new InventoryTransaction
+                if (_context.IsRelationalDatabase)
                 {
-                    TenantId = tenantId,
-                    BranchId = receipt.BranchId,
-                    WarehouseId = receipt.WarehouseId,
-                    SkuId = item.SkuId,
-                    Type = "IN",
-                    Quantity = item.Quantity,
-                    UnitCost = item.UnitPrice,
-                    BalanceAfter = newBalanceAfter,
-                    SequenceNo = newSequence,
-                    ReceiptItemId = item.Id,
-                    CreatedAt = now
-                };
-                _context.InventoryTransactions.Add(ledgerEntry);
-            }
+                    await _context.ExecuteSqlRawAsync("SET CONSTRAINTS ALL IMMEDIATE;", Array.Empty<object>(), ct);
+                }
 
-            // Cập nhật trạng thái chứng từ
-            receipt.Status = "Confirmed";
-            receipt.ConfirmedAt = now;
-            receipt.ConfirmedBy = userId;
-            receipt.UpdatedAt = now;
+                await transaction.CommitAsync(ct);
 
-            // Lưu thay đổi vào DbContext
-            await _context.SaveChangesAsync(ct);
-
-            // Chốt kiểm tra Deferred Constraints của PostgreSQL trước khi COMMIT
-            if (_context.IsRelationalDatabase)
-            {
-                await _context.ExecuteSqlRawAsync("SET CONSTRAINTS ALL IMMEDIATE;", Array.Empty<object>(), ct);
-            }
-
-            await transaction.CommitAsync(ct);
-
-            if (_realtimeNotifier != null)
-            {
-                foreach (var item in receipt.Items)
+                if (_realtimeNotifier != null)
                 {
-                    var bal = await _context.InventoryBalances.AsNoTracking()
-                        .FirstOrDefaultAsync(b => b.TenantId == tenantId && b.BranchId == receipt.BranchId && b.SkuId == item.SkuId, ct);
-                    if (bal != null)
+                    foreach (var item in receipt.Items)
                     {
-                        var newAvail = bal.OnHand - bal.Reserved;
-                        var skuIdCapture = item.SkuId;
-                        var branchIdCapture = receipt.BranchId;
-                        pendingNotifications.Add(() => _realtimeNotifier.NotifyStockChangedAsync(tenantId, branchIdCapture, skuIdCapture, newAvail, ct));
+                        var bal = await _context.InventoryBalances.AsNoTracking()
+                            .FirstOrDefaultAsync(b => b.TenantId == tenantId && b.BranchId == receipt.BranchId && b.SkuId == item.SkuId, ct);
+                        if (bal != null)
+                        {
+                            var newAvail = bal.OnHand - bal.Reserved;
+                            var skuIdCapture = item.SkuId;
+                            var branchIdCapture = receipt.BranchId;
+                            pendingNotifications.Add(() => _realtimeNotifier.NotifyStockChangedAsync(tenantId, branchIdCapture, skuIdCapture, newAvail, ct));
+                        }
                     }
                 }
-            }
 
-            return await MapToResponseDtoAsync(receipt.Id, ct);
-        }
-        catch (DbUpdateException dbEx) when (dbEx.InnerException?.Message.Contains("23505") == true || dbEx.InnerException?.Message.Contains("uq_inventory_transactions") == true)
-        {
-            await transaction.RollbackAsync(ct);
-            _context.ClearChangeTracker();
-            var isConfirmed = await _context.GoodsReceipts.AnyAsync(r => r.Id == id && r.Status == "Confirmed", ct);
-            if (isConfirmed)
-            {
-                throw new InvalidOperationException($"Phiếu nhập '{id}' đã được xác nhận trước đó.", dbEx);
+                return await MapToResponseDtoAsync(receipt.Id, ct);
             }
-            throw;
-        }
-        catch
-        {
-            await transaction.RollbackAsync(ct);
-            throw;
-        }
+            catch (DbUpdateException dbEx) when (dbEx.InnerException?.Message.Contains("ck_purchase_order_items_received_range") == true)
+            {
+                await transaction.RollbackAsync(ct);
+                throw new PurchaseOrderOverReceiptException();
+            }
+            catch (DbUpdateException dbEx) when (dbEx.InnerException?.Message.Contains("23505") == true || dbEx.InnerException?.Message.Contains("uq_inventory_transactions") == true)
+            {
+                await transaction.RollbackAsync(ct);
+                _context.ClearChangeTracker();
+                var isConfirmed = await _context.GoodsReceipts.AnyAsync(r => r.Id == id && r.Status == "Confirmed", ct);
+                if (isConfirmed)
+                {
+                    throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu nhập '{id}' đã được xác nhận trước đó.", 409);
+                }
+                throw;
+            }
+            catch
+            {
+                await transaction.RollbackAsync(ct);
+                throw;
+            }
         });
 
         if (pendingNotifications.Count > 0)
@@ -441,9 +577,61 @@ public class GoodsReceiptService : IGoodsReceiptService
         return result;
     }
 
+    public async Task<GoodsReceiptResponseDto> CancelReceiptAsync(Guid id, Guid userId, CancellationToken ct = default)
+    {
+        var tenantId = RequireTenantId();
+
+        var strategy = _context.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
+        {
+            _context.ClearChangeTracker();
+            await using var transaction = await _context.BeginTransactionAsync(ct);
+
+            try
+            {
+                // Cùng khóa phiếu nhập với xác nhận
+                if (_context.IsRelationalDatabase)
+                {
+                    await _context.ExecuteSqlRawAsync(
+                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/goods_receipt/' || {1}::text, 0));",
+                        new object[] { tenantId.ToString(), id.ToString() },
+                        ct);
+                }
+
+                var receipt = await _context.GoodsReceipts
+                    .Include(r => r.Items)
+                    .FirstOrDefaultAsync(r => r.Id == id, ct);
+
+                if (receipt == null)
+                {
+                    throw new KeyNotFoundException($"Không tìm thấy Phiếu nhập kho với ID '{id}'.");
+                }
+
+                if (receipt.Status != "Draft")
+                {
+                    throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu nhập '{receipt.Number}' đang ở trạng thái '{receipt.Status}', chỉ được hủy khi ở trạng thái 'Draft'.", 409);
+                }
+
+                receipt.Status = "Cancelled";
+                receipt.UpdatedAt = DateTimeOffset.UtcNow;
+
+                await _context.SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
+
+                return await MapToResponseDtoAsync(receipt.Id, ct);
+            }
+            catch
+            {
+                await transaction.RollbackAsync(ct);
+                throw;
+            }
+        });
+    }
+
     private async Task<GoodsReceiptResponseDto> MapToResponseDtoAsync(Guid id, CancellationToken ct)
     {
         var receipt = await _context.GoodsReceipts
+            .Include(r => r.PurchaseOrder)
             .Include(r => r.Branch)
             .Include(r => r.Warehouse)
             .Include(r => r.Supplier)
@@ -469,6 +657,8 @@ public class GoodsReceiptService : IGoodsReceiptService
         {
             Id = receipt.Id,
             Number = receipt.Number,
+            PurchaseOrderId = receipt.PurchaseOrderId,
+            PurchaseOrderNumber = receipt.PurchaseOrder?.Number,
             BranchId = receipt.BranchId,
             BranchName = receipt.Branch?.Name ?? string.Empty,
             WarehouseId = receipt.WarehouseId,
@@ -488,9 +678,14 @@ public class GoodsReceiptService : IGoodsReceiptService
             Items = receipt.Items.Select(i => new GoodsReceiptItemResponseDto
             {
                 Id = i.Id,
+                PurchaseOrderItemId = i.PurchaseOrderItemId,
                 SkuId = i.SkuId,
                 SkuCode = i.Sku?.SKU ?? string.Empty,
                 ProductName = i.Sku?.Product?.Name ?? string.Empty,
+                UnitId = i.UnitId,
+                UnitName = i.UnitNameSnapshot,
+                FactorSnapshot = i.FactorSnapshot,
+                BaseQuantity = i.BaseQuantity,
                 Quantity = i.Quantity,
                 UnitPrice = i.UnitPrice
             }).ToList()

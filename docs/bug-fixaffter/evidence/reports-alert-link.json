@@ -1,5 +1,0 @@
-{
-  "requestedUrl": "http://localhost:5173/reports?tab=alerts",
-  "actualUrl": "http://localhost:5173/reports?tab=alerts",
-  "visiblePnl": false
-}

@@ -3,12 +3,12 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-CHK-S2` |
-| **Phiên bản (Version)** | `v1.2.0` |
-| **Ngày cập nhật** | `2026-10-29` (Asia/Saigon) |
+| **Phiên bản (Version)** | `v1.3.0` |
+| **Ngày cập nhật** | `2026-10-30` (Asia/Saigon) |
 | **Nguồn truy vết gốc** | `C:\Users\Jacki Khoa\Documents\De bai CNPM.pdf` (Trang 1 – 6) & Confluence Page ID `5275650` (Version 9) |
 | **Bằng chứng kiểm thử Sprint 2** | **194/194 Tests Pass (100%)** — 103 Unit Tests + 91 Integration Tests trên PostgreSQL 16+ thật; Code Coverage Core Inventory đạt **`92.49% – 94.83%`** |
 | **Nguồn cập nhật Sprint 3** | [Phân công Sprint 3 lưu trong repo, Confluence v11](docs/08-sprints/sprint-3/README.md) và [báo cáo tổng kết Đăng Khoa](docs/09-personal-reports/dang-khoa/sprint-3/SUMMARY.md); không tra cứu/cập nhật Confluence live trong lượt này |
-| **Hiện trạng sản phẩm mới nhất** | [Rà soát 28–29/10/2026](docs/bug-fixaffter/README.md): **20 nhóm lỗi OPEN**, **8 mục chưa hoàn thiện**; xem mục **0A** trước khi kết luận sản phẩm đã chạy đầy đủ |
+| **Hiện trạng sản phẩm mới nhất** | [Cập nhật 30/10/2026](docs/bug-fixaffter/CHECKLIST-BUGFIX-AND-UPGRADE.md): **20/20 nhóm lỗi (`BF-001..020`) ĐÃ KHẮC PHỤC & VERIFIED PASS**, **Clean Architecture (`Upgrade 06`) ĐÃ HOÀN TẤT**; còn **8 mục Coming soon (`OISMS-45`)** và **5 mục Upgrade nghiệp vụ (`OISMS-47`)** đang triển khai ở Sprint 4 |
 
 ---
 
@@ -46,8 +46,6 @@ Quy ước: mục FR bao gồm nhiều người hoặc nhiều sprint chỉ đư
 
 ## 0A. Checklist hiện trạng sản phẩm — cập nhật 29/10/2026
 
-**Cập nhật tích hợp:** develop đã nhận POS mới từ PR #24; phạm vi lỗi POS riêng và QR/PWA thay đổi so với audit gốc. Xem [tổng hợp Sprint 3 và tồn đọng sau tích hợp](docs/bug-fixaffter/SPRINT-3-RELEASE.md). BF-003/BF-015/BF-019 phần POS riêng và BF-020 cần kiểm chứng lại, không tự đóng; QR Coming soon còn áp dụng cho POS Admin.
-
 **Chưa nghiệm thu toàn bộ sản phẩm.** Các dấu `[x]` ở phần Sprint 2 và báo cáo BE1 bên dưới phản ánh baseline/bằng chứng được ghi tại thời điểm đó. Khi đánh giá khả năng sử dụng hiện tại, phải đối chiếu các mục còn mở trong phần này. Trạng thái bàn giao READY_FOR_REVIEW chỉ có nghĩa chờ review.
 
 Baseline rà soát: nhánh `feature/OISMS-43-orders-transfers`, HEAD `f276eeed72782f7272f32a62f4bb61ba761f3e89` cộng working tree chưa commit. Chi tiết tái hiện, ảnh hưởng, vị trí code và điều kiện đóng: [BUG-LIST.md](docs/bug-fixaffter/BUG-LIST.md).
@@ -66,30 +64,40 @@ Baseline rà soát: nhánh `feature/OISMS-43-orders-transfers`, HEAD `f276eeed72
 - [ ] **Báo cáo/cảnh báo:** sửa phản hồi cũ, dữ liệu cũ khi lỗi, ngày/múi giờ, link cảnh báo và kênh Admin (`BF-009..011`, `BF-017`, `BF-018`); các finding BE2-F03/F04 bên dưới vẫn cần xử lý/đối chiếu riêng.
 - [ ] **Chi nhánh/kho:** không trình bày lỗi API như danh sách trống (`BF-014`); nghiệm thu tải, lưu và đọc lại.
 
-### 0A.2. Checklist sửa lỗi còn mở
+### 0A.2. Checklist 20 lỗi hệ thống đã khắc phục (`OISMS-46` — VERIFIED PASS 30/10/2026)
 
-Tất cả mục dưới đây **OPEN**, chưa tự đánh dấu CLOSED/VERIFIED. P1 ưu tiên sai phiên, giao dịch hoặc số liệu; P2 ưu tiên chức năng và trải nghiệm. Mỗi ID có bằng chứng và tiêu chí đóng riêng trong [danh sách chi tiết](docs/bug-fixaffter/BUG-LIST.md).
+Toàn bộ 20 mục dưới đây đã được **KHẮC PHỤC TRIỆT ĐỂ & KIỂM THỬ THÀNH CÔNG (20/20 PASS)**. Xem chi tiết tại [report result affter fix.md](docs/bug-fixaffter/Report%20Bugfix/report%20result%20affter%20fix.md) và [CHECKLIST-BUGFIX-AND-UPGRADE.md](docs/bug-fixaffter/CHECKLIST-BUGFIX-AND-UPGRADE.md).
 
-- [ ] **P1 · BF-001:** Chặn refresh/HTTP cũ ghi đè phiên mới hoặc replay ý định cũ bằng token tài khoản mới.
-- [ ] **P1 · BF-002:** Tạo/đóng và reset kết nối SignalR đúng phiên đăng nhập.
-- [ ] **P1 · BF-003:** Giữ nguyên request key và snapshot khi retry thanh toán POS có kết quả chưa rõ.
-- [ ] **P1 · BF-004:** Bảo toàn request key khi retry tạo phiếu chuyển kho.
-- [ ] **P1 · BF-005:** Bảo toàn request key của form tạo kiểm kê.
-- [ ] **P1 · BF-006:** Không chốt số đếm cũ sau khi xóa ô và đồng ý gán số sổ sách.
-- [ ] **P2 · BF-007:** Không tự lưu ô đếm trống thành tồn sổ sách khi chưa xác nhận.
-- [ ] **P2 · BF-008:** Không để request chứng từ cũ khóa nút trên chứng từ mới.
-- [ ] **P1 · BF-009:** Không cho phản hồi báo cáo cũ ghi đè bộ lọc mới.
-- [ ] **P2 · BF-010:** Xử lý dữ liệu báo cáo cũ rõ ràng khi truy vấn bộ lọc mới thất bại.
-- [ ] **P1 · BF-011:** Thống nhất ngày Việt Nam, timezone nghiệp vụ và biên ngày báo cáo.
-- [ ] **P2 · BF-012:** Hiển thị tồn của đúng kho nguồn khi lập chuyển kho.
-- [ ] **P1 · BF-013:** Không làm mất ý định/key giữ chỗ pending khi sửa form.
-- [ ] **P2 · BF-014:** Hiển thị lỗi đọc/lưu chi nhánh, kho đúng trạng thái.
-- [ ] **P2 · BF-015:** Xử lý hết phiên và ProblemDetails khi POS checkout thất bại.
-- [ ] **P2 · BF-016:** Nối đầy đủ sự kiện realtime tồn kho và refetch khi reconnect.
-- [ ] **P2 · BF-017:** Mở đúng tab cảnh báo từ link `/reports?tab=alerts`.
-- [ ] **P2 · BF-018:** Bổ sung bộ lọc kênh Admin khớp dữ liệu backend.
-- [ ] **P2 · BF-019:** Không nhận checkout thành công khi response thiếu định danh đơn server.
-- [ ] **P1 · BF-020:** Không để kết quả checkout POS riêng xóa giỏ hoặc cập nhật ngữ cảnh mới.
+- [x] **P1 · BF-001:** Chặn refresh/HTTP cũ ghi đè/xóa phiên mới hoặc replay ý định cũ bằng token tài khoản mới.
+- [x] **P1 · BF-002:** Tạo/đóng và reset kết nối SignalR đúng phiên đăng nhập kèm lifecycle guards.
+- [x] **P1 · BF-003:** Giữ nguyên `requestKey` theo chữ ký giỏ hàng khi retry thanh toán POS có kết quả chưa rõ.
+- [x] **P1 · BF-004:** Bảo toàn `requestKey` khi retry tạo phiếu chuyển kho.
+- [x] **P1 · BF-005:** Bảo toàn `requestKey` của form tạo kiểm kê.
+- [x] **P1 · BF-006:** Không chốt số đếm cũ sau khi xóa ô và đồng ý gán số sổ sách (`recordCounts` trước khi `confirmStockCount`).
+- [x] **P2 · BF-007:** Không tự lưu ô đếm trống thành tồn sổ sách khi chưa xác nhận.
+- [x] **P2 · BF-008:** Không để request chứng từ cũ khóa nút trên chứng từ mới (`busyIdsRef` theo từng ID chứng từ).
+- [x] **P1 · BF-009:** Không cho phản hồi báo cáo cũ ghi đè bộ lọc mới.
+- [x] **P2 · BF-010:** Xử lý xóa sạch dữ liệu báo cáo cũ khi truy vấn bộ lọc mới thất bại.
+- [x] **P1 · BF-011:** Thống nhất ngày Việt Nam (`UTC+07:00`), timezone nghiệp vụ và khoảng nửa mở `CreatedAt < EndDateBoundary` (bao phủ cả `.999`).
+- [x] **P2 · BF-012:** Hiển thị tồn của đúng kho nguồn khi lập chuyển kho, không fallback về tồn tổng tenant và khóa SKU ngừng hoạt động.
+- [x] **P1 · BF-013:** Khóa form giữ chỗ và bảo toàn `idempotencyKey` pending khi đang ở trạng thái unknown.
+- [x] **P2 · BF-014:** Hiển thị lỗi đọc/lưu chi nhánh, kho đúng trạng thái banner lỗi kèm nút retry.
+- [x] **P2 · BF-015:** Xử lý hết phiên (`pos-auth-expired`), bảo toàn giỏ hàng và trích xuất `ProblemDetails` khi POS checkout thất bại.
+- [x] **P2 · BF-016:** Nối đầy đủ sự kiện realtime tồn kho (`stock.changed`, `reservation.expired`) và refetch khi reconnect.
+- [x] **P2 · BF-017:** Mở đúng tab cảnh báo từ link `/reports?tab=alerts` và sự kiện điều hướng từ `NotificationCenter`.
+- [x] **P2 · BF-018:** Bổ sung bộ lọc kênh `Admin` và loại bỏ tùy chọn `Web` không hợp lệ.
+- [x] **P2 · BF-019:** Không nhận checkout thành công khi response thiếu định danh đơn server hoặc chứa GUID rỗng.
+- [x] **P1 · BF-020:** Không để kết quả checkout POS riêng xóa giỏ hoặc cập nhật ngữ cảnh mới.
+
+### 0A.2B. Checklist Nâng cấp Kiến trúc & Nghiệp vụ (`docs/Upgrade-recommended/`)
+
+- [x] **`Upgrade 06` — Rà soát & Chuẩn hóa Clean Architecture Backend (`OISMS-46` — Đã hoàn thành):** Chuyển nghiệp vụ/transaction từ 8 Controller về `OISM.Application`, cô lập `IPasswordHasher`, `ISqlLockService`, `IWarehouseBranchReassignmentStore` ở `OISM.Infrastructure`, tách `AddApplicationServices` / `AddInfrastructureServices` và xóa thư mục `OISMS/` trùng lặp. Xem [clean-architecture.md](docs/report-after-upgrade/clean-architecture.md).
+- [ ] **`Upgrade 05` — Nhiều đơn vị tính cho hàng hóa vật lý (`OISMS-47` — Bước 1):** Bảng `units`, `sku_units`, tồn theo đơn vị gốc `BaseUnitId` và quy đổi `BaseQuantity = Quantity × FactorSnapshot`. *Tiến độ: xong backend P1 (schema, migration, API danh mục đơn vị) và P2 (nhập kho, đơn hàng, POS, báo cáo); chưa làm P3 (giao diện).*
+- [ ] **`Upgrade 04` — Bảng giá bán theo thời gian hiệu lực (`OISMS-47` — Bước 2):** Bảng `price_lists`, `sku_unit_prices` chỉ thêm dòng mới, phiếu đổi giá `price_change_requests` có bước duyệt và chụp snapshot giá vào dòng đơn.
+- [ ] **`Upgrade 01-A` — Mua hàng và nhập kho từ phiếu mua (`OISMS-47` — Bước 3):** Phiếu mua hàng `purchase_orders` có bước duyệt, bắt buộc phiếu nhập NCC gắn phiếu mua đã duyệt, chặn nhập vượt, lấy giá và hệ số từ phiếu mua.
+- [ ] **`Upgrade 01-B` — Hóa đơn NCC và chênh lệch (`OISMS-47` — làm sau `01-A`):** Hóa đơn NCC `supplier_invoices`, đối chiếu ba bên và chứng từ chênh lệch `purchase_variances`.
+- [ ] **`Upgrade 02` — Truy vết chứng từ xuất kho (`OISMS-47` — Bước 4):** Chuẩn hóa chứng từ nguồn cho mọi dòng `OUT` và hóa đơn/biên nhận bán `sales_invoices`. Backend đã xong 03/11/2026 ([báo cáo](docs/report-after-upgrade/hoa-don-truy-vet-xuat-kho.md)); còn giao diện Admin, POS.
+- [ ] **`Upgrade 03` — Quy định kiểm kê định kỳ & đột xuất (`OISMS-47` — Bước 5):** Lịch kiểm kê Giữa tháng (ngày 15) / Cuối tháng / Đột xuất và bước duyệt chênh lệch `PendingApproval`.
 
 ### 0A.3. Chức năng chưa hoàn thiện / Coming soon
 

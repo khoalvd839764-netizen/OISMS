@@ -53,7 +53,20 @@ public class ReportService : IReportService
 
         if (filter.EndDate.HasValue)
         {
-            ordersQuery = ordersQuery.Where(o => o.CreatedAt <= filter.EndDate.Value);
+            var endBoundary = filter.EndDate.Value;
+            // [BF-011] Khoảng nửa mở [StartDate, EndDate) chống bỏ sót giao dịch có phần lẻ giây 23:59:59.xxx
+            if (endBoundary.Second == 59)
+            {
+                endBoundary = new DateTimeOffset(
+                    endBoundary.Year,
+                    endBoundary.Month,
+                    endBoundary.Day,
+                    endBoundary.Hour,
+                    endBoundary.Minute,
+                    59,
+                    endBoundary.Offset).AddSeconds(1);
+            }
+            ordersQuery = ordersQuery.Where(o => o.CreatedAt < endBoundary);
         }
 
         var orders = await ordersQuery.ToListAsync(ct);
@@ -67,8 +80,8 @@ public class ReportService : IReportService
             totalRevenue += order.TotalAmount;
             foreach (var item in order.Items)
             {
-                totalItemsSold += item.Quantity;
-                var cost = (item.CostPrice ?? 0) * item.Quantity;
+                totalItemsSold += item.BaseQuantity;
+                var cost = (item.CostPrice ?? 0) * item.BaseQuantity;
                 totalCogs += cost;
             }
         }
@@ -82,7 +95,7 @@ public class ReportService : IReportService
             .Select(g =>
             {
                 var chRevenue = g.Sum(o => o.TotalAmount);
-                var chCogs = g.SelectMany(o => o.Items).Sum(i => (i.CostPrice ?? 0) * i.Quantity);
+                var chCogs = g.SelectMany(o => o.Items).Sum(i => (i.CostPrice ?? 0) * i.BaseQuantity);
                 var chProfit = chRevenue - chCogs;
                 var chMargin = chRevenue > 0 ? Math.Round((chProfit / chRevenue) * 100, 2) : 0;
 
@@ -105,7 +118,7 @@ public class ReportService : IReportService
             .Select(g =>
             {
                 var brRevenue = g.Sum(o => o.TotalAmount);
-                var brCogs = g.SelectMany(o => o.Items).Sum(i => (i.CostPrice ?? 0) * i.Quantity);
+                var brCogs = g.SelectMany(o => o.Items).Sum(i => (i.CostPrice ?? 0) * i.BaseQuantity);
                 var brProfit = brRevenue - brCogs;
 
                 return new BranchRevenueBreakdownDto
@@ -121,13 +134,14 @@ public class ReportService : IReportService
             .OrderByDescending(b => b.Revenue)
             .ToList();
 
-        // Xu hướng theo ngày (Daily trend)
+        // Xu hướng theo ngày (Daily trend theo múi giờ Việt Nam +07:00 - BF-011)
+        var vnOffset = TimeSpan.FromHours(7);
         var dailyTrend = orders
-            .GroupBy(o => o.CreatedAt.ToString("yyyy-MM-dd"))
+            .GroupBy(o => o.CreatedAt.ToOffset(vnOffset).ToString("yyyy-MM-dd"))
             .Select(g =>
             {
                 var dRevenue = g.Sum(o => o.TotalAmount);
-                var dCogs = g.SelectMany(o => o.Items).Sum(i => (i.CostPrice ?? 0) * i.Quantity);
+                var dCogs = g.SelectMany(o => o.Items).Sum(i => (i.CostPrice ?? 0) * i.BaseQuantity);
                 return new DailyRevenueBreakdownDto
                 {
                     Date = g.Key,
@@ -200,7 +214,20 @@ public class ReportService : IReportService
 
         if (filter.EndDate.HasValue)
         {
-            ordersQuery = ordersQuery.Where(o => o.CreatedAt <= filter.EndDate.Value);
+            var endBoundary = filter.EndDate.Value;
+            // [BF-011] Khoảng nửa mở [StartDate, EndDate) chống bỏ sót giao dịch có phần lẻ giây 23:59:59.xxx
+            if (endBoundary.Second == 59)
+            {
+                endBoundary = new DateTimeOffset(
+                    endBoundary.Year,
+                    endBoundary.Month,
+                    endBoundary.Day,
+                    endBoundary.Hour,
+                    endBoundary.Minute,
+                    59,
+                    endBoundary.Offset).AddSeconds(1);
+            }
+            ordersQuery = ordersQuery.Where(o => o.CreatedAt < endBoundary);
         }
 
         var soldItems = await ordersQuery
@@ -211,7 +238,7 @@ public class ReportService : IReportService
             .GroupBy(i => i.SkuId)
             .ToDictionary(
                 g => g.Key,
-                g => new { QuantitySold = g.Sum(x => x.Quantity), Revenue = g.Sum(x => x.Quantity * x.UnitPrice) });
+                g => new { QuantitySold = g.Sum(x => x.BaseQuantity), Revenue = g.Sum(x => x.Quantity * x.UnitPrice) });
 
         var topN = Math.Clamp(filter.TopN, 1, 50);
 

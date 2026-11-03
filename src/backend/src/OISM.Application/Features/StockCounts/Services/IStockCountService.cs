@@ -38,4 +38,25 @@ public interface IStockCountService
     /// Danh sách đợt kiểm kê có phân trang và bộ lọc.
     /// </summary>
     Task<PagedResultDto<StockCountResponseDto>> GetStockCountsAsync(StockCountFilterRequestDto filter, CancellationToken ct = default);
+
+    /// <summary>
+    /// Bắt đầu đếm kỳ kiểm kê: chụp snapshot tồn kho tại thời điểm bắt đầu (OISMS-47-U03).
+    /// </summary>
+    Task<StockCountResponseDto> StartPeriodAsync(Guid periodId, Guid userId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Nộp kết quả kiểm kê ('Counting' -> 'PendingApproval') và đối soát sequence drift (OISMS-47-U03).
+    /// </summary>
+    Task<StockCountResponseDto> SubmitStockCountAsync(Guid stockCountId, SubmitStockCountRequestDto? dto, Guid userId, CancellationToken ct = default);
+    Task<StockCountResponseDto> SubmitStockCountAsync(Guid stockCountId, Guid userId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Chụp snapshot lại các SKU bị lệch sequence trong khi đếm ('Counting') (OISMS-47-U03).
+    /// </summary>
+    Task<StockCountResponseDto> RecountDriftedAsync(Guid stockCountId, RecountDriftedRequestDto dto, Guid userId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Yêu cầu đếm lại các SKU khi ở trạng thái 'PendingApproval' ('PendingApproval' -> 'Counting') (OISMS-47-U03).
+    /// </summary>
+    Task<StockCountResponseDto> RequestRecountAsync(Guid stockCountId, RequestRecountRequestDto dto, Guid userId, CancellationToken ct = default);
 }
