@@ -1,0 +1,23 @@
+# API, SignalR và health đi vào backend; còn lại là file tĩnh của frontend
+(backend_routes) {
+	@backend path /api/* /hubs/* /health /health/*
+	handle @backend {
+		reverse_proxy backend:8080
+	}
+}
+
+{$ADMIN_DOMAIN} {
+	encode gzip
+	import backend_routes
+	handle {
+		reverse_proxy admin-dashboard:80
+	}
+}
+
+{$POS_DOMAIN} {
+	encode gzip
+	import backend_routes
+	handle {
+		reverse_proxy pos-app:80
+	}
+}
