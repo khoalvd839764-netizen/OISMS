@@ -15,6 +15,7 @@
 | Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả thay đổi | Mã tham chiếu |
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Thiết lập ma trận phân quyền chi tiết cấp API và Màn hình cho 3 vai trò `Owner`, `Staff`, `Cashier`. | `INIT-USR-02` |
+| `v1.1.0` | `2026-11-03` | Nhóm dự án OISMS | Cập nhật phân quyền lịch kiểm kê, kỳ kiểm kê, nộp duyệt, đếm lại và chốt kiểm kê (OISMS-47-U03). | `OISMS-47-U03` |
 
 ---
 
@@ -55,7 +56,10 @@ Các trường định danh bắt buộc bên trong Payload của JWT:
 | **Kho & Sổ cái** | Xem, lập và sửa nháp Phiếu mua hàng (`Purchase Order`) | `OISMS-47-U01A` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |
 | **Kho & Sổ cái** | Duyệt, đóng và hủy Phiếu mua hàng | `OISMS-47-U01A` | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) | ❌ Cấm (`403 Forbidden`) |
 | **Kho & Sổ cái** | Thực hiện Chuyển kho 2 bước (Xuất đi & Xác nhận nhập) | `FR-INV-03` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |
-| **Kho & Sổ cái** | Tạo phiên Kiểm kê vật lý & Sinh bút toán điều chỉnh cân bằng kho | `FR-INV-04` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |
+| **Kho & Sổ cái** | Thiết lập cấu hình Lịch kiểm kê định kỳ (`StockCountSchedule`) | `OISMS-47-U03` | ✅ Toàn quyền (`POST`, `PUT`) | 👁️ Chỉ xem (`GET`) | ❌ Cấm (`403 Forbidden`) |
+| **Kho & Sổ cái** | Xem danh sách Kỳ kiểm kê & Bắt đầu đếm kỳ (`StockCountPeriod`) | `OISMS-47-U03` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |
+| **Kho & Sổ cái** | Lập phiếu kiểm kê, Ghi số đếm (`Record`), Đếm lại (`Recount`), Nộp duyệt (`Submit`) | `FR-INV-04`, `OISMS-47-U03` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |
+| **Kho & Sổ cái** | Yêu cầu đếm lại (`RequestRecount`) & Phê duyệt chốt kiểm kê (`Confirm`) cân bằng kho | `FR-INV-04`, `OISMS-47-U03` | ✅ Toàn quyền (chặn tự duyệt khi có Owner khác) | ❌ Cấm (`403 Forbidden`) | ❌ Cấm (`403 Forbidden`) |
 | **Đơn hàng & Giữ chỗ** | Xem danh sách đơn đa kênh, duyệt đơn (`Confirm`), in phiếu giao, hủy đơn | `FR-ORD-03` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm quản lý đơn Admin |
 | **Đơn hàng & Giữ chỗ** | Gọi API Giữ chỗ tồn kho (`Reserve Stock`) | `FR-RSE-02` | ✅ Cho phép | ✅ Cho phép | ✅ Cho phép (trong luồng POS) |
 | **Bán hàng tại quầy** | Tra cứu nhanh SKU, quét Barcode tại giao diện PWA POS | `FR-POS-01` | ✅ Cho phép | ✅ Cho phép | ✅ Toàn quyền |

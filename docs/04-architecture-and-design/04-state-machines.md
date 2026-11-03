@@ -16,6 +16,7 @@
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả máy trạng thái chuẩn UML 2.0 cho Đơn hàng, Giữ chỗ, Phiếu nhập và Phiếu chuyển kho 2 bước. | `INIT-ARC-04` |
 | `v1.1.0` | `2026-11-02` | Nhóm dự án OISMS | Thêm máy trạng thái Phiếu mua hàng. | `OISMS-47-U01A` |
+| `v1.2.0` | `2026-11-03` | Nhóm dự án OISMS | Bổ sung máy trạng thái Đợt kiểm kê (StockCount) và Kỳ kiểm kê (StockCountPeriod). | `OISMS-47-U03` |
 
 ---
 
@@ -69,4 +70,32 @@ stateDiagram-v2
     Draft --> InTransit : Bước 1 - Xuất kho gửi (Ghi Ledger OUT tại Kho A, giảm on_hand Kho A)
     InTransit --> Received : Bước 2 - Xác nhận nhập tại Kho B (Ghi Ledger IN tại Kho B, tăng on_hand Kho B)
     Draft --> Cancelled : Hủy phiếu khi chưa xuất kho
+```
+
+---
+
+## 4. Máy Trạng Thái Đợt Kiểm Kê & Kỳ Kiểm Kê (`FR-INV-04`, `OISMS-47-U03`)
+
+### 4.1. Máy Trạng Thái Đợt Kiểm Kê (`StockCount`)
+
+```mermaid
+stateDiagram-v2
+    [*] --> Draft : Tạo phiếu kiểm kê (Đột xuất hoặc bắt đầu Kỳ định kỳ)
+    Draft --> Counting : Nhân viên ghi số đếm thực tế (Record)
+    Counting --> PendingApproval : Nộp phiếu kiểm kê (Submit - Đối soát sequence drift)
+    PendingApproval --> Counting : Yêu cầu đếm lại / Đếm lại SKU lệch (RequestRecount / Recount)
+    PendingApproval --> Confirmed : Owner phê duyệt chốt kiểm kê (Atomic: Bút toán sổ cái + Cân bằng tồn)
+    Draft --> Cancelled : Hủy phiếu kiểm kê nháp
+    Counting --> Cancelled : Hủy phiếu khi đang đếm
+```
+
+### 4.2. Máy Trạng Thái Kỳ Kiểm Kê Định Kỳ (`StockCountPeriod`)
+
+```mermaid
+stateDiagram-v2
+    [*] --> Planned : Tác vụ nền Hangfire tự động sinh kỳ theo lịch
+    Planned --> InProgress : Bắt đầu đếm kỳ (StartPeriod - Chụp snapshot & tạo phiếu kiểm kê)
+    InProgress --> Completed : Phiếu kiểm kê được duyệt chốt (Confirmed)
+    InProgress --> Planned : Phiếu kiểm kê bị hủy (Cancelled - Cho phép bắt đầu lại)
+    Planned --> Cancelled : Quản trị hủy kỳ kiểm kê
 ```

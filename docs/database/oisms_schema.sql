@@ -503,12 +503,19 @@ CREATE TABLE "stock_counts" (
   "request_key" uuid,
   "payload_signature" varchar(128),
   "generated_adjustment_id" uuid,
+  "count_type" varchar(20) DEFAULT 'AdHoc' NOT NULL,
+  "ad_hoc_reason" text,
+  "period_id" uuid,
+  "submitted_by" uuid,
+  "submitted_at" timestamptz,
   CONSTRAINT "uq_stock_counts_1" UNIQUE ("tenant_id", "id"),
   CONSTRAINT "uq_stock_counts_2" UNIQUE ("tenant_id", "number"),
   CONSTRAINT "uq_stock_counts_3" UNIQUE ("tenant_id", "request_key"),
   CONSTRAINT "uq_stock_counts_4" UNIQUE ("tenant_id", "generated_adjustment_id"),
-  CONSTRAINT "ck_stock_counts_status_values" CHECK (status IN ('Draft', 'Counting', 'Confirmed', 'Cancelled')),
-  CONSTRAINT "ck_stock_counts_confirmed" CHECK ((status = 'Confirmed') = (confirmed_at IS NOT NULL) AND (confirmed_at IS NULL) = (confirmed_by IS NULL))
+  CONSTRAINT "ck_stock_counts_status_values" CHECK (status IN ('Draft', 'Counting', 'PendingApproval', 'Confirmed', 'Cancelled')),
+  CONSTRAINT "ck_stock_counts_confirmed" CHECK ((status = 'Confirmed') = (confirmed_at IS NOT NULL) AND (confirmed_at IS NULL) = (confirmed_by IS NULL)),
+  CONSTRAINT "ck_stock_counts_count_type" CHECK (count_type IN ('MidMonth', 'EndOfMonth', 'AdHoc')),
+  CONSTRAINT "ck_stock_counts_type_period" CHECK ((count_type = 'AdHoc') = (period_id IS NULL))
 );
 
 -- Phát hiện giao dịch xen giữa bằng sequence; giá bổ sung cần cho hàng thừa chưa có WAC.
@@ -521,6 +528,9 @@ CREATE TABLE "stock_count_items" (
   "counted_quantity" numeric(18,3),
   "balance_sequence_at_snapshot" bigint NOT NULL,
   "adjustment_unit_cost" numeric(20,6),
+  "counted_by" uuid,
+  "counted_at" timestamptz,
+  "snapshot_at" timestamptz,
   "created_at" timestamptz DEFAULT now() NOT NULL,
   "updated_at" timestamptz,
   CONSTRAINT "uq_stock_count_items_1" UNIQUE ("tenant_id", "id"),
@@ -706,6 +716,68 @@ CREATE TABLE "sales_invoices" (
   CONSTRAINT "ck_sales_invoices_channel_values" CHECK (channel IN ('POS', 'Admin', 'Shopee', 'TikTok', 'Lazada')),
   CONSTRAINT "ck_sales_invoices_total_amount_nonnegative" CHECK (total_amount >= 0),
   CONSTRAINT "ck_sales_invoices_payment_method_values" CHECK (payment_method_snapshot IS NULL OR payment_method_snapshot IN ('Cash','BankTransfer'))
+);
+
+-- Cấu hình lịch kiểm kê định kỳ theo kho (Upgrade 03, Bảng thứ 41)
+CREATE TABLE "stock_count_schedules" (
+  "id" uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+  "tenant_id" uuid NOT NULL,
+  "branch_id" uuid NOT NULL,
+  "warehouse_id" uuid NOT NULL,
+  "period_type" varchar(20) NOT NULL,
+  "day_of_month" smallint,
+  "local_time" time NOT NULL,
+  "due_days" smallint NOT NULL,
+  "assignee_user_id" uuid NOT NULL,
+  "is_active" boolean DEFAULT true NOT NULL,
+  "created_by" uuid NOT NULL,
+  "updated_by" uuid,
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  "updated_at" timestamptz,
+  CONSTRAINT "uq_stock_count_schedules_1" UNIQUE ("tenant_id", "id"),
+  CONSTRAINT "uq_stock_count_schedules_2" UNIQUE ("tenant_id", "warehouse_id", "period_type"),
+  CONSTRAINT "ck_stock_count_schedules_period_type" CHECK (period_type IN ('MidMonth', 'EndOfMonth')),
+  CONSTRAINT "ck_stock_count_schedules_day" CHECK ((period_type = 'MidMonth' AND day_of_month BETWEEN 1 AND 28) OR (period_type = 'EndOfMonth' AND day_of_month IS NULL)),
+  CONSTRAINT "ck_stock_count_schedules_due_days" CHECK (due_days BETWEEN 1 AND 14)
+);
+
+-- Kỳ kiểm kê sinh tự động từ lịch định kỳ (Upgrade 03, Bảng thứ 42)
+CREATE TABLE "stock_count_periods" (
+  "id" uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+  "tenant_id" uuid NOT NULL,
+  "schedule_id" uuid NOT NULL,
+  "branch_id" uuid NOT NULL,
+  "warehouse_id" uuid NOT NULL,
+  "period_type" varchar(20) NOT NULL,
+  "period_key" varchar(20) NOT NULL,
+  "scheduled_at" timestamptz NOT NULL,
+  "due_at" timestamptz NOT NULL,
+  "assignee_user_id" uuid NOT NULL,
+  "status" varchar(20) DEFAULT 'Planned' NOT NULL,
+  "completed_at" timestamptz,
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  "updated_at" timestamptz,
+  CONSTRAINT "uq_stock_count_periods_1" UNIQUE ("tenant_id", "id"),
+  CONSTRAINT "uq_stock_count_periods_2" UNIQUE ("tenant_id", "warehouse_id", "period_key"),
+  CONSTRAINT "ck_stock_count_periods_period_type" CHECK (period_type IN ('MidMonth', 'EndOfMonth')),
+  CONSTRAINT "ck_stock_count_periods_status" CHECK (status IN ('Planned', 'InProgress', 'Completed', 'Cancelled')),
+  CONSTRAINT "ck_stock_count_periods_due" CHECK (due_at > scheduled_at),
+  CONSTRAINT "ck_stock_count_periods_completed" CHECK ((status = 'Completed') = (completed_at IS NOT NULL))
+);
+
+-- Nhật ký xét duyệt và chốt kiểm kê (Upgrade 03, Bảng thứ 43 - Append-only)
+CREATE TABLE "stock_count_approvals" (
+  "id" uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+  "tenant_id" uuid NOT NULL,
+  "stock_count_id" uuid NOT NULL,
+  "action" varchar(20) NOT NULL,
+  "actor_user_id" uuid NOT NULL,
+  "reason" text,
+  "differences" jsonb NOT NULL,
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  "updated_at" timestamptz,
+  CONSTRAINT "uq_stock_count_approvals_1" UNIQUE ("tenant_id", "id"),
+  CONSTRAINT "ck_stock_count_approvals_action" CHECK (action IN ('Submitted', 'Approved', 'RecountRequested', 'Recounted', 'Cancelled'))
 );
 
 -- Nguồn giao dịch trả hàng cho ledger theo FR-INV-01; chi tiết quy trình hoàn tiền là thiết kế hỗ trợ, không phải yêu cầu nguyên văn.
@@ -1006,7 +1078,29 @@ ALTER TABLE "sales_invoices" ADD CONSTRAINT "fk_sales_invoices_issued_by" FOREIG
 ALTER TABLE "orders" ADD CONSTRAINT "fk_orders_confirmed_by" FOREIGN KEY ("tenant_id", "confirmed_by") REFERENCES "users" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 ALTER TABLE "stock_transfers" ADD CONSTRAINT "fk_stock_transfers_dispatched_by" FOREIGN KEY ("tenant_id", "dispatched_by") REFERENCES "users" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 
+ALTER TABLE "stock_counts" ADD CONSTRAINT "fk_stock_counts_period" FOREIGN KEY ("tenant_id", "period_id") REFERENCES "stock_count_periods" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "stock_counts" ADD CONSTRAINT "fk_stock_counts_submitted_by" FOREIGN KEY ("tenant_id", "submitted_by") REFERENCES "users" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "stock_count_items" ADD CONSTRAINT "fk_stock_count_items_counted_by" FOREIGN KEY ("tenant_id", "counted_by") REFERENCES "users" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+
+ALTER TABLE "stock_count_schedules" ADD CONSTRAINT "fk_stock_count_schedules_tenant_id" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "stock_count_schedules" ADD CONSTRAINT "fk_stock_count_schedules_warehouse_branch" FOREIGN KEY ("tenant_id", "warehouse_id", "branch_id") REFERENCES "warehouses" ("tenant_id", "id", "branch_id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "stock_count_schedules" ADD CONSTRAINT "fk_stock_count_schedules_assignee" FOREIGN KEY ("tenant_id", "assignee_user_id") REFERENCES "users" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "stock_count_schedules" ADD CONSTRAINT "fk_stock_count_schedules_created_by" FOREIGN KEY ("tenant_id", "created_by") REFERENCES "users" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "stock_count_schedules" ADD CONSTRAINT "fk_stock_count_schedules_updated_by" FOREIGN KEY ("tenant_id", "updated_by") REFERENCES "users" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+
+ALTER TABLE "stock_count_periods" ADD CONSTRAINT "fk_stock_count_periods_tenant_id" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "stock_count_periods" ADD CONSTRAINT "fk_stock_count_periods_schedule" FOREIGN KEY ("tenant_id", "schedule_id") REFERENCES "stock_count_schedules" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "stock_count_periods" ADD CONSTRAINT "fk_stock_count_periods_warehouse_branch" FOREIGN KEY ("tenant_id", "warehouse_id", "branch_id") REFERENCES "warehouses" ("tenant_id", "id", "branch_id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "stock_count_periods" ADD CONSTRAINT "fk_stock_count_periods_assignee" FOREIGN KEY ("tenant_id", "assignee_user_id") REFERENCES "users" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+
+ALTER TABLE "stock_count_approvals" ADD CONSTRAINT "fk_stock_count_approvals_tenant_id" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "stock_count_approvals" ADD CONSTRAINT "fk_stock_count_approvals_stock_count" FOREIGN KEY ("tenant_id", "stock_count_id") REFERENCES "stock_counts" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "stock_count_approvals" ADD CONSTRAINT "fk_stock_count_approvals_actor" FOREIGN KEY ("tenant_id", "actor_user_id") REFERENCES "users" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+
 -- Query and partial unique indexes.
+CREATE UNIQUE INDEX "uq_stock_counts_active_period" ON "stock_counts" ("tenant_id", "period_id") WHERE period_id IS NOT NULL AND status <> 'Cancelled';
+CREATE INDEX "ix_stock_count_periods_status_due" ON "stock_count_periods" ("tenant_id", "status", "due_at", "id");
+CREATE INDEX "ix_stock_count_approvals_count" ON "stock_count_approvals" ("tenant_id", "stock_count_id", "created_at");
 CREATE INDEX "ix_skus_product" ON "skus" ("tenant_id", "product_id");
 CREATE INDEX "ix_inventory_balances_sku_branches" ON "inventory_balances" ("tenant_id", "sku_id", "branch_id");
 CREATE INDEX "ix_inventory_transactions_sku_history" ON "inventory_transactions" ("tenant_id", "branch_id", "sku_id", "created_at", "id");
@@ -1317,6 +1411,9 @@ FOR EACH STATEMENT EXECUTE FUNCTION public.oisms_deny_mutation();
 CREATE TRIGGER sales_invoice_append_only BEFORE UPDATE OR DELETE OR TRUNCATE ON public.sales_invoices
 FOR EACH STATEMENT EXECUTE FUNCTION public.oisms_deny_mutation();
 
+CREATE TRIGGER stock_count_approval_append_only BEFORE UPDATE OR DELETE OR TRUNCATE ON public.stock_count_approvals
+FOR EACH STATEMENT EXECUTE FUNCTION public.oisms_deny_mutation();
+
 CREATE FUNCTION public.oisms_price_change_request_guard() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
 BEGIN
@@ -1380,15 +1477,16 @@ END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='oisms_runtime') THEN CREATE ROLE oisms_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS; END IF; END $$;
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA public TO oisms_runtime;
-REVOKE ALL ON public."tenants", public."users", public."refresh_tokens", public."branches", public."warehouses", public."categories", public."brands", public."products", public."skus", public."suppliers", public."purchase_orders", public."purchase_order_items", public."goods_receipts", public."goods_receipt_items", public."inventory_balances", public."warehouse_inventory_balances", public."stock_transfers", public."stock_transfer_items", public."stock_counts", public."stock_count_items", public."inventory_adjustments", public."inventory_adjustment_items", public."orders", public."order_items", public."reservations", public."payments", public."sales_returns", public."sales_return_items", public."inventory_transactions", public."daily_sales_summaries", public."replenishment_suggestions", public."shop_integrations", public."units", public."sku_units", public."sku_unit_factor_history", public."price_lists", public."price_change_requests", public."price_change_request_items", public."sku_unit_prices", public."sales_invoices" FROM PUBLIC, oisms_runtime;
+REVOKE ALL ON public."tenants", public."users", public."refresh_tokens", public."branches", public."warehouses", public."categories", public."brands", public."products", public."skus", public."suppliers", public."purchase_orders", public."purchase_order_items", public."goods_receipts", public."goods_receipt_items", public."inventory_balances", public."warehouse_inventory_balances", public."stock_transfers", public."stock_transfer_items", public."stock_counts", public."stock_count_items", public."inventory_adjustments", public."inventory_adjustment_items", public."orders", public."order_items", public."reservations", public."payments", public."sales_returns", public."sales_return_items", public."inventory_transactions", public."daily_sales_summaries", public."replenishment_suggestions", public."shop_integrations", public."units", public."sku_units", public."sku_unit_factor_history", public."price_lists", public."price_change_requests", public."price_change_request_items", public."sku_unit_prices", public."sales_invoices", public."stock_count_schedules", public."stock_count_periods", public."stock_count_approvals" FROM PUBLIC, oisms_runtime;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public."tenants", public."users", public."refresh_tokens", public."branches", public."warehouses", public."categories", public."brands", public."products", public."skus", public."suppliers", public."purchase_order_items", public."goods_receipts", public."goods_receipt_items", public."inventory_balances", public."warehouse_inventory_balances", public."stock_transfers", public."stock_transfer_items", public."stock_counts", public."stock_count_items", public."inventory_adjustments", public."inventory_adjustment_items", public."orders", public."order_items", public."reservations", public."payments", public."sales_returns", public."sales_return_items", public."inventory_transactions", public."daily_sales_summaries", public."replenishment_suggestions", public."shop_integrations", public."units", public."sku_units" TO oisms_runtime;
-GRANT SELECT, INSERT, UPDATE ON public."price_lists", public."price_change_requests", public."sku_unit_prices", public."purchase_orders" TO oisms_runtime;
-GRANT SELECT, INSERT ON public."price_change_request_items", public."sku_unit_factor_history", public."sales_invoices" TO oisms_runtime;
-REVOKE DELETE, TRUNCATE ON public.price_lists, public.price_change_requests, public.sku_unit_prices, public.purchase_orders FROM oisms_runtime;
+GRANT SELECT, INSERT, UPDATE ON public."price_lists", public."price_change_requests", public."sku_unit_prices", public."purchase_orders", public."stock_count_schedules", public."stock_count_periods" TO oisms_runtime;
+GRANT SELECT, INSERT ON public."price_change_request_items", public."sku_unit_factor_history", public."sales_invoices", public."stock_count_approvals" TO oisms_runtime;
+REVOKE DELETE, TRUNCATE ON public.price_lists, public.price_change_requests, public.sku_unit_prices, public.purchase_orders, public.stock_count_schedules, public.stock_count_periods FROM oisms_runtime;
 REVOKE TRUNCATE ON public.purchase_order_items FROM oisms_runtime;
 REVOKE UPDATE, DELETE, TRUNCATE ON public.price_change_request_items FROM oisms_runtime;
 REVOKE UPDATE, DELETE, TRUNCATE ON public.sku_unit_factor_history FROM oisms_runtime;
 REVOKE UPDATE, DELETE, TRUNCATE ON public.sales_invoices FROM oisms_runtime;
+REVOKE UPDATE, DELETE, TRUNCATE ON public.stock_count_approvals FROM oisms_runtime;
 REVOKE UPDATE, DELETE, TRUNCATE ON public.inventory_transactions FROM oisms_runtime;
 REVOKE DELETE, TRUNCATE ON public.inventory_balances, public.warehouse_inventory_balances, public.reservations FROM oisms_runtime;
 -- Balance writes are allowed only when deferred checks reconcile ledger/reservations at COMMIT.

@@ -144,9 +144,12 @@ public class DatabaseBaselineValidatorTests
             "sku_unit_prices",
             "purchase_orders",
             "purchase_order_items",
-            "sales_invoices"
+            "sales_invoices",
+            "stock_count_schedules",
+            "stock_count_periods",
+            "stock_count_approvals"
         ]);
-        DatabaseMigrationService.RequiredTables.Length.Should().Be(40);
+        DatabaseMigrationService.RequiredTables.Length.Should().Be(43);
     }
 
     [Fact]

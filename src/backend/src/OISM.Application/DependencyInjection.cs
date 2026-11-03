@@ -38,6 +38,7 @@ public static class DependencyInjection
         services.AddScoped<ISimulatorService, SimulatorService>();
         services.AddScoped<IStockTransferService, StockTransferService>();
         services.AddScoped<IStockCountService, StockCountService>();
+        services.AddScoped<IStockCountScheduleService, StockCountScheduleService>();
         services.AddScoped<IWebhookService, WebhookService>();
 
         // Catalog & Management services

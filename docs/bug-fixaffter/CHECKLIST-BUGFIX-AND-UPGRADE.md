@@ -85,8 +85,8 @@ Tài liệu đối chiếu: [BUG-LIST.md](Report%20Bugfix/BUG-LIST.md), [report 
   - [ ] **U01-B (làm sau U01-A):** Đối chiếu hóa đơn NCC (`supplier_invoices`) và xử lý chứng từ chênh lệch (`purchase_variances`).
 - [x] **Bước 4 — `Upgrade 02`: Truy vết chứng từ xuất kho (`Đăng Khoa`):** [báo cáo](../report-after-upgrade/hoa-don-truy-vet-xuat-kho.md).
   - [x] Liên kết mọi dòng `InventoryTransaction.OUT` với chứng từ nguồn hợp lệ và hóa đơn/biên nhận bán hàng (`sales_invoices`); có API in lại và truy vết, test đồng thời trên PostgreSQL thật.
-- [ ] **Bước 5 — `Upgrade 03`: Quy định kiểm kê định kỳ & đột xuất (`Đăng Khoa` & `Nhựt`):**
-  - [ ] Tạo bảng lịch kiểm kê `stock_count_schedules` (Giữa tháng ngày 15, Cuối tháng, Đột xuất có lý do) và bước phê duyệt chênh lệch `PendingApproval`.
+- [x] **Bước 5 — `Upgrade 03`: Quy định kiểm kê định kỳ & đột xuất (`Đăng Khoa` & `Nhựt`):** [báo cáo](../report-after-upgrade/lich-kiem-ke-duyet-chenh-lech.md).
+  - [x] Tạo bảng lịch kiểm kê `stock_count_schedules` (Giữa tháng ngày 15, Cuối tháng, Đột xuất có lý do) và bước phê duyệt chênh lệch `PendingApproval`.
 
 ---
 

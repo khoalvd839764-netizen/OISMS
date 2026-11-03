@@ -15,9 +15,13 @@ public class StockCountItem : BaseEntity, IMustHaveTenant
     public decimal? CountedQuantity { get; set; }
     public long BalanceSequenceAtSnapshot { get; set; }
     public decimal? AdjustmentUnitCost { get; set; }
+    public Guid? CountedBy { get; set; }
+    public DateTimeOffset? CountedAt { get; set; }
+    public DateTimeOffset? SnapshotAt { get; set; }
 
     // Navigation properties
     public Tenant? Tenant { get; set; }
     public StockCount? StockCount { get; set; }
     public ProductVariant? Sku { get; set; }
+    public User? CountedByUser { get; set; }
 }

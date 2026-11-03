@@ -247,7 +247,8 @@ MISSING_TABLES=$(psql -v ON_ERROR_STOP=1 --username "$SUPERUSER" --dbname "$TARG
         ('daily_sales_summaries'),('replenishment_suggestions'),('shop_integrations'),
         ('units'),('sku_units'),('sku_unit_factor_history'),
         ('price_lists'),('price_change_requests'),('price_change_request_items'),('sku_unit_prices'),
-        ('purchase_orders'),('purchase_order_items'),('sales_invoices')
+        ('purchase_orders'),('purchase_order_items'),('sales_invoices'),
+        ('stock_count_schedules'),('stock_count_periods'),('stock_count_approvals')
     )
     SELECT string_agg(r.t, ', ')
     FROM required r

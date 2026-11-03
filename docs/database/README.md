@@ -9,7 +9,7 @@
 
 Kiểm tra lại kết nối: `Invoke-RestMethod http://localhost:5000/health/ready`.
 
-Tài liệu chuẩn chung cho Khoa (Backend 1), TV2 (Backend 2) và các thành viên tích hợp. PostgreSQL 16+, **40 bảng nghiệp vụ** (bản bàn giao gốc v0.5 có 29 bảng, 94 khóa ngoại, 86 CHECK; Sprint 3 thêm `shop_integrations`, Upgrade 05 thêm `units`, `sku_units`, `sku_unit_factor_history`, Upgrade 04 thêm `price_lists`, `price_change_requests`, `price_change_request_items`, `sku_unit_prices`, Upgrade 01-A thêm `purchase_orders`, `purchase_order_items`, Upgrade 02 thêm `sales_invoices`), cùng UNIQUE/index và trigger. Việc gom file không thay đổi mô hình nghiệp vụ v0.5.
+Tài liệu chuẩn chung cho Khoa (Backend 1), TV2 (Backend 2) và các thành viên tích hợp. PostgreSQL 16+, **43 bảng nghiệp vụ** (bản bàn giao gốc v0.5 có 29 bảng, 94 khóa ngoại, 86 CHECK; Sprint 3 thêm `shop_integrations`, Upgrade 05 thêm `units`, `sku_units`, `sku_unit_factor_history`, Upgrade 04 thêm `price_lists`, `price_change_requests`, `price_change_request_items`, `sku_unit_prices`, Upgrade 01-A thêm `purchase_orders`, `purchase_order_items`, Upgrade 02 thêm `sales_invoices`, Upgrade 03 thêm `stock_count_schedules`, `stock_count_periods`, `stock_count_approvals`), cùng UNIQUE/index và trigger. Việc gom file không thay đổi mô hình nghiệp vụ v0.5.
 
 ## Bộ file bàn giao
 
@@ -1479,6 +1479,90 @@ Hóa đơn bán hàng gắn với mỗi lần xuất bán, bảng chỉ thêm (a
 **UNIQUE:** `(tenant_id, id)`; `(tenant_id, number)`; `(tenant_id, order_id)`.
 **INDEX:** `ix_sales_invoices_time (tenant_id, issued_at, id)`.
 **Quan hệ FK:** `(tenant_id)` → `tenants(id)`; `(tenant_id, order_id, branch_id)` → `orders(tenant_id, id, branch_id)`; `(tenant_id, branch_id)` → `branches(tenant_id, id)`; `(tenant_id, issued_by)` → `users(tenant_id, id)`.
+
+### 41. `stock_count_schedules`
+
+Cấu hình lịch kiểm kê định kỳ theo kho (OISMS-47-U03). Quyền runtime: SELECT, INSERT, UPDATE.
+
+| Cột | Kiểu PostgreSQL | Bắt buộc | Mặc định / cách ghi |
+|---|---|---|---|
+| `id` (PK) | `uuid` | Có | `gen_random_uuid()` |
+| `tenant_id` | `uuid` | Có | Backend lấy từ JWT |
+| `branch_id` | `uuid` | Có | Chi nhánh của kho kiểm kê |
+| `warehouse_id` | `uuid` | Có | Kho áp dụng lịch kiểm kê |
+| `period_type` | `varchar(20)` | Có | 'MidMonth', 'EndOfMonth' |
+| `day_of_month` | `smallint` | Không | 1..28 nếu MidMonth, NULL nếu EndOfMonth |
+| `local_time` | `time` | Có | Giờ kiểm kê theo giờ cửa hàng (+07:00) |
+| `due_days` | `smallint` | Có | Số ngày cho phép hoàn thành (1..14) |
+| `assignee_user_id` | `uuid` | Có | Nhân viên được giao phụ trách (Owner hoặc Staff) |
+| `is_active` | `boolean` | Có | `true` |
+| `created_by` | `uuid` | Có | Người tạo lịch |
+| `updated_by` | `uuid` | Không | Người cập nhật lịch gần nhất |
+| `created_at` | `timestamptz` | Có | `now()` |
+| `updated_at` | `timestamptz` | Không | NULL |
+
+**UNIQUE:** `uq_stock_count_schedules_1 (tenant_id, id)`; `uq_stock_count_schedules_2 (tenant_id, warehouse_id, period_type)`.
+**CHECK:** `ck_stock_count_schedules_period_type`, `ck_stock_count_schedules_day`, `ck_stock_count_schedules_due_days`.
+**Quan hệ FK:** `(tenant_id)` → `tenants(id)`; `(tenant_id, warehouse_id, branch_id)` → `warehouses(tenant_id, id, branch_id)`; `(tenant_id, assignee_user_id)` → `users(tenant_id, id)`; `(tenant_id, created_by)` → `users(tenant_id, id)`; `(tenant_id, updated_by)` → `users(tenant_id, id)`.
+
+### 42. `stock_count_periods`
+
+Kỳ kiểm kê được sinh tự động bởi job định kỳ (OISMS-47-U03). Quyền runtime: SELECT, INSERT, UPDATE.
+
+| Cột | Kiểu PostgreSQL | Bắt buộc | Mặc định / cách ghi |
+|---|---|---|---|
+| `id` (PK) | `uuid` | Có | `gen_random_uuid()` |
+| `tenant_id` | `uuid` | Có | Backend lấy từ JWT |
+| `schedule_id` | `uuid` | Có | Lịch gốc sinh ra kỳ |
+| `branch_id` | `uuid` | Có | Chi nhánh |
+| `warehouse_id` | `uuid` | Có | Kho |
+| `period_type` | `varchar(20)` | Có | 'MidMonth', 'EndOfMonth' |
+| `period_key` | `varchar(20)` | Có | 'yyyy-MM-MID' hoặc 'yyyy-MM-END' |
+| `scheduled_at` | `timestamptz` | Có | Thời điểm bắt đầu dự kiến |
+| `due_at` | `timestamptz` | Có | Hạn hoàn tất kiểm kê |
+| `assignee_user_id` | `uuid` | Có | Người phụ trách |
+| `status` | `varchar(20)` | Có | 'Planned', 'InProgress', 'Completed', 'Cancelled' |
+| `completed_at` | `timestamptz` | Không | Thời điểm hoàn tất (khi chốt kiểm kê) |
+| `created_at` | `timestamptz` | Có | `now()` |
+| `updated_at` | `timestamptz` | Không | NULL |
+
+**UNIQUE:** `uq_stock_count_periods_1 (tenant_id, id)`; `uq_stock_count_periods_2 (tenant_id, warehouse_id, period_key)`.
+**INDEX:** `ix_stock_count_periods_status_due (tenant_id, status, due_at, id)`.
+**CHECK:** `ck_stock_count_periods_period_type`, `ck_stock_count_periods_status`, `ck_stock_count_periods_due`, `ck_stock_count_periods_completed`.
+**Quan hệ FK:** `(tenant_id)` → `tenants(id)`; `(tenant_id, schedule_id)` → `stock_count_schedules(tenant_id, id)`; `(tenant_id, warehouse_id, branch_id)` → `warehouses(tenant_id, id, branch_id)`; `(tenant_id, assignee_user_id)` → `users(tenant_id, id)`.
+
+### 43. `stock_count_approvals`
+
+Nhật ký xét duyệt đợt kiểm kê, bảng chỉ thêm (append-only, OISMS-47-U03). Trigger `stock_count_approval_append_only` chặn UPDATE, DELETE, TRUNCATE; `oisms_runtime` chỉ có quyền SELECT, INSERT.
+
+| Cột | Kiểu PostgreSQL | Bắt buộc | Mặc định / cách ghi |
+|---|---|---|---|
+| `id` (PK) | `uuid` | Có | `gen_random_uuid()` |
+| `tenant_id` | `uuid` | Có | Backend lấy từ JWT |
+| `stock_count_id` | `uuid` | Có | Đợt kiểm kê được thao tác |
+| `action` | `varchar(20)` | Có | 'Submitted', 'Approved', 'RecountRequested', 'Recounted', 'Cancelled' |
+| `actor_user_id` | `uuid` | Có | Người thực hiện hành động |
+| `reason` | `text` | Không | Lý do / ghi chú phê duyệt hoặc yêu cầu đếm lại |
+| `differences` | `jsonb` | Có | Snapshot sai lệch số lượng tại thời điểm thao tác |
+| `created_at` | `timestamptz` | Có | `now()` |
+| `updated_at` | `timestamptz` | Không | NULL |
+
+**UNIQUE:** `uq_stock_count_approvals_1 (tenant_id, id)`.
+**INDEX:** `ix_stock_count_approvals_count (tenant_id, stock_count_id, created_at)`.
+**CHECK:** `ck_stock_count_approvals_action`.
+**Quan hệ FK:** `(tenant_id)` → `tenants(id)`; `(tenant_id, stock_count_id)` → `stock_counts(tenant_id, id)`; `(tenant_id, actor_user_id)` → `users(tenant_id, id)`.
+
+### Cột Upgrade 03 trên bảng có sẵn
+- `stock_counts.count_type varchar(20) NOT NULL DEFAULT 'AdHoc'`
+- `stock_counts.ad_hoc_reason text NULL`
+- `stock_counts.period_id uuid NULL` → `stock_count_periods(tenant_id, id)`
+- `stock_counts.submitted_by uuid NULL` → `users(tenant_id, id)`
+- `stock_counts.submitted_at timestamptz NULL`
+- `stock_counts.status`: Thêm trạng thái `PendingApproval` (Draft, Counting, PendingApproval, Confirmed, Cancelled).
+- `stock_count_items.counted_by uuid NULL` → `users(tenant_id, id)`
+- `stock_count_items.counted_at timestamptz NULL`
+- `stock_count_items.snapshot_at timestamptz NULL`
+- Partial unique index `uq_stock_counts_active_period` trên `(tenant_id, period_id) WHERE period_id IS NOT NULL AND status <> 'Cancelled'`.
 
 ### Cột Upgrade 02 trên bảng có sẵn
 - `orders.confirmed_by uuid NULL` → `users(tenant_id, id)`

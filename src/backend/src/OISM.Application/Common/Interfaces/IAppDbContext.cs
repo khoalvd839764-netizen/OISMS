@@ -50,6 +50,9 @@ public interface IAppDbContext
     DbSet<PurchaseOrder> PurchaseOrders { get; }
     DbSet<PurchaseOrderItem> PurchaseOrderItems { get; }
     DbSet<SalesInvoice> SalesInvoices { get; }
+    DbSet<StockCountSchedule> StockCountSchedules { get; }
+    DbSet<StockCountPeriod> StockCountPeriods { get; }
+    DbSet<StockCountApproval> StockCountApprovals { get; }
 
     int SaveChanges();
     int SaveChanges(bool acceptAllChangesOnSuccess);

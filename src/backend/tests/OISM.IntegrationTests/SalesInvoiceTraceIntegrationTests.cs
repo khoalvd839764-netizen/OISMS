@@ -463,6 +463,7 @@ LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$ BEGIN RETURN NEW; EN
         // Kiểm kê thiếu
         var createCount = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchId,
             WarehouseId = infra.WarehouseId,
@@ -475,7 +476,9 @@ LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$ BEGIN RETURN NEW; EN
             Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.SkuId, CountedQuantity = 90m } }
         });
         record.IsSuccessStatusCode.Should().BeTrue(await record.Content.ReadAsStringAsync());
-        var confirmCount = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+        var submit = await _client.PostAsync($"/api/stock-counts/{count.Id}/submit", null);
+        submit.IsSuccessStatusCode.Should().BeTrue(await submit.Content.ReadAsStringAsync());
+        var confirmCount = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto { Note = "Owner duy nhất tự duyệt trong test" });
         confirmCount.IsSuccessStatusCode.Should().BeTrue(await confirmCount.Content.ReadAsStringAsync());
 
         Guid countLedgerId;

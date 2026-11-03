@@ -98,7 +98,10 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         "sku_unit_prices",
         "purchase_orders",
         "purchase_order_items",
-        "sales_invoices"
+        "sales_invoices",
+        "stock_count_schedules",
+        "stock_count_periods",
+        "stock_count_approvals"
     ];
 
     public static readonly ExpectedTrigger[] ExpectedTriggers =
@@ -153,7 +156,10 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         new("purchase_order_items", "purchase_order_item_guard", "oisms_purchase_order_item_guard", "public", "BEFORE", true, HasInsert: true, HasUpdate: true, HasDelete: true),
 
         // sales_invoices (U02)
-        new("sales_invoices", "sales_invoice_append_only", "oisms_deny_mutation", "public", "BEFORE", false, HasUpdate: true, HasDelete: true, HasTruncate: true)
+        new("sales_invoices", "sales_invoice_append_only", "oisms_deny_mutation", "public", "BEFORE", false, HasUpdate: true, HasDelete: true, HasTruncate: true),
+
+        // stock_count_approvals (U03)
+        new("stock_count_approvals", "stock_count_approval_append_only", "oisms_deny_mutation", "public", "BEFORE", false, HasUpdate: true, HasDelete: true, HasTruncate: true)
     ];
 
     public static readonly ExpectedForeignKey[] ExpectedForeignKeys =
@@ -256,7 +262,24 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         new("fk_sales_invoices_branch_id", "sales_invoices", ["tenant_id", "branch_id"], "branches", ["tenant_id", "id"]),
         new("fk_sales_invoices_issued_by", "sales_invoices", ["tenant_id", "issued_by"], "users", ["tenant_id", "id"]),
         new("fk_orders_confirmed_by", "orders", ["tenant_id", "confirmed_by"], "users", ["tenant_id", "id"]),
-        new("fk_stock_transfers_dispatched_by", "stock_transfers", ["tenant_id", "dispatched_by"], "users", ["tenant_id", "id"])
+        new("fk_stock_transfers_dispatched_by", "stock_transfers", ["tenant_id", "dispatched_by"], "users", ["tenant_id", "id"]),
+
+        // Stock Count Schedules, Periods & Approvals Foreign Keys (U03)
+        new("fk_stock_count_schedules_tenant_id", "stock_count_schedules", ["tenant_id"], "tenants", ["id"]),
+        new("fk_stock_count_schedules_warehouse_branch", "stock_count_schedules", ["tenant_id", "warehouse_id", "branch_id"], "warehouses", ["tenant_id", "id", "branch_id"]),
+        new("fk_stock_count_schedules_assignee", "stock_count_schedules", ["tenant_id", "assignee_user_id"], "users", ["tenant_id", "id"]),
+        new("fk_stock_count_schedules_created_by", "stock_count_schedules", ["tenant_id", "created_by"], "users", ["tenant_id", "id"]),
+        new("fk_stock_count_schedules_updated_by", "stock_count_schedules", ["tenant_id", "updated_by"], "users", ["tenant_id", "id"]),
+        new("fk_stock_count_periods_tenant_id", "stock_count_periods", ["tenant_id"], "tenants", ["id"]),
+        new("fk_stock_count_periods_schedule", "stock_count_periods", ["tenant_id", "schedule_id"], "stock_count_schedules", ["tenant_id", "id"]),
+        new("fk_stock_count_periods_warehouse_branch", "stock_count_periods", ["tenant_id", "warehouse_id", "branch_id"], "warehouses", ["tenant_id", "id", "branch_id"]),
+        new("fk_stock_count_periods_assignee", "stock_count_periods", ["tenant_id", "assignee_user_id"], "users", ["tenant_id", "id"]),
+        new("fk_stock_count_approvals_tenant_id", "stock_count_approvals", ["tenant_id"], "tenants", ["id"]),
+        new("fk_stock_count_approvals_stock_count", "stock_count_approvals", ["tenant_id", "stock_count_id"], "stock_counts", ["tenant_id", "id"]),
+        new("fk_stock_count_approvals_actor", "stock_count_approvals", ["tenant_id", "actor_user_id"], "users", ["tenant_id", "id"]),
+        new("fk_stock_counts_period", "stock_counts", ["tenant_id", "period_id"], "stock_count_periods", ["tenant_id", "id"]),
+        new("fk_stock_counts_submitted_by", "stock_counts", ["tenant_id", "submitted_by"], "users", ["tenant_id", "id"]),
+        new("fk_stock_count_items_counted_by", "stock_count_items", ["tenant_id", "counted_by"], "users", ["tenant_id", "id"])
     ];
 
     public static readonly ExpectedConstraint[] ExpectedCriticalConstraints =
@@ -390,7 +413,28 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         new("uq_sales_invoices_3", 'u', "sales_invoices", Columns: ["tenant_id", "order_id"]),
         new("ck_sales_invoices_channel_values", 'c', "sales_invoices", ExpectedNormalizedExpression: "((channel)::text = ANY ((ARRAY['POS'::character varying, 'Admin'::character varying, 'Shopee'::character varying, 'TikTok'::character varying, 'Lazada'::character varying])::text[]))"),
         new("ck_sales_invoices_total_amount_nonnegative", 'c', "sales_invoices", ExpectedNormalizedExpression: "(total_amount >= (0)::numeric)"),
-        new("ck_sales_invoices_payment_method_values", 'c', "sales_invoices", ExpectedNormalizedExpression: "((payment_method_snapshot IS NULL) OR ((payment_method_snapshot)::text = ANY ((ARRAY['Cash'::character varying, 'BankTransfer'::character varying])::text[])))")
+        new("ck_sales_invoices_payment_method_values", 'c', "sales_invoices", ExpectedNormalizedExpression: "((payment_method_snapshot IS NULL) OR ((payment_method_snapshot)::text = ANY ((ARRAY['Cash'::character varying, 'BankTransfer'::character varying])::text[])))"),
+
+        // stock_count_schedules, stock_count_periods & stock_count_approvals (U03)
+        new("uq_stock_count_schedules_1", 'u', "stock_count_schedules", Columns: ["tenant_id", "id"]),
+        new("uq_stock_count_schedules_2", 'u', "stock_count_schedules", Columns: ["tenant_id", "warehouse_id", "period_type"]),
+        new("ck_stock_count_schedules_period_type", 'c', "stock_count_schedules", ExpectedNormalizedExpression: "((period_type)::text = ANY ((ARRAY['MidMonth'::character varying, 'EndOfMonth'::character varying])::text[]))"),
+        new("ck_stock_count_schedules_day", 'c', "stock_count_schedules", ExpectedNormalizedExpression: "((((period_type)::text = 'MidMonth'::text) AND ((day_of_month >= 1) AND (day_of_month <= 28))) OR (((period_type)::text = 'EndOfMonth'::text) AND (day_of_month IS NULL)))"),
+        new("ck_stock_count_schedules_due_days", 'c', "stock_count_schedules", ExpectedNormalizedExpression: "((due_days >= 1) AND (due_days <= 14))"),
+
+        new("uq_stock_count_periods_1", 'u', "stock_count_periods", Columns: ["tenant_id", "id"]),
+        new("uq_stock_count_periods_2", 'u', "stock_count_periods", Columns: ["tenant_id", "warehouse_id", "period_key"]),
+        new("ck_stock_count_periods_period_type", 'c', "stock_count_periods", ExpectedNormalizedExpression: "((period_type)::text = ANY ((ARRAY['MidMonth'::character varying, 'EndOfMonth'::character varying])::text[]))"),
+        new("ck_stock_count_periods_status", 'c', "stock_count_periods", ExpectedNormalizedExpression: "((status)::text = ANY ((ARRAY['Planned'::character varying, 'InProgress'::character varying, 'Completed'::character varying, 'Cancelled'::character varying])::text[]))"),
+        new("ck_stock_count_periods_due", 'c', "stock_count_periods", ExpectedNormalizedExpression: "(due_at > scheduled_at)"),
+        new("ck_stock_count_periods_completed", 'c', "stock_count_periods", ExpectedNormalizedExpression: "(((status)::text = 'Completed'::text) = (completed_at IS NOT NULL))"),
+
+        new("uq_stock_count_approvals_1", 'u', "stock_count_approvals", Columns: ["tenant_id", "id"]),
+        new("ck_stock_count_approvals_action", 'c', "stock_count_approvals", ExpectedNormalizedExpression: "((action)::text = ANY ((ARRAY['Submitted'::character varying, 'Approved'::character varying, 'RecountRequested'::character varying, 'Recounted'::character varying, 'Cancelled'::character varying])::text[]))"),
+
+        new("ck_stock_counts_status_values", 'c', "stock_counts", ExpectedNormalizedExpression: "((status)::text = ANY ((ARRAY['Draft'::character varying, 'Counting'::character varying, 'PendingApproval'::character varying, 'Confirmed'::character varying, 'Cancelled'::character varying])::text[]))"),
+        new("ck_stock_counts_count_type", 'c', "stock_counts", ExpectedNormalizedExpression: "((count_type)::text = ANY ((ARRAY['MidMonth'::character varying, 'EndOfMonth'::character varying, 'AdHoc'::character varying])::text[]))"),
+        new("ck_stock_counts_type_period", 'c', "stock_counts", ExpectedNormalizedExpression: "(((count_type)::text = 'AdHoc'::text) = (period_id IS NULL))")
     ];
 
 
@@ -1787,13 +1831,251 @@ END $$;
                 await salesInvoiceCmd.ExecuteNonQueryAsync(cancellationToken);
             }
 
+            const string stockCountScheduleUpgradeSql = @"
+SELECT pg_advisory_xact_lock(hashtext('oisms_stock_count_schedule_schema_upgrade'));
+
+-- 1. Bảng stock_count_schedules
+CREATE TABLE IF NOT EXISTS public.stock_count_schedules (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    branch_id uuid NOT NULL,
+    warehouse_id uuid NOT NULL,
+    period_type varchar(20) NOT NULL,
+    day_of_month smallint NULL,
+    local_time time NOT NULL,
+    due_days smallint NOT NULL,
+    assignee_user_id uuid NOT NULL,
+    is_active boolean DEFAULT true NOT NULL,
+    created_by uuid NOT NULL,
+    updated_by uuid NULL,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz NULL,
+    CONSTRAINT uq_stock_count_schedules_1 UNIQUE (tenant_id, id),
+    CONSTRAINT uq_stock_count_schedules_2 UNIQUE (tenant_id, warehouse_id, period_type),
+    CONSTRAINT ck_stock_count_schedules_period_type CHECK (period_type IN ('MidMonth', 'EndOfMonth')),
+    CONSTRAINT ck_stock_count_schedules_day CHECK ((period_type = 'MidMonth' AND day_of_month BETWEEN 1 AND 28) OR (period_type = 'EndOfMonth' AND day_of_month IS NULL)),
+    CONSTRAINT ck_stock_count_schedules_due_days CHECK (due_days BETWEEN 1 AND 14)
+);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_stock_count_schedules_tenant_id') THEN
+        ALTER TABLE public.stock_count_schedules ADD CONSTRAINT fk_stock_count_schedules_tenant_id
+        FOREIGN KEY (tenant_id) REFERENCES public.tenants (id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_stock_count_schedules_warehouse_branch') THEN
+        ALTER TABLE public.stock_count_schedules ADD CONSTRAINT fk_stock_count_schedules_warehouse_branch
+        FOREIGN KEY (tenant_id, warehouse_id, branch_id) REFERENCES public.warehouses (tenant_id, id, branch_id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_stock_count_schedules_assignee') THEN
+        ALTER TABLE public.stock_count_schedules ADD CONSTRAINT fk_stock_count_schedules_assignee
+        FOREIGN KEY (tenant_id, assignee_user_id) REFERENCES public.users (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_stock_count_schedules_created_by') THEN
+        ALTER TABLE public.stock_count_schedules ADD CONSTRAINT fk_stock_count_schedules_created_by
+        FOREIGN KEY (tenant_id, created_by) REFERENCES public.users (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_stock_count_schedules_updated_by') THEN
+        ALTER TABLE public.stock_count_schedules ADD CONSTRAINT fk_stock_count_schedules_updated_by
+        FOREIGN KEY (tenant_id, updated_by) REFERENCES public.users (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+END $$;
+
+-- 2. Bảng stock_count_periods
+CREATE TABLE IF NOT EXISTS public.stock_count_periods (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    schedule_id uuid NOT NULL,
+    branch_id uuid NOT NULL,
+    warehouse_id uuid NOT NULL,
+    period_type varchar(20) NOT NULL,
+    period_key varchar(20) NOT NULL,
+    scheduled_at timestamptz NOT NULL,
+    due_at timestamptz NOT NULL,
+    assignee_user_id uuid NOT NULL,
+    status varchar(20) DEFAULT 'Planned' NOT NULL,
+    completed_at timestamptz NULL,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz NULL,
+    CONSTRAINT uq_stock_count_periods_1 UNIQUE (tenant_id, id),
+    CONSTRAINT uq_stock_count_periods_2 UNIQUE (tenant_id, warehouse_id, period_key),
+    CONSTRAINT ck_stock_count_periods_period_type CHECK (period_type IN ('MidMonth', 'EndOfMonth')),
+    CONSTRAINT ck_stock_count_periods_status CHECK (status IN ('Planned', 'InProgress', 'Completed', 'Cancelled')),
+    CONSTRAINT ck_stock_count_periods_due CHECK (due_at > scheduled_at),
+    CONSTRAINT ck_stock_count_periods_completed CHECK ((status = 'Completed') = (completed_at IS NOT NULL))
+);
+
+CREATE INDEX IF NOT EXISTS ix_stock_count_periods_status_due
+ON public.stock_count_periods (tenant_id, status, due_at, id);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_stock_count_periods_tenant_id') THEN
+        ALTER TABLE public.stock_count_periods ADD CONSTRAINT fk_stock_count_periods_tenant_id
+        FOREIGN KEY (tenant_id) REFERENCES public.tenants (id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_stock_count_periods_schedule') THEN
+        ALTER TABLE public.stock_count_periods ADD CONSTRAINT fk_stock_count_periods_schedule
+        FOREIGN KEY (tenant_id, schedule_id) REFERENCES public.stock_count_schedules (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_stock_count_periods_warehouse_branch') THEN
+        ALTER TABLE public.stock_count_periods ADD CONSTRAINT fk_stock_count_periods_warehouse_branch
+        FOREIGN KEY (tenant_id, warehouse_id, branch_id) REFERENCES public.warehouses (tenant_id, id, branch_id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_stock_count_periods_assignee') THEN
+        ALTER TABLE public.stock_count_periods ADD CONSTRAINT fk_stock_count_periods_assignee
+        FOREIGN KEY (tenant_id, assignee_user_id) REFERENCES public.users (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+END $$;
+
+-- 3. Bảng stock_count_approvals
+CREATE TABLE IF NOT EXISTS public.stock_count_approvals (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    stock_count_id uuid NOT NULL,
+    action varchar(20) NOT NULL,
+    actor_user_id uuid NOT NULL,
+    reason text NULL,
+    differences jsonb NOT NULL,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz NULL,
+    CONSTRAINT uq_stock_count_approvals_1 UNIQUE (tenant_id, id),
+    CONSTRAINT ck_stock_count_approvals_action CHECK (action IN ('Submitted', 'Approved', 'RecountRequested', 'Recounted', 'Cancelled'))
+);
+
+CREATE INDEX IF NOT EXISTS ix_stock_count_approvals_count
+ON public.stock_count_approvals (tenant_id, stock_count_id, created_at);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_stock_count_approvals_tenant_id') THEN
+        ALTER TABLE public.stock_count_approvals ADD CONSTRAINT fk_stock_count_approvals_tenant_id
+        FOREIGN KEY (tenant_id) REFERENCES public.tenants (id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_stock_count_approvals_stock_count') THEN
+        ALTER TABLE public.stock_count_approvals ADD CONSTRAINT fk_stock_count_approvals_stock_count
+        FOREIGN KEY (tenant_id, stock_count_id) REFERENCES public.stock_counts (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_stock_count_approvals_actor') THEN
+        ALTER TABLE public.stock_count_approvals ADD CONSTRAINT fk_stock_count_approvals_actor
+        FOREIGN KEY (tenant_id, actor_user_id) REFERENCES public.users (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger tg
+        JOIN pg_class c ON tg.tgrelid = c.oid
+        WHERE c.relname = 'stock_count_approvals' AND tg.tgname = 'stock_count_approval_append_only'
+    ) THEN
+        CREATE TRIGGER stock_count_approval_append_only BEFORE UPDATE OR DELETE OR TRUNCATE ON public.stock_count_approvals
+        FOR EACH STATEMENT EXECUTE FUNCTION public.oisms_deny_mutation();
+    END IF;
+END $$;
+
+-- 4. Thêm cột, constraint, index cho stock_counts và stock_count_items
+ALTER TABLE public.stock_counts ADD COLUMN IF NOT EXISTS count_type varchar(20) NOT NULL DEFAULT 'AdHoc';
+ALTER TABLE public.stock_counts ADD COLUMN IF NOT EXISTS ad_hoc_reason text NULL;
+ALTER TABLE public.stock_counts ADD COLUMN IF NOT EXISTS period_id uuid NULL;
+ALTER TABLE public.stock_counts ADD COLUMN IF NOT EXISTS submitted_by uuid NULL;
+ALTER TABLE public.stock_counts ADD COLUMN IF NOT EXISTS submitted_at timestamptz NULL;
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint 
+        WHERE conname = 'ck_stock_counts_status_values' 
+          AND pg_get_constraintdef(oid) NOT LIKE '%PendingApproval%'
+    ) THEN
+        ALTER TABLE public.stock_counts DROP CONSTRAINT ck_stock_counts_status_values;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'ck_stock_counts_status_values'
+    ) THEN
+        ALTER TABLE public.stock_counts ADD CONSTRAINT ck_stock_counts_status_values 
+        CHECK (status IN ('Draft', 'Counting', 'PendingApproval', 'Confirmed', 'Cancelled'));
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_stock_counts_count_type') THEN
+        ALTER TABLE public.stock_counts ADD CONSTRAINT ck_stock_counts_count_type
+        CHECK (count_type IN ('MidMonth', 'EndOfMonth', 'AdHoc'));
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_stock_counts_type_period') THEN
+        ALTER TABLE public.stock_counts ADD CONSTRAINT ck_stock_counts_type_period
+        CHECK ((count_type = 'AdHoc') = (period_id IS NULL));
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_stock_counts_period') THEN
+        ALTER TABLE public.stock_counts ADD CONSTRAINT fk_stock_counts_period
+        FOREIGN KEY (tenant_id, period_id) REFERENCES public.stock_count_periods (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_stock_counts_submitted_by') THEN
+        ALTER TABLE public.stock_counts ADD CONSTRAINT fk_stock_counts_submitted_by
+        FOREIGN KEY (tenant_id, submitted_by) REFERENCES public.users (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_stock_counts_active_period 
+ON public.stock_counts (tenant_id, period_id) 
+WHERE period_id IS NOT NULL AND status <> 'Cancelled';
+
+ALTER TABLE public.stock_count_items ADD COLUMN IF NOT EXISTS counted_by uuid NULL;
+ALTER TABLE public.stock_count_items ADD COLUMN IF NOT EXISTS counted_at timestamptz NULL;
+ALTER TABLE public.stock_count_items ADD COLUMN IF NOT EXISTS snapshot_at timestamptz NULL;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_stock_count_items_counted_by') THEN
+        ALTER TABLE public.stock_count_items ADD CONSTRAINT fk_stock_count_items_counted_by
+        FOREIGN KEY (tenant_id, counted_by) REFERENCES public.users (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+END $$;
+
+UPDATE public.stock_count_items i
+SET snapshot_at = c.created_at
+FROM public.stock_counts c
+WHERE i.tenant_id = c.tenant_id AND i.stock_count_id = c.id AND i.snapshot_at IS NULL;
+
+-- 5. Quyền cho oisms_runtime
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'oisms_runtime') THEN
+        REVOKE ALL ON TABLE public.stock_count_schedules FROM oisms_runtime;
+        GRANT SELECT, INSERT, UPDATE ON TABLE public.stock_count_schedules TO oisms_runtime;
+        REVOKE DELETE, TRUNCATE ON TABLE public.stock_count_schedules FROM oisms_runtime;
+
+        REVOKE ALL ON TABLE public.stock_count_periods FROM oisms_runtime;
+        GRANT SELECT, INSERT, UPDATE ON TABLE public.stock_count_periods TO oisms_runtime;
+        REVOKE DELETE, TRUNCATE ON TABLE public.stock_count_periods FROM oisms_runtime;
+
+        REVOKE ALL ON TABLE public.stock_count_approvals FROM oisms_runtime;
+        GRANT SELECT, INSERT ON TABLE public.stock_count_approvals TO oisms_runtime;
+        REVOKE UPDATE, DELETE, TRUNCATE ON TABLE public.stock_count_approvals FROM oisms_runtime;
+    END IF;
+END $$;
+";
+            await using (var stockCountScheduleCmd = new NpgsqlCommand(stockCountScheduleUpgradeSql, connection, tx))
+            {
+                await stockCountScheduleCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
             await tx.CommitAsync(cancellationToken);
             return new MigrationExecutionResult(
                 Success: true,
                 IsFreshInstall: false,
                 IsBaselineAdopted: false,
                 TableCount: RequiredTables.Length,
-                Message: "Nâng cấp schema v0.5 stock_transfers, shop_integrations, multi_unit, price_lists, purchase_orders và sales_invoices thành công.");
+                Message: "Nâng cấp schema v0.5 stock_transfers, shop_integrations, multi_unit, price_lists, purchase_orders, sales_invoices và stock_count_schedules thành công.");
         }
         catch (Exception ex)
         {
@@ -2336,7 +2618,12 @@ WHERE table_schema = 'public';";
             "purchase_orders.number", "purchase_orders.request_key", "purchase_orders.status",
             "purchase_order_items.ordered_base_quantity", "purchase_order_items.received_base_quantity", "purchase_order_items.unit_price",
             "sales_invoices.number", "sales_invoices.order_id", "sales_invoices.branch_id", "sales_invoices.total_amount", "sales_invoices.issued_at",
-            "orders.confirmed_by", "stock_transfers.dispatched_by"
+            "orders.confirmed_by", "stock_transfers.dispatched_by",
+            "stock_count_schedules.warehouse_id", "stock_count_schedules.period_type", "stock_count_schedules.assignee_user_id",
+            "stock_count_periods.period_key", "stock_count_periods.scheduled_at", "stock_count_periods.due_at", "stock_count_periods.status",
+            "stock_count_approvals.stock_count_id", "stock_count_approvals.action", "stock_count_approvals.differences",
+            "stock_counts.count_type", "stock_counts.period_id", "stock_counts.submitted_by", "stock_counts.submitted_at",
+            "stock_count_items.counted_by", "stock_count_items.counted_at", "stock_count_items.snapshot_at"
         ];
         foreach (var col in crucialColumns)
         {
@@ -2535,13 +2822,13 @@ WHERE grantee = 'oisms_runtime'
             }
         }
 
-        // Kiểm tra oisms_runtime KHÔNG có quyền UPDATE hoặc DELETE hoặc TRUNCATE trên sales_invoices
+        // Kiểm tra oisms_runtime KHÔNG có quyền UPDATE hoặc DELETE hoặc TRUNCATE trên sales_invoices và stock_count_approvals
         const string checkSalesInvoicePrivilegesSql = @"
-SELECT privilege_type 
+SELECT table_name, privilege_type 
 FROM information_schema.role_table_grants 
 WHERE grantee = 'oisms_runtime' 
   AND table_schema = 'public' 
-  AND table_name = 'sales_invoices' 
+  AND table_name IN ('sales_invoices', 'stock_count_approvals') 
   AND privilege_type IN ('UPDATE', 'DELETE', 'TRUNCATE');";
 
         await using (var cmdSalesInv = new NpgsqlCommand(checkSalesInvoicePrivilegesSql, connection, tx))
@@ -2549,17 +2836,17 @@ WHERE grantee = 'oisms_runtime'
         {
             while (await reader.ReadAsync(ct))
             {
-                errors.Add($"Vi phạm an ninh quyền runtime: 'oisms_runtime' bị cấp quyền '{reader.GetString(0)}' trên bảng append-only 'sales_invoices'.");
+                errors.Add($"Vi phạm an ninh quyền runtime: 'oisms_runtime' bị cấp quyền '{reader.GetString(1)}' trên bảng append-only '{reader.GetString(0)}'.");
             }
         }
 
-        // Kiểm tra oisms_runtime KHÔNG có quyền DELETE trên price_lists, price_change_requests, sku_unit_prices, purchase_orders
+        // Kiểm tra oisms_runtime KHÔNG có quyền DELETE trên price_lists, price_change_requests, sku_unit_prices, purchase_orders, stock_count_schedules, stock_count_periods
         const string checkPriceNoDeletePrivilegesSql = @"
 SELECT table_name, privilege_type 
 FROM information_schema.role_table_grants 
 WHERE grantee = 'oisms_runtime' 
   AND table_schema = 'public' 
-  AND table_name IN ('price_lists', 'price_change_requests', 'sku_unit_prices', 'purchase_orders') 
+  AND table_name IN ('price_lists', 'price_change_requests', 'sku_unit_prices', 'purchase_orders', 'stock_count_schedules', 'stock_count_periods') 
   AND privilege_type IN ('DELETE', 'TRUNCATE');";
 
         await using (var cmdPriceNoDel = new NpgsqlCommand(checkPriceNoDeletePrivilegesSql, connection, tx))

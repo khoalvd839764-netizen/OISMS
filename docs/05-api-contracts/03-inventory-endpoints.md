@@ -16,6 +16,7 @@
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả danh sách Endpoints quản lý Sổ cái kho bất biến, Phiếu nhập kho, Giữ chỗ, Chuyển kho và Kiểm kê. | `INIT-API-03` |
 | `v1.1.0` | `2026-11-02` | Nhóm dự án OISMS | Thêm API phiếu mua, đổi hợp đồng lập phiếu nhập, thêm hủy phiếu nhập nháp; sửa route phiếu nhập theo code. | `OISMS-47-U01A` |
+| `v1.2.0` | `2026-11-03` | Nhóm dự án OISMS | Bổ sung API lịch kiểm kê (`stock-count-schedules`), kỳ kiểm kê (`stock-count-periods`), quy trình nộp duyệt chênh lệch (`stock-counts`). | `OISMS-47-U03` |
 
 ---
 
@@ -120,4 +121,36 @@ Trạng thái phiếu mua: xem [máy trạng thái](../04-architecture-and-desig
 | `POST` | `/api/inventory/transfers` | `Owner, Staff` | `FR-INV-03` | Tạo phiếu chuyển kho giữa Chi nhánh A và Chi nhánh B. |
 | `POST` | `/api/inventory/transfers/{id}/dispatch` | `Owner, Staff` | `FR-INV-03` | Bước 1 — Xuất kho vận chuyển (`Out-bound transit`): Trừ tồn Kho A và ghi Sổ cái `OUT`. |
 | `POST` | `/api/inventory/transfers/{id}/receive` | `Owner, Staff` | `FR-INV-03` | Bước 2 — Xác nhận nhập tại Kho B (`In-bound confirmation`): Tăng tồn Kho B và ghi Sổ cái `IN`. |
-| `POST` | `/api/inventory/stocktakes` | `Owner, Staff` | `FR-INV-04` | Tạo phiên kiểm kê vật lý, đối chiếu tồn phần mềm và sinh bút toán điều chỉnh Sổ cái (`Adjustment Ledger entries`). |
+
+---
+
+## 2.1. Lịch Kiểm Kê, Kỳ Kiểm Kê & Phê Duyệt Chênh Lệch (`OISMS-47-U03`)
+
+### Bảng Endpoints Quản Lý Lịch Kiểm Kê (`/api/stock-count-schedules`)
+
+| Method | Endpoint | Quyền (RBAC) | Mô tả & Quy tắc xử lý |
+| :---: | :--- | :---: | :--- |
+| `GET` | `/api/stock-count-schedules?warehouseId=&pageNumber=&pageSize=` | `Owner, Staff` | Tra cứu danh sách cấu hình lịch kiểm kê định kỳ theo kho. |
+| `POST` | `/api/stock-count-schedules` | `Owner` | Thiết lập cấu hình lịch kiểm kê định kỳ mới (`MidMonth` hoặc `EndOfMonth`). `day_of_month` chỉ áp dụng cho MidMonth (1..28, mặc định 15). Trùng cặp `(warehouse_id, period_type)` trả `409 STOCK_COUNT_SCHEDULE_DUPLICATE`. |
+| `PUT` | `/api/stock-count-schedules/{id}` | `Owner` | Cập nhật cấu hình lịch kiểm kê (`day_of_month`, `due_days`, `assignee_user_id`, `is_active`). |
+
+### Bảng Endpoints Quản Lý Kỳ Kiểm Kê Định Kỳ (`/api/stock-count-periods`)
+
+| Method | Endpoint | Quyền (RBAC) | Mô tả & Quy tắc xử lý |
+| :---: | :--- | :---: | :--- |
+| `GET` | `/api/stock-count-periods?branchId=&warehouseId=&status=&overdue=&from=&to=&pageNumber=&pageSize=` | `Owner, Staff` | Tra cứu danh sách các kỳ kiểm kê sinh ra bởi job định kỳ. |
+| `POST` | `/api/stock-count-periods/{id}/start` | `Owner, Staff` | Bắt đầu đếm kỳ (`Planned` -> `InProgress`): Chụp snapshot số lượng tồn hệ thống tại thời điểm bấm, tạo phiếu `Draft`. Không cần header idempotency: khóa theo kỳ, gọi lại khi đã có phiếu còn hiệu lực trả phiếu đó với `isReplay = true`. Nếu phiếu bị hủy, kỳ quay về `Planned` và có thể bắt đầu lại. |
+
+### Bảng Endpoints Quy Trình Kiểm Kê & Duyệt Chênh Lệch (`/api/stock-counts`)
+
+| Method | Endpoint | Quyền (RBAC) | Mô tả & Quy tắc xử lý |
+| :---: | :--- | :---: | :--- |
+| `GET` | `/api/stock-counts?branchId=&warehouseId=&status=&pageNumber=&pageSize=` | `Owner, Staff` | Tra cứu danh sách đợt kiểm kê. |
+| `GET` | `/api/stock-counts/{id}` | `Owner, Staff` | Chi tiết đợt kiểm kê, so sánh chênh lệch giữa thực đếm và sổ sách, danh sách lịch sử phê duyệt (`Approvals`), và cờ `isDrifted` tính theo số dư hiện tại. |
+| `POST` | `/api/stock-counts` | `Owner, Staff` | Tạo đợt kiểm kê đột xuất (`AdHoc`). Bắt buộc trường `reason`. |
+| `POST` | `/api/stock-counts/{id}/record` | `Owner, Staff` | Ghi nhận số lượng thực tế nhân viên kiểm đếm (`Draft` -> `Counting`). Lưu `counted_by`, `counted_at` trên từng dòng. |
+| `POST` | `/api/stock-counts/{id}/submit` | `Owner, Staff` | Nộp kết quả kiểm kê (`Counting` -> `PendingApproval`). Yêu cầu đếm đủ mọi mặt hàng. Đối soát sequence drift: nếu có giao dịch xen giữa làm lệch sequence, gom mọi SKU lệch và trả `409 STOCK_COUNT_SEQUENCE_DRIFT`. Ghi lịch sử duyệt `Submitted`. |
+| `POST` | `/api/stock-counts/{id}/recount` | `Owner, Staff` | Nhân viên kiểm đếm lại cho các SKU bị lệch sequence khi đang ở `Counting`. Chỉ cho phép SKU đang lệch; SKU không lệch trả `409 STOCK_COUNT_SKU_NOT_DRIFTED`. Ghi lại snapshot mới, xóa số đếm cũ (nhưng đã lưu trong `differences` của approval `Recounted`). |
+| `POST` | `/api/stock-counts/{id}/request-recount` | `Owner` | Owner yêu cầu đếm lại các SKU khi ở `PendingApproval`. Bắt buộc `reason`. Chuyển về `Counting`, xóa `submitted_by`, `submitted_at`, ghi approval `RecountRequested`. |
+| `POST` | `/api/stock-counts/{id}/confirm` | **Owner** | Phê duyệt chốt kiểm kê (`PendingApproval` -> `Confirmed`). **Chặn tự duyệt:** Người duyệt trùng người đếm của bất kỳ dòng nào và tenant còn Owner khác -> trả `409 STOCK_COUNT_SELF_APPROVAL`. Nếu là Owner duy nhất -> bắt buộc `Note` không rỗng giải trình lý do duyệt, thiếu trả `422 STOCK_COUNT_APPROVAL_REASON_REQUIRED`. Trong cùng transaction: đối soát sequence drift, tạo phiếu điều chỉnh, ghi sổ kho `IN`/`OUT`, cập nhật kỳ `Completed`, ghi approval `Approved`. |
+| `POST` | `/api/stock-counts/{id}/cancel` | `Owner, Staff` | Hủy đợt kiểm kê chưa chốt (`Draft`/`Counting` -> `Cancelled`). Ghi approval `Cancelled`. Nếu gắn với kỳ định kỳ thì đưa kỳ về `Planned`. |

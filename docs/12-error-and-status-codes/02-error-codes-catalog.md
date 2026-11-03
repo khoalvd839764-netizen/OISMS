@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-ERR-02` |
-| **Phiên bản (Version)** | `v1.0.0` |
-| **Ngày hiệu lực** | `2026-10-25` |
+| **Phiên bản (Version)** | `v1.1.0` |
+| **Ngày hiệu lực** | `2026-11-03` |
 | **Nguồn truy vết thực tế** | Source code Backend C# (`OISM.Application`, `OISM.WebApi`, `OismException.cs`) |
 | **Tài liệu liên quan** | [`01-error-response-spec.md`](./01-error-response-spec.md), [`03-color-system-tokens.md`](./03-color-system-tokens.md) |
 
@@ -121,6 +121,11 @@ Tài liệu này là **từ điển tra cứu danh mục mã lỗi toàn hệ th
 | `INCOMPLETE_STOCK_COUNT` | `400` | Chưa hoàn tất đếm | *Tất cả các mặt hàng phải được nhập số đếm thực tế trước khi chốt kiểm kê.* | Còn dòng SKU bị để trống số lượng thực đếm (`ActualQuantity = null`). | Nhân viên kiểm đếm cần nhập đủ số lượng thực tế cho toàn bộ danh sách. |
 | `ADJUSTMENT_COST_REQUIRED` | `400` | Thiếu đơn giá điều chỉnh | *Mặt hàng thừa kiểm kê '{skuCode}' chưa có giá vốn, bắt buộc phải nhập đơn giá điều chỉnh.* | Phát hiện thừa hàng nhưng SKU này chưa từng có lịch sử nhập kho (WAC = 0). | Bắt buộc nhập đơn giá ước tính để tính toán giá trị tài sản thừa. |
 | `INVALID_COUNT_ITEM` | `400` | Mặt hàng ngoài đợt kiểm kê | *SKU '{skuId}' không thuộc phạm vi đợt kiểm kê này.* | Ghi nhận số đếm của SKU không có trong danh mục kiểm kê ban đầu. | Chỉ kiểm đếm các SKU đã khai báo trong phiếu. |
+| `STOCK_COUNT_SEQUENCE_DRIFT` | `409` | Sai lệch sequence kiểm kê | *Phát hiện giao dịch phát sinh xen giữa tại kho kiểm kê cho các SKU: 'SKU-001', 'SKU-002'.* | Phát sinh giao dịch xuất/nhập kho làm thay đổi sequence sổ sách trong lúc đếm hoặc trước khi nộp/chốt. | Gọi API đếm lại (recount) cho các SKU bị lệch để lấy snapshot sequence mới. |
+| `STOCK_COUNT_SELF_APPROVAL` | `409` | Không được tự duyệt phiếu kiểm kê | *Người kiểm đếm không được tự phê duyệt chốt kiểm kê khi hệ thống còn Owner khác.* | Owner trực tiếp tham gia ghi số đếm trên một dòng hàng và cố gắng tự duyệt phiếu khi còn Owner khác. | Cần một Owner khác trong cửa hàng kiểm tra và phê duyệt phiếu. |
+| `STOCK_COUNT_APPROVAL_REASON_REQUIRED` | `422` | Bắt buộc nhập lý do duyệt | *Owner duy nhất tự phê duyệt phiếu kiểm kê do chính mình đếm bắt buộc phải nhập ghi chú giải trình (Note).* | Duy nhất 1 Owner trong tenant tự duyệt phiếu có dòng do mình đếm nhưng không cung cấp Note giải trình. | Nhập lý do/ghi chú giải trình trong trường Note khi chốt duyệt. |
+| `STOCK_COUNT_SKU_NOT_DRIFTED` | `409` | Sản phẩm không bị lệch sequence | *SKU '{skuCode}' không bị sai lệch sequence, không thể yêu cầu đếm lại.* | Gửi yêu cầu đếm lại cho SKU vẫn giữ nguyên sequence sổ sách. | Chỉ chọn các SKU bị cảnh báo lệch sequence để đếm lại. |
+| `STOCK_COUNT_SCHEDULE_DUPLICATE` | `409` | Lịch kiểm kê bị trùng lặp | *Kho này đã có cấu hình lịch kiểm kê cho loại kỳ '{periodType}'.* | Tạo trùng cấu hình lịch cho cùng một kho và loại kỳ. | Chỉnh sửa lịch hiện có thay vì tạo mới. |
 
 ---
 

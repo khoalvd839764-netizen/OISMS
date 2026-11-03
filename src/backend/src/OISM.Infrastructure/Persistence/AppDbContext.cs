@@ -60,6 +60,9 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<PurchaseOrder> PurchaseOrders { get; set; } = null!;
     public DbSet<PurchaseOrderItem> PurchaseOrderItems { get; set; } = null!;
     public DbSet<SalesInvoice> SalesInvoices { get; set; } = null!;
+    public DbSet<StockCountSchedule> StockCountSchedules { get; set; } = null!;
+    public DbSet<StockCountPeriod> StockCountPeriods { get; set; } = null!;
+    public DbSet<StockCountApproval> StockCountApprovals { get; set; } = null!;
 
     public bool IsRelationalDatabase => Database.IsRelational();
     public bool HasActiveTransaction => Database.CurrentTransaction != null;
@@ -199,6 +202,15 @@ public class AppDbContext : DbContext, IAppDbContext
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
 
         modelBuilder.Entity<SalesInvoice>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<StockCountSchedule>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<StockCountPeriod>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<StockCountApproval>()
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
     }
 

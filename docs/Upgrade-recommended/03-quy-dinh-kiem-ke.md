@@ -71,8 +71,25 @@ Cần API cấu hình lịch, xem kỳ sắp tới/quá hạn, nộp kết quả
 4. Chênh lệch cần duyệt không ghi tồn trước khi được duyệt; giao dịch xen giữa bị phát hiện và yêu cầu xử lý.
 5. Báo cáo thể hiện kỳ đã hoàn thành, quá hạn, người đếm, người duyệt và chênh lệch.
 
+## Quyết định đã chốt
+
+Người dùng đồng ý ngày 03/11/2026 để triển khai bản đầu. Đây là quyết định của nhóm dự án, chưa phải quy định được GVHD phê duyệt.
+
+| Nội dung | Quyết định |
+| :--- | :--- |
+| Phạm vi lịch | Cấu hình theo từng kho, có thể tắt. Lịch định kỳ kiểm toàn kho; kiểm theo nhóm SKU dùng phiếu đột xuất |
+| Múi giờ | Cố định Asia/Saigon (UTC+7), khớp quy tắc báo cáo; chưa có múi giờ theo tenant |
+| Kế hoạch và phiếu | Tách riêng. Job chỉ tạo **kỳ**; phiếu và ảnh chụp số dư chỉ sinh khi người đếm bấm "Bắt đầu đếm", tránh lệch sequence trước ngày đếm. `created_by` của phiếu là người bấm |
+| Luồng trạng thái | `Draft → Counting → PendingApproval → Confirmed`; duyệt có thể trả về `Counting` để đếm lại; được hủy từ `Draft`, `Counting`, `PendingApproval` |
+| Quyền | Owner, Staff đếm và nộp. **Chỉ Owner duyệt và chốt**; Staff không còn tự chốt được |
+| Người duyệt | Không được trùng người đếm. Tenant chỉ có một Owner đang hoạt động thì được tự duyệt nhưng bắt buộc ghi lý do |
+| Ngưỡng duyệt | Bản đầu chưa có ngưỡng: mọi phiếu đều qua duyệt, kể cả phiếu không có chênh lệch |
+| Giao dịch trong lúc đếm | Vẫn cho giao dịch. Lệch sequence phải báo đủ danh sách SKU và đếm lại đúng các SKU đó; không có cách bỏ qua để chốt |
+| Đơn giữ chỗ, đơn chưa hoàn tất | Giữ quy tắc hiện có: số đếm không được thấp hơn lượng đang giữ chỗ |
+
 ## Quyết định còn mở
 
-- Kiểm kê giữa tháng là bắt buộc cho mọi kho hay chỉ kho/SKU rủi ro cao?
-- Cửa sổ chốt cuối tháng, ngưỡng chênh lệch cần duyệt và phân quyền duyệt.
-- Chính sách khi kho đang có đơn giữ chỗ hoặc đơn bán chưa hoàn tất.
+- Ngưỡng chênh lệch cần duyệt và trường hợp cho tự chốt phiếu không có chênh lệch.
+- Cửa sổ chốt cuối tháng, xử lý ngày nghỉ.
+- Lưu vết chi tiết khi đổi lịch: bản đầu chỉ lưu người sửa và thời điểm sửa gần nhất.
+- Nhắc người phụ trách bằng thông báo đẩy: bản đầu chỉ có API xem kỳ sắp tới và quá hạn.
