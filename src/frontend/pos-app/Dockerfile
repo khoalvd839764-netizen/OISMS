@@ -4,6 +4,8 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 COPY . .
+# Vite nhúng URL API lúc build; không truyền thì code dùng mặc định http://localhost:5000
+ARG VITE_API_BASE_URL
 RUN npm run build
 
 # Production stage with NGINX
