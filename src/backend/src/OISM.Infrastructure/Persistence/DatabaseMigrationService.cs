@@ -97,7 +97,8 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         "price_change_request_items",
         "sku_unit_prices",
         "purchase_orders",
-        "purchase_order_items"
+        "purchase_order_items",
+        "sales_invoices"
     ];
 
     public static readonly ExpectedTrigger[] ExpectedTriggers =
@@ -149,7 +150,10 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         // purchase_orders & purchase_order_items
         new("purchase_orders", "purchase_order_guard", "oisms_purchase_order_guard", "public", "BEFORE", true, HasUpdate: true),
         new("purchase_orders", "purchase_order_no_delete", "oisms_deny_mutation", "public", "BEFORE", false, HasDelete: true, HasTruncate: true),
-        new("purchase_order_items", "purchase_order_item_guard", "oisms_purchase_order_item_guard", "public", "BEFORE", true, HasInsert: true, HasUpdate: true, HasDelete: true)
+        new("purchase_order_items", "purchase_order_item_guard", "oisms_purchase_order_item_guard", "public", "BEFORE", true, HasInsert: true, HasUpdate: true, HasDelete: true),
+
+        // sales_invoices (U02)
+        new("sales_invoices", "sales_invoice_append_only", "oisms_deny_mutation", "public", "BEFORE", false, HasUpdate: true, HasDelete: true, HasTruncate: true)
     ];
 
     public static readonly ExpectedForeignKey[] ExpectedForeignKeys =
@@ -244,7 +248,15 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         new("fk_purchase_order_items_sku_id", "purchase_order_items", ["tenant_id", "sku_id"], "skus", ["tenant_id", "id"]),
         new("fk_purchase_order_items_unit_id", "purchase_order_items", ["tenant_id", "unit_id"], "units", ["tenant_id", "id"]),
         new("fk_goods_receipts_purchase_order_id", "goods_receipts", ["tenant_id", "purchase_order_id"], "purchase_orders", ["tenant_id", "id"]),
-        new("fk_goods_receipt_items_po_item", "goods_receipt_items", ["tenant_id", "purchase_order_item_id", "sku_id"], "purchase_order_items", ["tenant_id", "id", "sku_id"])
+        new("fk_goods_receipt_items_po_item", "goods_receipt_items", ["tenant_id", "purchase_order_item_id", "sku_id"], "purchase_order_items", ["tenant_id", "id", "sku_id"]),
+
+        // Sales Invoices Foreign Keys (U02)
+        new("fk_sales_invoices_tenant_id", "sales_invoices", ["tenant_id"], "tenants", ["id"]),
+        new("fk_sales_invoices_order_branch", "sales_invoices", ["tenant_id", "order_id", "branch_id"], "orders", ["tenant_id", "id", "branch_id"]),
+        new("fk_sales_invoices_branch_id", "sales_invoices", ["tenant_id", "branch_id"], "branches", ["tenant_id", "id"]),
+        new("fk_sales_invoices_issued_by", "sales_invoices", ["tenant_id", "issued_by"], "users", ["tenant_id", "id"]),
+        new("fk_orders_confirmed_by", "orders", ["tenant_id", "confirmed_by"], "users", ["tenant_id", "id"]),
+        new("fk_stock_transfers_dispatched_by", "stock_transfers", ["tenant_id", "dispatched_by"], "users", ["tenant_id", "id"])
     ];
 
     public static readonly ExpectedConstraint[] ExpectedCriticalConstraints =
@@ -370,7 +382,15 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         new("ck_purchase_order_items_quantity", 'c', "purchase_order_items", ExpectedNormalizedExpression: "(quantity > (0)::numeric)"),
         new("ck_purchase_order_items_unit_price", 'c', "purchase_order_items", ExpectedNormalizedExpression: "(unit_price >= (0)::numeric)"),
         new("ck_purchase_order_items_decimal_places", 'c', "purchase_order_items", ExpectedNormalizedExpression: "((quantity_decimal_places >= 0) AND (quantity_decimal_places <= 3))"),
-        new("ck_purchase_order_items_received_range", 'c', "purchase_order_items", ExpectedNormalizedExpression: "((received_base_quantity >= (0)::numeric) AND (received_base_quantity <= (quantity * factor_snapshot)))")
+        new("ck_purchase_order_items_received_range", 'c', "purchase_order_items", ExpectedNormalizedExpression: "((received_base_quantity >= (0)::numeric) AND (received_base_quantity <= (quantity * factor_snapshot)))"),
+
+        // sales_invoices (U02)
+        new("uq_sales_invoices_1", 'u', "sales_invoices", Columns: ["tenant_id", "id"]),
+        new("uq_sales_invoices_2", 'u', "sales_invoices", Columns: ["tenant_id", "number"]),
+        new("uq_sales_invoices_3", 'u', "sales_invoices", Columns: ["tenant_id", "order_id"]),
+        new("ck_sales_invoices_channel_values", 'c', "sales_invoices", ExpectedNormalizedExpression: "((channel)::text = ANY ((ARRAY['POS'::character varying, 'Admin'::character varying, 'Shopee'::character varying, 'TikTok'::character varying, 'Lazada'::character varying])::text[]))"),
+        new("ck_sales_invoices_total_amount_nonnegative", 'c', "sales_invoices", ExpectedNormalizedExpression: "(total_amount >= (0)::numeric)"),
+        new("ck_sales_invoices_payment_method_values", 'c', "sales_invoices", ExpectedNormalizedExpression: "((payment_method_snapshot IS NULL) OR ((payment_method_snapshot)::text = ANY ((ARRAY['Cash'::character varying, 'BankTransfer'::character varying])::text[])))")
     ];
 
 
@@ -813,7 +833,8 @@ BEGIN
     IF (NEW.tenant_id,NEW.order_id,NEW.sku_id) IS DISTINCT FROM (OLD.tenant_id,OLD.order_id,OLD.sku_id)
       OR (confirmed IS NOT NULL AND OLD.cost_price IS NOT NULL AND
           (
-            (NEW.cost_price,NEW.quantity,NEW.unit_price,NEW.factor_snapshot) IS DISTINCT FROM (OLD.cost_price,OLD.quantity,OLD.unit_price,OLD.factor_snapshot)
+            (NEW.cost_price,NEW.quantity,NEW.unit_price,NEW.factor_snapshot,NEW.sku_code_snapshot,NEW.sku_name_snapshot)
+              IS DISTINCT FROM (OLD.cost_price,OLD.quantity,OLD.unit_price,OLD.factor_snapshot,OLD.sku_code_snapshot,OLD.sku_name_snapshot)
             OR (OLD.unit_id IS NOT NULL AND (NEW.unit_id,NEW.unit_name_snapshot) IS DISTINCT FROM (OLD.unit_id,OLD.unit_name_snapshot))
           )) THEN
       RAISE EXCEPTION 'Order item identity or confirmed financial snapshot is immutable' USING ERRCODE='23514';
@@ -821,6 +842,16 @@ BEGIN
     RETURN NEW;
   END IF;
   RETURN OLD;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.oisms_protect_order() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+BEGIN
+  IF (NEW.tenant_id,NEW.branch_id) IS DISTINCT FROM (OLD.tenant_id,OLD.branch_id)
+     OR (OLD.confirmed_at IS NOT NULL AND (NEW.confirmed_at, NEW.confirmed_by) IS DISTINCT FROM (OLD.confirmed_at, OLD.confirmed_by)) THEN
+    RAISE EXCEPTION 'Order identity and confirmed timestamp are immutable' USING ERRCODE='23514';
+  END IF;
+  RETURN NEW;
 END $$;
 
 CREATE OR REPLACE FUNCTION public.oisms_protect_receipt_item() RETURNS trigger
@@ -1626,13 +1657,143 @@ END $$;
                 await purchaseOrderCmd.ExecuteNonQueryAsync(cancellationToken);
             }
 
+            const string salesInvoiceUpgradeSql = @"
+SELECT pg_advisory_xact_lock(hashtext('oisms_sales_invoice_schema_upgrade'));
+
+CREATE TABLE IF NOT EXISTS public.sales_invoices (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    number varchar(50) NOT NULL,
+    order_id uuid NOT NULL,
+    branch_id uuid NOT NULL,
+    channel varchar(20) NOT NULL,
+    branch_name_snapshot varchar(200) NOT NULL,
+    branch_address_snapshot text NULL,
+    customer_name_snapshot varchar(200) NULL,
+    customer_phone_snapshot varchar(32) NULL,
+    issued_by uuid NULL,
+    issued_by_name_snapshot varchar(150) NULL,
+    total_amount numeric(20,2) NOT NULL,
+    payment_method_snapshot varchar(20) NULL,
+    issued_at timestamptz NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NULL,
+    CONSTRAINT uq_sales_invoices_1 UNIQUE (tenant_id, id),
+    CONSTRAINT uq_sales_invoices_2 UNIQUE (tenant_id, number),
+    CONSTRAINT uq_sales_invoices_3 UNIQUE (tenant_id, order_id),
+    CONSTRAINT ck_sales_invoices_channel_values CHECK (channel IN ('POS', 'Admin', 'Shopee', 'TikTok', 'Lazada')),
+    CONSTRAINT ck_sales_invoices_total_amount_nonnegative CHECK (total_amount >= 0),
+    CONSTRAINT ck_sales_invoices_payment_method_values CHECK (payment_method_snapshot IS NULL OR payment_method_snapshot IN ('Cash','BankTransfer'))
+);
+
+CREATE INDEX IF NOT EXISTS ix_sales_invoices_time
+ON public.sales_invoices (tenant_id, issued_at, id);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_sales_invoices_tenant_id') THEN
+        ALTER TABLE public.sales_invoices ADD CONSTRAINT fk_sales_invoices_tenant_id
+        FOREIGN KEY (tenant_id) REFERENCES public.tenants (id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_sales_invoices_order_branch') THEN
+        ALTER TABLE public.sales_invoices ADD CONSTRAINT fk_sales_invoices_order_branch
+        FOREIGN KEY (tenant_id, order_id, branch_id) REFERENCES public.orders (tenant_id, id, branch_id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_sales_invoices_branch_id') THEN
+        ALTER TABLE public.sales_invoices ADD CONSTRAINT fk_sales_invoices_branch_id
+        FOREIGN KEY (tenant_id, branch_id) REFERENCES public.branches (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_sales_invoices_issued_by') THEN
+        ALTER TABLE public.sales_invoices ADD CONSTRAINT fk_sales_invoices_issued_by
+        FOREIGN KEY (tenant_id, issued_by) REFERENCES public.users (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+END $$;
+
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS confirmed_by uuid NULL;
+ALTER TABLE public.stock_transfers ADD COLUMN IF NOT EXISTS dispatched_by uuid NULL;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_orders_confirmed_by') THEN
+        ALTER TABLE public.orders ADD CONSTRAINT fk_orders_confirmed_by
+        FOREIGN KEY (tenant_id, confirmed_by) REFERENCES public.users (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_stock_transfers_dispatched_by') THEN
+        ALTER TABLE public.stock_transfers ADD CONSTRAINT fk_stock_transfers_dispatched_by
+        FOREIGN KEY (tenant_id, dispatched_by) REFERENCES public.users (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger tg
+        JOIN pg_class c ON tg.tgrelid = c.oid
+        WHERE c.relname = 'sales_invoices' AND tg.tgname = 'sales_invoice_append_only'
+    ) THEN
+        CREATE TRIGGER sales_invoice_append_only BEFORE UPDATE OR DELETE OR TRUNCATE ON public.sales_invoices
+        FOR EACH STATEMENT EXECUTE FUNCTION public.oisms_deny_mutation();
+    END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.oisms_protect_order() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+BEGIN
+  IF (NEW.tenant_id,NEW.branch_id) IS DISTINCT FROM (OLD.tenant_id,OLD.branch_id)
+     OR (OLD.confirmed_at IS NOT NULL AND (NEW.confirmed_at, NEW.confirmed_by) IS DISTINCT FROM (OLD.confirmed_at, OLD.confirmed_by)) THEN
+    RAISE EXCEPTION 'Order identity and confirmed timestamp are immutable' USING ERRCODE='23514';
+  END IF;
+  RETURN NEW;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.oisms_protect_order_item() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+DECLARE confirmed timestamptz;
+BEGIN
+  SELECT confirmed_at INTO confirmed FROM public.orders WHERE id=OLD.order_id AND tenant_id=OLD.tenant_id FOR UPDATE;
+  IF TG_OP='DELETE' AND confirmed IS NOT NULL THEN
+    RAISE EXCEPTION 'Confirmed order items cannot be deleted' USING ERRCODE='23514';
+  END IF;
+  IF TG_OP='UPDATE' THEN
+    IF (NEW.tenant_id,NEW.order_id,NEW.sku_id) IS DISTINCT FROM (OLD.tenant_id,OLD.order_id,OLD.sku_id)
+      OR (confirmed IS NOT NULL AND OLD.cost_price IS NOT NULL AND
+          (
+            (NEW.cost_price,NEW.quantity,NEW.unit_price,NEW.factor_snapshot,NEW.sku_code_snapshot,NEW.sku_name_snapshot)
+              IS DISTINCT FROM (OLD.cost_price,OLD.quantity,OLD.unit_price,OLD.factor_snapshot,OLD.sku_code_snapshot,OLD.sku_name_snapshot)
+            OR (OLD.unit_id IS NOT NULL AND (NEW.unit_id,NEW.unit_name_snapshot) IS DISTINCT FROM (OLD.unit_id,OLD.unit_name_snapshot))
+          )) THEN
+      RAISE EXCEPTION 'Order item identity or confirmed financial snapshot is immutable' USING ERRCODE='23514';
+    END IF;
+    RETURN NEW;
+  END IF;
+  RETURN OLD;
+END $$;
+
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'oisms_runtime') THEN
+        REVOKE ALL ON TABLE public.sales_invoices FROM oisms_runtime;
+        GRANT SELECT, INSERT ON TABLE public.sales_invoices TO oisms_runtime;
+        REVOKE UPDATE, DELETE, TRUNCATE ON TABLE public.sales_invoices FROM oisms_runtime;
+    END IF;
+END $$;
+";
+            await using (var salesInvoiceCmd = new NpgsqlCommand(salesInvoiceUpgradeSql, connection, tx))
+            {
+                await salesInvoiceCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
             await tx.CommitAsync(cancellationToken);
             return new MigrationExecutionResult(
                 Success: true,
                 IsFreshInstall: false,
                 IsBaselineAdopted: false,
                 TableCount: RequiredTables.Length,
-                Message: "Nâng cấp schema v0.5 stock_transfers, shop_integrations, multi_unit, price_lists và purchase_orders thành công.");
+                Message: "Nâng cấp schema v0.5 stock_transfers, shop_integrations, multi_unit, price_lists, purchase_orders và sales_invoices thành công.");
         }
         catch (Exception ex)
         {
@@ -2173,7 +2334,9 @@ WHERE table_schema = 'public';";
             "price_change_request_items.new_price",
             "sku_unit_prices.price", "sku_unit_prices.valid_from",
             "purchase_orders.number", "purchase_orders.request_key", "purchase_orders.status",
-            "purchase_order_items.ordered_base_quantity", "purchase_order_items.received_base_quantity", "purchase_order_items.unit_price"
+            "purchase_order_items.ordered_base_quantity", "purchase_order_items.received_base_quantity", "purchase_order_items.unit_price",
+            "sales_invoices.number", "sales_invoices.order_id", "sales_invoices.branch_id", "sales_invoices.total_amount", "sales_invoices.issued_at",
+            "orders.confirmed_by", "stock_transfers.dispatched_by"
         ];
         foreach (var col in crucialColumns)
         {
@@ -2369,6 +2532,24 @@ WHERE grantee = 'oisms_runtime'
             while (await reader.ReadAsync(ct))
             {
                 errors.Add($"Vi phạm an ninh quyền runtime: 'oisms_runtime' bị cấp quyền '{reader.GetString(0)}' trên bảng append-only 'price_change_request_items'.");
+            }
+        }
+
+        // Kiểm tra oisms_runtime KHÔNG có quyền UPDATE hoặc DELETE hoặc TRUNCATE trên sales_invoices
+        const string checkSalesInvoicePrivilegesSql = @"
+SELECT privilege_type 
+FROM information_schema.role_table_grants 
+WHERE grantee = 'oisms_runtime' 
+  AND table_schema = 'public' 
+  AND table_name = 'sales_invoices' 
+  AND privilege_type IN ('UPDATE', 'DELETE', 'TRUNCATE');";
+
+        await using (var cmdSalesInv = new NpgsqlCommand(checkSalesInvoicePrivilegesSql, connection, tx))
+        await using (var reader = await cmdSalesInv.ExecuteReaderAsync(ct))
+        {
+            while (await reader.ReadAsync(ct))
+            {
+                errors.Add($"Vi phạm an ninh quyền runtime: 'oisms_runtime' bị cấp quyền '{reader.GetString(0)}' trên bảng append-only 'sales_invoices'.");
             }
         }
 

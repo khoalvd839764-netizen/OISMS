@@ -44,3 +44,5 @@ docker compose ps
 - **Swagger API Documentation:** `http://localhost:5000/swagger`
 - **Web Admin & Unified Login Portal:** `http://localhost:5173`
 - **Standalone Web POS PWA:** `http://localhost:5174`
+
+> **Lưu ý khi đã có database:** rebuild không nâng cấp schema, vì dữ liệu nằm trong volume `oisms_postgres_data`. Nếu `/health/ready` trả 503 `Database schema is incomplete`, xem [Nâng cấp database đã có dữ liệu](../database/README.md#nâng-cấp-database-đã-có-dữ-liệu-cả-nhóm-đọc-khi-kéo-code-mới).

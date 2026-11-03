@@ -49,6 +49,7 @@ public interface IAppDbContext
     DbSet<SkuUnitPrice> SkuUnitPrices { get; }
     DbSet<PurchaseOrder> PurchaseOrders { get; }
     DbSet<PurchaseOrderItem> PurchaseOrderItems { get; }
+    DbSet<SalesInvoice> SalesInvoices { get; }
 
     int SaveChanges();
     int SaveChanges(bool acceptAllChangesOnSuccess);

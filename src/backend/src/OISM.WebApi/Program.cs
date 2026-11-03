@@ -279,7 +279,7 @@ public class NpgsqlDatabaseReadinessService : IDatabaseReadinessService
         "daily_sales_summaries", "replenishment_suggestions", "shop_integrations",
         "units", "sku_units", "sku_unit_factor_history",
         "price_lists", "price_change_requests", "price_change_request_items", "sku_unit_prices",
-        "purchase_orders", "purchase_order_items"
+        "purchase_orders", "purchase_order_items", "sales_invoices"
     };
 
     public NpgsqlDatabaseReadinessService(IConfiguration configuration, ILogger<NpgsqlDatabaseReadinessService> logger)

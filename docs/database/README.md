@@ -9,7 +9,7 @@
 
 Kiểm tra lại kết nối: `Invoke-RestMethod http://localhost:5000/health/ready`.
 
-Tài liệu chuẩn chung cho Khoa (Backend 1), TV2 (Backend 2) và các thành viên tích hợp. PostgreSQL 16+, **33 bảng nghiệp vụ** (bản bàn giao gốc v0.5 có 29 bảng, 94 khóa ngoại, 86 CHECK; Sprint 3 thêm `shop_integrations`, Upgrade 05 thêm `units`, `sku_units`, `sku_unit_factor_history`), cùng UNIQUE/index và trigger. Việc gom file không thay đổi mô hình nghiệp vụ v0.5.
+Tài liệu chuẩn chung cho Khoa (Backend 1), TV2 (Backend 2) và các thành viên tích hợp. PostgreSQL 16+, **40 bảng nghiệp vụ** (bản bàn giao gốc v0.5 có 29 bảng, 94 khóa ngoại, 86 CHECK; Sprint 3 thêm `shop_integrations`, Upgrade 05 thêm `units`, `sku_units`, `sku_unit_factor_history`, Upgrade 04 thêm `price_lists`, `price_change_requests`, `price_change_request_items`, `sku_unit_prices`, Upgrade 01-A thêm `purchase_orders`, `purchase_order_items`, Upgrade 02 thêm `sales_invoices`), cùng UNIQUE/index và trigger. Việc gom file không thay đổi mô hình nghiệp vụ v0.5.
 
 ## Bộ file bàn giao
 
@@ -22,6 +22,57 @@ docs/database/
 Chỉ cần hai file này để hiểu và cài database mới. File SQL không chứa mật khẩu, không tạo LOGIN backend, không thêm dữ liệu demo và không ghi đè database cũ.
 
 Script database duy nhất được giữ trong `scripts` là `scripts/test-database-schema.cjs`. Script đọc trực tiếp SQL và README tại đây, tạo dữ liệu kiểm thử trong PostgreSQL nhúng rồi đóng phiên; không cần generator, seed hay file SQL phụ. SQL bàn giao là nguồn cấu trúc hiện hành.
+
+## Nâng cấp database đã có dữ liệu (cả nhóm đọc khi kéo code mới)
+
+**Dấu hiệu cần nâng cấp:** Admin báo "Không thể tải dữ liệu từ máy chủ Backend", còn `http://localhost:5000/health/ready` trả 503 với nội dung `Database schema is incomplete` và danh sách bảng thiếu.
+
+**Rebuild không sửa được lỗi này.** `docker compose up -d --build` chỉ tạo lại code, còn dữ liệu nằm trong volume `oisms_postgres_data`. Backend không tự nâng cấp schema; `init-oisms.sh` chỉ chạy khi volume còn trống.
+
+| Trường hợp | Việc cần làm |
+| :--- | :--- |
+| Database mới tinh (volume trống) | Chỉ cần `docker compose up -d --build`. Schema lấy từ `oisms_schema.sql`, không chạy migration |
+| Database đã có dữ liệu | Backup rồi chạy các file trong `docker/postgres/migrations/` theo thứ tự tên file, như bên dưới |
+| Dữ liệu trên máy không cần giữ | `docker compose down -v` rồi `up -d --build`. **Cờ `-v` xóa toàn bộ dữ liệu trong volume**, kể cả tài khoản đã tạo |
+
+Không chạy `oisms_schema.sql` lên database đã có dữ liệu. Không sửa file migration đã có: mỗi thay đổi schema tạo file mới, đồng thời cập nhật `oisms_schema.sql`.
+
+Git Bash, Linux, macOS (chạy ở thư mục gốc repo):
+
+```bash
+docker compose up -d postgres
+docker compose exec -T postgres sh -c 'PGPASSWORD=$POSTGRES_PASSWORD pg_dump -U $POSTGRES_USER -d $POSTGRES_DB -Fc -f /tmp/oisms_backup.dump'
+docker compose cp postgres:/tmp/oisms_backup.dump ./oisms_backup.dump
+for f in docker/postgres/migrations/*.sql; do
+  docker compose cp "$f" postgres:/tmp/migration.sql
+  docker compose exec -T postgres sh -c 'PGPASSWORD=$POSTGRES_PASSWORD psql -U $POSTGRES_USER -d $POSTGRES_DB -v ON_ERROR_STOP=1 -q -f /tmp/migration.sql' || { echo "LOI: $f"; break; }
+done
+docker compose up -d --build
+```
+
+PowerShell (Windows):
+
+```powershell
+docker compose up -d postgres
+docker compose exec -T postgres sh -c 'PGPASSWORD=$POSTGRES_PASSWORD pg_dump -U $POSTGRES_USER -d $POSTGRES_DB -Fc -f /tmp/oisms_backup.dump'
+docker compose cp postgres:/tmp/oisms_backup.dump ./oisms_backup.dump
+foreach ($f in Get-ChildItem docker/postgres/migrations/*.sql | Sort-Object Name) {
+  docker compose cp $f.FullName postgres:/tmp/migration.sql
+  docker compose exec -T postgres sh -c 'PGPASSWORD=$POSTGRES_PASSWORD psql -U $POSTGRES_USER -d $POSTGRES_DB -v ON_ERROR_STOP=1 -q -f /tmp/migration.sql'
+  if ($LASTEXITCODE -ne 0) { Write-Error "LOI: $($f.Name)"; break }
+}
+docker compose up -d --build
+```
+
+File `oisms_backup.dump` chứa dữ liệu thật, không commit lên Git. Nâng cấp xong, `/health/ready` phải trả 200 với `tablesCount: 40`. Gặp lỗi thì dừng lại và báo nhóm; mỗi file chạy trong một giao dịch nên file lỗi tự hoàn tác phần của nó, các file đã chạy xong trước đó vẫn giữ nguyên.
+
+Khôi phục từ backup khi cần (xóa dữ liệu hiện tại của database `oisms`):
+
+```bash
+docker compose stop backend
+docker compose cp ./oisms_backup.dump postgres:/tmp/oisms_backup.dump
+docker compose exec -T postgres sh -c 'PGPASSWORD=$POSTGRES_PASSWORD pg_restore -U $POSTGRES_USER -d $POSTGRES_DB --clean --if-exists /tmp/oisms_backup.dump'
+```
 
 ## Cài mới bằng một file SQL
 
@@ -1400,5 +1451,39 @@ Lịch sử đổi hệ số, chỉ thêm. Trigger `factor_history_append_only` 
 - `uq_order_items_2` đổi thành `UNIQUE NULLS NOT DISTINCT (tenant_id, order_id, sku_id, unit_id)`. `uq_goods_receipt_items_2` giữ nguyên.
 - `oisms_check_stock` so giữ chỗ với `base_quantity`; `oisms_protect_order_item` chặn đổi `factor_snapshot`, `unit_id`, `unit_name_snapshot` trên dòng đã xác nhận.
 - Trigger `protect_receipt_item` (`oisms_protect_receipt_item`) chặn sửa số lượng, đơn giá, đơn vị, hệ số và chặn xóa dòng của phiếu nhập đã xác nhận.
+
+### 40. `sales_invoices`
+
+Hóa đơn bán hàng gắn với mỗi lần xuất bán, bảng chỉ thêm (append-only, OISMS-47-U02). Trigger `sales_invoice_append_only` chặn UPDATE, DELETE, TRUNCATE; `oisms_runtime` chỉ có quyền SELECT, INSERT.
+
+| Cột | Kiểu PostgreSQL | Bắt buộc | Mặc định / cách ghi |
+|---|---|---|---|
+| `id` (PK) | `uuid` | Có | `gen_random_uuid()` |
+| `tenant_id` | `uuid` | Có | Backend lấy từ JWT |
+| `number` | `varchar(50)` | Có | `INV-YYYYMMDD-{HEX8}` |
+| `order_id` | `uuid` | Có | Mã đơn hàng gốc |
+| `branch_id` | `uuid` | Có | Chi nhánh xuất bán |
+| `channel` | `varchar(20)` | Có | Khớp với orders: 'POS', 'Admin', 'Shopee', 'TikTok', 'Lazada' |
+| `branch_name_snapshot` | `varchar(200)` | Có | Tên chi nhánh tại thời điểm lập |
+| `branch_address_snapshot` | `text` | Không | Địa chỉ chi nhánh tại thời điểm lập |
+| `customer_name_snapshot` | `varchar(200)` | Không | Tên khách hàng |
+| `customer_phone_snapshot` | `varchar(32)` | Không | Số điện thoại khách hàng |
+| `issued_by` | `uuid` | Không | Người lập hóa đơn |
+| `issued_by_name_snapshot` | `varchar(150)` | Không | Tên người lập hóa đơn |
+| `total_amount` | `numeric(20,2)` | Có | Tổng tiền hóa đơn (>= 0) |
+| `payment_method_snapshot` | `varchar(20)` | Không | 'Cash', 'BankTransfer' hoặc NULL |
+| `issued_at` | `timestamptz` | Có | Thời điểm phát hành |
+| `created_at` | `timestamptz` | Có | `now()` |
+| `updated_at` | `timestamptz` | Không | NULL |
+
+**UNIQUE:** `(tenant_id, id)`; `(tenant_id, number)`; `(tenant_id, order_id)`.
+**INDEX:** `ix_sales_invoices_time (tenant_id, issued_at, id)`.
+**Quan hệ FK:** `(tenant_id)` → `tenants(id)`; `(tenant_id, order_id, branch_id)` → `orders(tenant_id, id, branch_id)`; `(tenant_id, branch_id)` → `branches(tenant_id, id)`; `(tenant_id, issued_by)` → `users(tenant_id, id)`.
+
+### Cột Upgrade 02 trên bảng có sẵn
+- `orders.confirmed_by uuid NULL` → `users(tenant_id, id)`
+- `stock_transfers.dispatched_by uuid NULL` → `users(tenant_id, id)`
+- `oisms_protect_order`: Chặn đổi `confirmed_by` sau khi đơn đã xác nhận.
+- `oisms_protect_order_item`: Chặn đổi `sku_code_snapshot`, `sku_name_snapshot` trên đơn đã xác nhận.
 
 <!-- DATABASE_DICTIONARY_END -->

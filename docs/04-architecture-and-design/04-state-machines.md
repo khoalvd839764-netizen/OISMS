@@ -26,7 +26,7 @@ stateDiagram-v2
     [*] --> Draft : Tạo đơn mới (Admin / Webhook / POS)
     Draft --> Reserved : Reserve thành công (Tăng reserved, giảm available)
     Draft --> Cancelled : Không đủ tồn khả dụng / Hủy nháp
-    Reserved --> Confirmed : Duyệt đơn / POS Checkout (Trừ on_hand, giảm reserved, ghi Ledger OUT, chụp CostPrice)
+    Reserved --> Confirmed : Duyệt đơn / POS Checkout (Trừ on_hand, giảm reserved, ghi Ledger OUT, chụp CostPrice, lập SalesInvoice)
     Reserved --> Cancelled : Nhân viên hủy / Hangfire hủy đơn quá hạn (Giảm reserved, hoàn lại available)
     Confirmed --> Completed : Giao hàng thành công / Hoàn tất tại quầy POS
 ```

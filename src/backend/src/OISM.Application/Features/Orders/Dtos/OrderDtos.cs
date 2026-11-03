@@ -207,6 +207,9 @@ public class OrderResponseDto
     public decimal? TotalCogs { get; set; }
     public Guid RequestKey { get; set; }
     public Guid? CreatedBy { get; set; }
+    public Guid? ConfirmedBy { get; set; }
+    public Guid? SalesInvoiceId { get; set; }
+    public string? SalesInvoiceNumber { get; set; }
     public DateTimeOffset? ConfirmedAt { get; set; }
     public DateTimeOffset? CompletedAt { get; set; }
     public DateTimeOffset? CancelledAt { get; set; }
@@ -341,6 +344,9 @@ public class OrderDetailDto : OrderSummaryDto
 {
     public string? ShippingAddress { get; set; }
     public Guid RequestKey { get; set; }
+    public Guid? ConfirmedBy { get; set; }
+    public Guid? SalesInvoiceId { get; set; }
+    public string? SalesInvoiceNumber { get; set; }
     public List<OrderItemDto> Items { get; set; } = new();
 }
 

@@ -37,3 +37,4 @@
 - Cùng SKU khác đơn vị là hai dòng; cùng (SKU, đơn vị) được gộp. Tồn khả dụng kiểm theo tổng lượng gốc của SKU.
 - `search`, `barcode` trả thêm `units[]` gồm đơn vị được bán (giá, hệ số, số lẻ). `barcode` quét trúng mã quy cách thì `matchedUnitId` là đơn vị đó; quét mã SKU thì `matchedUnitId = null`. `onHand`, `reserved`, `available` luôn theo đơn vị gốc.
 - Hóa đơn (`receipt.items`) có thêm `unitId`, `unitName`.
+- **Hóa đơn bán hàng & In lại (Upgrade 02):** `ReceiptNumber` nay chính là số hóa đơn bán hàng `INV-YYYYMMDD-{HEX8}` (thay vì số đơn hàng). Mỗi lần checkout quầy POS thành công sinh duy nhất 1 hóa đơn bán hàng trong cùng giao dịch CSDL với dòng `OUT`. Thu ngân và Quản trị có thể in lại hóa đơn bán lẻ qua `GET /api/sales-invoices/receipt?number={invoiceNumber}` hoặc `GET /api/sales-invoices/{id}/receipt` (không chứa giá vốn, bảo mật RBAC Cashier).

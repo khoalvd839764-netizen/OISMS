@@ -11,6 +11,7 @@ using OISM.Application.Features.Pricing.Dtos;
 using OISM.Application.Features.Pricing.Services;
 using OISM.Application.Features.Realtime;
 using OISM.Application.Features.Realtime.Dtos;
+using OISM.Application.Features.SalesInvoices.Services;
 using OISM.Domain.Entities;
 
 namespace OISM.Application.Features.Orders.Services;
@@ -330,6 +331,9 @@ public class OrderService : IOrderService, IPosCheckoutService
 
                 _logger.LogInformation("Idempotent replay cho RequestKey {RequestKey}. Trả kết quả đơn {OrderNumber}.", dto.RequestKey, existingOrder.Number);
 
+                var existingInvoice = await _context.SalesInvoices.AsNoTracking()
+                    .FirstOrDefaultAsync(s => s.TenantId == tenantId.Value && s.OrderId == existingOrder.Id, ct);
+
                 var branchInfo = await _context.Branches.AsNoTracking().FirstOrDefaultAsync(b => b.TenantId == tenantId.Value && b.Id == existingOrder.BranchId, ct);
                 var cashierInfo = cashierUserId.HasValue
                     ? await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.TenantId == tenantId.Value && u.Id == cashierUserId.Value, ct)
@@ -338,22 +342,22 @@ public class OrderService : IOrderService, IPosCheckoutService
                 var replayReceipt = new PosReceiptDto
                 {
                     OrderId = existingOrder.Id,
-                    ReceiptNumber = existingOrder.Number,
+                    ReceiptNumber = existingInvoice?.Number ?? existingOrder.Number,
                     OrderNumber = existingOrder.Number,
                     BranchId = existingOrder.BranchId,
-                    BranchName = branchInfo?.Name ?? string.Empty,
-                    BranchAddress = branchInfo?.Address,
+                    BranchName = existingInvoice != null ? existingInvoice.BranchNameSnapshot : (branchInfo?.Name ?? string.Empty),
+                    BranchAddress = existingInvoice != null ? existingInvoice.BranchAddressSnapshot : branchInfo?.Address,
                     BranchPhone = branchInfo?.Phone,
-                    CashierName = cashierInfo?.FullName ?? "Thu ngân",
-                    CustomerName = existingOrder.CustomerName,
-                    CustomerPhone = existingOrder.CustomerPhone,
-                    TotalAmount = existingOrder.TotalAmount,
-                    PaymentMethod = existingOrder.Payment?.Method ?? normalizedMethod,
+                    CashierName = existingInvoice?.IssuedByNameSnapshot ?? cashierInfo?.FullName ?? "Thu ngân",
+                    CustomerName = existingInvoice?.CustomerNameSnapshot ?? existingOrder.CustomerName,
+                    CustomerPhone = existingInvoice?.CustomerPhoneSnapshot ?? existingOrder.CustomerPhone,
+                    TotalAmount = existingInvoice?.TotalAmount ?? existingOrder.TotalAmount,
+                    PaymentMethod = existingInvoice?.PaymentMethodSnapshot ?? existingOrder.Payment?.Method ?? normalizedMethod,
                     AmountGiven = existingOrder.Payment?.CashReceived,
                     ChangeDue = existingOrder.Payment?.CashReceived.HasValue == true
                         ? existingOrder.Payment.CashReceived.Value - existingOrder.TotalAmount
                         : null,
-                    CreatedAt = existingOrder.CreatedAt,
+                    CreatedAt = existingInvoice?.IssuedAt ?? existingOrder.CreatedAt,
                     Items = existingOrder.Items.Select(i => new PosReceiptItemDto
                     {
                         SkuId = i.SkuId,
@@ -628,6 +632,7 @@ public class OrderService : IOrderService, IPosCheckoutService
                 TotalAmount = totalAmount,
                 RequestKey = dto.RequestKey,
                 CreatedBy = cashierUserId,
+                ConfirmedBy = cashierUserId,
                 ConfirmedAt = now,
                 CompletedAt = now,
                 CreatedAt = now
@@ -655,7 +660,7 @@ public class OrderService : IOrderService, IPosCheckoutService
                     FactorSnapshot = line.Unit.Factor,
                     Quantity = line.Quantity,
                     UnitPrice = Math.Round(line.UnitPrice, 2, MidpointRounding.AwayFromZero),
-                    CostPrice = Math.Round(bBal.AverageCost, 4, MidpointRounding.AwayFromZero), // Snapshot WAC theo đơn vị gốc
+                    CostPrice = Math.Round(bBal.AverageCost, 6, MidpointRounding.AwayFromZero), // Snapshot WAC theo đơn vị gốc
                     SkuUnitPriceId = line.SkuUnitPriceId,
                     PriceSource = line.PriceSource,
                     CreatedAt = now
@@ -700,7 +705,7 @@ public class OrderService : IOrderService, IPosCheckoutService
                         SkuId = skuId,
                         Type = "OUT",
                         Quantity = alloc.Quantity,
-                        UnitCost = bBal.AverageCost, // Snapshot WAC
+                        UnitCost = Math.Round(bBal.AverageCost, 6, MidpointRounding.AwayFromZero), // Snapshot WAC
                         BalanceAfter = bBal.OnHand - alloc.Quantity,
                         SequenceNo = nextSeq,
                         OrderItemId = orderItem.Id,
@@ -729,6 +734,13 @@ public class OrderService : IOrderService, IPosCheckoutService
                 CreatedAt = now
             };
             _context.Payments.Add(payment);
+
+            var cashierUser = cashierUserId.HasValue
+                ? await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.TenantId == tenantId.Value && u.Id == cashierUserId.Value, ct)
+                : null;
+
+            var invoice = SalesInvoiceFactory.Create(order, branch, cashierUser, normalizedMethod, now);
+            _context.SalesInvoices.Add(invoice);
 
             // 16. Lưu xuống DB
             await _context.SaveChangesAsync(ct);
@@ -766,27 +778,23 @@ public class OrderService : IOrderService, IPosCheckoutService
             }
 
             // 18. Xây dựng DTO phản hồi quầy POS
-            var cashierUser = cashierUserId.HasValue
-                ? await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.TenantId == tenantId.Value && u.Id == cashierUserId.Value, ct)
-                : null;
-
             var receipt = new PosReceiptDto
             {
                 OrderId = order.Id,
-                ReceiptNumber = order.Number,
+                ReceiptNumber = invoice.Number,
                 OrderNumber = order.Number,
                 BranchId = branch.Id,
-                BranchName = branch.Name,
-                BranchAddress = branch.Address,
+                BranchName = invoice.BranchNameSnapshot,
+                BranchAddress = invoice.BranchAddressSnapshot,
                 BranchPhone = branch.Phone,
-                CashierName = cashierUser?.FullName ?? "Thu ngân",
-                CustomerName = dto.CustomerName,
-                CustomerPhone = dto.CustomerPhone,
+                CashierName = invoice.IssuedByNameSnapshot ?? cashierUser?.FullName ?? "Thu ngân",
+                CustomerName = invoice.CustomerNameSnapshot ?? dto.CustomerName,
+                CustomerPhone = invoice.CustomerPhoneSnapshot ?? dto.CustomerPhone,
                 TotalAmount = totalAmount,
-                PaymentMethod = normalizedMethod,
+                PaymentMethod = invoice.PaymentMethodSnapshot ?? normalizedMethod,
                 AmountGiven = cashReceived,
                 ChangeDue = changeDue,
-                CreatedAt = order.CreatedAt,
+                CreatedAt = invoice.IssuedAt,
                 Items = createdOrderItems.Select(i => new PosReceiptItemDto
                 {
                     SkuId = i.SkuId,
@@ -2057,6 +2065,17 @@ public class OrderService : IOrderService, IPosCheckoutService
                 // 8. Cập nhật trạng thái đơn hàng sang Confirmed
                 order.Status = "Confirmed";
                 order.ConfirmedAt = now;
+                order.ConfirmedBy = confirmedByUserId;
+
+                var branch = await _context.Branches.AsNoTracking()
+                    .FirstOrDefaultAsync(b => b.TenantId == tenantId.Value && b.Id == order.BranchId, ct);
+                var confirmedByUser = confirmedByUserId.HasValue
+                    ? await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.TenantId == tenantId.Value && u.Id == confirmedByUserId.Value, ct)
+                    : null;
+                var paymentMethod = order.Payment?.Method;
+
+                var invoice = SalesInvoiceFactory.Create(order, branch, confirmedByUser, paymentMethod, now);
+                _context.SalesInvoices.Add(invoice);
 
                 await _context.SaveChangesAsync(ct);
 
@@ -2385,6 +2404,12 @@ public class OrderService : IOrderService, IPosCheckoutService
             .Select(b => b.Name)
             .FirstOrDefaultAsync(ct);
 
+        var invoiceInfo = await _context.SalesInvoices
+            .AsNoTracking()
+            .Where(s => s.TenantId == order.TenantId && s.OrderId == order.Id)
+            .Select(s => new { s.Id, s.Number })
+            .FirstOrDefaultAsync(ct);
+
         decimal? totalCogs = null;
         if (order.Items != null && order.Items.Count > 0 && order.Items.All(i => i.CostPrice.HasValue))
         {
@@ -2412,6 +2437,9 @@ public class OrderService : IOrderService, IPosCheckoutService
             TotalCogs = totalCogs,
             RequestKey = order.RequestKey,
             CreatedBy = order.CreatedBy,
+            ConfirmedBy = order.ConfirmedBy,
+            SalesInvoiceId = invoiceInfo?.Id,
+            SalesInvoiceNumber = invoiceInfo?.Number,
             ConfirmedAt = order.ConfirmedAt,
             CompletedAt = order.CompletedAt,
             CancelledAt = order.CancelledAt,
@@ -2578,7 +2606,17 @@ public class OrderService : IOrderService, IPosCheckoutService
             return null;
         }
 
-        return MapToDetailDto(order);
+        var invoice = await _context.SalesInvoices
+            .AsNoTracking()
+            .Where(s => s.TenantId == tenantId.Value && s.OrderId == order.Id)
+            .Select(s => new { s.Id, s.Number })
+            .FirstOrDefaultAsync(ct);
+
+        var detail = MapToDetailDto(order);
+        detail.ConfirmedBy = order.ConfirmedBy;
+        detail.SalesInvoiceId = invoice?.Id;
+        detail.SalesInvoiceNumber = invoice?.Number;
+        return detail;
     }
 
     public async Task<OrderDetailDto> CreateOrderAsync(CreateOrderDto dto, Guid? userId, CancellationToken ct = default)
@@ -2721,6 +2759,7 @@ public class OrderService : IOrderService, IPosCheckoutService
             RequestKey = order.RequestKey,
             ItemCount = order.Items?.Count ?? 0,
             CreatedAt = order.CreatedAt,
+            ConfirmedBy = order.ConfirmedBy,
             ConfirmedAt = order.ConfirmedAt,
             CompletedAt = order.CompletedAt,
             CancelledAt = order.CancelledAt,

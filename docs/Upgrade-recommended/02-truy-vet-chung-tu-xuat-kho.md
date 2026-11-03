@@ -1,68 +1,93 @@
 # 02. Truy vết chứng từ xuất kho
 
-> Trạng thái: đề xuất phân tích. Cần xác nhận rõ ý nghĩa “hóa đơn mua hàng” đối với chiều xuất.
+> Trạng thái: backend đã triển khai và kiểm chứng ngày 03/11/2026, xem [báo cáo](../report-after-upgrade/hoa-don-truy-vet-xuat-kho.md); **giao diện Admin, POS chưa làm**. Yêu cầu "xuất kèm hóa đơn" được người dùng xác nhận là **hóa đơn khi khách mua hàng**. Các mục ghi "đề xuất của nhóm" chưa có GVHD xác nhận.
 
 ## Vấn đề cần giải quyết
 
-Mỗi bút toán xuất kho phải có nguồn nghiệp vụ rõ ràng để đối chiếu. Xuất bán, chuyển kho và điều chỉnh kiểm kê có chứng từ nguồn khác nhau; không thể dùng một loại hóa đơn cho mọi dòng `OUT`.
+Mỗi lần xuất kho phải kèm chứng từ đúng với loại xuất để đối chiếu được: xuất bán kèm hóa đơn của khách, chuyển kho kèm phiếu chuyển kho, kiểm kê thiếu kèm phiếu kiểm kê và phiếu điều chỉnh. Không dùng một loại hóa đơn cho mọi dòng `OUT`, và không tạo hóa đơn bán giả cho chuyển kho hay kiểm kê.
 
-## Hiện trạng đã kiểm tra
+## Quyết định đã chốt
 
-- `InventoryTransaction` đã có các khóa nguồn như `OrderItemId`, `TransferItemId`, `StockCountItemId`, `ReceiptItemId`; đây là nền tảng tốt để truy vết. Xem [InventoryTransaction.cs](../../src/backend/src/OISM.Domain/Entities/InventoryTransaction.cs).
-- Xác nhận đơn hàng ghi `OUT` và chụp WAC vào dòng đơn. Xem [OrderService.cs](../../src/backend/src/OISM.Application/Features/Orders/Services/OrderService.cs).
-- POS trả `PosReceiptDto` để in hóa đơn/biên nhận từ dữ liệu đơn hàng. Mô hình dữ liệu hiện chưa có thực thể hóa đơn bán độc lập. Xem [OrderDtos.cs](../../src/backend/src/OISM.Application/Features/Orders/Dtos/OrderDtos.cs) và [AppDbContext.cs](../../src/backend/src/OISM.Infrastructure/Persistence/AppDbContext.cs).
+| Câu hỏi | Quyết định | Nguồn |
+| :--- | :--- | :--- |
+| "Hóa đơn mua hàng" khi xuất là gì? | Hóa đơn khi khách mua hàng, trong hệ thống là `sales_invoices`. Không phải hóa đơn của nhà cung cấp, không truy về lô nhập. | Người dùng, 03/11/2026 |
+| "Hóa đơn chuyển kho" là gì? | Chính là phiếu chuyển kho `stock_transfers`. Không thêm bảng mới. | Người dùng, 03/11/2026 |
+| Loại hóa đơn | Hóa đơn bán nội bộ, không phải hóa đơn điện tử theo quy trình phát hành riêng. | Đề xuất của nhóm |
+| Thời điểm lập | Cùng giao dịch với dòng `OUT`: POS khi checkout, đơn online khi Confirm. | Đề xuất của nhóm |
+| Đơn sàn TMĐT | Vẫn có hóa đơn nội bộ để mọi dòng xuất bán truy vết cùng một cách; đây không phải hóa đơn của sàn. | Đề xuất của nhóm |
+| Đơn đã có trước nâng cấp | Không tạo bù hóa đơn. Vẫn truy vết được qua đơn hàng; API trả hóa đơn `null`. | Đề xuất của nhóm |
+| Quyền xem giá vốn | Owner và Staff xem giá vốn từng dòng trong truy vết. Cashier chỉ in hóa đơn, không thấy giá vốn. Lãi gộp vẫn chỉ Owner xem qua báo cáo. | Đề xuất của nhóm |
+| Cashier in lại hóa đơn | Được, trong phạm vi tenant. Hiện chưa có phân công chi nhánh cho người dùng; giới hạn theo chi nhánh để lại cho CS-02. | Đề xuất của nhóm |
+
+## Hiện trạng trước khi nâng cấp (kiểm tra 03/11/2026)
+
+| Nội dung | Hiện trạng |
+| :--- | :--- |
+| Một dòng sổ kho có đúng một nguồn | Đã có: `ck_inventory_transactions_one_source`, `ck_inventory_transactions_source_direction`. |
+| Sổ kho trả chứng từ nguồn | Đã có: `InventoryLedgerDto` trả loại, mã, số chứng từ. Chưa có hóa đơn và người thực hiện. |
+| Điểm ghi `OUT` xuất bán | Chỉ có 2 nơi: `CheckoutPosAsync` và `ConfirmOrderAsync`. `/process` đi qua Confirm. Luồng online xuất đủ một lần khi Confirm. |
+| Hóa đơn bán | Chưa có thực thể. `PosReceiptDto.ReceiptNumber` đang bằng số đơn. Chưa có API in lại. |
+| Giữ nguyên dữ liệu đã chụp | `order_items` đã khóa giá, số lượng, hệ số, đơn vị sau xác nhận; chưa khóa tên và mã SKU đã chụp. |
+| Người xác nhận | Kiểm kê, phiếu điều chỉnh, phiếu nhập đã lưu `confirmed_by`. **Đơn hàng không lưu** (`confirmedByUserId` bị bỏ qua), **chuyển kho không lưu** người xuất. |
+| Giá vốn POS | `OrderItem.CostPrice` làm tròn 4 chữ số còn dòng `OUT` ghi nguyên `AverageCost`, nên hai số có thể lệch. Luồng online dùng 6 chữ số. |
 
 ## Tham khảo Odoo và KiotViet
 
-| Hệ thống | Cách xử lý được tài liệu chính thức mô tả | Điều cần rút ra |
+| Hệ thống | Cách xử lý được tài liệu chính thức mô tả | Điều rút ra |
 | :--- | :--- | :--- |
-| Odoo | Có chính sách lập hóa đơn theo lượng đặt hoặc lượng đã giao. Với luồng `Sales Order → Delivery Order → Invoice`, giao hàng làm giảm tồn trước; hóa đơn lập theo lượng thực giao, kể cả giao từng phần. | Không thể luôn bắt hóa đơn **đã phát hành** tồn tại trước khi xuất nếu muốn hỗ trợ giao từng phần và tính tiền theo lượng giao. |
-| KiotViet | Trong luồng bán lẻ được mô tả, hoàn tất hóa đơn bán hàng làm hệ thống trừ tồn tại kho đã chọn. | Với POS, chứng từ bán và bút toán xuất có thể hình thành cùng một thao tác. |
+| Odoo | Lập hóa đơn theo lượng đặt hoặc lượng đã giao. Với `Sales Order → Delivery Order → Invoice`, giao hàng giảm tồn trước, hóa đơn theo lượng thực giao. | Cần khi có giao từng phần. OISMS hiện xuất đủ một lần nên chưa cần. |
+| KiotViet | Hoàn tất hóa đơn bán hàng làm hệ thống trừ tồn tại kho đã chọn. | Chứng từ bán và bút toán xuất có thể hình thành cùng một thao tác; OISMS theo hướng này. |
 
 Nguồn: [Odoo — Invoicing policies](https://www.odoo.com/documentation/19.0/applications/sales/sales/invoicing/invoicing_policy.html), [Odoo — Invoicing processes](https://www.odoo.com/documentation/19.0/applications/finance/accounting/customer_invoices/overview.html), [KiotViet — Quản lý kho hàng](https://www.kiotviet.vn/huong-dan-su-dung-kiotviet/retail-thiet-lap/quan-ly-kho-hang/). Đối chiếu tài liệu ngày 29/10/2026.
 
-**Đề xuất cho OISMS:** xuất bán phải đối chiếu với đơn bán và chứng từ bán. Tại POS, tạo biên nhận/hóa đơn bán nội bộ và dòng `OUT` trong cùng giao dịch; nếu một bước thất bại thì không chốt bước còn lại. Với đơn giao hàng, phiếu giao/xuất gắn đơn bán trước khi trừ tồn; hóa đơn bán lập theo lượng giao thực tế, có trạng thái `Chờ lập hóa đơn` và báo cáo các phiếu giao chưa đối chiếu. Nếu dự án yêu cầu phát hành hóa đơn trước giao, cấu hình riêng cho kênh đó. Hóa đơn bán nội bộ cần phân biệt với hóa đơn điện tử có quy trình phát hành riêng.
+## Ma trận chứng từ
 
-## Ma trận chứng từ nguồn đề xuất
+| Biến động kho | Chứng từ kèm theo | Người chịu trách nhiệm | Việc của Upgrade 02 |
+| :--- | :--- | :--- | :--- |
+| Xuất bán POS, Admin, sàn | Dòng đơn hàng và hóa đơn của khách | `orders.confirmed_by` | Thêm hóa đơn, thêm người xác nhận |
+| Xuất chuyển kho | Phiếu chuyển kho đã xuất đi; đối chiếu lần nhận ở kho đích | `stock_transfers.dispatched_by` | Thêm người xuất |
+| Xuất do kiểm kê thiếu | Phiếu kiểm kê và phiếu điều chỉnh | `inventory_adjustments.confirmed_by` | Chỉ thêm vào API truy vết; bước duyệt thuộc [Upgrade 03](./03-quy-dinh-kiem-ke.md) |
 
-| Biến động kho | Chứng từ bắt buộc trước khi ghi sổ | Chứng từ đối chiếu bổ sung |
+Chuyển kho hiện không có bước duyệt riêng; "đã xuất đi" là trạng thái `InTransit`.
+
+## Luồng xuất bán
+
+1. POS checkout hoặc Confirm đơn online ghi `OUT` liên kết `OrderItemId`, chụp WAC, trừ tồn như hiện tại.
+2. Trong **cùng giao dịch**, tạo đúng một `sales_invoices` cho đơn và lưu người xác nhận. Một bước thất bại thì không bước nào được ghi.
+3. Hóa đơn in từ dữ liệu đã chụp trên hóa đơn và `order_items`, nên giữ nguyên dù bảng giá, tên SKU hay tên chi nhánh đổi sau đó.
+4. Tra được hai chiều: hóa đơn → đơn → dòng sổ kho, và ngược lại.
+
+Đơn đã xác nhận không hủy được theo state machine, nên hóa đơn không có trạng thái hủy. Trả hàng dùng chứng từ riêng của CS-01, nối qua `order_id` và `order_item_id`.
+
+## Dữ liệu và API
+
+- Bảng mới `sales_invoices`: số hóa đơn, đơn gốc, kênh, thông tin chi nhánh, khách, người lập, tổng tiền, phương thức thanh toán đã chụp, thời điểm lập. Mỗi đơn tối đa một hóa đơn, chỉ INSERT.
+- Chưa tạo `sales_invoice_items`: một đơn một hóa đơn, dòng hàng dùng `order_items` đã khóa. Thêm khi có hóa đơn từng phần.
+- Thêm `orders.confirmed_by`, `stock_transfers.dispatched_by`, cho phép trống với dữ liệu cũ.
+- Không thay `OrderItemId` trên sổ kho bằng `InvoiceId`: dòng đơn mới là chứng từ gây biến động kho.
+- API danh sách, chi tiết, in lại hóa đơn; API truy vết theo đơn, theo hóa đơn, theo dòng sổ kho. Dữ liệu in không chứa giá vốn.
+
+## Tiêu chí nghiệm thu
+
+1. Từ một dòng `OUT`, người có quyền truy được chứng từ nguồn hợp lệ và người xác nhận; đơn cũ hiển thị rõ là không có dữ liệu thay vì báo lỗi.
+2. POS retry hoặc checkout đồng thời cùng key chỉ tạo một lần xuất và một hóa đơn; Confirm đồng thời cũng vậy.
+3. Lỗi khi tạo hóa đơn làm hoàn tác toàn bộ: không đơn mới, không dòng `OUT`, tồn không đổi.
+4. Chuyển kho và kiểm kê có chứng từ nguồn nhưng không phát sinh hóa đơn bán.
+5. Hóa đơn in lại giữ nguyên giá, số lượng, đơn vị, tên hàng, chi nhánh, khách dù dữ liệu gốc đổi sau đó.
+6. Giá vốn trên dòng đơn POS bằng đơn giá trên dòng `OUT` tương ứng.
+7. Cashier in được hóa đơn nhưng không thấy giá vốn và không gọi được API truy vết; không xem được dữ liệu tenant khác.
+
+## Ngoài phạm vi
+
+| Nội dung | Lý do | Làm khi nào |
 | :--- | :--- | :--- |
-| Nhập từ nhà cung cấp | Phiếu nhập gắn phiếu mua đã duyệt | Hóa đơn nhà cung cấp, có thể đến sau theo chính sách |
-| Xuất bán POS/Admin | Dòng đơn hàng đã được xác nhận/thanh toán | Hóa đơn hoặc biên nhận bán hàng liên kết cùng đơn |
-| Xuất chuyển kho | Phiếu chuyển kho đã duyệt | Phiếu nhận ở kho đích |
-| Xuất do kiểm kê thiếu | Phiếu kiểm kê và chứng từ điều chỉnh đã duyệt | Biên bản chênh lệch |
-| Trả hàng nhà cung cấp hoặc khách hàng | Chứng từ trả hàng có liên kết giao dịch gốc | Hóa đơn/đơn gốc khi áp dụng |
-
-## Luồng xuất bán đề xuất
-
-1. Đơn hàng chứa SKU, số lượng, đơn vị bán, giá bán và tham chiếu phiên bản bảng giá tại thời điểm chốt.
-2. Khi sự kiện xuất bán hợp lệ xảy ra, backend ghi `InventoryTransaction.OUT` liên kết `OrderItemId`, chụp WAC và trừ tồn trong cùng giao dịch.
-3. Sinh hoặc liên kết bản ghi hóa đơn/biên nhận bán hàng với đơn, số chứng từ, trạng thái và các dòng đã chụp. POS tạo cùng lúc với `OUT`; đơn giao hàng có thể lập hóa đơn sau khi biết lượng thực giao và phải được theo dõi đến khi đối chiếu xong.
-4. Truy vấn từ hóa đơn → đơn hàng → dòng xuất kho và chiều ngược lại. Mỗi dòng `OUT` phải có đúng một nguồn nghiệp vụ; không được ghi xuất tự do.
-
-Với chuyển kho và điều chỉnh kiểm kê, **không tạo hóa đơn bán hàng giả** để thỏa điều kiện truy vết. Cần loại chứng từ đúng với nghiệp vụ.
-
-## Phân biệt hóa đơn mua với lô hàng xuất
-
-Nếu yêu cầu là “một dòng xuất bán phải chỉ ra hóa đơn mua của đúng hàng đó”, cần theo dõi lô/serial và chính sách chọn lô. WAC chỉ tính giá bình quân của lượng tồn; nó không xác định đơn vị vừa bán xuất từ hóa đơn mua nào. Truy vết chứng từ mua ở cấp tổng tồn là khả thi, nhưng không chứng minh nguồn gốc từng đơn vị hàng khi các lô đã trộn.
-
-## Dữ liệu và API dự kiến
-
-- `sales_invoices` và `sales_invoice_items` nếu dự án yêu cầu hóa đơn bán hàng là thực thể độc lập, với `OrderId`, số chứng từ, trạng thái, thời điểm phát hành và snapshot dòng hàng.
-- Không thay thế `OrderItemId` trên sổ kho bằng `InvoiceId`; lưu liên kết hóa đơn tại đơn/dòng đơn để giữ đúng chứng từ gây ra biến động kho.
-- API tra cứu chuỗi chứng từ theo đơn, theo dòng sổ kho và theo số hóa đơn. Quyền xem giá vốn phải tách khỏi quyền in chứng từ cho khách.
-- Ràng buộc duy nhất và idempotency để một lần xác nhận/checkout không tạo hai dòng xuất hoặc hai hóa đơn.
-
-## Tiêu chí nghiệm thu đề xuất
-
-1. Từ một dòng `OUT`, người có quyền truy được chứng từ nguồn hợp lệ và người xác nhận.
-2. POS retry checkout không sinh thêm xuất kho hoặc hóa đơn trùng.
-3. Chuyển kho/kiểm kê vẫn có chứng từ nguồn nhưng không bị ép dùng hóa đơn bán hàng.
-4. Hóa đơn in lại giữ nguyên giá, số lượng và đơn vị đã chụp dù bảng giá sau đó thay đổi.
+| Phiếu giao hàng, giao từng phần, trạng thái `Chờ lập hóa đơn` | Phải chuyển thời điểm trừ tồn khỏi Confirm, kéo theo giữ chỗ, WAC và báo cáo | Khi có yêu cầu giao từng phần |
+| Truy về hóa đơn nhà cung cấp của đúng hàng xuất | Không phải yêu cầu; cần theo dõi lô/serial, WAC không xác định được | Không làm |
+| Trả hàng cho nhà cung cấp | Chưa có luồng và chưa có cột nguồn trên sổ kho | Tính năng riêng |
+| Trả hàng từ khách, hoàn tiền | Thuộc CS-01 | CS-01 |
+| In phiếu giao và in báo cáo | Thuộc CS-06 | CS-06 |
+| Hóa đơn điện tử | Có quy trình phát hành riêng | Không thuộc đồ án hiện tại |
 
 ## Quyết định còn mở
 
-- “Xuất phải có hóa đơn mua hàng” được hiểu là cần **hóa đơn bán hàng** cho xuất bán, hay cần truy ngược **hóa đơn mua của lô xuất**? Hai yêu cầu này dẫn tới thiết kế khác nhau.
-- Phạm vi “hóa đơn” là biên nhận bán hàng nội bộ hay chứng từ hóa đơn có quy trình phát hành riêng.
-- Thời điểm phát hành hóa đơn so với xác nhận xuất và cách xử lý hủy/trả hàng.
-- Hạn phải hoàn tất đối chiếu hóa đơn cho đơn giao hàng và ai được xử lý đơn quá hạn.
+- GVHD có yêu cầu hạn chế gì khác với các mục "đề xuất của nhóm" hay không, nhất là thời điểm lập hóa đơn cho đơn online (hiện chọn lúc Confirm vì đó là lúc trừ tồn).

@@ -454,6 +454,7 @@ CREATE TABLE "stock_transfers" (
   "to_warehouse_id" uuid NOT NULL,
   "status" varchar(20) DEFAULT 'Draft' NOT NULL,
   "created_by" uuid NOT NULL,
+  "dispatched_by" uuid,
   "dispatched_at" timestamptz,
   "received_at" timestamptz,
   "received_by" uuid,
@@ -587,6 +588,7 @@ CREATE TABLE "orders" (
   "request_key" uuid NOT NULL,
   "webhook_payload_signature" varchar(64),
   "created_by" uuid,
+  "confirmed_by" uuid,
   "confirmed_at" timestamptz,
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
@@ -677,6 +679,33 @@ CREATE TABLE "payments" (
   CONSTRAINT "ck_payments_cash_received_nonnegative" CHECK (cash_received >= 0),
   CONSTRAINT "ck_payments_paid_time" CHECK ((status = 'Succeeded') = (paid_at IS NOT NULL)),
   CONSTRAINT "ck_payments_cash_received" CHECK ((method = 'Cash' AND (status <> 'Succeeded' OR cash_received IS NOT NULL) AND (cash_received IS NULL OR cash_received >= amount)) OR (method = 'BankTransfer' AND cash_received IS NULL))
+);
+
+-- Hóa đơn bán hàng nội bộ khi khách mua hàng (Upgrade 02, bảng thứ 40 - Append-only)
+CREATE TABLE "sales_invoices" (
+  "id" uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+  "tenant_id" uuid NOT NULL,
+  "number" varchar(50) NOT NULL,
+  "order_id" uuid NOT NULL,
+  "branch_id" uuid NOT NULL,
+  "channel" varchar(20) NOT NULL,
+  "branch_name_snapshot" varchar(200) NOT NULL,
+  "branch_address_snapshot" text,
+  "customer_name_snapshot" varchar(200),
+  "customer_phone_snapshot" varchar(32),
+  "issued_by" uuid,
+  "issued_by_name_snapshot" varchar(150),
+  "total_amount" numeric(20,2) NOT NULL,
+  "payment_method_snapshot" varchar(20),
+  "issued_at" timestamptz NOT NULL,
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  "updated_at" timestamptz,
+  CONSTRAINT "uq_sales_invoices_1" UNIQUE ("tenant_id", "id"),
+  CONSTRAINT "uq_sales_invoices_2" UNIQUE ("tenant_id", "number"),
+  CONSTRAINT "uq_sales_invoices_3" UNIQUE ("tenant_id", "order_id"),
+  CONSTRAINT "ck_sales_invoices_channel_values" CHECK (channel IN ('POS', 'Admin', 'Shopee', 'TikTok', 'Lazada')),
+  CONSTRAINT "ck_sales_invoices_total_amount_nonnegative" CHECK (total_amount >= 0),
+  CONSTRAINT "ck_sales_invoices_payment_method_values" CHECK (payment_method_snapshot IS NULL OR payment_method_snapshot IN ('Cash','BankTransfer'))
 );
 
 -- Nguồn giao dịch trả hàng cho ledger theo FR-INV-01; chi tiết quy trình hoàn tiền là thiết kế hỗ trợ, không phải yêu cầu nguyên văn.
@@ -969,6 +998,14 @@ ALTER TABLE "purchase_order_items" ADD CONSTRAINT "fk_purchase_order_items_unit_
 ALTER TABLE "goods_receipts" ADD CONSTRAINT "fk_goods_receipts_purchase_order_id" FOREIGN KEY ("tenant_id", "purchase_order_id") REFERENCES "purchase_orders" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 ALTER TABLE "goods_receipt_items" ADD CONSTRAINT "fk_goods_receipt_items_po_item" FOREIGN KEY ("tenant_id", "purchase_order_item_id", "sku_id") REFERENCES "purchase_order_items" ("tenant_id", "id", "sku_id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 
+ALTER TABLE "sales_invoices" ADD CONSTRAINT "fk_sales_invoices_tenant_id" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "sales_invoices" ADD CONSTRAINT "fk_sales_invoices_order_branch" FOREIGN KEY ("tenant_id", "order_id", "branch_id") REFERENCES "orders" ("tenant_id", "id", "branch_id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "sales_invoices" ADD CONSTRAINT "fk_sales_invoices_branch_id" FOREIGN KEY ("tenant_id", "branch_id") REFERENCES "branches" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "sales_invoices" ADD CONSTRAINT "fk_sales_invoices_issued_by" FOREIGN KEY ("tenant_id", "issued_by") REFERENCES "users" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+
+ALTER TABLE "orders" ADD CONSTRAINT "fk_orders_confirmed_by" FOREIGN KEY ("tenant_id", "confirmed_by") REFERENCES "users" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "stock_transfers" ADD CONSTRAINT "fk_stock_transfers_dispatched_by" FOREIGN KEY ("tenant_id", "dispatched_by") REFERENCES "users" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+
 -- Query and partial unique indexes.
 CREATE INDEX "ix_skus_product" ON "skus" ("tenant_id", "product_id");
 CREATE INDEX "ix_inventory_balances_sku_branches" ON "inventory_balances" ("tenant_id", "sku_id", "branch_id");
@@ -984,6 +1021,7 @@ CREATE INDEX "ix_goods_receipts_status_time" ON "goods_receipts" ("tenant_id", "
 CREATE INDEX "ix_purchase_orders_status_time" ON "purchase_orders" ("tenant_id", "status", "created_at", "id");
 CREATE INDEX "ix_goods_receipts_purchase_order" ON "goods_receipts" ("tenant_id", "purchase_order_id");
 CREATE INDEX "ix_goods_receipt_items_purchase_order_item" ON "goods_receipt_items" ("tenant_id", "purchase_order_item_id");
+CREATE INDEX "ix_sales_invoices_time" ON "sales_invoices" ("tenant_id", "issued_at", "id");
 CREATE UNIQUE INDEX "ux_sku_units_default_sale" ON "sku_units" ("tenant_id", "sku_id") WHERE is_default_sale AND is_active;
 CREATE UNIQUE INDEX "ux_sku_units_default_purchase" ON "sku_units" ("tenant_id", "sku_id") WHERE is_default_purchase AND is_active;
 CREATE UNIQUE INDEX "ux_sku_units_barcode" ON "sku_units" ("tenant_id", "barcode") WHERE barcode IS NOT NULL;
@@ -1131,7 +1169,8 @@ BEGIN
     IF (NEW.tenant_id,NEW.order_id,NEW.sku_id) IS DISTINCT FROM (OLD.tenant_id,OLD.order_id,OLD.sku_id)
       OR (confirmed IS NOT NULL AND OLD.cost_price IS NOT NULL AND
           (
-            (NEW.cost_price,NEW.quantity,NEW.unit_price,NEW.factor_snapshot) IS DISTINCT FROM (OLD.cost_price,OLD.quantity,OLD.unit_price,OLD.factor_snapshot)
+            (NEW.cost_price,NEW.quantity,NEW.unit_price,NEW.factor_snapshot,NEW.sku_code_snapshot,NEW.sku_name_snapshot)
+              IS DISTINCT FROM (OLD.cost_price,OLD.quantity,OLD.unit_price,OLD.factor_snapshot,OLD.sku_code_snapshot,OLD.sku_name_snapshot)
             OR (OLD.unit_id IS NOT NULL AND (NEW.unit_id,NEW.unit_name_snapshot) IS DISTINCT FROM (OLD.unit_id,OLD.unit_name_snapshot))
           )) THEN
       RAISE EXCEPTION 'Order item identity or confirmed financial snapshot is immutable' USING ERRCODE='23514';
@@ -1149,7 +1188,7 @@ CREATE FUNCTION public.oisms_protect_order() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
 BEGIN
   IF (NEW.tenant_id,NEW.branch_id) IS DISTINCT FROM (OLD.tenant_id,OLD.branch_id)
-     OR (OLD.confirmed_at IS NOT NULL AND NEW.confirmed_at IS DISTINCT FROM OLD.confirmed_at) THEN
+     OR (OLD.confirmed_at IS NOT NULL AND (NEW.confirmed_at, NEW.confirmed_by) IS DISTINCT FROM (OLD.confirmed_at, OLD.confirmed_by)) THEN
     RAISE EXCEPTION 'Order identity and confirmed timestamp are immutable' USING ERRCODE='23514';
   END IF;
   RETURN NEW;
@@ -1275,6 +1314,9 @@ FOR EACH ROW EXECUTE FUNCTION public.oisms_purchase_order_item_guard();
 CREATE TRIGGER factor_history_append_only BEFORE UPDATE OR DELETE OR TRUNCATE ON public.sku_unit_factor_history
 FOR EACH STATEMENT EXECUTE FUNCTION public.oisms_deny_mutation();
 
+CREATE TRIGGER sales_invoice_append_only BEFORE UPDATE OR DELETE OR TRUNCATE ON public.sales_invoices
+FOR EACH STATEMENT EXECUTE FUNCTION public.oisms_deny_mutation();
+
 CREATE FUNCTION public.oisms_price_change_request_guard() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
 BEGIN
@@ -1338,14 +1380,15 @@ END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='oisms_runtime') THEN CREATE ROLE oisms_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS; END IF; END $$;
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA public TO oisms_runtime;
-REVOKE ALL ON public."tenants", public."users", public."refresh_tokens", public."branches", public."warehouses", public."categories", public."brands", public."products", public."skus", public."suppliers", public."purchase_orders", public."purchase_order_items", public."goods_receipts", public."goods_receipt_items", public."inventory_balances", public."warehouse_inventory_balances", public."stock_transfers", public."stock_transfer_items", public."stock_counts", public."stock_count_items", public."inventory_adjustments", public."inventory_adjustment_items", public."orders", public."order_items", public."reservations", public."payments", public."sales_returns", public."sales_return_items", public."inventory_transactions", public."daily_sales_summaries", public."replenishment_suggestions", public."shop_integrations", public."units", public."sku_units", public."sku_unit_factor_history", public."price_lists", public."price_change_requests", public."price_change_request_items", public."sku_unit_prices" FROM PUBLIC, oisms_runtime;
+REVOKE ALL ON public."tenants", public."users", public."refresh_tokens", public."branches", public."warehouses", public."categories", public."brands", public."products", public."skus", public."suppliers", public."purchase_orders", public."purchase_order_items", public."goods_receipts", public."goods_receipt_items", public."inventory_balances", public."warehouse_inventory_balances", public."stock_transfers", public."stock_transfer_items", public."stock_counts", public."stock_count_items", public."inventory_adjustments", public."inventory_adjustment_items", public."orders", public."order_items", public."reservations", public."payments", public."sales_returns", public."sales_return_items", public."inventory_transactions", public."daily_sales_summaries", public."replenishment_suggestions", public."shop_integrations", public."units", public."sku_units", public."sku_unit_factor_history", public."price_lists", public."price_change_requests", public."price_change_request_items", public."sku_unit_prices", public."sales_invoices" FROM PUBLIC, oisms_runtime;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public."tenants", public."users", public."refresh_tokens", public."branches", public."warehouses", public."categories", public."brands", public."products", public."skus", public."suppliers", public."purchase_order_items", public."goods_receipts", public."goods_receipt_items", public."inventory_balances", public."warehouse_inventory_balances", public."stock_transfers", public."stock_transfer_items", public."stock_counts", public."stock_count_items", public."inventory_adjustments", public."inventory_adjustment_items", public."orders", public."order_items", public."reservations", public."payments", public."sales_returns", public."sales_return_items", public."inventory_transactions", public."daily_sales_summaries", public."replenishment_suggestions", public."shop_integrations", public."units", public."sku_units" TO oisms_runtime;
 GRANT SELECT, INSERT, UPDATE ON public."price_lists", public."price_change_requests", public."sku_unit_prices", public."purchase_orders" TO oisms_runtime;
-GRANT SELECT, INSERT ON public."price_change_request_items", public."sku_unit_factor_history" TO oisms_runtime;
+GRANT SELECT, INSERT ON public."price_change_request_items", public."sku_unit_factor_history", public."sales_invoices" TO oisms_runtime;
 REVOKE DELETE, TRUNCATE ON public.price_lists, public.price_change_requests, public.sku_unit_prices, public.purchase_orders FROM oisms_runtime;
 REVOKE TRUNCATE ON public.purchase_order_items FROM oisms_runtime;
 REVOKE UPDATE, DELETE, TRUNCATE ON public.price_change_request_items FROM oisms_runtime;
 REVOKE UPDATE, DELETE, TRUNCATE ON public.sku_unit_factor_history FROM oisms_runtime;
+REVOKE UPDATE, DELETE, TRUNCATE ON public.sales_invoices FROM oisms_runtime;
 REVOKE UPDATE, DELETE, TRUNCATE ON public.inventory_transactions FROM oisms_runtime;
 REVOKE DELETE, TRUNCATE ON public.inventory_balances, public.warehouse_inventory_balances, public.reservations FROM oisms_runtime;
 -- Balance writes are allowed only when deferred checks reconcile ledger/reservations at COMMIT.

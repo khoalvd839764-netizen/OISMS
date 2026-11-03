@@ -60,6 +60,9 @@ Các trường định danh bắt buộc bên trong Payload của JWT:
 | **Đơn hàng & Giữ chỗ** | Gọi API Giữ chỗ tồn kho (`Reserve Stock`) | `FR-RSE-02` | ✅ Cho phép | ✅ Cho phép | ✅ Cho phép (trong luồng POS) |
 | **Bán hàng tại quầy** | Tra cứu nhanh SKU, quét Barcode tại giao diện PWA POS | `FR-POS-01` | ✅ Cho phép | ✅ Cho phép | ✅ Toàn quyền |
 | **Bán hàng tại quầy** | Thanh toán nhanh nguyên tử tại quầy POS (`Fast Checkout`) & In hóa đơn | `FR-POS-03..04` | ✅ Cho phép | ✅ Cho phép | ✅ Toàn quyền |
+| **Hóa đơn & Truy vết** | Tra cứu danh sách và chi tiết hóa đơn bán hàng (`Sales Invoices`) | `OISMS-47-U02` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |
+| **Hóa đơn & Truy vết** | In lại hóa đơn bán lẻ theo ID hoặc số hóa đơn (dữ liệu che giấu giá vốn) | `OISMS-47-U02` | ✅ Cho phép | ✅ Cho phép | ✅ Cho phép (in lại tại POS) |
+| **Hóa đơn & Truy vết** | Truy vết chuỗi chứng từ xuất kho theo Hóa đơn, Đơn hàng, hoặc Dòng sổ kho | `OISMS-47-U02` | ✅ Toàn quyền | ✅ Toàn quyền (xem giá vốn dòng) | ❌ Cấm (`403 Forbidden`) |
 | **Báo cáo & AI** | Báo cáo Doanh thu thuần, Tổng giá vốn (`COGS`), Lợi nhuận gộp | `FR-REP-01` | ✅ Toàn quyền | ❌ Cấm xem lãi gộp | ❌ Cấm (`403 Forbidden`) |
 | **Báo cáo & AI** | Báo cáo Giá trị tồn kho, Hàng bán chạy/chậm & Cảnh báo tồn tối thiểu | `FR-REP-02..03` | ✅ Toàn quyền | ✅ Xem cảnh báo kho | ❌ Cấm (`403 Forbidden`) |
 | **Báo cáo & AI** | Xem dự báo nhu cầu AI & Gợi ý nhập lại hàng | `FR-AI-01` | ✅ Toàn quyền | ✅ Xem gợi ý nhập | ❌ Cấm (`403 Forbidden`) |

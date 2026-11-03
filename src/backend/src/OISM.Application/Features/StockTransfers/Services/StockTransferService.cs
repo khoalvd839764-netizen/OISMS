@@ -491,6 +491,7 @@ public class StockTransferService : IStockTransferService
                 // 6. Cập nhật trạng thái phiếu sang InTransit
                 transfer.Status = "InTransit";
                 transfer.DispatchedAt = now;
+                transfer.DispatchedBy = dispatchedByUserId;
                 transfer.UpdatedAt = now;
 
                 await _context.SaveChangesAsync(ct);
@@ -1027,6 +1028,7 @@ public class StockTransferService : IStockTransferService
             ToWarehouseName = transfer.ToWarehouse?.Name,
             Status = transfer.Status,
             CreatedBy = transfer.CreatedBy,
+            DispatchedBy = transfer.DispatchedBy,
             DispatchedAt = transfer.DispatchedAt,
             ReceivedAt = transfer.ReceivedAt,
             ReceivedBy = transfer.ReceivedBy,

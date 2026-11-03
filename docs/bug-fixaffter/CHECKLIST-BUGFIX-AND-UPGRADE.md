@@ -2,7 +2,7 @@
 
 | Thông tin kiểm soát | Chi tiết |
 | :--- | :--- |
-| **Ngày cập nhật** | `01/11/2026` (Asia/Saigon) |
+| **Ngày cập nhật** | `03/11/2026` (Asia/Saigon) |
 | **Confluence Sprint Plan** | [Page ID `5275650` (Version 17)](https://khoalevodang301007.atlassian.net/wiki/spaces/MFS/pages/5275650) |
 | **Jira Tasks (Sprint 4 — ID `8`)** | [`OISMS-45`](https://khoalevodang301007.atlassian.net/browse/OISMS-45) *(Nhóm 1: Backend)* · [`OISMS-46`](https://khoalevodang301007.atlassian.net/browse/OISMS-46) *(Nhóm 2: Frontend)* |
 | **Cơ cấu Phân nhóm** | **Nhóm 1: Backend** (`Đăng Khoa` & `Nhựt Phùng Minh`) · **Nhóm 2: Frontend** (`Phúc Hữu`, `Nam Nguyễn` & `Phương Lê`) |
@@ -83,8 +83,8 @@ Tài liệu đối chiếu: [BUG-LIST.md](Report%20Bugfix/BUG-LIST.md), [report 
   - [x] **U01-A:** Tạo bảng `purchase_orders`, `purchase_order_items` (có chi nhánh, đơn vị và hệ số snapshot), bước duyệt, đóng và hủy phiếu; API hủy phiếu nhập nháp.
   - [x] **U01-A:** Bắt buộc phiếu nhập kho NCC gắn phiếu mua đã duyệt, lấy giá và hệ số từ phiếu mua, chặn nhập vượt; có test đồng thời trên PostgreSQL thật.
   - [ ] **U01-B (làm sau U01-A):** Đối chiếu hóa đơn NCC (`supplier_invoices`) và xử lý chứng từ chênh lệch (`purchase_variances`).
-- [ ] **Bước 4 — `Upgrade 02`: Truy vết chứng từ xuất kho (`Đăng Khoa`):**
-  - [ ] Liên kết mọi dòng `InventoryTransaction.OUT` với chứng từ nguồn hợp lệ và hóa đơn/biên nhận bán hàng (`sales_invoices`).
+- [x] **Bước 4 — `Upgrade 02`: Truy vết chứng từ xuất kho (`Đăng Khoa`):** [báo cáo](../report-after-upgrade/hoa-don-truy-vet-xuat-kho.md).
+  - [x] Liên kết mọi dòng `InventoryTransaction.OUT` với chứng từ nguồn hợp lệ và hóa đơn/biên nhận bán hàng (`sales_invoices`); có API in lại và truy vết, test đồng thời trên PostgreSQL thật.
 - [ ] **Bước 5 — `Upgrade 03`: Quy định kiểm kê định kỳ & đột xuất (`Đăng Khoa` & `Nhựt`):**
   - [ ] Tạo bảng lịch kiểm kê `stock_count_schedules` (Giữa tháng ngày 15, Cuối tháng, Đột xuất có lý do) và bước phê duyệt chênh lệch `PendingApproval`.
 

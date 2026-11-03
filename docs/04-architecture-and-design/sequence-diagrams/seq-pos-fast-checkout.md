@@ -42,8 +42,9 @@ sequenceDiagram
         Svc->>DB: 1. INSERT Order (Status = Confirmed/Completed) & OrderItems (Snapshot CostPrice = current WAC)
         Svc->>DB: 2. Thực hiện Reserve -> Confirm -> Trừ trực tiếp on_hand thông qua cơ chế Ledger
         Svc->>DB: 3. INSERT InventoryTransaction (Type = OUT, Quantity, BalanceAfter, ReferenceId = OrderId)
+        Svc->>DB: 4. INSERT SalesInvoice (số INV-, dữ liệu chụp) cùng giao dịch với dòng OUT
         API->>DB: COMMIT TRANSACTION
-        API-->>POS: HTTP 200 OK (Trả về thông tin Hóa đơn & Số dư mới)
+        API-->>POS: HTTP 200 OK (ReceiptNumber = số hóa đơn INV-, kèm số dư mới)
         POS->>Cashier: Kích hoạt Browser Print API (window.print() khổ 80mm/58mm)
     end
 ```

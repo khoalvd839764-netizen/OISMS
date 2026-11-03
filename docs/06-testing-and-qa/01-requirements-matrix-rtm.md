@@ -51,3 +51,17 @@ Nguồn yêu cầu: [tài liệu 04](../Upgrade-recommended/04-bang-gia-theo-tho
 | 7. Replay sau khi giá đổi trả đơn cũ | `OrderService` | `AC07_Idempotency_...` | Đạt |
 | 8. Chưa có giá thì báo lỗi | `OrderService`, `ReservationService` | `AC07_Idempotency_...`, `AC05_...` | Đạt |
 | 9. Cách ly tenant | `AppDbContext` (Global Query Filter), FK ghép `tenant_id` | `AC04_TenantIsolation_...` | Đạt |
+
+## 3. Truy Vết Upgrade 02 — Hóa Đơn Bán Và Chứng Từ Xuất (`OISMS-47-U02`)
+
+Nguồn yêu cầu: [tài liệu 02](../Upgrade-recommended/02-truy-vet-chung-tu-xuat-kho.md#tiêu-chí-nghiệm-thu). Kết quả: [báo cáo sau nâng cấp](../report-after-upgrade/hoa-don-truy-vet-xuat-kho.md). Chỉ bao phủ backend; giao diện chưa làm.
+
+| Tiêu chí | Mã nguồn chính | Test | Trạng thái |
+| :--- | :--- | :--- | :--- |
+| 1. Từ dòng `OUT` truy được nguồn và người xác nhận; đơn cũ không lỗi | `SalesInvoiceService` | `AC07_TraceFromLedger_...`, `AC07_OrderTrace_LegacyActorFallback_...` | Đạt |
+| 2. Retry, đồng thời chỉ một lần xuất và một hóa đơn | `OrderService`, `uq_sales_invoices_3` | `SalesInvoiceConcurrencyIntegrationTests` | Đạt |
+| 3. Lỗi tạo hóa đơn thì hoàn tác toàn bộ | `OrderService` | `AC02_PosAdminMarketplace_...` | Đạt |
+| 4. Chuyển kho, kiểm kê không sinh hóa đơn | `SalesInvoiceService` | `AC07_TraceFromLedger_...` | Đạt |
+| 5. In lại giữ nguyên dữ liệu đã chụp | `SalesInvoiceFactory`, `oisms_protect_order_item` | `AC05_ReprintIgnoresLaterMasterDataChanges_...` | Đạt |
+| 6. Giá vốn dòng đơn POS bằng đơn giá dòng `OUT` | `OrderService` | `AC06_AverageCostPrecision_...` | Đạt |
+| 7. Cashier in được, không thấy giá vốn, không truy vết; không xem tenant khác | `SalesInvoicesController` | `AC07_RbacTenantIsolationErrorCodesAndDateFilter_...` | Đạt |

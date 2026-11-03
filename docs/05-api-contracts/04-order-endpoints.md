@@ -28,7 +28,8 @@
 | Method | Endpoint | Quyền (RBAC) | Mã FR | Mô tả & Quy tắc xử lý |
 | :---: | :--- | :---: | :---: | :--- |
 | `GET` | `/api/orders` | `Owner, Staff` | `FR-ORD-03` | Lấy danh sách đơn hàng hợp nhất (`Canonical Orders`), lọc theo Trạng thái, Kênh bán, Chi nhánh và Thời gian. |
-| `GET` | `/api/orders/{id}` | `Owner, Staff` | `FR-ORD-03` | Lấy chi tiết đơn hàng kèm danh sách mặt hàng, giá vốn WAC snapshot và thông tin thanh toán. |
+| `GET` | `/api/orders/{id}` | `Owner, Staff` | `FR-ORD-03` | Lấy chi tiết đơn hàng kèm danh sách mặt hàng, giá vốn WAC snapshot, người xác nhận (`confirmedBy`), thông tin hóa đơn (`salesInvoiceId`, `salesInvoiceNumber`) và thanh toán. |
+| `GET` | `/api/orders/{id}/trace` | `Owner, Staff` | `OISMS-47-U02` | Truy vết chuỗi chứng từ xuất kho và các dòng sổ kho tương ứng với đơn hàng (`DocumentTraceDto`). |
 | `POST` | `/api/orders` | `Owner, Staff` | `FR-ORD-01..02` | Tạo đơn hàng thủ công trên Admin và thực hiện giữ chỗ tồn kho (`Draft -> Reserved`). Bắt buộc `RequestKey` hợp lệ do client cung cấp. |
 | `POST` | `/api/orders/{id}/confirm` | `Owner, Staff` | `FR-ORD-02..03`, `FR-RSE-03`, `FR-COST-02` | Duyệt đơn hàng (`Reserved -> Confirmed`): Trừ `on_hand`, giảm `reserved`, ghi Sổ cái `OUT` và chụp `OrderItem.CostPrice`. |
 | `POST` | `/api/orders/{id}/complete` | `Owner, Staff` | `FR-ORD-02..03` | **Hoàn tất đơn online (`Confirmed -> Completed`):** Ghi nhận khách đã nhận hàng thành công. **Tuyệt đối KHÔNG trừ tồn kho hay ghi ledger OUT lần thứ hai** (vì đã ghi khi Confirm). Gọi lặp lại trên đơn đã `Completed` là idempotent (trả về 200 OK). Đơn chưa Confirmed chuyển sang Completed trả `409 Conflict` (`INVALID_STATE_TRANSITION`). |
@@ -49,6 +50,19 @@
 - Báo cáo: `totalCostOfGoodsSold`, `totalItemsSold`, `quantitySold` tính theo lượng gốc.
 
 ---
+
+
+## 1.1. Hóa Đơn Bán Hàng & Truy Vết Chứng Từ Xuất Kho (`OISMS-47-U02`)
+
+Mỗi lần xuất bán (POS Checkout hoặc Online Order Confirm) tạo đúng một hóa đơn bán hàng trong cùng giao dịch CSDL với dòng `OUT`.
+
+| Method | Endpoint | Quyền (RBAC) | Mô tả & Quy tắc xử lý |
+| :---: | :--- | :---: | :--- |
+| `GET` | `/api/sales-invoices?number=&orderId=&branchId=&fromDate=&toDate=&pageIndex=&pageSize=` | `Owner, Staff` | Danh sách hóa đơn bán hàng phân trang (`SalesInvoiceSummaryDto`). Bộ lọc `toDate` nửa mở (`IssuedAt < toDate`). |
+| `GET` | `/api/sales-invoices/{id}` | `Owner, Staff` | Chi tiết tóm tắt một hóa đơn bán hàng theo ID. |
+| `GET` | `/api/sales-invoices/{id}/receipt` | `Owner, Staff, Cashier` | Dữ liệu in lại hóa đơn theo ID (`SalesInvoiceReceiptDto`). Tuyệt đối không chứa các trường giá vốn (`costPrice`, `unitCost`, `totalCogs`). |
+| `GET` | `/api/sales-invoices/receipt?number=` | `Owner, Staff, Cashier` | Dữ liệu in lại hóa đơn theo số hóa đơn. Thu ngân POS dùng endpoint này để in lại từ số `INV-`. |
+| `GET` | `/api/sales-invoices/{id}/trace` | `Owner, Staff` | Truy vết chuỗi chứng từ xuất kho và các dòng sổ kho từ ID hóa đơn (`DocumentTraceDto`). |
 
 ## 2. Danh Mục Endpoints Báo Cáo & Dự Báo AI (`FR-REP-01..03`, `FR-AI-01`)
 
