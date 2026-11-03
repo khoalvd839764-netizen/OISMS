@@ -34,21 +34,33 @@ export function OrganizationPage() {
 
   const loadOrgData = async () => {
     setLoading(true);
-    const [brRes, whRes, usRes] = await Promise.all([
-      apiAdapter.getBranches(),
-      apiAdapter.getWarehouses(),
-      apiAdapter.getUsers(),
-    ]);
-    if ("data" in brRes && Array.isArray(brRes.data)) {
-      setBranches(brRes.data);
+    setError(null);
+    try {
+      const [brRes, whRes, usRes] = await Promise.all([
+        apiAdapter.getBranches(),
+        apiAdapter.getWarehouses(),
+        apiAdapter.getUsers(),
+      ]);
+      if (brRes.error) {
+        setError(brRes.error.message || "Không thể tải danh sách chi nhánh.");
+      } else if (whRes.error) {
+        setError(whRes.error.message || "Không thể tải danh sách kho hàng.");
+      } else {
+        if ("data" in brRes && Array.isArray(brRes.data)) {
+          setBranches(brRes.data);
+        }
+        if ("data" in whRes && Array.isArray(whRes.data)) {
+          setWarehouses(whRes.data);
+        }
+        if ("data" in usRes && Array.isArray(usRes.data)) {
+          setUsers(usRes.data);
+        }
+      }
+    } catch (err: any) {
+      setError(err?.message || "Lỗi nạp dữ liệu chi nhánh và kho hàng.");
+    } finally {
+      setLoading(false);
     }
-    if ("data" in whRes && Array.isArray(whRes.data)) {
-      setWarehouses(whRes.data);
-    }
-    if ("data" in usRes && Array.isArray(usRes.data)) {
-      setUsers(usRes.data);
-    }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -83,8 +95,13 @@ export function OrganizationPage() {
 
   const handleToggleBranch = async (branchId: string) => {
     setLoading(true);
-    await apiAdapter.toggleBranchStatus(branchId);
-    await loadOrgData();
+    setError(null);
+    const res = await apiAdapter.toggleBranchStatus(branchId);
+    if (res && res.error) {
+      setError(res.error.message || "Không thể thay đổi trạng thái chi nhánh.");
+    } else {
+      await loadOrgData();
+    }
     setLoading(false);
   };
 
@@ -111,8 +128,13 @@ export function OrganizationPage() {
 
   const handleToggleWarehouse = async (warehouseId: string) => {
     setLoading(true);
-    await apiAdapter.toggleWarehouseStatus(warehouseId);
-    await loadOrgData();
+    setError(null);
+    const res = await apiAdapter.toggleWarehouseStatus(warehouseId);
+    if (res && res.error) {
+      setError(res.error.message || "Không thể thay đổi trạng thái kho hàng.");
+    } else {
+      await loadOrgData();
+    }
     setLoading(false);
   };
 
@@ -228,6 +250,22 @@ export function OrganizationPage() {
           </Select>
         </div>
 
+        {error && (
+          <div style={{ margin: "16px", padding: "14px 16px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "10px", color: "#b91c1c", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <AlertCircle size={18} />
+              <span>{error}</span>
+            </div>
+            <button
+              type="button"
+              onClick={loadOrgData}
+              style={{ background: "#fff", border: "1px solid #f87171", borderRadius: "6px", padding: "4px 10px", color: "#b91c1c", fontSize: "12px", cursor: "pointer", fontWeight: 600 }}
+            >
+              Thử lại
+            </button>
+          </div>
+        )}
+
         {tab === "people" ? (
           <div className="table-wrap">
             <table>
@@ -305,7 +343,11 @@ export function OrganizationPage() {
           </div>
         ) : (
           <div className="branch-grid" style={{ padding: "16px", display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "14px" }}>
-            {filteredBranches.length === 0 ? (
+            {loading && branches.length === 0 ? (
+              <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "32px 0", color: "#64748b" }}>
+                Đang tải danh sách chi nhánh và kho hàng...
+              </div>
+            ) : error && branches.length === 0 ? null : filteredBranches.length === 0 ? (
               <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "32px 0", color: "#64748b" }}>
                 Chưa có chi nhánh nào khớp bộ lọc. Bấm <strong>"Thêm chi nhánh"</strong> để thiết lập địa điểm bán hàng.
               </div>

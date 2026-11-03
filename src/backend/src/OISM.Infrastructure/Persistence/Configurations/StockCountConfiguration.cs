@@ -28,6 +28,11 @@ public class StockCountConfiguration : IEntityTypeConfiguration<StockCount>
             .IsUnique()
             .HasDatabaseName("uq_stock_counts_4");
 
+        builder.HasIndex(c => new { c.TenantId, c.PeriodId })
+            .HasFilter("period_id IS NOT NULL AND status <> 'Cancelled'")
+            .IsUnique()
+            .HasDatabaseName("uq_stock_counts_active_period");
+
         builder.Property(c => c.TenantId).IsRequired();
 
         builder.Property(c => c.Number)
@@ -61,6 +66,28 @@ public class StockCountConfiguration : IEntityTypeConfiguration<StockCount>
             .HasMaxLength(20)
             .HasDefaultValue("Draft")
             .IsRequired();
+
+        builder.Property(c => c.CountType)
+            .HasColumnName("count_type")
+            .HasMaxLength(20)
+            .HasDefaultValue("AdHoc")
+            .IsRequired();
+
+        builder.Property(c => c.AdHocReason)
+            .HasColumnName("ad_hoc_reason")
+            .IsRequired(false);
+
+        builder.Property(c => c.PeriodId)
+            .HasColumnName("period_id")
+            .IsRequired(false);
+
+        builder.Property(c => c.SubmittedBy)
+            .HasColumnName("submitted_by")
+            .IsRequired(false);
+
+        builder.Property(c => c.SubmittedAt)
+            .HasColumnName("submitted_at")
+            .IsRequired(false);
 
         builder.Property(c => c.CreatedBy)
             .HasColumnName("created_by")
@@ -115,6 +142,20 @@ public class StockCountConfiguration : IEntityTypeConfiguration<StockCount>
             .HasForeignKey(c => new { c.TenantId, c.ConfirmedBy })
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasOne(c => c.Period)
+            .WithMany(p => p.StockCounts)
+            .HasForeignKey(c => new { c.TenantId, c.PeriodId })
+            .HasConstraintName("fk_stock_counts_period")
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(c => c.SubmittedByUser)
+            .WithMany()
+            .HasForeignKey(c => new { c.TenantId, c.SubmittedBy })
+            .HasConstraintName("fk_stock_counts_submitted_by")
+            .IsRequired(false)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasOne(c => c.GeneratedAdjustment)
             .WithMany()
             .HasForeignKey(c => new { c.TenantId, c.GeneratedAdjustmentId, c.BranchId, c.WarehouseId })
@@ -126,6 +167,11 @@ public class StockCountConfiguration : IEntityTypeConfiguration<StockCount>
         builder.HasMany(c => c.Items)
             .WithOne(i => i.StockCount)
             .HasForeignKey(i => new { i.TenantId, i.StockCountId })
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasMany(c => c.Approvals)
+            .WithOne(a => a.StockCount)
+            .HasForeignKey(a => new { a.TenantId, a.StockCountId })
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

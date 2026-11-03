@@ -10,7 +10,13 @@ public class GoodsReceiptItem : BaseEntity, IMustHaveTenant
 {
     public Guid TenantId { get; set; }
     public Guid ReceiptId { get; set; }
+    public Guid? PurchaseOrderItemId { get; set; }
     public Guid SkuId { get; set; }
+
+    public Guid? UnitId { get; set; }
+    public string UnitNameSnapshot { get; set; } = string.Empty;
+    public decimal FactorSnapshot { get; set; } = 1m;
+    public decimal BaseQuantity { get => Quantity * FactorSnapshot; private set { } }
 
     /// <summary>
     /// Số lượng nhập (numeric(18,3) > 0).
@@ -25,5 +31,7 @@ public class GoodsReceiptItem : BaseEntity, IMustHaveTenant
     // Navigation properties
     public Tenant? Tenant { get; set; }
     public GoodsReceipt? Receipt { get; set; }
+    public PurchaseOrderItem? PurchaseOrderItem { get; set; }
     public ProductVariant? Sku { get; set; }
+    public Unit? Unit { get; set; }
 }

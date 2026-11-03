@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { CreateStockTransferRequest } from '../../types/stockTransfer';
 import { stockTransferService } from '../../services/stockTransferService';
-import { apiAdapter } from '../../services/apiAdapter';
+import { apiAdapter, generateUuid } from '../../services/apiAdapter';
 import type { Sku } from '../../types/domain';
 
 interface CreateTransferModalProps {
@@ -35,6 +35,18 @@ export const CreateTransferModal: React.FC<CreateTransferModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // [BF-004] Idempotency key ổn định theo chữ ký payload (đổi khi sửa form, giữ nguyên khi retry cùng ý định)
+  const [intentState, setIntentState] = useState<{ sig: string; key: string }>(() => ({
+    sig: '',
+    key: generateUuid ? generateUuid() : (crypto.randomUUID ? crypto.randomUUID() : `tr-${Date.now()}`),
+  }));
+
+  // [BF-012] Tồn kho thực tế (OnHand, Reserved, Available) tại đúng kho nguồn đang chọn
+  const [warehouseBalances, setWarehouseBalances] = useState<
+    Record<string, { onHand: number; reserved: number; available: number }>
+  >({});
+  const [loadedWarehouseId, setLoadedWarehouseId] = useState<string | null>(null);
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -66,6 +78,43 @@ export const CreateTransferModal: React.FC<CreateTransferModalProps> = ({
 
     loadMasterData();
   }, [isOpen]);
+
+  // [BF-012] Khi đổi kho nguồn, nạp lại tồn kho thực tế của kho nguồn và xóa các dòng hàng cũ không còn thuộc kho nguồn mới
+  useEffect(() => {
+    if (!fromWarehouseId) {
+      setWarehouseBalances({});
+      setLoadedWarehouseId(null);
+      return;
+    }
+    let cancelled = false;
+    setLoadedWarehouseId(null);
+    const fetchWarehouseBalances = async () => {
+      try {
+        const res = await apiAdapter.getBalances({ warehouseId: fromWarehouseId });
+        if (cancelled) return;
+        if (res && res.data) {
+          const balMap: Record<string, { onHand: number; reserved: number; available: number }> = {};
+          res.data.forEach((b: any) => {
+            const onHand = Number(b.onHand ?? 0);
+            const reserved = Number(b.reserved ?? 0);
+            balMap[b.id || b.skuId] = {
+              onHand,
+              reserved,
+              available: Math.max(0, onHand - reserved),
+            };
+          });
+          setWarehouseBalances(balMap);
+          setLoadedWarehouseId(fromWarehouseId);
+        }
+      } catch (err) {
+        console.warn('Lỗi đọc tồn kho nguồn:', err);
+      }
+    };
+    fetchWarehouseBalances();
+    return () => {
+      cancelled = true;
+    };
+  }, [fromWarehouseId]);
 
   if (!isOpen) return null;
 
@@ -110,11 +159,25 @@ export const CreateTransferModal: React.FC<CreateTransferModalProps> = ({
     setLoading(true);
     setError(null);
 
+    const currentSig = JSON.stringify({
+      fromWarehouseId,
+      toWarehouseId,
+      fromBranchId: fromWh.branchId,
+      toBranchId: toWh.branchId,
+      items: items.map((i) => ({ skuId: i.skuId, quantity: i.quantity })),
+    });
+    let activeKey = intentState.key;
+    if (intentState.sig !== currentSig) {
+      activeKey = generateUuid ? generateUuid() : (crypto.randomUUID ? crypto.randomUUID() : `tr-${Date.now()}`);
+      setIntentState({ sig: currentSig, key: activeKey });
+    }
+
     const payload: CreateStockTransferRequest = {
       fromWarehouseId,
       toWarehouseId,
       fromBranchId: fromWh.branchId,
       toBranchId: toWh.branchId,
+      requestKey: activeKey,
       note: note.trim() || undefined,
       items: items.map((i) => ({ skuId: i.skuId, quantity: i.quantity })),
     };
@@ -151,7 +214,10 @@ export const CreateTransferModal: React.FC<CreateTransferModalProps> = ({
               <label className="block text-gray-600 font-semibold mb-1">Kho xuất (Nguồn) *</label>
               <select
                 value={fromWarehouseId}
-                onChange={(e) => setFromWarehouseId(e.target.value)}
+                onChange={(e) => {
+                  setFromWarehouseId(e.target.value);
+                  setItems([]);
+                }}
                 className="w-full p-2 border border-gray-300 rounded focus:ring-1 focus:ring-indigo-500 bg-white"
                 required
               >
@@ -189,11 +255,18 @@ export const CreateTransferModal: React.FC<CreateTransferModalProps> = ({
                 onChange={(e) => setSelectedSkuId(e.target.value)}
                 className="flex-1 p-2 border border-gray-300 rounded bg-white"
               >
-                {skus.map((sku) => (
-                  <option key={sku.id} value={sku.id}>
-                    {sku.code} - {sku.name} (Tồn: {sku.onHand})
-                  </option>
-                ))}
+                {skus.map((sku) => {
+                  const whBal = warehouseBalances[sku.id];
+                  const onHand = loadedWarehouseId === fromWarehouseId ? (whBal ? whBal.onHand : 0) : (whBal ? whBal.onHand : 0);
+                  const reserved = whBal ? whBal.reserved : 0;
+                  const available = whBal ? whBal.available : Math.max(0, onHand - reserved);
+                  return (
+                    <option key={sku.id} value={sku.id} disabled={sku.isActive === false}>
+                      {sku.code} - {sku.name} (Tồn: {onHand} · Giữ: {reserved} · Khả dụng: {available})
+                      {sku.isActive === false ? ' [Ngừng HĐ]' : ''}
+                    </option>
+                  );
+                })}
               </select>
               <input
                 type="number"

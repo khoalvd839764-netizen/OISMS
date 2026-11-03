@@ -111,6 +111,7 @@ public class B01FindingRegressionTests
             Reserved = 0
         });
         await context.SaveChangesAsync();
+        await PriceSeed.SyncFromLegacyColumnsAsync(context);
 
         var requestDto = new CreateOrderRequestDto
         {
@@ -183,6 +184,7 @@ public class B01FindingRegressionTests
             Reserved = 0
         });
         await context.SaveChangesAsync();
+        await PriceSeed.SyncFromLegacyColumnsAsync(context);
 
         var requestKey = Guid.NewGuid();
         var initialDto = new CreateOrderRequestDto

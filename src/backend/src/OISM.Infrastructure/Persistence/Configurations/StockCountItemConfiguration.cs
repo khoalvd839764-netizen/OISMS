@@ -49,6 +49,18 @@ public class StockCountItemConfiguration : IEntityTypeConfiguration<StockCountIt
             .HasPrecision(20, 6)
             .IsRequired(false);
 
+        builder.Property(i => i.CountedBy)
+            .HasColumnName("counted_by")
+            .IsRequired(false);
+
+        builder.Property(i => i.CountedAt)
+            .HasColumnName("counted_at")
+            .IsRequired(false);
+
+        builder.Property(i => i.SnapshotAt)
+            .HasColumnName("snapshot_at")
+            .IsRequired(false);
+
         builder.Property(i => i.CreatedAt)
             .HasColumnName("created_at")
             .HasDefaultValueSql("now()")
@@ -72,6 +84,13 @@ public class StockCountItemConfiguration : IEntityTypeConfiguration<StockCountIt
         builder.HasOne(i => i.Sku)
             .WithMany()
             .HasForeignKey(i => new { i.TenantId, i.SkuId })
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(i => i.CountedByUser)
+            .WithMany()
+            .HasForeignKey(i => new { i.TenantId, i.CountedBy })
+            .HasConstraintName("fk_stock_count_items_counted_by")
+            .IsRequired(false)
             .OnDelete(DeleteBehavior.Restrict);
     }
 }

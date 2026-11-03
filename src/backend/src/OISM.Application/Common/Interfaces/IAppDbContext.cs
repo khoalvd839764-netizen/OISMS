@@ -11,6 +11,7 @@ namespace OISM.Application.Common.Interfaces;
 public interface IAppDbContext
 {
     bool IsRelationalDatabase { get; }
+    bool HasActiveTransaction { get; }
     Task<int> ExecuteSqlRawAsync(string sql, object[] parameters, CancellationToken cancellationToken = default);
     DbSet<Tenant> Tenants { get; }
     DbSet<User> Users { get; }
@@ -39,6 +40,19 @@ public interface IAppDbContext
     DbSet<InventoryAdjustment> InventoryAdjustments { get; }
     DbSet<InventoryAdjustmentItem> InventoryAdjustmentItems { get; }
     DbSet<ShopIntegration> ShopIntegrations { get; }
+    DbSet<Unit> Units { get; }
+    DbSet<SkuUnit> SkuUnits { get; }
+    DbSet<SkuUnitFactorHistory> SkuUnitFactorHistories { get; }
+    DbSet<PriceList> PriceLists { get; }
+    DbSet<PriceChangeRequest> PriceChangeRequests { get; }
+    DbSet<PriceChangeRequestItem> PriceChangeRequestItems { get; }
+    DbSet<SkuUnitPrice> SkuUnitPrices { get; }
+    DbSet<PurchaseOrder> PurchaseOrders { get; }
+    DbSet<PurchaseOrderItem> PurchaseOrderItems { get; }
+    DbSet<SalesInvoice> SalesInvoices { get; }
+    DbSet<StockCountSchedule> StockCountSchedules { get; }
+    DbSet<StockCountPeriod> StockCountPeriods { get; }
+    DbSet<StockCountApproval> StockCountApprovals { get; }
 
     int SaveChanges();
     int SaveChanges(bool acceptAllChangesOnSuccess);

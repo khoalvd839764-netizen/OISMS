@@ -62,6 +62,7 @@ public class OrderServiceTests
             Reserved = 0
         });
         await context.SaveChangesAsync();
+        await PriceSeed.SyncFromLegacyColumnsAsync(context);
 
         var dto = new CreateOrderDto
         {

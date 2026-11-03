@@ -37,16 +37,21 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
   const [errorDetails, setErrorDetails] = useState<ProblemDetailsError | null>(null);
   const [sequenceDrift, setSequenceDrift] = useState(false);
   const activeReqRef = useRef(0);
+  const busyIdsRef = useRef<Set<string>>(new Set());
+  const currentCountIdRef = useRef<string | null>(countId);
+  currentCountIdRef.current = countId;
 
   useEffect(() => {
     if (!countId) {
       setDetail(null);
+      setActionLoading(false);
       return;
     }
 
     const reqSeq = ++activeReqRef.current;
     setDetail(null);
     setLoading(true);
+    setActionLoading(busyIdsRef.current.has(countId));
     setErrorDetails(null);
     setSequenceDrift(false);
 
@@ -92,8 +97,21 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
   // Lưu bản đếm thực tế
   const handleSaveCounts = async () => {
     if (!detail || detail.id !== countId || loading || actionLoading) return;
+
+    // [BF-007] Nếu còn mặt hàng chưa nhập kết quả đếm, hỏi xác nhận người dùng trước khi tự động gán bằng số lượng sổ sách
+    const uncounted = detail.items.filter(
+      (item) => countedMap[item.skuId] === undefined || countedMap[item.skuId].trim() === ''
+    );
+    if (uncounted.length > 0) {
+      const confirmAssign = confirm(
+        `Còn ${uncounted.length} mặt hàng chưa nhập kết quả đếm. Bạn có muốn tự động gán bằng số lượng sổ sách để lưu không? Bấm Hủy để quay lại tự nhập.`
+      );
+      if (!confirmAssign) return;
+    }
+
     const targetId = detail.id;
     const actionSeq = ++activeReqRef.current;
+    busyIdsRef.current.add(targetId);
     setActionLoading(true);
     setErrorDetails(null);
     setSequenceDrift(false);
@@ -116,16 +134,17 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
         items: itemsToRecord,
       });
 
-      if (actionSeq !== activeReqRef.current || countId !== targetId) return;
+      if (currentCountIdRef.current !== targetId) return;
       setDetail(updated);
       onRefresh();
       alert('Đã lưu kết quả kiểm đếm thành công!');
     } catch (err: any) {
-      if (actionSeq !== activeReqRef.current || countId !== targetId) return;
+      if (currentCountIdRef.current !== targetId) return;
       setErrorDetails(err);
     } finally {
-      if (actionSeq === activeReqRef.current && countId === targetId) {
-        setActionLoading(false);
+      busyIdsRef.current.delete(targetId);
+      if (currentCountIdRef.current === targetId || actionSeq === activeReqRef.current) {
+        setActionLoading(busyIdsRef.current.has(currentCountIdRef.current || ''));
       }
     }
   };
@@ -134,54 +153,133 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
   const handleConfirmCount = async () => {
     if (!detail || detail.id !== countId || loading || actionLoading) return;
 
-    // Kiểm tra dirty: Người dùng đã sửa số lượng hoặc đơn giá so với bản ghi đã lưu trên server chưa?
+    // [BF-006] Kiểm tra dirty: Người dùng đã sửa số lượng hoặc đơn giá so với bản ghi đã lưu trên server chưa?
+    // Bao gồm cả trường hợp xóa ô đã lưu thành chuỗi rỗng
     const hasDirtyEdits = detail.items.some((item) => {
-      const currentCountStr = countedMap[item.skuId];
+      const currentCountStr = countedMap[item.skuId] ?? '';
       const savedCountStr =
         item.countedQuantity !== undefined && item.countedQuantity !== null
           ? String(item.countedQuantity)
           : '';
-      if (
-        currentCountStr !== undefined &&
-        currentCountStr.trim() !== '' &&
-        currentCountStr.trim() !== savedCountStr.trim()
-      ) {
+      if (currentCountStr.trim() !== savedCountStr.trim()) {
         return true;
       }
 
-      const currentCostStr = costMap[item.skuId];
+      const currentCostStr = costMap[item.skuId] ?? '';
       const savedCostStr =
         item.adjustmentUnitCost !== undefined && item.adjustmentUnitCost !== null
           ? String(item.adjustmentUnitCost)
           : '';
-      if (
-        currentCostStr !== undefined &&
-        currentCostStr.trim() !== '' &&
-        currentCostStr.trim() !== savedCostStr.trim()
-      ) {
+      if (currentCostStr.trim() !== savedCostStr.trim()) {
         return true;
       }
       return false;
     });
+
+    // Kiểm tra các mục đã nhập số mới nhưng chưa bấm Lưu
+    const hasNonBlankDirtyEdits = detail.items.some((item) => {
+      const currentCountStr = (countedMap[item.skuId] ?? '').trim();
+      const savedCountStr =
+        item.countedQuantity !== undefined && item.countedQuantity !== null
+          ? String(item.countedQuantity).trim()
+          : '';
+      if (currentCountStr !== '' && currentCountStr !== savedCountStr) {
+        return true;
+      }
+      const currentCostStr = (costMap[item.skuId] ?? '').trim();
+      const savedCostStr =
+        item.adjustmentUnitCost !== undefined && item.adjustmentUnitCost !== null
+          ? String(item.adjustmentUnitCost).trim()
+          : '';
+      if (currentCostStr !== '' && currentCostStr !== savedCostStr) {
+        return true;
+      }
+      return false;
+    });
+
+    if (hasNonBlankDirtyEdits) {
+      alert("Bạn có thay đổi số lượng đếm hoặc giá vốn chưa được lưu. Vui lòng bấm 'Lưu kết quả đếm' trước khi Chốt kiểm kê.");
+      return;
+    }
+
+    // Kiểm tra các mục chưa nhập kết quả đếm
+    const uncounted = detail.items.filter(
+      (item) => countedMap[item.skuId] === undefined || countedMap[item.skuId].trim() === ''
+    );
+
+    if (uncounted.length > 0) {
+      const proceed = confirm(
+        `Còn ${uncounted.length} mặt hàng chưa nhập số đếm. Bạn có muốn gán bằng tồn sổ sách để chốt không?`
+      );
+      if (!proceed) return;
+
+      // [BF-006] Nếu người dùng đồng ý gán tồn sổ sách, bắt buộc phải lưu (recordCounts) số sổ sách lên server trước khi chốt
+      const targetId = detail.id;
+      const actionSeq = ++activeReqRef.current;
+      busyIdsRef.current.add(targetId);
+      setActionLoading(true);
+      setErrorDetails(null);
+      setSequenceDrift(false);
+
+      try {
+        const itemsToRecord = detail.items.map((item) => {
+          const valStr = countedMap[item.skuId];
+          const countedVal = valStr !== undefined && valStr.trim() !== '' ? Number(valStr) : item.expectedQuantity;
+          const costStr = costMap[item.skuId];
+          const costVal = costStr && Number(costStr) > 0 ? Number(costStr) : undefined;
+          return {
+            skuId: item.skuId,
+            countedQuantity: countedVal,
+            adjustmentUnitCost: costVal,
+          };
+        });
+
+        const updated = await stockCountService.recordCounts(targetId, {
+          items: itemsToRecord,
+        });
+        if (currentCountIdRef.current !== targetId) return;
+        setDetail(updated);
+
+        const skuAdjustmentCosts: Record<string, number> = {};
+        Object.entries(costMap).forEach(([skuId, costStr]) => {
+          const val = Number(costStr);
+          if (val > 0) {
+            skuAdjustmentCosts[skuId] = val;
+          }
+        });
+
+        const confirmed = await stockCountService.confirmStockCount(targetId, {
+          note: detail.note,
+          skuAdjustmentCosts: Object.keys(skuAdjustmentCosts).length > 0 ? skuAdjustmentCosts : undefined,
+        });
+
+        if (currentCountIdRef.current !== targetId) return;
+        setDetail(confirmed);
+        onRefresh();
+        alert('Đã chốt kiểm kê và tạo chứng từ cân bằng tồn kho thành công!');
+      } catch (err: any) {
+        if (currentCountIdRef.current !== targetId) return;
+        if (err.errorCode === 'STOCK_COUNT_DRIFT_DETECTED' || err.status === 409) {
+          setSequenceDrift(true);
+        }
+        setErrorDetails(err);
+      } finally {
+        busyIdsRef.current.delete(targetId);
+        if (currentCountIdRef.current === targetId || actionSeq === activeReqRef.current) {
+          setActionLoading(busyIdsRef.current.has(currentCountIdRef.current || ''));
+        }
+      }
+      return;
+    }
 
     if (hasDirtyEdits) {
       alert("Bạn có thay đổi số lượng đếm hoặc giá vốn chưa được lưu. Vui lòng bấm 'Lưu kết quả đếm' trước khi Chốt kiểm kê.");
       return;
     }
 
-    // Kiểm tra đã nhập hết chưa
-    const uncounted = detail.items.filter(
-      (item) => countedMap[item.skuId] === undefined || countedMap[item.skuId].trim() === ''
-    );
-    if (uncounted.length > 0) {
-      const proceed = confirm(
-        `Còn ${uncounted.length} mặt hàng chưa nhập số đếm. Bạn có muốn gán bằng tồn sổ sách để chốt không?`
-      );
-      if (!proceed) return;
-    }
-
     const targetId = detail.id;
     const actionSeq = ++activeReqRef.current;
+    busyIdsRef.current.add(targetId);
     setActionLoading(true);
     setErrorDetails(null);
     setSequenceDrift(false);
@@ -201,19 +299,20 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
         skuAdjustmentCosts: Object.keys(skuAdjustmentCosts).length > 0 ? skuAdjustmentCosts : undefined,
       });
 
-      if (actionSeq !== activeReqRef.current || countId !== targetId) return;
+      if (currentCountIdRef.current !== targetId) return;
       setDetail(confirmed);
       onRefresh();
       alert('Đã chốt kiểm kê và tạo chứng từ cân bằng tồn kho thành công!');
     } catch (err: any) {
-      if (actionSeq !== activeReqRef.current || countId !== targetId) return;
+      if (currentCountIdRef.current !== targetId) return;
       if (err.errorCode === 'STOCK_COUNT_DRIFT_DETECTED' || err.status === 409) {
         setSequenceDrift(true);
       }
       setErrorDetails(err);
     } finally {
-      if (actionSeq === activeReqRef.current && countId === targetId) {
-        setActionLoading(false);
+      busyIdsRef.current.delete(targetId);
+      if (currentCountIdRef.current === targetId || actionSeq === activeReqRef.current) {
+        setActionLoading(busyIdsRef.current.has(currentCountIdRef.current || ''));
       }
     }
   };
@@ -226,22 +325,24 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
 
     const targetId = detail.id;
     const actionSeq = ++activeReqRef.current;
+    busyIdsRef.current.add(targetId);
     setActionLoading(true);
     setErrorDetails(null);
     try {
       const cancelled = await stockCountService.cancelStockCount(targetId, {
         reason: reason || undefined,
       });
-      if (actionSeq !== activeReqRef.current || countId !== targetId) return;
+      if (currentCountIdRef.current !== targetId) return;
       setDetail(cancelled);
       onRefresh();
       alert('Đã hủy đợt kiểm kê.');
     } catch (err: any) {
-      if (actionSeq !== activeReqRef.current || countId !== targetId) return;
+      if (currentCountIdRef.current !== targetId) return;
       setErrorDetails(err);
     } finally {
-      if (actionSeq === activeReqRef.current && countId === targetId) {
-        setActionLoading(false);
+      busyIdsRef.current.delete(targetId);
+      if (currentCountIdRef.current === targetId || actionSeq === activeReqRef.current) {
+        setActionLoading(busyIdsRef.current.has(currentCountIdRef.current || ''));
       }
     }
   };

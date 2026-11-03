@@ -57,4 +57,47 @@ public class SqlLockService : ISqlLockService
                 ct);
         }
     }
+
+    public async Task LockUnitCatalogAsync(Guid tenantId, CancellationToken ct = default)
+    {
+        if (_context.Database.IsNpgsql())
+        {
+            var tenantStr = tenantId.ToString();
+            await _context.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_xact_lock(hashtextextended({tenantStr} || '/unit_catalog', 0));",
+                ct);
+        }
+    }
+
+    public async Task LockPriceChangeRequestAsync(Guid tenantId, Guid requestId, CancellationToken ct = default)
+    {
+        if (_context.Database.IsNpgsql())
+        {
+            await _context.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT id FROM price_change_requests WHERE id = {requestId} AND tenant_id = {tenantId} FOR UPDATE",
+                ct);
+        }
+    }
+
+    public async Task LockSkuUnitPriceAsync(Guid tenantId, Guid priceId, CancellationToken ct = default)
+    {
+        if (_context.Database.IsNpgsql())
+        {
+            await _context.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT id FROM sku_unit_prices WHERE id = {priceId} AND tenant_id = {tenantId} FOR UPDATE",
+                ct);
+        }
+    }
+
+    public async Task LockPurchaseOrderAsync(Guid tenantId, Guid purchaseOrderId, CancellationToken ct = default)
+    {
+        if (_context.Database.IsNpgsql())
+        {
+            var tenantStr = tenantId.ToString();
+            var poStr = purchaseOrderId.ToString();
+            await _context.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_xact_lock(hashtextextended({tenantStr} || '/purchase_order/' || {poStr}, 0));",
+                ct);
+        }
+    }
 }

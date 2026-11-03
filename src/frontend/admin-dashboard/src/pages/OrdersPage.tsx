@@ -141,14 +141,18 @@ export function OrdersPage() {
     loadOrders();
   }, [loadOrders]);
 
-  // Lắng nghe sự kiện SignalR OrderCreated để tự động nạp lại bảng
+  // [BF-016] Lắng nghe sự kiện SignalR OrderCreated, ReservationExpired và Reconnected để tự động nạp lại bảng đơn hàng
   useEffect(() => {
-    const handleOrderCreated = () => {
+    const handleOrderRefresh = () => {
       loadOrders();
     };
-    window.addEventListener("oism:order-created", handleOrderCreated);
+    window.addEventListener("oism:order-created", handleOrderRefresh);
+    window.addEventListener("oism:reservation-expired", handleOrderRefresh);
+    window.addEventListener("oism:realtime-reconnected", handleOrderRefresh);
     return () => {
-      window.removeEventListener("oism:order-created", handleOrderCreated);
+      window.removeEventListener("oism:order-created", handleOrderRefresh);
+      window.removeEventListener("oism:reservation-expired", handleOrderRefresh);
+      window.removeEventListener("oism:realtime-reconnected", handleOrderRefresh);
     };
   }, [loadOrders]);
 

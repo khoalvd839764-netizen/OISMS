@@ -45,3 +45,97 @@ public class IdempotencyPayloadMismatchException : OismException
     {
     }
 }
+
+public class PriceValidFromInPastException : OismException
+{
+    public PriceValidFromInPastException(string message = "Thời điểm hiệu lực của phiếu đổi giá phải lớn hơn hoặc bằng thời điểm hiện tại.")
+        : base("PRICE_VALID_FROM_IN_PAST", message, 400)
+    {
+    }
+}
+
+public class PriceValidFromConflictException : OismException
+{
+    public PriceValidFromConflictException(string message = "Đã tồn tại giá có hiệu lực cùng mốc thời gian cho mặt hàng và đơn vị này.")
+        : base("PRICE_VALID_FROM_CONFLICT", message, 409)
+    {
+    }
+}
+
+public class PriceAlreadyEffectiveException : OismException
+{
+    public PriceAlreadyEffectiveException(string message = "Không thể hủy giá đã đến thời điểm hoặc đang có hiệu lực.")
+        : base("PRICE_ALREADY_EFFECTIVE", message, 409)
+    {
+    }
+}
+
+public class PriceListNotFoundException : OismException
+{
+    public PriceListNotFoundException(string code)
+        : base("PRICE_LIST_NOT_FOUND", $"Không tìm thấy bảng giá '{code}' trong cửa hàng.", 404)
+    {
+    }
+}
+
+public class DirectPriceUpdateNotAllowedException : OismException
+{
+    public DirectPriceUpdateNotAllowedException(string message = "Hệ thống đã nâng cấp sang bảng giá theo thời gian. Mọi thay đổi giá phải thông qua phiếu đổi giá.")
+        : base("DIRECT_PRICE_UPDATE_NOT_ALLOWED", message, 409)
+    {
+    }
+}
+
+public sealed record PriceMismatchItem(Guid SkuId, string SkuCode, Guid? UnitId, decimal CurrentPrice);
+
+public class PriceMismatchException : OismException
+{
+    public IReadOnlyList<PriceMismatchItem> CurrentPrices { get; }
+
+    public PriceMismatchException(string message, IReadOnlyList<PriceMismatchItem> currentPrices)
+        : base("PRICE_MISMATCH", message, 400)
+    {
+        CurrentPrices = currentPrices;
+    }
+}
+
+public class PurchaseOrderRequiredException : OismException
+{
+    public PurchaseOrderRequiredException(string message = "Xác nhận phiếu nhập kho bắt buộc phải gắn với phiếu mua hàng đã duyệt.")
+        : base("PURCHASE_ORDER_REQUIRED", message, 422)
+    {
+    }
+}
+
+public class PurchaseOrderNotReceivableException : OismException
+{
+    public PurchaseOrderNotReceivableException(string message = "Phiếu mua hàng không ở trạng thái cho phép nhận hàng ('Approved' hoặc 'PartiallyReceived').")
+        : base("PURCHASE_ORDER_NOT_RECEIVABLE", message, 409)
+    {
+    }
+}
+
+public class PurchaseOrderOverReceiptException : OismException
+{
+    public PurchaseOrderOverReceiptException(string message = "Số lượng nhập vượt quá số lượng còn được nhận trên phiếu mua hàng.")
+        : base("PURCHASE_ORDER_OVER_RECEIPT", message, 409)
+    {
+    }
+}
+
+public class PurchaseOrderItemMismatchException : OismException
+{
+    public PurchaseOrderItemMismatchException(string message = "Dòng hàng nhập kho không khớp với dòng phiếu mua hàng tương ứng.")
+        : base("PURCHASE_ORDER_ITEM_MISMATCH", message, 422)
+    {
+    }
+}
+
+public class PurchaseOrderZeroPriceConfirmRequiredException : OismException
+{
+    public PurchaseOrderZeroPriceConfirmRequiredException(string message = "Phiếu mua có mặt hàng đơn giá bằng 0, yêu cầu xác nhận rõ ràng trước khi duyệt.")
+        : base("PURCHASE_ORDER_ZERO_PRICE_CONFIRM_REQUIRED", message, 422)
+    {
+    }
+}
+

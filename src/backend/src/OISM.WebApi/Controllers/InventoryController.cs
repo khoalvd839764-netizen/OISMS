@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Features.Inventory.Dtos;
 using OISM.Application.Features.Inventory.Services;
+using OISM.Application.Features.SalesInvoices.Services;
 
 namespace OISM.WebApi.Controllers;
 
@@ -18,13 +19,16 @@ public class InventoryController : ControllerBase
 {
     private readonly IInventoryService _inventoryService;
     private readonly IReservationService _reservationService;
+    private readonly ISalesInvoiceService _salesInvoiceService;
 
     public InventoryController(
         IInventoryService inventoryService,
-        IReservationService reservationService)
+        IReservationService reservationService,
+        ISalesInvoiceService salesInvoiceService)
     {
         _inventoryService = inventoryService;
         _reservationService = reservationService;
+        _salesInvoiceService = salesInvoiceService;
     }
 
     private Guid? GetCurrentUserId()
@@ -173,5 +177,45 @@ public class InventoryController : ControllerBase
 
         var updatedCount = await _inventoryService.BulkUpdateReorderPointAsync(request, ct);
         return Ok(new { updatedCount, message = $"Đã cập nhật ngưỡng cảnh báo cho {updatedCount} sản phẩm." });
+    }
+
+    /// <summary>
+    /// Truy vết toàn bộ chuỗi chứng từ và dòng sổ kho bắt đầu từ dòng sổ kho (Ledger Entry).
+    /// </summary>
+    [HttpGet("ledger/{id:guid}/trace")]
+    [Authorize(Roles = "Owner,Staff")]
+    public async Task<IActionResult> TraceLedgerEntry(Guid id, CancellationToken ct)
+    {
+        if (id == Guid.Empty)
+        {
+            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã dòng sổ kho không được để trống.");
+        }
+
+        try
+        {
+            var trace = await _salesInvoiceService.TraceByLedgerIdAsync(id, ct);
+            return Ok(trace);
+        }
+        catch (OismException ex)
+        {
+            return CreateProblemResult(ex.ErrorCode, "Lỗi truy vết", ex.StatusCode, ex.Message);
+        }
+    }
+
+    private IActionResult CreateProblemResult(string errorCode, string title, int statusCode, string detail)
+    {
+        var problem = new ProblemDetails
+        {
+            Title = title,
+            Status = statusCode,
+            Detail = detail,
+            Instance = HttpContext.Request.Path,
+            Extensions =
+            {
+                ["errorCode"] = errorCode,
+                ["timestamp"] = DateTimeOffset.UtcNow
+            }
+        };
+        return StatusCode(statusCode, problem);
     }
 }

@@ -162,7 +162,7 @@ public class AiForecastingService : IAiForecastingService
                     x.Order.BranchId,
                     x.Item.SkuId,
                     ReportTimeHelper.ToLocalDate(x.Order.CreatedAt),
-                    x.Item.Quantity,
+                    x.Item.BaseQuantity,
                     skuInfo?.Code ?? string.Empty,
                     !string.IsNullOrWhiteSpace(skuInfo?.VariantName) ? skuInfo.VariantName : (skuInfo?.Code ?? string.Empty),
                     skuInfo?.Unit ?? "piece");

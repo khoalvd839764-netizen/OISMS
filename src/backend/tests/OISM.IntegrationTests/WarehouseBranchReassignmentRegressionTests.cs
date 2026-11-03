@@ -168,17 +168,14 @@ public class WarehouseBranchReassignmentRegressionTests : IAsyncLifetime, IClass
         var skuId = prodDetail!.Variants.First().Id;
 
         // Tạo chứng từ Draft (tồn kho hiện tại bằng 0 nhưng đã có chứng từ)
-        var draftGrRes = await _client.PostAsJsonAsync("/api/goods-receipts", new CreateGoodsReceiptDto
-        {
-            BranchId = branch1.Id,
-            WarehouseId = wh!.Id,
-            SupplierId = sup!.Id,
-            Note = "Phiếu nhập nháp AC02",
-            Items = new List<CreateGoodsReceiptItemDto>
-            {
-                new() { SkuId = skuId, Quantity = 5, UnitPrice = 80000 }
-            }
-        });
+        var draftGrDto = await PurchaseOrderSeed.CreateDraftReceiptDtoViaApiAsync(
+            _client,
+            branch1.Id,
+            wh!.Id,
+            sup!.Id,
+            "Phiếu nhập nháp AC02",
+            (skuId, 5m, 80000m, null));
+        var draftGrRes = await _client.PostAsJsonAsync("/api/goods-receipts", draftGrDto);
         draftGrRes.StatusCode.Should().Be(HttpStatusCode.Created);
 
         // Act: Cố đổi branch của kho có chứng từ draft (tồn 0)
@@ -377,10 +374,18 @@ public class WarehouseBranchReassignmentRegressionTests : IAsyncLifetime, IClass
         var prodDetail = await _client.GetFromJsonAsync<ProductResponse>($"/api/products/{prodObj.GetProperty("productId").GetGuid()}", _jsonOptions);
         var skuId = prodDetail!.Variants.First().Id;
 
+        var concurrentReceiptDto = await PurchaseOrderSeed.CreateDraftReceiptDtoViaApiAsync(
+            _client,
+            branch1.Id,
+            wh!.Id,
+            sup!.Id,
+            "Phiếu nhập đồng thời",
+            (skuId, 10m, 40000m, null));
+
         // Act: Đua đồng thời:
         // - Luồng 1: Đổi chi nhánh kho từ Branch 1 sang Branch 2
         // - Luồng 2: Tạo phiếu nhập kho và xác nhận gắn với kho tại Branch 1
-        var moveTask = _client.PutAsJsonAsync($"/api/warehouses/{wh!.Id}", new UpdateWarehouseRequest
+        var moveTask = _client.PutAsJsonAsync($"/api/warehouses/{wh.Id}", new UpdateWarehouseRequest
         {
             BranchId = branch2!.Id,
             Name = "Kho Đã Đổi Sang Branch 2",
@@ -389,17 +394,7 @@ public class WarehouseBranchReassignmentRegressionTests : IAsyncLifetime, IClass
 
         var receiptTask = Task.Run(async () =>
         {
-            var grRes = await _client.PostAsJsonAsync("/api/goods-receipts", new CreateGoodsReceiptDto
-            {
-                BranchId = branch1.Id,
-                WarehouseId = wh.Id,
-                SupplierId = sup!.Id,
-                Note = "Phiếu nhập đồng thời",
-                Items = new List<CreateGoodsReceiptItemDto>
-                {
-                    new() { SkuId = skuId, Quantity = 10, UnitPrice = 40000 }
-                }
-            });
+            var grRes = await _client.PostAsJsonAsync("/api/goods-receipts", concurrentReceiptDto);
             if (grRes.StatusCode == HttpStatusCode.Created)
             {
                 var gr = await grRes.Content.ReadFromJsonAsync<GoodsReceiptResponseDto>(_jsonOptions);

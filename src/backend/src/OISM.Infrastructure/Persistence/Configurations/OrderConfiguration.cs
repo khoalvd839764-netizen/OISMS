@@ -28,6 +28,10 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
             .IsUnique()
             .HasDatabaseName("uq_orders_4");
 
+        builder.HasIndex(o => new { o.TenantId, o.Id, o.BranchId })
+            .IsUnique()
+            .HasDatabaseName("uq_orders_5");
+
         builder.Property(o => o.TenantId).IsRequired();
 
         builder.Property(o => o.Number)
@@ -93,6 +97,10 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
             .HasColumnName("created_by")
             .IsRequired(false);
 
+        builder.Property(o => o.ConfirmedBy)
+            .HasColumnName("confirmed_by")
+            .IsRequired(false);
+
         builder.Property(o => o.ConfirmedAt)
             .HasColumnName("confirmed_at")
             .IsRequired(false);
@@ -128,6 +136,13 @@ public class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.HasOne(o => o.CreatedByUser)
             .WithMany()
             .HasForeignKey(o => new { o.TenantId, o.CreatedBy })
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(o => o.ConfirmedByUser)
+            .WithMany()
+            .HasForeignKey(o => new { o.TenantId, o.ConfirmedBy })
+            .HasPrincipalKey(u => new { u.TenantId, u.Id })
+            .HasConstraintName("fk_orders_confirmed_by")
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasMany(o => o.Items)

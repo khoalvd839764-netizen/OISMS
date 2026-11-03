@@ -4,7 +4,7 @@
 -- 
 -- Chức năng: Khởi tạo schema riêng biệt 'hangfire' và cấp quyền tối thiểu
 -- cho runtime role để lưu trữ dữ liệu hàng đợi Hangfire.
--- Đảm bảo hoàn toàn tách biệt khỏi schema 'public' (30 bảng nghiệp vụ OISMS).
+-- Đảm bảo hoàn toàn tách biệt khỏi schema 'public' (33 bảng nghiệp vụ OISMS).
 -- =====================================================================
 
 -- 1. Tạo schema 'hangfire' nếu chưa tồn tại

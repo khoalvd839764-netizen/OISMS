@@ -60,6 +60,7 @@ export function NotificationCenter({ compact = false }: { compact?: boolean }) {
     setOpen(false);
     setPopup(null);
     navigate(event.href);
+    window.dispatchEvent(new CustomEvent("oism:navigate", { detail: { href: event.href } }));
   };
 
   return (

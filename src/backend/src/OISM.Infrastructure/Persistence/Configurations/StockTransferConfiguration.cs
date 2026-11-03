@@ -66,6 +66,10 @@ public class StockTransferConfiguration : IEntityTypeConfiguration<StockTransfer
             .HasColumnName("created_by")
             .IsRequired();
 
+        builder.Property(t => t.DispatchedBy)
+            .HasColumnName("dispatched_by")
+            .IsRequired(false);
+
         builder.Property(t => t.DispatchedAt)
             .HasColumnName("dispatched_at")
             .IsRequired(false);
@@ -124,6 +128,13 @@ public class StockTransferConfiguration : IEntityTypeConfiguration<StockTransfer
         builder.HasOne(t => t.CreatedByUser)
             .WithMany()
             .HasForeignKey(t => new { t.TenantId, t.CreatedBy })
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(t => t.DispatchedByUser)
+            .WithMany()
+            .HasForeignKey(t => new { t.TenantId, t.DispatchedBy })
+            .HasPrincipalKey(u => new { u.TenantId, u.Id })
+            .HasConstraintName("fk_stock_transfers_dispatched_by")
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(t => t.ReceivedByUser)

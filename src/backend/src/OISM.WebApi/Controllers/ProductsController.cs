@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Features.Catalog.Products;
 using OISM.Application.Features.Catalog.Products.Services;
+using OISM.Application.Features.Pricing.Dtos;
 
 namespace OISM.WebApi.Controllers;
 
@@ -60,16 +61,25 @@ public class ProductsController : ControllerBase
 
         try
         {
-            var productId = await _productService.CreateProductAsync(request, ct);
+            var actor = new PriceActor(GetCurrentUserId(), User.IsInRole("Owner"));
+            var productId = await _productService.CreateProductAsync(request, actor, ct);
             return StatusCode(201, new { message = "Tạo sản phẩm và biến thể thành công!", productId });
+        }
+        catch (OismException ex) when (ex.StatusCode == 404)
+        {
+            return NotFound(new { errorCode = ex.ErrorCode, message = ex.Message });
         }
         catch (OismException ex) when (ex.StatusCode == 409)
         {
-            return Conflict(new { message = ex.Message });
+            return Conflict(new { errorCode = ex.ErrorCode, message = ex.Message });
         }
         catch (OismException ex) when (ex.StatusCode == 400)
         {
-            return BadRequest(new { message = ex.Message });
+            return BadRequest(new { errorCode = ex.ErrorCode, message = ex.Message });
+        }
+        catch (OismException ex) when (ex.StatusCode == 422)
+        {
+            return UnprocessableEntity(new { errorCode = ex.ErrorCode, message = ex.Message });
         }
     }
 
@@ -90,20 +100,25 @@ public class ProductsController : ControllerBase
 
         try
         {
-            var variantResponse = await _productService.CreateVariantAsync(id, request, ct);
+            var actor = new PriceActor(GetCurrentUserId(), User.IsInRole("Owner"));
+            var variantResponse = await _productService.CreateVariantAsync(id, request, actor, ct);
             return StatusCode(201, variantResponse);
         }
         catch (OismException ex) when (ex.StatusCode == 404)
         {
-            return NotFound(new { message = ex.Message });
+            return NotFound(new { errorCode = ex.ErrorCode, message = ex.Message });
         }
         catch (OismException ex) when (ex.StatusCode == 409)
         {
-            return Conflict(new { message = ex.Message });
+            return Conflict(new { errorCode = ex.ErrorCode, message = ex.Message });
         }
         catch (OismException ex) when (ex.StatusCode == 400)
         {
-            return BadRequest(new { message = ex.Message });
+            return BadRequest(new { errorCode = ex.ErrorCode, message = ex.Message });
+        }
+        catch (OismException ex) when (ex.StatusCode == 422)
+        {
+            return UnprocessableEntity(new { errorCode = ex.ErrorCode, message = ex.Message });
         }
     }
 
@@ -124,45 +139,51 @@ public class ProductsController : ControllerBase
 
         try
         {
-            var variantResponse = await _productService.UpdateVariantAsync(productId, variantId, request, ct);
+            var variantResponse = await _productService.UpdateVariantAsync(productId, variantId, request, GetCurrentUserId(), ct);
             return Ok(variantResponse);
         }
         catch (OismException ex) when (ex.StatusCode == 404)
         {
-            return NotFound(new { message = ex.Message });
+            return NotFound(new { errorCode = ex.ErrorCode, message = ex.Message });
         }
         catch (OismException ex) when (ex.StatusCode == 409)
         {
-            return Conflict(new { message = ex.Message });
+            return Conflict(new { errorCode = ex.ErrorCode, message = ex.Message });
         }
         catch (OismException ex) when (ex.StatusCode == 400)
         {
-            return BadRequest(new { message = ex.Message });
+            return BadRequest(new { errorCode = ex.ErrorCode, message = ex.Message });
+        }
+        catch (OismException ex) when (ex.StatusCode == 422)
+        {
+            return UnprocessableEntity(new { errorCode = ex.ErrorCode, message = ex.Message });
         }
     }
 
     /// <summary>
-    /// Cập nhật Bảng giá Biến thể SKU (Giá bán lẻ / Giá bán sỉ - BE2-06).
-    /// Tách biệt hoàn toàn giá bán với Giá vốn bình quân (WAC).
+    /// Cập nhật Bảng giá Biến thể SKU (Giá bán lẻ / Giá bán sỉ).
+    /// ĐÃ BỊ LOẠI BỎ (410 Gone) - Vui lòng sử dụng PriceChangeRequests để thay đổi giá.
     /// </summary>
     [HttpPut("{productId}/variants/{variantId}/prices")]
     [Authorize(Roles = "Owner,Staff")]
-    public async Task<IActionResult> UpdateVariantPrices(Guid productId, Guid variantId, [FromBody] UpdateVariantPricesRequest request, CancellationToken ct)
+    public IActionResult UpdateVariantPrices(Guid productId, Guid variantId)
     {
-        var validator = new UpdateVariantPricesValidator();
-        var validationResult = await validator.ValidateAsync(request, ct);
-        if (!validationResult.IsValid)
+        const string message = "Thao tác cập nhật giá trực tiếp không còn được hỗ trợ. Vui lòng tạo phiếu đổi giá.";
+        return StatusCode(StatusCodes.Status410Gone, new ProblemDetails
         {
-            return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
-        }
-
-        var variant = await _productService.UpdateVariantPricesAsync(productId, variantId, request, ct);
-        if (variant == null)
-        {
-            return NotFound(new { message = "Không tìm thấy biến thể của sản phẩm này." });
-        }
-
-        return Ok(variant);
+            Type = "https://oisms.local/errors/DIRECT_PRICE_UPDATE_NOT_ALLOWED",
+            Title = "Cấm cập nhật giá trực tiếp",
+            Status = StatusCodes.Status410Gone,
+            Detail = message,
+            Instance = HttpContext.Request.Path,
+            Extensions =
+            {
+                ["errorCode"] = "DIRECT_PRICE_UPDATE_NOT_ALLOWED",
+                // Frontend hiện tại đọc lỗi từ trường message
+                ["message"] = message,
+                ["timestamp"] = DateTimeOffset.UtcNow
+            }
+        });
     }
 
     /// <summary>
@@ -241,5 +262,11 @@ public class ProductsController : ControllerBase
         }
 
         return Ok(new { message = "Đã vô hiệu hóa sản phẩm thành công." });
+    }
+
+    private Guid? GetCurrentUserId()
+    {
+        var claim = User.FindFirst("userId")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        return Guid.TryParse(claim, out var userId) ? userId : null;
     }
 }

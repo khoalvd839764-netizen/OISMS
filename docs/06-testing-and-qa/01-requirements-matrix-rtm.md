@@ -33,3 +33,35 @@
 | **`FR-REP (01-03)`** | Báo cáo doanh thu thuần, giá vốn, lãi gộp; Tốc độ luân chuyển kho và Cảnh báo tồn thấp | **Nhựt, Phúc Hữu, Nam Nguyễn & Đăng Khoa** | **Sprint 3 (cơ bản), Sprint 4 (đủ)** | Triển khai ở Sprint 3 & 4 |
 | **`AI` (Gói 5 theo đề)** | Dự báo nhu cầu và gợi ý nhập hàng tự động (`Stock Reorder Recommendations`) | **Đăng Khoa & Nhựt** *(Phúc Hữu & Nam Nguyễn làm UI)* | **Sprint 3 (chốt), Sprint 4 (chạy)** | Chốt ở Sprint 3, chạy thật ở Sprint 4 |
 | **`NFR-PERF, TENANT, SEC, MAINT`** | Thử tải 50 đơn đồng thời Flash Sale, Cô lập đa người thuê, Bảo mật JWT/BCrypt, $\ge 80\%$ coverage | **Đăng Khoa & Cả nhóm cùng kiểm test** | **Sprint 2 – 3 (xây), Sprint 4 – 5 (đo & hồi quy)** | Đã đạt `194/194 Tests Pass`, Coverage `> 92%` |
+
+---
+
+## 2. Truy Vết Upgrade 04 — Bảng Giá Theo Thời Gian (`OISMS-47-U04`)
+
+Nguồn yêu cầu: [tài liệu 04](../Upgrade-recommended/04-bang-gia-theo-thoi-gian.md#tiêu-chí-nghiệm-thu). Kết quả: [báo cáo sau nâng cấp](../report-after-upgrade/bang-gia-theo-thoi-gian.md). Trạng thái dưới đây chỉ nói về backend; giao diện chưa làm.
+
+| Tiêu chí | Mã nguồn chính | Test | Trạng thái |
+| :--- | :--- | :--- | :--- |
+| 1. Mỗi khóa chỉ ra một giá | `SkuPriceResolver`, `ux_sku_unit_prices_active_key` | `SkuPriceResolverUnitTests`, `AC03_Cancellation_...` | Đạt |
+| 2. Giá chuyển đúng mốc, đơn giữ giá đã chụp | `SkuPriceResolver`, `OrderService.BuildOrderLines` | `AC06_PriceResolution_...` | Đạt phần đơn hàng; hóa đơn in lại và báo cáo chưa có test riêng |
+| 3. Đóng đường ghi cũ, mọi dòng giá có phiếu | `ProductsController`, `ProductService`, `UnitService`, `PriceChangeService` | `AC08_...`, `Review_UpdateVariant_...`, `AC05_...` | Đạt |
+| 4. Staff chờ duyệt, Cashier không tạo được phiếu | `PricingController`, `PriceChangeService` | `AC04_StaffPendingFlow_...` | Đạt |
+| 5. Hủy giá đã lên lịch, dòng đã duyệt bất biến | `oisms_sku_unit_price_guard`, `PriceChangeService` | `AC03_RuntimeRole_...`, `AC03_Cancellation_...` | Đạt |
+| 6. Đơn giữ chỗ không lỗi khi giá mới hiệu lực | `OrderService` | `AC06_PriceResolution_...` | Đạt |
+| 7. Replay sau khi giá đổi trả đơn cũ | `OrderService` | `AC07_Idempotency_...` | Đạt |
+| 8. Chưa có giá thì báo lỗi | `OrderService`, `ReservationService` | `AC07_Idempotency_...`, `AC05_...` | Đạt |
+| 9. Cách ly tenant | `AppDbContext` (Global Query Filter), FK ghép `tenant_id` | `AC04_TenantIsolation_...` | Đạt |
+
+## 3. Truy Vết Upgrade 02 — Hóa Đơn Bán Và Chứng Từ Xuất (`OISMS-47-U02`)
+
+Nguồn yêu cầu: [tài liệu 02](../Upgrade-recommended/02-truy-vet-chung-tu-xuat-kho.md#tiêu-chí-nghiệm-thu). Kết quả: [báo cáo sau nâng cấp](../report-after-upgrade/hoa-don-truy-vet-xuat-kho.md). Chỉ bao phủ backend; giao diện chưa làm.
+
+| Tiêu chí | Mã nguồn chính | Test | Trạng thái |
+| :--- | :--- | :--- | :--- |
+| 1. Từ dòng `OUT` truy được nguồn và người xác nhận; đơn cũ không lỗi | `SalesInvoiceService` | `AC07_TraceFromLedger_...`, `AC07_OrderTrace_LegacyActorFallback_...` | Đạt |
+| 2. Retry, đồng thời chỉ một lần xuất và một hóa đơn | `OrderService`, `uq_sales_invoices_3` | `SalesInvoiceConcurrencyIntegrationTests` | Đạt |
+| 3. Lỗi tạo hóa đơn thì hoàn tác toàn bộ | `OrderService` | `AC02_PosAdminMarketplace_...` | Đạt |
+| 4. Chuyển kho, kiểm kê không sinh hóa đơn | `SalesInvoiceService` | `AC07_TraceFromLedger_...` | Đạt |
+| 5. In lại giữ nguyên dữ liệu đã chụp | `SalesInvoiceFactory`, `oisms_protect_order_item` | `AC05_ReprintIgnoresLaterMasterDataChanges_...` | Đạt |
+| 6. Giá vốn dòng đơn POS bằng đơn giá dòng `OUT` | `OrderService` | `AC06_AverageCostPrecision_...` | Đạt |
+| 7. Cashier in được, không thấy giá vốn, không truy vết; không xem tenant khác | `SalesInvoicesController` | `AC07_RbacTenantIsolationErrorCodesAndDateFilter_...` | Đạt |

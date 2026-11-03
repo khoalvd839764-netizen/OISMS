@@ -198,6 +198,7 @@ public class RealtimeHubIntegrationTests : IClassFixture<CustomWebApplicationFac
             db.WarehouseInventoryBalances.Add(wBal);
 
             await db.SaveChangesAsync();
+            await PriceSeed.SyncFromLegacyColumnsAsync(db);
 
             // Đăng nhập Cashier
             var cashierLoginRes = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest

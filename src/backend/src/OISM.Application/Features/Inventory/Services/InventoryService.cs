@@ -412,10 +412,32 @@ public class InventoryService : IInventoryService
             foreach (var item in counts) sources[item.Id] = ("StockCount", item.StockCountId, item.Number);
         }
 
+        var orderIds = transactions.Where(t => t.OrderItem != null).Select(t => t.OrderItem!.OrderId).Distinct().ToArray();
+        var invoicesByOrderId = new Dictionary<Guid, (Guid Id, string Number)>();
+        if (orderIds.Length > 0)
+        {
+            var invoices = await _context.SalesInvoices.AsNoTracking()
+                .Where(s => orderIds.Contains(s.OrderId))
+                .Select(s => new { s.Id, s.OrderId, s.Number })
+                .ToListAsync(ct);
+            foreach (var inv in invoices)
+            {
+                invoicesByOrderId[inv.OrderId] = (inv.Id, inv.Number);
+            }
+        }
+
         var items = transactions.Select(t =>
         {
             var sourceKey = t.TransferItemId ?? t.AdjustmentItemId ?? t.StockCountItemId ?? Guid.Empty;
             var hasSource = sources.TryGetValue(sourceKey, out var source);
+            var orderId = t.OrderItem?.OrderId;
+            Guid? salesInvoiceId = null;
+            string? salesInvoiceNumber = null;
+            if (orderId.HasValue && invoicesByOrderId.TryGetValue(orderId.Value, out var inv))
+            {
+                salesInvoiceId = inv.Id;
+                salesInvoiceNumber = inv.Number;
+            }
             return new InventoryLedgerDto
         {
             Id = t.Id,
@@ -436,6 +458,8 @@ public class InventoryService : IInventoryService
                 : t.OrderItemId.HasValue ? "Order" : t.SalesReturnItemId.HasValue ? "SalesReturn" : "Unknown",
             DocumentId = hasSource ? source.Id : t.ReceiptItem?.ReceiptId ?? t.OrderItem?.OrderId,
             DocumentNumber = hasSource ? source.Number : t.ReceiptItem?.Receipt?.Number ?? t.OrderItem?.Order?.Number,
+            SalesInvoiceId = salesInvoiceId,
+            SalesInvoiceNumber = salesInvoiceNumber,
             ReferenceId = t.ReferenceId,
             CreatedAt = t.CreatedAt
         };

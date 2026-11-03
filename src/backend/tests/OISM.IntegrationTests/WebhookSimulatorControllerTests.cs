@@ -207,6 +207,7 @@ public class WebhookSimulatorControllerTests : IClassFixture<CustomWebApplicatio
             db.ShopIntegrations.Add(integration);
 
             await db.SaveChangesAsync();
+            await PriceSeed.SyncFromLegacyColumnsAsync(db);
 
             // Đăng nhập Cashier
             var cashierLoginRes = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest
