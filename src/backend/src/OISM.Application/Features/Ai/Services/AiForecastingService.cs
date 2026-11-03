@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using OISM.Application.Common.Helpers;
 using OISM.Application.Common.Interfaces;
 using OISM.Application.Features.Ai.Dtos;
 
@@ -6,6 +7,8 @@ namespace OISM.Application.Features.Ai.Services;
 
 public class AiForecastingService : IAiForecastingService
 {
+    private const int VelocityWindowDays = 30;
+
     private readonly IAppDbContext _context;
     private readonly ICurrentTenantService _currentTenantService;
 
@@ -29,8 +32,8 @@ public class AiForecastingService : IAiForecastingService
     {
         var tenantId = RequireTenantId();
 
-        var toDate = query.EndDate?.Date ?? DateTime.UtcNow.Date;
-        var fromDate = query.StartDate?.Date ?? toDate.AddDays(-query.Days);
+        var toDate = query.EndDate?.Date ?? ReportTimeHelper.Today();
+        var fromDate = query.StartDate?.Date ?? toDate.AddDays(-(query.Days - 1));
 
         if (fromDate > toDate)
         {
@@ -39,106 +42,27 @@ public class AiForecastingService : IAiForecastingService
 
         var daysCount = Math.Max(1, (int)(toDate - fromDate).TotalDays + 1);
 
-        // 1. Quét từ Sổ cái kho (InventoryTransaction) với Type = 'OUT'
-        var fromOffset = new DateTimeOffset(fromDate, TimeSpan.Zero);
-        var toOffset = new DateTimeOffset(toDate.AddDays(1).AddTicks(-1), TimeSpan.Zero);
+        var rows = await LoadExportRowsAsync(tenantId, query.BranchId, query.SkuId, fromDate, toDate, ct);
 
-        var transQuery = _context.InventoryTransactions
-            .AsNoTracking()
-            .Include(t => t.Sku)
-            .Where(t => t.TenantId == tenantId && t.Type == "OUT" && t.CreatedAt >= fromOffset && t.CreatedAt <= toOffset);
-
-        if (query.BranchId.HasValue && query.BranchId.Value != Guid.Empty)
-        {
-            transQuery = transQuery.Where(t => t.BranchId == query.BranchId.Value);
-        }
-
-        if (query.SkuId.HasValue && query.SkuId.Value != Guid.Empty)
-        {
-            transQuery = transQuery.Where(t => t.SkuId == query.SkuId.Value);
-        }
-
-        var rawTransactions = await transQuery.ToListAsync(ct);
-
-        var dailyRecords = new List<ExportHistoryDailyItemDto>();
-
-        if (rawTransactions.Count > 0)
-        {
-            dailyRecords = rawTransactions
-                .GroupBy(t => new { Date = DateOnly.FromDateTime(t.CreatedAt.UtcDateTime), t.SkuId })
-                .Select(g =>
-                {
-                    var first = g.First();
-                    var name = !string.IsNullOrWhiteSpace(first.Sku?.VariantName) 
-                        ? first.Sku.VariantName 
-                        : (first.Sku?.Code ?? string.Empty);
-                    return new ExportHistoryDailyItemDto
-                    {
-                        Date = g.Key.Date,
-                        SkuId = g.Key.SkuId,
-                        SkuCode = first.Sku?.Code ?? string.Empty,
-                        SkuName = name,
-                        Quantity = g.Sum(x => x.Quantity),
-                        BaseUnit = first.Sku?.Unit ?? "piece",
-                        TransactionCount = g.Count()
-                    };
-                })
-                .OrderBy(d => d.Date)
-                .ThenBy(d => d.SkuCode)
-                .ToList();
-        }
-        else
-        {
-            // Fallback sang OrderItems của các đơn hàng đã Confirmed/Completed để đảm bảo dữ liệu đơn hàng
-            var orderQuery = _context.Orders
-                .AsNoTracking()
-                .Include(o => o.Items)
-                .Where(o => o.TenantId == tenantId && (o.Status == "Confirmed" || o.Status == "Completed")
-                            && o.CreatedAt >= fromOffset && o.CreatedAt <= toOffset);
-
-            if (query.BranchId.HasValue && query.BranchId.Value != Guid.Empty)
+        var dailyRecords = rows
+            .GroupBy(r => new { r.Date, r.SkuId })
+            .Select(g =>
             {
-                orderQuery = orderQuery.Where(o => o.BranchId == query.BranchId.Value);
-            }
-
-            var orders = await orderQuery.ToListAsync(ct);
-            var orderItems = orders.SelectMany(o => o.Items.Select(item => new { Order = o, Item = item })).ToList();
-
-            if (query.SkuId.HasValue && query.SkuId.Value != Guid.Empty)
-            {
-                orderItems = orderItems.Where(x => x.Item.SkuId == query.SkuId.Value).ToList();
-            }
-
-            var skuIds = orderItems.Select(x => x.Item.SkuId).Distinct().ToList();
-            var skuMap = await _context.ProductVariants
-                .AsNoTracking()
-                .Include(s => s.Product)
-                .Where(s => s.TenantId == tenantId && skuIds.Contains(s.Id))
-                .ToDictionaryAsync(s => s.Id, ct);
-
-            dailyRecords = orderItems
-                .GroupBy(x => new { Date = DateOnly.FromDateTime(x.Order.CreatedAt.UtcDateTime), x.Item.SkuId })
-                .Select(g =>
+                var first = g.First();
+                return new ExportHistoryDailyItemDto
                 {
-                    skuMap.TryGetValue(g.Key.SkuId, out var skuInfo);
-                    var name = !string.IsNullOrWhiteSpace(skuInfo?.VariantName)
-                        ? skuInfo.VariantName
-                        : (skuInfo?.Code ?? string.Empty);
-                    return new ExportHistoryDailyItemDto
-                    {
-                        Date = g.Key.Date,
-                        SkuId = g.Key.SkuId,
-                        SkuCode = skuInfo?.Code ?? string.Empty,
-                        SkuName = name,
-                        Quantity = g.Sum(x => x.Item.Quantity),
-                        BaseUnit = skuInfo?.Unit ?? "piece",
-                        TransactionCount = g.Count()
-                    };
-                })
-                .OrderBy(d => d.Date)
-                .ThenBy(d => d.SkuCode)
-                .ToList();
-        }
+                    Date = g.Key.Date,
+                    SkuId = g.Key.SkuId,
+                    SkuCode = first.SkuCode,
+                    SkuName = first.SkuName,
+                    Quantity = g.Sum(x => x.Quantity),
+                    BaseUnit = first.BaseUnit,
+                    TransactionCount = g.Count()
+                };
+            })
+            .OrderBy(d => d.Date)
+            .ThenBy(d => d.SkuCode)
+            .ToList();
 
         var totalQty = dailyRecords.Sum(r => r.Quantity);
         var avgDaily = daysCount > 0 ? Math.Round(totalQty / daysCount, 2) : 0;
@@ -155,6 +79,105 @@ public class AiForecastingService : IAiForecastingService
             DailyRecords = dailyRecords
         };
     }
+
+    /// <summary>
+    /// Lấy các dòng xuất bán trong khoảng ngày (giờ Việt Nam, lọc nửa mở).
+    /// Dòng OUT của chuyển kho nội bộ không phải nhu cầu bán nên bị loại.
+    /// </summary>
+    private async Task<List<ExportRow>> LoadExportRowsAsync(
+        Guid tenantId,
+        Guid? branchId,
+        Guid? skuId,
+        DateTime fromDate,
+        DateTime toDate,
+        CancellationToken ct)
+    {
+        var fromBoundary = ReportTimeHelper.StartOfDayUtc(fromDate);
+        var endBoundary = ReportTimeHelper.StartOfDayUtc(toDate.AddDays(1));
+
+        var transQuery = _context.InventoryTransactions
+            .AsNoTracking()
+            .Include(t => t.Sku)
+            .Where(t => t.TenantId == tenantId && t.Type == "OUT" && t.TransferItemId == null
+                        && t.CreatedAt >= fromBoundary && t.CreatedAt < endBoundary);
+
+        if (branchId.HasValue && branchId.Value != Guid.Empty)
+        {
+            transQuery = transQuery.Where(t => t.BranchId == branchId.Value);
+        }
+
+        if (skuId.HasValue && skuId.Value != Guid.Empty)
+        {
+            transQuery = transQuery.Where(t => t.SkuId == skuId.Value);
+        }
+
+        var rawTransactions = await transQuery.ToListAsync(ct);
+
+        if (rawTransactions.Count > 0)
+        {
+            return rawTransactions
+                .Select(t => new ExportRow(
+                    t.BranchId,
+                    t.SkuId,
+                    ReportTimeHelper.ToLocalDate(t.CreatedAt),
+                    t.Quantity,
+                    t.Sku?.Code ?? string.Empty,
+                    !string.IsNullOrWhiteSpace(t.Sku?.VariantName) ? t.Sku.VariantName : (t.Sku?.Code ?? string.Empty),
+                    t.Sku?.Unit ?? "piece"))
+                .ToList();
+        }
+
+        // Fallback sang OrderItems của các đơn hàng đã Confirmed/Completed để đảm bảo dữ liệu đơn hàng
+        var orderQuery = _context.Orders
+            .AsNoTracking()
+            .Include(o => o.Items)
+            .Where(o => o.TenantId == tenantId && (o.Status == "Confirmed" || o.Status == "Completed")
+                        && o.CreatedAt >= fromBoundary && o.CreatedAt < endBoundary);
+
+        if (branchId.HasValue && branchId.Value != Guid.Empty)
+        {
+            orderQuery = orderQuery.Where(o => o.BranchId == branchId.Value);
+        }
+
+        var orders = await orderQuery.ToListAsync(ct);
+        var orderItems = orders.SelectMany(o => o.Items.Select(item => new { Order = o, Item = item })).ToList();
+
+        if (skuId.HasValue && skuId.Value != Guid.Empty)
+        {
+            orderItems = orderItems.Where(x => x.Item.SkuId == skuId.Value).ToList();
+        }
+
+        var skuIds = orderItems.Select(x => x.Item.SkuId).Distinct().ToList();
+        var skuMap = await _context.ProductVariants
+            .AsNoTracking()
+            .Include(s => s.Product)
+            .Where(s => s.TenantId == tenantId && skuIds.Contains(s.Id))
+            .ToDictionaryAsync(s => s.Id, ct);
+
+        return orderItems
+            .Select(x =>
+            {
+                skuMap.TryGetValue(x.Item.SkuId, out var skuInfo);
+                return new ExportRow(
+                    x.Order.BranchId,
+                    x.Item.SkuId,
+                    ReportTimeHelper.ToLocalDate(x.Order.CreatedAt),
+                    x.Item.Quantity,
+                    skuInfo?.Code ?? string.Empty,
+                    !string.IsNullOrWhiteSpace(skuInfo?.VariantName) ? skuInfo.VariantName : (skuInfo?.Code ?? string.Empty),
+                    skuInfo?.Unit ?? "piece");
+            })
+            .ToList();
+    }
+
+    private sealed record ExportRow(
+        Guid BranchId,
+        Guid SkuId,
+        DateOnly Date,
+        decimal Quantity,
+        string SkuCode,
+        string SkuName,
+        string BaseUnit);
 
     public async Task<ReorderRecommendationSummaryDto> GetReorderRecommendationsAsync(ReorderRecommendationQueryDto query, CancellationToken ct = default)
     {
@@ -174,26 +197,19 @@ public class AiForecastingService : IAiForecastingService
 
         var balances = await balanceQuery.ToListAsync(ct);
 
-        // 2. Lấy dữ liệu xuất kho 30 ngày qua để tính vận tốc bán hàng trung bình ngày (Daily Sales Velocity)
-        var thirtyDaysAgo = DateTime.UtcNow.Date.AddDays(-30);
-        var exportHistory = await GetExportHistoryAsync(new ExportHistoryQueryDto
-        {
-            BranchId = query.BranchId,
-            Days = 30,
-            StartDate = thirtyDaysAgo,
-            EndDate = DateTime.UtcNow.Date
-        }, ct);
+        // 2. Lấy dữ liệu xuất bán 30 ngày qua để tính vận tốc bán trung bình ngày (Daily Sales Velocity)
+        var today = ReportTimeHelper.Today();
+        var exportRows = await LoadExportRowsAsync(tenantId, query.BranchId, null, today.AddDays(-(VelocityWindowDays - 1)), today, ct);
 
-        // Gom nhóm vận tốc bán theo SkuId
-        var salesVelocityBySku = exportHistory.DailyRecords
-            .GroupBy(r => r.SkuId)
+        // Gom nhóm theo từng chi nhánh + SKU: nhu cầu của chi nhánh này không được tính cho chi nhánh khác
+        var salesVelocity = exportRows
+            .GroupBy(r => (r.BranchId, r.SkuId))
             .ToDictionary(
                 g => g.Key,
                 g => new
                 {
-                    TotalExport = g.Sum(x => x.Quantity),
                     ActiveDays = g.Select(x => x.Date).Distinct().Count(),
-                    DailyVelocity = Math.Round(g.Sum(x => x.Quantity) / 30m, 2)
+                    DailyVelocity = Math.Round(g.Sum(x => x.Quantity) / VelocityWindowDays, 2)
                 });
 
         var recommendations = new List<ReorderRecommendationDto>();
@@ -207,7 +223,7 @@ public class AiForecastingService : IAiForecastingService
             var available = onHand - reserved;
             var reorderPoint = bal.ReorderPoint;
 
-            salesVelocityBySku.TryGetValue(skuId, out var velocityInfo);
+            salesVelocity.TryGetValue((bal.BranchId, skuId), out var velocityInfo);
             var dailyVelocity = velocityInfo?.DailyVelocity ?? 0m;
             var activeDays = velocityInfo?.ActiveDays ?? 0;
 

@@ -51,12 +51,6 @@ public static class DependencyInjection
         services.AddScoped<ISearchService, SearchService>();
         services.AddScoped<OISM.Application.Features.Ai.Services.IAiForecastingService, OISM.Application.Features.Ai.Services.AiForecastingService>();
 
-        // Upgrade modules (Đa đơn vị tính, Bảng giá, Mua hàng, Lịch kiểm kê)
-        services.AddScoped<OISM.Application.Features.Units.Services.IUnitService, OISM.Application.Features.Units.Services.UnitService>();
-        services.AddScoped<OISM.Application.Features.PriceLists.Services.IPriceListService, OISM.Application.Features.PriceLists.Services.PriceListService>();
-        services.AddScoped<OISM.Application.Features.PurchaseOrders.Services.IPurchaseOrderService, OISM.Application.Features.PurchaseOrders.Services.PurchaseOrderService>();
-        services.AddScoped<OISM.Application.Features.StockCountSchedules.Services.IStockCountScheduleService, OISM.Application.Features.StockCountSchedules.Services.StockCountScheduleService>();
-
         return services;
     }
 }

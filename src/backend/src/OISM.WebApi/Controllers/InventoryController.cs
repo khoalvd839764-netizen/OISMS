@@ -150,18 +150,11 @@ public class InventoryController : ControllerBase
         var validationResult = await validator.ValidateAsync(request, ct);
         if (!validationResult.IsValid)
         {
-            return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
+            throw new OismException("VALIDATION_ERROR", string.Join(" ", validationResult.Errors.Select(e => e.ErrorMessage)), 400);
         }
 
-        try
-        {
-            var result = await _inventoryService.UpdateReorderPointAsync(request, ct);
-            return Ok(result);
-        }
-        catch (OismException ex) when (ex.StatusCode == 404)
-        {
-            return NotFound(new { message = ex.Message });
-        }
+        var result = await _inventoryService.UpdateReorderPointAsync(request, ct);
+        return Ok(result);
     }
 
     /// <summary>
@@ -175,17 +168,10 @@ public class InventoryController : ControllerBase
         var validationResult = await validator.ValidateAsync(request, ct);
         if (!validationResult.IsValid)
         {
-            return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
+            throw new OismException("VALIDATION_ERROR", string.Join(" ", validationResult.Errors.Select(e => e.ErrorMessage)), 400);
         }
 
-        try
-        {
-            var updatedCount = await _inventoryService.BulkUpdateReorderPointAsync(request, ct);
-            return Ok(new { updatedCount, message = $"Đã cập nhật ngưỡng cảnh báo cho {updatedCount} sản phẩm." });
-        }
-        catch (OismException ex) when (ex.StatusCode == 404)
-        {
-            return NotFound(new { message = ex.Message });
-        }
+        var updatedCount = await _inventoryService.BulkUpdateReorderPointAsync(request, ct);
+        return Ok(new { updatedCount, message = $"Đã cập nhật ngưỡng cảnh báo cho {updatedCount} sản phẩm." });
     }
 }

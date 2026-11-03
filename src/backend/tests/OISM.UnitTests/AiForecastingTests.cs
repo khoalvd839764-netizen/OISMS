@@ -207,4 +207,135 @@ public class AiForecastingTests
         result.TotalSkusAnalyzed.Should().Be(1);
         result.Recommendations.Should().OnlyContain(r => r.SkuCode == "SKU-MY-TENANT");
     }
+
+    [Fact]
+    public async Task GetReorderRecommendationsAsync_UsesVelocityOfEachBranch_WhenNoBranchFilter()
+    {
+        // Arrange: chi nhánh A bán 300 cái trong kỳ, chi nhánh B không bán gì
+        var (context, tenantMock, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var branchA = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh A" };
+        var branchB = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh B" };
+        var sku = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, SKU = "SKU-MULTI", Unit = "piece" };
+
+        context.Branches.AddRange(branchA, branchB);
+        context.Skus.Add(sku);
+        context.InventoryBalances.AddRange(
+            new InventoryBalance { Id = Guid.NewGuid(), TenantId = tenantId, BranchId = branchA.Id, SkuId = sku.Id, OnHand = 100 },
+            new InventoryBalance { Id = Guid.NewGuid(), TenantId = tenantId, BranchId = branchB.Id, SkuId = sku.Id, OnHand = 100 });
+        context.InventoryTransactions.Add(new InventoryTransaction
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            BranchId = branchA.Id,
+            SkuId = sku.Id,
+            Type = "OUT",
+            Quantity = 300,
+            CreatedAt = DateTimeOffset.UtcNow.AddDays(-1)
+        });
+        await context.SaveChangesAsync();
+
+        var service = new AiForecastingService(context, tenantMock.Object);
+
+        // Act
+        var result = await service.GetReorderRecommendationsAsync(new ReorderRecommendationQueryDto());
+
+        // Assert
+        var recA = result.Recommendations.Single(r => r.BranchId == branchA.Id);
+        var recB = result.Recommendations.Single(r => r.BranchId == branchB.Id);
+        recA.DailySalesVelocity.Should().Be(10);
+        recB.DailySalesVelocity.Should().Be(0);
+        recB.NeedsReorder.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GetExportHistoryAsync_ExcludesInternalTransfers()
+    {
+        // Arrange
+        var (context, tenantMock, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh A" };
+        var sku = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, SKU = "SKU-TRANSFER", Unit = "piece" };
+
+        context.Branches.Add(branch);
+        context.Skus.Add(sku);
+        context.InventoryTransactions.AddRange(
+            new InventoryTransaction
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                BranchId = branch.Id,
+                SkuId = sku.Id,
+                Type = "OUT",
+                Quantity = 4,
+                OrderItemId = Guid.NewGuid(),
+                CreatedAt = DateTimeOffset.UtcNow.AddHours(-1)
+            },
+            new InventoryTransaction
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                BranchId = branch.Id,
+                SkuId = sku.Id,
+                Type = "OUT",
+                Quantity = 300,
+                TransferItemId = Guid.NewGuid(),
+                CreatedAt = DateTimeOffset.UtcNow.AddHours(-1)
+            });
+        await context.SaveChangesAsync();
+
+        var service = new AiForecastingService(context, tenantMock.Object);
+
+        // Act
+        var result = await service.GetExportHistoryAsync(new ExportHistoryQueryDto { Days = 7 });
+
+        // Assert
+        result.TotalExportQuantity.Should().Be(4);
+    }
+
+    [Fact]
+    public async Task GetExportHistoryAsync_UsesSaigonDayBoundaries()
+    {
+        // Arrange: 23:30 UTC ngày 09/10 là 06:30 ngày 10/10 giờ VN; 17:00 UTC ngày 10/10 là 00:00 ngày 11/10 giờ VN
+        var (context, tenantMock, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh A" };
+        var sku = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, SKU = "SKU-TZ", Unit = "piece" };
+
+        context.Branches.Add(branch);
+        context.Skus.Add(sku);
+        context.InventoryTransactions.AddRange(
+            new InventoryTransaction
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                BranchId = branch.Id,
+                SkuId = sku.Id,
+                Type = "OUT",
+                Quantity = 2,
+                CreatedAt = new DateTimeOffset(2026, 10, 9, 23, 30, 0, TimeSpan.Zero)
+            },
+            new InventoryTransaction
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                BranchId = branch.Id,
+                SkuId = sku.Id,
+                Type = "OUT",
+                Quantity = 50,
+                CreatedAt = new DateTimeOffset(2026, 10, 10, 17, 0, 0, TimeSpan.Zero)
+            });
+        await context.SaveChangesAsync();
+
+        var service = new AiForecastingService(context, tenantMock.Object);
+
+        // Act
+        var result = await service.GetExportHistoryAsync(new ExportHistoryQueryDto
+        {
+            StartDate = new DateTime(2026, 10, 10),
+            EndDate = new DateTime(2026, 10, 10)
+        });
+
+        // Assert
+        result.TotalExportQuantity.Should().Be(2);
+        result.DailyRecords.Should().ContainSingle();
+        result.DailyRecords[0].Date.Should().Be(new DateOnly(2026, 10, 10));
+    }
 }

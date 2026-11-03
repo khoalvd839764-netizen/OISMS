@@ -336,6 +336,7 @@ public class ReportServiceTests
         // Assert 2: Staff bị ẩn lợi nhuận gộp (bảo mật giá vốn)
         staffSummary.TotalGrossProfit.Should().BeNull();
         staffSummary.GrossMarginPercentage.Should().Be(0);
+        staffSummary.TotalInventoryValue.Should().BeNull();
         staffSummary.TotalRevenue.Should().Be(500000);
     }
 }

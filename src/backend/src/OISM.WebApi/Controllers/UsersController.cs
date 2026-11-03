@@ -52,7 +52,7 @@ public class UsersController : ControllerBase
         var user = await _userService.GetUserByIdAsync(id, ct);
         if (user == null)
         {
-            return NotFound(new { message = "Không tìm thấy thông tin nhân viên." });
+            throw new OismException("USER_NOT_FOUND", "Không tìm thấy thông tin nhân viên.", 404);
         }
 
         return Ok(user);
@@ -68,22 +68,11 @@ public class UsersController : ControllerBase
         var validationResult = await validator.ValidateAsync(request, ct);
         if (!validationResult.IsValid)
         {
-            return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
+            throw new OismException("VALIDATION_ERROR", string.Join(" ", validationResult.Errors.Select(e => e.ErrorMessage)), 400);
         }
 
-        try
-        {
-            var response = await _userService.CreateUserAsync(request, ct);
-            return StatusCode(201, response);
-        }
-        catch (OismException ex) when (ex.StatusCode == 409)
-        {
-            return Conflict(new { message = ex.Message });
-        }
-        catch (OismException ex) when (ex.StatusCode == 400)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        var response = await _userService.CreateUserAsync(request, ct);
+        return StatusCode(201, response);
     }
 
     /// <summary>
@@ -99,26 +88,11 @@ public class UsersController : ControllerBase
         var validationResult = await validator.ValidateAsync(request, ct);
         if (!validationResult.IsValid)
         {
-            return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
+            throw new OismException("VALIDATION_ERROR", string.Join(" ", validationResult.Errors.Select(e => e.ErrorMessage)), 400);
         }
 
-        try
-        {
-            var response = await _userService.UpdateUserAsync(id, request, GetCurrentUserId(), ct);
-            return Ok(response);
-        }
-        catch (OismException ex) when (ex.StatusCode == 404)
-        {
-            return NotFound(new { message = ex.Message });
-        }
-        catch (OismException ex) when (ex.StatusCode == 409)
-        {
-            return Conflict(new { message = ex.Message });
-        }
-        catch (OismException ex) when (ex.StatusCode == 400)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        var response = await _userService.UpdateUserAsync(id, request, GetCurrentUserId(), ct);
+        return Ok(response);
     }
 
     /// <summary>
@@ -130,18 +104,7 @@ public class UsersController : ControllerBase
         [FromBody] UpdateUserStatusRequest request,
         CancellationToken ct)
     {
-        try
-        {
-            var response = await _userService.UpdateUserStatusAsync(id, request.IsActive, GetCurrentUserId(), ct);
-            return Ok(response);
-        }
-        catch (OismException ex) when (ex.StatusCode == 404)
-        {
-            return NotFound(new { message = ex.Message });
-        }
-        catch (OismException ex) when (ex.StatusCode == 400)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        var response = await _userService.UpdateUserStatusAsync(id, request.IsActive, GetCurrentUserId(), ct);
+        return Ok(response);
     }
 }

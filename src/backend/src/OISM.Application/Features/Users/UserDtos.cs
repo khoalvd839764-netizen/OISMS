@@ -1,4 +1,5 @@
 using FluentValidation;
+using OISM.Application.Common.Helpers;
 
 namespace OISM.Application.Features.Users;
 
@@ -63,7 +64,7 @@ public class CreateUserValidator : AbstractValidator<CreateUserRequest>
         When(x => !string.IsNullOrWhiteSpace(x.Phone), () =>
         {
             RuleFor(x => x.Phone)
-                .MaximumLength(16).WithMessage("Số điện thoại không được vượt quá 16 ký tự.");
+                .Must(PhoneHelper.IsValidPhoneNumber).WithMessage("Định dạng số điện thoại không hợp lệ.");
         });
     }
 }
@@ -78,13 +79,13 @@ public class UpdateUserValidator : AbstractValidator<UpdateUserRequest>
 
         RuleFor(x => x.Role)
             .NotEmpty().WithMessage("Vai trò không được để trống.")
-            .Must(r => r == "Staff" || r == "Cashier")
-            .WithMessage("Vai trò nhân viên chỉ được phép là 'Staff' hoặc 'Cashier'.");
+            .Must(r => r == "Owner" || r == "Staff" || r == "Cashier")
+            .WithMessage("Vai trò chỉ được phép là 'Owner', 'Staff' hoặc 'Cashier'.");
 
         When(x => !string.IsNullOrWhiteSpace(x.Phone), () =>
         {
             RuleFor(x => x.Phone)
-                .MaximumLength(16).WithMessage("Số điện thoại không được vượt quá 16 ký tự.");
+                .Must(PhoneHelper.IsValidPhoneNumber).WithMessage("Định dạng số điện thoại không hợp lệ.");
         });
     }
 }

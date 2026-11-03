@@ -203,6 +203,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseCors("AllowFrontendApps");
+app.UseMiddleware<OISM.WebApi.Middlewares.ExceptionHandlingMiddleware>();
 
 app.UseAuthentication();
 app.UseAuthorization();

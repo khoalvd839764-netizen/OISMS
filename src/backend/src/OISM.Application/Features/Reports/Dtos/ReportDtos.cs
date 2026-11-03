@@ -110,7 +110,7 @@ public class DashboardSummaryDto
     public decimal? TotalGrossProfit { get; set; }
     public decimal GrossMarginPercentage { get; set; }
     public int SkuCount { get; set; }
-    public decimal TotalInventoryValue { get; set; }
+    public decimal? TotalInventoryValue { get; set; }
     public int LowStockCount { get; set; }
     public List<RecentOrderDto> RecentOrders { get; set; } = new();
     public List<DailyRevenueBreakdownDto> RecentRevenueTrend { get; set; } = new();

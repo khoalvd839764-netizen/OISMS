@@ -271,4 +271,117 @@ public class UserServiceTests
         var userInDb = await context.Users.FindAsync(tenantId, staffId);
         Assert.False(userInDb!.IsActive);
     }
+
+    [Fact]
+    public async Task UpdateUser_OwnerEditingOwnProfile_PassesValidatorAndSaves()
+    {
+        // Arrange
+        var (context, tenantMock, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var ownerId = Guid.NewGuid();
+
+        context.Users.Add(new User
+        {
+            Id = ownerId,
+            TenantId = tenantId,
+            DisplayName = "Chủ Shop",
+            Email = "owner@example.com",
+            Role = "Owner",
+            IsActive = true
+        });
+        await context.SaveChangesAsync();
+
+        var service = new UserService(context, tenantMock.Object, _passwordHasherMock.Object);
+        var request = new UpdateUserRequest { DisplayName = "Chủ Shop Mới", Role = "Owner", IsActive = true };
+
+        // Act
+        var validation = await new UpdateUserValidator().ValidateAsync(request);
+        var result = await service.UpdateUserAsync(ownerId, request, ownerId);
+
+        // Assert
+        Assert.True(validation.IsValid);
+        Assert.Equal("Chủ Shop Mới", result.DisplayName);
+        Assert.Equal("Owner", result.Role);
+    }
+
+    [Fact]
+    public async Task UpdateUserAsync_PromoteStaffToOwner_ThrowsBadRequest400()
+    {
+        // Arrange
+        var (context, tenantMock, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var staffId = Guid.NewGuid();
+
+        context.Users.Add(new User
+        {
+            Id = staffId,
+            TenantId = tenantId,
+            DisplayName = "Nhân viên",
+            Email = "staff@example.com",
+            Role = "Staff",
+            IsActive = true
+        });
+        await context.SaveChangesAsync();
+
+        var service = new UserService(context, tenantMock.Object, _passwordHasherMock.Object);
+        var request = new UpdateUserRequest { DisplayName = "Nhân viên", Role = "Owner", IsActive = true };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<OismException>(() => service.UpdateUserAsync(staffId, request, Guid.NewGuid()));
+        Assert.Equal(400, ex.StatusCode);
+        Assert.Equal("CANNOT_ASSIGN_OWNER", ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task CreateUserAsync_SamePhoneInLocalFormat_ThrowsConflict409()
+    {
+        // Arrange: số đã lưu dạng E.164, request gửi dạng 0xxx
+        var (context, tenantMock, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+
+        context.Users.Add(new User
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            DisplayName = "Chủ Shop",
+            Email = "owner@example.com",
+            Phone = "+84901234567",
+            Role = "Owner",
+            IsActive = true
+        });
+        await context.SaveChangesAsync();
+
+        var service = new UserService(context, tenantMock.Object, _passwordHasherMock.Object);
+        var request = new CreateUserRequest
+        {
+            DisplayName = "Nhân viên",
+            Email = "staff@example.com",
+            Phone = "0901234567",
+            Password = "SecurePassword123",
+            Role = "Staff"
+        };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<OismException>(() => service.CreateUserAsync(request));
+        Assert.Equal(409, ex.StatusCode);
+        Assert.Equal("PHONE_ALREADY_EXISTS", ex.ErrorCode);
+    }
+
+    [Fact]
+    public async Task CreateUserAsync_InvalidPhone_ThrowsBadRequest400()
+    {
+        // Arrange
+        var (context, tenantMock, _) = TestDbContextFactory.CreateInMemoryContext();
+        var service = new UserService(context, tenantMock.Object, _passwordHasherMock.Object);
+        var request = new CreateUserRequest
+        {
+            DisplayName = "Nhân viên",
+            Email = "staff@example.com",
+            Phone = "abc",
+            Password = "SecurePassword123",
+            Role = "Staff"
+        };
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<OismException>(() => service.CreateUserAsync(request));
+        Assert.Equal("INVALID_PHONE", ex.ErrorCode);
+        Assert.False((await new CreateUserValidator().ValidateAsync(request)).IsValid);
+    }
 }

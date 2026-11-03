@@ -161,4 +161,89 @@ public class ReorderPointTests
         b1!.ReorderPoint.Should().Be(20);
         b2!.ReorderPoint.Should().Be(30);
     }
+
+    [Fact]
+    public async Task BulkUpdateReorderPointAsync_DuplicateSku_ThrowsBadRequest400()
+    {
+        // Arrange
+        var (context, tenantMock, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh Thủ Đức" };
+        var sku = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, SKU = "SKU-DUP" };
+
+        context.Branches.Add(branch);
+        context.Skus.Add(sku);
+        await context.SaveChangesAsync();
+
+        var service = new InventoryService(context, tenantMock.Object);
+        var request = new BulkUpdateReorderPointDto
+        {
+            BranchId = branch.Id,
+            Items = new List<SkuReorderPointItemDto>
+            {
+                new() { SkuId = sku.Id, ReorderPoint = 1 },
+                new() { SkuId = sku.Id, ReorderPoint = 2 }
+            }
+        };
+
+        // Act
+        var ex = await Assert.ThrowsAsync<OismException>(() => service.BulkUpdateReorderPointAsync(request));
+
+        // Assert
+        ex.StatusCode.Should().Be(400);
+        ex.ErrorCode.Should().Be("DUPLICATE_SKU");
+    }
+
+    [Fact]
+    public async Task BulkUpdateReorderPointAsync_UnknownSku_ThrowsNotFound404()
+    {
+        // Arrange
+        var (context, tenantMock, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh Thủ Đức" };
+
+        context.Branches.Add(branch);
+        await context.SaveChangesAsync();
+
+        var service = new InventoryService(context, tenantMock.Object);
+        var request = new BulkUpdateReorderPointDto
+        {
+            BranchId = branch.Id,
+            Items = new List<SkuReorderPointItemDto> { new() { SkuId = Guid.NewGuid(), ReorderPoint = 1 } }
+        };
+
+        // Act
+        var ex = await Assert.ThrowsAsync<OismException>(() => service.BulkUpdateReorderPointAsync(request));
+
+        // Assert
+        ex.StatusCode.Should().Be(404);
+        ex.ErrorCode.Should().Be("SKU_NOT_FOUND");
+        (await context.InventoryBalances.IgnoreQueryFilters().CountAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task UpdateReorderPointAsync_NewBalance_ReturnsSkuAndBranchInfo()
+    {
+        // Arrange
+        var (context, tenantMock, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh Quận 3" };
+        var sku = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, SKU = "SKU-INFO" };
+
+        context.Branches.Add(branch);
+        context.Skus.Add(sku);
+        await context.SaveChangesAsync();
+
+        var service = new InventoryService(context, tenantMock.Object);
+
+        // Act
+        var result = await service.UpdateReorderPointAsync(new UpdateReorderPointDto
+        {
+            BranchId = branch.Id,
+            SkuId = sku.Id,
+            ReorderPoint = 7
+        });
+
+        // Assert
+        result.SkuCode.Should().Be("SKU-INFO");
+        result.BranchName.Should().Be("Chi nhánh Quận 3");
+        result.ReorderPoint.Should().Be(7);
+    }
 }

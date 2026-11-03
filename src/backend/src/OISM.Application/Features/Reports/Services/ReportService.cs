@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using OISM.Application.Common.Helpers;
 using OISM.Application.Common.Interfaces;
 using OISM.Application.Features.Reports.Dtos;
 
@@ -369,7 +370,7 @@ public class ReportService : IReportService
             .Where(b => b.TenantId == tenantId)
             .ToListAsync(ct);
 
-        decimal totalInventoryValue = balances.Sum(b => b.OnHand * b.AverageCost);
+        decimal? totalInventoryValue = isOwner ? balances.Sum(b => b.OnHand * b.AverageCost) : null;
         int lowStockCount = balances.Count(b => b.ReorderPoint > 0 && (b.OnHand - b.Reserved) <= b.ReorderPoint);
 
         // 4. Lấy 5 đơn hàng mới phát sinh gần đây nhất
@@ -391,10 +392,10 @@ public class ReportService : IReportService
             .ToListAsync(ct);
 
         // 5. Xu hướng doanh thu 7 ngày gần nhất phục vụ vẽ biểu đồ Dashboard
-        var sevenDaysAgo = DateTimeOffset.UtcNow.AddDays(-7);
+        var trendStart = ReportTimeHelper.StartOfDayUtc(ReportTimeHelper.Today().AddDays(-6));
         var recentTrend = revenueOrders
-            .Where(o => o.CreatedAt >= sevenDaysAgo)
-            .GroupBy(o => o.CreatedAt.ToString("yyyy-MM-dd"))
+            .Where(o => o.CreatedAt >= trendStart)
+            .GroupBy(o => ReportTimeHelper.ToLocalDate(o.CreatedAt).ToString("yyyy-MM-dd"))
             .OrderBy(g => g.Key)
             .Select(g =>
             {

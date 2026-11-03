@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using OISM.Application.Common.Exceptions;
 
 namespace OISM.WebApi.Middlewares;
 
@@ -24,6 +25,14 @@ public class ExceptionHandlingMiddleware
         {
             await _next(context);
         }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            // Client đã ngắt kết nối, không còn ai nhận phản hồi.
+        }
+        catch (OismException ex)
+        {
+            await HandleExceptionAsync(context, ex);
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Ngoại lệ chưa xử lý phát sinh tại endpoint: {Path}", context.Request.Path);
@@ -33,6 +42,11 @@ public class ExceptionHandlingMiddleware
 
     private static Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
+        if (context.Response.HasStarted)
+        {
+            return Task.FromException(exception);
+        }
+
         context.Response.ContentType = "application/problem+json";
 
         var statusCode = StatusCodes.Status500InternalServerError;
@@ -40,26 +54,18 @@ public class ExceptionHandlingMiddleware
         var errorCode = "INTERNAL_SERVER_ERROR";
         var detail = "Đã xảy ra sự cố ngoài dự kiến trong quá trình xử lý yêu cầu. Vui lòng liên hệ quản trị viên.";
 
-        // Xử lý các loại ngoại lệ đặc thù
-        if (exception is KeyNotFoundException)
+        if (exception is OismException oismException)
         {
-            statusCode = StatusCodes.Status404NotFound;
-            title = "Tài nguyên không tìm thấy";
-            errorCode = "NOT_FOUND";
-            detail = exception.Message;
+            statusCode = oismException.StatusCode;
+            title = GetTitleForStatus(statusCode);
+            errorCode = oismException.ErrorCode;
+            detail = oismException.Message;
         }
         else if (exception is UnauthorizedAccessException)
         {
             statusCode = StatusCodes.Status401Unauthorized;
-            title = "Yêu cầu quyền truy cập";
+            title = GetTitleForStatus(statusCode);
             errorCode = "UNAUTHORIZED";
-            detail = exception.Message;
-        }
-        else if (exception is InvalidOperationException || exception is ArgumentException)
-        {
-            statusCode = StatusCodes.Status400BadRequest;
-            title = "Yêu cầu không hợp lệ";
-            errorCode = "BAD_REQUEST";
             detail = exception.Message;
         }
 
@@ -67,7 +73,7 @@ public class ExceptionHandlingMiddleware
 
         var problemDetails = new ProblemDetails
         {
-            Type = $"https://oisms.local/errors/{errorCode.ToLowerInvariant()}",
+            Type = $"https://oisms.local/errors/{errorCode}",
             Title = title,
             Status = statusCode,
             Detail = detail,
@@ -86,4 +92,13 @@ public class ExceptionHandlingMiddleware
 
         return context.Response.WriteAsync(json);
     }
+
+    private static string GetTitleForStatus(int statusCode) => statusCode switch
+    {
+        StatusCodes.Status401Unauthorized => "Yêu cầu quyền truy cập",
+        StatusCodes.Status403Forbidden => "Không có quyền truy cập",
+        StatusCodes.Status404NotFound => "Tài nguyên không tìm thấy",
+        StatusCodes.Status409Conflict => "Xung đột dữ liệu",
+        _ => "Yêu cầu không hợp lệ"
+    };
 }

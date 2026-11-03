@@ -212,21 +212,24 @@ public class InventoryService : IInventoryService
     {
         var tenantId = RequireTenantId();
 
-        var skuExists = await _context.Skus.AnyAsync(s => s.Id == request.SkuId, ct);
-        if (!skuExists)
+        var sku = await _context.Skus.AsNoTracking().FirstOrDefaultAsync(s => s.Id == request.SkuId, ct);
+        if (sku == null)
         {
             throw new OismException("SKU_NOT_FOUND", "Không tìm thấy thông tin sản phẩm (SKU).", 404);
         }
 
-        var branchExists = await _context.Branches.AnyAsync(b => b.Id == request.BranchId, ct);
-        if (!branchExists)
+        var branch = await _context.Branches.AsNoTracking().FirstOrDefaultAsync(b => b.Id == request.BranchId, ct);
+        if (branch == null)
         {
             throw new OismException("BRANCH_NOT_FOUND", "Không tìm thấy thông tin chi nhánh.", 404);
         }
 
+        var productName = await _context.Products
+            .Where(p => p.Id == sku.ProductId)
+            .Select(p => p.Name)
+            .FirstOrDefaultAsync(ct);
+
         var balance = await _context.InventoryBalances
-            .Include(b => b.Branch)
-            .Include(b => b.Sku)
             .FirstOrDefaultAsync(b => b.BranchId == request.BranchId && b.SkuId == request.SkuId, ct);
 
         if (balance == null)
@@ -254,11 +257,11 @@ public class InventoryService : IInventoryService
         return new InventoryBalanceDto
         {
             SkuId = balance.SkuId,
-            SkuCode = balance.Sku?.SKU ?? string.Empty,
-            ProductName = balance.Sku?.Product?.Name ?? string.Empty,
-            Barcode = balance.Sku?.Barcode,
+            SkuCode = sku.SKU,
+            ProductName = productName ?? string.Empty,
+            Barcode = sku.Barcode,
             BranchId = balance.BranchId,
-            BranchName = balance.Branch?.Name ?? string.Empty,
+            BranchName = branch.Name,
             OnHand = balance.OnHand,
             Reserved = balance.Reserved,
             AverageCost = balance.AverageCost,
@@ -277,6 +280,17 @@ public class InventoryService : IInventoryService
         }
 
         var skuIds = request.Items.Select(i => i.SkuId).Distinct().ToList();
+        if (skuIds.Count != request.Items.Count)
+        {
+            throw new OismException("DUPLICATE_SKU", "Danh sách cấu hình có SKU bị lặp.", 400);
+        }
+
+        var foundSkuCount = await _context.Skus.CountAsync(s => skuIds.Contains(s.Id), ct);
+        if (foundSkuCount != skuIds.Count)
+        {
+            throw new OismException("SKU_NOT_FOUND", "Danh sách cấu hình có SKU không tồn tại.", 404);
+        }
+
         var existingBalances = await _context.InventoryBalances
             .Where(b => b.BranchId == request.BranchId && skuIds.Contains(b.SkuId))
             .ToListAsync(ct);

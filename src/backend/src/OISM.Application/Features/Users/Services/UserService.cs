@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using OISM.Application.Common.Exceptions;
+using OISM.Application.Common.Helpers;
 using OISM.Application.Common.Interfaces;
 using OISM.Domain.Entities;
 
@@ -110,7 +111,7 @@ public class UserService : IUserService
         string? normalizedPhone = null;
         if (!string.IsNullOrWhiteSpace(request.Phone))
         {
-            normalizedPhone = request.Phone.Trim();
+            normalizedPhone = NormalizePhoneOrThrow(request.Phone);
             var phoneExists = await _context.Users.IgnoreQueryFilters()
                 .AnyAsync(u => u.Phone == normalizedPhone, ct);
             if (phoneExists)
@@ -134,7 +135,7 @@ public class UserService : IUserService
         };
 
         _context.Users.Add(user);
-        await _context.SaveChangesAsync(ct);
+        await SaveUserChangesAsync(ct);
 
         return new UserResponse
         {
@@ -175,10 +176,16 @@ public class UserService : IUserService
             }
         }
 
+        // Vai trò Owner chỉ thuộc về Chủ shop tạo ra khi đăng ký gian hàng
+        if (user.Role != "Owner" && request.Role == "Owner")
+        {
+            throw new OismException("CANNOT_ASSIGN_OWNER", "Không thể gán vai trò Chủ shop cho nhân viên.", 400);
+        }
+
         // Kiểm tra trùng số điện thoại nếu có thay đổi
         if (!string.IsNullOrWhiteSpace(request.Phone))
         {
-            var normalizedPhone = request.Phone.Trim();
+            var normalizedPhone = NormalizePhoneOrThrow(request.Phone);
             if (user.Phone != normalizedPhone)
             {
                 var phoneExists = await _context.Users.IgnoreQueryFilters()
@@ -206,7 +213,7 @@ public class UserService : IUserService
         user.IsActive = request.IsActive;
         user.UpdatedAt = DateTimeOffset.UtcNow;
 
-        await _context.SaveChangesAsync(ct);
+        await SaveUserChangesAsync(ct);
 
         return new UserResponse
         {
@@ -256,5 +263,34 @@ public class UserService : IUserService
             CreatedAt = user.CreatedAt,
             UpdatedAt = user.UpdatedAt
         };
+    }
+
+    private static string NormalizePhoneOrThrow(string rawPhone)
+    {
+        if (!PhoneHelper.TryNormalizePhoneNumber(rawPhone, out var normalizedPhone) || normalizedPhone == null)
+        {
+            throw new OismException("INVALID_PHONE", "Định dạng số điện thoại không hợp lệ. Hỗ trợ số điện thoại Việt Nam (ví dụ 0901234567) hoặc chuẩn quốc tế E.164 (ví dụ +84901234567).", 400);
+        }
+
+        return normalizedPhone;
+    }
+
+    /// <summary>
+    /// Hai request đồng thời có thể cùng vượt qua bước kiểm tra trùng; ràng buộc unique của DB là chốt chặn cuối.
+    /// </summary>
+    private async Task SaveUserChangesAsync(CancellationToken ct)
+    {
+        try
+        {
+            await _context.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("uq_users_2") == true)
+        {
+            throw new OismException("EMAIL_ALREADY_EXISTS", "Email này đã được sử dụng bởi một tài khoản khác.", 409);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("uq_users_3") == true)
+        {
+            throw new OismException("PHONE_ALREADY_EXISTS", "Số điện thoại này đã được sử dụng bởi một tài khoản khác.", 409);
+        }
     }
 }
