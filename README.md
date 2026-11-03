@@ -1,5 +1,14 @@
 # Omnichannel Inventory and Sales Management System (OISM)
 
+## 🌐 Link web đã deploy trên AWS
+
+| Ứng dụng | Link |
+| :--- | :--- |
+| **Admin Dashboard** | [https://oisms.khoadang.site](https://oisms.khoadang.site) |
+| **POS App** | [https://pos.oisms.khoadang.site](https://pos.oisms.khoadang.site) |
+
+> Bản demo chạy trên một máy EC2 và có thể được tắt khi không demo để tiết kiệm chi phí. Cách deploy và lưu ý khi chạy local: xem [Triển khai lên AWS](#triển-khai-lên-aws-ec2--docker-compose).
+
 > **Yêu cầu từ đề bài:** Xem [docs/DE_BAI_OISM.md](docs/DE_BAI_OISM.md) để tra cứu FR/NFR, sản phẩm bàn giao, các điểm cần làm rõ và checklist nghiệm thu từ PDF đề bài. Đối chiếu tài liệu này khi thiết kế hoặc đánh giá phạm vi dự án.
 
 > **Cập nhật ngày:** 19/10/2026  
@@ -181,6 +190,55 @@ powershell -ExecutionPolicy Bypass -File scripts\run-admin.ps1
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\run-pos.ps1
 ```
+
+---
+
+## Triển khai lên AWS (EC2 + Docker Compose)
+
+Toàn bộ stack chạy trên một máy EC2. Chỉ Caddy mở cổng `80`/`443` và tự cấp chứng chỉ HTTPS; PostgreSQL, Redis và backend chỉ nằm trong mạng Docker. Mỗi frontend gọi API qua chính domain của nó nên không vướng CORS.
+
+```text
+Internet → Caddy (80/443)
+             ├─ oisms.khoadang.site     → admin-dashboard
+             ├─ pos.oisms.khoadang.site → pos-app
+             └─ /api, /hubs, /health    → backend → postgres, redis
+```
+
+| File | Vai trò |
+| :--- | :--- |
+| `docker-compose.prod.yml` | Dùng chồng lên `docker-compose.yml`: đóng cổng nội bộ, tắt pgAdmin, bắt buộc có JWT secret, thêm Caddy |
+| `docker/caddy/Caddyfile` | HTTPS và định tuyến theo domain |
+| `.env.production.example` | Mẫu biến môi trường cho máy chủ |
+
+**Các bước deploy:**
+
+1. Tạo EC2 Ubuntu 24.04 (tối thiểu 4 GB RAM khi build, ổ 30 GB), Security Group chỉ mở `80`, `443` và `22` cho IP của bạn; gắn Elastic IP và cài Docker.
+2. Tạo bản ghi DNS loại A cho 2 domain, trỏ về Elastic IP.
+3. Clone repo, chép `.env.production.example` thành `.env.production`, đổi domain và mọi giá trị `CHANGE_ME` (tạo bằng `openssl rand -hex 32`).
+4. Build và chạy:
+
+```bash
+docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+5. Kiểm tra `https://<domain>/health/ready`.
+
+**Lưu ý khi vận hành:**
+
+- Production luôn chặn seed dữ liệu demo. Database mới trống, tài khoản đầu tiên tạo qua `POST /api/auth/register-tenant`.
+- Frontend nhúng URL API lúc build, nên đổi domain thì phải chạy lại lệnh build ở trên.
+- Production không bật `/swagger`.
+- `init-oisms.sh` chỉ chạy khi volume database trống. Khi cập nhật hệ thống đang có dữ liệu, backup rồi chạy thủ công script trong `docker/postgres/migrations/`.
+- Không commit `.env.production`. Dữ liệu nằm trên ổ của EC2, nên cần tự backup (`pg_dump`).
+
+### Lưu ý khi chạy local
+
+Cách chạy local không đổi, các thay đổi cho deploy không áp dụng nếu không truyền `docker-compose.prod.yml`:
+
+- Vẫn dùng `docker compose up -d` với file `.env`. Không cần `.env.production`, Caddy không chạy, các cổng `5000`, `5173`, `5174`, `5432`, `5050` vẫn mở như cũ.
+- Frontend không truyền `VITE_API_BASE_URL` thì vẫn gọi `http://localhost:5000`. Nếu tự đặt biến này thì **không** thêm đuôi `/api`, vì code tự nối `/api/...` và `/hubs/notifications`.
+- Không chạy bản production và bản local cùng lúc trên một máy với cùng project Compose: hai bản dùng chung tên container và volume, nên có thể ghi đè nhau.
+- `init-oisms.sh` đã được sửa để kiểm tra đúng 43 bảng. Volume đang có dữ liệu không bị ảnh hưởng; không cần chạy `docker compose down -v`, vì lệnh đó xóa toàn bộ dữ liệu local.
 
 ---
 
