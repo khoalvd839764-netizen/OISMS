@@ -201,6 +201,49 @@ export function InventoryPage() {
   // Cấu hình ngưỡng cảnh báo
   const [thresholds] = useState<Record<string, number>>({});
 
+  // Modal Cấu hình Ngưỡng cảnh báo ReorderPoint (CS-03)
+  const [reorderModalSku, setReorderModalSku] = useState<Sku | null>(null);
+  const [reorderInputVal, setReorderInputVal] = useState<number>(5);
+  const [reorderBranchId, setReorderBranchId] = useState<string>("");
+  const [savingReorder, setSavingReorder] = useState(false);
+  const [reorderError, setReorderError] = useState<string | null>(null);
+
+  const openReorderModal = (sku: Sku) => {
+    setReorderModalSku(sku);
+    setReorderInputVal(thresholds[sku.id] ?? sku.threshold ?? 5);
+    setReorderBranchId(sku.branchId || branches[0]?.id || "");
+    setReorderError(null);
+  };
+
+  const handleSaveReorderPoint = async () => {
+    if (!reorderModalSku) return;
+    if (reorderInputVal < 0) {
+      setReorderError("Ngưỡng cảnh báo không được là số âm.");
+      return;
+    }
+    const branchId = reorderBranchId || reorderModalSku.branchId || branches[0]?.id;
+    if (!branchId) {
+      setReorderError("Vui lòng chọn chi nhánh áp dụng ngưỡng cảnh báo.");
+      return;
+    }
+
+    setSavingReorder(true);
+    setReorderError(null);
+    const res = await apiAdapter.updateReorderPoint({
+      branchId,
+      skuId: reorderModalSku.id,
+      reorderPoint: Number(reorderInputVal),
+    });
+    setSavingReorder(false);
+
+    if (res.error) {
+      setReorderError(res.error.message || "Lưu ngưỡng cảnh báo thất bại.");
+    } else {
+      setReorderModalSku(null);
+      await loadBalances();
+    }
+  };
+
   // [F4] Tải dữ liệu Sổ cái kho và lưu riêng lỗi sổ kho
   const loadLedger = async () => {
     const seq = ++ledgerReqSeqRef.current;
@@ -1121,8 +1164,8 @@ export function InventoryPage() {
               </button>
             ))}
           </div>
-          <Button variant="secondary" disabled title="Lưu ngưỡng cảnh báo lên máy chủ chưa khả dụng.">
-            <Settings2 size={16} />Cấu hình ngưỡng <ComingSoonBadge />
+          <Button variant="secondary" onClick={() => { if (skus.length > 0) openReorderModal(skus[0]); }}>
+            <Settings2 size={16} />Cấu hình ngưỡng
           </Button>
         </section>
       )}
@@ -1334,10 +1377,10 @@ export function InventoryPage() {
                               </Button>
                               <Button
                                 variant="ghost"
-                                disabled
-                                title="Cấu hình ngưỡng — Coming soon"
+                                onClick={() => openReorderModal(sku)}
+                                title="Cấu hình ngưỡng cảnh báo tồn kho an toàn"
                               >
-                                ≤{thresh} <ComingSoonBadge />
+                                ≤{thresh}
                               </Button>
                             </div>
                           </td>
@@ -2318,6 +2361,54 @@ export function InventoryPage() {
                 : isRetryingReserve
                 ? "Thử lại thao tác giữ chỗ (Gửi cùng định danh)"
                 : "Xác nhận Giữ chỗ tại Kho này"}
+            </Button>
+          </div>
+        </Modal>
+      )}
+
+      {/* MODAL CẤU HÌNH NGƯỠNG CẢNH BÁO TỒN KHO AN TOÀN (CS-03) */}
+      {reorderModalSku && (
+        <Modal
+          title={`Cấu hình ngưỡng cảnh báo tồn kho: ${reorderModalSku.code}`}
+          onClose={() => setReorderModalSku(null)}
+        >
+          {reorderError && (
+            <div style={{ background: "#fee2e2", border: "1px solid #ef4444", color: "#b91c1c", padding: "10px", borderRadius: "8px", fontSize: "12px", marginBottom: "12px" }}>
+              {reorderError}
+            </div>
+          )}
+          <div className="form-grid">
+            <label className="full-field">
+              <span>Sản phẩm</span>
+              <Input value={`${reorderModalSku.code} - ${reorderModalSku.name}`} disabled />
+            </label>
+            <label>
+              <span>Chi nhánh áp dụng *</span>
+              <Select value={reorderBranchId} onChange={(e) => setReorderBranchId(e.target.value)}>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </Select>
+            </label>
+            <label>
+              <span>Ngưỡng cảnh báo tồn (ReorderPoint) *</span>
+              <Input
+                type="number"
+                min="0"
+                step="1"
+                value={reorderInputVal}
+                onChange={(e) => setReorderInputVal(Math.max(0, parseInt(e.target.value) || 0))}
+                required
+              />
+            </label>
+          </div>
+          <p style={{ fontSize: "12px", color: "#64748b", margin: "10px 0 16px" }}>
+            Khi số lượng tồn khả dụng (Available) tại chi nhánh nhỏ hơn hoặc bằng ngưỡng này, hệ thống sẽ kích hoạt trạng thái cảnh báo và đưa vào danh sách đề xuất nhập hàng.
+          </p>
+          <div className="modal-actions">
+            <Button variant="secondary" onClick={() => setReorderModalSku(null)}>Hủy</Button>
+            <Button onClick={handleSaveReorderPoint} disabled={savingReorder}>
+              {savingReorder ? "Đang lưu..." : "Lưu ngưỡng cảnh báo"}
             </Button>
           </div>
         </Modal>

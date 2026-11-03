@@ -270,6 +270,77 @@ public class ReportServiceTests
     }
 
     [Fact]
+    public async Task GetDashboardSummaryAsync_CalculatesKPIs_AndProtectsProfitWhenNotOwner()
+    {
+        // Arrange
+        var (context, mockTenant, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var reportService = new ReportService(context, mockTenant.Object);
+
+        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh Tân Bình" };
+        var sku = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, SKU = "SKU-DASH-01" };
+
+        context.Branches.Add(branch);
+        context.Skus.Add(sku);
+
+        var order = new Order
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Number = "ORD-DASH-01",
+            BranchId = branch.Id,
+            Channel = "POS",
+            Status = "Completed",
+            TotalAmount = 500000,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        order.Items.Add(new OrderItem
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            OrderId = order.Id,
+            SkuId = sku.Id,
+            Quantity = 2,
+            UnitPrice = 250000,
+            CostPrice = 150000 // 2 * 150k = 300k, Lãi = 200k
+        });
+        context.Orders.Add(order);
+
+        context.InventoryBalances.Add(new InventoryBalance
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            BranchId = branch.Id,
+            SkuId = sku.Id,
+            OnHand = 10,
+            AverageCost = 150000,
+            ReorderPoint = 5
+        });
+
+        await context.SaveChangesAsync();
+
+        // Act 1: Gọi với quyền Owner
+        var ownerSummary = await reportService.GetDashboardSummaryAsync(isOwner: true);
+
+        // Assert 1: Owner thấy đủ doanh thu, số đơn, lãi gộp
+        ownerSummary.TotalOrders.Should().Be(1);
+        ownerSummary.TotalRevenue.Should().Be(500000);
+        ownerSummary.TotalGrossProfit.Should().Be(200000);
+        ownerSummary.GrossMarginPercentage.Should().Be(40);
+        ownerSummary.TotalInventoryValue.Should().Be(1500000); // 10 * 150k
+        ownerSummary.RecentOrders.Should().HaveCount(1);
+        ownerSummary.RecentOrders[0].Number.Should().Be("ORD-DASH-01");
+
+        // Act 2: Gọi với quyền Staff (isOwner = false)
+        var staffSummary = await reportService.GetDashboardSummaryAsync(isOwner: false);
+
+        // Assert 2: Staff bị ẩn lợi nhuận gộp (bảo mật giá vốn)
+        staffSummary.TotalGrossProfit.Should().BeNull();
+        staffSummary.GrossMarginPercentage.Should().Be(0);
+        staffSummary.TotalInventoryValue.Should().BeNull();
+        staffSummary.TotalRevenue.Should().Be(500000);
+    }
+
+    [Fact]
     public async Task GetRevenueProfitReport_ShouldIncludeSubSecondEndOfDay_AndGroupDailyTrendInVietnamTime()
     {
         // Arrange (BF-011)

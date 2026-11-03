@@ -35,6 +35,13 @@ Tài liệu này là **từ điển tra cứu danh mục mã lỗi toàn hệ th
 | `AUTH_UNAUTHORIZED` | `401` | Chưa xác thực | *Yêu cầu cần có JWT Token xác thực hợp lệ.* | Không gửi Authorization Header hoặc gửi Token rỗng. | Chuyển hướng người dùng về màn hình `/login`. |
 | `AUTH_TOKEN_EXPIRED` | `401` | Phiên làm việc hết hạn | *Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.* | Access Token đã quá thời hạn sử dụng (`exp`). | Kích hoạt cơ chế làm mới token tự động hoặc mở Modal đăng nhập lại. |
 | `FORBIDDEN_ACCESS` | `403` | Không có quyền truy cập | *Bạn không có quyền thực hiện thao tác này.* | Vai trò hiện tại (Role) không nằm trong danh sách cho phép (RBAC). | Chuyển hướng sang màn hình `/403` (Forbidden Access). |
+| `USER_NOT_FOUND` | `404` | Không tìm thấy nhân viên | *Không tìm thấy thông tin nhân viên.* | ID nhân viên không tồn tại trong Tenant hiện tại. | Tải lại danh sách nhân viên. |
+| `EMAIL_ALREADY_EXISTS` | `409` | Email đã tồn tại | *Email này đã được sử dụng bởi một tài khoản khác.* | Email trùng trên toàn hệ thống. | Dùng email khác. |
+| `PHONE_ALREADY_EXISTS` | `409` | Số điện thoại đã tồn tại | *Số điện thoại này đã được sử dụng bởi một tài khoản khác.* | Số điện thoại sau chuẩn hóa E.164 trùng trên toàn hệ thống. | Dùng số điện thoại khác. |
+| `INVALID_PHONE` | `400` | Số điện thoại không hợp lệ | *Định dạng số điện thoại không hợp lệ.* | Không chuẩn hóa được về E.164. | Nhập dạng 0901234567 hoặc +84901234567. |
+| `CANNOT_DEACTIVATE_SELF` | `400` | Không thể tự khóa tài khoản | *Không thể tự vô hiệu hóa tài khoản của chính mình.* | Owner tự khóa tài khoản đang đăng nhập. | Giữ trạng thái hoạt động. |
+| `CANNOT_DEMOTE_SELF` | `400` | Không thể tự hạ quyền | *Không thể tự hạ quyền của chính mình.* | Owner tự đổi vai trò của mình. | Giữ vai trò Owner. |
+| `CANNOT_ASSIGN_OWNER` | `400` | Không thể gán vai trò Chủ shop | *Không thể gán vai trò Chủ shop cho nhân viên.* | Cố nâng nhân viên lên Owner. | Chọn Staff hoặc Cashier. |
 
 ---
 
@@ -81,6 +88,8 @@ Tài liệu này là **từ điển tra cứu danh mục mã lỗi toàn hệ th
 | `RESERVATION_EXPIRED` | `409` | Phiếu giữ chỗ hết hạn | *Phiếu giữ chỗ của đơn hàng đã hết thời gian hiệu lực và bị hệ thống tự động giải phóng.* | Đơn hàng để quá thời hạn thanh toán (vd: quá 15 phút), tồn giữ chỗ đã trả về quỹ chung. | Tạo lại đơn hàng mới để thực hiện giữ chỗ tồn kho lại từ đầu. |
 | `INSUFFICIENT_STOCK_FOR_RESERVATION` | `409` | Không thể giữ chỗ | *Tồn khả dụng không đủ để tạo phiếu giữ chỗ tồn kho.* | Lúc bấm đặt hàng, sản phẩm đã bị đơn hàng khác giữ chỗ trước. | Báo cho khách hàng mặt hàng đã tạm thời hết suất. |
 | `LEDGER_IMMUTABLE_VIOLATION` | `400` | Vi phạm tính bất biến | *Hệ thống cấm tuyệt đối chỉnh sửa hoặc xóa giao dịch sổ cái tồn kho.* | Cố ý thực hiện UPDATE hoặc DELETE trên bảng `inventory_transactions`. | Luôn sử dụng cơ chế ghi thêm (Append-Only) bút toán đảo để điều chỉnh. |
+| `DUPLICATE_SKU` | `400` | SKU bị lặp | *Danh sách cấu hình có SKU bị lặp.* | Một SKU xuất hiện nhiều lần trong yêu cầu cập nhật ReorderPoint hàng loạt. | Giữ mỗi SKU một dòng. |
+| `BRANCH_NOT_FOUND` | `404` | Không tìm thấy chi nhánh | *Không tìm thấy thông tin chi nhánh.* | ID chi nhánh không tồn tại trong Tenant hiện tại. | Chọn lại chi nhánh. |
 
 ---
 

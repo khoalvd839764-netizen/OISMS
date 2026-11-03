@@ -16,6 +16,8 @@ using OISM.Application.Features.Simulator.Services;
 using OISM.Application.Features.StockCounts.Services;
 using OISM.Application.Features.StockTransfers.Services;
 using OISM.Application.Features.Suppliers.Services;
+using OISM.Application.Features.Search.Services;
+using OISM.Application.Features.Users.Services;
 using OISM.Application.Features.Warehouses.Services;
 using OISM.Application.Features.Webhooks.Services;
 
@@ -51,6 +53,9 @@ public static class DependencyInjection
         services.AddScoped<ISupplierService, SupplierService>();
         services.AddScoped<IWarehouseService, WarehouseService>();
         services.AddScoped<IPosCatalogService, PosCatalogService>();
+        services.AddScoped<IUserService, UserService>();
+        services.AddScoped<ISearchService, SearchService>();
+        services.AddScoped<OISM.Application.Features.Ai.Services.IAiForecastingService, OISM.Application.Features.Ai.Services.AiForecastingService>();
 
         // Pricing services
         services.AddScoped<ISkuPriceResolver, SkuPriceResolver>();

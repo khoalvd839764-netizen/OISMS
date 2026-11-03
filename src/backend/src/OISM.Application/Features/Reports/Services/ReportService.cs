@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using OISM.Application.Common.Helpers;
 using OISM.Application.Common.Interfaces;
 using OISM.Application.Features.Reports.Dtos;
 
@@ -365,5 +366,90 @@ public class ReportService : IReportService
                 AlertLevel = level
             };
         }).ToList();
+    }
+
+    public async Task<DashboardSummaryDto> GetDashboardSummaryAsync(bool isOwner, CancellationToken ct = default)
+    {
+        var tenantId = RequireTenantId();
+
+        // 1. Thống kê Doanh thu và Lợi nhuận từ các đơn hàng hợp lệ
+        var revenueOrders = await _context.Orders
+            .AsNoTracking()
+            .Include(o => o.Items)
+            .Where(o => o.TenantId == tenantId && (o.Status == "Confirmed" || o.Status == "Completed"))
+            .ToListAsync(ct);
+
+        decimal totalRevenue = revenueOrders.Sum(o => o.TotalAmount);
+        int totalOrders = revenueOrders.Count;
+        decimal totalCogs = revenueOrders.SelectMany(o => o.Items).Sum(i => (i.CostPrice ?? 0) * i.BaseQuantity);
+        decimal? totalGrossProfit = isOwner ? (totalRevenue - totalCogs) : null;
+        decimal grossMargin = (isOwner && totalRevenue > 0) ? Math.Round(((totalRevenue - totalCogs) / totalRevenue) * 100, 2) : 0;
+
+        // 2. Thống kê số lượng SKU đang quản lý
+        var skuCount = await _context.Skus
+            .AsNoTracking()
+            .Where(s => s.TenantId == tenantId && s.IsActive)
+            .CountAsync(ct);
+
+        // 3. Thống kê Giá trị tồn kho theo WAC và Cảnh báo tồn thấp
+        var balances = await _context.InventoryBalances
+            .AsNoTracking()
+            .Where(b => b.TenantId == tenantId)
+            .ToListAsync(ct);
+
+        decimal? totalInventoryValue = isOwner ? balances.Sum(b => b.OnHand * b.AverageCost) : null;
+        int lowStockCount = balances.Count(b => b.ReorderPoint > 0 && (b.OnHand - b.Reserved) <= b.ReorderPoint);
+
+        // 4. Lấy 5 đơn hàng mới phát sinh gần đây nhất
+        var recentOrders = await _context.Orders
+            .AsNoTracking()
+            .Where(o => o.TenantId == tenantId)
+            .OrderByDescending(o => o.CreatedAt)
+            .Take(5)
+            .Select(o => new RecentOrderDto
+            {
+                Id = o.Id,
+                Number = o.Number,
+                Channel = o.Channel,
+                CustomerName = o.CustomerName,
+                TotalAmount = o.TotalAmount,
+                Status = o.Status,
+                CreatedAt = o.CreatedAt
+            })
+            .ToListAsync(ct);
+
+        // 5. Xu hướng doanh thu 7 ngày gần nhất phục vụ vẽ biểu đồ Dashboard
+        var trendStart = ReportTimeHelper.StartOfDayUtc(ReportTimeHelper.Today().AddDays(-6));
+        var recentTrend = revenueOrders
+            .Where(o => o.CreatedAt >= trendStart)
+            .GroupBy(o => ReportTimeHelper.ToLocalDate(o.CreatedAt).ToString("yyyy-MM-dd"))
+            .OrderBy(g => g.Key)
+            .Select(g =>
+            {
+                var rev = g.Sum(o => o.TotalAmount);
+                var cogs = g.SelectMany(o => o.Items).Sum(i => (i.CostPrice ?? 0) * i.BaseQuantity);
+                return new DailyRevenueBreakdownDto
+                {
+                    Date = g.Key,
+                    Revenue = rev,
+                    CostOfGoodsSold = isOwner ? cogs : 0,
+                    GrossProfit = isOwner ? (rev - cogs) : 0,
+                    OrderCount = g.Count()
+                };
+            })
+            .ToList();
+
+        return new DashboardSummaryDto
+        {
+            TotalRevenue = totalRevenue,
+            TotalOrders = totalOrders,
+            TotalGrossProfit = totalGrossProfit,
+            GrossMarginPercentage = grossMargin,
+            SkuCount = skuCount,
+            TotalInventoryValue = totalInventoryValue,
+            LowStockCount = lowStockCount,
+            RecentOrders = recentOrders,
+            RecentRevenueTrend = recentTrend
+        };
     }
 }

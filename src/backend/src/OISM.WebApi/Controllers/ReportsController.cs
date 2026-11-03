@@ -54,4 +54,16 @@ public class ReportsController : ControllerBase
         var result = await _reportService.GetStockAlertsAsync(branchId, ct);
         return Ok(result);
     }
+
+    /// <summary>
+    /// Thống kê KPI tổng quan cho trang Dashboard (CS-07 / FR-REP-01).
+    /// Tổng hợp Doanh thu, Đơn hàng, Lãi gộp (chỉ Owner), Giá trị tồn kho và Top 5 đơn hàng mới nhất.
+    /// </summary>
+    [HttpGet("dashboard-summary")]
+    public async Task<IActionResult> GetDashboardSummary(CancellationToken ct)
+    {
+        var isOwner = User.IsInRole("Owner");
+        var result = await _reportService.GetDashboardSummaryAsync(isOwner, ct);
+        return Ok(result);
+    }
 }

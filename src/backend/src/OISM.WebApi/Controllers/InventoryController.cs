@@ -54,6 +54,17 @@ public class InventoryController : ControllerBase
     }
 
     /// <summary>
+    /// Tra cứu lịch sử xuất kho theo đơn vị tồn gốc phục vụ AI dự báo nhu cầu (CS-08).
+    /// </summary>
+    [HttpGet("export-history")]
+    [Authorize(Roles = "Owner,Staff")]
+    public async Task<IActionResult> GetExportHistory([FromServices] OISM.Application.Features.Ai.Services.IAiForecastingService aiService, [FromQuery] OISM.Application.Features.Ai.Dtos.ExportHistoryQueryDto query, CancellationToken ct)
+    {
+        var result = await aiService.GetExportHistoryAsync(query, ct);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Tra cứu tồn kho chi tiết của một SKU tại một Chi nhánh cụ thể (BE1-08, phục vụ POS).
     /// </summary>
     [HttpGet("balances/sku/{skuId}/branch/{branchId}")]
@@ -130,6 +141,42 @@ public class InventoryController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
+    }
+
+    /// <summary>
+    /// Cập nhật ngưỡng cảnh báo hết hàng (ReorderPoint) cho một SKU tại một Chi nhánh (CS-03).
+    /// </summary>
+    [HttpPut("reorder-point")]
+    [Authorize(Roles = "Owner,Staff")]
+    public async Task<IActionResult> UpdateReorderPoint([FromBody] UpdateReorderPointDto request, CancellationToken ct)
+    {
+        var validator = new UpdateReorderPointValidator();
+        var validationResult = await validator.ValidateAsync(request, ct);
+        if (!validationResult.IsValid)
+        {
+            throw new OismException("VALIDATION_ERROR", string.Join(" ", validationResult.Errors.Select(e => e.ErrorMessage)), 400);
+        }
+
+        var result = await _inventoryService.UpdateReorderPointAsync(request, ct);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Cập nhật hàng loạt ngưỡng cảnh báo hết hàng cho nhiều SKU tại một Chi nhánh (CS-03).
+    /// </summary>
+    [HttpPut("reorder-point/bulk")]
+    [Authorize(Roles = "Owner,Staff")]
+    public async Task<IActionResult> BulkUpdateReorderPoint([FromBody] BulkUpdateReorderPointDto request, CancellationToken ct)
+    {
+        var validator = new BulkUpdateReorderPointValidator();
+        var validationResult = await validator.ValidateAsync(request, ct);
+        if (!validationResult.IsValid)
+        {
+            throw new OismException("VALIDATION_ERROR", string.Join(" ", validationResult.Errors.Select(e => e.ErrorMessage)), 400);
+        }
+
+        var updatedCount = await _inventoryService.BulkUpdateReorderPointAsync(request, ct);
+        return Ok(new { updatedCount, message = $"Đã cập nhật ngưỡng cảnh báo cho {updatedCount} sản phẩm." });
     }
 
     /// <summary>
