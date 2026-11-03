@@ -1,0 +1,59 @@
+# Cấu hình deploy, dùng chồng lên docker-compose.yml:
+#   docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# Chỉ Caddy mở cổng ra ngoài; mỗi frontend gọi API qua chính domain của nó nên không cần sửa CORS.
+
+services:
+  postgres:
+    ports: !reset []
+
+  redis:
+    ports: !reset []
+
+  # Không chạy pgAdmin trên máy chủ
+  pgadmin:
+    profiles: ["tools"]
+    ports: !reset []
+
+  backend:
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      Jwt__Secret: "${JWT_SECRET:?Error: JWT_SECRET must be set in .env.production}"
+    ports: !reset []
+
+  admin-dashboard:
+    build:
+      args:
+        VITE_API_BASE_URL: "https://${ADMIN_DOMAIN:?Error: ADMIN_DOMAIN must be set in .env.production}"
+    ports: !reset []
+
+  pos-app:
+    build:
+      args:
+        VITE_API_BASE_URL: "https://${POS_DOMAIN:?Error: POS_DOMAIN must be set in .env.production}"
+    ports: !reset []
+
+  # Reverse proxy, tự cấp chứng chỉ HTTPS
+  caddy:
+    image: caddy:2.10-alpine
+    container_name: oism_caddy
+    restart: always
+    environment:
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN}
+      POS_DOMAIN: ${POS_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+      - admin-dashboard
+      - pos-app
+    networks:
+      - oism_network
+
+volumes:
+  caddy_data:
+  caddy_config:
