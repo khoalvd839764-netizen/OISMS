@@ -34,7 +34,7 @@ Test mới: [`StockCountU03IntegrationTests.cs`](../../src/backend/tests/OISM.In
 
 ## Lỗi phát hiện khi nghiệm thu và đã sửa
 
-Phần code do Antigravity viết và chỉ được build, không chạy test theo yêu cầu người dùng.
+Phần code ban đầu chỉ được build, chưa chạy test.
 
 | Lỗi | Hậu quả | Kiểm chứng |
 | --- | --- | --- |
