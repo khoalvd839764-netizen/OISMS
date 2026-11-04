@@ -42,7 +42,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const cartSignature = JSON.stringify({
     branchId,
     cashierName,
-    items: items.map((i) => ({ skuId: i.variantId, qty: i.quantity, price: i.retailPrice })),
+    items: items.map((i) => ({ skuId: i.variantId, unitId: i.unitId || '', qty: i.quantity, price: i.retailPrice })),
   });
   const checkoutIntentRef = useRef<{ signature: string; key: string } | null>(null);
 
@@ -136,6 +136,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         skuCode: i.sku,
         productName: i.productName,
         variantName: i.variantName,
+        unitId: i.unitId || undefined,
         quantity: i.quantity,
         unitPrice: i.retailPrice,
       })),

@@ -104,6 +104,7 @@ export function OrdersPage() {
   const [newWarehouseId, setNewWarehouseId] = useState("");
   const [newSkuId, setNewSkuId] = useState("");
   const [newQuantity, setNewQuantity] = useState(1);
+  const [newUnitId, setNewUnitId] = useState<string>("");
   const [newPriceListCode, setNewPriceListCode] = useState<"retail" | "wholesale">("retail");
   const [overridePrice, setOverridePrice] = useState<number | null>(null);
   const [priceMismatchNotice, setPriceMismatchNotice] = useState<{
@@ -325,6 +326,7 @@ export function OrdersPage() {
             skuCode: chosenSku.code,
             productName: chosenSku.name,
             variantName: chosenSku.variant,
+            unitId: newUnitId || undefined,
             quantity: newQuantity,
             unitPrice: unitPriceToSend, // Lưu snapshot giá tại thời điểm tạo
           },
@@ -363,6 +365,7 @@ export function OrdersPage() {
       setIsUnknownState(false);
       setCreateModal(false);
       setNewQuantity(1);
+    setNewUnitId("");
       await loadOrders();
     } catch (err: any) {
       const status = err?.response?.status;
@@ -573,6 +576,22 @@ export function OrdersPage() {
                       required
                     />
                   </label>
+                  {(() => {
+                    const chosen = skusList.find((s) => s.id === newSkuId);
+                    const selectedUnit = chosen?.units?.find((u) => u.unitId === newUnitId);
+                    const factor = selectedUnit?.factorToBase || 1;
+                    const baseQty = newQuantity * factor;
+                    return (
+                      <div style={{ gridColumn: "1 / -1", fontSize: "12px", color: "#475569", padding: "6px 10px", background: "#f8fafc", borderRadius: "6px", border: "1px solid #e2e8f0" }}>
+                        Lượng giao dịch: <strong>{newQuantity} {selectedUnit?.unitName || chosen?.baseUnitName || "SP"}</strong>
+                        {factor > 1 && (
+                          <span style={{ color: "#4338ca", marginLeft: "10px" }}>
+                            • Quy đổi lượng tồn gốc: <strong>{baseQty.toLocaleString("vi-VN")} {chosen?.baseUnitName || ""}</strong> (Hệ số quy đổi: x{factor})
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                   <label>
                     <span>Kênh bán hàng *</span>
                     {/* B01-F01: Đơn tạo thủ công qua Admin bắt buộc channel Admin, hiển thị rõ ràng */}
@@ -623,7 +642,11 @@ export function OrdersPage() {
                       value={newSkuId}
                       disabled={isFormLocked}
                       onChange={(e) => {
-                        setNewSkuId(e.target.value);
+                        const sId = e.target.value;
+                        setNewSkuId(sId);
+                        const target = skusList.find((s) => s.id === sId);
+                        const bUnit = target?.units?.find((u) => u.isBase) || target?.units?.[0];
+                        setNewUnitId(bUnit?.unitId || target?.baseUnitId || "");
                         handleFormChange();
                       }}
                     >
@@ -652,6 +675,29 @@ export function OrdersPage() {
                       required
                     />
                   </label>
+                  {(() => {
+                    const chosen = skusList.find((s) => s.id === newSkuId);
+                    if (!chosen?.units || chosen.units.length === 0) return null;
+                    return (
+                      <label>
+                        <span>Đơn vị tính giao dịch *</span>
+                        <Select
+                          value={newUnitId}
+                          disabled={isFormLocked}
+                          onChange={(e) => {
+                            setNewUnitId(e.target.value);
+                            handleFormChange();
+                          }}
+                        >
+                          {chosen.units.map((u) => (
+                            <option key={u.unitId} value={u.unitId}>
+                              {u.unitName} (x{u.factorToBase}{u.isBase ? " - gốc" : ""})
+                            </option>
+                          ))}
+                        </Select>
+                      </label>
+                    );
+                  })()}
                   <label>
                     <span>Bảng giá áp dụng (U04) *</span>
                     <Select

@@ -480,9 +480,9 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-200 text-gray-600 font-semibold">
                         <th className="py-2.5 px-3">Mã SKU / Tên SP</th>
-                        <th className="py-2.5 px-3 text-right">Tồn sổ sách</th>
-                        <th className="py-2.5 px-3 text-right">Thực tế đếm</th>
-                        <th className="py-2.5 px-3 text-right">Chênh lệch</th>
+                        <th className="py-2.5 px-3 text-right">Tồn sổ sách (theo đơn vị gốc)</th>
+                        <th className="py-2.5 px-3 text-right">Thực tế đếm (theo đơn vị gốc)</th>
+                        <th className="py-2.5 px-3 text-right">Chênh lệch (theo đơn vị gốc)</th>
                         <th className="py-2.5 px-3 text-right">Đơn giá Đ/C (nếu thừa)</th>
                       </tr>
                     </thead>

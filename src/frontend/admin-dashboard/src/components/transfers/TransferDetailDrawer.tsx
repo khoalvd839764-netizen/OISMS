@@ -205,7 +205,7 @@ export const TransferDetailDrawer: React.FC<TransferDetailDrawerProps> = ({
                       <tr>
                         <th className="p-2">Mã SKU</th>
                         <th className="p-2">Tên sản phẩm</th>
-                        <th className="p-2 text-right">Số lượng chuyển</th>
+                        <th className="p-2 text-right">Số lượng chuyển (theo đơn vị gốc)</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">

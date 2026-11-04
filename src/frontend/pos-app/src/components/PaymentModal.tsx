@@ -90,7 +90,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   const currentPending = getActivePendingRecord();
   const isRetry = Boolean(currentPending && (currentPending.status === 'unknown' || currentPending.status === 'submitting'));
-  const cartFingerprint = JSON.stringify(items.map(i => [i.variantId, i.sku, i.quantity, i.retailPrice]));
+  const cartFingerprint = JSON.stringify(items.map(i => [i.variantId, i.unitId || '', i.sku, i.quantity, i.retailPrice]));
   const savedQr = currentPending?.qrSnapshot;
   const intent = paymentMethod === 'BANK_TRANSFER_QR'
     ? (isRetry ? savedQr : getOrCreatePosQrIntent(activeUser, branchId, cartFingerprint, totalAmount, getPosBankConfig(branchId, activeUser?.tenantId), generateUuidV4))
@@ -196,6 +196,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           skuCode: i.sku,
           productName: i.productName,
           variantName: i.variantName,
+          unitId: i.unitId || undefined,
           quantity: i.quantity,
           unitPrice: i.retailPrice,
         })),
@@ -306,6 +307,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         quantity: i.quantity,
         unitPrice: i.retailPrice,
         subtotal: i.retailPrice * i.quantity,
+        unitName: i.unitName,
       })),
       totalAmount,
       paymentMethod,

@@ -1552,8 +1552,8 @@ export function InventoryPage() {
                     <th>SKU</th>
                     <th>Loại</th>
                     <th>Nghiệp vụ</th>
-                    <th>Số lượng</th>
-                    <th>Số dư sau</th>
+                    <th>Số lượng (theo đơn vị gốc)</th>
+                    <th>Số dư sau (theo đơn vị gốc)</th>
                     <th>Mã chứng từ</th>
                   </tr>
                 </thead>
@@ -2096,10 +2096,15 @@ export function InventoryPage() {
                               }}
                             />
                             {isOver && (
-                              <span style={{ color: "#ef4444", fontSize: "10px" }}>
+                              <span style={{ color: "#ef4444", fontSize: "10px", display: "block" }}>
                                 Vượt lượng còn lại!
                               </span>
                             )}
+                            {item.factorSnapshot && item.factorSnapshot > 1 ? (
+                              <div style={{ fontSize: "11px", color: "#4338ca", marginTop: "2px" }}>
+                                Quy đổi gốc: <strong>{(item.quantity * item.factorSnapshot).toLocaleString("vi-VN")}</strong> (đơn vị gốc)
+                              </div>
+                            ) : null}
                           </div>
 
                           <div>

@@ -9,14 +9,12 @@ interface ReceiptPrintModalProps {
 }
 
 export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({ receipt, onClose, defaultPaperWidth }) => {
-  if (!receipt) return null;
-
   // T05-AC-02: Hỗ trợ chọn khổ in 80mm (mặc định) và 58mm, lưu lựa chọn vào localStorage
   const [paperWidth, setPaperWidth] = useState<'80mm' | '58mm'>(() => {
     if (defaultPaperWidth === '58mm' || defaultPaperWidth === '80mm') {
       return defaultPaperWidth;
     }
-    if (receipt.paperWidth === '58mm' || receipt.paperWidth === '80mm') {
+    if (receipt?.paperWidth === '58mm' || receipt?.paperWidth === '80mm') {
       return receipt.paperWidth;
     }
     try {
@@ -27,6 +25,8 @@ export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({ receipt, o
     }
     return '80mm';
   });
+
+  if (!receipt) return null;
 
   const handleSetPaperWidth = (width: '80mm' | '58mm') => {
     setPaperWidth(width);
@@ -242,7 +242,7 @@ export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({ receipt, o
                       </div>
                       <div className="flex justify-between items-baseline mt-0.5 text-[9.5px]">
                         <span className="text-slate-600">
-                          <span className="font-bold text-slate-700">{item.quantity}</span> x {item.unitPrice.toLocaleString('vi-VN')}
+                          <span className="font-bold text-slate-700">{item.quantity}{item.unitName ? ` ${item.unitName}` : ''}</span> x {item.unitPrice.toLocaleString('vi-VN')}
                         </span>
                         <span className="font-bold text-slate-900 whitespace-nowrap">
                           {item.subtotal.toLocaleString('vi-VN')}
@@ -274,7 +274,7 @@ export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({ receipt, o
                           </div>
                         </td>
                         <td className="py-1 text-center font-bold text-slate-700">
-                          {item.quantity}
+                          {item.quantity}{item.unitName ? ` ${item.unitName}` : ''}
                         </td>
                         <td className="py-1 text-right text-slate-600 whitespace-nowrap">
                           {item.unitPrice.toLocaleString('vi-VN')}

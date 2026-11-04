@@ -150,11 +150,11 @@ export function PosPage() {
     });
   };
 
-  const handleUpdateQuantity = (variantId: string, delta: number) => {
+  const handleUpdateQuantity = (key: string, delta: number) => {
     setCart((prevCart) => {
       return prevCart
         .map((item) => {
-          if (item.variantId === variantId) {
+          if (item.lineKey === key || item.variantId === key) {
             const nextQty = item.quantity + delta;
             if (delta > 0 && nextQty > item.available) {
               alert(`Số lượng không được vượt quá tồn khả dụng (${item.available}) của mặt hàng này.`);
@@ -168,10 +168,10 @@ export function PosPage() {
     });
   };
 
-  const handleSetQuantity = (variantId: string, quantity: number) => {
+  const handleSetQuantity = (key: string, quantity: number) => {
     setCart((prevCart) =>
       prevCart.map((item) => {
-        if (item.variantId === variantId) {
+        if (item.lineKey === key || item.variantId === key) {
           const maxAllowed = item.available > 0 ? item.available : 1;
           const clamped = Math.min(Math.max(1, Number.isFinite(quantity) ? Math.floor(quantity) : 1), maxAllowed);
           return { ...item, quantity: clamped };
@@ -181,8 +181,44 @@ export function PosPage() {
     );
   };
 
-  const handleRemoveItem = (variantId: string) => {
-    setCart((prevCart) => prevCart.filter((item) => item.variantId !== variantId));
+  const handleRemoveItem = (key: string) => {
+    setCart((prevCart) => prevCart.filter((item) => item.lineKey !== key && item.variantId !== key));
+  };
+
+  const handleUpdateUnit = (lineKey: string, newUnitId: string) => {
+    setCart((prevCart) => {
+      const targetIndex = prevCart.findIndex((i) => i.lineKey === lineKey || i.variantId === lineKey);
+      if (targetIndex === -1) return prevCart;
+      const currentItem = prevCart[targetIndex];
+      const targetUnit = currentItem.units?.find((u) => u.unitId === newUnitId);
+      if (!targetUnit) return prevCart;
+
+      const basePrice = currentItem.retailPrice / (currentItem.factorToBase || 1);
+      const newUnitPrice = targetUnit.salePrice ?? (basePrice * targetUnit.factor);
+      const newLineKey = `${currentItem.variantId}:${newUnitId}`;
+
+      const mergeIndex = prevCart.findIndex(
+        (i, idx) => idx !== targetIndex && (i.lineKey === newLineKey || (i.variantId === currentItem.variantId && i.unitId === newUnitId))
+      );
+      if (mergeIndex > -1) {
+        const next = [...prevCart];
+        next[mergeIndex] = { ...next[mergeIndex], quantity: next[mergeIndex].quantity + currentItem.quantity };
+        return next.filter((_, idx) => idx !== targetIndex);
+      } else {
+        const next = [...prevCart];
+        next[targetIndex] = {
+          ...currentItem,
+          unitId: targetUnit.unitId,
+          unitName: targetUnit.unitName,
+          unitCode: targetUnit.unitCode,
+          factorToBase: targetUnit.factor,
+          isBaseUnit: targetUnit.isBase,
+          retailPrice: newUnitPrice,
+          lineKey: newLineKey,
+        };
+        return next;
+      }
+    });
   };
 
   const handleClearCart = () => {
@@ -251,16 +287,36 @@ export function PosPage() {
           </div>
           <fieldset className="pos-cart-lines" disabled={checkoutBusy}>
             {cart.length === 0 ? <div className="pos-empty"><Package size={38} strokeWidth={1.3} /><strong>Giỏ hàng trống</strong><p>Quét barcode hoặc chọn sản phẩm</p></div> :
-              cart.map((item) => <article className="pos-cart-line" key={item.variantId}>
-                <div className="pos-cart-product"><strong>{item.productName}</strong><small>{item.sku} · {item.variantName}</small></div>
-                <button className="pos-remove-line" type="button" aria-label={`Xóa ${item.sku}`} onClick={() => handleRemoveItem(item.variantId)}><Trash2 size={15} /></button>
-                <div className="pos-quantity-control">
-                  <button type="button" aria-label={`Giảm ${item.sku}`} onClick={() => handleUpdateQuantity(item.variantId,-1)}><Minus size={13} /></button>
-                  <input type="number" min="1" max={item.available} aria-label={`Số lượng ${item.sku}`} value={item.quantity}
-                    onChange={(event) => handleSetQuantity(item.variantId,Number(event.target.value))} />
-                  <button type="button" aria-label={`Tăng ${item.sku}`} disabled={item.quantity >= item.available} onClick={() => handleUpdateQuantity(item.variantId,1)}><Plus size={13} /></button>
+              cart.map((item) => <article className="pos-cart-line" key={item.lineKey || item.variantId}>
+                <div className="pos-cart-product">
+                  <strong>{item.productName}</strong>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                    <small>{item.sku} · {item.variantName}</small>
+                    {item.units && item.units.length > 1 ? (
+                      <select
+                        value={item.unitId || ''}
+                        onChange={(e) => handleUpdateUnit(item.lineKey || item.variantId, e.target.value)}
+                        style={{ fontSize: '11px', padding: '1px 4px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                      >
+                        {item.units.map((u: any) => (
+                          <option key={u.unitId} value={u.unitId}>
+                            {u.unitName} (x{u.factor})
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      item.unitName && <span style={{ fontSize: '11px', background: '#e0e7ff', color: '#3730a3', padding: '1px 4px', borderRadius: '4px' }}>{item.unitName}</span>
+                    )}
+                  </div>
                 </div>
-                <div className="pos-line-price"><strong>{formatCurrency(item.retailPrice*item.quantity)}</strong><small>{formatCurrency(item.retailPrice)} / SP</small></div>
+                <button className="pos-remove-line" type="button" aria-label={`Xóa ${item.sku}`} onClick={() => handleRemoveItem(item.lineKey || item.variantId)}><Trash2 size={15} /></button>
+                <div className="pos-quantity-control">
+                  <button type="button" aria-label={`Giảm ${item.sku}`} onClick={() => handleUpdateQuantity(item.lineKey || item.variantId,-1)}><Minus size={13} /></button>
+                  <input type="number" min="1" max={item.available} aria-label={`Số lượng ${item.sku}`} value={item.quantity}
+                    onChange={(event) => handleSetQuantity(item.lineKey || item.variantId,Number(event.target.value))} />
+                  <button type="button" aria-label={`Tăng ${item.sku}`} disabled={item.quantity >= item.available} onClick={() => handleUpdateQuantity(item.lineKey || item.variantId,1)}><Plus size={13} /></button>
+                </div>
+                <div className="pos-line-price"><strong>{formatCurrency(item.retailPrice*item.quantity)}</strong><small>{formatCurrency(item.retailPrice)} / {item.unitName || 'SP'}</small></div>
               </article>)}
           </fieldset>
           <fieldset className="pos-payment-fieldset" disabled={checkoutBusy}>
