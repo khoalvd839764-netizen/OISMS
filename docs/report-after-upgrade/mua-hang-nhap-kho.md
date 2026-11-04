@@ -51,7 +51,7 @@ Các lỗi trên do người nghiệm thu vừa sửa vừa tự kiểm, chưa q
 
 ## Điểm còn lưu ý
 
-- **Test có thể chập chờn:** `WebhookIntegrationTests.AC11_Concurrency_50SubmissionsSameKey...` FAIL 1 lần trong lần chạy toàn bộ đầu tiên (48 thay vì 49 phản hồi 200). Sau đó PASS 8/8 khi chạy riêng và PASS ở lần chạy toàn bộ cuối. Chưa xác định nguyên nhân; luồng webhook không gọi code phiếu mua.
+- **Test có thể chập chờn:** `WebhookIntegrationTests.AC11_Concurrency_50SubmissionsSameKey...` FAIL 1 lần trong lần chạy toàn bộ đầu tiên (48 thay vì 49 phản hồi 200). Sau đó PASS 8/8 khi chạy riêng và PASS ở lần chạy toàn bộ cuối. Luồng webhook không gọi code phiếu mua. **Cập nhật 04/11/2026:** đã xác định nguyên nhân là `RangeAttribute` theo kiểu `decimal` không an toàn luồng ở lần dùng đầu, nên một request bị 500; đã sửa bằng `DecimalRangeAttribute`.
 - **Lệch nhỏ so với thiết kế:** `ISqlLockService` trong `GoodsReceiptService` là tham số tùy chọn, có bản rỗng và SQL dự phòng để test cũ giữ constructor 3 tham số. Chạy thật vẫn dùng bản Infrastructure qua DI. Nên dọn khi có dịp.
 - **Lint `pos-app`:** lỗi đã thấy là `react-hooks(rules-of-hooks)` tại `src/components/ReceiptPrintModal.tsx:15`, trên code của `develop`; đợt này không sửa `pos-app`.
 - **Cài lại thư viện:** `develop` thêm thư viện mới cho POS, nên sau khi kéo code cần chạy `npm install` trong `src/frontend/pos-app`.

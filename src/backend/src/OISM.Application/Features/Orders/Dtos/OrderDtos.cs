@@ -24,10 +24,10 @@ public class OrderItemRequestDto
     /// </summary>
     public Guid? UnitId { get; set; }
 
-    [Range(typeof(decimal), "0.001", "999999999999999.999", ErrorMessage = "Số lượng mua phải lớn hơn 0 và không vượt quá giới hạn tối đa.")]
+    [DecimalRange("0.001", "999999999999999.999", ErrorMessage = "Số lượng mua phải lớn hơn 0 và không vượt quá giới hạn tối đa.")]
     public decimal Quantity { get; set; }
 
-    [Range(typeof(decimal), "0", "999999999999999999.99", ErrorMessage = "Đơn giá không được âm và không vượt quá giới hạn tối đa.")]
+    [DecimalRange("0", "999999999999999999.99", ErrorMessage = "Đơn giá không được âm và không vượt quá giới hạn tối đa.")]
     public decimal UnitPrice { get; set; }
 }
 
@@ -52,10 +52,10 @@ public class PosCheckoutRequestDto
     [Required(ErrorMessage = "Phương thức thanh toán là bắt buộc.")]
     public string PaymentMethod { get; set; } = "Cash";
 
-    [Range(typeof(decimal), "0", "999999999999999999.99", ErrorMessage = "Số tiền khách đưa không được âm và không vượt quá giới hạn tối đa.")]
+    [DecimalRange("0", "999999999999999999.99", ErrorMessage = "Số tiền khách đưa không được âm và không vượt quá giới hạn tối đa.")]
     public decimal? AmountGiven { get; set; }
 
-    [Range(typeof(decimal), "0", "999999999999999999.99", ErrorMessage = "Tiền thừa không được âm và không vượt quá giới hạn tối đa.")]
+    [DecimalRange("0", "999999999999999999.99", ErrorMessage = "Tiền thừa không được âm và không vượt quá giới hạn tối đa.")]
     public decimal? ChangeDue { get; set; }
 
     /// <summary>
@@ -70,7 +70,7 @@ public class PosCheckoutRequestDto
     [MinLength(1, ErrorMessage = "Giỏ hàng phải có ít nhất 1 sản phẩm.")]
     public List<OrderItemRequestDto> Items { get; set; } = new();
 
-    [Range(typeof(decimal), "0", "999999999999999999.99", ErrorMessage = "Tổng tiền đơn hàng không được âm và không vượt quá giới hạn tối đa.")]
+    [DecimalRange("0", "999999999999999999.99", ErrorMessage = "Tổng tiền đơn hàng không được âm và không vượt quá giới hạn tối đa.")]
     public decimal TotalAmount { get; set; }
 }
 
