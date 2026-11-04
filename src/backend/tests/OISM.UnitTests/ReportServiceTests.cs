@@ -102,6 +102,134 @@ public class ReportServiceTests
     }
 
     [Fact]
+    public async Task GetInventoryVelocityReport_ShouldSplitQuantityByBaseUnit()
+    {
+        var (context, mockTenant, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var reportService = new ReportService(context, mockTenant.Object);
+
+        var branchA = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Kho A" };
+        var branchB = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Kho B" };
+        var product = new Product { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Hàng hỗn hợp" };
+        var piece = new Unit { Id = Guid.NewGuid(), TenantId = tenantId, Code = "cai", Name = "Cái" };
+        var kilogram = new Unit { Id = Guid.NewGuid(), TenantId = tenantId, Code = "kg", Name = "Kg" };
+
+        var skuPiece = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, ProductId = product.Id, SKU = "SKU-CAI", Product = product, BaseUnitId = piece.Id, BaseUnit = piece };
+        var skuKg = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, ProductId = product.Id, SKU = "SKU-KG", Product = product, BaseUnitId = kilogram.Id, BaseUnit = kilogram };
+        var skuNoUnit = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, ProductId = product.Id, SKU = "SKU-NONE", Product = product };
+
+        context.Branches.AddRange(branchA, branchB);
+        context.Products.Add(product);
+        context.Units.AddRange(piece, kilogram);
+        context.Skus.AddRange(skuPiece, skuKg, skuNoUnit);
+
+        InventoryBalance Balance(ProductVariant sku, Branch branch, decimal onHand, decimal reserved) => new()
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            BranchId = branch.Id,
+            SkuId = sku.Id,
+            OnHand = onHand,
+            Reserved = reserved,
+            AverageCost = 1000
+        };
+
+        context.InventoryBalances.AddRange(
+            Balance(skuPiece, branchA, 10, 2),
+            Balance(skuPiece, branchB, 5, 1),
+            Balance(skuKg, branchA, 2.5m, 0.5m),
+            Balance(skuNoUnit, branchA, 3, 0));
+        await context.SaveChangesAsync();
+
+        var report = await reportService.GetInventoryVelocityReportAsync(new ReportFilterDto());
+
+        report.QuantityByUnit.Should().HaveCount(3);
+        report.QuantityByUnit[0].Should().BeEquivalentTo(new UnitQuantityDto { UnitName = "Cái", OnHand = 15, Reserved = 3, Available = 12 });
+        report.QuantityByUnit[1].Should().BeEquivalentTo(new UnitQuantityDto { UnitName = "Chưa xác định", OnHand = 3, Reserved = 0, Available = 3 });
+        report.QuantityByUnit[2].Should().BeEquivalentTo(new UnitQuantityDto { UnitName = "Kg", OnHand = 2.5m, Reserved = 0.5m, Available = 2 });
+
+        // Lọc theo chi nhánh thì phần tách đơn vị cũng chỉ tính chi nhánh đó
+        var branchReport = await reportService.GetInventoryVelocityReportAsync(new ReportFilterDto { BranchId = branchB.Id });
+        branchReport.QuantityByUnit.Should().ContainSingle();
+        branchReport.QuantityByUnit[0].Should().BeEquivalentTo(new UnitQuantityDto { UnitName = "Cái", OnHand = 5, Reserved = 1, Available = 4 });
+
+        report.SlowMovingItems.Single(s => s.SkuId == skuKg.Id).BaseUnitName.Should().Be("Kg");
+        report.SlowMovingItems.Single(s => s.SkuId == skuNoUnit.Id).BaseUnitName.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetInventoryVelocityReport_ShouldSumOnHandAcrossBranches_PerSku()
+    {
+        var (context, mockTenant, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var reportService = new ReportService(context, mockTenant.Object);
+
+        var branchA = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Kho A" };
+        var branchB = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Kho B" };
+        var product = new Product { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Sữa" };
+        var skuSold = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, ProductId = product.Id, SKU = "SKU-SOLD", Product = product };
+        var skuIdle = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, ProductId = product.Id, SKU = "SKU-IDLE", Product = product };
+        var skuEmpty = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, ProductId = product.Id, SKU = "SKU-EMPTY", Product = product };
+
+        context.Branches.AddRange(branchA, branchB);
+        context.Products.Add(product);
+        context.Skus.AddRange(skuSold, skuIdle, skuEmpty);
+
+        InventoryBalance Balance(ProductVariant sku, Branch branch, decimal onHand) => new()
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            BranchId = branch.Id,
+            SkuId = sku.Id,
+            OnHand = onHand,
+            AverageCost = 1000
+        };
+
+        context.InventoryBalances.AddRange(
+            Balance(skuSold, branchA, 18),
+            Balance(skuSold, branchB, 3),
+            Balance(skuIdle, branchA, 4),
+            Balance(skuIdle, branchB, 6),
+            Balance(skuEmpty, branchA, 0),
+            Balance(skuEmpty, branchB, 0));
+
+        var order = new Order
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Number = "ORD-MULTI-BRANCH",
+            BranchId = branchA.Id,
+            Status = "Confirmed",
+            TotalAmount = 2000,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        order.Items.Add(new OrderItem
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            OrderId = order.Id,
+            SkuId = skuSold.Id,
+            Quantity = 2,
+            UnitPrice = 1000,
+            CostPrice = 500
+        });
+        context.Orders.Add(order);
+        await context.SaveChangesAsync();
+
+        var report = await reportService.GetInventoryVelocityReportAsync(new ReportFilterDto());
+
+        report.BestSellers.Single(s => s.SkuId == skuSold.Id).CurrentOnHand.Should().Be(21);
+
+        // Mỗi SKU chỉ một dòng, SKU đã hết hàng ở mọi chi nhánh không được liệt kê
+        report.SlowMovingItems.Select(s => s.SkuId).Should().OnlyHaveUniqueItems();
+        report.SlowMovingItems.Select(s => s.SkuId).Should().NotContain(skuEmpty.Id);
+        report.SlowMovingItems.Single(s => s.SkuId == skuIdle.Id).CurrentOnHand.Should().Be(10);
+        report.SlowMovingItems.Single(s => s.SkuId == skuSold.Id).CurrentOnHand.Should().Be(21);
+
+        // Lọc một chi nhánh thì chỉ tính tồn của chi nhánh đó
+        var branchReport = await reportService.GetInventoryVelocityReportAsync(new ReportFilterDto { BranchId = branchB.Id });
+        branchReport.SlowMovingItems.Single(s => s.SkuId == skuSold.Id).CurrentOnHand.Should().Be(3);
+    }
+
+    [Fact]
     public async Task GetInventoryVelocityReport_ShouldCalculateTotalValue_AndRankBestSellers()
     {
         // Arrange
@@ -267,6 +395,33 @@ public class ReportServiceTests
         var warnAlert = alerts.First(a => a.SkuId == sku3.Id);
         warnAlert.AlertLevel.Should().Be("Warning");
         warnAlert.Available.Should().Be(15);
+    }
+
+    [Fact]
+    public async Task GetDashboardSummaryAsync_LowStockCount_ExcludesInactiveSku()
+    {
+        var (context, tenantMock, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var active = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, SKU = "SKU-ACTIVE", Unit = "piece", IsActive = true };
+        var inactive = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, SKU = "SKU-INACTIVE", Unit = "piece", IsActive = false };
+        context.Skus.AddRange(active, inactive);
+        foreach (var sku in new[] { active, inactive })
+        {
+            context.InventoryBalances.Add(new InventoryBalance
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                BranchId = Guid.NewGuid(),
+                SkuId = sku.Id,
+                OnHand = 1m,
+                Reserved = 0m,
+                ReorderPoint = 5m
+            });
+        }
+        await context.SaveChangesAsync();
+
+        var summary = await new ReportService(context, tenantMock.Object).GetDashboardSummaryAsync(isOwner: true);
+
+        summary.LowStockCount.Should().Be(1);
     }
 
     [Fact]

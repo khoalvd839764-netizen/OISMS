@@ -61,6 +61,17 @@ public class SkuVelocityItemDto
     public decimal TotalRevenue { get; set; }
     public decimal CurrentOnHand { get; set; }
     public decimal DaysWithoutSale { get; set; }
+    /// <summary>Đơn vị gốc của SKU; null khi SKU chưa khai báo đơn vị gốc.</summary>
+    public string? BaseUnitName { get; set; }
+}
+
+/// <summary>Số lượng tồn của các SKU có cùng đơn vị gốc.</summary>
+public class UnitQuantityDto
+{
+    public string UnitName { get; set; } = string.Empty;
+    public decimal OnHand { get; set; }
+    public decimal Reserved { get; set; }
+    public decimal Available { get; set; }
 }
 
 public class InventoryVelocityReportDto
@@ -69,6 +80,8 @@ public class InventoryVelocityReportDto
     public decimal TotalOnHandQuantity { get; set; }
     public decimal TotalReservedQuantity { get; set; }
     public decimal TotalAvailableQuantity { get; set; }
+    /// <summary>Tồn tách theo đơn vị gốc, vì cộng gộp khác đơn vị (Cái, Kg) không có ý nghĩa.</summary>
+    public List<UnitQuantityDto> QuantityByUnit { get; set; } = new();
 
     public List<SkuVelocityItemDto> BestSellers { get; set; } = new();
     public List<SkuVelocityItemDto> SlowMovingItems { get; set; } = new();

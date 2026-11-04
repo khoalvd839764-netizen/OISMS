@@ -38,8 +38,8 @@ export function StatCard({ label, value, change, icon }: { label: string; value:
   return <div className="stat-card"><div className="stat-head"><span>{label}</span><span className="stat-icon">{icon}</span></div><strong>{value}</strong><small>{change}</small></div>;
 }
 
-export function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
-  return <div className="modal-backdrop" role="presentation"><div className="modal" role="dialog" aria-modal="true"><div className="modal-head"><h2>{title}</h2><Button variant="ghost" aria-label="Đóng" onClick={onClose}><X size={20} /></Button></div>{children}</div></div>;
+export function Modal({ title, children, onClose, wide = false }: { title: string; children: ReactNode; onClose: () => void; wide?: boolean }) {
+  return <div className="modal-backdrop" role="presentation"><div className={wide ? "modal modal--wide" : "modal"} role="dialog" aria-modal="true"><div className="modal-head"><h2>{title}</h2><Button variant="ghost" aria-label="Đóng" onClick={onClose}><X size={20} /></Button></div>{children}</div></div>;
 }
 
 export function EmptyState({ title, description }: { title: string; description: string }) {

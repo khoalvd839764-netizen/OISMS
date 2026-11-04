@@ -756,7 +756,7 @@ export function OrdersPage() {
                     );
                   })()}
                   <label>
-                    <span>Bảng giá áp dụng (U04) *</span>
+                    <span>Bảng giá áp dụng *</span>
                     <Select
                       value={newPriceListCode}
                       disabled={isFormLocked}

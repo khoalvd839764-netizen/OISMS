@@ -3,27 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { Trash2, ShoppingBag, Minus, Plus, Package } from 'lucide-react';
 import type { CartItem, Branch, PosProductSearchResponse, ReceiptData } from '../types/pos';
 import { fetchBranches, searchPosProducts } from '../services/posApi';
+import { applyCurrentPrices, baseQuantityInCart, lineDecimalPlaces, maxQuantityForLine, normalizeQuantity, resolveCartUnit, type CurrentPriceItem } from '../services/posCartUnits';
+import { QuantityInput } from '../components/pos/QuantityInput';
 import { PosHeader } from '../components/pos/PosHeader';
 import { ProductCatalog } from '../components/pos/ProductCatalog';
 import './PosPage.css';
 import { PaymentModal } from '../components/pos/PaymentModal';
 import { ReceiptPrintModal } from '../components/pos/ReceiptPrintModal';
 import { useAuth } from '../context/AuthContext';
-
-/** Chọn đơn vị và giá bán khi thêm vào giỏ. Trả về null nếu đơn vị chưa có giá, không tự tính giá. */
-function resolveCartUnit(product: PosProductSearchResponse) {
-  const units = product.units ?? [];
-  if (units.length === 0) {
-    return { unit: undefined, price: product.retailPrice };
-  }
-  const matched = units.find((u) => u.unitId === product.matchedUnitId);
-  const candidates = matched
-    ? [matched]
-    : [units.find((u) => u.isDefaultSale), units.find((u) => u.isBase), ...units];
-  const unit = candidates.find((u) => u && u.salePrice != null);
-  if (!unit) return null;
-  return { unit, price: unit.salePrice as number };
-}
 
 export function PosPage() {
   const { user, logout } = useAuth();
@@ -139,6 +126,10 @@ export function PosPage() {
     const selectedUnit = resolved.unit;
     const unitId = selectedUnit?.unitId || '';
     const lineKey = `${product.variantId}:${unitId}`;
+    if (baseQuantityInCart(cart, product.variantId) + (selectedUnit?.factor || 1) > availableStock) {
+      alert(`Không thể thêm. Tồn khả dụng của chi nhánh (${availableStock}) không đủ cho thêm 1 ${selectedUnit?.unitName || 'sản phẩm'}.`);
+      return;
+    }
 
     setCart((prevCart) => {
       // Khóa dòng theo variantId + unitId: khác đơn vị thì không gộp dòng
@@ -210,9 +201,10 @@ export function PosPage() {
       return prevCart
         .map((item) => {
           if (item.lineKey === key || item.variantId === key) {
-            const nextQty = item.quantity + delta;
-            if (delta > 0 && nextQty > item.available) {
-              alert(`Số lượng không được vượt quá tồn khả dụng (${item.available}) của mặt hàng này.`);
+            const nextQty = normalizeQuantity(item.quantity + delta, lineDecimalPlaces(item));
+            const maxQty = maxQuantityForLine(prevCart, item);
+            if (delta > 0 && nextQty > maxQty) {
+              alert(`Số lượng không được vượt quá tồn khả dụng (tối đa ${maxQty} ${item.unitName || 'sản phẩm'}).`);
               return item;
             }
             return nextQty > 0 ? { ...item, quantity: nextQty } : null;
@@ -227,9 +219,11 @@ export function PosPage() {
     setCart((prevCart) =>
       prevCart.map((item) => {
         if (item.lineKey === key || item.variantId === key) {
-          const maxAllowed = item.available > 0 ? item.available : 1;
-          const clamped = Math.min(Math.max(1, Number.isFinite(quantity) ? Math.floor(quantity) : 1), maxAllowed);
-          return { ...item, quantity: clamped };
+          const decimalPlaces = lineDecimalPlaces(item);
+          const minQty = decimalPlaces > 0 ? 1 / 10 ** decimalPlaces : 1;
+          const maxQty = Math.max(minQty, maxQuantityForLine(prevCart, item));
+          const wanted = Number.isFinite(quantity) ? normalizeQuantity(quantity, decimalPlaces) : minQty;
+          return { ...item, quantity: Math.min(Math.max(minQty, wanted), maxQty) };
         }
         return item;
       })
@@ -242,9 +236,17 @@ export function PosPage() {
 
   const handleUpdateUnit = (lineKey: string, newUnitId: string) => {
     const lineItem = cart.find((i) => i.lineKey === lineKey || i.variantId === lineKey);
-    if (lineItem?.units?.find((u) => u.unitId === newUnitId)?.salePrice == null) {
+    const nextUnit = lineItem?.units?.find((u) => u.unitId === newUnitId);
+    if (nextUnit?.salePrice == null) {
       alert('Đơn vị này chưa có giá. Vui lòng cấu hình giá trước khi bán.');
       return;
+    }
+    if (lineItem) {
+      const usedByOthers = baseQuantityInCart(cart, lineItem.variantId, lineItem.lineKey || `${lineItem.variantId}:${lineItem.unitId || ''}`);
+      if (usedByOthers + lineItem.quantity * nextUnit.factor > lineItem.available) {
+        alert(`Tồn khả dụng (${lineItem.available}) không đủ cho số lượng này theo đơn vị ${nextUnit.unitName}.`);
+        return;
+      }
     }
     setCart((prevCart) => {
       const targetIndex = prevCart.findIndex((i) => i.lineKey === lineKey || i.variantId === lineKey);
@@ -371,9 +373,9 @@ export function PosPage() {
                 <button className="pos-remove-line" type="button" aria-label={`Xóa ${item.sku}`} onClick={() => handleRemoveItem(item.lineKey || item.variantId)}><Trash2 size={15} /></button>
                 <div className="pos-quantity-control">
                   <button type="button" aria-label={`Giảm ${item.sku}`} onClick={() => handleUpdateQuantity(item.lineKey || item.variantId,-1)}><Minus size={13} /></button>
-                  <input type="number" min="1" max={item.available} aria-label={`Số lượng ${item.sku}`} value={item.quantity}
-                    onChange={(event) => handleSetQuantity(item.lineKey || item.variantId,Number(event.target.value))} />
-                  <button type="button" aria-label={`Tăng ${item.sku}`} disabled={item.quantity >= item.available} onClick={() => handleUpdateQuantity(item.lineKey || item.variantId,1)}><Plus size={13} /></button>
+                  <QuantityInput value={item.quantity} max={maxQuantityForLine(cart, item)} decimalPlaces={lineDecimalPlaces(item)} label={`Số lượng ${item.sku}`}
+                    onCommit={(quantity) => handleSetQuantity(item.lineKey || item.variantId, quantity)} />
+                  <button type="button" aria-label={`Tăng ${item.sku}`} disabled={item.quantity >= maxQuantityForLine(cart, item)} onClick={() => handleUpdateQuantity(item.lineKey || item.variantId,1)}><Plus size={13} /></button>
                 </div>
                 <div className="pos-line-price"><strong>{formatCurrency(item.retailPrice*item.quantity)}</strong><small>{formatCurrency(item.retailPrice)} / {item.unitName || 'SP'}</small></div>
               </article>)}
@@ -384,7 +386,7 @@ export function PosPage() {
               <div className="pos-grand-total"><strong>Tổng thanh toán</strong><strong>{formatCurrency(totalAmount)}</strong></div>
             </div>
             <PaymentModal key={`${user?.tenantId}:${user?.id}:${selectedBranchId}:${catalogRefresh}`} embedded isOpen
-              onClose={() => {}} items={cart} branchId={selectedBranchId} branchName={selectedBranch?.name || ''}
+              onClose={() => {}} items={cart} onApplyCurrentPrices={(prices: CurrentPriceItem[]) => setCart((prev) => applyCurrentPrices(prev, prices))} branchId={selectedBranchId} branchName={selectedBranch?.name || ''}
               branchAddress={selectedBranch?.address} branchPhone={selectedBranch?.phone}
               tenantName={currentUser?.tenantName || 'CỬA HÀNG OISMS'} cashierName={currentUser?.fullName || 'Thu ngân'}
               onBusyChange={setCheckoutBusy} submitRef={paymentButtonRef}

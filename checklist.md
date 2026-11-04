@@ -9,6 +9,7 @@
 | **Bằng chứng kiểm thử Sprint 2** | **194/194 Tests Pass (100%)** — 103 Unit Tests + 91 Integration Tests trên PostgreSQL 16+ thật; Code Coverage Core Inventory đạt **`92.49% – 94.83%`** |
 | **Nguồn cập nhật Sprint 3** | [Phân công Sprint 3 lưu trong repo, Confluence v11](docs/08-sprints/sprint-3/README.md) và [báo cáo tổng kết Đăng Khoa](docs/09-personal-reports/dang-khoa/sprint-3/SUMMARY.md); không tra cứu/cập nhật Confluence live trong lượt này |
 | **Hiện trạng sản phẩm mới nhất** | [Cập nhật 30/10/2026](docs/bug-fixaffter/CHECKLIST-BUGFIX-AND-UPGRADE.md): **20/20 nhóm lỗi (`BF-001..020`) ĐÃ KHẮC PHỤC & VERIFIED PASS**, **Clean Architecture (`Upgrade 06`) ĐÃ HOÀN TẤT**; còn **8 mục Coming soon (`OISMS-45`)** và **5 mục Upgrade nghiệp vụ (`OISMS-47`)** đang triển khai ở Sprint 4 |
+| **Frontend Coming Soon và Upgrade** | [Cập nhật 04/11/2026](docs/report-after-upgrade/frontend-coming-soon-va-upgrade.md): đã gộp vào `develop`. Còn CS-01, CS-05 (POS Admin), CS-06, U01-B và phân công chi nhánh của CS-02. |
 
 ---
 
@@ -92,25 +93,25 @@ Toàn bộ 20 mục dưới đây đã được **KHẮC PHỤC TRIỆT ĐỂ & 
 ### 0A.2B. Checklist Nâng cấp Kiến trúc & Nghiệp vụ (`docs/Upgrade-recommended/`)
 
 - [x] **`Upgrade 06` — Rà soát & Chuẩn hóa Clean Architecture Backend (`OISMS-46` — Đã hoàn thành):** Chuyển nghiệp vụ/transaction từ 8 Controller về `OISM.Application`, cô lập `IPasswordHasher`, `ISqlLockService`, `IWarehouseBranchReassignmentStore` ở `OISM.Infrastructure`, tách `AddApplicationServices` / `AddInfrastructureServices` và xóa thư mục `OISMS/` trùng lặp. Xem [clean-architecture.md](docs/report-after-upgrade/clean-architecture.md).
-- [ ] **`Upgrade 05` — Nhiều đơn vị tính cho hàng hóa vật lý (`OISMS-47` — Bước 1):** Bảng `units`, `sku_units`, tồn theo đơn vị gốc `BaseUnitId` và quy đổi `BaseQuantity = Quantity × FactorSnapshot`. *Tiến độ: xong backend P1 (schema, migration, API danh mục đơn vị) và P2 (nhập kho, đơn hàng, POS, báo cáo); chưa làm P3 (giao diện).*
-- [ ] **`Upgrade 04` — Bảng giá bán theo thời gian hiệu lực (`OISMS-47` — Bước 2):** Bảng `price_lists`, `sku_unit_prices` chỉ thêm dòng mới, phiếu đổi giá `price_change_requests` có bước duyệt và chụp snapshot giá vào dòng đơn.
-- [ ] **`Upgrade 01-A` — Mua hàng và nhập kho từ phiếu mua (`OISMS-47` — Bước 3):** Phiếu mua hàng `purchase_orders` có bước duyệt, bắt buộc phiếu nhập NCC gắn phiếu mua đã duyệt, chặn nhập vượt, lấy giá và hệ số từ phiếu mua.
+- [x] **`Upgrade 05` — Nhiều đơn vị tính cho hàng hóa vật lý (`OISMS-47` — Bước 1):** Bảng `units`, `sku_units`, tồn theo đơn vị gốc `BaseUnitId` và quy đổi `BaseQuantity = Quantity × FactorSnapshot`. *Tiến độ: đã xong backend và giao diện.*
+- [x] **`Upgrade 04` — Bảng giá bán theo thời gian hiệu lực (`OISMS-47` — Bước 2):** Bảng `price_lists`, `sku_unit_prices` chỉ thêm dòng mới, phiếu đổi giá `price_change_requests` có bước duyệt và chụp snapshot giá vào dòng đơn.
+- [x] **`Upgrade 01-A` — Mua hàng và nhập kho từ phiếu mua (`OISMS-47` — Bước 3):** Phiếu mua hàng `purchase_orders` có bước duyệt, bắt buộc phiếu nhập NCC gắn phiếu mua đã duyệt, chặn nhập vượt, lấy giá và hệ số từ phiếu mua.
 - [ ] **`Upgrade 01-B` — Hóa đơn NCC và chênh lệch (`OISMS-47` — làm sau `01-A`):** Hóa đơn NCC `supplier_invoices`, đối chiếu ba bên và chứng từ chênh lệch `purchase_variances`.
-- [ ] **`Upgrade 02` — Truy vết chứng từ xuất kho (`OISMS-47` — Bước 4):** Chuẩn hóa chứng từ nguồn cho mọi dòng `OUT` và hóa đơn/biên nhận bán `sales_invoices`. Backend đã xong 03/11/2026 ([báo cáo](docs/report-after-upgrade/hoa-don-truy-vet-xuat-kho.md)); còn giao diện Admin, POS.
-- [ ] **`Upgrade 03` — Quy định kiểm kê định kỳ & đột xuất (`OISMS-47` — Bước 5):** Lịch kiểm kê Giữa tháng (ngày 15) / Cuối tháng / Đột xuất và bước duyệt chênh lệch `PendingApproval`.
+- [x] **`Upgrade 02` — Truy vết chứng từ xuất kho (`OISMS-47` — Bước 4):** Chuẩn hóa chứng từ nguồn cho mọi dòng `OUT` và hóa đơn/biên nhận bán `sales_invoices`. Backend đã xong 03/11/2026 ([báo cáo](docs/report-after-upgrade/hoa-don-truy-vet-xuat-kho.md)); giao diện Admin, POS đã xong 04/11/2026.
+- [x] **`Upgrade 03` — Quy định kiểm kê định kỳ & đột xuất (`OISMS-47` — Bước 5):** Lịch kiểm kê Giữa tháng (ngày 15) / Cuối tháng / Đột xuất và bước duyệt chênh lệch `PendingApproval`.
 
 ### 0A.3. Chức năng chưa hoàn thiện / Coming soon
 
 Gắn nhãn hoặc khóa nút giúp phản ánh đúng hiện trạng; **không được đánh dấu hoàn thành yêu cầu** chỉ vì đã gắn Coming soon. Phạm vi và điều kiện sử dụng thật: [COMING-SOON.md](docs/bug-fixaffter/COMING-SOON.md).
 
 - [ ] **CS-01:** Luồng nhận hàng trả từ khách, liên kết đơn gốc và ghi nhận tồn/lịch sử.
-- [ ] **CS-02:** Danh sách, tạo/sửa nhân viên, phân quyền và phân công chi nhánh.
-- [ ] **CS-03:** Lưu ngưỡng cảnh báo trên server và đồng bộ Kho/Báo cáo.
-- [ ] **CS-04:** Tìm kiếm toàn hệ thống ở thanh đầu trang.
-- [ ] **CS-05:** Thanh toán QR thật và xác nhận/đối soát theo phương án nghiệp vụ được chốt.
+- [ ] **CS-02:** Danh sách, tạo/sửa nhân viên, phân quyền và phân công chi nhánh. *(Còn thiếu phân công chi nhánh.)*
+- [x] **CS-03:** Lưu ngưỡng cảnh báo trên server và đồng bộ Kho/Báo cáo.
+- [x] **CS-04:** Tìm kiếm toàn hệ thống ở thanh đầu trang.
+- [ ] **CS-05:** Thanh toán QR thật và xác nhận/đối soát theo phương án nghiệp vụ được chốt. *(POS PWA đã có VietQR, thu ngân xác nhận thủ công; POS Admin chưa bật.)*
 - [ ] **CS-06:** In chứng từ giao hàng và báo cáo Admin; in hóa đơn POS cần nghiệm thu riêng.
-- [ ] **CS-07:** KPI bán hàng, đơn gần đây và biểu đồ Tổng quan từ dữ liệu server đầy đủ.
-- [ ] **CS-08:** Dự báo và gợi ý nhập hàng AI có API/model/UI và bằng chứng đánh giá.
+- [x] **CS-07:** KPI bán hàng, đơn gần đây và biểu đồ Tổng quan từ dữ liệu server đầy đủ.
+- [ ] **CS-08:** Dự báo và gợi ý nhập hàng AI có API/model/UI và bằng chứng đánh giá. *(Đã có API và giao diện; còn thiếu bằng chứng đánh giá.)*
 
 ### 0A.4. Bằng chứng và điều kiện nghiệm thu tiếp theo
 

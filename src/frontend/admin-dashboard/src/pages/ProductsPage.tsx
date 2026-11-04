@@ -17,6 +17,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Badge, Button, Input, Modal, PageTitle, Select } from "../components/ui";
+import { NumberField } from "../components/NumberField";
 import { apiAdapter } from "../services/apiAdapter";
 import { useAuth } from "../context/AuthContext";
 import type { Sku } from "../types/domain";
@@ -84,8 +85,8 @@ export function ProductsPage() {
       variantName: string;
       sku: string;
       barcode: string;
-      retailPrice: number;
-      wholesalePrice: number;
+      retailPrice: number | null;
+      wholesalePrice: number | null;
       baseUnitId?: string;
     }>
   >([
@@ -93,8 +94,8 @@ export function ProductsPage() {
       variantName: "Mặc định",
       sku: `SKU-${Date.now().toString().slice(-5)}`,
       barcode: generateEan13(),
-      retailPrice: 150000,
-      wholesalePrice: 100000,
+      retailPrice: null,
+      wholesalePrice: null,
     },
   ]);
 
@@ -122,13 +123,16 @@ export function ProductsPage() {
       apiAdapter.getSkus(),
       apiAdapter.getCategories(),
       apiAdapter.getBrands(),
-      unitService.getUnits().catch(() => []),
+      unitService.getUnits().catch(() => null),
     ]);
     if (Array.isArray(uRes)) {
       setUnitsList(uRes.filter((u) => u.isActive));
     }
 
     // [A09] Báo lỗi kết nối rõ ràng thay vì biến thành mảng rỗng = 0
+    if (uRes === null) {
+      setLoadError("Không thể tải danh mục đơn vị tính. Vui lòng thử lại trước khi chọn đơn vị gốc.");
+    }
     if (pRes.error) {
       setLoadError(pRes.error.message);
     }
@@ -149,8 +153,8 @@ export function ProductsPage() {
         variantName: `Biến thể ${variants.length + 1}`,
         sku: `SKU-${Date.now().toString().slice(-5)}-${variants.length + 1}`,
         barcode: generateEan13(),
-        retailPrice: 150000,
-        wholesalePrice: 100000,
+        retailPrice: null,
+        wholesalePrice: null,
       },
     ]);
   };
@@ -170,8 +174,8 @@ export function ProductsPage() {
         variantName: "Mặc định",
         sku: `SKU-${Date.now().toString().slice(-5)}`,
         barcode: generateEan13(),
-        retailPrice: 150000,
-        wholesalePrice: 100000,
+        retailPrice: null,
+        wholesalePrice: null,
       },
     ]);
   };
@@ -192,8 +196,8 @@ export function ProductsPage() {
       setFormError("Phát hiện trùng lặp mã SKU ngay trong danh sách biến thể đang tạo.");
       return;
     }
-    if (variants.some((v) => Number(v.retailPrice) < 0 || Number(v.wholesalePrice) < 0)) {
-      setFormError("Giá bán lẻ và giá bán sỉ không được nhỏ hơn 0.");
+    if (variants.some((v) => v.retailPrice == null || v.wholesalePrice == null)) {
+      setFormError("Vui lòng nhập giá bán lẻ và giá bán sỉ cho từng biến thể.");
       return;
     }
 
@@ -604,13 +608,13 @@ export function ProductsPage() {
                           </Button>
                           <Button
                             variant="ghost"
-                            title="Tạo phiếu đổi giá bán (U04)"
+                            title="Tạo phiếu đổi giá bán"
                             onClick={() => {
                               setPriceChangeModalSku(sku);
                             }}
                             style={{ marginRight: "4px" }}
                           >
-                            <TrendingUp size={17} />
+                            <TrendingUp size={17} /> Đổi giá
                           </Button>
                           <Button
                             variant="ghost"
@@ -676,7 +680,7 @@ export function ProductsPage() {
 
       {/* MODAL 1: THÊM SẢN PHẨM & BIẾN THỂ SKU ĐA DÒNG */}
       {productModal && (
-        <Modal title="Thêm sản phẩm mới kèm biến thể SKU" onClose={() => setProductModal(false)}>
+        <Modal wide title="Thêm sản phẩm mới kèm biến thể SKU" onClose={() => setProductModal(false)}>
           {formError && (
             <div
               style={{
@@ -739,7 +743,7 @@ export function ProductsPage() {
             </label>
           </div>
 
-          <div style={{ marginTop: "18px", borderTop: "1px solid #e2e8f0", paddingTop: "14px" }}>
+          <div style={{ margin: "18px 20px 0", borderTop: "1px solid #e2e8f0", paddingTop: "14px" }}>
             <div
               style={{
                 display: "flex",
@@ -772,8 +776,8 @@ export function ProductsPage() {
                     borderRadius: "8px",
                     padding: "10px",
                     display: "grid",
-                    gridTemplateColumns: "1.2fr 1.2fr 1.5fr 1fr 1fr auto",
-                    gap: "8px",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+                    gap: "10px",
                     alignItems: "end",
                   }}
                 >
@@ -801,7 +805,7 @@ export function ProductsPage() {
                       placeholder="SKU-001"
                     />
                   </label>
-                  <label>
+                  <label style={{ gridColumn: "span 2", minWidth: 0 }}>
                     <span style={{ fontSize: "11px" }}>Barcode (EAN-13)</span>
                     <div className="inline-input">
                       <Input
@@ -827,28 +831,28 @@ export function ProductsPage() {
                     </div>
                   </label>
                   <label>
-                    <span style={{ fontSize: "11px" }}>Giá lẻ (VNĐ)</span>
-                    <Input
-                      type="number"
-                      min="0"
+                    <span style={{ fontSize: "11px" }}>Giá lẻ *</span>
+                    <NumberField
+                      aria-label="Giá bán lẻ"
                       value={v.retailPrice}
-                      onChange={(e) => {
-                        const next = [...variants];
-                        next[idx].retailPrice = Number(e.target.value);
-                        setVariants(next);
+                      decimals={2}
+                      suffix="₫"
+                      placeholder="Ví dụ: 150.000"
+                      onChange={(value) => {
+                        setVariants((current) => current.map((row, i) => (i === idx ? { ...row, retailPrice: value } : row)));
                       }}
                     />
                   </label>
                   <label>
-                    <span style={{ fontSize: "11px" }}>Giá sỉ (VNĐ)</span>
-                    <Input
-                      type="number"
-                      min="0"
+                    <span style={{ fontSize: "11px" }}>Giá sỉ *</span>
+                    <NumberField
+                      aria-label="Giá bán sỉ"
                       value={v.wholesalePrice}
-                      onChange={(e) => {
-                        const next = [...variants];
-                        next[idx].wholesalePrice = Number(e.target.value);
-                        setVariants(next);
+                      decimals={2}
+                      suffix="₫"
+                      placeholder="Ví dụ: 120.000"
+                      onChange={(value) => {
+                        setVariants((current) => current.map((row, i) => (i === idx ? { ...row, wholesalePrice: value } : row)));
                       }}
                     />
                   </label>
@@ -874,8 +878,10 @@ export function ProductsPage() {
                     variant="ghost"
                     disabled={variants.length <= 1}
                     onClick={() => removeVariantRow(idx)}
+                    title="Xóa biến thể này"
+                    style={{ justifySelf: "start" }}
                   >
-                    <Trash2 size={16} color="#ef4444" />
+                    <Trash2 size={16} color="#ef4444" /> Xóa biến thể
                   </Button>
                 </div>
               ))}
@@ -1174,7 +1180,7 @@ export function ProductsPage() {
             <div
               style={{
                 background: "#fee2e2",
-                border: "#ef4444",
+                border: "1px solid #ef4444",
                 color: "#b91c1c",
                 padding: "10px",
                 borderRadius: "8px",
@@ -1234,7 +1240,7 @@ export function ProductsPage() {
 
           <div className="hint-box" style={{ margin: "0 16px 14px" }}>
             <p style={{ margin: 0 }}>
-              <strong>Quy tắc U04 Bảng giá:</strong> Không cho phép sửa trực tiếp giá trên form thông tin SKU. Mọi lần thay đổi giá bán lẻ hoặc giá bán sỉ bắt buộc phải tạo <strong>Phiếu đổi giá (Price Change Request)</strong> để lưu vết và phê duyệt theo quy trình.
+              <strong>Quy tắc bảng giá:</strong> Không cho phép sửa trực tiếp giá trên form thông tin SKU. Mọi lần thay đổi giá bán lẻ hoặc giá bán sỉ bắt buộc phải tạo <strong>Phiếu đổi giá (Price Change Request)</strong> để lưu vết và phê duyệt theo quy trình.
             </p>
             <p style={{ margin: "6px 0 0" }}>
               Giá vốn bình quân hiện tại (WAC): <strong>{editingSku.averageCost.toLocaleString("vi-VN")} ₫</strong>.

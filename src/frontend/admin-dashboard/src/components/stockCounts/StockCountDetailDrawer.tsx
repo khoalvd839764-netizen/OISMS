@@ -231,7 +231,7 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
     if (!isOwner) {
       setErrorDetails({
         title: 'Quyền truy cập bị từ chối (403 Forbidden)',
-        detail: 'Chỉ Chủ cửa hàng (Owner) mới có quyền phê duyệt cân bằng tồn kho theo quy định kiểm kê U03.',
+        detail: 'Chỉ Chủ cửa hàng (Owner) mới có quyền phê duyệt cân bằng tồn kho theo quy định kiểm kê.',
         errorCode: 'FORBIDDEN',
         status: 403,
       });

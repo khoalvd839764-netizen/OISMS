@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Banknote, QrCode, Printer, AlertCircle, ShieldCheck, RefreshCw } from 'lucide-react';
 import type { CartItem, PosCheckoutRequest, ReceiptData, PendingCheckoutRecord, PosUser } from '../types/pos';
+import type { CurrentPriceItem } from '../services/posCartUnits';
 import {
   checkoutPosOrder,
   generateUuidV4,
@@ -35,9 +36,11 @@ interface PaymentModalProps {
   currentUser?: PosUser | null;
   onSuccessAndPrint: (receipt: ReceiptData) => void;
   onPreviewReceipt: (receipt: ReceiptData) => void;
+  onApplyCurrentPrices?: (prices: CurrentPriceItem[]) => void;
 }
 
 export const PaymentModal: React.FC<PaymentModalProps> = ({
+  onApplyCurrentPrices,
   isOpen,
   onClose,
   items,
@@ -58,6 +61,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [userGivenAmount, setUserGivenAmount] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiNotice, setApiNotice] = useState<{ type: 'warning' | 'error' | 'success'; text: string; details?: any } | null>(null);
+  const [priceUpdates, setPriceUpdates] = useState<CurrentPriceItem[] | null>(null);
   const [pendingAttempt, setPendingAttempt] = useState<PendingCheckoutRecord | null>(() => {
     return getPendingCheckout(activeUser, branchId);
   });
@@ -268,6 +272,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         });
       } else {
         // Thất bại xác định (400 validation, 403, 409 thiếu tồn/mismatch, 404/405/501): Xóa pending
+        if (result.errorCode === 'PRICE_MISMATCH' && result.currentPrices?.length) {
+          setPriceUpdates(result.currentPrices);
+        }
         clearPendingCheckout(activeUser, branchId);
         setPendingAttempt(null);
         setApiNotice({
@@ -589,6 +596,28 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           </div>
 
           {/* API Notice / DoD Alert */}
+          {priceUpdates && (
+            <div role="alert" className="p-4 rounded-xl text-xs space-y-2 border border-amber-300 bg-amber-50 text-amber-900">
+              <div className="font-semibold">Giá niêm yết đã thay đổi. Vui lòng xác nhận giá mới trước khi thanh toán lại:</div>
+              <ul className="list-disc pl-4">
+                {priceUpdates.map((p) => (
+                  <li key={`${p.skuId}:${p.unitId || ''}`}>{p.skuCode || p.skuId}: {p.currentPrice.toLocaleString('vi-VN')} ₫</li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                onClick={() => {
+                  onApplyCurrentPrices?.(priceUpdates);
+                  setPriceUpdates(null);
+                  setApiNotice(null);
+                }}
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg"
+              >
+                Cập nhật giá mới vào giỏ
+              </button>
+            </div>
+          )}
+
           {activeNotice && (
             <div
               className={`p-4 rounded-xl text-xs space-y-2 border ${

@@ -4,7 +4,6 @@ import {
   Boxes,
   ChartNoAxesCombined,
   ChevronDown,
-  CircleHelp,
   ClipboardList,
   LayoutDashboard,
   LogOut,
@@ -128,6 +127,8 @@ export function AdminShell() {
     "/admin/products": "Sản phẩm",
     "/purchase-orders": "Đơn mua hàng từ NCC",
     "/admin/purchase-orders": "Đơn mua hàng từ NCC",
+    "/invoices": "Hóa đơn & Truy vết",
+    "/admin/invoices": "Hóa đơn & Truy vết",
     "/inventory": "Kho & sổ kho",
     "/admin/inventory": "Kho & sổ kho",
     "/inventory/transfers": "Chuyển kho nội bộ (2 Bước)",
@@ -139,8 +140,6 @@ export function AdminShell() {
     "/reports": "Báo cáo tài chính & tồn kho",
     "/admin/reports": "Báo cáo tài chính & tồn kho",
     "/demo-tools": "Công cụ demo",
-    "/handoff": "Handoff kỹ thuật",
-    "/admin/handoff": "Handoff kỹ thuật",
     "/organization": "Nhân viên & chi nhánh",
     "/admin/organization": "Nhân viên & chi nhánh",
   };
@@ -197,17 +196,9 @@ export function AdminShell() {
               {item.label === "Kho & sổ kho" && <i>3</i>}
             </NavLink>
           ))}
-          <span className="nav-label nav-label--spaced">HỆ THỐNG</span>
-          <NavLink to="/handoff" onClick={() => setOpen(false)}>
-            <ClipboardList size={19} />
-            <span>Handoff kỹ thuật</span>
-          </NavLink>
         </nav>
 
         <div className="sidebar-bottom">
-          <NavLink to="/handoff">
-            <CircleHelp size={18} />Trợ giúp & giả định
-          </NavLink>
           {account.role === "Owner" && (
             <NavLink to="/organization">
               <Settings2 size={18} />Nhân viên & chi nhánh

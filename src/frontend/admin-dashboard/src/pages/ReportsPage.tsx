@@ -7,6 +7,7 @@ import { ComingSoonBadge } from '../components/ui';
 import type {
   RevenueProfitReport,
   InventoryVelocityReport,
+  UnitQuantity,
   StockAlert,
   ReportFilter,
 } from '../types/reports';
@@ -60,6 +61,40 @@ function formatVietnamDateToUtcStart(dateStr: string): string {
 function formatVietnamDateToUtcEnd(dateStr: string): string {
   return new Date(`${dateStr}T23:59:59.999+07:00`).toISOString();
 }
+
+const UNIT_PREVIEW_COUNT = 4;
+
+function formatWithUnit(value: number, unitName?: string | null): string {
+  const quantity = value.toLocaleString('vi-VN');
+  return unitName ? `${quantity} ${unitName}` : quantity;
+}
+
+interface UnitQuantityListProps {
+  items: UnitQuantity[];
+  field: 'onHand' | 'reserved' | 'available';
+  colorClass: string;
+  expanded: boolean;
+}
+
+/** Tồn theo từng đơn vị gốc; không cộng gộp vì Cái và Kg không cùng thước đo. */
+const UnitQuantityList: React.FC<UnitQuantityListProps> = ({ items, field, colorClass, expanded }) => {
+  if (items.length === 0) {
+    return <div className={`text-2xl font-bold mt-2 ${colorClass}`}>0</div>;
+  }
+  const visible = expanded ? items : items.slice(0, UNIT_PREVIEW_COUNT);
+  return (
+    <ul className="mt-2 space-y-1">
+      {visible.map((item) => (
+        <li key={item.unitName} className="flex items-baseline justify-between gap-3">
+          <span className="text-xs text-gray-500 truncate">{item.unitName}</span>
+          <span className={`font-bold ${items.length === 1 ? 'text-2xl' : 'text-base'} ${colorClass}`}>
+            {item[field].toLocaleString('vi-VN')}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+};
 
 export const ReportsPage: React.FC = () => {
   const { user } = useAuth();
@@ -127,6 +162,7 @@ export const ReportsPage: React.FC = () => {
   // Data states
   const [pnlData, setPnlData] = useState<RevenueProfitReport | null>(null);
   const [velocityData, setVelocityData] = useState<InventoryVelocityReport | null>(null);
+  const [showAllUnits, setShowAllUnits] = useState(false);
   const [alertsData, setAlertsData] = useState<StockAlert[]>([]);
   const [selectedAlertLevel, setSelectedAlertLevel] = useState<string>('ALL');
 
@@ -631,28 +667,49 @@ export const ReportsPage: React.FC = () => {
 
             <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
               <div className="text-xs font-semibold text-gray-500 uppercase">Tồn thực tế (On-Hand)</div>
-              <div className="text-2xl font-bold text-gray-900 mt-2">
-                {(velocityData?.totalOnHandQuantity ?? 0).toLocaleString('vi-VN')}
-              </div>
-              <div className="text-xs text-gray-500 mt-1">Tổng sản phẩm hiện có trong kho</div>
+              <UnitQuantityList
+                items={velocityData?.quantityByUnit ?? []}
+                field="onHand"
+                colorClass="text-gray-900"
+                expanded={showAllUnits}
+              />
+              <div className="text-xs text-gray-500 mt-1">Hiện có trong kho, theo đơn vị gốc</div>
             </div>
 
             <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
               <div className="text-xs font-semibold text-gray-500 uppercase">Hàng giữ chỗ (Reserved)</div>
-              <div className="text-2xl font-bold text-amber-600 mt-2">
-                {(velocityData?.totalReservedQuantity ?? 0).toLocaleString('vi-VN')}
-              </div>
+              <UnitQuantityList
+                items={velocityData?.quantityByUnit ?? []}
+                field="reserved"
+                colorClass="text-amber-600"
+                expanded={showAllUnits}
+              />
               <div className="text-xs text-gray-500 mt-1">Khóa cho đơn đang xử lý</div>
             </div>
 
             <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
               <div className="text-xs font-semibold text-gray-500 uppercase">Tồn khả dụng (Available)</div>
-              <div className="text-2xl font-bold text-emerald-600 mt-2">
-                {(velocityData?.totalAvailableQuantity ?? 0).toLocaleString('vi-VN')}
-              </div>
+              <UnitQuantityList
+                items={velocityData?.quantityByUnit ?? []}
+                field="available"
+                colorClass="text-emerald-600"
+                expanded={showAllUnits}
+              />
               <div className="text-xs text-gray-500 mt-1">On-Hand − Reserved</div>
             </div>
           </div>
+
+          {(velocityData?.quantityByUnit.length ?? 0) > UNIT_PREVIEW_COUNT && (
+            <div className="text-right -mt-4">
+              <button
+                type="button"
+                onClick={() => setShowAllUnits((prev) => !prev)}
+                className="text-xs font-semibold text-indigo-700 hover:underline"
+              >
+                {showAllUnits ? 'Thu gọn' : `Xem đủ ${velocityData?.quantityByUnit.length} đơn vị`}
+              </button>
+            </div>
+          )}
 
           {/* Best Sellers & Slow Moving */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -687,12 +744,12 @@ export const ReportsPage: React.FC = () => {
                             <div className="text-gray-500 text-[11px] truncate max-w-xs">{sku.skuName}</div>
                           </td>
                           <td className="py-2.5 px-3 text-right font-bold text-emerald-700">
-                            {sku.quantitySold}
+                            {formatWithUnit(sku.quantitySold, sku.baseUnitName)}
                           </td>
                           <td className="py-2.5 px-3 text-right font-medium">
                             {sku.totalRevenue.toLocaleString('vi-VN')} đ
                           </td>
-                          <td className="py-2.5 px-3 text-right text-gray-700">{sku.currentOnHand}</td>
+                          <td className="py-2.5 px-3 text-right text-gray-700">{formatWithUnit(sku.currentOnHand, sku.baseUnitName)}</td>
                         </tr>
                       ))
                     )}
@@ -733,7 +790,7 @@ export const ReportsPage: React.FC = () => {
                           <td className="py-2.5 px-3 text-right font-bold text-amber-700">
                             {sku.daysWithoutSale} ngày
                           </td>
-                          <td className="py-2.5 px-3 text-right text-gray-700">{sku.currentOnHand}</td>
+                          <td className="py-2.5 px-3 text-right text-gray-700">{formatWithUnit(sku.currentOnHand, sku.baseUnitName)}</td>
                         </tr>
                       ))
                     )}

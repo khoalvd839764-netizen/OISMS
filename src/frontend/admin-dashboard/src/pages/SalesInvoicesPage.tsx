@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
   Building2,
@@ -35,6 +35,8 @@ export const SalesInvoicesPage: React.FC = () => {
   const [totalPages, setTotalPages] = useState<number>(1);
 
   const [filterNumber, setFilterNumber] = useState<string>('');
+  const [appliedNumber, setAppliedNumber] = useState<string>('');
+  const loadSeqRef = useRef(0);
   const [filterBranchId, setFilterBranchId] = useState<string>('');
   const [filterFromDate, setFilterFromDate] = useState<string>('');
   const [filterToDate, setFilterToDate] = useState<string>('');
@@ -62,6 +64,7 @@ export const SalesInvoicesPage: React.FC = () => {
 
   // Load Invoices
   const loadInvoices = useCallback(async () => {
+    const seq = ++loadSeqRef.current;
     setLoading(true);
     setApiError(null);
     try {
@@ -69,20 +72,22 @@ export const SalesInvoicesPage: React.FC = () => {
         pageIndex,
         pageSize,
       };
-      if (filterNumber.trim()) filter.number = filterNumber.trim();
+      if (appliedNumber) filter.number = appliedNumber;
       if (filterBranchId) filter.branchId = filterBranchId;
-      if (filterFromDate) filter.fromDate = new Date(filterFromDate).toISOString();
+      // Ngày nghiệp vụ theo UTC+07:00; backend lọc nửa mở IssuedAt < toDate nên lấy đầu ngày kế tiếp
+      if (filterFromDate) filter.fromDate = new Date(`${filterFromDate}T00:00:00+07:00`).toISOString();
       if (filterToDate) {
-        const to = new Date(filterToDate);
-        to.setHours(23, 59, 59, 999);
-        filter.toDate = to.toISOString();
+        const endOfDay = new Date(`${filterToDate}T00:00:00+07:00`).getTime() + 24 * 60 * 60 * 1000;
+        filter.toDate = new Date(endOfDay).toISOString();
       }
 
       const res = await salesInvoiceService.getSalesInvoices(filter);
+      if (seq !== loadSeqRef.current) return;
       setInvoices(res.items || []);
       setTotalCount(res.totalCount || 0);
       setTotalPages(res.totalPages || 1);
     } catch (err: any) {
+      if (seq !== loadSeqRef.current) return;
       const errorData = err.response?.data;
       const code = errorData?.errorCode || errorData?.extensions?.errorCode || err.code;
       const message =
@@ -93,9 +98,21 @@ export const SalesInvoicesPage: React.FC = () => {
       setApiError({ code, message });
       setInvoices([]);
     } finally {
-      setLoading(false);
+      if (seq === loadSeqRef.current) setLoading(false);
     }
-  }, [pageIndex, pageSize, filterNumber, filterBranchId, filterFromDate, filterToDate]);
+  }, [pageIndex, pageSize, appliedNumber, filterBranchId, filterFromDate, filterToDate]);
+
+  // Chỉ tìm khi ngừng gõ, tránh gửi một request cho mỗi ký tự
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const next = filterNumber.trim();
+      setAppliedNumber((current) => {
+        if (current !== next) setPageIndex(1);
+        return next;
+      });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [filterNumber]);
 
   useEffect(() => {
     loadInvoices();
@@ -103,12 +120,18 @@ export const SalesInvoicesPage: React.FC = () => {
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const next = filterNumber.trim();
     setPageIndex(1);
-    loadInvoices();
+    if (next !== appliedNumber) {
+      setAppliedNumber(next);
+    } else {
+      loadInvoices();
+    }
   };
 
   const handleResetFilters = () => {
     setFilterNumber('');
+    setAppliedNumber('');
     setFilterBranchId('');
     setFilterFromDate('');
     setFilterToDate('');

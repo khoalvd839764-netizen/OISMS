@@ -8,6 +8,8 @@
 | Phạm vi | Backend, test, tài liệu API. **Chưa có giao diện (`P2`).** |
 | Trạng thái | Backend đã kiểm chứng trên PostgreSQL 16 bằng database test riêng. Chưa kiểm chứng đầu cuối từ giao diện, chưa chạy migration trên database Docker đang dùng. |
 
+> **Cập nhật 04/11/2026:** giao diện của phần này đã có. Kết quả nghiệm thu xem [báo cáo frontend](frontend-coming-soon-va-upgrade.md). Các mục "chưa có giao diện" bên dưới là hiện trạng tại ngày kiểm tra ghi trong bảng.
+
 ## Đã làm
 
 - **Dữ liệu:** thêm `stock_count_schedules`, `stock_count_periods`, `stock_count_approvals` (chỉ INSERT); thêm cột loại kỳ, lý do đột xuất, người nộp vào `stock_counts`; thêm người đếm, thời điểm đếm, thời điểm chụp vào `stock_count_items`; thêm trạng thái `PendingApproval`.

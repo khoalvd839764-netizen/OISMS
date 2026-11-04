@@ -62,6 +62,8 @@ export const StockCountsPage: React.FC = () => {
   const [periodsLoading, setPeriodsLoading] = useState(false);
   const [schedulesLoading, setSchedulesLoading] = useState(false);
   const [startingPeriodId, setStartingPeriodId] = useState<string | null>(null);
+  const [tabError, setTabError] = useState<string | null>(null);
+  const tabReqSeqRef = useRef(0);
 
   const loadFilterOptions = async () => {
     try {
@@ -115,32 +117,42 @@ export const StockCountsPage: React.FC = () => {
   }, [selectedBranch, selectedWarehouse, selectedStatus, pageNumber, pageSize]);
 
   const loadPeriods = useCallback(async () => {
+    const seq = ++tabReqSeqRef.current;
     setPeriodsLoading(true);
+    setTabError(null);
     try {
       const res = await stockCountService.getPeriods({
         branchId: selectedBranch || undefined,
         warehouseId: selectedWarehouse || undefined,
       });
+      if (seq !== tabReqSeqRef.current) return;
       setPeriods(res.items || []);
-    } catch (err) {
-      console.warn('Lỗi tải danh sách kỳ kiểm kê:', err);
+    } catch (err: any) {
+      if (seq !== tabReqSeqRef.current) return;
+      setPeriods([]);
+      setTabError(err?.response?.data?.detail || 'Không thể tải danh sách kỳ kiểm kê.');
     } finally {
-      setPeriodsLoading(false);
+      if (seq === tabReqSeqRef.current) setPeriodsLoading(false);
     }
   }, [selectedBranch, selectedWarehouse]);
 
   const loadSchedules = useCallback(async () => {
+    const seq = ++tabReqSeqRef.current;
     setSchedulesLoading(true);
+    setTabError(null);
     try {
       const res = await stockCountService.getSchedules({
         branchId: selectedBranch || undefined,
         warehouseId: selectedWarehouse || undefined,
       });
+      if (seq !== tabReqSeqRef.current) return;
       setSchedules(res.items || []);
-    } catch (err) {
-      console.warn('Lỗi tải danh sách lịch kiểm kê:', err);
+    } catch (err: any) {
+      if (seq !== tabReqSeqRef.current) return;
+      setSchedules([]);
+      setTabError(err?.response?.data?.detail || 'Không thể tải cấu hình lịch kiểm kê.');
     } finally {
-      setSchedulesLoading(false);
+      if (seq === tabReqSeqRef.current) setSchedulesLoading(false);
     }
   }, [selectedBranch, selectedWarehouse]);
 
@@ -185,7 +197,7 @@ export const StockCountsPage: React.FC = () => {
           <div className="flex items-center gap-2">
             <ClipboardCheck className="w-7 h-7 text-indigo-600" />
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
-              Kiểm Kê Kho Hàng (U03)
+              Kiểm Kê Kho Hàng
             </h1>
           </div>
           <p className="text-xs text-gray-500 mt-1">
@@ -367,6 +379,16 @@ export const StockCountsPage: React.FC = () => {
         </div>
       )}
 
+      {tabError && activeTab !== 'COUNTS' && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-start gap-2">
+          <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+          <div>
+            <span className="font-bold">Lỗi tải dữ liệu: </span>
+            <span>{tabError}</span>
+          </div>
+        </div>
+      )}
+
       {/* TAB 1: COUNTS */}
       {activeTab === 'COUNTS' && (
         <>
@@ -428,7 +450,7 @@ export const StockCountsPage: React.FC = () => {
                     </td>
                   </tr>
                 )}
-                {!periodsLoading && periods.length === 0 && (
+                {!periodsLoading && !tabError && periods.length === 0 && (
                   <tr>
                     <td colSpan={7} className="py-12 text-center text-gray-400">
                       Chưa có kỳ kiểm kê định kỳ nào được tạo.
@@ -537,7 +559,7 @@ export const StockCountsPage: React.FC = () => {
                     </td>
                   </tr>
                 )}
-                {!schedulesLoading && schedules.length === 0 && (
+                {!schedulesLoading && !tabError && schedules.length === 0 && (
                   <tr>
                     <td colSpan={6} className="py-12 text-center text-gray-400">
                       Chưa có lịch kiểm kê định kỳ nào. Bấm &quot;Thêm lịch định kỳ&quot; phía trên để cấu hình.

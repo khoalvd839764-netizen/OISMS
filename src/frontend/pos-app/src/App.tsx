@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Trash2, Printer, ShieldCheck, Sparkles, RefreshCw, AlertTriangle, Bell } from 'lucide-react';
 import type { CartItem, Branch, PosProductSearchResponse, ReceiptData, RealtimeConnectionStatus } from './types/pos';
+import { applyCurrentPrices, baseQuantityInCart, lineDecimalPlaces, maxQuantityForLine, normalizeQuantity, resolveCartUnit } from './services/posCartUnits';
 import {
   fetchBranches,
   getStoredUser,
@@ -28,21 +29,6 @@ import { CartTable } from './components/CartTable';
 import { PaymentModal } from './components/PaymentModal';
 import { ReceiptPrintModal } from './components/ReceiptPrintModal';
 import { LoginModal } from './components/LoginModal';
-
-/** Chọn đơn vị và giá bán khi thêm vào giỏ. Trả về null nếu đơn vị chưa có giá, không tự tính giá. */
-function resolveCartUnit(product: PosProductSearchResponse) {
-  const units = product.units ?? [];
-  if (units.length === 0) {
-    return { unit: undefined, price: product.retailPrice };
-  }
-  const matched = units.find((u) => u.unitId === product.matchedUnitId);
-  const candidates = matched
-    ? [matched]
-    : [units.find((u) => u.isDefaultSale), units.find((u) => u.isBase), ...units];
-  const unit = candidates.find((u) => u && u.salePrice != null);
-  if (!unit) return null;
-  return { unit, price: unit.salePrice as number };
-}
 
 export function App() {
   // Lấy người dùng đã xác thực từ storage
@@ -298,6 +284,10 @@ export function App() {
     const isBaseUnit = selectedUnit?.isBase ?? true;
     const unitPrice = resolved.price;
     const lineKey = `${product.variantId}:${unitId}`;
+    if (baseQuantityInCart(cart, product.variantId) + factorToBase > availableStock) {
+      alert(`Không thể thêm. Tồn khả dụng của chi nhánh (${availableStock}) không đủ cho thêm 1 ${unitName || 'sản phẩm'}.`);
+      return;
+    }
 
     setCart((prevCart) => {
       // Khóa dòng theo variantId + unitId: Không gộp dòng nếu khác đơn vị tính
@@ -356,9 +346,10 @@ export function App() {
       return prevCart
         .map((item) => {
           if (item.lineKey === key || item.variantId === key) {
-            const nextQty = item.quantity + delta;
-            if (delta > 0 && nextQty > item.available) {
-              alert(`Số lượng không được vượt quá tồn khả dụng (${item.available}) của mặt hàng này.`);
+            const nextQty = normalizeQuantity(item.quantity + delta, lineDecimalPlaces(item));
+            const maxQty = maxQuantityForLine(prevCart, item);
+            if (delta > 0 && nextQty > maxQty) {
+              alert(`Số lượng không được vượt quá tồn khả dụng (tối đa ${maxQty} ${item.unitName || 'sản phẩm'}).`);
               return item;
             }
             return nextQty > 0 ? { ...item, quantity: nextQty } : null;
@@ -378,9 +369,11 @@ export function App() {
     setCart((prevCart) =>
       prevCart.map((item) => {
         if (item.lineKey === key || item.variantId === key) {
-          const maxAllowed = item.available > 0 ? item.available : 1;
-          const clamped = Math.min(Math.max(1, quantity), maxAllowed);
-          return { ...item, quantity: clamped };
+          const decimalPlaces = lineDecimalPlaces(item);
+          const minQty = decimalPlaces > 0 ? 1 / 10 ** decimalPlaces : 1;
+          const maxQty = Math.max(minQty, maxQuantityForLine(prevCart, item));
+          const wanted = normalizeQuantity(quantity, decimalPlaces);
+          return { ...item, quantity: Math.min(Math.max(minQty, wanted), maxQty) };
         }
         return item;
       })
@@ -393,9 +386,17 @@ export function App() {
       return;
     }
     const lineItem = cart.find((i) => i.lineKey === lineKey || i.variantId === lineKey);
-    if (lineItem?.units?.find((u) => u.unitId === newUnitId)?.salePrice == null) {
+    const nextUnit = lineItem?.units?.find((u) => u.unitId === newUnitId);
+    if (nextUnit?.salePrice == null) {
       alert('Đơn vị này chưa có giá. Vui lòng cấu hình giá trước khi bán.');
       return;
+    }
+    if (lineItem) {
+      const usedByOthers = baseQuantityInCart(cart, lineItem.variantId, lineItem.lineKey || `${lineItem.variantId}:${lineItem.unitId || ''}`);
+      if (usedByOthers + lineItem.quantity * nextUnit.factor > lineItem.available) {
+        alert(`Tồn khả dụng (${lineItem.available}) không đủ cho số lượng này theo đơn vị ${nextUnit.unitName}.`);
+        return;
+      }
     }
     setCart((prevCart) => {
       const targetIndex = prevCart.findIndex((i) => i.lineKey === lineKey || i.variantId === lineKey);
@@ -787,6 +788,7 @@ export function App() {
         isOpen={isPaymentOpen}
         onClose={() => setIsPaymentOpen(false)}
         items={cart}
+        onApplyCurrentPrices={(prices) => setCart((prev) => applyCurrentPrices(prev, prices))}
         branchId={selectedBranchId}
         branchName={selectedBranch?.name || 'Chi nhánh mặc định'}
         branchAddress={selectedBranch?.address}

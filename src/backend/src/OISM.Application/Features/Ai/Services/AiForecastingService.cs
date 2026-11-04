@@ -8,6 +8,9 @@ namespace OISM.Application.Features.Ai.Services;
 public class AiForecastingService : IAiForecastingService
 {
     private const int VelocityWindowDays = 30;
+    private const int NoSalesDaysUntilStockout = 999;
+
+    private static string FormatQuantity(decimal value) => value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
 
     private readonly IAppDbContext _context;
     private readonly ICurrentTenantService _currentTenantService;
@@ -188,7 +191,8 @@ public class AiForecastingService : IAiForecastingService
             .AsNoTracking()
             .Include(b => b.Branch)
             .Include(b => b.Sku)
-            .Where(b => b.TenantId == tenantId);
+            // SKU đã ngừng kinh doanh không còn được gợi ý nhập
+            .Where(b => b.TenantId == tenantId && b.Sku != null && b.Sku.IsActive);
 
         if (query.BranchId.HasValue && query.BranchId.Value != Guid.Empty)
         {
@@ -239,7 +243,7 @@ public class AiForecastingService : IAiForecastingService
             }
             else
             {
-                daysUntilStockout = 999; // Tồn an toàn do chưa phát sinh xuất bán
+                daysUntilStockout = NoSalesDaysUntilStockout; // Chưa phát sinh xuất bán nên chưa ước tính được ngày cạn kho
             }
 
             // Đánh giá nhu cầu nhập lại
@@ -275,15 +279,17 @@ public class AiForecastingService : IAiForecastingService
 
                 if (available <= 0)
                 {
-                    reason = $"Hết hàng khả dụng (Available = {available}). Tốc độ bán {dailyVelocity} {sku?.Unit ?? "sp"}/ngày. Đề xuất nhập ngay để tránh gián đoạn.";
+                    reason = $"Hết hàng khả dụng (Available = {FormatQuantity(available)}). Tốc độ bán {FormatQuantity(dailyVelocity)} {sku?.Unit ?? "sp"}/ngày. Đề xuất nhập ngay để tránh gián đoạn.";
                 }
                 else if (available <= reorderPoint)
                 {
-                    reason = $"Tồn khả dụng ({available}) chạm hoặc dưới ngưỡng cảnh báo an toàn ({reorderPoint}). Dự kiến cạn kho trong {daysUntilStockout} ngày.";
+                    reason = daysUntilStockout >= NoSalesDaysUntilStockout
+                        ? $"Tồn khả dụng ({FormatQuantity(available)}) chạm hoặc dưới ngưỡng cảnh báo an toàn ({FormatQuantity(reorderPoint)}). Chưa có dữ liệu bán để ước tính ngày cạn kho."
+                        : $"Tồn khả dụng ({FormatQuantity(available)}) chạm hoặc dưới ngưỡng cảnh báo an toàn ({FormatQuantity(reorderPoint)}). Dự kiến cạn kho trong {daysUntilStockout} ngày.";
                 }
                 else
                 {
-                    reason = $"Tốc độ bán {dailyVelocity} {sku?.Unit ?? "sp"}/ngày. Tồn hiện tại chỉ đủ dùng {daysUntilStockout} ngày, nhỏ hơn thời gian cung ứng ({horizonDays} ngày).";
+                    reason = $"Tốc độ bán {FormatQuantity(dailyVelocity)} {sku?.Unit ?? "sp"}/ngày. Tồn hiện tại chỉ đủ dùng {daysUntilStockout} ngày, nhỏ hơn thời gian cung ứng ({horizonDays} ngày).";
                 }
 
                 if (confidenceLevel == "Low")
@@ -293,7 +299,9 @@ public class AiForecastingService : IAiForecastingService
             }
             else
             {
-                reason = $"Tồn kho an toàn. Khả dụng ({available}) cao hơn ngưỡng ReorderPoint ({reorderPoint}) và đủ đáp ứng nhu cầu dự kiến {daysUntilStockout} ngày tới.";
+                reason = daysUntilStockout >= NoSalesDaysUntilStockout
+                    ? $"Tồn kho an toàn. Khả dụng ({FormatQuantity(available)}) cao hơn ngưỡng ReorderPoint ({FormatQuantity(reorderPoint)}). Chưa có dữ liệu bán trong {VelocityWindowDays} ngày gần nhất."
+                    : $"Tồn kho an toàn. Khả dụng ({FormatQuantity(available)}) cao hơn ngưỡng ReorderPoint ({FormatQuantity(reorderPoint)}) và đủ đáp ứng nhu cầu dự kiến {daysUntilStockout} ngày tới.";
             }
 
             if (!query.OnlyNeedsReorder || needsReorder)

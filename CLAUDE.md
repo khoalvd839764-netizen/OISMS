@@ -68,10 +68,13 @@ CI chạy khi push hoặc mở PR vào `main`, `master`, `develop`: build và te
 
 ## Điểm cần biết
 
-- **Docs cũ:** nhiều nơi còn ghi 29 bảng, nhưng hiện là **43 bảng** (`oisms_schema.sql`, `init-oisms.sh`, `RequiredTables`). `docs/database/README.md` còn ghi `tablesCount: 40`; README gốc còn ghi đường dẫn `D:\CNPM workbase` và trạng thái Sprint 2; docs kiến trúc còn ghi `ApplicationDbContext`, `OISM.WebAPI` thay vì `AppDbContext`, `OISM.WebApi`.
-- **Tiến độ:** `checklist.md` và `docs/bug-fixaffter/CHECKLIST-BUGFIX-AND-UPGRADE.md` có thể chậm hơn code. Lịch sử git đã có backend CS-02/03/04/07/08, nên phải kiểm tra code trước khi kết luận chức năng còn thiếu. Giao diện cho các Upgrade vẫn ghi là chưa xong. Dấu `[x]` Sprint 2 chỉ là baseline lịch sử, không phải nghiệm thu toàn sản phẩm.
+- **Docs cũ:** tài liệu lịch sử (sprint, báo cáo cá nhân) còn ghi 29 bảng; hiện là **43 bảng** (`oisms_schema.sql`, `init-oisms.sh`, `RequiredTables`). Docs kiến trúc còn ghi `ApplicationDbContext`, `OISM.WebAPI` thay vì `AppDbContext`, `OISM.WebApi`.
+- **Tiến độ:** hiện trạng frontend xem `docs/report-after-upgrade/frontend-coming-soon-va-upgrade.md`. Còn thiếu CS-01, CS-05 ở POS Admin, CS-06, U01-B và phân công chi nhánh của CS-02. Vẫn phải kiểm tra code trước khi kết luận chức năng còn thiếu. Dấu `[x]` Sprint 2 chỉ là baseline lịch sử, không phải nghiệm thu toàn sản phẩm.
+- **Tạm ẩn:** tab Gợi ý nhập hàng được comment trong `InventoryPage.tsx`, API vẫn chạy. Màn Handoff đã gỡ nhưng đặc tả `docs/11-ui-screens/07-handoff-screens.md` còn giữ. Quên mật khẩu mới là nút tắt có nhãn Coming soon.
 - **Hangfire:** `Hangfire:Enabled` mặc định `false` và compose không bật, nên job hết hạn giữ chỗ và lịch kiểm kê không tự chạy trừ khi cấu hình.
 - **Redis:** có container nhưng code backend chưa dùng.
+- **POS đa đơn vị:** `posCartUnits.ts` có một bản trong mỗi app, sửa thì sửa cả hai; `pos-app/test-cart-units.mjs` chạy cả hai bản. Giá theo đơn vị phải lấy từ `/api/pos/search` hoặc `/api/sku-unit-prices/effective`, vì `salePrice` trong `/api/products` có thể rỗng; không tự tính giá theo hệ số.
+- **Quyền xem:** Staff được xem giá vốn ở truy vết và doanh thu ở Tổng quan theo `docs/01-users-and-rbac/02-rbac-matrix.md`; chỉ lãi gộp là Owner.
 - **JWT:** `Program.cs` có secret fallback viết cứng. Môi trường thật phải đặt `Jwt:Secret`; không dựa vào fallback.
 - **Deploy:** frontend nhúng URL API lúc build. `VITE_API_BASE_URL` không thêm đuôi `/api`. Production không có Swagger và không seed demo.
 - **Bí mật:** không đọc, in hay commit `.env`, `.env.production`, file dump.
@@ -88,6 +91,7 @@ Có `.codegraph/` và CLI `codegraph` (`query`, `explore`, `context`, `callers`,
 
 - Nhánh: `main`, `develop` (nhánh tích hợp), `feature/OISMS-<id>-<mô-tả>`. PR thường vào `develop`.
 - Commit: `[OISMS-<id>] <type>(<scope>): <mô tả tiếng Việt>`, ví dụ `[OISMS-47] feat(stock-count): lịch kiểm kê và duyệt chênh lệch`.
+- Không thêm `Co-Authored-By: Claude` vào commit và không thêm dòng "Generated with Claude Code" vào PR.
 - Thay đổi chạm auth, tenant, migration, transaction, ledger, WAC, reservation, idempotency hoặc concurrency là rủi ro cao: phải có bằng chứng trên PostgreSQL thật. Mock và InMemory không chứng minh transaction hay concurrency; build pass không có nghĩa là tính năng chạy đúng.
 - Khi báo kết quả, ghi rõ lệnh đã chạy và tách PASS, FAIL, NOT RUN. Không nới assertion hoặc bỏ test để có PASS.
 - Quy trình Codex–Antigravity (`skills/codex-antigravity-workflow/`) chỉ áp dụng khi được yêu cầu.

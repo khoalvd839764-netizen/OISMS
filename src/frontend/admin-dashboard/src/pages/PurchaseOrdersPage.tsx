@@ -105,7 +105,7 @@ export const PurchaseOrdersPage: React.FC = () => {
   return (
     <div style={{ padding: 24 }}>
       <PageTitle
-        eyebrow="Quản lý Mua hàng (U01-A)"
+        eyebrow="Quản lý Mua hàng"
         title="Đơn mua hàng từ Nhà cung cấp"
         description="Lập kế hoạch mua hàng, duyệt giá nhập đối chiếu WAC, và quản lý tiến độ nhận hàng từ Nhà cung cấp."
         actions={

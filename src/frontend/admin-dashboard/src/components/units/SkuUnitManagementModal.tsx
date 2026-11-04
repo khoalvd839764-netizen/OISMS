@@ -8,6 +8,7 @@ import {
   X,
 } from "lucide-react";
 import { Badge, Button, Input, Modal, Select } from "../ui";
+import { NumberField } from "../NumberField";
 import { unitService, parseUnitApiError } from "../../services/unitService";
 import { SkuUnitHistoryModal } from "./SkuUnitHistoryModal";
 import type { Sku } from "../../types/domain";
@@ -321,12 +322,12 @@ export function SkuUnitManagementModal({
                           <td className="p-2.5">
                             {isEditing ? (
                               <div className="space-y-1 max-w-[140px]">
-                                <Input
-                                  type="number"
-                                  min="0.000001"
-                                  step="any"
-                                  value={editFactor}
-                                  onChange={(e) => setEditFactor(Number(e.target.value))}
+                                <NumberField
+                                  aria-label="Hệ số quy đổi"
+                                  value={editFactor || null}
+                                  decimals={6}
+                                  grouping={false}
+                                  onChange={(value) => setEditFactor(value ?? 0)}
                                   disabled={u.isBase}
                                 />
                                 <span className="text-[10px] text-slate-500">
@@ -512,12 +513,12 @@ export function SkuUnitManagementModal({
                   <label className="block text-xs font-medium text-slate-700 mb-1">
                     Hệ số quy đổi về đơn vị gốc <span className="text-rose-500">*</span>
                   </label>
-                  <Input
-                    type="number"
-                    min="0.000001"
-                    step="any"
-                    value={newFactor}
-                    onChange={(e) => setNewFactor(Number(e.target.value))}
+                  <NumberField
+                    aria-label="Hệ số quy đổi"
+                    value={newFactor || null}
+                    decimals={6}
+                    grouping={false}
+                    onChange={(value) => setNewFactor(value ?? 0)}
                     placeholder="VD: 25 cho bao 25kg, 1000 cho tấn"
                   />
                   <span className="text-[10px] text-slate-500 block mt-0.5">

@@ -196,6 +196,8 @@ export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{
   receiptNumber?: string;
   receipt?: any;
   isPendingBackend?: boolean;
+  errorCode?: string;
+  currentPrices?: Array<{ skuId: string; skuCode?: string; unitId?: string | null; currentPrice: number }>;
 }> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/orders/checkout`, {
@@ -251,6 +253,8 @@ export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{
     return {
       success: false,
       message: (err.detail || err.message || `Thanh toán thất bại (Mã lỗi ${res.status}).`) + codeStr,
+      errorCode,
+      currentPrices: err.currentPrices || err.extensions?.currentPrices,
     };
   } catch (err: any) {
     return {

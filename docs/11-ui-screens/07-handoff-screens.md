@@ -7,10 +7,12 @@
 | **Ngày hiệu lực** | `2026-10-25` |
 | **Đường dẫn URL Routes** | `/admin/handoff`, `/handoff` |
 | **Quyền truy cập (RBAC)** | `Owner`, `Staff` |
-| **Source code Frontend** | [`HandoffPage.tsx`](file:///d:/OISMS/src/frontend/admin-dashboard/src/pages/HandoffPage.tsx) |
+| **Source code Frontend** | Không còn; `HandoffPage.tsx` đã gỡ ngày 04/11/2026 |
 | **Controllers Backend** | [`OrdersController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/OrdersController.cs) |
 
 ---
+
+> **Trạng thái 04/11/2026:** màn hình đã tạm gỡ khỏi Admin, gồm route và mục menu. Đặc tả được giữ lại làm yêu cầu cho đến khi chốt bỏ hẳn hay làm lại.
 
 ## 1. Mục Tiêu & Luồng Nghiệp Vụ
 
