@@ -13,15 +13,17 @@ import {
   RotateCcw,
   Search,
   Settings2,
+  Sparkles,
   Trash2,
   TriangleAlert,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Badge, Button, ComingSoonBadge, Input, Modal, PageTitle, Select } from "../components/ui";
+import { Badge, Button, ComingSoonBadge, EmptyState, Input, Modal, PageTitle, Select } from "../components/ui";
 import { apiAdapter, generateUuid } from "../services/apiAdapter";
 import { realtimeAdapter } from "../services/realtimeAdapter";
 import { useAuth } from "../context/AuthContext";
 import type { LedgerEntry, Sku } from "../types/domain";
+import type { ReorderRecommendationSummary } from "../types/ai";
 import { GoodsReceiptList } from "../components/GoodsReceiptList";
 
 // [F1] Cấu trúc lưu tạm phiếu nhập nháp đang chờ xác nhận qua các lần đóng/mở form hoặc refresh
@@ -103,9 +105,53 @@ export function InventoryPage() {
   const { account } = useAuth();
   const currentTenantId = account?.tenantId;
 
-  const [tab, setTab] = useState<"balance" | "ledger">("balance");
+  const [tab, setTab] = useState<"balance" | "ledger" | "ai-reorder">("balance");
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Tab AI Gợi ý nhập hàng (CS-08)
+  const [aiSummary, setAiSummary] = useState<ReorderRecommendationSummary | null>(null);
+  const [loadingAi, setLoadingAi] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiBranchFilter, setAiBranchFilter] = useState<string>("all");
+  const [aiLeadTime, setAiLeadTime] = useState<number>(7);
+  const [aiSafetyStock, setAiSafetyStock] = useState<number>(3);
+  const [aiOnlyNeedsReorder, setAiOnlyNeedsReorder] = useState<boolean>(false);
+  const aiReqSeqRef = useRef(0);
+
+  const loadAiRecommendations = async (
+    targetBranch = aiBranchFilter,
+    targetLeadTime = aiLeadTime,
+    targetSafetyStock = aiSafetyStock,
+    targetOnlyNeedsReorder = aiOnlyNeedsReorder
+  ) => {
+    const seq = ++aiReqSeqRef.current;
+    setLoadingAi(true);
+    setAiError(null);
+    try {
+      const res = await apiAdapter.getReorderRecommendations({
+        branchId: targetBranch !== "all" ? targetBranch : undefined,
+        leadTimeDays: targetLeadTime,
+        safetyStockDays: targetSafetyStock,
+        onlyNeedsReorder: targetOnlyNeedsReorder,
+      });
+      if (seq !== aiReqSeqRef.current) return;
+      if (res.error) {
+        setAiError(res.error.message || "Không thể tải gợi ý nhập hàng từ máy chủ.");
+        setAiSummary(null);
+      } else if (res.data) {
+        setAiSummary(res.data);
+      }
+    } catch (err: any) {
+      if (seq !== aiReqSeqRef.current) return;
+      setAiError(err?.message || "Lỗi kết nối khi tải gợi ý nhập hàng.");
+      setAiSummary(null);
+    } finally {
+      if (seq === aiReqSeqRef.current) {
+        setLoadingAi(false);
+      }
+    }
+  };
 
   // [F4] Tách biệt trạng thái tải lỗi sổ kho và trạng thái dữ liệu rỗng
   const [ledgerError, setLedgerError] = useState<string | null>(null);
@@ -203,16 +249,23 @@ export function InventoryPage() {
 
   // Modal Cấu hình Ngưỡng cảnh báo ReorderPoint (CS-03)
   const [reorderModalSku, setReorderModalSku] = useState<Sku | null>(null);
-  const [reorderInputVal, setReorderInputVal] = useState<number>(5);
+  const [reorderInputVal, setReorderInputVal] = useState<number>(0);
   const [reorderBranchId, setReorderBranchId] = useState<string>("");
   const [savingReorder, setSavingReorder] = useState(false);
   const [reorderError, setReorderError] = useState<string | null>(null);
 
   const openReorderModal = (sku: Sku) => {
     setReorderModalSku(sku);
-    setReorderInputVal(thresholds[sku.id] ?? sku.threshold ?? 5);
+    setReorderInputVal(sku.reorderPoint !== undefined ? sku.reorderPoint : (sku.threshold ?? 0));
     setReorderBranchId(sku.branchId || branches[0]?.id || "");
     setReorderError(null);
+  };
+
+  // Ngưỡng lưu riêng theo chi nhánh: đổi chi nhánh phải hiện đúng ngưỡng của chi nhánh đó
+  const handleReorderBranchChange = (branchId: string) => {
+    setReorderBranchId(branchId);
+    const row = skus.find((s) => s.id === reorderModalSku?.id && s.branchId === branchId);
+    setReorderInputVal(row?.reorderPoint ?? 0);
   };
 
   const handleSaveReorderPoint = async () => {
@@ -392,10 +445,17 @@ export function InventoryPage() {
       targetBranchIds.forEach((bId) => {
         realtimeAdapter.leaveBranch(bId);
       });
+    };
+  }, [branchFilter, balanceWarehouseFilter, branches]);
+
+  // Chỉ hủy phản hồi đang chờ khi rời trang. Không làm việc này ở effect trên vì danh sách chi nhánh
+  // vừa tải xong cũng chạy cleanup, khiến lượt tải đầu bị bỏ và bảng tồn, sổ kho hiện rỗng.
+  useEffect(() => {
+    return () => {
       balanceReqSeqRef.current++;
       ledgerReqSeqRef.current++;
     };
-  }, [branchFilter, balanceWarehouseFilter, branches]);
+  }, []);
 
   // [A03 & F3] Khi mở Modal Nhập kho và chọn Chi nhánh / Kho, tải số dư thực tế tại đúng Kho đó để mô phỏng WAC chuẩn xác
   const loadModalWhStock = async (branch = selectedBranch, warehouse = selectedWarehouse) => {
@@ -503,9 +563,9 @@ export function InventoryPage() {
         const matchesBranch =
           branchFilter === "all" || sku.branchId === branchFilter || sku.branchName === branchFilter;
         const available = sku.onHand - sku.reserved;
-        const thresh = thresholds[sku.id] ?? sku.threshold;
+        const thresh = sku.reorderPoint !== undefined ? sku.reorderPoint : (thresholds[sku.id] ?? sku.threshold ?? 0);
         const matchesStatus =
-          stockStatusFilter === "all" || (stockStatusFilter === "low" && available <= thresh);
+          stockStatusFilter === "all" || (stockStatusFilter === "low" && thresh > 0 && available <= thresh);
         return matchesSearch && matchesBranch && matchesStatus;
       }),
     [activeBalanceSource, searchQuery, branchFilter, stockStatusFilter, thresholds]
@@ -527,7 +587,10 @@ export function InventoryPage() {
   }, [filteredLedger, ledgerPage, ledgerPageSize, totalLedgerPages]);
 
   const lowStock = skus.filter(
-    (sku) => sku.isActive !== false && sku.onHand - sku.reserved <= (thresholds[sku.id] ?? sku.threshold)
+    (sku) => {
+      const thresh = sku.reorderPoint !== undefined ? sku.reorderPoint : (thresholds[sku.id] ?? sku.threshold ?? 0);
+      return sku.isActive !== false && thresh > 0 && (sku.onHand - sku.reserved) <= thresh;
+    }
   );
 
   // Thêm dòng sản phẩm mới vào phiếu nhập
@@ -1155,16 +1218,19 @@ export function InventoryPage() {
             </span>
           </div>
           <div className="low-stock-links">
-            {lowStock.slice(0, 4).map((sku) => (
-              <button key={`${sku.id}-${sku.branchId || "b"}`} onClick={() => setTab("balance")}>
-                <strong>{sku.code} ({sku.branchName || "CN"})</strong>
-                <span>
-                  Khả dụng {sku.onHand - sku.reserved} / Ngưỡng {thresholds[sku.id] ?? sku.threshold}
-                </span>
-              </button>
-            ))}
+            {lowStock.slice(0, 4).map((sku) => {
+              const thresh = sku.reorderPoint !== undefined ? sku.reorderPoint : (thresholds[sku.id] ?? sku.threshold ?? 0);
+              return (
+                <button key={`${sku.id}-${sku.branchId || "b"}`} onClick={() => setTab("balance")}>
+                  <strong>{sku.code} ({sku.branchName || "CN"})</strong>
+                  <span>
+                    Khả dụng {sku.onHand - sku.reserved} / Ngưỡng {thresh}
+                  </span>
+                </button>
+              );
+            })}
           </div>
-          <Button variant="secondary" onClick={() => { if (skus.length > 0) openReorderModal(skus[0]); }}>
+          <Button variant="secondary" onClick={() => openReorderModal(lowStock[0])}>
             <Settings2 size={16} />Cấu hình ngưỡng
           </Button>
         </section>
@@ -1178,9 +1244,25 @@ export function InventoryPage() {
           <button className={tab === "ledger" ? "active" : ""} onClick={() => { setTab("ledger"); void loadLedger(); }}>
             Sổ kho bất biến — Append-Only ({filteredLedger.length})
           </button>
-          <button type="button" onClick={loadData} disabled={loading}
-            style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <RefreshCw size={15} />Làm mới tồn & sổ kho
+          {account?.role !== "Cashier" && (
+            <button
+              className={tab === "ai-reorder" ? "active" : ""}
+              onClick={() => {
+                setTab("ai-reorder");
+                void loadAiRecommendations();
+              }}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+            >
+              <Sparkles size={16} /> Gợi ý nhập hàng
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={tab === "ai-reorder" ? () => void loadAiRecommendations() : loadData}
+            disabled={loading || loadingAi}
+            style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6 }}
+          >
+            <RefreshCw size={15} />{tab === "ai-reorder" ? (loadingAi ? "Đang dự báo..." : "Cập nhật dự báo") : "Làm mới tồn & sổ kho"}
           </button>
         </div>
 
@@ -1327,8 +1409,8 @@ export function InventoryPage() {
                   ) : (
                     pagedSkus.map((sku) => {
                       const available = sku.onHand - sku.reserved;
-                      const thresh = thresholds[sku.id] ?? sku.threshold;
-                      const isUnder = available <= thresh;
+                      const thresh = sku.reorderPoint !== undefined ? sku.reorderPoint : (thresholds[sku.id] ?? sku.threshold ?? 0);
+                      const isUnder = thresh > 0 && available <= thresh;
                       const isInactive = sku.isActive === false;
                       return (
                         <tr key={`${sku.id}-${sku.branchId || "br"}-${sku.warehouseId || "wh"}`}>
@@ -1434,7 +1516,7 @@ export function InventoryPage() {
               </div>
             </div>
           </>
-        ) : (
+        ) : tab === "ledger" ? (
           <>
             <div className="toolbar ledger-filters">
               <label className="search-field">
@@ -1649,6 +1731,266 @@ export function InventoryPage() {
                 <BookOpen size={17} />
                 <strong>Sổ cái kho bất biến (Append-Only):</strong> Nghiêm cấm mọi lệnh UPDATE hoặc DELETE trực tiếp lên số lượng tồn. Sai lệch thực tế bắt buộc phải lập chứng từ Kiểm kê cân kho bù trừ (Compensating Transaction).
               </div>
+            </div>
+          </>
+        ) : (
+          /* GỢI Ý NHẬP HÀNG AI (CS-08) */
+          <>
+            <div className="toolbar" style={{ flexWrap: "wrap", gap: "12px", padding: "14px 16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "11px", fontWeight: 600, color: "#475569" }}>Chi nhánh:</span>
+                <Select
+                  aria-label="Chi nhánh dự báo"
+                  value={aiBranchFilter}
+                  onChange={(e) => {
+                    const nextVal = e.target.value;
+                    setAiBranchFilter(nextVal);
+                    void loadAiRecommendations(nextVal, aiLeadTime, aiSafetyStock, aiOnlyNeedsReorder);
+                  }}
+                  style={{ minWidth: "180px" }}
+                >
+                  <option value="all">Toàn bộ chi nhánh</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "11px", fontWeight: 600, color: "#475569" }}>Lead time (ngày):</span>
+                <Input
+                  type="number"
+                  min={1}
+                  max={180}
+                  value={aiLeadTime}
+                  onChange={(e) => setAiLeadTime(Math.max(1, Math.min(180, Number(e.target.value) || 1)))}
+                  style={{ width: "80px" }}
+                  title="Thời gian giao hàng từ nhà cung cấp (1 - 180 ngày)"
+                />
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "11px", fontWeight: 600, color: "#475569" }}>Tồn an toàn (ngày):</span>
+                <Input
+                  type="number"
+                  min={0}
+                  max={90}
+                  value={aiSafetyStock}
+                  onChange={(e) => setAiSafetyStock(Math.max(0, Math.min(90, Number(e.target.value) || 0)))}
+                  style={{ width: "80px" }}
+                  title="Số ngày dự phòng an toàn (0 - 90 ngày)"
+                />
+              </div>
+
+              <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "11px", color: "#334155" }}>
+                <input
+                  type="checkbox"
+                  checked={aiOnlyNeedsReorder}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setAiOnlyNeedsReorder(checked);
+                    void loadAiRecommendations(aiBranchFilter, aiLeadTime, aiSafetyStock, checked);
+                  }}
+                />
+                <span>Chỉ hiển thị SKU cần nhập</span>
+              </label>
+
+              <Button
+                variant="primary"
+                onClick={() => void loadAiRecommendations()}
+                disabled={loadingAi}
+                style={{ marginLeft: "auto" }}
+              >
+                <RefreshCw size={14} />
+                {loadingAi ? "Đang phân tích..." : "Phân tích lại"}
+              </Button>
+            </div>
+
+            {aiError && (
+              <div
+                style={{
+                  margin: "16px",
+                  background: "#fef2f2",
+                  border: "1px solid #fca5a5",
+                  color: "#b91c1c",
+                  padding: "12px 16px",
+                  borderRadius: "8px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "12px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <AlertCircle size={18} />
+                  <span><strong>Lỗi phân tích gợi ý AI:</strong> {aiError}</span>
+                </div>
+                <Button variant="secondary" onClick={() => void loadAiRecommendations()}>
+                  <RefreshCw size={14} /> Thử lại
+                </Button>
+              </div>
+            )}
+
+            {aiError ? null : loadingAi ? (
+              <div style={{ textAlign: "center", padding: "48px 16px", color: "#64748b" }}>
+                <RefreshCw size={24} style={{ margin: "0 auto 12px" }} />
+                <strong>Đang phân tích dữ liệu xuất bán & tính toán gợi ý nhập hàng tối ưu...</strong>
+                <p style={{ margin: "4px 0 0", fontSize: "11px" }}>Hệ thống đang đối soát dữ liệu xuất bán theo chu kỳ Lead time và Tồn an toàn</p>
+              </div>
+            ) : !aiSummary || aiSummary.recommendations.length === 0 ? (
+              <div style={{ padding: "36px 16px" }}>
+                <EmptyState
+                  title="Chưa có gợi ý nhập hàng"
+                  description={
+                    aiOnlyNeedsReorder
+                      ? "Không có sản phẩm nào cần nhập thêm với bộ lọc hiện tại. Tất cả sản phẩm đều đủ tồn kho theo chu kỳ."
+                      : "Chưa có dữ liệu dự báo hoặc hệ thống chưa ghi nhận giao dịch xuất bán nào cho các SKU thuộc phạm vi này."
+                  }
+                />
+              </div>
+            ) : (
+              <>
+                {/* Summary KPI Strip */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px", padding: "16px", background: "#f8fafc", borderBottom: "1px solid var(--line)" }}>
+                  <div style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: "8px", padding: "12px 14px" }}>
+                    <small style={{ color: "var(--muted)", fontSize: "10px", display: "block" }}>Tổng SKU đã phân tích</small>
+                    <strong style={{ fontSize: "18px", color: "var(--ink)" }}>{aiSummary.totalSkusAnalyzed}</strong>
+                  </div>
+                  <div style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: "8px", padding: "12px 14px" }}>
+                    <small style={{ color: "var(--muted)", fontSize: "10px", display: "block" }}>SKU cần đặt hàng</small>
+                    <strong style={{ fontSize: "18px", color: aiSummary.skusNeedingReorder > 0 ? "#b91c1c" : "#16a34a" }}>
+                      {aiSummary.skusNeedingReorder}
+                    </strong>
+                  </div>
+                  <div style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: "8px", padding: "12px 14px" }}>
+                    <small style={{ color: "var(--muted)", fontSize: "10px", display: "block" }}>Tổng lượng đề xuất nhập</small>
+                    <strong style={{ fontSize: "18px", color: "var(--brand)" }}>
+                      {aiSummary.totalSuggestedQuantity.toLocaleString("vi-VN")}
+                    </strong>
+                  </div>
+                  <div style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: "8px", padding: "12px 14px" }}>
+                    <small style={{ color: "var(--muted)", fontSize: "10px", display: "block" }}>Thời gian phân tích</small>
+                    <strong style={{ fontSize: "12px", color: "#475569" }}>
+                      {new Date(aiSummary.evaluatedAt).toLocaleString("vi-VN")}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>SKU / Sản phẩm</th>
+                        <th>Chi nhánh</th>
+                        <th>Tồn thực tế</th>
+                        <th>Đang giữ</th>
+                        <th>Khả dụng</th>
+                        <th>Ngưỡng cảnh báo</th>
+                        <th>Tốc độ bán / ngày</th>
+                        <th>Số ngày tồn</th>
+                        <th>Đề xuất nhập</th>
+                        <th>Trạng thái</th>
+                        <th>Độ tin cậy</th>
+                        <th>Lý do phân tích</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {aiSummary.recommendations.map((rec) => {
+                        const urgencyTone =
+                          rec.availableQuantity <= 0
+                            ? "danger"
+                            : rec.needsReorder
+                            ? "warning"
+                            : "neutral";
+
+                        const urgencyLabel =
+                          rec.availableQuantity <= 0
+                            ? "Khẩn cấp"
+                            : rec.needsReorder
+                            ? "Cần nhập"
+                            : "Bình thường";
+
+                        const conf = (rec.confidenceLevel || "").toLowerCase();
+                        const confidenceTone =
+                          conf === "high"
+                            ? "success"
+                            : conf === "medium"
+                            ? "warning"
+                            : "neutral";
+
+                        const confidenceLabel =
+                          conf === "high"
+                            ? "Cao"
+                            : conf === "medium"
+                            ? "Trung bình"
+                            : "Thấp";
+
+                        const hasLowData = conf === "low";
+
+                        return (
+                          <tr key={`${rec.skuId}-${rec.branchId}`}>
+                            <td>
+                              <strong>{rec.skuCode}</strong>
+                              <span style={{ display: "block", color: "var(--muted)", fontSize: "10px" }}>
+                                {rec.skuName}
+                              </span>
+                              <span style={{ fontSize: "9px", color: "#64748b" }}>
+                                ĐVT: {rec.baseUnit || "Đơn vị"}
+                              </span>
+                            </td>
+                            <td>{rec.branchName}</td>
+                            <td>{rec.onHandQuantity}</td>
+                            <td>{rec.reservedQuantity}</td>
+                            <td>
+                              <strong style={{ color: rec.availableQuantity <= rec.reorderPoint ? "#b91c1c" : "inherit" }}>
+                                {rec.availableQuantity}
+                              </strong>
+                            </td>
+                            <td>{rec.reorderPoint}</td>
+                            <td>{Number(rec.dailySalesVelocity || 0).toFixed(2)}</td>
+                            <td>
+                              <span
+                                style={{
+                                  fontWeight: rec.daysUntilStockout <= rec.leadTimeDays + rec.safetyStockDays ? 700 : 400,
+                                  color: rec.daysUntilStockout <= rec.leadTimeDays + rec.safetyStockDays ? "#b91c1c" : "inherit",
+                                }}
+                              >
+                                {rec.daysUntilStockout >= 999 ? "Chưa có dữ liệu bán" : `${rec.daysUntilStockout} ngày`}
+                              </span>
+                            </td>
+                            <td>
+                              <strong style={{ fontSize: "13px", color: rec.suggestedQuantity > 0 ? "var(--brand)" : "inherit" }}>
+                                {rec.suggestedQuantity > 0 ? `+${rec.suggestedQuantity.toLocaleString("vi-VN")}` : "0"}
+                              </strong>
+                            </td>
+                            <td>
+                              <Badge tone={urgencyTone}>{urgencyLabel}</Badge>
+                            </td>
+                            <td>
+                              <Badge tone={confidenceTone}>{confidenceLabel}</Badge>
+                              {hasLowData && (
+                                <span style={{ color: "#b45309", fontSize: "10px", display: "block", marginTop: "2px" }}>
+                                  Thiếu dữ liệu
+                                </span>
+                              )}
+                            </td>
+                            <td style={{ maxWidth: "260px", whiteSpace: "normal", fontSize: "10px", color: "#475569" }}>
+                              {rec.reason}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
+            <div className="readonly-note">
+              <Sparkles size={17} color="var(--brand)" />
+              <strong>Gợi ý thông minh (AI Reorder Recommendation):</strong> Kết quả được tính toán dựa trên dữ liệu xuất bán lịch sử, thời gian giao hàng và mức tồn kho an toàn. Đây là gợi ý tham khảo, hệ thống không tự động tạo đơn mua hàng (Purchase Order). Vui lòng rà soát trước khi đặt NCC.
             </div>
           </>
         )}
@@ -2384,7 +2726,7 @@ export function InventoryPage() {
             </label>
             <label>
               <span>Chi nhánh áp dụng *</span>
-              <Select value={reorderBranchId} onChange={(e) => setReorderBranchId(e.target.value)}>
+              <Select value={reorderBranchId} onChange={(e) => handleReorderBranchChange(e.target.value)}>
                 {branches.map((b) => (
                   <option key={b.id} value={b.id}>{b.name}</option>
                 ))}

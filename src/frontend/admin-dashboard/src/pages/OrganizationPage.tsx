@@ -32,6 +32,13 @@ export function OrganizationPage() {
   const [userPassword, setUserPassword] = useState("");
   const [userRole, setUserRole] = useState("Staff");
 
+  // Modal Sửa nhân viên (CS-02)
+  const [editingUser, setEditingUser] = useState<{ id: string; email: string; displayName: string; phone?: string; role: string; isActive: boolean } | null>(null);
+  const [editDisplayName, setEditDisplayName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editRole, setEditRole] = useState("Staff");
+  const [editIsActive, setEditIsActive] = useState(true);
+
   const loadOrgData = async () => {
     setLoading(true);
     setError(null);
@@ -176,6 +183,45 @@ export function OrganizationPage() {
     }
   };
 
+  const openEditUserModal = (u: { id: string; email: string; displayName: string; phone?: string; role: string; isActive: boolean }) => {
+    setEditingUser(u);
+    setEditDisplayName(u.displayName);
+    setEditPhone(u.phone || "");
+    setEditRole(u.role);
+    setEditIsActive(u.isActive);
+    setError(null);
+  };
+
+  const closeEditUserModal = () => {
+    setEditingUser(null);
+    setError(null);
+  };
+
+  const handleUpdateUser = async () => {
+    if (!editingUser) return;
+    setError(null);
+    if (!editDisplayName.trim()) {
+      setError("Vui lòng nhập họ và tên nhân viên.");
+      return;
+    }
+
+    setLoading(true);
+    const res = await apiAdapter.updateUser(editingUser.id, {
+      displayName: editDisplayName.trim(),
+      phone: editPhone.trim() || undefined,
+      role: editRole,
+      isActive: editIsActive,
+    });
+    setLoading(false);
+
+    if (res.error) {
+      setError(res.error.message || "Cập nhật nhân viên thất bại.");
+    } else {
+      setEditingUser(null);
+      await loadOrgData();
+    }
+  };
+
   const handleToggleUserStatus = async (userId: string, currentActive: boolean) => {
     setError(null);
     setLoading(true);
@@ -314,25 +360,46 @@ export function OrganizationPage() {
                           </Badge>
                         </td>
                         <td style={{ textAlign: "right" }}>
-                          {user?.role === "Owner" && !isSelf && u.role !== "Owner" && (
-                            <button
-                              type="button"
-                              onClick={() => handleToggleUserStatus(u.id, u.isActive)}
-                              disabled={loading}
-                              style={{
-                                background: u.isActive ? "#fee2e2" : "#f0fdf4",
-                                border: `1px solid ${u.isActive ? "#f87171" : "#86efac"}`,
-                                color: u.isActive ? "#b91c1c" : "#15803d",
-                                borderRadius: "6px",
-                                padding: "4px 10px",
-                                fontSize: "11px",
-                                fontWeight: 600,
-                                cursor: "pointer",
-                              }}
-                            >
-                              {u.isActive ? "Tạm dừng" : "Kích hoạt"}
-                            </button>
-                          )}
+                          <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end", alignItems: "center" }}>
+                            {user?.role === "Owner" && (
+                              <button
+                                type="button"
+                                onClick={() => openEditUserModal(u)}
+                                disabled={loading}
+                                style={{
+                                  background: "#f1f5f9",
+                                  border: "1px solid #cbd5e1",
+                                  color: "#334155",
+                                  borderRadius: "6px",
+                                  padding: "4px 8px",
+                                  fontSize: "11px",
+                                  fontWeight: 600,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                Sửa
+                              </button>
+                            )}
+                            {user?.role === "Owner" && !isSelf && u.role !== "Owner" && (
+                              <button
+                                type="button"
+                                onClick={() => handleToggleUserStatus(u.id, u.isActive)}
+                                disabled={loading}
+                                style={{
+                                  background: u.isActive ? "#fee2e2" : "#f0fdf4",
+                                  border: `1px solid ${u.isActive ? "#f87171" : "#86efac"}`,
+                                  color: u.isActive ? "#b91c1c" : "#15803d",
+                                  borderRadius: "6px",
+                                  padding: "4px 8px",
+                                  fontSize: "11px",
+                                  fontWeight: 600,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                {u.isActive ? "Tạm dừng" : "Kích hoạt"}
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -555,6 +622,72 @@ export function OrganizationPage() {
             <Button variant="secondary" onClick={() => setWarehouseModalBranchId(null)}>Hủy</Button>
             <Button onClick={handleCreateWarehouse} disabled={loading}>
               {loading ? "Đang tạo..." : "Tạo kho hàng"}
+            </Button>
+          </div>
+        </Modal>
+      )}
+      {editingUser && (
+        <Modal title={`Cập nhật thông tin nhân viên: ${editingUser.displayName}`} onClose={closeEditUserModal}>
+          {error && (
+            <div style={{ background: "#fee2e2", border: "1px solid #ef4444", color: "#b91c1c", padding: "10px", borderRadius: "8px", fontSize: "12px", marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+              <AlertCircle size={16} />
+              <span>{error}</span>
+            </div>
+          )}
+          <div className="form-grid">
+            <label>
+              <span>Email tài khoản (Bất biến)</span>
+              <Input value={editingUser.email} disabled />
+            </label>
+            <label>
+              <span>Họ và tên nhân viên *</span>
+              <Input
+                value={editDisplayName}
+                onChange={(e) => setEditDisplayName(e.target.value)}
+                required
+              />
+            </label>
+            <label>
+              <span>Số điện thoại</span>
+              <Input
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                placeholder="0912345678"
+              />
+            </label>
+            <label>
+              <span>Vai trò phân quyền</span>
+              <Select
+                value={editRole}
+                onChange={(e) => setEditRole(e.target.value)}
+                disabled={editingUser.role === "Owner"} // Backend không đổi vai trò Owner và không gán Owner cho nhân viên
+              >
+                {editingUser.role === "Owner" ? (
+                  <option value="Owner">Chủ cửa hàng (Owner)</option>
+                ) : (
+                  <>
+                    <option value="Staff">Nhân viên kho & Bán hàng (Staff)</option>
+                    <option value="Cashier">Thu ngân (Cashier - chỉ truy cập POS)</option>
+                  </>
+                )}
+              </Select>
+            </label>
+            <label>
+              <span>Trạng thái hoạt động</span>
+              <Select
+                value={editIsActive ? "true" : "false"}
+                onChange={(e) => setEditIsActive(e.target.value === "true")}
+                disabled={user?.email === editingUser.email || editingUser.role === "Owner"} // Không khóa chính mình hoặc tài khoản Owner
+              >
+                <option value="true">Đang hoạt động</option>
+                <option value="false">Tạm dừng tài khoản</option>
+              </Select>
+            </label>
+          </div>
+          <div className="modal-actions">
+            <Button variant="secondary" onClick={closeEditUserModal}>Hủy</Button>
+            <Button onClick={handleUpdateUser} disabled={loading}>
+              {loading ? "Đang lưu..." : "Lưu thay đổi"}
             </Button>
           </div>
         </Modal>
