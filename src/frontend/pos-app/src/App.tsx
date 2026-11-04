@@ -29,6 +29,21 @@ import { PaymentModal } from './components/PaymentModal';
 import { ReceiptPrintModal } from './components/ReceiptPrintModal';
 import { LoginModal } from './components/LoginModal';
 
+/** Chọn đơn vị và giá bán khi thêm vào giỏ. Trả về null nếu đơn vị chưa có giá, không tự tính giá. */
+function resolveCartUnit(product: PosProductSearchResponse) {
+  const units = product.units ?? [];
+  if (units.length === 0) {
+    return { unit: undefined, price: product.retailPrice };
+  }
+  const matched = units.find((u) => u.unitId === product.matchedUnitId);
+  const candidates = matched
+    ? [matched]
+    : [units.find((u) => u.isDefaultSale), units.find((u) => u.isBase), ...units];
+  const unit = candidates.find((u) => u && u.salePrice != null);
+  if (!unit) return null;
+  return { unit, price: unit.salePrice as number };
+}
+
 export function App() {
   // Lấy người dùng đã xác thực từ storage
   // State index 0: currentUser (Bảo toàn vị trí index phục vụ regression tests)
@@ -269,8 +284,27 @@ export function App() {
       return;
     }
 
+    // U05: chọn đơn vị theo mã vạch quy cách hoặc đơn vị bán mặc định; giá phải do server trả về
+    const resolved = resolveCartUnit(product);
+    if (!resolved) {
+      alert(`Đơn vị bán của "${product.productName}" chưa có giá. Vui lòng cấu hình giá trước khi bán.`);
+      return;
+    }
+    const selectedUnit = resolved.unit;
+    const unitId = selectedUnit?.unitId || '';
+    const unitName = selectedUnit?.unitName || '';
+    const unitCode = selectedUnit?.unitCode || '';
+    const factorToBase = selectedUnit?.factor || 1;
+    const isBaseUnit = selectedUnit?.isBase ?? true;
+    const unitPrice = resolved.price;
+    const lineKey = `${product.variantId}:${unitId}`;
+
     setCart((prevCart) => {
-      const existingIndex = prevCart.findIndex((i) => i.variantId === product.variantId);
+      // Khóa dòng theo variantId + unitId: Không gộp dòng nếu khác đơn vị tính
+      const existingIndex = prevCart.findIndex((i) =>
+        i.lineKey ? i.lineKey === lineKey : (i.variantId === product.variantId && (i.unitId || '') === unitId)
+      );
+
       if (existingIndex > -1) {
         const currentQty = prevCart[existingIndex].quantity;
         if (currentQty + 1 > availableStock) {
@@ -293,19 +327,26 @@ export function App() {
             sku: product.sku,
             productName: product.productName,
             variantName: product.variantName,
-            barcode: product.barcode,
-            retailPrice: product.retailPrice,
+            barcode: selectedUnit?.barcode || product.barcode,
+            retailPrice: unitPrice,
             quantity: 1,
             available: availableStock,
             color: product.color,
             size: product.size,
+            unitId,
+            unitName,
+            unitCode,
+            factorToBase,
+            isBaseUnit,
+            units: product.units,
+            lineKey,
           },
         ];
       }
     });
   };
 
-  const handleUpdateQuantity = (variantId: string, delta: number) => {
+  const handleUpdateQuantity = (key: string, delta: number) => {
     if (hasActivePendingAttempt()) {
       alert('Không thể thay đổi số lượng khi đang có giao dịch chưa xác định kết quả.');
       return;
@@ -314,7 +355,7 @@ export function App() {
     setCart((prevCart) => {
       return prevCart
         .map((item) => {
-          if (item.variantId === variantId) {
+          if (item.lineKey === key || item.variantId === key) {
             const nextQty = item.quantity + delta;
             if (delta > 0 && nextQty > item.available) {
               alert(`Số lượng không được vượt quá tồn khả dụng (${item.available}) của mặt hàng này.`);
@@ -328,7 +369,7 @@ export function App() {
     });
   };
 
-  const handleSetQuantity = (variantId: string, quantity: number) => {
+  const handleSetQuantity = (key: string, quantity: number) => {
     if (hasActivePendingAttempt()) {
       alert('Không thể thay đổi số lượng khi đang có giao dịch chưa xác định kết quả.');
       return;
@@ -336,7 +377,7 @@ export function App() {
 
     setCart((prevCart) =>
       prevCart.map((item) => {
-        if (item.variantId === variantId) {
+        if (item.lineKey === key || item.variantId === key) {
           const maxAllowed = item.available > 0 ? item.available : 1;
           const clamped = Math.min(Math.max(1, quantity), maxAllowed);
           return { ...item, quantity: clamped };
@@ -346,13 +387,62 @@ export function App() {
     );
   };
 
-  const handleRemoveItem = (variantId: string) => {
+  const handleUpdateLineUnit = (lineKey: string, newUnitId: string) => {
+    if (hasActivePendingAttempt()) {
+      alert('Không thể thay đổi đơn vị tính khi đang có giao dịch chưa xác định kết quả.');
+      return;
+    }
+    const lineItem = cart.find((i) => i.lineKey === lineKey || i.variantId === lineKey);
+    if (lineItem?.units?.find((u) => u.unitId === newUnitId)?.salePrice == null) {
+      alert('Đơn vị này chưa có giá. Vui lòng cấu hình giá trước khi bán.');
+      return;
+    }
+    setCart((prevCart) => {
+      const targetIndex = prevCart.findIndex((i) => i.lineKey === lineKey || i.variantId === lineKey);
+      if (targetIndex === -1) return prevCart;
+      const currentItem = prevCart[targetIndex];
+      const targetUnit = currentItem.units?.find((u) => u.unitId === newUnitId);
+      if (!targetUnit) return prevCart;
+
+      const newUnitPrice = targetUnit.salePrice as number;
+      const newLineKey = `${currentItem.variantId}:${newUnitId}`;
+
+      // Nếu giỏ đã có dòng cùng SKU và cùng unitId mới, gộp số lượng
+      const mergeIndex = prevCart.findIndex(
+        (i, idx) => idx !== targetIndex && (i.lineKey === newLineKey || (i.variantId === currentItem.variantId && i.unitId === newUnitId))
+      );
+
+      if (mergeIndex > -1) {
+        const next = [...prevCart];
+        next[mergeIndex] = {
+          ...next[mergeIndex],
+          quantity: next[mergeIndex].quantity + currentItem.quantity,
+        };
+        return next.filter((_, idx) => idx !== targetIndex);
+      } else {
+        const next = [...prevCart];
+        next[targetIndex] = {
+          ...currentItem,
+          unitId: targetUnit.unitId,
+          unitName: targetUnit.unitName,
+          unitCode: targetUnit.unitCode,
+          factorToBase: targetUnit.factor,
+          isBaseUnit: targetUnit.isBase,
+          retailPrice: newUnitPrice,
+          lineKey: newLineKey,
+        };
+        return next;
+      }
+    });
+  };
+
+  const handleRemoveItem = (key: string) => {
     if (hasActivePendingAttempt()) {
       alert('Không thể xóa sản phẩm khi đang có giao dịch chưa xác định kết quả.');
       return;
     }
 
-    setCart((prevCart) => prevCart.filter((item) => item.variantId !== variantId));
+    setCart((prevCart) => prevCart.filter((item) => item.lineKey !== key && item.variantId !== key));
   };
 
   const handleClearCart = () => {
@@ -550,6 +640,7 @@ export function App() {
             onUpdateQuantity={handleUpdateQuantity}
             onSetQuantity={handleSetQuantity}
             onRemoveItem={handleRemoveItem}
+            onUpdateUnit={handleUpdateLineUnit}
             onClearCart={handleClearCart}
             onFocusSearch={() => searchInputRef.current?.focus()}
           />

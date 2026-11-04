@@ -42,7 +42,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const cartSignature = JSON.stringify({
     branchId,
     cashierName,
-    items: items.map((i) => ({ skuId: i.variantId, qty: i.quantity, price: i.retailPrice })),
+    items: items.map((i) => ({ skuId: i.variantId, unitId: i.unitId || '', qty: i.quantity, price: i.retailPrice })),
   });
   const checkoutIntentRef = useRef<{ signature: string; key: string } | null>(null);
 
@@ -136,6 +136,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         skuCode: i.sku,
         productName: i.productName,
         variantName: i.variantName,
+        unitId: i.unitId || undefined,
         quantity: i.quantity,
         unitPrice: i.retailPrice,
       })),
@@ -156,6 +157,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       items: items.map((i) => ({
         name: i.productName + (i.variantName ? ` - ${i.variantName}` : ''),
         sku: i.sku,
+        unitName: i.unitName,
         quantity: i.quantity,
         unitPrice: i.retailPrice,
         subtotal: i.retailPrice * i.quantity,
@@ -173,7 +175,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       // [BF-019] Chỉ xác nhận thành công khi server trả về mã đơn hàng hợp lệ
       if (result.success && result.orderNumber) {
         clearRequestKey();
-        receiptData.receiptNumber = result.orderNumber;
+        receiptData.receiptNumber = result.receiptNumber || result.receipt?.receiptNumber || result.orderNumber;
+        receiptData.orderNumber = result.orderNumber;
         onSuccessAndPrint(receiptData);
         onClose();
       } else {

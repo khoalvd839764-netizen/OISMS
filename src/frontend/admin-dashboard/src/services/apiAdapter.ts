@@ -224,8 +224,8 @@ export const apiAdapter = {
                 name: p.name,
                 variant: v.variantName || "",
                 barcode: v.barcode || "",
-                sellingPrice: Number(v.retailPrice) || 0,
-                wholesalePrice: Number(v.wholesalePrice) || 0,
+                sellingPrice: v.retailPrice !== null && v.retailPrice !== undefined ? Number(v.retailPrice) : null,
+                wholesalePrice: v.wholesalePrice !== null && v.wholesalePrice !== undefined ? Number(v.wholesalePrice) : null,
                 averageCost,
                 onHand,
                 reserved: bal ? bal.reserved : 0,
@@ -237,6 +237,11 @@ export const apiAdapter = {
                 categoryName: p.categoryName || null,
                 brandId: p.brandId || null,
                 brandName: p.brandName || null,
+                baseUnitId: v.baseUnitId || null,
+                baseUnitCode: v.baseUnitCode || null,
+                baseUnitName: v.baseUnitName || null,
+                baseUnitPriceMissing: Boolean(v.baseUnitPriceMissing),
+                units: v.units || [],
                 totalInventoryValue,
                 branchBalances: bal?.branchBalances || [],
               });
@@ -417,6 +422,7 @@ export const apiAdapter = {
       wholesalePrice?: number;
       color?: string;
       size?: string;
+      baseUnitId?: string;
     }>;
   }) {
     try {
@@ -434,6 +440,7 @@ export const apiAdapter = {
             wholesalePrice: Number(v.wholesalePrice) || 0,
             color: v.color || null,
             size: v.size || null,
+            baseUnitId: v.baseUnitId || undefined,
           })) || [],
       });
       return { data: res.data };
@@ -451,28 +458,8 @@ export const apiAdapter = {
     }
   },
 
-  async updateVariantPrices(
-    productId: string,
-    variantId: string,
-    payload: { retailPrice: number; wholesalePrice: number }
-  ) {
-    try {
-      const res = await httpClient.put(`/api/products/${productId}/variants/${variantId}/prices`, {
-        retailPrice: Number(payload.retailPrice) || 0,
-        wholesalePrice: Number(payload.wholesalePrice) || 0,
-      });
-      return { data: res.data };
-    } catch (err: any) {
-      return {
-        error: {
-          message:
-            err?.response?.data?.message ||
-            err?.response?.data?.errors?.[0] ||
-            "Cập nhật giá bán biến thể thất bại",
-        },
-      };
-    }
-  },
+  // [U04]: API PUT /api/products/{productId}/variants/{variantId}/prices đã bị đóng (trả HTTP 410 Gone).
+  // Mọi thao tác thay đổi giá phải tạo phiếu đổi giá qua pricingService.createPriceChangeRequest()
 
   async toggleVariantStatus(productId: string, variantId: string) {
     try {
@@ -742,34 +729,37 @@ export const apiAdapter = {
   },
 
   async createGoodsReceipt(payload: {
-    supplierId?: string;
-    branchId: string;
+    purchaseOrderId: string;
     warehouseId: string;
     items: Array<{
-      skuId: string;
+      purchaseOrderItemId: string;
       quantity: number;
-      unitPrice: number;
     }>;
     notes?: string;
     note?: string;
+    number?: string;
+    // Tùy chọn để tương thích ngược
+    supplierId?: string;
+    branchId?: string;
   }) {
     try {
       const res = await httpClient.post("/api/goods-receipts", {
-        branchId: payload.branchId,
+        purchaseOrderId: payload.purchaseOrderId,
         warehouseId: payload.warehouseId,
-        supplierId: payload.supplierId,
+        number: payload.number || null,
         note: payload.notes || payload.note || null,
         items: payload.items.map((item) => ({
-          skuId: item.skuId,
+          purchaseOrderItemId: item.purchaseOrderItemId,
           quantity: Number(item.quantity) || 1,
-          unitPrice: Number(item.unitPrice) || 0,
         })),
       });
       return { data: res.data };
     } catch (err: any) {
       return {
         error: {
+          code: err?.response?.data?.errorCode,
           message:
+            err?.response?.data?.detail ||
             err?.response?.data?.message ||
             err?.response?.data?.errors?.[0] ||
             "Lỗi tạo phiếu nhập kho",
@@ -785,10 +775,30 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
+          code: err?.response?.data?.errorCode,
           message:
+            err?.response?.data?.detail ||
             err?.response?.data?.message ||
             err?.response?.data?.errors?.[0] ||
             "Lỗi xác nhận phiếu nhập",
+        },
+      };
+    }
+  },
+
+  async cancelGoodsReceipt(receiptId: string) {
+    try {
+      const res = await httpClient.post(`/api/goods-receipts/${receiptId}/cancel`);
+      return { data: res.data };
+    } catch (err: any) {
+      return {
+        error: {
+          code: err?.response?.data?.errorCode,
+          message:
+            err?.response?.data?.detail ||
+            err?.response?.data?.message ||
+            err?.response?.data?.errors?.[0] ||
+            "Lỗi hủy phiếu nhập",
         },
       };
     }

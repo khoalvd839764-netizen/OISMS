@@ -3,10 +3,12 @@ import { AdminShell } from "./components/AdminShell";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ProductsPage } from "./pages/ProductsPage";
+import { PurchaseOrdersPage } from "./pages/PurchaseOrdersPage";
 import { InventoryPage } from "./pages/InventoryPage";
 import { InventoryTransfersPage } from "./pages/InventoryTransfersPage";
 import { StockCountsPage } from "./pages/StockCountsPage";
 import { OrdersPage } from "./pages/OrdersPage";
+import { SalesInvoicesPage } from "./pages/SalesInvoicesPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { HandoffPage } from "./pages/HandoffPage";
 import { PosPage } from "./pages/PosPage";
@@ -37,6 +39,8 @@ export default function App() {
               <Route path="/admin" element={<DashboardPage />} />
               <Route path="/products" element={<ProductsPage />} />
               <Route path="/admin/products" element={<ProductsPage />} />
+              <Route path="/purchase-orders" element={<PurchaseOrdersPage />} />
+              <Route path="/admin/purchase-orders" element={<PurchaseOrdersPage />} />
               <Route path="/inventory" element={<InventoryPage />} />
               <Route path="/admin/inventory" element={<InventoryPage />} />
               <Route path="/inventory/transfers" element={<InventoryTransfersPage />} />
@@ -45,6 +49,8 @@ export default function App() {
               <Route path="/admin/inventory/counts" element={<StockCountsPage />} />
               <Route path="/orders" element={<OrdersPage />} />
               <Route path="/admin/orders" element={<OrdersPage />} />
+              <Route path="/invoices" element={<SalesInvoicesPage />} />
+              <Route path="/admin/invoices" element={<SalesInvoicesPage />} />
               <Route path="/handoff" element={<HandoffPage />} />
               <Route path="/admin/handoff" element={<HandoffPage />} />
 

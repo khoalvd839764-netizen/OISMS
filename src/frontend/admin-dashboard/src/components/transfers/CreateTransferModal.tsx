@@ -292,7 +292,7 @@ export const CreateTransferModal: React.FC<CreateTransferModalProps> = ({
                 <thead className="bg-gray-100 text-gray-600">
                   <tr>
                     <th className="p-2">Mã SKU</th>
-                    <th className="p-2 text-center">Số lượng</th>
+                    <th className="p-2 text-center">Số lượng (theo đơn vị gốc)</th>
                     <th className="p-2 text-right">Xóa</th>
                   </tr>
                 </thead>

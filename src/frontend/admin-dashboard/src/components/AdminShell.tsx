@@ -19,6 +19,7 @@ import {
   X,
   ArrowLeftRight,
   ClipboardCheck,
+  Receipt,
 } from "lucide-react";
 import { Button } from "./ui";
 import { useAuth } from "../context/AuthContext";
@@ -28,10 +29,12 @@ import { apiAdapter } from "../services/apiAdapter";
 const nav = [
   { to: "/admin", label: "Tổng quan", icon: LayoutDashboard },
   { to: "/products", label: "Sản phẩm", icon: PackageSearch },
+  { to: "/purchase-orders", label: "Đơn mua hàng", icon: ClipboardList },
   { to: "/inventory", label: "Kho & sổ kho", icon: Boxes },
   { to: "/inventory/transfers", label: "Chuyển kho", icon: ArrowLeftRight },
   { to: "/inventory/counts", label: "Kiểm kê kho", icon: ClipboardCheck },
   { to: "/orders", label: "Đơn đa kênh", icon: ShoppingBag },
+  { to: "/invoices", label: "Hóa đơn & Truy vết", icon: Receipt },
   { to: "/reports", label: "Báo cáo", icon: ChartNoAxesCombined },
 ];
 
@@ -123,6 +126,8 @@ export function AdminShell() {
     "/admin": "Tổng quan",
     "/products": "Sản phẩm",
     "/admin/products": "Sản phẩm",
+    "/purchase-orders": "Đơn mua hàng từ NCC",
+    "/admin/purchase-orders": "Đơn mua hàng từ NCC",
     "/inventory": "Kho & sổ kho",
     "/admin/inventory": "Kho & sổ kho",
     "/inventory/transfers": "Chuyển kho nội bộ (2 Bước)",

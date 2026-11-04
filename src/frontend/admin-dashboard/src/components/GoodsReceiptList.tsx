@@ -5,6 +5,8 @@ import { Badge, Button } from "./ui";
 interface ReceiptSummary {
   id: string;
   number: string;
+  purchaseOrderId?: string;
+  purchaseOrderNumber?: string;
   status: string;
   warehouseName: string;
   supplierName: string;
@@ -39,10 +41,35 @@ export function GoodsReceiptList({ tenantId, onOpen }: { tenantId?: string; onOp
             <thead><tr><th>Mã phiếu</th><th>Kho / Nhà cung cấp</th><th>Giá trị</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
             <tbody>{result.items.map((receipt) => (
               <tr key={receipt.id}>
-                <td>{receipt.number}</td>
+                <td>
+                  <strong>{receipt.number}</strong>
+                  {receipt.purchaseOrderNumber && (
+                    <div style={{ fontSize: 11, color: "var(--text-muted, #64748b)" }}>
+                      Đơn mua: {receipt.purchaseOrderNumber}
+                    </div>
+                  )}
+                </td>
                 <td>{receipt.warehouseName}<br />{receipt.supplierName}</td>
                 <td>{receipt.totalAmount.toLocaleString("vi-VN")} ₫</td>
-                <td><Badge tone={receipt.status === "Confirmed" ? "success" : "warning"}>{receipt.status === "Draft" ? "Chờ xác nhận" : receipt.status === "Confirmed" ? "Đã nhập kho" : receipt.status}</Badge></td>
+                <td>
+                  <Badge
+                    tone={
+                      receipt.status === "Confirmed"
+                        ? "success"
+                        : receipt.status === "Cancelled"
+                        ? "danger"
+                        : "warning"
+                    }
+                  >
+                    {receipt.status === "Draft"
+                      ? "Chờ xác nhận"
+                      : receipt.status === "Confirmed"
+                      ? "Đã nhập kho"
+                      : receipt.status === "Cancelled"
+                      ? "Đã hủy"
+                      : receipt.status}
+                  </Badge>
+                </td>
                 <td><Button variant="secondary" onClick={() => onOpen(receipt.id)}>Xem phiếu</Button></td>
               </tr>
             ))}</tbody>

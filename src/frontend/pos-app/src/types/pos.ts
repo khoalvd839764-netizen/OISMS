@@ -1,3 +1,15 @@
+export interface PosSkuUnitResponse {
+  unitId: string;
+  unitCode: string;
+  unitName: string;
+  factor: number;
+  decimalPlaces: number;
+  salePrice?: number | null;
+  barcode?: string | null;
+  isBase: boolean;
+  isDefaultSale: boolean;
+}
+
 // Types for POS Application (OISMS Web POS)
 
 export interface PosProductSearchResponse {
@@ -14,6 +26,8 @@ export interface PosProductSearchResponse {
   onHand: number | null;
   reserved: number | null;
   available: number | null;
+  units?: PosSkuUnitResponse[];
+  matchedUnitId?: string | null;
 }
 
 export interface CartItem {
@@ -28,6 +42,13 @@ export interface CartItem {
   available: number;
   color?: string | null;
   size?: string | null;
+  unitId?: string;
+  unitName?: string;
+  unitCode?: string;
+  factorToBase?: number;
+  isBaseUnit?: boolean;
+  units?: PosSkuUnitResponse[];
+  lineKey?: string;
 }
 
 export interface Branch {
@@ -65,6 +86,7 @@ export interface PosReceiptItemDto {
   skuCode: string;
   productName: string;
   variantName?: string | null;
+  unitName?: string | null;
   quantity: number;
   unitPrice: number;
   subtotal?: number;
@@ -106,6 +128,7 @@ export interface ReceiptItemData {
   name: string;
   sku: string;
   skuId?: string;
+  unitName?: string;
   barcode?: string;
   quantity: number;
   unitPrice: number;

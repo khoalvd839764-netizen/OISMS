@@ -41,6 +41,8 @@ export const StockCountsTable: React.FC<StockCountsTableProps> = ({
         return <Clock className="w-3.5 h-3.5 mr-1 text-gray-600" />;
       case 'Counting':
         return <Clock className="w-3.5 h-3.5 mr-1 text-amber-600 animate-pulse" />;
+      case 'PendingApproval':
+        return <Clock className="w-3.5 h-3.5 mr-1 text-blue-600" />;
       case 'Confirmed':
         return <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-emerald-600" />;
       case 'Cancelled':

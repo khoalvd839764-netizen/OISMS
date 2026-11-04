@@ -2,13 +2,28 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Trash2, ShoppingBag, Minus, Plus, Package } from 'lucide-react';
 import type { CartItem, Branch, PosProductSearchResponse, ReceiptData } from '../types/pos';
-import { fetchBranches } from '../services/posApi';
+import { fetchBranches, searchPosProducts } from '../services/posApi';
 import { PosHeader } from '../components/pos/PosHeader';
 import { ProductCatalog } from '../components/pos/ProductCatalog';
 import './PosPage.css';
 import { PaymentModal } from '../components/pos/PaymentModal';
 import { ReceiptPrintModal } from '../components/pos/ReceiptPrintModal';
 import { useAuth } from '../context/AuthContext';
+
+/** Chọn đơn vị và giá bán khi thêm vào giỏ. Trả về null nếu đơn vị chưa có giá, không tự tính giá. */
+function resolveCartUnit(product: PosProductSearchResponse) {
+  const units = product.units ?? [];
+  if (units.length === 0) {
+    return { unit: undefined, price: product.retailPrice };
+  }
+  const matched = units.find((u) => u.unitId === product.matchedUnitId);
+  const candidates = matched
+    ? [matched]
+    : [units.find((u) => u.isDefaultSale), units.find((u) => u.isBase), ...units];
+  const unit = candidates.find((u) => u && u.salePrice != null);
+  if (!unit) return null;
+  return { unit, price: unit.salePrice as number };
+}
 
 export function PosPage() {
   const { user, logout } = useAuth();
@@ -115,8 +130,21 @@ export function PosPage() {
       return;
     }
 
+    // U05: chọn đơn vị theo mã vạch quy cách hoặc đơn vị bán mặc định; giá phải do server trả về
+    const resolved = resolveCartUnit(product);
+    if (!resolved) {
+      alert(`Đơn vị bán của "${product.productName}" chưa có giá. Vui lòng cấu hình giá trước khi bán.`);
+      return;
+    }
+    const selectedUnit = resolved.unit;
+    const unitId = selectedUnit?.unitId || '';
+    const lineKey = `${product.variantId}:${unitId}`;
+
     setCart((prevCart) => {
-      const existingIndex = prevCart.findIndex((i) => i.variantId === product.variantId);
+      // Khóa dòng theo variantId + unitId: khác đơn vị thì không gộp dòng
+      const existingIndex = prevCart.findIndex((i) =>
+        i.lineKey ? i.lineKey === lineKey : (i.variantId === product.variantId && (i.unitId || '') === unitId)
+      );
       if (existingIndex > -1) {
         const currentQty = prevCart[existingIndex].quantity;
         if (currentQty + 1 > availableStock) {
@@ -138,23 +166,50 @@ export function PosPage() {
             sku: product.sku,
             productName: product.productName,
             variantName: product.variantName,
-            barcode: product.barcode,
-            retailPrice: product.retailPrice,
+            barcode: selectedUnit?.barcode || product.barcode,
+            retailPrice: resolved.price,
             quantity: 1,
             available: availableStock,
             color: product.color,
             size: product.size,
+            unitId,
+            unitName: selectedUnit?.unitName || '',
+            unitCode: selectedUnit?.unitCode || '',
+            factorToBase: selectedUnit?.factor || 1,
+            isBaseUnit: selectedUnit?.isBase ?? true,
+            units: product.units,
+            lineKey,
           },
         ];
       }
     });
   };
 
-  const handleUpdateQuantity = (variantId: string, delta: number) => {
+  // Danh mục không có giá theo đơn vị, nên lấy đơn vị và giá hiện hành từ API tìm kiếm của POS trước khi thêm vào giỏ
+  const handleCatalogAdd = async (product: PosProductSearchResponse) => {
+    // Kết quả từ API tìm kiếm hoặc quét mã đã có đơn vị và giá, kể cả đơn vị khớp mã vạch
+    if (product.units) {
+      handleAddToCart(product);
+      return;
+    }
+    try {
+      const results = await searchPosProducts(product.sku, selectedBranchId);
+      const match = results.find((item) => item.variantId === product.variantId);
+      if (!match) {
+        alert(`Không tải được giá hiện hành của "${product.productName}". Vui lòng thử lại.`);
+        return;
+      }
+      handleAddToCart(match);
+    } catch (err: any) {
+      alert(err?.message || `Không tải được giá hiện hành của "${product.productName}".`);
+    }
+  };
+
+  const handleUpdateQuantity = (key: string, delta: number) => {
     setCart((prevCart) => {
       return prevCart
         .map((item) => {
-          if (item.variantId === variantId) {
+          if (item.lineKey === key || item.variantId === key) {
             const nextQty = item.quantity + delta;
             if (delta > 0 && nextQty > item.available) {
               alert(`Số lượng không được vượt quá tồn khả dụng (${item.available}) của mặt hàng này.`);
@@ -168,10 +223,10 @@ export function PosPage() {
     });
   };
 
-  const handleSetQuantity = (variantId: string, quantity: number) => {
+  const handleSetQuantity = (key: string, quantity: number) => {
     setCart((prevCart) =>
       prevCart.map((item) => {
-        if (item.variantId === variantId) {
+        if (item.lineKey === key || item.variantId === key) {
           const maxAllowed = item.available > 0 ? item.available : 1;
           const clamped = Math.min(Math.max(1, Number.isFinite(quantity) ? Math.floor(quantity) : 1), maxAllowed);
           return { ...item, quantity: clamped };
@@ -181,8 +236,48 @@ export function PosPage() {
     );
   };
 
-  const handleRemoveItem = (variantId: string) => {
-    setCart((prevCart) => prevCart.filter((item) => item.variantId !== variantId));
+  const handleRemoveItem = (key: string) => {
+    setCart((prevCart) => prevCart.filter((item) => item.lineKey !== key && item.variantId !== key));
+  };
+
+  const handleUpdateUnit = (lineKey: string, newUnitId: string) => {
+    const lineItem = cart.find((i) => i.lineKey === lineKey || i.variantId === lineKey);
+    if (lineItem?.units?.find((u) => u.unitId === newUnitId)?.salePrice == null) {
+      alert('Đơn vị này chưa có giá. Vui lòng cấu hình giá trước khi bán.');
+      return;
+    }
+    setCart((prevCart) => {
+      const targetIndex = prevCart.findIndex((i) => i.lineKey === lineKey || i.variantId === lineKey);
+      if (targetIndex === -1) return prevCart;
+      const currentItem = prevCart[targetIndex];
+      const targetUnit = currentItem.units?.find((u) => u.unitId === newUnitId);
+      if (!targetUnit) return prevCart;
+
+      const newUnitPrice = targetUnit.salePrice as number;
+      const newLineKey = `${currentItem.variantId}:${newUnitId}`;
+
+      const mergeIndex = prevCart.findIndex(
+        (i, idx) => idx !== targetIndex && (i.lineKey === newLineKey || (i.variantId === currentItem.variantId && i.unitId === newUnitId))
+      );
+      if (mergeIndex > -1) {
+        const next = [...prevCart];
+        next[mergeIndex] = { ...next[mergeIndex], quantity: next[mergeIndex].quantity + currentItem.quantity };
+        return next.filter((_, idx) => idx !== targetIndex);
+      } else {
+        const next = [...prevCart];
+        next[targetIndex] = {
+          ...currentItem,
+          unitId: targetUnit.unitId,
+          unitName: targetUnit.unitName,
+          unitCode: targetUnit.unitCode,
+          factorToBase: targetUnit.factor,
+          isBaseUnit: targetUnit.isBase,
+          retailPrice: newUnitPrice,
+          lineKey: newLineKey,
+        };
+        return next;
+      }
+    });
   };
 
   const handleClearCart = () => {
@@ -243,7 +338,7 @@ export function PosPage() {
       <main className="pos-workspace no-print">
         <fieldset className="pos-catalog-fieldset" disabled={checkoutBusy}>
           <ProductCatalog key={`${user?.tenantId}:${user?.id}:${selectedBranchId}`} branchId={selectedBranchId}
-            cart={cart} onAdd={handleAddToCart} searchRef={searchInputRef} refresh={catalogRefresh} />
+            cart={cart} onAdd={handleCatalogAdd} searchRef={searchInputRef} refresh={catalogRefresh} />
         </fieldset>
         <aside className="pos-order-panel" aria-label="Giỏ hàng và thanh toán">
           <div className="pos-order-heading"><h2><ShoppingBag size={19} /> Đơn hiện tại <span>{totalQuantity}</span></h2>
@@ -251,16 +346,36 @@ export function PosPage() {
           </div>
           <fieldset className="pos-cart-lines" disabled={checkoutBusy}>
             {cart.length === 0 ? <div className="pos-empty"><Package size={38} strokeWidth={1.3} /><strong>Giỏ hàng trống</strong><p>Quét barcode hoặc chọn sản phẩm</p></div> :
-              cart.map((item) => <article className="pos-cart-line" key={item.variantId}>
-                <div className="pos-cart-product"><strong>{item.productName}</strong><small>{item.sku} · {item.variantName}</small></div>
-                <button className="pos-remove-line" type="button" aria-label={`Xóa ${item.sku}`} onClick={() => handleRemoveItem(item.variantId)}><Trash2 size={15} /></button>
-                <div className="pos-quantity-control">
-                  <button type="button" aria-label={`Giảm ${item.sku}`} onClick={() => handleUpdateQuantity(item.variantId,-1)}><Minus size={13} /></button>
-                  <input type="number" min="1" max={item.available} aria-label={`Số lượng ${item.sku}`} value={item.quantity}
-                    onChange={(event) => handleSetQuantity(item.variantId,Number(event.target.value))} />
-                  <button type="button" aria-label={`Tăng ${item.sku}`} disabled={item.quantity >= item.available} onClick={() => handleUpdateQuantity(item.variantId,1)}><Plus size={13} /></button>
+              cart.map((item) => <article className="pos-cart-line" key={item.lineKey || item.variantId}>
+                <div className="pos-cart-product">
+                  <strong>{item.productName}</strong>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                    <small>{item.sku} · {item.variantName}</small>
+                    {item.units && item.units.length > 1 ? (
+                      <select
+                        value={item.unitId || ''}
+                        onChange={(e) => handleUpdateUnit(item.lineKey || item.variantId, e.target.value)}
+                        style={{ fontSize: '11px', padding: '1px 4px', borderRadius: '4px', border: '1px solid #cbd5e1' }}
+                      >
+                        {item.units.map((u: any) => (
+                          <option key={u.unitId} value={u.unitId}>
+                            {u.unitName} (x{u.factor}){u.salePrice == null ? ' - chưa có giá' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      item.unitName && <span style={{ fontSize: '11px', background: '#e0e7ff', color: '#3730a3', padding: '1px 4px', borderRadius: '4px' }}>{item.unitName}</span>
+                    )}
+                  </div>
                 </div>
-                <div className="pos-line-price"><strong>{formatCurrency(item.retailPrice*item.quantity)}</strong><small>{formatCurrency(item.retailPrice)} / SP</small></div>
+                <button className="pos-remove-line" type="button" aria-label={`Xóa ${item.sku}`} onClick={() => handleRemoveItem(item.lineKey || item.variantId)}><Trash2 size={15} /></button>
+                <div className="pos-quantity-control">
+                  <button type="button" aria-label={`Giảm ${item.sku}`} onClick={() => handleUpdateQuantity(item.lineKey || item.variantId,-1)}><Minus size={13} /></button>
+                  <input type="number" min="1" max={item.available} aria-label={`Số lượng ${item.sku}`} value={item.quantity}
+                    onChange={(event) => handleSetQuantity(item.lineKey || item.variantId,Number(event.target.value))} />
+                  <button type="button" aria-label={`Tăng ${item.sku}`} disabled={item.quantity >= item.available} onClick={() => handleUpdateQuantity(item.lineKey || item.variantId,1)}><Plus size={13} /></button>
+                </div>
+                <div className="pos-line-price"><strong>{formatCurrency(item.retailPrice*item.quantity)}</strong><small>{formatCurrency(item.retailPrice)} / {item.unitName || 'SP'}</small></div>
               </article>)}
           </fieldset>
           <fieldset className="pos-payment-fieldset" disabled={checkoutBusy}>
