@@ -7,6 +7,8 @@ namespace OISM.Application.Features.Reports.Services;
 
 public class ReportService : IReportService
 {
+    private const string UnknownUnitName = "Chưa xác định";
+
     private readonly IAppDbContext _context;
     private readonly ICurrentTenantService _currentTenantService;
 
@@ -177,6 +179,8 @@ public class ReportService : IReportService
             .AsNoTracking()
             .Include(b => b.Sku)
                 .ThenInclude(s => s!.Product)
+            .Include(b => b.Sku)
+                .ThenInclude(s => s!.BaseUnit)
             .Where(b => b.TenantId == tenantId);
 
         if (filter.BranchId.HasValue && filter.BranchId.Value != Guid.Empty)
@@ -196,6 +200,24 @@ public class ReportService : IReportService
             totalReserved += b.Reserved;
             totalValue += b.OnHand * b.AverageCost;
         }
+
+        var quantityByUnit = balances
+            .GroupBy(b => b.Sku?.BaseUnit?.Name ?? UnknownUnitName)
+            .Select(g =>
+            {
+                var onHand = g.Sum(b => b.OnHand);
+                var reserved = g.Sum(b => b.Reserved);
+                return new UnitQuantityDto
+                {
+                    UnitName = g.Key,
+                    OnHand = onHand,
+                    Reserved = reserved,
+                    Available = Math.Max(0, onHand - reserved)
+                };
+            })
+            .OrderByDescending(u => u.OnHand)
+            .ThenBy(u => u.UnitName)
+            .ToList();
 
         // Lấy dữ liệu bán hàng từ các đơn hoàn tất/xác nhận trong kỳ
         var ordersQuery = _context.Orders
@@ -249,8 +271,8 @@ public class ReportService : IReportService
             .Take(topN)
             .Select(kv =>
             {
-                var skuBalance = balances.FirstOrDefault(b => b.SkuId == kv.Key);
-                var sku = skuBalance?.Sku;
+                var skuBalances = balances.Where(b => b.SkuId == kv.Key).ToList();
+                var sku = skuBalances.FirstOrDefault()?.Sku;
                 return new SkuVelocityItemDto
                 {
                     SkuId = kv.Key,
@@ -258,38 +280,43 @@ public class ReportService : IReportService
                     SkuName = sku?.Product?.Name ?? "Sản phẩm " + kv.Key.ToString()[..8],
                     QuantitySold = kv.Value.QuantitySold,
                     TotalRevenue = kv.Value.Revenue,
-                    CurrentOnHand = skuBalance?.OnHand ?? 0,
-                    DaysWithoutSale = 0
+                    CurrentOnHand = skuBalances.Sum(b => b.OnHand),
+                    DaysWithoutSale = 0,
+                    BaseUnitName = sku?.BaseUnit?.Name
                 };
             })
             .ToList();
 
         // Mặt hàng luân chuyển chậm (Slow moving: có tồn kho nhưng bán ít hoặc chưa bán)
         var slowMoving = balances
-            .Where(b => b.OnHand > 0)
-            .Select(b =>
+            .GroupBy(b => b.SkuId)
+            .Select(g =>
             {
-                var sold = salesBySku.TryGetValue(b.SkuId, out var s) ? s.QuantitySold : 0;
-                var rev = salesBySku.TryGetValue(b.SkuId, out var s2) ? s2.Revenue : 0;
+                var sold = salesBySku.TryGetValue(g.Key, out var s) ? s.QuantitySold : 0;
+                var rev = salesBySku.TryGetValue(g.Key, out var s2) ? s2.Revenue : 0;
                 return new
                 {
-                    Balance = b,
+                    SkuId = g.Key,
+                    Sku = g.First().Sku,
+                    OnHand = g.Sum(b => b.OnHand),
                     Sold = sold,
                     Revenue = rev
                 };
             })
+            .Where(x => x.OnHand > 0)
             .OrderBy(x => x.Sold)
-            .ThenByDescending(x => x.Balance.OnHand)
+            .ThenByDescending(x => x.OnHand)
             .Take(topN)
             .Select(x => new SkuVelocityItemDto
             {
-                SkuId = x.Balance.SkuId,
-                SkuCode = x.Balance.Sku?.SKU ?? "SKU-" + x.Balance.SkuId.ToString()[..8],
-                SkuName = x.Balance.Sku?.Product?.Name ?? "Sản phẩm",
+                SkuId = x.SkuId,
+                SkuCode = x.Sku?.SKU ?? "SKU-" + x.SkuId.ToString()[..8],
+                SkuName = x.Sku?.Product?.Name ?? "Sản phẩm",
                 QuantitySold = x.Sold,
                 TotalRevenue = x.Revenue,
-                CurrentOnHand = x.Balance.OnHand,
-                DaysWithoutSale = 30 // Mặc định chu kỳ 30 ngày
+                CurrentOnHand = x.OnHand,
+                DaysWithoutSale = 30, // Mặc định chu kỳ 30 ngày
+                BaseUnitName = x.Sku?.BaseUnit?.Name
             })
             .ToList();
 
@@ -299,6 +326,7 @@ public class ReportService : IReportService
             TotalOnHandQuantity = totalOnHand,
             TotalReservedQuantity = totalReserved,
             TotalAvailableQuantity = Math.Max(0, totalOnHand - totalReserved),
+            QuantityByUnit = quantityByUnit,
             BestSellers = bestSellers,
             SlowMovingItems = slowMoving
         };
