@@ -1,5 +1,7 @@
 import { httpClient } from "./httpClient";
 import type { ApiResult, BranchStockBreakdown, LedgerEntry, Order, PagedMeta, Sku } from "../types/domain";
+import type { DashboardSummary } from "../types/reports";
+import type { ReorderRecommendationQuery, ReorderRecommendationSummary } from "../types/ai";
 
 function getActiveTenantId(): string {
   return localStorage.getItem("oism_tenant_id") || "default";
@@ -512,7 +514,8 @@ export const apiAdapter = {
           averageCost: avgCost,
           onHand,
           reserved: Number(b.reserved) || 0,
-          threshold: 5,
+          threshold: b.reorderPoint !== undefined && b.reorderPoint !== null ? Number(b.reorderPoint) : (Number(b.threshold) || 0),
+          reorderPoint: Number(b.reorderPoint) || 0,
           image: "",
           isActive: b.isActive !== false,
           branchId: b.branchId || undefined,
@@ -869,6 +872,42 @@ export const apiAdapter = {
       return {
         error: {
           message: err?.response?.data?.message || err?.response?.data?.errors?.[0] || "Cập nhật hàng loạt ngưỡng cảnh báo thất bại",
+        },
+      };
+    }
+  },
+
+  // --- DASHBOARD SUMMARY (CS-07) ---
+  async getDashboardSummary(): Promise<ApiResult<DashboardSummary>> {
+    try {
+      const res = await httpClient.get<DashboardSummary>("/api/reports/dashboard-summary");
+      return { data: res.data };
+    } catch (err: any) {
+      return {
+        error: {
+          code: err?.response?.data?.code || "DASHBOARD_ERROR",
+          message: err?.response?.data?.message || err?.message || "Không thể tải báo cáo tổng quan Dashboard từ máy chủ.",
+        },
+      };
+    }
+  },
+
+  // --- AI FORECASTING & REORDER RECOMMENDATIONS (CS-08) ---
+  async getReorderRecommendations(query?: ReorderRecommendationQuery): Promise<ApiResult<ReorderRecommendationSummary>> {
+    try {
+      const params: Record<string, any> = {};
+      if (query?.branchId && query.branchId !== "all") params.branchId = query.branchId;
+      if (query?.leadTimeDays !== undefined) params.leadTimeDays = query.leadTimeDays;
+      if (query?.safetyStockDays !== undefined) params.safetyStockDays = query.safetyStockDays;
+      if (query?.onlyNeedsReorder !== undefined) params.onlyNeedsReorder = query.onlyNeedsReorder;
+
+      const res = await httpClient.get<ReorderRecommendationSummary>("/api/ai/reorder-recommendations", { params });
+      return { data: res.data };
+    } catch (err: any) {
+      return {
+        error: {
+          code: err?.response?.data?.code || "AI_RECOMMENDATION_ERROR",
+          message: err?.response?.data?.message || err?.message || "Không thể tải dữ liệu gợi ý nhập hàng từ AI.",
         },
       };
     }

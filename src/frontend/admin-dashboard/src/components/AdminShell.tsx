@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Boxes,
@@ -50,28 +50,44 @@ export function AdminShell() {
     goodsReceipts: Array<{ id: string; title: string; subtitle?: string; status?: string; url: string }>;
   } | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
+  const searchSeqRef = useRef(0);
 
-  useEffect(() => {
-    const q = searchQuery.trim();
+  const performSearch = useCallback(async (queryText: string) => {
+    const q = queryText.trim();
     if (!q) {
       setSearchResults(null);
+      setSearchError(null);
       setShowDropdown(false);
       return;
     }
 
-    const timer = setTimeout(async () => {
-      setIsSearching(true);
-      setShowDropdown(true);
-      const res = await apiAdapter.globalSearch(q);
-      if (res.data) {
-        setSearchResults(res.data);
-      }
-      setIsSearching(false);
+    const seq = ++searchSeqRef.current;
+    setIsSearching(true);
+    setSearchError(null);
+    setShowDropdown(true);
+
+    const res = await apiAdapter.globalSearch(q);
+    if (seq !== searchSeqRef.current) return;
+
+    if (res.error) {
+      setSearchError(res.error.message || "Tìm kiếm thất bại. Vui lòng thử lại.");
+      setSearchResults(null);
+    } else if (res.data) {
+      setSearchResults(res.data);
+      setSearchError(null);
+    }
+    setIsSearching(false);
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      performSearch(searchQuery);
     }, 250);
 
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, performSearch]);
 
   const account = user || {
     id: "user",
@@ -287,6 +303,26 @@ export function AdminShell() {
                   {isSearching ? (
                     <div style={{ padding: "16px", textAlign: "center", color: "#64748b", fontSize: "13px" }}>
                       Đang tìm kiếm toàn hệ thống...
+                    </div>
+                  ) : searchError ? (
+                    <div style={{ padding: "16px", textAlign: "center", color: "#b91c1c", fontSize: "13px" }}>
+                      <p style={{ margin: "0 0 8px" }}>{searchError}</p>
+                      <button
+                        type="button"
+                        onClick={() => performSearch(searchQuery)}
+                        style={{
+                          background: "#fff",
+                          border: "1px solid #f87171",
+                          color: "#b91c1c",
+                          borderRadius: "6px",
+                          padding: "4px 10px",
+                          fontSize: "12px",
+                          cursor: "pointer",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Thử lại
+                      </button>
                     </div>
                   ) : !searchResults || (searchResults.products.length === 0 && searchResults.orders.length === 0 && searchResults.goodsReceipts.length === 0) ? (
                     <div style={{ padding: "16px", textAlign: "center", color: "#64748b", fontSize: "13px" }}>

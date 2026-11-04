@@ -33,6 +33,7 @@ export interface Sku {
   onHand: number;
   reserved: number;
   threshold: number;
+  reorderPoint?: number;
   image: string;
   isActive?: boolean;
   productIsActive?: boolean;
