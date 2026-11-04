@@ -126,6 +126,10 @@ export const PriceManagementModal: React.FC<PriceManagementModalProps> = ({
 
   const handleReject = async () => {
     if (!rejectModalId || processingId) return;
+    if (!rejectNote.trim()) {
+      setActionError('Vui lòng nhập lý do từ chối.');
+      return;
+    }
     setActionError(null);
     setProcessingId(rejectModalId);
     try {
@@ -143,6 +147,10 @@ export const PriceManagementModal: React.FC<PriceManagementModalProps> = ({
 
   const handleCancelScheduled = async () => {
     if (!cancelModalPriceId || processingId) return;
+    if (!cancelReason.trim()) {
+      setActionError('Vui lòng nhập lý do hủy giá.');
+      return;
+    }
     setActionError(null);
     setProcessingId(cancelModalPriceId);
     try {
@@ -163,8 +171,8 @@ export const PriceManagementModal: React.FC<PriceManagementModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <Modal title="Quản lý Bảng giá & Lịch sử giá" onClose={onClose}>
-      <div style={{ padding: '0 4px' }}>
+    <Modal wide title="Quản lý Bảng giá & Lịch sử giá" onClose={onClose}>
+      <div style={{ padding: '16px 20px 0' }}>
         <div className="tabs" style={{ marginBottom: '14px' }}>
           <button
             className={tab === 'requests' ? 'active' : ''}
@@ -527,6 +535,7 @@ export const PriceManagementModal: React.FC<PriceManagementModalProps> = ({
             <p style={{ fontSize: '12px', color: '#475569', marginBottom: '10px' }}>
               Vui lòng nhập lý do từ chối phiếu đổi giá này để thông báo cho người lập phiếu:
             </p>
+            {actionError && <p style={{ color: '#b91c1c', fontSize: '12px', margin: '0 0 8px' }}>{actionError}</p>}
             <Input
               value={rejectNote}
               onChange={(e) => setRejectNote(e.target.value)}
@@ -552,6 +561,7 @@ export const PriceManagementModal: React.FC<PriceManagementModalProps> = ({
             <p style={{ fontSize: '12px', color: '#475569', marginBottom: '10px' }}>
               Nhập lý do hủy dòng giá đã lên lịch trong tương lai này (dòng giá sẽ chuyển sang trạng thái Đã hủy và không có hiệu lực):
             </p>
+            {actionError && <p style={{ color: '#b91c1c', fontSize: '12px', margin: '0 0 8px' }}>{actionError}</p>}
             <Input
               value={cancelReason}
               onChange={(e) => setCancelReason(e.target.value)}

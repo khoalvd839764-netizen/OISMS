@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Button, Input, Modal, Select } from '../ui';
+import { NumberField } from '../NumberField';
 import { purchaseOrderService } from '../../services/purchaseOrderService';
 import { apiAdapter } from '../../services/apiAdapter';
 import type {
@@ -228,7 +229,7 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
 
   const handleQuantityChange = (index: number, qty: number) => {
     setLines((prev) =>
-      prev.map((l, i) => (i === index ? { ...l, quantity: Math.max(0.001, qty) } : l))
+      prev.map((l, i) => (i === index ? { ...l, quantity: qty } : l))
     );
   };
 
@@ -511,29 +512,24 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
                         </Select>
                       </td>
                       <td>
-                        <Input
-                          type="number"
-                          step="any"
-                          min="0.001"
-                          value={line.quantity}
-                          onChange={(e) =>
-                            handleQuantityChange(idx, parseFloat(e.target.value) || 0)
-                          }
+                        <NumberField
+                          aria-label="Số lượng đặt"
+                          value={line.quantity || null}
+                          decimals={3}
+                          onChange={(value) => handleQuantityChange(idx, value ?? 0)}
+                          placeholder="Số lượng"
                           disabled={loading}
-                          required
                         />
                       </td>
                       <td>
-                        <Input
-                          type="number"
-                          step="any"
-                          min="0"
-                          value={line.unitPrice}
-                          onChange={(e) =>
-                            handlePriceChange(idx, parseFloat(e.target.value) || 0)
-                          }
+                        <NumberField
+                          aria-label="Đơn giá mua"
+                          value={line.unitPrice || null}
+                          decimals={2}
+                          suffix="₫"
+                          onChange={(value) => handlePriceChange(idx, value ?? 0)}
+                          placeholder="Đơn giá"
                           disabled={loading}
-                          required
                         />
                       </td>
                       <td style={{ textAlign: 'center' }}>

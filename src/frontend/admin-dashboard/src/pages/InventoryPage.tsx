@@ -21,6 +21,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Badge, Button, ComingSoonBadge, EmptyState, Input, Modal, PageTitle, Select } from "../components/ui";
+import { NumberField } from "../components/NumberField";
 import { apiAdapter, generateUuid } from "../services/apiAdapter";
 import { realtimeAdapter } from "../services/realtimeAdapter";
 import { useAuth } from "../context/AuthContext";
@@ -1315,6 +1316,7 @@ export function InventoryPage() {
           <button className={tab === "ledger" ? "active" : ""} onClick={() => { setTab("ledger"); void loadLedger(); }}>
             Sổ kho bất biến — Append-Only ({filteredLedger.length})
           </button>
+          {/* Tạm ẩn tab Gợi ý nhập hàng; bỏ comment để mở lại, phần xử lý và panel bên dưới vẫn giữ nguyên.
           {account?.role !== "Cashier" && (
             <button
               className={tab === "ai-reorder" ? "active" : ""}
@@ -1327,6 +1329,7 @@ export function InventoryPage() {
               <Sparkles size={16} /> Gợi ý nhập hàng
             </button>
           )}
+          */}
           <button
             type="button"
             onClick={tab === "ai-reorder" ? () => void loadAiRecommendations() : loadData}
@@ -2467,17 +2470,15 @@ export function InventoryPage() {
                             <span style={{ fontSize: "11px", fontWeight: 600, display: "block" }}>
                               Thực nhận đợt này *
                             </span>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="any"
-                              max={item.remainingQuantity}
+                            <NumberField
+                              aria-label={`Thực nhận ${item.skuCode}`}
                               disabled={Boolean(createdReceiptId)}
-                              value={item.quantity}
-                              onChange={(e) => {
-                                const next = [...receiptItems];
-                                next[idx].quantity = Number(e.target.value);
-                                setReceiptItems(next);
+                              value={item.quantity || null}
+                              decimals={3}
+                              onChange={(value) => {
+                                setReceiptItems((current) =>
+                                  current.map((row, i) => (i === idx ? { ...row, quantity: value ?? 0 } : row))
+                                );
                               }}
                             />
                             {isOver && (
@@ -2878,13 +2879,11 @@ export function InventoryPage() {
             </label>
             <label>
               <span>Ngưỡng cảnh báo tồn (ReorderPoint) *</span>
-              <Input
-                type="number"
-                min="0"
-                step="1"
+              <NumberField
+                aria-label="Ngưỡng cảnh báo tồn"
                 value={reorderInputVal}
-                onChange={(e) => setReorderInputVal(Math.max(0, parseInt(e.target.value) || 0))}
-                required
+                decimals={3}
+                onChange={(value) => setReorderInputVal(value ?? 0)}
               />
             </label>
           </div>
