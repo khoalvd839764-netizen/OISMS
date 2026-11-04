@@ -15,6 +15,7 @@
 
 | Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả thay đổi | Mã tham chiếu |
 | :---: | :---: | :--- | :--- | :--- |
+| `v1.0.5` | `2026-11-04` | Nhóm dự án OISMS | `GET /api/reports/inventory-velocity` thêm `quantityByUnit` và `baseUnitName`; `currentOnHand` cộng theo SKU trên phạm vi chi nhánh đang lọc. | `OISMS-46` |
 | `v1.0.4` | `2026-10-26` | Đăng Khoa (Backend 1) | **Hoàn thiện Task 6 v1.0:** Tác vụ nền Hangfire tự động hủy đơn giữ chỗ quá hạn 15 phút (`oisms-reservation-expiry`, cadence `*/1 * * * *` UTC). Chuẩn hóa ranh giới hết hạn `ExpiresAt <= cutoffUtc`, giải phóng `Reserved` hai cấp (chi nhánh & kho) nguyên tử theo toàn giỏ, phát sự kiện SignalR `StockLevelChanged` sau khi database transaction commit thành công. | `SYNC-S3-T06-V10` |
 | `v1.0.3` | `2026-10-26` | Đăng Khoa (Backend 1) | **Hoàn thiện Task 5 v1.2:** Chuẩn hóa validation omission scalar `channel` & `unitPrice` (trả 400 `VALIDATION_ERROR` khi omit, chấp nhận explicit `unitPrice: 0` khi `totalAmount: 0`), Fast Replay đơn Admin khi chi nhánh ngừng hoạt động trả `200 OK`, đồng bộ phát sự kiện SignalR (`OrderCreated`, `StockLevelChanged`, `LowStockWarning`) sau khi database transaction commit thành công. | `SYNC-S3-T05-V12` |
 | `v1.0.2` | `2026-10-24` | Đăng Khoa (Backend 1) | Bổ sung thao tác hoàn tất đơn hàng online `POST /api/orders/{id}/complete` (`Confirmed -> Completed`), cập nhật link tương đối và quy tắc bảo mật webhook/idempotency. | `SYNC-S3-COMPLETE-ORD` |
@@ -72,5 +73,7 @@ Mỗi lần xuất bán (POS Checkout hoặc Online Order Confirm) tạo đúng 
 | `GET` | `/api/reports/inventory-velocity` | `Owner, Staff` | `FR-REP-02` | Báo cáo giá trị tồn kho theo giá vốn, top hàng bán chạy và hàng luân chuyển chậm. |
 | `GET` | `/api/reports/stock-alerts` | `Owner, Staff` | `FR-REP-03` | Danh sách cảnh báo các SKU có `available <= MinStockLevel`. |
 | `GET` | `/api/ai/reorder-recommendations` | `Owner, Staff` | `FR-AI-01` | Dự báo nhu cầu tiêu thụ và gợi ý số lượng đặt hàng nhập kho theo từng SKU. |
+
+> **Tồn theo đơn vị (04/11/2026):** `GET /api/reports/inventory-velocity` trả thêm `quantityByUnit`, mỗi phần tử gồm `unitName`, `onHand`, `reserved`, `available` theo đơn vị gốc, sắp theo `onHand` giảm dần. SKU chưa có đơn vị gốc nằm trong nhóm `Chưa xác định`. Các trường `totalOnHandQuantity`, `totalReservedQuantity`, `totalAvailableQuantity` vẫn trả về để tương thích nhưng cộng gộp khác đơn vị, không dùng để hiển thị. Trong `bestSellers` và `slowMovingItems`, mỗi SKU một dòng; `currentOnHand` là tổng tồn trong phạm vi chi nhánh đang lọc; `baseUnitName` là `null` khi SKU chưa có đơn vị gốc.
 
 > **Ghi chú 04/11/2026:** `GET /api/ai/reorder-recommendations`, `lowStockCount` của `GET /api/reports/dashboard-summary` và báo cáo cảnh báo tồn chỉ tính SKU còn kinh doanh (`IsActive = true`). `daysUntilStockout = 999` nghĩa là chưa có dữ liệu bán để ước tính.

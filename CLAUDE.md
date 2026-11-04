@@ -70,6 +70,7 @@ CI chạy khi push hoặc mở PR vào `main`, `master`, `develop`: build và te
 
 - **Docs cũ:** tài liệu lịch sử (sprint, báo cáo cá nhân) còn ghi 29 bảng; hiện là **43 bảng** (`oisms_schema.sql`, `init-oisms.sh`, `RequiredTables`). Docs kiến trúc còn ghi `ApplicationDbContext`, `OISM.WebAPI` thay vì `AppDbContext`, `OISM.WebApi`.
 - **Tiến độ:** hiện trạng frontend xem `docs/report-after-upgrade/frontend-coming-soon-va-upgrade.md`. Còn thiếu CS-01, CS-05 ở POS Admin, CS-06, U01-B và phân công chi nhánh của CS-02. Vẫn phải kiểm tra code trước khi kết luận chức năng còn thiếu. Dấu `[x]` Sprint 2 chỉ là baseline lịch sử, không phải nghiệm thu toàn sản phẩm.
+- **Tạm ẩn:** tab Gợi ý nhập hàng được comment trong `InventoryPage.tsx`, API vẫn chạy. Màn Handoff đã gỡ nhưng đặc tả `docs/11-ui-screens/07-handoff-screens.md` còn giữ. Quên mật khẩu mới là nút tắt có nhãn Coming soon.
 - **Hangfire:** `Hangfire:Enabled` mặc định `false` và compose không bật, nên job hết hạn giữ chỗ và lịch kiểm kê không tự chạy trừ khi cấu hình.
 - **Redis:** có container nhưng code backend chưa dùng.
 - **POS đa đơn vị:** `posCartUnits.ts` có một bản trong mỗi app, sửa thì sửa cả hai; `pos-app/test-cart-units.mjs` chạy cả hai bản. Giá theo đơn vị phải lấy từ `/api/pos/search` hoặc `/api/sku-unit-prices/effective`, vì `salePrice` trong `/api/products` có thể rỗng; không tự tính giá theo hệ số.

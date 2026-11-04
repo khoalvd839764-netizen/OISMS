@@ -1,6 +1,7 @@
 # CHECKLIST TỔNG HỢP: BUG ĐÃ FIX, UPGRADE ĐÃ LÀM & KẾ HOẠCH 2 NHÓM (BACKEND & FRONTEND)
 
 > **Cập nhật 04/11/2026:** frontend Coming Soon và Upgrade đã gộp vào `develop`. Bằng chứng và phần còn thiếu xem [báo cáo nghiệm thu](../report-after-upgrade/frontend-coming-soon-va-upgrade.md).
+> **Ghi chú 04/11/2026:** tab Gợi ý nhập hàng (`CS-08`) đang tạm ẩn trên giao diện và màn Handoff kỹ thuật đã gỡ. Chi tiết xem cùng báo cáo trên.
 
 | Thông tin kiểm soát | Chi tiết |
 | :--- | :--- |

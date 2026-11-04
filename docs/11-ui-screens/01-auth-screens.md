@@ -41,6 +41,7 @@ Màn hình xác thực tập trung hỗ trợ mô hình Multi-tenant SaaS cho to
 │                    │ [ ••••••••••••••••         👁]│                    │
 │                    │                              │                    │
 │                    │ [✓] Ghi nhớ đăng nhập        │                    │
+│                    │ Quên mật khẩu? [Coming soon] │                    │
 │                    │                              │                    │
 │                    │ [    ĐĂNG NHẬP HỆ THỐNG    ] │                    │
 │                    └──────────────────────────────┘                    │
@@ -56,7 +57,10 @@ Màn hình xác thực tập trung hỗ trợ mô hình Multi-tenant SaaS cho to
 | `Username/Email/Phone` | `Input` (Text) | Bắt buộc, chuỗi định dạng Email chuẩn hoặc SĐT chuẩn `E.164`. | Viền đỏ `#c93c48` + Text *"Vui lòng nhập Email hoặc SĐT hợp lệ"* |
 | `Password` | `Input` (Password) | Bắt buộc, tối thiểu 6 ký tự, có nút ẩn/hiện mắt xem mật khẩu. | Viền đỏ `#c93c48` + Text *"Mật khẩu tối thiểu 6 ký tự"* |
 | `RememberMe` | `Checkbox` | Mặc định `true` (lưu Refresh Token trong 30 ngày). | N/A |
+| Nút `Quên mật khẩu?` | `Button` (`disabled`) + nhãn `Coming soon` | Có ở đăng nhập Admin và POS PWA. Chưa có API và luồng đặt lại mật khẩu. | N/A |
 | Nút `Đăng nhập` | `Button (Primary)` | Hiển thị spinner xoay và vô hiệu hóa (`disabled`) khi đang gửi request. | Chống bấm lặp (Debounce) |
+
+Màn đăng nhập không hiển thị tài khoản mẫu và không điền sẵn thông tin đăng nhập.
 
 ### 1.4. Bảng Hàm API Backend & Tài Liệu Tham Chiếu
 

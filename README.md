@@ -2,10 +2,7 @@
 
 ## 🌐 Link web đã deploy trên AWS
 
-| Ứng dụng | Link |
-| :--- | :--- |
-| **Admin Dashboard** | [https://oisms.khoadang.site](https://oisms.khoadang.site) |
-| **POS App** | [https://pos.oisms.khoadang.site](https://pos.oisms.khoadang.site) |
+[https://oisms.khoadang.site](https://oisms.khoadang.site)
 
 > Bản demo chạy trên một máy EC2 và có thể được tắt khi không demo để tiết kiệm chi phí. Cách deploy và lưu ý khi chạy local: xem [Triển khai lên AWS](#triển-khai-lên-aws-ec2--docker-compose).
 
@@ -202,7 +199,6 @@ Toàn bộ stack chạy trên một máy EC2. Chỉ Caddy mở cổng `80`/`443`
 ```text
 Internet → Caddy (80/443)
              ├─ oisms.khoadang.site     → admin-dashboard
-             ├─ pos.oisms.khoadang.site → pos-app
              └─ /api, /hubs, /health    → backend → postgres, redis
 ```
 

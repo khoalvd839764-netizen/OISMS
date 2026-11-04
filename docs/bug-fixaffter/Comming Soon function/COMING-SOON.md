@@ -11,7 +11,8 @@
 | CS-05 | Đã có một phần | POS PWA đã có VietQR, thu ngân xác nhận thủ công; POS Admin chưa bật; không có webhook ngân hàng |
 | CS-06 | Chưa làm | In chứng từ giao hàng và in báo cáo |
 | CS-07 | Đã có | Số liệu lũy kế, API chưa lọc theo thời gian |
-| CS-08 | Đã có một phần | Dựa trên quy tắc, chưa có bằng chứng đánh giá dự báo |
+| CS-08 | Đã có một phần, **tab đang tạm ẩn** | Dựa trên quy tắc, chưa có bằng chứng đánh giá dự báo; cần chốt thời điểm mở lại tab |
+| Chưa đánh số | Nhãn Coming soon | Quên mật khẩu ở đăng nhập Admin và POS PWA: mới có nút tắt, chưa có API và luồng đặt lại |
 
 Kết quả nghiệm thu: [báo cáo frontend](../../report-after-upgrade/frontend-coming-soon-va-upgrade.md). Bảng dưới giữ nguyên hiện trạng tại 28–29/10/2026.
 
@@ -30,7 +31,7 @@ Ngày: 28–29/10/2026. Các mục đã bị khóa bằng nhãn Coming soon ở 
 
 ## Các phần chưa phải bug sản phẩm đã xác nhận
 
-- PWA/offline: Handoff hiện nói rõ chưa có service worker/bán offline. Cần chốt mức yêu cầu trước khi coi thiếu offline là lỗi; không tự thêm queue giao dịch tài chính.
+- PWA/offline: màn Handoff (đã gỡ ngày 04/11/2026) từng ghi rõ chưa có service worker/bán offline. Cần chốt mức yêu cầu trước khi coi thiếu offline là lỗi; không tự thêm queue giao dịch tài chính.
 - Kết nối sàn thật so với simulator: đối chiếu phạm vi đề bài và backend hiện tại; không mặc định một simulator đúng đề là bug chỉ vì chưa kết nối tài khoản sàn thật.
 - Kiểm thử tải, phục hồi sự cố, mức uptime và CI/release chưa được thay thế bằng build hoặc unit test PASS.
 

@@ -21,6 +21,8 @@ Màn hình **Báo Cáo Doanh Thu & Quản Trị Lãi Gộp (P&L Reports)** là p
 2. **Hiệu quả mặt hàng (SKU Performance Ranking):** Phân tích danh sách biến thể SKU bán chạy nhất (Top Sellers) và các mặt hàng ứ đọng vốn (Dead Stock / Slow-moving Inventory).
 3. **Dự báo nhu cầu & Gợi ý nhập hàng AI (AI Reorder Recommendations):** Áp dụng mô hình dự báo tiêu thụ theo chuỗi thời gian để gợi ý số lượng đặt hàng tối ưu cho từng nhà cung cấp.
 
+> **Trạng thái 04/11/2026:** giao diện gợi ý nhập hàng nằm ở một tab của `/inventory` và đang tạm ẩn; API `GET /api/ai/reorder-recommendations` vẫn hoạt động.
+
 ---
 
 ## 2. Bố Cục Giao Diện Wireframe (ASCII Wireframe)
@@ -61,3 +63,15 @@ Màn hình **Báo Cáo Doanh Thu & Quản Trị Lãi Gộp (P&L Reports)** là p
 | `GET` | `/api/reports/inventory-velocity` | `OrdersController.GetInventoryVelocityReport` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#2-danh-mục-endpoints-báo-cáo--dự-báo-ai-fr-rep-0103-fr-ai-01) | `AUTH_UNAUTHORIZED` |
 | `GET` | `/api/reports/stock-alerts` | `InventoryController.GetStockAlerts` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#2-danh-mục-endpoints-báo-cáo--dự-báo-ai-fr-rep-0103-fr-ai-01) | `AUTH_UNAUTHORIZED` |
 | `GET` | `/api/ai/reorder-recommendations` | `OrdersController.GetAiReorderRecommendations` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#2-danh-mục-endpoints-báo-cáo--dự-báo-ai-fr-rep-0103-fr-ai-01) | `AUTH_UNAUTHORIZED` |
+
+---
+
+## 4. Tab Vận Tốc Kho: Tồn Theo Đơn Vị (Cập nhật 04/11/2026)
+
+| Thành phần | Quy tắc hiển thị |
+| :--- | :--- |
+| Thẻ Tổng giá trị tồn (WAC) | Một số tiền duy nhất, định giá theo giá vốn bình quân. |
+| Thẻ Tồn thực tế, Giữ chỗ, Khả dụng | Mỗi đơn vị gốc một dòng, lấy từ `quantityByUnit`. Không cộng gộp khác đơn vị. |
+| Nhiều đơn vị | Hiện 4 dòng đầu; nút `Xem đủ N đơn vị` mở cùng lúc cho cả ba thẻ. |
+| SKU chưa có đơn vị gốc | Gom vào nhóm `Chưa xác định`. |
+| Cột SL bán và Tồn hiện tại | Ghi kèm đơn vị gốc. Tồn hiện tại cộng trên mọi chi nhánh, hoặc chỉ chi nhánh đang lọc; mỗi SKU một dòng. |
