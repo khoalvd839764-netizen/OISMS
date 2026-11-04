@@ -12,12 +12,16 @@ import {
   Search,
   Tag,
   Trash2,
+  Layers,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Badge, Button, Input, Modal, PageTitle, Select } from "../components/ui";
 import { apiAdapter } from "../services/apiAdapter";
 import { useAuth } from "../context/AuthContext";
 import type { Sku } from "../types/domain";
+import { unitService } from "../services/unitService";
+import { SkuUnitManagementModal } from "../components/units/SkuUnitManagementModal";
+import type { Unit } from "../types/units";
 
 // Hàm sinh mã vạch chuẩn EAN-13 hợp lệ kèm số kiểm tra Checksum (893 = Mã quốc gia Việt Nam)
 function generateEan13(): string {
@@ -55,6 +59,8 @@ export function ProductsPage() {
     Array<{ id: string; name: string; rawName?: string; code?: string; parentId?: string | null; level?: number }>
   >([]);
   const [brands, setBrands] = useState<Array<{ id: string; name: string; code?: string }>>([]);
+  const [unitsList, setUnitsList] = useState<Unit[]>([]);
+  const [unitModalSku, setUnitModalSku] = useState<Sku | null>(null);
 
   // Form tạo sản phẩm mới
   const [prodName, setProdName] = useState("");
@@ -68,6 +74,7 @@ export function ProductsPage() {
       barcode: string;
       retailPrice: number;
       wholesalePrice: number;
+      baseUnitId?: string;
     }>
   >([
     {
@@ -101,11 +108,15 @@ export function ProductsPage() {
   const loadData = async () => {
     setLoading(true);
     setLoadError(null);
-    const [pRes, cRes, bRes] = await Promise.all([
+    const [pRes, cRes, bRes, uRes] = await Promise.all([
       apiAdapter.getSkus(),
       apiAdapter.getCategories(),
       apiAdapter.getBrands(),
+      unitService.getUnits().catch(() => []),
     ]);
+    if (Array.isArray(uRes)) {
+      setUnitsList(uRes.filter((u) => u.isActive));
+    }
 
     // [A09] Báo lỗi kết nối rõ ràng thay vì biến thành mảng rỗng = 0
     if (pRes.error) {
@@ -188,6 +199,7 @@ export function ProductsPage() {
         barcode: v.barcode.trim(),
         retailPrice: Number(v.retailPrice) || 0,
         wholesalePrice: Number(v.wholesalePrice) || 0,
+        baseUnitId: v.baseUnitId || undefined,
       })),
     };
 
@@ -528,7 +540,16 @@ export function ProductsPage() {
                         <code>{sku.barcode || "N/A"}</code>
                       </td>
                       <td>
-                        <strong>{sku.sellingPrice.toLocaleString("vi-VN")} ₫</strong>
+                        {sku.sellingPrice != null ? (
+                          <strong>{sku.sellingPrice.toLocaleString("vi-VN")} ₫</strong>
+                        ) : (
+                          <span style={{ color: "#d97706", fontWeight: 600 }}>Chưa có giá</span>
+                        )}
+                        {sku.baseUnitPriceMissing && (
+                          <span style={{ display: "block", fontSize: "11px", color: "#ef4444", fontWeight: 500, marginTop: "2px" }}>
+                            ⚠️ Thiếu giá cơ sở
+                          </span>
+                        )}
                       </td>
                       <td>
                         <strong className={isLow ? "text-warning" : ""}>{available}</strong>
@@ -551,7 +572,17 @@ export function ProductsPage() {
                         )}
                       </td>
                       {(user?.role === "Owner" || user?.role === "Staff") && (
-                        <td>
+                        <td style={{ whiteSpace: "nowrap" }}>
+                          <Button
+                            variant="ghost"
+                            title="Cấu hình Đơn vị tính & Quy cách"
+                            onClick={() => {
+                              setUnitModalSku(sku);
+                            }}
+                            style={{ marginRight: "4px" }}
+                          >
+                            <Layers size={17} />
+                          </Button>
                           <Button
                             variant="ghost"
                             title="Cập nhật giá bán lẻ / giá sỉ & trạng thái SKU"
@@ -559,8 +590,8 @@ export function ProductsPage() {
                               setFormError(null);
                               setFormSuccess(null);
                               setEditingSku(sku);
-                              setEditRetailPrice(sku.sellingPrice);
-                              setEditWholesalePrice(sku.wholesalePrice);
+                              setEditRetailPrice(sku.sellingPrice ?? 0);
+                              setEditWholesalePrice(sku.wholesalePrice ?? 0);
                             }}
                           >
                             <MoreHorizontal size={19} />
@@ -793,6 +824,24 @@ export function ProductsPage() {
                         setVariants(next);
                       }}
                     />
+                  </label>
+                  <label>
+                    <span style={{ fontSize: "11px" }}>Đơn vị gốc</span>
+                    <Select
+                      value={v.baseUnitId || ""}
+                      onChange={(e) => {
+                        const next = [...variants];
+                        next[idx].baseUnitId = e.target.value;
+                        setVariants(next);
+                      }}
+                    >
+                      <option value="">Mặc định (cái)</option>
+                      {unitsList.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name} ({u.symbol})
+                        </option>
+                      ))}
+                    </Select>
                   </label>
                   <Button
                     variant="ghost"
@@ -1195,6 +1244,12 @@ export function ProductsPage() {
           </div>
         </Modal>
       )}
+      <SkuUnitManagementModal
+        isOpen={Boolean(unitModalSku)}
+        onClose={() => setUnitModalSku(null)}
+        sku={unitModalSku}
+        onUpdated={loadData}
+      />
     </>
   );
 }

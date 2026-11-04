@@ -205,8 +205,8 @@ export const apiAdapter = {
                 name: p.name,
                 variant: v.variantName || "",
                 barcode: v.barcode || "",
-                sellingPrice: Number(v.retailPrice) || 0,
-                wholesalePrice: Number(v.wholesalePrice) || 0,
+                sellingPrice: v.retailPrice !== null && v.retailPrice !== undefined ? Number(v.retailPrice) : null,
+                wholesalePrice: v.wholesalePrice !== null && v.wholesalePrice !== undefined ? Number(v.wholesalePrice) : null,
                 averageCost,
                 onHand,
                 reserved: bal ? bal.reserved : 0,
@@ -218,6 +218,11 @@ export const apiAdapter = {
                 categoryName: p.categoryName || null,
                 brandId: p.brandId || null,
                 brandName: p.brandName || null,
+                baseUnitId: v.baseUnitId || null,
+                baseUnitCode: v.baseUnitCode || null,
+                baseUnitName: v.baseUnitName || null,
+                baseUnitPriceMissing: Boolean(v.baseUnitPriceMissing),
+                units: v.units || [],
                 totalInventoryValue,
                 branchBalances: bal?.branchBalances || [],
               });
@@ -398,6 +403,7 @@ export const apiAdapter = {
       wholesalePrice?: number;
       color?: string;
       size?: string;
+      baseUnitId?: string;
     }>;
   }) {
     try {
@@ -415,6 +421,7 @@ export const apiAdapter = {
             wholesalePrice: Number(v.wholesalePrice) || 0,
             color: v.color || null,
             size: v.size || null,
+            baseUnitId: v.baseUnitId || undefined,
           })) || [],
       });
       return { data: res.data };
