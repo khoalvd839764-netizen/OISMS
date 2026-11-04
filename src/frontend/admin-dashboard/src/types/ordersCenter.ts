@@ -52,6 +52,7 @@ export interface CreateOrderItemRequest {
   skuCode: string;
   productName: string;
   variantName?: string;
+  unitId?: string;
   quantity: number;
   unitPrice: number;
 }
@@ -59,6 +60,7 @@ export interface CreateOrderItemRequest {
 export interface CreateOrderRequest {
   branchId: string;
   channel: string;
+  priceListCode?: string;
   customerName?: string;
   customerPhone?: string;
   shippingAddress?: string;

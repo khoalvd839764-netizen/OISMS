@@ -439,28 +439,8 @@ export const apiAdapter = {
     }
   },
 
-  async updateVariantPrices(
-    productId: string,
-    variantId: string,
-    payload: { retailPrice: number; wholesalePrice: number }
-  ) {
-    try {
-      const res = await httpClient.put(`/api/products/${productId}/variants/${variantId}/prices`, {
-        retailPrice: Number(payload.retailPrice) || 0,
-        wholesalePrice: Number(payload.wholesalePrice) || 0,
-      });
-      return { data: res.data };
-    } catch (err: any) {
-      return {
-        error: {
-          message:
-            err?.response?.data?.message ||
-            err?.response?.data?.errors?.[0] ||
-            "Cập nhật giá bán biến thể thất bại",
-        },
-      };
-    }
-  },
+  // [U04]: API PUT /api/products/{productId}/variants/{variantId}/prices đã bị đóng (trả HTTP 410 Gone).
+  // Mọi thao tác thay đổi giá phải tạo phiếu đổi giá qua pricingService.createPriceChangeRequest()
 
   async toggleVariantStatus(productId: string, variantId: string) {
     try {

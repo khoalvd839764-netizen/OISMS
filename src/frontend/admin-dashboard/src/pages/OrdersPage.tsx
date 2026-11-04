@@ -104,6 +104,12 @@ export function OrdersPage() {
   const [newWarehouseId, setNewWarehouseId] = useState("");
   const [newSkuId, setNewSkuId] = useState("");
   const [newQuantity, setNewQuantity] = useState(1);
+  const [newPriceListCode, setNewPriceListCode] = useState<"retail" | "wholesale">("retail");
+  const [overridePrice, setOverridePrice] = useState<number | null>(null);
+  const [priceMismatchNotice, setPriceMismatchNotice] = useState<{
+    message: string;
+    currentPrices: Array<{ skuId: string; skuCode: string; unitId?: string | null; currentPrice: number }>;
+  } | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [loadingCreate, setLoadingCreate] = useState(false);
 
@@ -301,9 +307,16 @@ export function OrdersPage() {
       keyToSend = orderIdempotencyKey || generateUuid();
       setOrderIdempotencyKey(keyToSend);
 
+      const defaultPrice =
+        newPriceListCode === "wholesale"
+          ? (chosenSku.wholesalePrice ?? chosenSku.sellingPrice ?? 0)
+          : (chosenSku.sellingPrice ?? 0);
+      const unitPriceToSend = overridePrice != null ? overridePrice : defaultPrice;
+
       payloadToSend = {
         branchId: newBranchId,
         channel: "Admin", // B01-F01: Khóa chặt contract channel Admin cho đơn tạo thủ công
+        priceListCode: newPriceListCode,
         customerName: newCustomer.trim() || "Khách lẻ",
         requestKey: keyToSend,
         items: [
@@ -313,7 +326,7 @@ export function OrdersPage() {
             productName: chosenSku.name,
             variantName: chosenSku.variant,
             quantity: newQuantity,
-            unitPrice: chosenSku.sellingPrice || 0, // Lưu snapshot giá tại thời điểm tạo
+            unitPrice: unitPriceToSend, // Lưu snapshot giá tại thời điểm tạo
           },
         ],
       };
@@ -359,6 +372,20 @@ export function OrdersPage() {
 
       // Phân định Definite Failure vs Indeterminate / Unknown State (B01-F02)
       if (status === 400) {
+        if (errorCode === "PRICE_MISMATCH") {
+          const mismatchList = data?.currentPrices || data?.extensions?.currentPrices || [];
+          setPriceMismatchNotice({
+            message: errorDetail,
+            currentPrices: mismatchList,
+          });
+          setCreateError(`Phát hiện giá niêm yết đã thay đổi: ${errorDetail}`);
+          clearSavedPendingOrder(account.tenantId, account.id);
+          setPendingSnapshot(null);
+          setIsRetryingOrder(false);
+          setIsUnknownState(false);
+          return;
+        }
+
         // Lỗi xác thực dứt khoát: cho phép sửa lại form
         const msg = `Lỗi xác thực dữ liệu (400): ${errorDetail}`;
         setCreateError(msg);
@@ -625,7 +652,74 @@ export function OrdersPage() {
                       required
                     />
                   </label>
+                  <label>
+                    <span>Bảng giá áp dụng (U04) *</span>
+                    <Select
+                      value={newPriceListCode}
+                      disabled={isFormLocked}
+                      onChange={(e) => {
+                        const code = e.target.value as "retail" | "wholesale";
+                        setNewPriceListCode(code);
+                        setOverridePrice(null);
+                        setPriceMismatchNotice(null);
+                        handleFormChange();
+                      }}
+                    >
+                      <option value="retail">Bảng giá bán lẻ (Retail)</option>
+                      <option value="wholesale">Bảng giá bán sỉ (Wholesale)</option>
+                    </Select>
+                  </label>
+                  <label>
+                    <span>Đơn giá áp dụng (VNĐ)</span>
+                    <Input
+                      type="text"
+                      disabled
+                      readOnly
+                      value={(() => {
+                        const chosenSku = skusList.find((s) => s.id === newSkuId);
+                        if (!chosenSku) return "—";
+                        const price = overridePrice != null
+                          ? overridePrice
+                          : (newPriceListCode === "wholesale"
+                              ? (chosenSku.wholesalePrice ?? chosenSku.sellingPrice ?? 0)
+                              : (chosenSku.sellingPrice ?? 0));
+                        return `${price.toLocaleString("vi-VN")} ₫`;
+                      })()}
+                    />
+                  </label>
                 </div>
+
+                {priceMismatchNotice && (
+                  <div style={{ background: "#fffbeb", border: "1px solid #f59e0b", padding: "12px", borderRadius: "8px", margin: "12px 0" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#b45309", fontWeight: 600 }}>
+                      <AlertCircle size={18} />
+                      <span>Phát hiện giá niêm yết đã thay đổi (PRICE_MISMATCH)</span>
+                    </div>
+                    <p style={{ fontSize: "12px", margin: "6px 0", color: "#78350f" }}>
+                      {priceMismatchNotice.message}
+                    </p>
+                    <ul style={{ fontSize: "12px", paddingLeft: "20px", margin: "4px 0", color: "#78350f" }}>
+                      {priceMismatchNotice.currentPrices.map((cp, idx) => (
+                        <li key={idx}>
+                          Mặt hàng <strong>{cp.skuCode}</strong>: Giá mới hiệu lực là <strong>{cp.currentPrice.toLocaleString("vi-VN")} ₫</strong>
+                        </li>
+                      ))}
+                    </ul>
+                    <Button
+                      variant="primary"
+                      style={{ marginTop: "8px" }}
+                      onClick={() => {
+                        if (priceMismatchNotice.currentPrices.length > 0) {
+                          setOverridePrice(priceMismatchNotice.currentPrices[0].currentPrice);
+                        }
+                        setPriceMismatchNotice(null);
+                        setCreateError(null);
+                      }}
+                    >
+                      Xác nhận áp dụng giá mới & Cập nhật
+                    </Button>
+                  </div>
+                )}
               </>
             );
           })()}
