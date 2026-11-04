@@ -6,6 +6,15 @@ import { apiAdapter } from "../services/apiAdapter";
 import { useAuth } from "../context/AuthContext";
 import type { DashboardSummary } from "../types/reports";
 
+const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** 7 ngày nghiệp vụ gần nhất theo UTC+07:00, ngày cũ nhất đứng trước. */
+function lastSevenBusinessDates(): string[] {
+  const nowVn = Date.now() + VN_OFFSET_MS;
+  return Array.from({ length: 7 }, (_, i) => new Date(nowVn - (6 - i) * DAY_MS).toISOString().slice(0, 10));
+}
+
 export function DashboardPage() {
   const { account } = useAuth();
   const isOwner = account?.role === "Owner";
@@ -36,10 +45,15 @@ export function DashboardPage() {
   }, [account?.tenantId, account?.role]);
 
   // Kiểm tra dữ liệu biểu đồ thật
-  const trendData = summary?.recentRevenueTrend || [];
-  const hasRealTrendData = trendData.length > 0 && trendData.some((d) => Number(d.revenue) > 0);
+  // Backend chỉ trả những ngày có đơn; ngày vắng được hiển thị là 0 để trục thời gian đủ 7 ngày
+  const serverTrend = summary?.recentRevenueTrend || [];
+  const trendData = lastSevenBusinessDates().map((date) => {
+    const found = serverTrend.find((d) => d.date === date);
+    return { date, revenue: Number(found?.revenue) || 0, orderCount: found?.orderCount ?? 0 };
+  });
+  const hasRealTrendData = trendData.some((d) => d.revenue > 0);
   const maxRevenue = hasRealTrendData
-    ? Math.max(...trendData.map((d) => Number(d.revenue) || 0), 1)
+    ? Math.max(...trendData.map((d) => d.revenue), 1)
     : 1;
 
   return (
@@ -105,13 +119,13 @@ export function DashboardPage() {
             loadError
               ? "Lỗi tải số liệu"
               : summary
-              ? `Từ ${summary.totalOrders} đơn hàng hoàn tất`
+              ? `Lũy kế từ ${summary.totalOrders} đơn đã xác nhận hoặc hoàn tất`
               : "Đang tải..."
           }
           icon={<WalletCards size={19} />}
         />
         <StatCard
-          label="Tổng đơn hàng"
+          label="Đơn ghi nhận doanh thu"
           value={
             loading
               ? "..."
@@ -119,7 +133,7 @@ export function DashboardPage() {
               ? "—"
               : `${summary?.totalOrders ?? 0} đơn`
           }
-          change="Bao gồm đơn từ POS và Admin"
+          change={loadError ? "Lỗi tải số liệu" : "Lũy kế, gồm mọi kênh bán"}
           icon={<ShoppingCart size={19} />}
         />
         <StatCard
@@ -132,7 +146,9 @@ export function DashboardPage() {
               : `${summary?.skuCount ?? 0} SKU`
           }
           change={
-            isOwner && summary?.totalInventoryValue !== null && summary?.totalInventoryValue !== undefined
+            loadError
+              ? "Lỗi tải số liệu"
+              : isOwner && summary?.totalInventoryValue !== null && summary?.totalInventoryValue !== undefined
               ? `Giá trị tồn: ${summary.totalInventoryValue.toLocaleString("vi-VN")} ₫`
               : "SKU đang hoạt động"
           }
@@ -154,9 +170,11 @@ export function DashboardPage() {
           change={
             !isOwner
               ? "Chỉ Chủ doanh nghiệp (Owner) mới có quyền xem lợi nhuận"
-              : summary && summary.totalGrossProfit !== null
-              ? `Tỷ suất biên: ${Number(summary.grossMarginPercentage || 0).toFixed(1)}%`
-              : "Chưa phát sinh lợi nhuận"
+              : loadError
+              ? "Lỗi tải số liệu"
+              : summary
+              ? `Lũy kế · Tỷ suất biên: ${Number(summary.grossMarginPercentage || 0).toFixed(1)}%`
+              : "Đang tải..."
           }
           icon={<TrendingUp size={19} />}
         />
@@ -178,6 +196,10 @@ export function DashboardPage() {
           {loading ? (
             <div style={{ padding: "48px 20px", textAlign: "center", color: "#64748b" }}>
               Đang tải biểu đồ xu hướng...
+            </div>
+          ) : loadError ? (
+            <div style={{ padding: "48px 20px", textAlign: "center", color: "#b91c1c" }}>
+              Không tải được dữ liệu biểu đồ. Bấm Thử lại ở phía trên.
             </div>
           ) : !hasRealTrendData ? (
             <div
@@ -206,9 +228,10 @@ export function DashboardPage() {
               </div>
               <div className="bars">
                 {trendData.map((d) => {
-                  const rev = Number(d.revenue) || 0;
-                  const heightPercent = maxRevenue > 0 ? Math.max((rev / maxRevenue) * 100, 4) : 0;
-                  const dateLabel = d.date.length >= 10 ? d.date.slice(5) : d.date;
+                  const rev = d.revenue;
+                  // Cột 0 đồng không có chiều cao; cột có doanh thu giữ tối thiểu 4% để nhìn thấy
+                  const heightPercent = rev > 0 ? Math.max((rev / maxRevenue) * 100, 4) : 0;
+                  const dateLabel = d.date.slice(5);
                   return (
                     <div className="bar-wrap" key={d.date} title={`${d.date}: ${rev.toLocaleString("vi-VN")} ₫ (${d.orderCount} đơn)`}>
                       <div
@@ -231,13 +254,13 @@ export function DashboardPage() {
               <h2>Cần xử lý</h2>
               <p>Ưu tiên theo mức độ ảnh hưởng</p>
             </div>
-            <span className="alert-count">{summary?.lowStockCount ?? 0}</span>
+            <span className="alert-count">{summary ? summary.lowStockCount : "—"}</span>
           </div>
           <div className="attention-list">
             <Link to="/inventory">
               <span className="attention-icon danger"><CircleAlert size={19} /></span>
               <div>
-                <strong>{summary?.lowStockCount ?? 0} SKU sắp hết hàng</strong>
+                <strong>{summary ? `${summary.lowStockCount} SKU sắp hết hàng` : "Chưa có số liệu SKU sắp hết hàng"}</strong>
                 <p>Khả dụng (Available) ≤ Ngưỡng an toàn</p>
               </div>
               <ArrowRight size={18} />
@@ -281,6 +304,10 @@ export function DashboardPage() {
         {loading ? (
           <div style={{ padding: "32px", textAlign: "center", color: "#64748b" }}>
             Đang tải danh sách đơn hàng gần đây...
+          </div>
+        ) : loadError ? (
+          <div style={{ padding: "36px 20px", textAlign: "center", color: "#b91c1c" }}>
+            Không tải được danh sách đơn hàng gần đây. Bấm Thử lại ở phía trên.
           </div>
         ) : !summary?.recentOrders || summary.recentOrders.length === 0 ? (
           <div style={{ padding: "36px 20px", textAlign: "center", color: "#64748b" }}>
@@ -354,7 +381,6 @@ export function OrderBadge({ status }: { status: string }) {
     Pending: { label: "Đang giữ chỗ", tone: "warning" },
     Reserved: { label: "Đang giữ chỗ", tone: "warning" },
     Confirmed: { label: "Đã xác nhận", tone: "info" },
-    Processing: { label: "Đang xử lý", tone: "info" },
     Completed: { label: "Hoàn tất", tone: "success" },
     Cancelled: { label: "Đã hủy", tone: "danger" },
   };

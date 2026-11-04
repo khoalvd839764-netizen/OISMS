@@ -18,6 +18,7 @@ export interface BranchStockBreakdown {
   reserved: number;
   available: number;
   averageCost: number;
+  reorderPoint?: number;
 }
 
 export interface Sku {

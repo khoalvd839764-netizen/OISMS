@@ -4,18 +4,9 @@ import type {
   RevenueProfitReport,
   InventoryVelocityReport,
   StockAlert,
-  DashboardSummary,
 } from '../types/reports';
 
 export const reportService = {
-  /**
-   * Báo cáo Tổng quan Dashboard (CS-07)
-   * GET /api/reports/dashboard-summary
-   */
-  async getDashboardSummary(): Promise<DashboardSummary> {
-    const response = await httpClient.get<DashboardSummary>('/api/reports/dashboard-summary');
-    return response.data;
-  },
   /**
    * Báo cáo Doanh thu & Lợi nhuận (P&L - Gross Profit)
    * GET /api/reports/revenue-profit

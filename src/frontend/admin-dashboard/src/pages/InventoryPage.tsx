@@ -131,20 +131,20 @@ export function InventoryPage() {
     try {
       const res = await apiAdapter.getReorderRecommendations({
         branchId: targetBranch !== "all" ? targetBranch : undefined,
-        leadTimeDays: Number(targetLeadTime) || 7,
-        safetyStockDays: Number(targetSafetyStock) || 3,
+        leadTimeDays: targetLeadTime,
+        safetyStockDays: targetSafetyStock,
         onlyNeedsReorder: targetOnlyNeedsReorder,
       });
       if (seq !== aiReqSeqRef.current) return;
       if (res.error) {
-        setAiError(res.error.message || "Không thể tải dữ liệu gợi ý nhập hàng từ AI.");
+        setAiError(res.error.message || "Không thể tải gợi ý nhập hàng từ máy chủ.");
         setAiSummary(null);
       } else if (res.data) {
         setAiSummary(res.data);
       }
     } catch (err: any) {
       if (seq !== aiReqSeqRef.current) return;
-      setAiError(err?.message || "Lỗi kết nối khi tải gợi ý nhập AI.");
+      setAiError(err?.message || "Lỗi kết nối khi tải gợi ý nhập hàng.");
       setAiSummary(null);
     } finally {
       if (seq === aiReqSeqRef.current) {
@@ -259,6 +259,13 @@ export function InventoryPage() {
     setReorderInputVal(sku.reorderPoint !== undefined ? sku.reorderPoint : (sku.threshold ?? 0));
     setReorderBranchId(sku.branchId || branches[0]?.id || "");
     setReorderError(null);
+  };
+
+  // Ngưỡng lưu riêng theo chi nhánh: đổi chi nhánh phải hiện đúng ngưỡng của chi nhánh đó
+  const handleReorderBranchChange = (branchId: string) => {
+    setReorderBranchId(branchId);
+    const row = skus.find((s) => s.id === reorderModalSku?.id && s.branchId === branchId);
+    setReorderInputVal(row?.reorderPoint ?? 0);
   };
 
   const handleSaveReorderPoint = async () => {
@@ -438,10 +445,17 @@ export function InventoryPage() {
       targetBranchIds.forEach((bId) => {
         realtimeAdapter.leaveBranch(bId);
       });
+    };
+  }, [branchFilter, balanceWarehouseFilter, branches]);
+
+  // Chỉ hủy phản hồi đang chờ khi rời trang. Không làm việc này ở effect trên vì danh sách chi nhánh
+  // vừa tải xong cũng chạy cleanup, khiến lượt tải đầu bị bỏ và bảng tồn, sổ kho hiện rỗng.
+  useEffect(() => {
+    return () => {
       balanceReqSeqRef.current++;
       ledgerReqSeqRef.current++;
     };
-  }, [branchFilter, balanceWarehouseFilter, branches]);
+  }, []);
 
   // [A03 & F3] Khi mở Modal Nhập kho và chọn Chi nhánh / Kho, tải số dư thực tế tại đúng Kho đó để mô phỏng WAC chuẩn xác
   const loadModalWhStock = async (branch = selectedBranch, warehouse = selectedWarehouse) => {
@@ -1216,7 +1230,7 @@ export function InventoryPage() {
               );
             })}
           </div>
-          <Button variant="secondary" onClick={() => { if (skus.length > 0) openReorderModal(skus[0]); }}>
+          <Button variant="secondary" onClick={() => openReorderModal(lowStock[0])}>
             <Settings2 size={16} />Cấu hình ngưỡng
           </Button>
         </section>
@@ -1239,7 +1253,7 @@ export function InventoryPage() {
               }}
               style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
             >
-              <Sparkles size={16} /> Gợi ý nhập AI (CS-08)
+              <Sparkles size={16} /> Gợi ý nhập hàng
             </button>
           )}
           <button
@@ -1819,7 +1833,7 @@ export function InventoryPage() {
               </div>
             )}
 
-            {loadingAi ? (
+            {aiError ? null : loadingAi ? (
               <div style={{ textAlign: "center", padding: "48px 16px", color: "#64748b" }}>
                 <RefreshCw size={24} style={{ margin: "0 auto 12px" }} />
                 <strong>Đang phân tích dữ liệu xuất bán & tính toán gợi ý nhập hàng tối ưu...</strong>
@@ -1939,11 +1953,11 @@ export function InventoryPage() {
                             <td>
                               <span
                                 style={{
-                                  fontWeight: rec.daysUntilStockout <= aiLeadTime ? 700 : 400,
-                                  color: rec.daysUntilStockout <= aiLeadTime ? "#b91c1c" : "inherit",
+                                  fontWeight: rec.daysUntilStockout <= rec.leadTimeDays + rec.safetyStockDays ? 700 : 400,
+                                  color: rec.daysUntilStockout <= rec.leadTimeDays + rec.safetyStockDays ? "#b91c1c" : "inherit",
                                 }}
                               >
-                                {rec.daysUntilStockout > 999 ? "∞" : `${rec.daysUntilStockout} ngày`}
+                                {rec.daysUntilStockout >= 999 ? "Chưa có dữ liệu bán" : `${rec.daysUntilStockout} ngày`}
                               </span>
                             </td>
                             <td>
@@ -2712,7 +2726,7 @@ export function InventoryPage() {
             </label>
             <label>
               <span>Chi nhánh áp dụng *</span>
-              <Select value={reorderBranchId} onChange={(e) => setReorderBranchId(e.target.value)}>
+              <Select value={reorderBranchId} onChange={(e) => handleReorderBranchChange(e.target.value)}>
                 {branches.map((b) => (
                   <option key={b.id} value={b.id}>{b.name}</option>
                 ))}

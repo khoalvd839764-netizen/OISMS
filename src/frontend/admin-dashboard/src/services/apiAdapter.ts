@@ -3,6 +3,22 @@ import type { ApiResult, BranchStockBreakdown, LedgerEntry, Order, PagedMeta, Sk
 import type { DashboardSummary } from "../types/reports";
 import type { ReorderRecommendationQuery, ReorderRecommendationSummary } from "../types/ai";
 
+/**
+ * Lấy thông báo lỗi từ phản hồi backend: ProblemDetails dùng `detail`,
+ * lỗi validation tự động của ASP.NET dùng `errors` dạng { field: [message] }.
+ */
+function readApiError(err: any, fallback: string): string {
+  const data = err?.response?.data;
+  if (data?.detail) return data.detail;
+  if (data?.message) return data.message;
+  const errors = data?.errors;
+  if (errors && typeof errors === "object") {
+    const first = Object.values(errors).flat()[0];
+    if (typeof first === "string") return first;
+  }
+  return fallback;
+}
+
 function getActiveTenantId(): string {
   return localStorage.getItem("oism_tenant_id") || "default";
 }
@@ -174,6 +190,7 @@ export const apiAdapter = {
             reserved,
             available: Math.max(0, onHand - reserved),
             averageCost: avgCost,
+            reorderPoint: Number(b.reorderPoint) || 0,
           },
         ];
 
@@ -212,7 +229,7 @@ export const apiAdapter = {
                 averageCost,
                 onHand,
                 reserved: bal ? bal.reserved : 0,
-                threshold: 5,
+                threshold: 0,
                 image: "",
                 isActive: variantActive,
                 productIsActive: prodActive,
@@ -237,7 +254,7 @@ export const apiAdapter = {
               averageCost: 0,
               onHand: 0,
               reserved: 0,
-              threshold: 5,
+              threshold: 0,
               image: "",
               isActive: prodActive,
               productIsActive: prodActive,
@@ -785,7 +802,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || "Tìm kiếm toàn hệ thống thất bại.",
+          message: readApiError(err, "Tìm kiếm toàn hệ thống thất bại."),
         },
       };
     }
@@ -805,7 +822,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || "Không thể tải danh sách nhân viên từ máy chủ.",
+          message: readApiError(err, "Không thể tải danh sách nhân viên từ máy chủ."),
         },
       };
     }
@@ -818,7 +835,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || err?.response?.data?.errors?.[0] || "Thêm nhân viên thất bại",
+          message: readApiError(err, "Thêm nhân viên thất bại"),
         },
       };
     }
@@ -831,7 +848,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || err?.response?.data?.errors?.[0] || "Cập nhật nhân viên thất bại",
+          message: readApiError(err, "Cập nhật nhân viên thất bại"),
         },
       };
     }
@@ -844,7 +861,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || "Không thể đổi trạng thái nhân viên",
+          message: readApiError(err, "Không thể đổi trạng thái nhân viên"),
         },
       };
     }
@@ -858,7 +875,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || err?.response?.data?.errors?.[0] || "Cập nhật ngưỡng cảnh báo thất bại",
+          message: readApiError(err, "Cập nhật ngưỡng cảnh báo thất bại"),
         },
       };
     }
@@ -871,7 +888,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || err?.response?.data?.errors?.[0] || "Cập nhật hàng loạt ngưỡng cảnh báo thất bại",
+          message: readApiError(err, "Cập nhật hàng loạt ngưỡng cảnh báo thất bại"),
         },
       };
     }
@@ -885,8 +902,8 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          code: err?.response?.data?.code || "DASHBOARD_ERROR",
-          message: err?.response?.data?.message || err?.message || "Không thể tải báo cáo tổng quan Dashboard từ máy chủ.",
+          code: err?.response?.data?.errorCode || "DASHBOARD_ERROR",
+          message: readApiError(err, "Không thể tải số liệu tổng quan từ máy chủ."),
         },
       };
     }
@@ -906,8 +923,8 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          code: err?.response?.data?.code || "AI_RECOMMENDATION_ERROR",
-          message: err?.response?.data?.message || err?.message || "Không thể tải dữ liệu gợi ý nhập hàng từ AI.",
+          code: err?.response?.data?.errorCode || "AI_RECOMMENDATION_ERROR",
+          message: readApiError(err, "Không thể tải gợi ý nhập hàng từ máy chủ."),
         },
       };
     }

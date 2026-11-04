@@ -53,17 +53,19 @@ export function AdminShell() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const searchSeqRef = useRef(0);
+  const searchBoxRef = useRef<HTMLDivElement>(null);
 
   const performSearch = useCallback(async (queryText: string) => {
     const q = queryText.trim();
+    const seq = ++searchSeqRef.current;
     if (!q) {
       setSearchResults(null);
       setSearchError(null);
+      setIsSearching(false);
       setShowDropdown(false);
       return;
     }
 
-    const seq = ++searchSeqRef.current;
     setIsSearching(true);
     setSearchError(null);
     setShowDropdown(true);
@@ -88,6 +90,16 @@ export function AdminShell() {
 
     return () => clearTimeout(timer);
   }, [searchQuery, performSearch]);
+
+  // Đóng danh sách kết quả khi bấm ra ngoài ô tìm kiếm
+  useEffect(() => {
+    if (!showDropdown) return;
+    const handleMouseDown = (e: MouseEvent) => {
+      if (!searchBoxRef.current?.contains(e.target as Node)) setShowDropdown(false);
+    };
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, [showDropdown]);
 
   const account = user || {
     id: "user",
@@ -262,7 +274,7 @@ export function AdminShell() {
             <Button variant="ghost" className="mobile-toggle" aria-label="Mở menu điều hướng" aria-expanded={open} onClick={() => setOpen(true)}>
               <Menu size={20} />
             </Button>
-            <div className="search-box" style={{ position: "relative" }}>
+            <div className="search-box" ref={searchBoxRef} style={{ position: "relative" }}>
               <Search size={18} />
               <input
                 aria-label="Tìm kiếm toàn hệ thống"
@@ -341,7 +353,7 @@ export function AdminShell() {
                               key={p.id}
                               onClick={() => {
                                 setShowDropdown(false);
-                                navigate(p.url);
+                                navigate(`${p.url}?q=${encodeURIComponent(searchQuery.trim())}`);
                               }}
                               style={{
                                 padding: "8px 14px",
@@ -375,7 +387,7 @@ export function AdminShell() {
                               key={o.id}
                               onClick={() => {
                                 setShowDropdown(false);
-                                navigate(o.url);
+                                navigate(`${o.url}?orderId=${o.id}`);
                               }}
                               style={{
                                 padding: "8px 14px",

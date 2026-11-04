@@ -192,6 +192,11 @@ export function OrganizationPage() {
     setError(null);
   };
 
+  const closeEditUserModal = () => {
+    setEditingUser(null);
+    setError(null);
+  };
+
   const handleUpdateUser = async () => {
     if (!editingUser) return;
     setError(null);
@@ -622,7 +627,7 @@ export function OrganizationPage() {
         </Modal>
       )}
       {editingUser && (
-        <Modal title={`Cập nhật thông tin nhân viên: ${editingUser.displayName}`} onClose={() => setEditingUser(null)}>
+        <Modal title={`Cập nhật thông tin nhân viên: ${editingUser.displayName}`} onClose={closeEditUserModal}>
           {error && (
             <div style={{ background: "#fee2e2", border: "1px solid #ef4444", color: "#b91c1c", padding: "10px", borderRadius: "8px", fontSize: "12px", marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
               <AlertCircle size={16} />
@@ -655,11 +660,16 @@ export function OrganizationPage() {
               <Select
                 value={editRole}
                 onChange={(e) => setEditRole(e.target.value)}
-                disabled={user?.email === editingUser.email} // Chặn tự hạ quyền của chính mình
+                disabled={editingUser.role === "Owner"} // Backend không đổi vai trò Owner và không gán Owner cho nhân viên
               >
-                <option value="Staff">Nhân viên kho & Bán hàng (Staff)</option>
-                <option value="Cashier">Thu ngân (Cashier - chỉ truy cập POS)</option>
-                <option value="Owner">Chủ cửa hàng (Owner)</option>
+                {editingUser.role === "Owner" ? (
+                  <option value="Owner">Chủ cửa hàng (Owner)</option>
+                ) : (
+                  <>
+                    <option value="Staff">Nhân viên kho & Bán hàng (Staff)</option>
+                    <option value="Cashier">Thu ngân (Cashier - chỉ truy cập POS)</option>
+                  </>
+                )}
               </Select>
             </label>
             <label>
@@ -667,7 +677,7 @@ export function OrganizationPage() {
               <Select
                 value={editIsActive ? "true" : "false"}
                 onChange={(e) => setEditIsActive(e.target.value === "true")}
-                disabled={user?.email === editingUser.email} // Chặn tự khóa tài khoản của chính mình
+                disabled={user?.email === editingUser.email || editingUser.role === "Owner"} // Không khóa chính mình hoặc tài khoản Owner
               >
                 <option value="true">Đang hoạt động</option>
                 <option value="false">Tạm dừng tài khoản</option>
@@ -675,7 +685,7 @@ export function OrganizationPage() {
             </label>
           </div>
           <div className="modal-actions">
-            <Button variant="secondary" onClick={() => setEditingUser(null)}>Hủy</Button>
+            <Button variant="secondary" onClick={closeEditUserModal}>Hủy</Button>
             <Button onClick={handleUpdateUser} disabled={loading}>
               {loading ? "Đang lưu..." : "Lưu thay đổi"}
             </Button>
