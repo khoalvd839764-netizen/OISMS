@@ -23,6 +23,7 @@ export const CreateStockCountModal: React.FC<CreateStockCountModalProps> = ({
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
   const [scopeMode, setScopeMode] = useState<'ALL' | 'PARTIAL'>('ALL');
   const [selectedSkuIds, setSelectedSkuIds] = useState<string[]>([]);
+  const [reason, setReason] = useState('');
   const [note, setNote] = useState('');
 
   const [loading, setLoading] = useState(false);
@@ -101,6 +102,11 @@ export const CreateStockCountModal: React.FC<CreateStockCountModalProps> = ({
       setErrorMessage('Vui lòng chọn kho kiểm kê.');
       return;
     }
+    if (!reason.trim()) {
+      setErrorMessage('Vui lòng nhập lý do kiểm kê đột xuất (bắt buộc theo quy định kiểm kê U03).');
+      return;
+    }
+
     if (scopeMode === 'PARTIAL' && selectedSkuIds.length === 0) {
       setErrorMessage('Vui lòng chọn ít nhất 1 mặt hàng SKU khi kiểm kê theo phạm vi nhóm.');
       return;
@@ -124,6 +130,7 @@ export const CreateStockCountModal: React.FC<CreateStockCountModalProps> = ({
         branchId: selectedBranchId,
         warehouseId: selectedWarehouseId,
         skuIds: scopeMode === 'PARTIAL' ? selectedSkuIds : null,
+        reason: reason.trim(),
         note: note.trim() || undefined,
       });
 
@@ -297,10 +304,25 @@ export const CreateStockCountModal: React.FC<CreateStockCountModalProps> = ({
                 </div>
               )}
 
+              {/* Lý do kiểm kê đột xuất */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
+                  Lý do kiểm kê đột xuất <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Ví dụ: Kiểm tra thất thoát, phát hiện chênh lệch quầy thu ngân, kiểm định kỳ đột xuất..."
+                  className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                  required
+                />
+              </div>
+
               {/* Ghi chú */}
               <div>
                 <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
-                  Ghi chú đợt kiểm kê
+                  Ghi chú bổ sung
                 </label>
                 <textarea
                   value={note}
