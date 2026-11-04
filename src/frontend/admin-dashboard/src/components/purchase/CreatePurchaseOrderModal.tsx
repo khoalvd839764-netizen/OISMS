@@ -21,8 +21,14 @@ interface VariantOption {
     unitName: string;
     factorToBase: number;
     isBase: boolean;
+    isDefaultPurchase: boolean;
   }>;
 }
+
+const defaultUnitId = (option: VariantOption) =>
+  (option.units.find((u) => u.isDefaultPurchase) || option.units.find((u) => u.isBase) || option.units[0])?.unitId ||
+  option.baseUnitId ||
+  '';
 
 interface OrderLine {
   skuId: string;
@@ -69,6 +75,10 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [quickSupplierOpen, setQuickSupplierOpen] = useState(false);
+  const [newSupplierName, setNewSupplierName] = useState('');
+  const [savingSupplier, setSavingSupplier] = useState(false);
 
   // Idempotency Key - bảo lưu suốt quá trình retry
   const idempotencyKeyRef = useRef<string>(initialPo?.requestKey || crypto.randomUUID());
@@ -78,9 +88,13 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
     Promise.all([
       apiAdapter.getBranches(),
       apiAdapter.getSuppliers(),
-      apiAdapter.getProducts(),
-    ]).then(([branchesRes, suppliersRes, productsRes]) => {
+      apiAdapter.getSkus(),
+    ]).then(([branchesRes, suppliersRes, skusRes]) => {
       if (!active) return;
+      const failed = branchesRes.error || suppliersRes.error || skusRes.error;
+      if (failed) {
+        setLoadError(failed.message || 'Không thể tải dữ liệu để lập đơn mua.');
+      }
       if (branchesRes.data) {
         setBranches(branchesRes.data);
         if (!branchId && branchesRes.data.length > 0) {
@@ -89,71 +103,58 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
       }
       if (suppliersRes.data) {
         setSuppliers(suppliersRes.data);
-        if (!supplierId && suppliersRes.data.length > 0) {
+        if (!supplierId && suppliersRes.data.length === 1) {
           setSupplierId(suppliersRes.data[0].id);
         }
       }
-      if (productsRes.data) {
-        const flat: VariantOption[] = [];
-        for (const p of productsRes.data) {
-          if (p.variants && Array.isArray(p.variants)) {
-            for (const v of p.variants) {
-              const uList = (v.units || []).map((u: any) => ({
-                id: u.id || u.unitId,
-                unitId: u.unitId || u.id,
-                unitName: u.unitName || '',
-                factorToBase: u.factorToBase || u.factor || 1,
-                isBase: Boolean(u.isBase || u.isBaseUnit),
+      if (skusRes.data) {
+        // getSkus trả danh sách SKU phẳng; bỏ dòng sản phẩm chưa có biến thể
+        const flat: VariantOption[] = skusRes.data
+          .filter((sku) => sku.isActive !== false && sku.id !== sku.productId)
+          .map((sku) => {
+            const units = (sku.units || [])
+              .filter((u) => u.isActive !== false && u.canPurchase !== false)
+              .map((u) => ({
+                id: u.id,
+                unitId: u.unitId,
+                unitName: u.unitName,
+                factorToBase: u.factorToBase,
+                isBase: u.isBase,
+                isDefaultPurchase: u.isDefaultPurchase,
               }));
-              // Đảm bảo đơn vị gốc luôn có trong uList
-              if (v.baseUnitId && !uList.some((u: any) => u.unitId === v.baseUnitId)) {
-                uList.unshift({
-                  id: v.baseUnitId,
-                  unitId: v.baseUnitId,
-                  unitName: v.baseUnitName || 'Đơn vị gốc',
-                  factorToBase: 1,
-                  isBase: true,
-                });
-              }
-              flat.push({
-                productId: p.id,
-                variantId: v.id,
-                sku: v.sku,
-                productName: p.name,
-                variantName: v.variantName,
-                baseUnitId: v.baseUnitId,
-                baseUnitName: v.baseUnitName,
-                units: uList,
+            if (sku.baseUnitId && !units.some((u) => u.unitId === sku.baseUnitId)) {
+              units.unshift({
+                id: sku.baseUnitId,
+                unitId: sku.baseUnitId,
+                unitName: sku.baseUnitName || 'Đơn vị gốc',
+                factorToBase: 1,
+                isBase: true,
+                isDefaultPurchase: false,
               });
             }
-          }
-        }
+            return {
+              productId: sku.productId,
+              variantId: sku.id,
+              sku: sku.code,
+              productName: sku.name,
+              variantName: sku.variant,
+              baseUnitId: sku.baseUnitId || undefined,
+              baseUnitName: sku.baseUnitName || undefined,
+              units,
+            };
+          });
         setVariantOptions(flat);
 
-        // Khôi phục line nếu đang edit
+        // Khôi phục dòng khi sửa bản nháp
         if (initialPo) {
           setLines((current) =>
             current.map((l) => {
               const matched = flat.find((f) => f.variantId === l.skuId);
               return matched
-                ? {
-                    ...l,
-                    productId: matched.productId,
-                    unitId: l.unitId || matched.baseUnitId || '',
-                  }
+                ? { ...l, productId: matched.productId, unitId: l.unitId || defaultUnitId(matched) }
                 : l;
             })
           );
-        } else if (flat.length > 0 && lines.length === 1 && !lines[0].skuId) {
-          setLines([
-            {
-              skuId: flat[0].variantId,
-              productId: flat[0].productId,
-              unitId: flat[0].baseUnitId || '',
-              quantity: 1,
-              unitPrice: 0,
-            },
-          ]);
         }
       }
     });
@@ -164,22 +165,38 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
   }, []);
 
   const handleAddLine = () => {
-    const unselected = variantOptions.find(
-      (v) => !lines.some((l) => l.skuId === v.variantId)
-    );
-    const chosen = unselected || variantOptions[0];
-    if (!chosen) return;
+    if (variantOptions.length === 0) {
+      setError('Chưa có SKU đang hoạt động. Vui lòng tạo sản phẩm trước khi lập đơn mua.');
+      return;
+    }
+    if (lines.length >= variantOptions.length) {
+      setError('Đã thêm hết các SKU đang có. Mỗi SKU chỉ có một dòng trên đơn mua.');
+      return;
+    }
+    setError(null);
+    setLines([...lines, { skuId: '', productId: '', unitId: '', quantity: 1, unitPrice: 0 }]);
+  };
 
-    setLines([
-      ...lines,
-      {
-        skuId: chosen.variantId,
-        productId: chosen.productId,
-        unitId: chosen.baseUnitId || '',
-        quantity: 1,
-        unitPrice: 0,
-      },
-    ]);
+  // Tạo nhanh nhà cung cấp ngay trên form và chọn luôn
+  const handleQuickCreateSupplier = async () => {
+    const name = newSupplierName.trim();
+    if (!name) {
+      setError('Vui lòng nhập tên nhà cung cấp.');
+      return;
+    }
+    setSavingSupplier(true);
+    setError(null);
+    const res = await apiAdapter.createSupplier({ name });
+    setSavingSupplier(false);
+    if (res.error) {
+      setError(res.error.message || 'Không thể tạo nhà cung cấp.');
+      return;
+    }
+    const created = res.data as { id: string; name: string };
+    setSuppliers((current) => [...current, { id: created.id, name: created.name }]);
+    setSupplierId(created.id);
+    setNewSupplierName('');
+    setQuickSupplierOpen(false);
   };
 
   const handleRemoveLine = (index: number) => {
@@ -196,7 +213,7 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
               ...l,
               skuId,
               productId: matched?.productId || '',
-              unitId: matched?.baseUnitId || '',
+              unitId: matched ? defaultUnitId(matched) : '',
             }
           : l
       )
@@ -300,10 +317,21 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
 
   return (
     <Modal
+      wide
       title={isEdit ? `Sửa bản nháp đơn mua: ${initialPo?.number}` : 'Tạo đơn mua hàng (PO)'}
       onClose={onClose}
     >
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: 20 }}>
+        {loadError && (
+          <div role="alert" style={{ padding: 12, borderRadius: 6, background: '#fee2e2', color: '#991b1b', fontSize: 14 }}>
+            {loadError}
+          </div>
+        )}
+        {!loadError && variantOptions.length === 0 && (
+          <div style={{ padding: 12, borderRadius: 6, background: '#fef3c7', color: '#92400e', fontSize: 14 }}>
+            Chưa có SKU đang hoạt động để đặt mua. Vui lòng tạo sản phẩm ở trang Sản phẩm trước.
+          </div>
+        )}
         {error && (
           <div
             role="alert"
@@ -340,22 +368,46 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
           </div>
 
           <div>
-            <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
-              Nhà cung cấp <span style={{ color: '#ef4444' }}>*</span>
-            </label>
-            <Select
-              value={supplierId}
-              onChange={(e) => setSupplierId(e.target.value)}
-              disabled={loading}
-              required
-            >
-              <option value="">-- Chọn nhà cung cấp --</option>
-              {suppliers.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </Select>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <label style={{ fontWeight: 600 }}>
+                Nhà cung cấp <span style={{ color: '#ef4444' }}>*</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => setQuickSupplierOpen((open) => !open)}
+                style={{ background: 'none', border: 'none', color: '#1769e0', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+              >
+                {quickSupplierOpen ? 'Đóng' : '+ Thêm nhà cung cấp'}
+              </button>
+            </div>
+            {quickSupplierOpen ? (
+              <div className="inline-input">
+                <Input
+                  value={newSupplierName}
+                  onChange={(e) => setNewSupplierName(e.target.value)}
+                  placeholder="Tên nhà cung cấp mới"
+                  maxLength={150}
+                  disabled={savingSupplier}
+                />
+                <Button type="button" variant="secondary" onClick={handleQuickCreateSupplier} disabled={savingSupplier}>
+                  {savingSupplier ? 'Đang lưu...' : 'Lưu'}
+                </Button>
+              </div>
+            ) : (
+              <Select
+                value={supplierId}
+                onChange={(e) => setSupplierId(e.target.value)}
+                disabled={loading}
+                required
+              >
+                <option value="">-- Chọn nhà cung cấp --</option>
+                {suppliers.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </Select>
+            )}
           </div>
         </div>
 
@@ -403,7 +455,7 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
               type="button"
               variant="secondary"
               onClick={handleAddLine}
-              disabled={loading}
+              disabled={loading || variantOptions.length === 0}
             >
               + Thêm mặt hàng
             </Button>
@@ -450,6 +502,7 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
                           onChange={(e) => handleUnitChange(idx, e.target.value)}
                           disabled={loading || availableUnits.length === 0}
                         >
+                          {availableUnits.length === 0 && <option value="">Chọn mặt hàng trước</option>}
                           {availableUnits.map((u) => (
                             <option key={u.unitId} value={u.unitId}>
                               {u.unitName} {u.isBase ? '(Gốc)' : `(x${u.factorToBase})`}
@@ -500,6 +553,10 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
               </tbody>
             </table>
           </div>
+
+          <p style={{ margin: '8px 0 0', fontSize: 12, color: '#64748b' }}>
+            Cần mua theo thùng, bao...? Cấu hình đơn vị quy đổi của SKU ở trang Sản phẩm, rồi chọn tại cột Đơn vị mua.
+          </p>
 
           <div
             style={{

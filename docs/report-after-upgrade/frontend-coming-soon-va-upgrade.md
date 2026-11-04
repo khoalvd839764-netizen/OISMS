@@ -44,6 +44,8 @@ Chạy trên một tenant test riêng, gồm hai chi nhánh, phiếu nhập và 
 | Kiểm kê có chênh lệch | PASS: chưa duyệt tồn giữ 3; duyệt xong còn 2; Staff bị 403; duyệt lần hai trả 409 |
 | Lịch kiểm kê | PASS: chọn người phụ trách thật, tạo được lịch |
 | Mở phiếu nhập từ đơn mua | PASS: tồn tăng đúng, đơn mua chuyển `Received` |
+| Tạo đơn mua trên giao diện | PASS: thêm nhà cung cấp ngay trên form, chọn được SKU và đơn vị mua |
+| SKU mới tạo ở trang Kho | PASS: hiện với nhãn "Chưa nhập kho"; có tồn sau khi nhập |
 | Hóa đơn: bộ lọc | PASS: gõ 3 ký tự gửi 1 request; ngày 04/11 thành `03/11 17:00Z` đến `04/11 17:00Z` |
 | Lỗi API ở kỳ kiểm kê | PASS: hiện lỗi, không hiện danh sách rỗng |
 | Realtime tồn kho | PASS: trang Kho tự đổi 10 → 9 sau khi bán từ nơi khác |

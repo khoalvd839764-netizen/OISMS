@@ -576,7 +576,15 @@ export function InventoryPage() {
     [ledger, warehouseFilter, operationFilter, directionFilter, searchQuery]
   );
 
-  const activeBalanceSource = balanceWarehouseFilter !== "all" ? warehouseBalances : skus;
+  // SKU mới tạo chưa có dòng số dư nên API tồn kho không trả về; vẫn hiện để người dùng biết cần nhập hàng.
+  const activeBalanceSource = useMemo(() => {
+    if (balanceWarehouseFilter !== "all") return warehouseBalances;
+    const withBalance = new Set(skus.map((s) => s.id));
+    const notReceived = availableSkus
+      .filter((s) => s.isActive !== false && s.id !== s.productId && !withBalance.has(s.id))
+      .map((s) => ({ ...s, branchId: undefined, branchName: undefined, warehouseId: undefined, warehouseName: undefined }));
+    return [...skus, ...notReceived];
+  }, [balanceWarehouseFilter, warehouseBalances, skus, availableSkus]);
 
   const filteredSkus = useMemo(
     () =>
@@ -1492,10 +1500,21 @@ export function InventoryPage() {
                             </div>
                           </td>
                           <td>
-                            <strong>{sku.branchName || "Chi nhánh chính"}</strong>
-                            <div style={{ fontSize: "12px", color: "#64748b" }}>
-                              {sku.warehouseName || "Tất cả các kho thuộc CN"}
-                            </div>
+                            {sku.branchId ? (
+                              <>
+                                <strong>{sku.branchName || "Chi nhánh chính"}</strong>
+                                <div style={{ fontSize: "12px", color: "#64748b" }}>
+                                  {sku.warehouseName || "Tất cả các kho thuộc CN"}
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <Badge tone="warning">Chưa nhập kho</Badge>
+                                <div style={{ fontSize: "12px", color: "#64748b", marginTop: "4px" }}>
+                                  Lập đơn mua rồi nhập kho để có tồn
+                                </div>
+                              </>
+                            )}
                           </td>
                           <td>
                             <strong>{sku.onHand}</strong>

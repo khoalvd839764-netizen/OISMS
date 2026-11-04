@@ -679,7 +679,7 @@ export function ProductsPage() {
 
       {/* MODAL 1: THÊM SẢN PHẨM & BIẾN THỂ SKU ĐA DÒNG */}
       {productModal && (
-        <Modal title="Thêm sản phẩm mới kèm biến thể SKU" onClose={() => setProductModal(false)}>
+        <Modal wide title="Thêm sản phẩm mới kèm biến thể SKU" onClose={() => setProductModal(false)}>
           {formError && (
             <div
               style={{
@@ -742,7 +742,7 @@ export function ProductsPage() {
             </label>
           </div>
 
-          <div style={{ marginTop: "18px", borderTop: "1px solid #e2e8f0", paddingTop: "14px" }}>
+          <div style={{ margin: "18px 20px 0", borderTop: "1px solid #e2e8f0", paddingTop: "14px" }}>
             <div
               style={{
                 display: "flex",
@@ -775,8 +775,8 @@ export function ProductsPage() {
                     borderRadius: "8px",
                     padding: "10px",
                     display: "grid",
-                    gridTemplateColumns: "1.2fr 1.2fr 1.5fr 1fr 1fr auto",
-                    gap: "8px",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+                    gap: "10px",
                     alignItems: "end",
                   }}
                 >
@@ -804,7 +804,7 @@ export function ProductsPage() {
                       placeholder="SKU-001"
                     />
                   </label>
-                  <label>
+                  <label style={{ gridColumn: "span 2", minWidth: 0 }}>
                     <span style={{ fontSize: "11px" }}>Barcode (EAN-13)</span>
                     <div className="inline-input">
                       <Input
@@ -877,8 +877,10 @@ export function ProductsPage() {
                     variant="ghost"
                     disabled={variants.length <= 1}
                     onClick={() => removeVariantRow(idx)}
+                    title="Xóa biến thể này"
+                    style={{ justifySelf: "start" }}
                   >
-                    <Trash2 size={16} color="#ef4444" />
+                    <Trash2 size={16} color="#ef4444" /> Xóa biến thể
                   </Button>
                 </div>
               ))}
