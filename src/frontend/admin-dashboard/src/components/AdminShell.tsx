@@ -19,6 +19,7 @@ import {
   X,
   ArrowLeftRight,
   ClipboardCheck,
+  Receipt,
 } from "lucide-react";
 import { Button } from "./ui";
 import { useAuth } from "../context/AuthContext";
@@ -33,6 +34,7 @@ const nav = [
   { to: "/inventory/transfers", label: "Chuyển kho", icon: ArrowLeftRight },
   { to: "/inventory/counts", label: "Kiểm kê kho", icon: ClipboardCheck },
   { to: "/orders", label: "Đơn đa kênh", icon: ShoppingBag },
+  { to: "/invoices", label: "Hóa đơn & Truy vết", icon: Receipt },
   { to: "/reports", label: "Báo cáo", icon: ChartNoAxesCombined },
 ];
 

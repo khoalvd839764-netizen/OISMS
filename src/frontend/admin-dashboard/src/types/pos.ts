@@ -85,6 +85,7 @@ export interface PosCheckoutRequest {
 
 export interface ReceiptData {
   receiptNumber: string;
+  orderNumber?: string;
   createdAt: string;
   tenantName: string;
   branchName: string;

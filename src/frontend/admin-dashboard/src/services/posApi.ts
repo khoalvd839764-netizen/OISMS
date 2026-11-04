@@ -189,7 +189,14 @@ export async function scanPosBarcode(barcode: string, branchId?: string): Promis
 /**
  * Gửi yêu cầu Checkout thanh toán theo đề xuất DTO POS
  */
-export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{ success: boolean; message: string; orderNumber?: string; isPendingBackend?: boolean }> {
+export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{
+  success: boolean;
+  message: string;
+  orderNumber?: string;
+  receiptNumber?: string;
+  receipt?: any;
+  isPendingBackend?: boolean;
+}> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/orders/checkout`, {
       method: 'POST',
@@ -219,10 +226,13 @@ export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{ s
           message: 'Phản hồi thanh toán từ máy chủ không đúng định dạng (thiếu định danh đơn hàng). Giỏ hàng được giữ nguyên để đối soát.',
         };
       }
+      const receiptNumber = data?.receipt?.receiptNumber || data?.receiptNumber || serverOrderNumber;
       return {
         success: true,
         message: 'Thanh toán đơn hàng thành công!',
         orderNumber: serverOrderNumber,
+        receiptNumber,
+        receipt: data?.receipt,
       };
     }
 

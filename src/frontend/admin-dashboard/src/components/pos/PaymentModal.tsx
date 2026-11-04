@@ -174,7 +174,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       // [BF-019] Chỉ xác nhận thành công khi server trả về mã đơn hàng hợp lệ
       if (result.success && result.orderNumber) {
         clearRequestKey();
-        receiptData.receiptNumber = result.orderNumber;
+        receiptData.receiptNumber = result.receiptNumber || result.receipt?.receiptNumber || result.orderNumber;
+        receiptData.orderNumber = result.orderNumber;
         onSuccessAndPrint(receiptData);
         onClose();
       } else {

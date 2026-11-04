@@ -8,6 +8,7 @@ import { InventoryPage } from "./pages/InventoryPage";
 import { InventoryTransfersPage } from "./pages/InventoryTransfersPage";
 import { StockCountsPage } from "./pages/StockCountsPage";
 import { OrdersPage } from "./pages/OrdersPage";
+import { SalesInvoicesPage } from "./pages/SalesInvoicesPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { HandoffPage } from "./pages/HandoffPage";
 import { PosPage } from "./pages/PosPage";
@@ -48,6 +49,8 @@ export default function App() {
               <Route path="/admin/inventory/counts" element={<StockCountsPage />} />
               <Route path="/orders" element={<OrdersPage />} />
               <Route path="/admin/orders" element={<OrdersPage />} />
+              <Route path="/invoices" element={<SalesInvoicesPage />} />
+              <Route path="/admin/invoices" element={<SalesInvoicesPage />} />
               <Route path="/handoff" element={<HandoffPage />} />
               <Route path="/admin/handoff" element={<HandoffPage />} />
 
