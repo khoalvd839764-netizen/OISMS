@@ -896,6 +896,7 @@ export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<Che
         detail,
         isDefinitiveError: true,
         message,
+        currentPrices: errBody.currentPrices || errBody.extensions?.currentPrices,
       };
     }
 

@@ -249,7 +249,7 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
         return;
       }
       if (skuSet.has(l.skuId)) {
-        setError('Mỗi SKU chỉ được có tối đa một dòng trên đơn mua hàng (U01-A).');
+        setError('Mỗi SKU chỉ được có tối đa một dòng trên đơn mua hàng.');
         return;
       }
       skuSet.add(l.skuId);

@@ -35,6 +35,7 @@ docs/bug-fixaffter/
 | **Danh sách lỗi ban đầu** | [Report Bugfix/BUG-LIST.md](Report%20Bugfix/BUG-LIST.md) | Đặc tả 20 lỗi hệ thống được ghi nhận (BF-001 đến BF-020): mức ưu tiên P1/P2, cách tái hiện, ảnh hưởng | ✅ **ĐÃ FIX 20/20** |
 | **Kết quả kiểm thử nền** | [Report Bugfix/TEST-RESULTS.md](Report%20Bugfix/TEST-RESULTS.md) | Kết quả kiểm thử tự động backend/frontend nền tảng (Unit tests, Integration tests, Regression) | ✅ **PASS** |
 | **Chức năng Coming Soon** | [Comming Soon function/COMING-SOON.md](Comming%20Soon%20function/COMING-SOON.md) | Thống kê các nút bấm/tính năng chưa có backend hoặc đang trong lộ trình phát triển (tách khỏi lỗi code) | ℹ️ **ĐANG THEO DÕI** |
+| **Nghiệm thu frontend Coming Soon và Upgrade** | [frontend-coming-soon-va-upgrade.md](../report-after-upgrade/frontend-coming-soon-va-upgrade.md) | Kết quả chạy thử, phần chưa làm và chưa chạy tại 04/11/2026 | 🟡 Còn việc |
 | **Checklist tổng dự án** | [checklist.md](../../checklist.md) | Đồng bộ trạng thái nghiệm thu toàn dự án OISMS (mục 0A) | ✅ **ĐỒNG BỘ** |
 
 ---

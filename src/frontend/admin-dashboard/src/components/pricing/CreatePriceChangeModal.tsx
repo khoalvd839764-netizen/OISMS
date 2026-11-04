@@ -7,6 +7,7 @@ import { generateUuid } from '../../services/apiAdapter';
 import { useAuth } from '../../context/AuthContext';
 import type { Sku } from '../../types/domain';
 import type { SkuUnit } from '../../types/units';
+import type { EffectivePrice } from '../../types/pricing';
 
 interface CreatePriceChangeModalProps {
   isOpen: boolean;
@@ -26,6 +27,8 @@ export const CreatePriceChangeModal: React.FC<CreatePriceChangeModalProps> = ({
 
   const [units, setUnits] = useState<SkuUnit[]>([]);
   const [loadingUnits, setLoadingUnits] = useState(false);
+  const [unitsError, setUnitsError] = useState<string | null>(null);
+  const [effectivePrices, setEffectivePrices] = useState<EffectivePrice[]>([]);
 
   const [selectedPriceList, setSelectedPriceList] = useState<'retail' | 'wholesale'>('retail');
   const [selectedUnitId, setSelectedUnitId] = useState<string>('');
@@ -50,34 +53,45 @@ export const CreatePriceChangeModal: React.FC<CreatePriceChangeModalProps> = ({
     setApplyImmediately(true);
     setScheduledDateTime('');
 
-    // Thiết lập giá mặc định theo bảng giá
-    if (selectedPriceList === 'retail') {
-      setNewPrice(sku.sellingPrice ?? 0);
-    } else {
-      setNewPrice(sku.wholesalePrice ?? 0);
-    }
-
-    // Tải danh sách đơn vị tính của SKU
+    // Tải đơn vị bán được và giá hiện hành của từng đơn vị
+    let active = true;
     const loadUnits = async () => {
       setLoadingUnits(true);
+      setUnitsError(null);
+      setUnits([]);
+      setEffectivePrices([]);
+      setSelectedUnitId('');
       try {
-        const skuUnits = await unitService.getSkuUnits(sku.productId, sku.id);
-        setUnits(skuUnits);
-        const base = skuUnits.find((u) => u.isBase);
-        if (base) {
-          setSelectedUnitId(base.unitId);
-        } else if (skuUnits.length > 0) {
-          setSelectedUnitId(skuUnits[0].unitId);
-        }
+        const [skuUnits, prices] = await Promise.all([
+          unitService.getSkuUnits(sku.productId, sku.id),
+          pricingService.getEffectivePrice(sku.id),
+        ]);
+        if (!active) return;
+        const sellable = skuUnits.filter((u) => u.isActive !== false && u.canSell !== false);
+        setUnits(sellable);
+        setEffectivePrices(prices);
+        setSelectedUnitId((sellable.find((u) => u.isBase) ?? sellable[0])?.unitId ?? '');
       } catch (err: any) {
-        console.error('Không thể tải danh sách đơn vị của SKU:', err);
+        if (!active) return;
+        setUnitsError(err?.response?.data?.detail || 'Không thể tải đơn vị và giá hiện hành của SKU.');
       } finally {
-        setLoadingUnits(false);
+        if (active) setLoadingUnits(false);
       }
     };
 
     void loadUnits();
+    return () => {
+      active = false;
+    };
   }, [isOpen, sku?.id]);
+
+  const currentPrice =
+    effectivePrices.find((p) => p.unitId === selectedUnitId && p.priceListCode === selectedPriceList)?.price ?? null;
+
+  // Giá gợi ý luôn theo đúng đơn vị và bảng giá đang chọn
+  useEffect(() => {
+    setNewPrice(currentPrice ?? 0);
+  }, [currentPrice, selectedUnitId, selectedPriceList]);
 
   if (!isOpen || !sku) return null;
 
@@ -87,6 +101,11 @@ export const CreatePriceChangeModal: React.FC<CreatePriceChangeModalProps> = ({
 
     if (!selectedUnitId) {
       setError('Vui lòng chọn đơn vị tính áp dụng giá.');
+      return;
+    }
+
+    if (currentPrice == null && newPrice === 0) {
+      setError('Đơn vị này chưa có giá. Vui lòng nhập đơn giá mới.');
       return;
     }
 
@@ -182,6 +201,12 @@ export const CreatePriceChangeModal: React.FC<CreatePriceChangeModalProps> = ({
           </div>
         )}
 
+        {unitsError && (
+          <div style={{ background: '#fef2f2', border: '1px solid #ef4444', color: '#b91c1c', padding: '12px 14px', borderRadius: '8px', fontSize: '12px', marginBottom: '14px' }}>
+            {unitsError}
+          </div>
+        )}
+
         {success && (
           <div
             style={{
@@ -216,13 +241,7 @@ export const CreatePriceChangeModal: React.FC<CreatePriceChangeModalProps> = ({
             <Select
               value={selectedPriceList}
               onChange={(e) => {
-                const val = e.target.value as 'retail' | 'wholesale';
-                setSelectedPriceList(val);
-                if (val === 'retail') {
-                  setNewPrice(sku.sellingPrice ?? 0);
-                } else {
-                  setNewPrice(sku.wholesalePrice ?? 0);
-                }
+                setSelectedPriceList(e.target.value as 'retail' | 'wholesale');
               }}
             >
               <option value="retail">Bảng giá bán lẻ (Retail)</option>
@@ -256,6 +275,13 @@ export const CreatePriceChangeModal: React.FC<CreatePriceChangeModalProps> = ({
               onChange={(e) => setNewPrice(Number(e.target.value))}
               placeholder="Nhập giá mới..."
             />
+            <small style={{ display: 'block', marginTop: '4px', color: '#64748b' }}>
+              {loadingUnits
+                ? 'Đang tải giá hiện hành...'
+                : currentPrice != null
+                ? `Giá hiện hành: ${currentPrice.toLocaleString('vi-VN')} ₫`
+                : 'Đơn vị này chưa có giá'}
+            </small>
           </label>
 
           <label>
@@ -329,7 +355,7 @@ export const CreatePriceChangeModal: React.FC<CreatePriceChangeModalProps> = ({
           <Button variant="secondary" onClick={onClose} disabled={loading}>
             Hủy
           </Button>
-          <Button onClick={handleSubmit} disabled={loading}>
+          <Button onClick={handleSubmit} disabled={loading || loadingUnits || Boolean(unitsError)}>
             {loading ? 'Đang gửi...' : isOwner ? 'Xác nhận & Cập nhật giá' : 'Tạo phiếu chờ duyệt'}
           </Button>
         </div>

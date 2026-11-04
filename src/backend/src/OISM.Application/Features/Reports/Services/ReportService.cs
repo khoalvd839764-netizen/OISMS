@@ -313,7 +313,7 @@ public class ReportService : IReportService
             .Include(b => b.Branch)
             .Include(b => b.Sku)
                 .ThenInclude(s => s!.Product)
-            .Where(b => b.TenantId == tenantId && b.ReorderPoint > 0 && (b.OnHand - b.Reserved) <= b.ReorderPoint);
+            .Where(b => b.TenantId == tenantId && b.Sku != null && b.Sku.IsActive && b.ReorderPoint > 0 && (b.OnHand - b.Reserved) <= b.ReorderPoint);
 
         if (branchId.HasValue && branchId.Value != Guid.Empty)
         {
@@ -398,7 +398,14 @@ public class ReportService : IReportService
             .ToListAsync(ct);
 
         decimal? totalInventoryValue = isOwner ? balances.Sum(b => b.OnHand * b.AverageCost) : null;
-        int lowStockCount = balances.Count(b => b.ReorderPoint > 0 && (b.OnHand - b.Reserved) <= b.ReorderPoint);
+        // Cảnh báo tồn chỉ tính SKU còn kinh doanh, giống báo cáo cảnh báo; giá trị tồn vẫn tính mọi số dư
+        var activeSkuIds = await _context.Skus
+            .AsNoTracking()
+            .Where(s => s.TenantId == tenantId && s.IsActive)
+            .Select(s => s.Id)
+            .ToListAsync(ct);
+        var activeSkuIdSet = activeSkuIds.ToHashSet();
+        int lowStockCount = balances.Count(b => activeSkuIdSet.Contains(b.SkuId) && b.ReorderPoint > 0 && (b.OnHand - b.Reserved) <= b.ReorderPoint);
 
         // 4. Lấy 5 đơn hàng mới phát sinh gần đây nhất
         var recentOrders = await _context.Orders

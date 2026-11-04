@@ -204,6 +204,7 @@ export interface CheckoutResult {
   isUnknown?: boolean;
   isAuthExpired?: boolean;
   isDefinitiveError?: boolean;
+  currentPrices?: Array<{ skuId: string; skuCode?: string; unitId?: string | null; currentPrice: number }>;
 }
 
 export interface OrderSummaryRealtimeDto {

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
   Ban,
@@ -55,6 +55,9 @@ export const PriceManagementModal: React.FC<PriceManagementModalProps> = ({
   // Hủy giá đã lên lịch
   const [cancelModalPriceId, setCancelModalPriceId] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState<string>('');
+  const [requestsTotal, setRequestsTotal] = useState(0);
+  const requestsSeqRef = useRef(0);
+  const historySeqRef = useRef(0);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -72,28 +75,37 @@ export const PriceManagementModal: React.FC<PriceManagementModalProps> = ({
   }, [isOpen, tab, selectedSkuId]);
 
   const loadRequests = async () => {
+    const seq = ++requestsSeqRef.current;
     setLoadingRequests(true);
     setRequestsError(null);
     try {
       const res = await pricingService.getRequests(statusFilter, 1, 50);
+      if (seq !== requestsSeqRef.current) return;
       setRequests(res.items);
+      setRequestsTotal(res.totalCount);
     } catch (err: any) {
-      setRequestsError(err?.response?.data?.message || err?.message || 'Không thể tải danh sách phiếu đổi giá.');
+      if (seq !== requestsSeqRef.current) return;
+      setRequests([]);
+      setRequestsError(err?.response?.data?.detail || 'Không thể tải danh sách phiếu đổi giá.');
     } finally {
-      setLoadingRequests(false);
+      if (seq === requestsSeqRef.current) setLoadingRequests(false);
     }
   };
 
   const loadHistory = async (skuId: string) => {
+    const seq = ++historySeqRef.current;
     setLoadingHistory(true);
     setHistoryError(null);
+    setHistoryItems([]);
     try {
       const items = await pricingService.getPriceHistory(skuId);
+      if (seq !== historySeqRef.current) return;
       setHistoryItems(items);
     } catch (err: any) {
-      setHistoryError(err?.response?.data?.message || err?.message || 'Không thể tải lịch sử giá của SKU.');
+      if (seq !== historySeqRef.current) return;
+      setHistoryError(err?.response?.data?.detail || 'Không thể tải lịch sử giá của SKU.');
     } finally {
-      setLoadingHistory(false);
+      if (seq === historySeqRef.current) setLoadingHistory(false);
     }
   };
 
@@ -151,7 +163,7 @@ export const PriceManagementModal: React.FC<PriceManagementModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <Modal title="Quản lý Bảng giá & Lịch sử giá (U04)" onClose={onClose}>
+    <Modal title="Quản lý Bảng giá & Lịch sử giá" onClose={onClose}>
       <div style={{ padding: '0 4px' }}>
         <div className="tabs" style={{ marginBottom: '14px' }}>
           <button
@@ -213,6 +225,12 @@ export const PriceManagementModal: React.FC<PriceManagementModalProps> = ({
               </Button>
             </div>
 
+            {requestsTotal > requests.length && (
+              <p style={{ fontSize: '11px', color: '#b45309', margin: '0 0 8px' }}>
+                Đang hiển thị {requests.length}/{requestsTotal} phiếu mới nhất. Lọc theo trạng thái để thu hẹp danh sách.
+              </p>
+            )}
+
             {requestsError && (
               <div style={{ color: '#b91c1c', padding: '12px', background: '#fee2e2', borderRadius: '8px', fontSize: '12px' }}>
                 {requestsError}
@@ -223,7 +241,7 @@ export const PriceManagementModal: React.FC<PriceManagementModalProps> = ({
               <div style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
                 Đang tải danh sách phiếu đổi giá...
               </div>
-            ) : requests.length === 0 ? (
+            ) : requestsError ? null : requests.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
                 Không có phiếu đổi giá nào trong danh sách.
               </div>
@@ -402,7 +420,7 @@ export const PriceManagementModal: React.FC<PriceManagementModalProps> = ({
               <div style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
                 Đang tải lịch sử giá...
               </div>
-            ) : historyItems.length === 0 ? (
+            ) : historyError ? null : historyItems.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
                 Chưa có lịch sử giá nào được ghi nhận cho SKU này.
               </div>
@@ -431,6 +449,8 @@ export const PriceManagementModal: React.FC<PriceManagementModalProps> = ({
                         statusBadge = <Badge tone="danger">Đã hủy</Badge>;
                       } else if (isFuture) {
                         statusBadge = <Badge tone="info">Lên lịch tương lai</Badge>;
+                      } else if (h.validTo && new Date(h.validTo).getTime() <= now) {
+                        statusBadge = <Badge tone="neutral">Đã hết hạn</Badge>;
                       } else if (h.isActive) {
                         statusBadge = <Badge tone="success">Đang áp dụng</Badge>;
                       }
@@ -444,7 +464,7 @@ export const PriceManagementModal: React.FC<PriceManagementModalProps> = ({
                           </td>
                           <td>
                             <span style={{ fontSize: '11px', color: '#475569' }}>
-                              {h.unitId.slice(0, 8)}...
+                              {allSkus.find((s) => s.id === selectedSkuId)?.units?.find((u) => u.unitId === h.unitId)?.unitName || 'Đơn vị không còn hiệu lực'}
                             </span>
                           </td>
                           <td>

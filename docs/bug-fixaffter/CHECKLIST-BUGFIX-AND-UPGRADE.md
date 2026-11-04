@@ -1,5 +1,7 @@
 # CHECKLIST TỔNG HỢP: BUG ĐÃ FIX, UPGRADE ĐÃ LÀM & KẾ HOẠCH 2 NHÓM (BACKEND & FRONTEND)
 
+> **Cập nhật 04/11/2026:** frontend Coming Soon và Upgrade đã gộp vào `develop`. Bằng chứng và phần còn thiếu xem [báo cáo nghiệm thu](../report-after-upgrade/frontend-coming-soon-va-upgrade.md).
+
 | Thông tin kiểm soát | Chi tiết |
 | :--- | :--- |
 | **Ngày cập nhật** | `03/11/2026` (Asia/Saigon) |
@@ -62,20 +64,20 @@ Tài liệu đối chiếu: [BUG-LIST.md](Report%20Bugfix/BUG-LIST.md), [report 
 
 #### B1. Backend cho 8 chức năng Coming Soon (`docs/bug-fixaffter/Comming Soon function/COMING-SOON.md`)
 * **Đợt 1 — Các API độc lập (Làm ngay và bàn giao sớm cho Nhóm Frontend nối UI):**
-  - [ ] **`CS-02` (Nhân viên & Phân quyền — `Nhựt`):** Xây dựng API danh sách, tạo mới, cập nhật nhân viên, gán vai trò RBAC (`Owner`, `Staff`, `Cashier`) và phân công chi nhánh theo tenant.
-  - [ ] **`CS-04` (Tìm kiếm toàn hệ thống — `Nhựt`):** Xây dựng endpoint tìm kiếm đa thực thể (Sản phẩm/SKU, Đơn hàng, Phiếu kho) theo quyền và tenant.
-  - [ ] **`CS-07` (Tổng quan Dashboard — `Nhựt`):** Chuẩn hóa API/DTO thống kê KPI doanh thu/lợi nhuận/số đơn, đơn gần đây và biểu đồ xu hướng từ dữ liệu server thật.
-  - [ ] **`CS-03` (Ngưỡng cảnh báo tồn `ReorderPoint` — `Nhựt`):** Xây dựng API lưu cấu hình `ReorderPoint` trên server (tính theo đơn vị tồn gốc), đồng bộ cảnh báo tồn thấp và sự kiện SignalR.
-  - [ ] **`CS-08` (`FR-AI-01` Dự báo & Gợi ý nhập hàng AI — `Đăng Khoa` & `Nhựt`):** Xây dựng lõi thuật toán dự báo nhu cầu & đánh giá độ tin cậy (`Đăng Khoa`) + API lấy lịch sử xuất kho theo đơn vị gốc và trả danh sách gợi ý nhập hàng (`Nhựt`).
+  - [ ] **`CS-02` (Nhân viên & Phân quyền — `Nhựt`):** Xây dựng API danh sách, tạo mới, cập nhật nhân viên, gán vai trò RBAC (`Owner`, `Staff`, `Cashier`) và phân công chi nhánh theo tenant. *(04/11/2026: đã có danh sách, tạo, sửa, khóa nhân viên; còn thiếu phân công chi nhánh.)*
+  - [x] **`CS-04` (Tìm kiếm toàn hệ thống — `Nhựt`):** Xây dựng endpoint tìm kiếm đa thực thể (Sản phẩm/SKU, Đơn hàng, Phiếu kho) theo quyền và tenant.
+  - [x] **`CS-07` (Tổng quan Dashboard — `Nhựt`):** Chuẩn hóa API/DTO thống kê KPI doanh thu/lợi nhuận/số đơn, đơn gần đây và biểu đồ xu hướng từ dữ liệu server thật.
+  - [x] **`CS-03` (Ngưỡng cảnh báo tồn `ReorderPoint` — `Nhựt`):** Xây dựng API lưu cấu hình `ReorderPoint` trên server (tính theo đơn vị tồn gốc), đồng bộ cảnh báo tồn thấp và sự kiện SignalR.
+  - [ ] **`CS-08` (`FR-AI-01` Dự báo & Gợi ý nhập hàng AI — `Đăng Khoa` & `Nhựt`):** Xây dựng lõi thuật toán dự báo nhu cầu & đánh giá độ tin cậy (`Đăng Khoa`) + API lấy lịch sử xuất kho theo đơn vị gốc và trả danh sách gợi ý nhập hàng (`Nhựt`). *(04/11/2026: đã có API và giao diện; còn thiếu bằng chứng đánh giá dự báo.)*
 * **Đợt 2 — Các API gắn với chứng từ Đơn hàng/POS (Làm sau khi chốt schema `Upgrade 05 & 04`):**
   - [ ] **`CS-05` (Thanh toán QR POS — `Đăng Khoa`):** Hỗ trợ API sinh thông tin QR / xác nhận trạng thái thanh toán QR và đối soát idempotency trong luồng checkout.
   - [ ] **`CS-01` (Nhận hàng trả từ khách — `Đăng Khoa` & `Nhựt`):** Xây dựng API nhận hàng trả gắn đơn gốc, kiểm tra lượng đã bán/đã trả và ghi bút toán `IN` bù trừ theo `BaseQuantity` & `FactorSnapshot` của đơn gốc.
 
 #### C1. Backend Nâng cấp Nghiệp vụ Lõi theo GVHD (`docs/Upgrade-recommended/`)
-- [ ] **Bước 1 — `Upgrade 05`: Nhiều đơn vị tính cho hàng hóa vật lý (`Đăng Khoa` & `Nhựt`):**
+- [x] **Bước 1 — `Upgrade 05`: Nhiều đơn vị tính cho hàng hóa vật lý (`Đăng Khoa` & `Nhựt`):**
   - [x] Tạo bảng `units`, `sku_units`, `sku_unit_factor_history`, API cấu hình đơn vị (P1); thêm `BaseUnitId` trên SKU và `UnitId`, `FactorSnapshot`, `BaseQuantity = Quantity × FactorSnapshot` trên `GoodsReceiptItem` & `OrderItem`.
   - [x] Cập nhật `GoodsReceiptService`, `OrderService`, `ReservationService` tính tồn/giữ chỗ/WAC/COGS theo `BaseQuantity`; hỗ trợ tương thích ngược dữ liệu cũ (`FactorSnapshot = 1`).
-- [ ] **Bước 2 — `Upgrade 04`: Bảng giá bán có thời gian hiệu lực (`Nhựt` & `Đăng Khoa`):**
+- [x] **Bước 2 — `Upgrade 04`: Bảng giá bán có thời gian hiệu lực (`Nhựt` & `Đăng Khoa`):**
   - [x] Tạo bảng `price_lists` (giá lẻ, giá sỉ), `price_change_requests`, `price_change_request_items` và `sku_unit_prices` chỉ thêm dòng mới theo khóa `(Bảng giá, SKU, UnitId, valid_from)`; phiếu đổi giá có trạng thái `Pending`, `Approved`, `Rejected`.
   - [x] Thêm resolver giá dùng chung cho POS, đơn Admin và giữ chỗ; chuyển dữ liệu giá cũ bằng phiếu "Giá đầu kỳ".
   - [x] Lưu đơn giá, ID dòng giá và nguồn giá vào dòng đơn; đóng API sửa giá trực tiếp trên biến thể SKU và đơn vị.
@@ -94,25 +96,25 @@ Tài liệu đối chiếu: [BUG-LIST.md](Report%20Bugfix/BUG-LIST.md), [report 
 
 #### B2. Frontend cho 8 chức năng Coming Soon (`docs/bug-fixaffter/Comming Soon function/COMING-SOON.md`)
 * **Giai đoạn 1 — Các màn hình độc lập (Làm ngay, không đụng vào form Đơn/Kho đang nâng cấp):**
-  - [ ] **`CS-02` (Web Admin — `Phúc Hữu & Nam Nguyễn`):** Giao diện danh sách, tạo/sửa nhân viên, phân quyền RBAC và phân công chi nhánh trên `OrganizationPage.tsx`.
-  - [ ] **`CS-04` (Web Admin — `Phúc Hữu & Nam Nguyễn`):** Ô tìm kiếm toàn hệ thống trên thanh Header (`AdminShell.tsx`), hiển thị kết quả phân nhóm và điều hướng đúng quyền.
-  - [ ] **`CS-07` (Web Admin — `Phúc Hữu & Nam Nguyễn`):** Nối dữ liệu thật cho các thẻ KPI doanh thu/đơn hàng/lợi nhuận, bảng đơn gần đây và biểu đồ trên `DashboardPage.tsx`.
-  - [ ] **`CS-03` (Web Admin — `Phúc Hữu & Nam Nguyễn`):** Form lưu ngưỡng cảnh báo tồn `ReorderPoint` thật trên server, đồng bộ giữa trang Kho và tab Cảnh báo tồn kho.
-  - [ ] **`CS-08` (Web Admin — `Phúc Hữu & Nam Nguyễn`):** Giao diện Dự báo & Gợi ý nhập hàng bằng AI (`FR-AI-01`), hiển thị độ tin cậy và trạng thái khi thiếu dữ liệu; xây dựng màn hình demo concurrency.
+  - [ ] **`CS-02` (Web Admin — `Phúc Hữu & Nam Nguyễn`):** Giao diện danh sách, tạo/sửa nhân viên, phân quyền RBAC và phân công chi nhánh trên `OrganizationPage.tsx`. *(04/11/2026: đã có danh sách, tạo, sửa, khóa nhân viên; còn thiếu phân công chi nhánh.)*
+  - [x] **`CS-04` (Web Admin — `Phúc Hữu & Nam Nguyễn`):** Ô tìm kiếm toàn hệ thống trên thanh Header (`AdminShell.tsx`), hiển thị kết quả phân nhóm và điều hướng đúng quyền.
+  - [x] **`CS-07` (Web Admin — `Phúc Hữu & Nam Nguyễn`):** Nối dữ liệu thật cho các thẻ KPI doanh thu/đơn hàng/lợi nhuận, bảng đơn gần đây và biểu đồ trên `DashboardPage.tsx`.
+  - [x] **`CS-03` (Web Admin — `Phúc Hữu & Nam Nguyễn`):** Form lưu ngưỡng cảnh báo tồn `ReorderPoint` thật trên server, đồng bộ giữa trang Kho và tab Cảnh báo tồn kho.
+  - [ ] **`CS-08` (Web Admin — `Phúc Hữu & Nam Nguyễn`):** Giao diện Dự báo & Gợi ý nhập hàng bằng AI (`FR-AI-01`), hiển thị độ tin cậy và trạng thái khi thiếu dữ liệu; xây dựng màn hình demo concurrency. *(04/11/2026: đã có API và giao diện; còn thiếu bằng chứng đánh giá dự báo.)*
 * **Giai đoạn 2 — Các màn hình Đơn hàng/Kho/POS (Làm cùng hợp đồng DTO mới của Backend):**
   - [ ] **`CS-06` (Web Admin — `Phúc Hữu & Nam Nguyễn`):** Bố cục in chứng từ giao hàng và in báo cáo chuẩn khổ A4/80mm (`@media print`), cô lập vùng in, ẩn giá vốn theo role, in kèm đơn vị tính & số chứng từ mới.
   - [ ] **`CS-05` (Web POS — `Phương Lê`):** Hoàn thiện giao diện thanh toán QR động và xác nhận thanh toán trong `PaymentModal.tsx` trên cả POS PWA và POS Admin.
   - [ ] **`CS-01` (Web Admin — `Phúc Hữu & Nam Nguyễn`):** Giao diện Nhận hàng trả từ khách (chọn đơn gốc, kiểm tra số lượng trả theo đơn vị đã mua, xác nhận nhập hoàn tồn).
 
 #### C2. Frontend Ghép nối Nâng cấp Nghiệp vụ (`docs/Upgrade-recommended/`)
-- [ ] **`Upgrade 05` (Admin & POS — `Phúc Hữu, Nam Nguyễn & Phương Lê`):**
-  - [ ] Trên **Web Admin (`ProductsPage`, `InventoryPage`, `OrdersPage`)**: Cấu hình đơn vị gốc & danh sách đơn vị quy đổi cho SKU; chọn đơn vị mua/bán trên phiếu nhập và đơn hàng; hiển thị cả số lượng giao dịch (`1 bao`) và lượng quy đổi gốc (`25 kg`).
-  - [ ] Trên **Web POS (`pos-app/src/App.tsx`, `CartTable.tsx`)**: Chọn đơn vị bán trên từng dòng giỏ hàng (khóa dòng theo `variantId + unitId`), quét barcode quy cách chọn đúng đơn vị và in hóa đơn giữ nguyên đơn vị đã bán.
-- [ ] **`Upgrade 04` (Web Admin — `Phúc Hữu & Nam Nguyễn`):**
-  - [ ] Giao diện lập và duyệt Phiếu đổi giá, lịch giá sắp tới và lịch sử giá theo SKU; bỏ ô sửa giá trên form sửa SKU, chỉ giữ ô giá ban đầu khi tạo mới; hiện giá mới khi gặp `PRICE_MISMATCH`.
-- [ ] **`Upgrade 01 & 02` (Admin & POS — `Phúc Hữu, Nam Nguyễn & Phương Lê`):**
-  - [ ] **U01-A:** Giao diện tạo, duyệt, đóng và hủy Phiếu mua hàng (`purchase_orders`); lập Phiếu nhập kho từ phiếu mua đã duyệt, khóa ô giá, hiện đơn vị và lượng còn được nhận; hủy phiếu nhập nháp.
+- [x] **`Upgrade 05` (Admin & POS — `Phúc Hữu, Nam Nguyễn & Phương Lê`):**
+  - [x] Trên **Web Admin (`ProductsPage`, `InventoryPage`, `OrdersPage`)**: Cấu hình đơn vị gốc & danh sách đơn vị quy đổi cho SKU; chọn đơn vị mua/bán trên phiếu nhập và đơn hàng; hiển thị cả số lượng giao dịch (`1 bao`) và lượng quy đổi gốc (`25 kg`).
+  - [x] Trên **Web POS (`pos-app/src/App.tsx`, `CartTable.tsx`)**: Chọn đơn vị bán trên từng dòng giỏ hàng (khóa dòng theo `variantId + unitId`), quét barcode quy cách chọn đúng đơn vị và in hóa đơn giữ nguyên đơn vị đã bán.
+- [x] **`Upgrade 04` (Web Admin — `Phúc Hữu & Nam Nguyễn`):**
+  - [x] Giao diện lập và duyệt Phiếu đổi giá, lịch giá sắp tới và lịch sử giá theo SKU; bỏ ô sửa giá trên form sửa SKU, chỉ giữ ô giá ban đầu khi tạo mới; hiện giá mới khi gặp `PRICE_MISMATCH`.
+- [x] **`Upgrade 01 & 02` (Admin & POS — `Phúc Hữu, Nam Nguyễn & Phương Lê`):**
+  - [x] **U01-A:** Giao diện tạo, duyệt, đóng và hủy Phiếu mua hàng (`purchase_orders`); lập Phiếu nhập kho từ phiếu mua đã duyệt, khóa ô giá, hiện đơn vị và lượng còn được nhận; hủy phiếu nhập nháp.
   - [ ] **U01-B (làm sau U01-A):** Giao diện đối chiếu Hóa đơn NCC & chứng từ chênh lệch.
-  - [ ] **Upgrade 02:** Hiển thị liên kết truy vết Hóa đơn bán ↔ Đơn hàng ↔ Sổ cái kho `OUT`.
-- [ ] **`Upgrade 03` (Web Admin — `Phúc Hữu & Nam Nguyễn`):**
-  - [ ] Giao diện cấu hình Lịch kiểm kê định kỳ (ngày 15 / cuối tháng), tạo kiểm kê đột xuất có lý do và màn hình Phê duyệt chênh lệch kiểm kê (`PendingApproval`).
+  - [x] **Upgrade 02:** Hiển thị liên kết truy vết Hóa đơn bán ↔ Đơn hàng ↔ Sổ cái kho `OUT`.
+- [x] **`Upgrade 03` (Web Admin — `Phúc Hữu & Nam Nguyễn`):**
+  - [x] Giao diện cấu hình Lịch kiểm kê định kỳ (ngày 15 / cuối tháng), tạo kiểm kê đột xuất có lý do và màn hình Phê duyệt chênh lệch kiểm kê (`PendingApproval`).

@@ -270,6 +270,33 @@ public class ReportServiceTests
     }
 
     [Fact]
+    public async Task GetDashboardSummaryAsync_LowStockCount_ExcludesInactiveSku()
+    {
+        var (context, tenantMock, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var active = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, SKU = "SKU-ACTIVE", Unit = "piece", IsActive = true };
+        var inactive = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, SKU = "SKU-INACTIVE", Unit = "piece", IsActive = false };
+        context.Skus.AddRange(active, inactive);
+        foreach (var sku in new[] { active, inactive })
+        {
+            context.InventoryBalances.Add(new InventoryBalance
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                BranchId = Guid.NewGuid(),
+                SkuId = sku.Id,
+                OnHand = 1m,
+                Reserved = 0m,
+                ReorderPoint = 5m
+            });
+        }
+        await context.SaveChangesAsync();
+
+        var summary = await new ReportService(context, tenantMock.Object).GetDashboardSummaryAsync(isOwner: true);
+
+        summary.LowStockCount.Should().Be(1);
+    }
+
+    [Fact]
     public async Task GetDashboardSummaryAsync_CalculatesKPIs_AndProtectsProfitWhenNotOwner()
     {
         // Arrange

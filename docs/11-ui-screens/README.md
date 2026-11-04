@@ -95,3 +95,17 @@ Giao diện POS được tối ưu hóa cho màn hình cảm ứng, máy POS hai
 7. [`07-handoff-screens.md`](./07-handoff-screens.md) — Đặc tả Màn hình Quét mã vận đơn bàn giao shipper và In phiếu đóng gói (Packing Slip).
 8. [`08-report-screens.md`](./08-report-screens.md) — Đặc tả Màn hình Báo cáo Doanh thu - Giá vốn - Lãi gộp, Định giá kho theo WAC và Gợi ý tái đặt hàng AI.
 9. [`09-organization-screens.md`](./09-organization-screens.md) — Đặc tả Màn hình Quản lý Chi nhánh, Kho trực thuộc, Danh bạ Nhà cung cấp và Phân quyền nhân sự.
+
+## Cập nhật màn hình 04/11/2026
+
+| Route | Vai trò | Nội dung |
+| --- | --- | --- |
+| `/purchase-orders` | Owner, Staff | Tạo, sửa đơn mua; Owner duyệt, đóng, hủy; mở lập phiếu nhập từ đơn đã duyệt |
+| `/invoices` | Owner, Staff | Danh sách, chi tiết, in lại hóa đơn và truy vết đến dòng sổ `OUT` |
+| `/inventory/counts` | Owner, Staff | Phiếu kiểm kê, kỳ theo lịch, lịch định kỳ (chỉ Owner thêm lịch), đếm lại, duyệt chênh lệch (chỉ Owner) |
+| `/inventory` | Owner, Staff | Thêm tab Gợi ý nhập hàng; phiếu nhập bắt buộc chọn đơn mua đã duyệt |
+| `/products` | Owner, Staff | Cấu hình đơn vị, tạo phiếu đổi giá, quản lý bảng giá và lịch sử giá |
+| `/orders` | Owner, Staff | Chọn đơn vị và bảng giá; giá lấy từ server, đơn vị chưa có giá bị chặn |
+| `/pos` và POS PWA | Owner, Staff, Cashier | Chọn đơn vị trên từng dòng, quét mã quy cách, nhập số lẻ theo đơn vị, xác nhận giá mới khi `PRICE_MISMATCH` |
+
+Hiện trạng và phần còn thiếu: [báo cáo nghiệm thu](../report-after-upgrade/frontend-coming-soon-va-upgrade.md).

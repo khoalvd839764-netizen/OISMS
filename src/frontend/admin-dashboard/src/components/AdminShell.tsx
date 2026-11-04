@@ -128,6 +128,8 @@ export function AdminShell() {
     "/admin/products": "Sản phẩm",
     "/purchase-orders": "Đơn mua hàng từ NCC",
     "/admin/purchase-orders": "Đơn mua hàng từ NCC",
+    "/invoices": "Hóa đơn & Truy vết",
+    "/admin/invoices": "Hóa đơn & Truy vết",
     "/inventory": "Kho & sổ kho",
     "/admin/inventory": "Kho & sổ kho",
     "/inventory/transfers": "Chuyển kho nội bộ (2 Bước)",

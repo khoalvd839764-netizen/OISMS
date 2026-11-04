@@ -8,6 +8,8 @@
 | Phạm vi | Backend, test, tài liệu API. **Chưa có giao diện; chưa làm U01-B.** |
 | Trạng thái | Backend đã kiểm chứng. **Chưa nên đưa lên môi trường đang dùng thật trước khi frontend cập nhật**, vì form nhập kho hiện tại không tạo được phiếu theo hợp đồng mới. |
 
+> **Cập nhật 04/11/2026:** giao diện của phần này đã có. Kết quả nghiệm thu xem [báo cáo frontend](frontend-coming-soon-va-upgrade.md). Các mục "chưa có giao diện" bên dưới là hiện trạng tại ngày kiểm tra ghi trong bảng.
+
 ## Đã làm
 
 - **Dữ liệu:** thêm `purchase_orders`, `purchase_order_items`; thêm `purchase_order_id`, `purchase_order_item_id` vào phiếu nhập. Migration: [`20261102_purchase_orders.sql`](../../docker/postgres/migrations/20261102_purchase_orders.sql).

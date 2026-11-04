@@ -279,9 +279,7 @@ export const apiAdapter = {
       return {
         error: {
           code: !err?.response ? "NETWORK_ERROR" : "INVALID_STATE",
-          message:
-            err?.response?.data?.message ||
-            "Không thể tải danh sách sản phẩm & tồn kho từ máy chủ. Vui lòng kiểm tra kết nối và tải lại trang.",
+          message: readApiError(err, "Không thể tải danh sách sản phẩm & tồn kho từ máy chủ. Vui lòng kiểm tra kết nối và tải lại trang."),
         },
       };
     }
@@ -309,7 +307,7 @@ export const apiAdapter = {
       return { data: flatList };
     } catch (err: any) {
       return {
-        error: { message: err?.response?.data?.message || "Không thể tải danh mục hàng hóa từ máy chủ." },
+        error: { message: readApiError(err, "Không thể tải danh mục hàng hóa từ máy chủ.") },
       };
     }
   },
@@ -325,10 +323,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message:
-            err?.response?.data?.message ||
-            err?.response?.data?.errors?.[0] ||
-            "Tạo danh mục thất bại (kiểm tra không lặp quan hệ cha-con)",
+          message: readApiError(err, "Tạo danh mục thất bại (kiểm tra không lặp quan hệ cha-con)"),
         },
       };
     }
@@ -346,10 +341,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message:
-            err?.response?.data?.message ||
-            err?.response?.data?.errors?.[0] ||
-            "Cập nhật danh mục thất bại (Phát hiện vòng lặp quan hệ cha-con đệ quy)",
+          message: readApiError(err, "Cập nhật danh mục thất bại (Phát hiện vòng lặp quan hệ cha-con đệ quy)"),
         },
       };
     }
@@ -361,7 +353,7 @@ export const apiAdapter = {
       return { data: Array.isArray(res.data) ? res.data : [] };
     } catch (err: any) {
       return {
-        error: { message: err?.response?.data?.message || "Không thể tải danh sách thương hiệu từ máy chủ." },
+        error: { message: readApiError(err, "Không thể tải danh sách thương hiệu từ máy chủ.") },
       };
     }
   },
@@ -376,10 +368,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message:
-            err?.response?.data?.message ||
-            err?.response?.data?.errors?.[0] ||
-            "Tạo thương hiệu thất bại",
+          message: readApiError(err, "Tạo thương hiệu thất bại"),
         },
       };
     }
@@ -396,10 +385,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message:
-            err?.response?.data?.message ||
-            err?.response?.data?.errors?.[0] ||
-            "Cập nhật thương hiệu thất bại",
+          message: readApiError(err, "Cập nhật thương hiệu thất bại"),
         },
       };
     }
@@ -468,7 +454,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || "Không thể đổi trạng thái biến thể SKU",
+          message: readApiError(err, "Không thể đổi trạng thái biến thể SKU"),
         },
       };
     }
@@ -481,7 +467,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || "Vô hiệu hóa sản phẩm thất bại",
+          message: readApiError(err, "Vô hiệu hóa sản phẩm thất bại"),
         },
       };
     }
@@ -535,9 +521,7 @@ export const apiAdapter = {
       return {
         error: {
           code: !err?.response ? "NETWORK_ERROR" : "INVALID_STATE",
-          message:
-            err?.response?.data?.message ||
-            "Không thể tải dữ liệu tồn kho từ máy chủ. Vui lòng kiểm tra kết nối mạng và thử lại.",
+          message: readApiError(err, "Không thể tải dữ liệu tồn kho từ máy chủ. Vui lòng kiểm tra kết nối mạng và thử lại."),
         },
       };
     }
@@ -550,7 +534,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || "Không tìm thấy tồn kho SKU tại chi nhánh",
+          message: readApiError(err, "Không tìm thấy tồn kho SKU tại chi nhánh"),
         },
       };
     }
@@ -605,9 +589,7 @@ export const apiAdapter = {
       return {
         error: {
           code: !err?.response ? "NETWORK_ERROR" : "INVALID_STATE",
-          message:
-            err?.response?.data?.message ||
-            "Không thể tải sổ cái kho (Ledger) từ máy chủ. Vui lòng thử lại.",
+          message: readApiError(err, "Không thể tải sổ cái kho (Ledger) từ máy chủ. Vui lòng thử lại."),
         },
       };
     }
@@ -648,10 +630,7 @@ export const apiAdapter = {
       return {
         error: {
           code: err?.response?.status === 409 ? "INSUFFICIENT_STOCK" : "INVALID_STATE",
-          message:
-            err?.response?.data?.message ||
-            err?.response?.data?.errors?.[0] ||
-            "Giữ chỗ tồn kho thất bại",
+          message: readApiError(err, "Giữ chỗ tồn kho thất bại"),
         },
       };
     }
@@ -665,7 +644,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || "Không thể tải danh sách nhà cung cấp từ máy chủ.",
+          message: readApiError(err, "Không thể tải danh sách nhà cung cấp từ máy chủ."),
         },
       };
     }
@@ -683,10 +662,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message:
-            err?.response?.data?.message ||
-            err?.response?.data?.errors?.[0] ||
-            "Tạo nhà cung cấp thất bại",
+          message: readApiError(err, "Tạo nhà cung cấp thất bại"),
         },
       };
     }
@@ -719,10 +695,7 @@ export const apiAdapter = {
         error: {
           code: err?.response?.status === 404 ? "NOT_FOUND" : "API_ERROR",
           status: err?.response?.status,
-          message:
-            err?.response?.data?.message ||
-            err?.response?.data?.errors?.[0] ||
-            "Không thể tải thông tin chi tiết phiếu nhập kho.",
+          message: readApiError(err, "Không thể tải thông tin chi tiết phiếu nhập kho."),
         },
       };
     }
@@ -758,11 +731,7 @@ export const apiAdapter = {
       return {
         error: {
           code: err?.response?.data?.errorCode,
-          message:
-            err?.response?.data?.detail ||
-            err?.response?.data?.message ||
-            err?.response?.data?.errors?.[0] ||
-            "Lỗi tạo phiếu nhập kho",
+          message: readApiError(err, "Lỗi tạo phiếu nhập kho"),
         },
       };
     }
@@ -776,11 +745,7 @@ export const apiAdapter = {
       return {
         error: {
           code: err?.response?.data?.errorCode,
-          message:
-            err?.response?.data?.detail ||
-            err?.response?.data?.message ||
-            err?.response?.data?.errors?.[0] ||
-            "Lỗi xác nhận phiếu nhập",
+          message: readApiError(err, "Lỗi xác nhận phiếu nhập"),
         },
       };
     }
@@ -794,11 +759,7 @@ export const apiAdapter = {
       return {
         error: {
           code: err?.response?.data?.errorCode,
-          message:
-            err?.response?.data?.detail ||
-            err?.response?.data?.message ||
-            err?.response?.data?.errors?.[0] ||
-            "Lỗi hủy phiếu nhập",
+          message: readApiError(err, "Lỗi hủy phiếu nhập"),
         },
       };
     }
@@ -948,7 +909,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || "Không thể tải danh sách chi nhánh từ máy chủ.",
+          message: readApiError(err, "Không thể tải danh sách chi nhánh từ máy chủ."),
         },
       };
     }
@@ -961,7 +922,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || err?.response?.data?.errors?.[0] || "Tạo chi nhánh thất bại",
+          message: readApiError(err, "Tạo chi nhánh thất bại"),
         },
       };
     }
@@ -974,7 +935,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || err?.response?.data?.errors?.[0] || "Cập nhật chi nhánh thất bại",
+          message: readApiError(err, "Cập nhật chi nhánh thất bại"),
         },
       };
     }
@@ -987,7 +948,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || "Không thể đổi trạng thái chi nhánh",
+          message: readApiError(err, "Không thể đổi trạng thái chi nhánh"),
         },
       };
     }
@@ -1001,7 +962,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || "Không thể tải danh sách kho hàng từ máy chủ.",
+          message: readApiError(err, "Không thể tải danh sách kho hàng từ máy chủ."),
         },
       };
     }
@@ -1023,7 +984,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || err?.response?.data?.errors?.[0] || "Tạo kho hàng thất bại",
+          message: readApiError(err, "Tạo kho hàng thất bại"),
         },
       };
     }
@@ -1036,7 +997,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || "Không thể đổi trạng thái kho hàng",
+          message: readApiError(err, "Không thể đổi trạng thái kho hàng"),
         },
       };
     }

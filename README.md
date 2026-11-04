@@ -14,6 +14,8 @@
 > **Cập nhật ngày:** 19/10/2026  
 > **Trạng thái:** **HOÀN THÀNH TOÀN BỘ SPRINT 2** — Backend 1 (194/194 tests pass), Backend 2, Frontend Admin (React 19, build sạch 0 lỗi), Idempotency chống giữ chỗ lặp (F2), Nginx SPA Fallback (F7), Docker Compose hoạt động ổn định.
 
+> **Hiện trạng 04/11/2026:** đã có backend và giao diện cho Upgrade 05, 04, 01-A, 02, 03 cùng phần lớn Coming Soon. Bảng dưới là mốc Sprint 2. Xem [báo cáo nghiệm thu](docs/report-after-upgrade/frontend-coming-soon-va-upgrade.md).
+
 ---
 
 ## 1. Tổng Quan Sơ Lược Dự Án
@@ -45,7 +47,7 @@
 Hiện tại toàn bộ cấu trúc thư mục đã được dựng sẵn khung sườn chuẩn hóa, phân tách rõ ràng giữa Backend và 2 ứng dụng Frontend:
 
 ```text
-D:\CNPM workbase\
+D:\OISMS\
 ├── .github/
 │   └── workflows/
 │       └── ci.yml                 # Pipeline CI tự động kiểm tra build Backend & Frontend
@@ -118,21 +120,21 @@ powershell -ExecutionPolicy Bypass -File scripts\start-docker.ps1
 - **Backend API (Swagger):** `http://localhost:5000/swagger`
 - **Backend Health Check:**
   - Liveness: `http://localhost:5000/health/live`
-  - Readiness (Kiểm tra kết nối DB, đủ 29 bảng, trigger, quyền runtime): `http://localhost:5000/health/ready`
+  - Readiness (Kiểm tra kết nối DB, đủ 43 bảng, trigger, quyền runtime): `http://localhost:5000/health/ready`
 - **Admin Dashboard:** `http://localhost:5173`
 - **POS Web App:** `http://localhost:5174`
 - **PgAdmin:** `http://localhost:5050` (Tài khoản mặc định: `admin@oisms.local` / cấu hình qua `PGADMIN_EMAIL` & `PGADMIN_PASSWORD` trong `.env`)
 - **PostgreSQL 16:** `localhost:5432` (Database: `oisms`)
 
 #### Cơ chế tự động hóa Database & Healthcheck trong Docker Compose
-1. **Khởi tạo lần đầu tự động:** Khi volume `postgres_data` trống, PostgreSQL thực thi script `docker/postgres/init-oisms.sh` cùng file schema bàn giao `docs/database/oisms_schema.sql`, tự động tạo đủ 29 bảng, ràng buộc, trigger sổ cái và nhóm quyền `oisms_runtime`.
+1. **Khởi tạo lần đầu tự động:** Khi volume `postgres_data` trống, PostgreSQL thực thi script `docker/postgres/init-oisms.sh` cùng file schema bàn giao `docs/database/oisms_schema.sql`, tự động tạo đủ 43 bảng, ràng buộc, trigger sổ cái và nhóm quyền `oisms_runtime`.
 2. **Tách biệt tài khoản (Least Privilege) & Bảo mật:**
    - **Admin / DBA (`postgres`)**: Dùng cho migration, backup/restore. Bắt buộc cung cấp qua `POSTGRES_PASSWORD`.
    - **Runtime Backend (`oisms_app`)**: Thuộc nhóm `oisms_runtime`, chỉ có quyền đọc/ghi nghiệp vụ, bị trigger chặn sửa/xóa sổ cái `inventory_transactions`. Bắt buộc cung cấp qua `OISMS_APP_PASSWORD`.
    - Script khởi tạo sử dụng cơ chế truyền tham số an toàn (không nội suy chuỗi SQL), hỗ trợ mật khẩu chứa dấu nháy và ký tự đặc biệt, không ghi mật khẩu ra log, và tự động kiểm tra chặn nếu tài khoản có đặc quyền quản trị hoặc sở hữu schema/bảng.
 3. **Chờ Database Healthy & Backend Readiness:**
    - Docker Compose cấu hình `backend` và `pgadmin` chờ PostgreSQL vượt qua `healthcheck` (`pg_isready`).
-   - Backend cung cấp endpoint `/health/ready` thực hiện mở kết nối bằng tài khoản runtime `oisms_app`, kiểm tra đủ 29 bảng, trigger bảo vệ sổ cái và quyền hạn trước khi báo sẵn sàng (trả về HTTP 503 khi chưa sẵn sàng và không để lộ chuỗi kết nối hay mật khẩu).
+   - Backend cung cấp endpoint `/health/ready` thực hiện mở kết nối bằng tài khoản runtime `oisms_app`, kiểm tra đủ 43 bảng, trigger bảo vệ sổ cái và quyền hạn trước khi báo sẵn sàng (trả về HTTP 503 khi chưa sẵn sàng và không để lộ chuỗi kết nối hay mật khẩu).
 4. **Lưu ý về Volume đã có dữ liệu:**
    - Docker chỉ chạy script khởi tạo khi volume `postgres_data` hoàn toàn trống.
    - Việc đổi mật khẩu trong `.env` **không** tự động đổi mật khẩu của role trên volume đã tồn tại. Đối với volume cũ, quản trị viên sử dụng lệnh `ALTER ROLE` qua tài khoản `postgres`.
@@ -157,7 +159,7 @@ docker compose logs -f postgres
 # Theo dõi log Backend Web API
 docker compose logs -f backend
 
-# Kiểm tra kết nối và số lượng bảng (29 bảng)
+# Kiểm tra kết nối và số lượng bảng (43 bảng)
 docker compose exec -it postgres psql -U oisms_app -d oisms -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';"
 
 # Kiểm tra readiness endpoint của backend
@@ -165,7 +167,7 @@ curl http://localhost:5000/health/ready
 ```
 
 > [!NOTE]
-> Chi tiết tài liệu kiến trúc cơ sở dữ liệu, từ điển 29 bảng và quy trình cập nhật/migration dữ liệu xem tại [docs/database/README.md](docs/database/README.md).
+> Chi tiết tài liệu kiến trúc cơ sở dữ liệu, từ điển 43 bảng và quy trình cập nhật/migration dữ liệu xem tại [docs/database/README.md](docs/database/README.md).
 
 ---
 

@@ -1,5 +1,20 @@
 # Chức năng chưa hoàn thiện — không gộp với lỗi đang hoạt động
 
+## Cập nhật 04/11/2026
+
+| ID | Trạng thái | Còn thiếu |
+| --- | --- | --- |
+| CS-01 | Chưa làm | Cần backend trước |
+| CS-02 | Đã có một phần | Phân công chi nhánh chưa có trường ở backend |
+| CS-03 | Đã có | Chưa kiểm tra thông báo tồn thấp qua realtime |
+| CS-04 | Đã có | Kết quả phiếu nhập chưa mở đúng phiếu |
+| CS-05 | Đã có một phần | POS PWA đã có VietQR, thu ngân xác nhận thủ công; POS Admin chưa bật; không có webhook ngân hàng |
+| CS-06 | Chưa làm | In chứng từ giao hàng và in báo cáo |
+| CS-07 | Đã có | Số liệu lũy kế, API chưa lọc theo thời gian |
+| CS-08 | Đã có một phần | Dựa trên quy tắc, chưa có bằng chứng đánh giá dự báo |
+
+Kết quả nghiệm thu: [báo cáo frontend](../../report-after-upgrade/frontend-coming-soon-va-upgrade.md). Bảng dưới giữ nguyên hiện trạng tại 28–29/10/2026.
+
 Ngày: 28–29/10/2026. Các mục đã bị khóa bằng nhãn Coming soon ở lượt trước **vẫn chưa được xem là hoàn tất yêu cầu**.
 
 | ID | Chức năng | Hiện trạng | Việc cần có để sử dụng thật |

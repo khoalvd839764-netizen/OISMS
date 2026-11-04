@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { X, Banknote, QrCode, Printer, AlertCircle, ShieldCheck } from 'lucide-react';
 import type { CartItem, PosCheckoutRequest, ReceiptData } from '../../types/pos';
+import type { CurrentPriceItem } from '../../services/posCartUnits';
 import { checkoutPosOrder } from '../../services/posApi';
 import { ComingSoonBadge } from '../ui';
 
@@ -19,6 +20,7 @@ interface PaymentModalProps {
   cashierName: string;
   onSuccessAndPrint: (receipt: ReceiptData) => void;
   onPreviewReceipt: (receipt: ReceiptData) => void;
+  onApplyCurrentPrices?: (prices: CurrentPriceItem[]) => void;
 }
 
 export const PaymentModal: React.FC<PaymentModalProps> = ({
@@ -34,6 +36,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   branchPhone,
   tenantName,
   cashierName,
+  onApplyCurrentPrices,
   onSuccessAndPrint,
   onPreviewReceipt,
 }) => {
@@ -82,6 +85,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [userGivenAmount, setUserGivenAmount] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiNotice, setApiNotice] = useState<{ type: 'warning' | 'error' | 'success'; text: string; details?: any } | null>(null);
+  const [priceUpdates, setPriceUpdates] = useState<CurrentPriceItem[] | null>(null);
 
   const totalAmount = items.reduce((sum, item) => sum + item.retailPrice * item.quantity, 0);
   const amountGiven = userGivenAmount !== null ? userGivenAmount : totalAmount;
@@ -181,6 +185,9 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         onClose();
       } else {
         // Checkout thất bại hoặc API chưa sẵn sàng: Giữ nguyên giỏ hàng, thông báo rõ ràng
+        if (result.errorCode === 'PRICE_MISMATCH' && result.currentPrices?.length) {
+          setPriceUpdates(result.currentPrices);
+        }
         setApiNotice({
           type: result.isPendingBackend ? 'warning' : 'error',
           text: result.message || 'Thanh toán không thành công. Giỏ hàng được bảo lưu.',
@@ -229,6 +236,28 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     onClose();
   };
 
+  const priceUpdateNotice = priceUpdates && (
+    <div role="alert" style={{ background: '#fffbeb', border: '1px solid #f59e0b', borderRadius: '8px', padding: '10px 12px', fontSize: '12px', color: '#78350f', margin: '8px 0' }}>
+      <strong>Giá niêm yết đã thay đổi. Vui lòng xác nhận giá mới trước khi thanh toán lại:</strong>
+      <ul style={{ margin: '6px 0', paddingLeft: '18px' }}>
+        {priceUpdates.map((p) => (
+          <li key={`${p.skuId}:${p.unitId || ''}`}>{p.skuCode || p.skuId}: {p.currentPrice.toLocaleString('vi-VN')} ₫</li>
+        ))}
+      </ul>
+      <button
+        type="button"
+        onClick={() => {
+          onApplyCurrentPrices?.(priceUpdates);
+          setPriceUpdates(null);
+          setApiNotice(null);
+        }}
+        style={{ background: '#b45309', color: '#fff', border: 0, borderRadius: '6px', padding: '6px 10px', fontWeight: 600, cursor: 'pointer' }}
+      >
+        Cập nhật giá mới vào giỏ
+      </button>
+    </div>
+  );
+
   if (embedded) return <div className="pos-inline-payment">
     <input className="pos-customer-input" aria-label="Tên khách hàng" value={customerName} onChange={(event)=>setCustomerName(event.target.value)} placeholder="Khách hàng (không bắt buộc)" />
     <input className="pos-customer-input" type="tel" aria-label="Số điện thoại khách hàng" value={customerPhone} onChange={(event)=>setCustomerPhone(event.target.value)} placeholder="Số điện thoại (không bắt buộc)" />
@@ -240,6 +269,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       <input type="number" min="0" aria-label="Tiền khách đưa" value={amountGiven || ''} onChange={(event)=>setUserGivenAmount(Number(event.target.value))} placeholder="Nhập số tiền" />
     </label><div className={isShortOfCash?'pos-change is-short':'pos-change'}><small>{isShortOfCash?'Còn thiếu':'Tiền thừa'}</small><strong>{formatCurrency(isShortOfCash?totalAmount-amountGiven:changeDue)}</strong></div></div> :
       <p className="pos-qr-notice">QR hiện là chế độ mô phỏng; chưa có xác nhận chuyển tiền tự động. Không chuyển tiền thật qua mã mô phỏng.</p>}
+    {priceUpdateNotice}
     {apiNotice && <p className="pos-error" role="alert">{apiNotice.text} Giỏ hàng được giữ lại để kiểm tra.</p>}
     <button ref={submitRef} className="pos-checkout-button" type="button" disabled={isSubmitting || isShortOfCash || !items.length || !branchId}
       onClick={()=>handleCheckout(false)}>{isSubmitting?'Đang xử lý...':`Thanh toán · ${formatCurrency(totalAmount)}`}</button>
@@ -469,6 +499,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           </div>
 
           {/* API Notice / DoD Alert */}
+          {priceUpdateNotice}
           {apiNotice && (
             <div
               className={`p-4 rounded-xl text-xs space-y-2 border ${

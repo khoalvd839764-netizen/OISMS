@@ -122,13 +122,16 @@ export function ProductsPage() {
       apiAdapter.getSkus(),
       apiAdapter.getCategories(),
       apiAdapter.getBrands(),
-      unitService.getUnits().catch(() => []),
+      unitService.getUnits().catch(() => null),
     ]);
     if (Array.isArray(uRes)) {
       setUnitsList(uRes.filter((u) => u.isActive));
     }
 
     // [A09] Báo lỗi kết nối rõ ràng thay vì biến thành mảng rỗng = 0
+    if (uRes === null) {
+      setLoadError("Không thể tải danh mục đơn vị tính. Vui lòng thử lại trước khi chọn đơn vị gốc.");
+    }
     if (pRes.error) {
       setLoadError(pRes.error.message);
     }
@@ -604,7 +607,7 @@ export function ProductsPage() {
                           </Button>
                           <Button
                             variant="ghost"
-                            title="Tạo phiếu đổi giá bán (U04)"
+                            title="Tạo phiếu đổi giá bán"
                             onClick={() => {
                               setPriceChangeModalSku(sku);
                             }}
@@ -1174,7 +1177,7 @@ export function ProductsPage() {
             <div
               style={{
                 background: "#fee2e2",
-                border: "#ef4444",
+                border: "1px solid #ef4444",
                 color: "#b91c1c",
                 padding: "10px",
                 borderRadius: "8px",
@@ -1234,7 +1237,7 @@ export function ProductsPage() {
 
           <div className="hint-box" style={{ margin: "0 16px 14px" }}>
             <p style={{ margin: 0 }}>
-              <strong>Quy tắc U04 Bảng giá:</strong> Không cho phép sửa trực tiếp giá trên form thông tin SKU. Mọi lần thay đổi giá bán lẻ hoặc giá bán sỉ bắt buộc phải tạo <strong>Phiếu đổi giá (Price Change Request)</strong> để lưu vết và phê duyệt theo quy trình.
+              <strong>Quy tắc bảng giá:</strong> Không cho phép sửa trực tiếp giá trên form thông tin SKU. Mọi lần thay đổi giá bán lẻ hoặc giá bán sỉ bắt buộc phải tạo <strong>Phiếu đổi giá (Price Change Request)</strong> để lưu vết và phê duyệt theo quy trình.
             </p>
             <p style={{ margin: "6px 0 0" }}>
               Giá vốn bình quân hiện tại (WAC): <strong>{editingSku.averageCost.toLocaleString("vi-VN")} ₫</strong>.

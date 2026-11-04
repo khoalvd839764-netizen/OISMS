@@ -103,7 +103,7 @@ export const CreateStockCountModal: React.FC<CreateStockCountModalProps> = ({
       return;
     }
     if (!reason.trim()) {
-      setErrorMessage('Vui lòng nhập lý do kiểm kê đột xuất (bắt buộc theo quy định kiểm kê U03).');
+      setErrorMessage('Vui lòng nhập lý do kiểm kê đột xuất (bắt buộc theo quy định kiểm kê).');
       return;
     }
 

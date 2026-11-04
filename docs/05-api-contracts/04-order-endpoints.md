@@ -72,3 +72,5 @@ Mỗi lần xuất bán (POS Checkout hoặc Online Order Confirm) tạo đúng 
 | `GET` | `/api/reports/inventory-velocity` | `Owner, Staff` | `FR-REP-02` | Báo cáo giá trị tồn kho theo giá vốn, top hàng bán chạy và hàng luân chuyển chậm. |
 | `GET` | `/api/reports/stock-alerts` | `Owner, Staff` | `FR-REP-03` | Danh sách cảnh báo các SKU có `available <= MinStockLevel`. |
 | `GET` | `/api/ai/reorder-recommendations` | `Owner, Staff` | `FR-AI-01` | Dự báo nhu cầu tiêu thụ và gợi ý số lượng đặt hàng nhập kho theo từng SKU. |
+
+> **Ghi chú 04/11/2026:** `GET /api/ai/reorder-recommendations`, `lowStockCount` của `GET /api/reports/dashboard-summary` và báo cáo cảnh báo tồn chỉ tính SKU còn kinh doanh (`IsActive = true`). `daysUntilStockout = 999` nghĩa là chưa có dữ liệu bán để ước tính.
