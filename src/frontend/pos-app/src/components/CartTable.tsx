@@ -119,7 +119,7 @@ export const CartTable: React.FC<CartTableProps> = ({
                         >
                           {item.units.map((u) => (
                             <option key={u.unitId} value={u.unitId}>
-                              {u.unitName} (x{u.factor}{u.isBase ? ' - gốc' : ''})
+                              {u.unitName} (x{u.factor}{u.isBase ? ' - gốc' : ''}){u.salePrice == null ? ' - chưa có giá' : ''}
                             </option>
                           ))}
                         </select>

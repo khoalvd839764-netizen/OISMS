@@ -48,6 +48,23 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
   const currentCountIdRef = useRef<string | null>(countId);
   currentCountIdRef.current = countId;
 
+  // Đồng bộ phiếu và các ô nhập theo dữ liệu server (đếm lại sẽ xóa số đếm cũ trên server)
+  const applyServerDetail = (data: StockCount) => {
+    setDetail(data);
+    const initialCounted: Record<string, string> = {};
+    const initialCost: Record<string, string> = {};
+    data.items.forEach((item) => {
+      if (item.countedQuantity !== undefined && item.countedQuantity !== null) {
+        initialCounted[item.skuId] = String(item.countedQuantity);
+      }
+      if (item.adjustmentUnitCost !== undefined && item.adjustmentUnitCost !== null) {
+        initialCost[item.skuId] = String(item.adjustmentUnitCost);
+      }
+    });
+    setCountedMap(initialCounted);
+    setCostMap(initialCost);
+  };
+
   useEffect(() => {
     if (!countId) {
       setDetail(null);
@@ -66,21 +83,7 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
       try {
         const data = await stockCountService.getStockCountById(countId);
         if (reqSeq !== activeReqRef.current) return;
-        setDetail(data);
-
-        // Khởi tạo map giá trị đếm
-        const initialCounted: Record<string, string> = {};
-        const initialCost: Record<string, string> = {};
-        data.items.forEach((item) => {
-          if (item.countedQuantity !== undefined && item.countedQuantity !== null) {
-            initialCounted[item.skuId] = String(item.countedQuantity);
-          }
-          if (item.adjustmentUnitCost !== undefined && item.adjustmentUnitCost !== null) {
-            initialCost[item.skuId] = String(item.adjustmentUnitCost);
-          }
-        });
-        setCountedMap(initialCounted);
-        setCostMap(initialCost);
+        applyServerDetail(data);
       } catch (err: any) {
         if (reqSeq !== activeReqRef.current) return;
         setErrorDetails({
@@ -107,6 +110,27 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
   const handleSaveCounts = async () => {
     if (!detail || detail.id !== countId || loading || actionLoading) return;
 
+    // Chỉ lưu những dòng đã nhập. Ô để trống là chưa đếm, không được coi là đếm được 0.
+    const itemsToRecord = detail.items
+      .filter((item) => (countedMap[item.skuId] ?? '').trim() !== '')
+      .map((item) => {
+        const costStr = costMap[item.skuId];
+        const costVal = costStr && Number(costStr) > 0 ? Number(costStr) : undefined;
+        return {
+          skuId: item.skuId,
+          countedQuantity: Number(countedMap[item.skuId]),
+          adjustmentUnitCost: costVal,
+        };
+      });
+
+    if (itemsToRecord.length === 0) {
+      setErrorDetails({
+        title: 'Chưa có số đếm để lưu',
+        detail: 'Vui lòng nhập số đếm cho ít nhất một mặt hàng.',
+      });
+      return;
+    }
+
     const targetId = detail.id;
     const actionSeq = ++activeReqRef.current;
     busyIdsRef.current.add(targetId);
@@ -115,29 +139,17 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
     setSequenceDrift(false);
 
     try {
-      const itemsToRecord = detail.items.map((item) => {
-        const valStr = countedMap[item.skuId];
-        const countedVal = valStr !== undefined && valStr.trim() !== '' ? Number(valStr) : 0;
-        const costStr = costMap[item.skuId];
-        const costVal = costStr && Number(costStr) > 0 ? Number(costStr) : undefined;
-        return {
-          skuId: item.skuId,
-          countedQuantity: countedVal,
-          adjustmentUnitCost: costVal,
-        };
-      });
-
       const updated = await stockCountService.recordCounts(targetId, {
         items: itemsToRecord,
       });
 
       if (currentCountIdRef.current !== targetId) return;
-      setDetail(updated);
+      applyServerDetail(updated);
       onRefresh();
       alert('Đã lưu kết quả kiểm đếm lên máy chủ thành công!');
     } catch (err: any) {
       if (currentCountIdRef.current !== targetId) return;
-      if (err.errorCode === 'STOCK_COUNT_DRIFT_DETECTED' || err.status === 409) {
+      if (err.errorCode === 'STOCK_COUNT_SEQUENCE_DRIFT') {
         setSequenceDrift(true);
       }
       setErrorDetails(err);
@@ -200,6 +212,9 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
       alert('Đã nộp kết quả kiểm đếm thành công! Đợt kiểm kê chuyển sang trạng thái "Chờ duyệt chênh lệch" (PendingApproval).');
     } catch (err: any) {
       if (currentCountIdRef.current !== targetId) return;
+      if (err.errorCode === 'STOCK_COUNT_SEQUENCE_DRIFT') {
+        setSequenceDrift(true);
+      }
       setErrorDetails(err);
     } finally {
       busyIdsRef.current.delete(targetId);
@@ -259,7 +274,7 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
       alert('Đã phê duyệt và chốt kiểm kê thành công! Số dư tồn kho đã được cân bằng chính thức.');
     } catch (err: any) {
       if (currentCountIdRef.current !== targetId) return;
-      if (err.errorCode === 'STOCK_COUNT_DRIFT_DETECTED' || err.status === 409) {
+      if (err.errorCode === 'STOCK_COUNT_SEQUENCE_DRIFT') {
         setSequenceDrift(true);
       }
       setErrorDetails(err);
@@ -287,7 +302,7 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
     }
 
     // Mặc định chọn tất cả SKU có chênh lệch hoặc toàn bộ
-    const diffSkus = detail.items.filter((i) => i.differenceQuantity !== 0).map((i) => i.skuId);
+    const diffSkus = detail.items.filter((i) => (i.differenceQuantity ?? 0) !== 0).map((i) => i.skuId);
     const skuIdsToRecount = diffSkus.length > 0 ? diffSkus : detail.items.map((i) => i.skuId);
 
     const targetId = detail.id;
@@ -303,7 +318,7 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
       });
 
       if (currentCountIdRef.current !== targetId) return;
-      setDetail(updated);
+      applyServerDetail(updated);
       onRefresh();
       alert('Đã gửi yêu cầu kiểm đếm lại thành công!');
     } catch (err: any) {
@@ -321,7 +336,20 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
   const handleRecountDrifted = async () => {
     if (!detail || detail.id !== countId || loading || actionLoading) return;
 
-    const diffSkus = detail.items.map((i) => i.skuId);
+    // Phiếu ở Chờ duyệt phải do Owner trả về đếm lại, nên cần lý do trước khi gửi
+    let requestReason: string | null = null;
+    if (detail.status === 'PendingApproval') {
+      if (!isOwner) {
+        setErrorDetails({
+          title: 'Cần Chủ cửa hàng xử lý',
+          detail: 'Phiếu đang chờ duyệt. Chỉ Owner mới có thể trả phiếu về để đếm lại các SKU bị lệch.',
+        });
+        return;
+      }
+      requestReason = prompt('Nhập lý do yêu cầu đếm lại các SKU bị lệch (bắt buộc):');
+      if (!requestReason || !requestReason.trim()) return;
+    }
+
     const targetId = detail.id;
     const actionSeq = ++activeReqRef.current;
     busyIdsRef.current.add(targetId);
@@ -329,12 +357,26 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
     setErrorDetails(null);
 
     try {
-      const updated = await stockCountService.recountDrifted(targetId, {
-        skuIds: diffSkus,
-      });
+      // Backend chỉ nhận đúng các SKU đang lệch, nên đọc lại trạng thái lệch mới nhất từ server
+      const fresh = await stockCountService.getStockCountById(targetId);
+      const driftedSkus = fresh.items.filter((i) => i.isDrifted).map((i) => i.skuId);
+      if (driftedSkus.length === 0) {
+        if (currentCountIdRef.current !== targetId) return;
+        applyServerDetail(fresh);
+        setSequenceDrift(false);
+        alert('Hiện không còn SKU nào bị lệch. Bạn có thể tiếp tục thao tác trên phiếu.');
+        return;
+      }
+
+      const updated = fresh.status === 'PendingApproval'
+        ? await stockCountService.requestRecount(targetId, {
+            skuIds: driftedSkus,
+            reason: (requestReason || '').trim(),
+          })
+        : await stockCountService.recountDrifted(targetId, { skuIds: driftedSkus });
 
       if (currentCountIdRef.current !== targetId) return;
-      setDetail(updated);
+      applyServerDetail(updated);
       setSequenceDrift(false);
       onRefresh();
       alert('Đã cập nhật yêu cầu đếm lại! Phiếu chuyển về trạng thái tiếp tục kiểm đếm.');

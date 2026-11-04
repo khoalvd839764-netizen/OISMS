@@ -157,6 +157,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       items: items.map((i) => ({
         name: i.productName + (i.variantName ? ` - ${i.variantName}` : ''),
         sku: i.sku,
+        unitName: i.unitName,
         quantity: i.quantity,
         unitPrice: i.retailPrice,
         subtotal: i.retailPrice * i.quantity,

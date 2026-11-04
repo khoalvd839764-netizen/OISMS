@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { stockCountService } from '../../services/stockCountService';
+import { apiAdapter } from '../../services/apiAdapter';
+import { useAuth } from '../../context/AuthContext';
 import { X, Calendar, Clock, AlertCircle } from 'lucide-react';
 
 interface CreateScheduleModalProps {
@@ -23,7 +25,10 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
   const [dayOfMonth, setDayOfMonth] = useState<number>(15);
   const [localTime, setLocalTime] = useState<string>('18:00:00');
   const [dueDays, setDueDays] = useState<number>(3);
-  const [assigneeUserId] = useState<string>('');
+  const { user } = useAuth();
+  const [assigneeUserId, setAssigneeUserId] = useState<string>('');
+  const [assignees, setAssignees] = useState<Array<{ id: string; displayName: string; role: string }>>([]);
+  const [assigneeError, setAssigneeError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,6 +45,30 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
     }
   }, [branchId, warehouses, warehouseId]);
 
+  // Người phụ trách phải là Owner hoặc Staff đang hoạt động của tenant
+  React.useEffect(() => {
+    if (!isOpen) return;
+    let active = true;
+    setAssigneeError(null);
+    apiAdapter.getUsers({ isActive: true }).then((res) => {
+      if (!active) return;
+      if (res.error) {
+        setAssignees([]);
+        setAssigneeError(res.error.message || 'Không thể tải danh sách người phụ trách.');
+        return;
+      }
+      const eligible = (res.data || []).filter((u: { role: string }) => u.role === 'Owner' || u.role === 'Staff');
+      setAssignees(eligible);
+      setAssigneeUserId((current) => {
+        if (eligible.some((u: { id: string }) => u.id === current)) return current;
+        return eligible.find((u: { id: string }) => u.id === user?.id)?.id || eligible[0]?.id || '';
+      });
+    });
+    return () => {
+      active = false;
+    };
+  }, [isOpen, user?.id]);
+
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -50,12 +79,13 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
       setError('Vui lòng chọn chi nhánh và kho kiểm kê.');
       return;
     }
+    if (!assigneeUserId) {
+      setError('Vui lòng chọn người phụ trách kiểm kê.');
+      return;
+    }
 
     setLoading(true);
     try {
-      // Default to current user if assignee is empty
-      const userId = localStorage.getItem('oism_user_id') || '11111111-0000-0000-0000-000000000001';
-
       await stockCountService.createSchedule({
         branchId,
         warehouseId,
@@ -63,7 +93,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
         dayOfMonth: periodType === 'MidMonth' ? dayOfMonth : undefined,
         localTime,
         dueDays,
-        assigneeUserId: assigneeUserId || userId,
+        assigneeUserId,
         isActive: true,
       });
 
@@ -142,6 +172,26 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
                 ))}
               </select>
             </div>
+          </div>
+
+          <div>
+            <label className="block font-bold text-slate-700 uppercase mb-1">
+              Người phụ trách <span className="text-rose-500">*</span>
+            </label>
+            <select
+              value={assigneeUserId}
+              onChange={(e) => setAssigneeUserId(e.target.value)}
+              className="w-full border border-slate-300 rounded-lg p-2 bg-white text-xs"
+              required
+            >
+              {assignees.length === 0 && <option value="">-- Chưa có người phụ trách --</option>}
+              {assignees.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.displayName} ({u.role})
+                </option>
+              ))}
+            </select>
+            {assigneeError && <p className="mt-1 text-rose-700">{assigneeError}</p>}
           </div>
 
           <div>

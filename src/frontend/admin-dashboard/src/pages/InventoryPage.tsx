@@ -617,6 +617,18 @@ export function InventoryPage() {
     }
   };
 
+  // Giữ chi nhánh và kho khớp đơn mua, kể cả khi danh sách kho tải xong sau đơn mua (mở từ trang Đơn mua)
+  useEffect(() => {
+    if (!selectedPoDetail || createdReceiptId) return;
+    if (selectedBranch !== selectedPoDetail.branchId) {
+      setSelectedBranch(selectedPoDetail.branchId);
+    }
+    const branchWhs = warehouses.filter((w) => w.branchId === selectedPoDetail.branchId);
+    if (branchWhs.length > 0 && !branchWhs.some((w) => w.id === selectedWarehouse)) {
+      setSelectedWarehouse(branchWhs[0].id);
+    }
+  }, [selectedPoDetail, warehouses, selectedBranch, selectedWarehouse, createdReceiptId]);
+
   // [F1] Mở Modal Phiếu nhập và tự động khôi phục / đối soát phiếu nháp đang chờ xác nhận
   const closeReceiptModal = () => {
     if (isConfirmingReceiptRef.current) return;

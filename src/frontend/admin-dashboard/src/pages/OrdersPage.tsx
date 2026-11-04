@@ -1,6 +1,8 @@
 import { AlertCircle, Plus, RefreshCw, ShoppingBag } from "lucide-react";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
+import { pricingService } from "../services/pricingService";
+import type { EffectivePrice } from "../types/pricing";
 import { Button, Input, Modal, Select } from "../components/ui";
 import { apiAdapter, generateUuid, getPendingOrderStorageKey } from "../services/apiAdapter";
 import { useAuth } from "../context/AuthContext";
@@ -107,6 +109,10 @@ export function OrdersPage() {
   const [newUnitId, setNewUnitId] = useState<string>("");
   const [newPriceListCode, setNewPriceListCode] = useState<"retail" | "wholesale">("retail");
   const [overridePrice, setOverridePrice] = useState<number | null>(null);
+  const [effectivePrices, setEffectivePrices] = useState<EffectivePrice[]>([]);
+  const [loadingPrices, setLoadingPrices] = useState(false);
+  const [priceLoadError, setPriceLoadError] = useState<string | null>(null);
+  const priceReqSeqRef = useRef(0);
   const [priceMismatchNotice, setPriceMismatchNotice] = useState<{
     message: string;
     currentPrices: Array<{ skuId: string; skuCode: string; unitId?: string | null; currentPrice: number }>;
@@ -264,6 +270,38 @@ export function OrdersPage() {
     setCreateError(null);
   };
 
+  // Đơn vị bán được phép của SKU đang chọn; giá lấy theo đúng đơn vị và bảng giá từ server
+  const chosenSkuForForm = skusList.find((s) => s.id === newSkuId);
+  const sellableUnits = (chosenSkuForForm?.units || []).filter((u) => u.isActive !== false && u.canSell !== false);
+  const resolvedUnitId =
+    (sellableUnits.some((u) => u.unitId === newUnitId) ? newUnitId : "") ||
+    sellableUnits.find((u) => u.isBase)?.unitId ||
+    chosenSkuForForm?.baseUnitId ||
+    "";
+  const listedUnitPrice = effectivePrices.find((p) => p.unitId === resolvedUnitId)?.price ?? null;
+  const unitPriceForForm = overridePrice ?? listedUnitPrice;
+
+  useEffect(() => {
+    if (!createModal || !newSkuId || pendingSnapshot) return;
+    const seq = ++priceReqSeqRef.current;
+    setLoadingPrices(true);
+    setPriceLoadError(null);
+    setEffectivePrices([]);
+    pricingService
+      .getEffectivePrice(newSkuId, newPriceListCode)
+      .then((prices) => {
+        if (seq === priceReqSeqRef.current) setEffectivePrices(prices);
+      })
+      .catch((err: any) => {
+        if (seq === priceReqSeqRef.current) {
+          setPriceLoadError(err?.response?.data?.detail || "Không thể tải giá bán hiện hành.");
+        }
+      })
+      .finally(() => {
+        if (seq === priceReqSeqRef.current) setLoadingPrices(false);
+      });
+  }, [createModal, newSkuId, newPriceListCode, pendingSnapshot]);
+
   const handleFormChange = () => {
     // B01-F02: Tuyệt đối không cho phép gõ phím làm mất pending hoặc sinh key mới khi đang có pending snapshot
     if (isRetryingOrder || isUnknownState || pendingSnapshot) {
@@ -308,11 +346,18 @@ export function OrdersPage() {
       keyToSend = orderIdempotencyKey || generateUuid();
       setOrderIdempotencyKey(keyToSend);
 
-      const defaultPrice =
-        newPriceListCode === "wholesale"
-          ? (chosenSku.wholesalePrice ?? chosenSku.sellingPrice ?? 0)
-          : (chosenSku.sellingPrice ?? 0);
-      const unitPriceToSend = overridePrice != null ? overridePrice : defaultPrice;
+      if (loadingPrices) {
+        setCreateError("Đang tải giá bán hiện hành, vui lòng thử lại sau giây lát.");
+        return;
+      }
+      if (priceLoadError) {
+        setCreateError(priceLoadError);
+        return;
+      }
+      if (unitPriceForForm == null) {
+        setCreateError("Đơn vị này chưa có giá trong bảng giá đã chọn. Vui lòng tạo phiếu đổi giá trước khi bán.");
+        return;
+      }
 
       payloadToSend = {
         branchId: newBranchId,
@@ -326,9 +371,9 @@ export function OrdersPage() {
             skuCode: chosenSku.code,
             productName: chosenSku.name,
             variantName: chosenSku.variant,
-            unitId: newUnitId || undefined,
+            unitId: resolvedUnitId || undefined,
             quantity: newQuantity,
-            unitPrice: unitPriceToSend, // Lưu snapshot giá tại thời điểm tạo
+            unitPrice: unitPriceForForm, // Lưu snapshot giá tại thời điểm tạo
           },
         ],
       };
@@ -365,7 +410,9 @@ export function OrdersPage() {
       setIsUnknownState(false);
       setCreateModal(false);
       setNewQuantity(1);
-    setNewUnitId("");
+      setNewUnitId("");
+      setOverridePrice(null);
+      setPriceMismatchNotice(null);
       await loadOrders();
     } catch (err: any) {
       const status = err?.response?.status;
@@ -424,6 +471,13 @@ export function OrdersPage() {
           setIsRetryingOrder(true);
           setIsUnknownState(true);
         }
+      } else if (status && status >= 400 && status < 500 && status !== 408 && status !== 429) {
+        // Các lỗi 4xx còn lại, ví dụ 422 chưa cấu hình giá: server đã từ chối dứt khoát, cho phép sửa lại form
+        setCreateError(errorDetail);
+        clearSavedPendingOrder(account.tenantId, account.id);
+        setPendingSnapshot(null);
+        setIsRetryingOrder(false);
+        setIsUnknownState(false);
       } else {
         // Timeout mạng, rớt kết nối, lỗi 5xx -> Trạng thái Unknown (B01-F02)
         const msg = `Mất kết nối hoặc phản hồi chưa rõ từ máy chủ (${status || "Mạng"}). Đang bảo lưu nguyên vẹn yêu cầu để thử lại an toàn: ${errorDetail}`;
@@ -577,8 +631,8 @@ export function OrdersPage() {
                     />
                   </label>
                   {(() => {
-                    const chosen = skusList.find((s) => s.id === newSkuId);
-                    const selectedUnit = chosen?.units?.find((u) => u.unitId === newUnitId);
+                    const chosen = chosenSkuForForm;
+                    const selectedUnit = chosen?.units?.find((u) => u.unitId === resolvedUnitId);
                     const factor = selectedUnit?.factorToBase || 1;
                     const baseQty = newQuantity * factor;
                     return (
@@ -647,6 +701,8 @@ export function OrdersPage() {
                         const target = skusList.find((s) => s.id === sId);
                         const bUnit = target?.units?.find((u) => u.isBase) || target?.units?.[0];
                         setNewUnitId(bUnit?.unitId || target?.baseUnitId || "");
+                        setOverridePrice(null);
+                        setPriceMismatchNotice(null);
                         handleFormChange();
                       }}
                     >
@@ -676,20 +732,21 @@ export function OrdersPage() {
                     />
                   </label>
                   {(() => {
-                    const chosen = skusList.find((s) => s.id === newSkuId);
-                    if (!chosen?.units || chosen.units.length === 0) return null;
+                    if (sellableUnits.length === 0) return null;
                     return (
                       <label>
                         <span>Đơn vị tính giao dịch *</span>
                         <Select
-                          value={newUnitId}
+                          value={resolvedUnitId}
                           disabled={isFormLocked}
                           onChange={(e) => {
                             setNewUnitId(e.target.value);
+                            setOverridePrice(null);
+                            setPriceMismatchNotice(null);
                             handleFormChange();
                           }}
                         >
-                          {chosen.units.map((u) => (
+                          {sellableUnits.map((u) => (
                             <option key={u.unitId} value={u.unitId}>
                               {u.unitName} (x{u.factorToBase}{u.isBase ? " - gốc" : ""})
                             </option>
@@ -722,14 +779,11 @@ export function OrdersPage() {
                       disabled
                       readOnly
                       value={(() => {
-                        const chosenSku = skusList.find((s) => s.id === newSkuId);
-                        if (!chosenSku) return "—";
-                        const price = overridePrice != null
-                          ? overridePrice
-                          : (newPriceListCode === "wholesale"
-                              ? (chosenSku.wholesalePrice ?? chosenSku.sellingPrice ?? 0)
-                              : (chosenSku.sellingPrice ?? 0));
-                        return `${price.toLocaleString("vi-VN")} ₫`;
+                        if (!chosenSkuForForm) return "—";
+                        if (loadingPrices) return "Đang tải giá...";
+                        if (priceLoadError) return "Không tải được giá";
+                        if (unitPriceForForm == null) return "Chưa có giá";
+                        return `${unitPriceForForm.toLocaleString("vi-VN")} ₫`;
                       })()}
                     />
                   </label>
@@ -755,9 +809,10 @@ export function OrdersPage() {
                       variant="primary"
                       style={{ marginTop: "8px" }}
                       onClick={() => {
-                        if (priceMismatchNotice.currentPrices.length > 0) {
-                          setOverridePrice(priceMismatchNotice.currentPrices[0].currentPrice);
-                        }
+                        const matched =
+                          priceMismatchNotice.currentPrices.find((p) => p.unitId === resolvedUnitId) ||
+                          priceMismatchNotice.currentPrices[0];
+                        if (matched) setOverridePrice(matched.currentPrice);
                         setPriceMismatchNotice(null);
                         setCreateError(null);
                       }}

@@ -27,6 +27,7 @@ export interface StockCountItem {
   balanceSequenceAtSnapshot: number;
   adjustmentUnitCost?: number | null;
   countedBy?: string | null;
+  isDrifted?: boolean;
 }
 
 export interface StockCountApproval {

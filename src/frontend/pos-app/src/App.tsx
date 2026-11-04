@@ -29,6 +29,21 @@ import { PaymentModal } from './components/PaymentModal';
 import { ReceiptPrintModal } from './components/ReceiptPrintModal';
 import { LoginModal } from './components/LoginModal';
 
+/** Chọn đơn vị và giá bán khi thêm vào giỏ. Trả về null nếu đơn vị chưa có giá, không tự tính giá. */
+function resolveCartUnit(product: PosProductSearchResponse) {
+  const units = product.units ?? [];
+  if (units.length === 0) {
+    return { unit: undefined, price: product.retailPrice };
+  }
+  const matched = units.find((u) => u.unitId === product.matchedUnitId);
+  const candidates = matched
+    ? [matched]
+    : [units.find((u) => u.isDefaultSale), units.find((u) => u.isBase), ...units];
+  const unit = candidates.find((u) => u && u.salePrice != null);
+  if (!unit) return null;
+  return { unit, price: unit.salePrice as number };
+}
+
 export function App() {
   // Lấy người dùng đã xác thực từ storage
   // State index 0: currentUser (Bảo toàn vị trí index phục vụ regression tests)
@@ -269,16 +284,19 @@ export function App() {
       return;
     }
 
-    // U05: Xác định đơn vị tính (ưu tiên khớp barcode matchedUnitId, sau đó isDefaultSale, isBase hoặc đơn vị đầu tiên)
-    const matchedUnit = product.units?.find((u) => u.unitId === product.matchedUnitId);
-    const defaultUnit = product.units?.find((u) => u.isDefaultSale) || product.units?.find((u) => u.isBase) || product.units?.[0];
-    const selectedUnit = matchedUnit || defaultUnit;
+    // U05: chọn đơn vị theo mã vạch quy cách hoặc đơn vị bán mặc định; giá phải do server trả về
+    const resolved = resolveCartUnit(product);
+    if (!resolved) {
+      alert(`Đơn vị bán của "${product.productName}" chưa có giá. Vui lòng cấu hình giá trước khi bán.`);
+      return;
+    }
+    const selectedUnit = resolved.unit;
     const unitId = selectedUnit?.unitId || '';
     const unitName = selectedUnit?.unitName || '';
     const unitCode = selectedUnit?.unitCode || '';
     const factorToBase = selectedUnit?.factor || 1;
     const isBaseUnit = selectedUnit?.isBase ?? true;
-    const unitPrice = selectedUnit?.salePrice ?? product.retailPrice;
+    const unitPrice = resolved.price;
     const lineKey = `${product.variantId}:${unitId}`;
 
     setCart((prevCart) => {
@@ -374,6 +392,11 @@ export function App() {
       alert('Không thể thay đổi đơn vị tính khi đang có giao dịch chưa xác định kết quả.');
       return;
     }
+    const lineItem = cart.find((i) => i.lineKey === lineKey || i.variantId === lineKey);
+    if (lineItem?.units?.find((u) => u.unitId === newUnitId)?.salePrice == null) {
+      alert('Đơn vị này chưa có giá. Vui lòng cấu hình giá trước khi bán.');
+      return;
+    }
     setCart((prevCart) => {
       const targetIndex = prevCart.findIndex((i) => i.lineKey === lineKey || i.variantId === lineKey);
       if (targetIndex === -1) return prevCart;
@@ -381,8 +404,7 @@ export function App() {
       const targetUnit = currentItem.units?.find((u) => u.unitId === newUnitId);
       if (!targetUnit) return prevCart;
 
-      const basePrice = currentItem.retailPrice / (currentItem.factorToBase || 1);
-      const newUnitPrice = targetUnit.salePrice ?? (basePrice * targetUnit.factor);
+      const newUnitPrice = targetUnit.salePrice as number;
       const newLineKey = `${currentItem.variantId}:${newUnitId}`;
 
       // Nếu giỏ đã có dòng cùng SKU và cùng unitId mới, gộp số lượng

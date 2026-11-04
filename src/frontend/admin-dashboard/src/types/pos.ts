@@ -97,6 +97,7 @@ export interface ReceiptData {
   items: Array<{
     name: string;
     sku: string;
+    unitName?: string;
     quantity: number;
     unitPrice: number;
     subtotal: number;

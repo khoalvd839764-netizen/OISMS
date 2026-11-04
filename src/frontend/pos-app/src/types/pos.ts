@@ -86,6 +86,7 @@ export interface PosReceiptItemDto {
   skuCode: string;
   productName: string;
   variantName?: string | null;
+  unitName?: string | null;
   quantity: number;
   unitPrice: number;
   subtotal?: number;
@@ -102,7 +103,6 @@ export interface PosReceiptDto {
   cashierName?: string | null;
   customerName?: string | null;
   customerPhone?: string | null;
-  unitName?: string;
   totalAmount: number;
   paymentMethod: string;
   amountGiven?: number | null;

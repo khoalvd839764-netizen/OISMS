@@ -2,13 +2,28 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Trash2, ShoppingBag, Minus, Plus, Package } from 'lucide-react';
 import type { CartItem, Branch, PosProductSearchResponse, ReceiptData } from '../types/pos';
-import { fetchBranches } from '../services/posApi';
+import { fetchBranches, searchPosProducts } from '../services/posApi';
 import { PosHeader } from '../components/pos/PosHeader';
 import { ProductCatalog } from '../components/pos/ProductCatalog';
 import './PosPage.css';
 import { PaymentModal } from '../components/pos/PaymentModal';
 import { ReceiptPrintModal } from '../components/pos/ReceiptPrintModal';
 import { useAuth } from '../context/AuthContext';
+
+/** Chọn đơn vị và giá bán khi thêm vào giỏ. Trả về null nếu đơn vị chưa có giá, không tự tính giá. */
+function resolveCartUnit(product: PosProductSearchResponse) {
+  const units = product.units ?? [];
+  if (units.length === 0) {
+    return { unit: undefined, price: product.retailPrice };
+  }
+  const matched = units.find((u) => u.unitId === product.matchedUnitId);
+  const candidates = matched
+    ? [matched]
+    : [units.find((u) => u.isDefaultSale), units.find((u) => u.isBase), ...units];
+  const unit = candidates.find((u) => u && u.salePrice != null);
+  if (!unit) return null;
+  return { unit, price: unit.salePrice as number };
+}
 
 export function PosPage() {
   const { user, logout } = useAuth();
@@ -115,8 +130,21 @@ export function PosPage() {
       return;
     }
 
+    // U05: chọn đơn vị theo mã vạch quy cách hoặc đơn vị bán mặc định; giá phải do server trả về
+    const resolved = resolveCartUnit(product);
+    if (!resolved) {
+      alert(`Đơn vị bán của "${product.productName}" chưa có giá. Vui lòng cấu hình giá trước khi bán.`);
+      return;
+    }
+    const selectedUnit = resolved.unit;
+    const unitId = selectedUnit?.unitId || '';
+    const lineKey = `${product.variantId}:${unitId}`;
+
     setCart((prevCart) => {
-      const existingIndex = prevCart.findIndex((i) => i.variantId === product.variantId);
+      // Khóa dòng theo variantId + unitId: khác đơn vị thì không gộp dòng
+      const existingIndex = prevCart.findIndex((i) =>
+        i.lineKey ? i.lineKey === lineKey : (i.variantId === product.variantId && (i.unitId || '') === unitId)
+      );
       if (existingIndex > -1) {
         const currentQty = prevCart[existingIndex].quantity;
         if (currentQty + 1 > availableStock) {
@@ -138,16 +166,43 @@ export function PosPage() {
             sku: product.sku,
             productName: product.productName,
             variantName: product.variantName,
-            barcode: product.barcode,
-            retailPrice: product.retailPrice,
+            barcode: selectedUnit?.barcode || product.barcode,
+            retailPrice: resolved.price,
             quantity: 1,
             available: availableStock,
             color: product.color,
             size: product.size,
+            unitId,
+            unitName: selectedUnit?.unitName || '',
+            unitCode: selectedUnit?.unitCode || '',
+            factorToBase: selectedUnit?.factor || 1,
+            isBaseUnit: selectedUnit?.isBase ?? true,
+            units: product.units,
+            lineKey,
           },
         ];
       }
     });
+  };
+
+  // Danh mục không có giá theo đơn vị, nên lấy đơn vị và giá hiện hành từ API tìm kiếm của POS trước khi thêm vào giỏ
+  const handleCatalogAdd = async (product: PosProductSearchResponse) => {
+    // Kết quả từ API tìm kiếm hoặc quét mã đã có đơn vị và giá, kể cả đơn vị khớp mã vạch
+    if (product.units) {
+      handleAddToCart(product);
+      return;
+    }
+    try {
+      const results = await searchPosProducts(product.sku, selectedBranchId);
+      const match = results.find((item) => item.variantId === product.variantId);
+      if (!match) {
+        alert(`Không tải được giá hiện hành của "${product.productName}". Vui lòng thử lại.`);
+        return;
+      }
+      handleAddToCart(match);
+    } catch (err: any) {
+      alert(err?.message || `Không tải được giá hiện hành của "${product.productName}".`);
+    }
   };
 
   const handleUpdateQuantity = (key: string, delta: number) => {
@@ -186,6 +241,11 @@ export function PosPage() {
   };
 
   const handleUpdateUnit = (lineKey: string, newUnitId: string) => {
+    const lineItem = cart.find((i) => i.lineKey === lineKey || i.variantId === lineKey);
+    if (lineItem?.units?.find((u) => u.unitId === newUnitId)?.salePrice == null) {
+      alert('Đơn vị này chưa có giá. Vui lòng cấu hình giá trước khi bán.');
+      return;
+    }
     setCart((prevCart) => {
       const targetIndex = prevCart.findIndex((i) => i.lineKey === lineKey || i.variantId === lineKey);
       if (targetIndex === -1) return prevCart;
@@ -193,8 +253,7 @@ export function PosPage() {
       const targetUnit = currentItem.units?.find((u) => u.unitId === newUnitId);
       if (!targetUnit) return prevCart;
 
-      const basePrice = currentItem.retailPrice / (currentItem.factorToBase || 1);
-      const newUnitPrice = targetUnit.salePrice ?? (basePrice * targetUnit.factor);
+      const newUnitPrice = targetUnit.salePrice as number;
       const newLineKey = `${currentItem.variantId}:${newUnitId}`;
 
       const mergeIndex = prevCart.findIndex(
@@ -279,7 +338,7 @@ export function PosPage() {
       <main className="pos-workspace no-print">
         <fieldset className="pos-catalog-fieldset" disabled={checkoutBusy}>
           <ProductCatalog key={`${user?.tenantId}:${user?.id}:${selectedBranchId}`} branchId={selectedBranchId}
-            cart={cart} onAdd={handleAddToCart} searchRef={searchInputRef} refresh={catalogRefresh} />
+            cart={cart} onAdd={handleCatalogAdd} searchRef={searchInputRef} refresh={catalogRefresh} />
         </fieldset>
         <aside className="pos-order-panel" aria-label="Giỏ hàng và thanh toán">
           <div className="pos-order-heading"><h2><ShoppingBag size={19} /> Đơn hiện tại <span>{totalQuantity}</span></h2>
@@ -300,7 +359,7 @@ export function PosPage() {
                       >
                         {item.units.map((u: any) => (
                           <option key={u.unitId} value={u.unitId}>
-                            {u.unitName} (x{u.factor})
+                            {u.unitName} (x{u.factor}){u.salePrice == null ? ' - chưa có giá' : ''}
                           </option>
                         ))}
                       </select>

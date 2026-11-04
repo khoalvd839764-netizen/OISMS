@@ -11,6 +11,7 @@ import { CreateStockCountModal } from '../components/stockCounts/CreateStockCoun
 import { StockCountDetailDrawer } from '../components/stockCounts/StockCountDetailDrawer';
 import { CreateScheduleModal } from '../components/stockCounts/CreateScheduleModal';
 import { apiAdapter } from '../services/apiAdapter';
+import { useAuth } from '../context/AuthContext';
 import {
   Plus,
   RefreshCw,
@@ -27,6 +28,7 @@ import {
 } from 'lucide-react';
 
 export const StockCountsPage: React.FC = () => {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'COUNTS' | 'PERIODS' | 'SCHEDULES'>('COUNTS');
 
   // Counts state
@@ -221,7 +223,7 @@ export const StockCountsPage: React.FC = () => {
             </button>
           )}
 
-          {activeTab === 'SCHEDULES' && (
+          {activeTab === 'SCHEDULES' && user?.role === 'Owner' && (
             <button
               type="button"
               onClick={() => setIsCreateScheduleOpen(true)}
