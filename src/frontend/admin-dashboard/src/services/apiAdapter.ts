@@ -1,5 +1,23 @@
 import { httpClient } from "./httpClient";
 import type { ApiResult, BranchStockBreakdown, LedgerEntry, Order, PagedMeta, Sku } from "../types/domain";
+import type { DashboardSummary } from "../types/reports";
+import type { ReorderRecommendationQuery, ReorderRecommendationSummary } from "../types/ai";
+
+/**
+ * Lấy thông báo lỗi từ phản hồi backend: ProblemDetails dùng `detail`,
+ * lỗi validation tự động của ASP.NET dùng `errors` dạng { field: [message] }.
+ */
+function readApiError(err: any, fallback: string): string {
+  const data = err?.response?.data;
+  if (data?.detail) return data.detail;
+  if (data?.message) return data.message;
+  const errors = data?.errors;
+  if (errors && typeof errors === "object") {
+    const first = Object.values(errors).flat()[0];
+    if (typeof first === "string") return first;
+  }
+  return fallback;
+}
 
 function getActiveTenantId(): string {
   return localStorage.getItem("oism_tenant_id") || "default";
@@ -172,6 +190,7 @@ export const apiAdapter = {
             reserved,
             available: Math.max(0, onHand - reserved),
             averageCost: avgCost,
+            reorderPoint: Number(b.reorderPoint) || 0,
           },
         ];
 
@@ -210,7 +229,7 @@ export const apiAdapter = {
                 averageCost,
                 onHand,
                 reserved: bal ? bal.reserved : 0,
-                threshold: 5,
+                threshold: 0,
                 image: "",
                 isActive: variantActive,
                 productIsActive: prodActive,
@@ -240,7 +259,7 @@ export const apiAdapter = {
               averageCost: 0,
               onHand: 0,
               reserved: 0,
-              threshold: 5,
+              threshold: 0,
               image: "",
               isActive: prodActive,
               productIsActive: prodActive,
@@ -499,7 +518,8 @@ export const apiAdapter = {
           averageCost: avgCost,
           onHand,
           reserved: Number(b.reserved) || 0,
-          threshold: 5,
+          threshold: b.reorderPoint !== undefined && b.reorderPoint !== null ? Number(b.reorderPoint) : (Number(b.threshold) || 0),
+          reorderPoint: Number(b.reorderPoint) || 0,
           image: "",
           isActive: b.isActive !== false,
           branchId: b.branchId || undefined,
@@ -792,7 +812,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || "Tìm kiếm toàn hệ thống thất bại.",
+          message: readApiError(err, "Tìm kiếm toàn hệ thống thất bại."),
         },
       };
     }
@@ -812,7 +832,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || "Không thể tải danh sách nhân viên từ máy chủ.",
+          message: readApiError(err, "Không thể tải danh sách nhân viên từ máy chủ."),
         },
       };
     }
@@ -825,7 +845,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || err?.response?.data?.errors?.[0] || "Thêm nhân viên thất bại",
+          message: readApiError(err, "Thêm nhân viên thất bại"),
         },
       };
     }
@@ -838,7 +858,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || err?.response?.data?.errors?.[0] || "Cập nhật nhân viên thất bại",
+          message: readApiError(err, "Cập nhật nhân viên thất bại"),
         },
       };
     }
@@ -851,7 +871,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || "Không thể đổi trạng thái nhân viên",
+          message: readApiError(err, "Không thể đổi trạng thái nhân viên"),
         },
       };
     }
@@ -865,7 +885,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || err?.response?.data?.errors?.[0] || "Cập nhật ngưỡng cảnh báo thất bại",
+          message: readApiError(err, "Cập nhật ngưỡng cảnh báo thất bại"),
         },
       };
     }
@@ -878,7 +898,43 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || err?.response?.data?.errors?.[0] || "Cập nhật hàng loạt ngưỡng cảnh báo thất bại",
+          message: readApiError(err, "Cập nhật hàng loạt ngưỡng cảnh báo thất bại"),
+        },
+      };
+    }
+  },
+
+  // --- DASHBOARD SUMMARY (CS-07) ---
+  async getDashboardSummary(): Promise<ApiResult<DashboardSummary>> {
+    try {
+      const res = await httpClient.get<DashboardSummary>("/api/reports/dashboard-summary");
+      return { data: res.data };
+    } catch (err: any) {
+      return {
+        error: {
+          code: err?.response?.data?.errorCode || "DASHBOARD_ERROR",
+          message: readApiError(err, "Không thể tải số liệu tổng quan từ máy chủ."),
+        },
+      };
+    }
+  },
+
+  // --- AI FORECASTING & REORDER RECOMMENDATIONS (CS-08) ---
+  async getReorderRecommendations(query?: ReorderRecommendationQuery): Promise<ApiResult<ReorderRecommendationSummary>> {
+    try {
+      const params: Record<string, any> = {};
+      if (query?.branchId && query.branchId !== "all") params.branchId = query.branchId;
+      if (query?.leadTimeDays !== undefined) params.leadTimeDays = query.leadTimeDays;
+      if (query?.safetyStockDays !== undefined) params.safetyStockDays = query.safetyStockDays;
+      if (query?.onlyNeedsReorder !== undefined) params.onlyNeedsReorder = query.onlyNeedsReorder;
+
+      const res = await httpClient.get<ReorderRecommendationSummary>("/api/ai/reorder-recommendations", { params });
+      return { data: res.data };
+    } catch (err: any) {
+      return {
+        error: {
+          code: err?.response?.data?.errorCode || "AI_RECOMMENDATION_ERROR",
+          message: readApiError(err, "Không thể tải gợi ý nhập hàng từ máy chủ."),
         },
       };
     }

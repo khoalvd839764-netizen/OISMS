@@ -20,6 +20,7 @@ export interface BranchStockBreakdown {
   reserved: number;
   available: number;
   averageCost: number;
+  reorderPoint?: number;
 }
 
 export interface Sku {
@@ -35,6 +36,7 @@ export interface Sku {
   onHand: number;
   reserved: number;
   threshold: number;
+  reorderPoint?: number;
   image: string;
   isActive?: boolean;
   productIsActive?: boolean;

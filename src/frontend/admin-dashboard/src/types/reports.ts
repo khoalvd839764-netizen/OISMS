@@ -77,3 +77,25 @@ export interface StockAlert {
   reorderPoint: number;
   alertLevel: StockAlertLevel | string;
 }
+
+export interface RecentOrder {
+  id: string;
+  number: string;
+  channel: string;
+  customerName?: string | null;
+  totalAmount: number;
+  status: string;
+  createdAt: string;
+}
+
+export interface DashboardSummary {
+  totalRevenue: number;
+  totalOrders: number;
+  totalGrossProfit: number | null;
+  grossMarginPercentage: number;
+  skuCount: number;
+  totalInventoryValue: number | null;
+  lowStockCount: number;
+  recentOrders: RecentOrder[];
+  recentRevenueTrend: DailyRevenueBreakdown[];
+}

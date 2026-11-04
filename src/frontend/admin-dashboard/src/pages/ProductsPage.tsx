@@ -15,6 +15,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Badge, Button, Input, Modal, PageTitle, Select } from "../components/ui";
 import { apiAdapter } from "../services/apiAdapter";
 import { useAuth } from "../context/AuthContext";
@@ -39,7 +40,14 @@ function generateEan13(): string {
 
 export function ProductsPage() {
   const { user } = useAuth();
-  const [query, setQuery] = useState("");
+  const [searchParams] = useSearchParams();
+  const urlQuery = searchParams.get("q");
+  const [query, setQuery] = useState(urlQuery ?? "");
+
+  // Kết quả tìm kiếm toàn hệ thống mở trang này với từ khóa trên URL
+  useEffect(() => {
+    if (urlQuery !== null) setQuery(urlQuery);
+  }, [urlQuery]);
   const [categoryFilter, setCategoryFilter] = useState("");
   const [brandFilter, setBrandFilter] = useState("");
   const [activeFilter, setActiveFilter] = useState<"all" | "active" | "inactive">("all");
@@ -524,7 +532,10 @@ export function ProductsPage() {
               ) : (
                 pagedProducts.map((sku) => {
                   const available = sku.onHand - sku.reserved;
-                  const isLow = available <= sku.threshold;
+                  // Cảnh báo theo ngưỡng thật của từng chi nhánh, giống tab Kho và báo cáo cảnh báo
+                  const isLow = (sku.branchBalances ?? []).some(
+                    (b) => (b.reorderPoint ?? 0) > 0 && b.onHand - b.reserved <= (b.reorderPoint ?? 0)
+                  );
                   const isInactive = sku.isActive === false;
                   return (
                     <tr key={sku.id} style={isInactive ? { opacity: 0.72 } : undefined}>
