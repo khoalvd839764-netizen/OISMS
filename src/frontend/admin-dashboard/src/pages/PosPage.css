@@ -6,7 +6,8 @@
   .pos-workstation button:focus-visible, .pos-workstation input:focus-visible, .pos-workstation select:focus-visible { outline: 3px solid #b9d4ff; outline-offset: 2px; }
   .pos-retail-header { min-height: 74px; display: flex; align-items: center; gap: 22px; padding: 12px 22px; background: #fff; border-bottom: 1px solid #e3e9f2; }
   .pos-brand { display: flex; align-items: center; gap: 10px; min-width: 160px; }
-  .pos-brand-icon { width: 36px; height: 36px; display: grid; place-items: center; color: #fff; background: #1769e0; border-radius: 9px; }
+  /* Selector dài hơn để không bị quy tắc `.pos-brand > span` trong index.css thêm padding và viền, làm lệch biểu tượng */
+  .pos-brand > .pos-brand-icon { width: 36px; height: 36px; flex: none; display: grid; place-items: center; padding: 0; border-left: 0; color: #fff; background: #1769e0; border-radius: 9px; }
   .pos-brand h1 { margin: 0; font-size: 15px; line-height: 1.5; color: #183653; font-weight: 700; }
   .pos-brand small { color: #8998ad; font-size: 10px; }
   .pos-retail-header > select { border: 1px solid #dce4ef; background: #fff; border-radius: 7px; padding: 10px 12px; color: #344b68; font-size: 11px; width: 220px; }

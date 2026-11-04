@@ -43,12 +43,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin
     }
   };
 
-  const handleQuickFill = (accEmail: string, accPass: string) => {
-    setEmail(accEmail);
-    setPassword(accPass);
-    setError(null);
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in no-print">
       <div className="bg-white rounded-3xl shadow-2xl border border-slate-100 max-w-sm w-full overflow-hidden">
@@ -106,25 +100,16 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin
             </div>
           </div>
 
-          {/* Quick Demo Credentials */}
-          <div className="pt-2 border-t border-slate-100">
-            <div className="text-[11px] text-slate-400 font-semibold mb-1.5">Tài khoản mẫu Sprint 2:</div>
-            <div className="flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                onClick={() => handleQuickFill('cashier@shopa.local', 'YourStrongDemoPassword123!')}
-                className="px-2 py-1 text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-mono transition-colors"
-              >
-                cashier@shopa.local
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickFill('owner@shopa.local', 'YourStrongDemoPassword123!')}
-                className="px-2 py-1 text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-mono transition-colors"
-              >
-                owner@shopa.local
-              </button>
-            </div>
+          <div className="flex items-center justify-end gap-1.5">
+            <button
+              type="button"
+              disabled
+              title="Tính năng đặt lại mật khẩu chưa được triển khai."
+              className="text-xs font-semibold text-slate-400 cursor-not-allowed"
+            >
+              Quên mật khẩu?
+            </button>
+            <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-amber-100 text-amber-800">Coming soon</span>
           </div>
 
           <button
