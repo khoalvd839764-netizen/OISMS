@@ -709,34 +709,37 @@ export const apiAdapter = {
   },
 
   async createGoodsReceipt(payload: {
-    supplierId?: string;
-    branchId: string;
+    purchaseOrderId: string;
     warehouseId: string;
     items: Array<{
-      skuId: string;
+      purchaseOrderItemId: string;
       quantity: number;
-      unitPrice: number;
     }>;
     notes?: string;
     note?: string;
+    number?: string;
+    // Tùy chọn để tương thích ngược
+    supplierId?: string;
+    branchId?: string;
   }) {
     try {
       const res = await httpClient.post("/api/goods-receipts", {
-        branchId: payload.branchId,
+        purchaseOrderId: payload.purchaseOrderId,
         warehouseId: payload.warehouseId,
-        supplierId: payload.supplierId,
+        number: payload.number || null,
         note: payload.notes || payload.note || null,
         items: payload.items.map((item) => ({
-          skuId: item.skuId,
+          purchaseOrderItemId: item.purchaseOrderItemId,
           quantity: Number(item.quantity) || 1,
-          unitPrice: Number(item.unitPrice) || 0,
         })),
       });
       return { data: res.data };
     } catch (err: any) {
       return {
         error: {
+          code: err?.response?.data?.errorCode,
           message:
+            err?.response?.data?.detail ||
             err?.response?.data?.message ||
             err?.response?.data?.errors?.[0] ||
             "Lỗi tạo phiếu nhập kho",
@@ -752,10 +755,30 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
+          code: err?.response?.data?.errorCode,
           message:
+            err?.response?.data?.detail ||
             err?.response?.data?.message ||
             err?.response?.data?.errors?.[0] ||
             "Lỗi xác nhận phiếu nhập",
+        },
+      };
+    }
+  },
+
+  async cancelGoodsReceipt(receiptId: string) {
+    try {
+      const res = await httpClient.post(`/api/goods-receipts/${receiptId}/cancel`);
+      return { data: res.data };
+    } catch (err: any) {
+      return {
+        error: {
+          code: err?.response?.data?.errorCode,
+          message:
+            err?.response?.data?.detail ||
+            err?.response?.data?.message ||
+            err?.response?.data?.errors?.[0] ||
+            "Lỗi hủy phiếu nhập",
         },
       };
     }
