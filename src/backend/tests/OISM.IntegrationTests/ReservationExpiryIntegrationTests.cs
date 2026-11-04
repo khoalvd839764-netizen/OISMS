@@ -172,25 +172,10 @@ public class ReservationExpiryIntegrationTests : IAsyncLifetime, IClassFixture<W
         var (context, tenantService) = CreatePostgresDbContext(tenantId);
         await using (context)
         {
+            await PriceSeed.SyncFromLegacyColumnsAsync(context);
             var supplier = await context.Suppliers.FirstAsync(s => s.TenantId == tenantId);
             var user = await context.Users.FirstAsync(u => u.TenantId == tenantId);
-            var wacCalc = new WacCalculator();
-            var service = new GoodsReceiptService(context, tenantService, wacCalc);
-
-            var receiptDto = new CreateGoodsReceiptDto
-            {
-                BranchId = branchId,
-                WarehouseId = warehouseId,
-                SupplierId = supplier.Id,
-                Note = "Seed stock for test",
-                Items = new List<CreateGoodsReceiptItemDto>
-                {
-                    new() { SkuId = skuId, Quantity = quantity, UnitPrice = unitPrice }
-                }
-            };
-
-            var receipt = await service.CreateReceiptAsync(receiptDto, user.Id);
-            await service.ConfirmReceiptAsync(receipt.Id, user.Id);
+            await PurchaseOrderSeed.ReceiveStockAsync(context, tenantService, branchId, warehouseId, supplier.Id, user.Id, (skuId, quantity, unitPrice));
 
             var bBal = await context.InventoryBalances.FirstAsync(b => b.TenantId == tenantId && b.BranchId == branchId && b.SkuId == skuId);
             var whBal = await context.WarehouseInventoryBalances.FirstAsync(w => w.TenantId == tenantId && w.BranchId == branchId && w.WarehouseId == warehouseId && w.SkuId == skuId);

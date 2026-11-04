@@ -50,6 +50,10 @@ public class ProductVariantConfiguration : IEntityTypeConfiguration<ProductVaria
             .HasDefaultValue("piece")
             .IsRequired();
 
+        builder.Property(v => v.BaseUnitId)
+            .HasColumnName("base_unit_id")
+            .IsRequired(false);
+
         builder.Property(v => v.BarcodeType)
             .HasColumnName("barcode_type")
             .HasMaxLength(20)
@@ -91,6 +95,12 @@ public class ProductVariantConfiguration : IEntityTypeConfiguration<ProductVaria
             .WithMany(p => p.Variants)
             .HasForeignKey(v => new { v.TenantId, v.ProductId })
             .HasPrincipalKey(p => new { p.TenantId, p.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(v => v.BaseUnit)
+            .WithMany()
+            .HasForeignKey(v => new { v.TenantId, v.BaseUnitId })
+            .HasPrincipalKey(u => new { u.TenantId, u.Id })
             .OnDelete(DeleteBehavior.Restrict);
 
         // Ignore unmapped/virtual properties

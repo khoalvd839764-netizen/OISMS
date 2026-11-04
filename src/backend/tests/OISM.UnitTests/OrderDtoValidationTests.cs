@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using System.Text.Json;
 using FluentAssertions;
 using OISM.Application.Common.Attributes;
@@ -12,6 +13,12 @@ namespace OISM.UnitTests;
 
 public class OrderDtoValidationTests
 {
+    static OrderDtoValidationTests()
+    {
+        CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+        CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.InvariantCulture;
+    }
+
     private static List<ValidationResult> ValidateModel(object model)
     {
         var validationResults = new List<ValidationResult>();

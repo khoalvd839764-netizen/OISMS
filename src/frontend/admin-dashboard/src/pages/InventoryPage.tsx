@@ -7,33 +7,48 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
+  ClipboardList,
   Lock,
   Plus,
   RefreshCw,
   RotateCcw,
   Search,
   Settings2,
+  Sparkles,
   Trash2,
   TriangleAlert,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Badge, Button, ComingSoonBadge, Input, Modal, PageTitle, Select } from "../components/ui";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Badge, Button, ComingSoonBadge, EmptyState, Input, Modal, PageTitle, Select } from "../components/ui";
+import { NumberField } from "../components/NumberField";
 import { apiAdapter, generateUuid } from "../services/apiAdapter";
+import { realtimeAdapter } from "../services/realtimeAdapter";
 import { useAuth } from "../context/AuthContext";
 import type { LedgerEntry, Sku } from "../types/domain";
+import type { ReorderRecommendationSummary } from "../types/ai";
 import { GoodsReceiptList } from "../components/GoodsReceiptList";
+import { purchaseOrderService } from "../services/purchaseOrderService";
+import type { PurchaseOrderResponse } from "../types/purchaseOrder";
 
 // [F1] Cấu trúc lưu tạm phiếu nhập nháp đang chờ xác nhận qua các lần đóng/mở form hoặc refresh
 interface PendingReceiptState {
   receiptId: string;
+  purchaseOrderId?: string;
+  purchaseOrderNumber?: string;
   branchId: string;
   warehouseId: string;
   supplierId: string;
   notes: string;
   items: Array<{
+    purchaseOrderItemId?: string;
     skuId: string;
     skuCode: string;
     skuName: string;
+    unitName?: string;
+    factorSnapshot?: number;
+    orderedQuantity?: number;
+    remainingQuantity?: number;
     quantity: number;
     unitPrice: number;
   }>;
@@ -102,9 +117,53 @@ export function InventoryPage() {
   const { account } = useAuth();
   const currentTenantId = account?.tenantId;
 
-  const [tab, setTab] = useState<"balance" | "ledger">("balance");
+  const [tab, setTab] = useState<"balance" | "ledger" | "ai-reorder">("balance");
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Tab AI Gợi ý nhập hàng (CS-08)
+  const [aiSummary, setAiSummary] = useState<ReorderRecommendationSummary | null>(null);
+  const [loadingAi, setLoadingAi] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiBranchFilter, setAiBranchFilter] = useState<string>("all");
+  const [aiLeadTime, setAiLeadTime] = useState<number>(7);
+  const [aiSafetyStock, setAiSafetyStock] = useState<number>(3);
+  const [aiOnlyNeedsReorder, setAiOnlyNeedsReorder] = useState<boolean>(false);
+  const aiReqSeqRef = useRef(0);
+
+  const loadAiRecommendations = async (
+    targetBranch = aiBranchFilter,
+    targetLeadTime = aiLeadTime,
+    targetSafetyStock = aiSafetyStock,
+    targetOnlyNeedsReorder = aiOnlyNeedsReorder
+  ) => {
+    const seq = ++aiReqSeqRef.current;
+    setLoadingAi(true);
+    setAiError(null);
+    try {
+      const res = await apiAdapter.getReorderRecommendations({
+        branchId: targetBranch !== "all" ? targetBranch : undefined,
+        leadTimeDays: targetLeadTime,
+        safetyStockDays: targetSafetyStock,
+        onlyNeedsReorder: targetOnlyNeedsReorder,
+      });
+      if (seq !== aiReqSeqRef.current) return;
+      if (res.error) {
+        setAiError(res.error.message || "Không thể tải gợi ý nhập hàng từ máy chủ.");
+        setAiSummary(null);
+      } else if (res.data) {
+        setAiSummary(res.data);
+      }
+    } catch (err: any) {
+      if (seq !== aiReqSeqRef.current) return;
+      setAiError(err?.message || "Lỗi kết nối khi tải gợi ý nhập hàng.");
+      setAiSummary(null);
+    } finally {
+      if (seq === aiReqSeqRef.current) {
+        setLoadingAi(false);
+      }
+    }
+  };
 
   // [F4] Tách biệt trạng thái tải lỗi sổ kho và trạng thái dữ liệu rỗng
   const [ledgerError, setLedgerError] = useState<string | null>(null);
@@ -175,18 +234,24 @@ export function InventoryPage() {
   const [ledgerPage, setLedgerPage] = useState(1);
   const [ledgerPageSize, setLedgerPageSize] = useState(20);
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+
   // Form Phiếu nhập kho nhiều dòng
   const [selectedSupplier, setSelectedSupplier] = useState("");
-  const [quickSupplierOpen, setQuickSupplierOpen] = useState(false);
-  const [newSupplierName, setNewSupplierName] = useState("");
   const [selectedBranch, setSelectedBranch] = useState("");
   const [selectedWarehouse, setSelectedWarehouse] = useState("");
   const [receiptNotes, setReceiptNotes] = useState("");
   const [receiptItems, setReceiptItems] = useState<
     Array<{
+      purchaseOrderItemId?: string;
       skuId: string;
       skuCode: string;
       skuName: string;
+      unitName?: string;
+      factorSnapshot?: number;
+      orderedQuantity?: number;
+      remainingQuantity?: number;
       quantity: number;
       unitPrice: number;
     }>
@@ -197,8 +262,65 @@ export function InventoryPage() {
   const [verifyingPendingReceipt, setVerifyingPendingReceipt] = useState(false);
   const [modalWarehouseBalances, setModalWarehouseBalances] = useState<Sku[]>([]);
 
+  // [U01-A] Quản lý liên kết Đơn mua hàng đã duyệt
+  const [receivablePos, setReceivablePos] = useState<PurchaseOrderResponse[]>([]);
+  const [selectedPurchaseOrderId, setSelectedPurchaseOrderId] = useState<string>("");
+  const [selectedPoDetail, setSelectedPoDetail] = useState<PurchaseOrderResponse | null>(null);
+  const [, setLoadingPos] = useState(false);
+  const [receivableError, setReceivableError] = useState<string | null>(null);
+
   // Cấu hình ngưỡng cảnh báo
   const [thresholds] = useState<Record<string, number>>({});
+
+  // Modal Cấu hình Ngưỡng cảnh báo ReorderPoint (CS-03)
+  const [reorderModalSku, setReorderModalSku] = useState<Sku | null>(null);
+  const [reorderInputVal, setReorderInputVal] = useState<number>(0);
+  const [reorderBranchId, setReorderBranchId] = useState<string>("");
+  const [savingReorder, setSavingReorder] = useState(false);
+  const [reorderError, setReorderError] = useState<string | null>(null);
+
+  const openReorderModal = (sku: Sku) => {
+    setReorderModalSku(sku);
+    setReorderInputVal(sku.reorderPoint !== undefined ? sku.reorderPoint : (sku.threshold ?? 0));
+    setReorderBranchId(sku.branchId || branches[0]?.id || "");
+    setReorderError(null);
+  };
+
+  // Ngưỡng lưu riêng theo chi nhánh: đổi chi nhánh phải hiện đúng ngưỡng của chi nhánh đó
+  const handleReorderBranchChange = (branchId: string) => {
+    setReorderBranchId(branchId);
+    const row = skus.find((s) => s.id === reorderModalSku?.id && s.branchId === branchId);
+    setReorderInputVal(row?.reorderPoint ?? 0);
+  };
+
+  const handleSaveReorderPoint = async () => {
+    if (!reorderModalSku) return;
+    if (reorderInputVal < 0) {
+      setReorderError("Ngưỡng cảnh báo không được là số âm.");
+      return;
+    }
+    const branchId = reorderBranchId || reorderModalSku.branchId || branches[0]?.id;
+    if (!branchId) {
+      setReorderError("Vui lòng chọn chi nhánh áp dụng ngưỡng cảnh báo.");
+      return;
+    }
+
+    setSavingReorder(true);
+    setReorderError(null);
+    const res = await apiAdapter.updateReorderPoint({
+      branchId,
+      skuId: reorderModalSku.id,
+      reorderPoint: Number(reorderInputVal),
+    });
+    setSavingReorder(false);
+
+    if (res.error) {
+      setReorderError(res.error.message || "Lưu ngưỡng cảnh báo thất bại.");
+    } else {
+      setReorderModalSku(null);
+      await loadBalances();
+    }
+  };
 
   // [F4] Tải dữ liệu Sổ cái kho và lưu riêng lỗi sổ kho
   const loadLedger = async () => {
@@ -321,15 +443,44 @@ export function InventoryPage() {
   }, [branchFilter, balanceWarehouseFilter]);
 
   // Returning from a stock operation in another tab must read the authoritative balances and ledger.
+  // [BF-016] Tham gia nhóm chi nhánh SignalR (cụ thể hoặc toàn bộ chi nhánh đang hoạt động) và lắng nghe biến động tồn kho realtime
   useEffect(() => {
-    const refreshStock = () => { void loadBalances(branchFilter, balanceWarehouseFilter); void loadLedger(); };
-    window.addEventListener('focus', refreshStock);
+    const targetBranchIds =
+      branchFilter && branchFilter !== "all"
+        ? [branchFilter]
+        : branches.map((b) => b.id).filter(Boolean);
+
+    targetBranchIds.forEach((bId) => {
+      realtimeAdapter.joinBranch(bId);
+    });
+
+    const refreshStock = () => {
+      void loadBalances(branchFilter, balanceWarehouseFilter);
+      void loadLedger();
+    };
+    window.addEventListener("focus", refreshStock);
+    window.addEventListener("oism:stock-changed", refreshStock);
+    window.addEventListener("oism:reservation-expired", refreshStock);
+    window.addEventListener("oism:realtime-reconnected", refreshStock);
     return () => {
-      window.removeEventListener('focus', refreshStock);
+      window.removeEventListener("focus", refreshStock);
+      window.removeEventListener("oism:stock-changed", refreshStock);
+      window.removeEventListener("oism:reservation-expired", refreshStock);
+      window.removeEventListener("oism:realtime-reconnected", refreshStock);
+      targetBranchIds.forEach((bId) => {
+        realtimeAdapter.leaveBranch(bId);
+      });
+    };
+  }, [branchFilter, balanceWarehouseFilter, branches]);
+
+  // Chỉ hủy phản hồi đang chờ khi rời trang. Không làm việc này ở effect trên vì danh sách chi nhánh
+  // vừa tải xong cũng chạy cleanup, khiến lượt tải đầu bị bỏ và bảng tồn, sổ kho hiện rỗng.
+  useEffect(() => {
+    return () => {
       balanceReqSeqRef.current++;
       ledgerReqSeqRef.current++;
     };
-  }, [branchFilter, balanceWarehouseFilter]);
+  }, []);
 
   // [A03 & F3] Khi mở Modal Nhập kho và chọn Chi nhánh / Kho, tải số dư thực tế tại đúng Kho đó để mô phỏng WAC chuẩn xác
   const loadModalWhStock = async (branch = selectedBranch, warehouse = selectedWarehouse) => {
@@ -426,7 +577,15 @@ export function InventoryPage() {
     [ledger, warehouseFilter, operationFilter, directionFilter, searchQuery]
   );
 
-  const activeBalanceSource = balanceWarehouseFilter !== "all" ? warehouseBalances : skus;
+  // SKU mới tạo chưa có dòng số dư nên API tồn kho không trả về; vẫn hiện để người dùng biết cần nhập hàng.
+  const activeBalanceSource = useMemo(() => {
+    if (balanceWarehouseFilter !== "all") return warehouseBalances;
+    const withBalance = new Set(skus.map((s) => s.id));
+    const notReceived = availableSkus
+      .filter((s) => s.isActive !== false && s.id !== s.productId && !withBalance.has(s.id))
+      .map((s) => ({ ...s, branchId: undefined, branchName: undefined, warehouseId: undefined, warehouseName: undefined }));
+    return [...skus, ...notReceived];
+  }, [balanceWarehouseFilter, warehouseBalances, skus, availableSkus]);
 
   const filteredSkus = useMemo(
     () =>
@@ -437,9 +596,9 @@ export function InventoryPage() {
         const matchesBranch =
           branchFilter === "all" || sku.branchId === branchFilter || sku.branchName === branchFilter;
         const available = sku.onHand - sku.reserved;
-        const thresh = thresholds[sku.id] ?? sku.threshold;
+        const thresh = sku.reorderPoint !== undefined ? sku.reorderPoint : (thresholds[sku.id] ?? sku.threshold ?? 0);
         const matchesStatus =
-          stockStatusFilter === "all" || (stockStatusFilter === "low" && available <= thresh);
+          stockStatusFilter === "all" || (stockStatusFilter === "low" && thresh > 0 && available <= thresh);
         return matchesSearch && matchesBranch && matchesStatus;
       }),
     [activeBalanceSource, searchQuery, branchFilter, stockStatusFilter, thresholds]
@@ -461,42 +620,90 @@ export function InventoryPage() {
   }, [filteredLedger, ledgerPage, ledgerPageSize, totalLedgerPages]);
 
   const lowStock = skus.filter(
-    (sku) => sku.isActive !== false && sku.onHand - sku.reserved <= (thresholds[sku.id] ?? sku.threshold)
+    (sku) => {
+      const thresh = sku.reorderPoint !== undefined ? sku.reorderPoint : (thresholds[sku.id] ?? sku.threshold ?? 0);
+      return sku.isActive !== false && thresh > 0 && (sku.onHand - sku.reserved) <= thresh;
+    }
   );
 
-  // Thêm dòng sản phẩm mới vào phiếu nhập
-  const addReceiptLine = () => {
-    if (createdReceiptId) return; // Đã tạo phiếu nháp, đang chờ retry confirm
-    const candidateList = (availableSkus.length > 0 ? availableSkus : skus).filter(
-      (s) => s.isActive !== false
-    );
-    const candidate =
-      candidateList[receiptItems.length % Math.max(1, candidateList.length)] || candidateList[0];
-    if (!candidate) {
-      setReceiptError(
-        "Chưa có SKU đang hoạt động nào trong hệ thống. Vui lòng sang mục Sản phẩm & biến thể để tạo SKU trước khi lập phiếu nhập."
-      );
+  // [U01-A] Tải danh sách đơn mua có thể nhận hàng (Approved hoặc PartiallyReceived)
+  const loadReceivablePurchaseOrders = async () => {
+    setLoadingPos(true);
+    setReceivableError(null);
+    try {
+      const [approved, partial] = await Promise.all([
+        purchaseOrderService.getPurchaseOrders({ status: "Approved", pageSize: 100 }),
+        purchaseOrderService.getPurchaseOrders({ status: "PartiallyReceived", pageSize: 100 }),
+      ]);
+      const filtered = [...(partial.items || []), ...(approved.items || [])];
+      setReceivablePos(filtered);
+      return filtered;
+    } catch (err: any) {
+      setReceivablePos([]);
+      setReceivableError(err?.response?.data?.detail || "Không thể tải danh sách đơn mua hàng đã duyệt.");
+      return [];
+    } finally {
+      setLoadingPos(false);
+    }
+  };
+
+  // [U01-A] Chọn đơn mua hàng đã duyệt để đổ mặt hàng và khóa giá
+  const handleSelectPurchaseOrder = async (poId: string) => {
+    setSelectedPurchaseOrderId(poId);
+    if (!poId) {
+      setSelectedPoDetail(null);
+      setReceiptItems([]);
       return;
     }
-    const branchMatch = skus.find((s) => s.id === candidate.id && s.branchId === selectedBranch);
-    const defaultPrice =
-      branchMatch && branchMatch.averageCost > 0
-        ? branchMatch.averageCost
-        : candidate.averageCost > 0
-        ? candidate.averageCost
-        : 100000;
-
-    setReceiptItems([
-      ...receiptItems,
-      {
-        skuId: candidate.id,
-        skuCode: candidate.code,
-        skuName: candidate.name,
-        quantity: 5,
-        unitPrice: defaultPrice,
-      },
-    ]);
+    setLoading(true);
+    setReceiptError(null);
+    try {
+      const po = await purchaseOrderService.getPurchaseOrderById(poId);
+      setSelectedPoDetail(po);
+      setSelectedBranch(po.branchId);
+      setSelectedSupplier(po.supplierId);
+      const branchWhs = warehouses.filter((w) => w.branchId === po.branchId);
+      if (!selectedWarehouse || !branchWhs.some((w) => w.id === selectedWarehouse)) {
+        setSelectedWarehouse(branchWhs[0]?.id || "");
+      }
+      // Khởi tạo các mặt hàng từ đơn mua (chỉ những dòng còn lượng nhận)
+      const lines = po.items
+        .filter((it) => it.remainingQuantity > 0)
+        .map((it) => ({
+          purchaseOrderItemId: it.id,
+          skuId: it.skuId,
+          skuCode: it.skuCode,
+          skuName: it.productName,
+          unitName: it.unitName,
+          factorSnapshot: it.factorSnapshot,
+          orderedQuantity: it.quantity,
+          remainingQuantity: it.remainingQuantity,
+          quantity: it.remainingQuantity,
+          unitPrice: it.unitPrice, // KHÓA ĐƠN GIÁ THEO ĐƠN MUA
+        }));
+      setReceiptItems(lines);
+    } catch (err: any) {
+      setReceiptError(
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        "Không thể tải thông tin đơn mua hàng."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
+
+  // Giữ chi nhánh và kho khớp đơn mua, kể cả khi danh sách kho tải xong sau đơn mua (mở từ trang Đơn mua)
+  useEffect(() => {
+    if (!selectedPoDetail || createdReceiptId) return;
+    if (selectedBranch !== selectedPoDetail.branchId) {
+      setSelectedBranch(selectedPoDetail.branchId);
+    }
+    const branchWhs = warehouses.filter((w) => w.branchId === selectedPoDetail.branchId);
+    if (branchWhs.length > 0 && !branchWhs.some((w) => w.id === selectedWarehouse)) {
+      setSelectedWarehouse(branchWhs[0].id);
+    }
+  }, [selectedPoDetail, warehouses, selectedBranch, selectedWarehouse, createdReceiptId]);
 
   // [F1] Mở Modal Phiếu nhập và tự động khôi phục / đối soát phiếu nháp đang chờ xác nhận
   const closeReceiptModal = () => {
@@ -515,7 +722,6 @@ export function InventoryPage() {
     setCreatedReceiptId(id);
     setReceiptReady(false);
     setReceiptError(null);
-    setQuickSupplierOpen(false);
     setVerifyingPendingReceipt(true);
     try {
       const response = await apiAdapter.getGoodsReceiptById(id);
@@ -527,13 +733,20 @@ export function InventoryPage() {
       if (receipt.status !== "Draft" && receipt.status !== "Confirmed") {
         throw new Error("Phiếu không còn ở trạng thái cho phép xác nhận.");
       }
-      const items = receipt.items.map((item: { skuId: string; skuCode: string; productName: string; quantity: number; unitPrice: number }) => ({
-        skuId: item.skuId, skuCode: item.skuCode, skuName: item.productName,
-        quantity: item.quantity, unitPrice: item.unitPrice,
+      const items = receipt.items.map((item: any) => ({
+        purchaseOrderItemId: item.purchaseOrderItemId,
+        skuId: item.skuId,
+        skuCode: item.skuCode,
+        skuName: item.productName,
+        unitName: item.unitName,
+        factorSnapshot: item.factorSnapshot,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
       }));
       setSelectedBranch(receipt.branchId);
       setSelectedWarehouse(receipt.warehouseId);
       setSelectedSupplier(receipt.supplierId);
+      setSelectedPurchaseOrderId(receipt.purchaseOrderId || "");
       setReceiptNotes(receipt.note || "");
       setReceiptItems(items);
       setReceiptNumber(receipt.number);
@@ -542,8 +755,16 @@ export function InventoryPage() {
         setCreatedReceiptId(null);
         setConfirmedSuccess(true);
       } else {
-        savePendingReceipt({ receiptId: id, branchId: receipt.branchId, warehouseId: receipt.warehouseId,
-          supplierId: receipt.supplierId, notes: receipt.note || "", items }, currentTenantId);
+        savePendingReceipt({
+          receiptId: id,
+          purchaseOrderId: receipt.purchaseOrderId,
+          purchaseOrderNumber: receipt.purchaseOrderNumber,
+          branchId: receipt.branchId,
+          warehouseId: receipt.warehouseId,
+          supplierId: receipt.supplierId,
+          notes: receipt.note || "",
+          items,
+        }, currentTenantId);
         setReceiptReady(true);
       }
     } catch (error) {
@@ -567,47 +788,33 @@ export function InventoryPage() {
     }
     setReceiptReady(false);
     setReceiptNumber("");
-    setQuickSupplierOpen(false);
-
-    // Nếu không có phiếu nháp đang chờ, khởi tạo phiếu mới
     setCreatedReceiptId(null);
+    setSelectedPurchaseOrderId("");
+    setSelectedPoDetail(null);
+    setReceiptItems([]);
 
-    const defaultBr = selectedBranch || branches[0]?.id || "";
-    if (defaultBr) {
-      setSelectedBranch(defaultBr);
-      const validWhs = warehouses.filter((w) => w.branchId === defaultBr);
-      if (!selectedWarehouse || !validWhs.some((w) => w.id === selectedWarehouse)) {
-        setSelectedWarehouse(validWhs[0]?.id || "");
-      }
-    }
-
-    if (!selectedSupplier && suppliers[0]?.id) {
-      setSelectedSupplier(suppliers[0].id);
-    }
-    if (receiptItems.length === 0) {
-      const activeCandidates = (availableSkus.length > 0 ? availableSkus : skus).filter(
-        (s) => s.isActive !== false
-      );
-      const candidate = activeCandidates[0];
-      if (candidate) {
-        const branchMatch = skus.find((s) => s.id === candidate.id && s.branchId === defaultBr);
-        setReceiptItems([
-          {
-            skuId: candidate.id,
-            skuCode: candidate.code,
-            skuName: candidate.name,
-            quantity: 10,
-            unitPrice:
-              branchMatch && branchMatch.averageCost > 0
-                ? branchMatch.averageCost
-                : candidate.averageCost > 0
-                ? candidate.averageCost
-                : 120000,
-          },
-        ]);
-      }
-    }
+    loadReceivablePurchaseOrders();
   };
+
+  const openReceiptModalForPo = async (poId: string) => {
+    setReceiptModal(true);
+    setConfirmedSuccess(false);
+    setReceiptError(null);
+    setReceiptReady(false);
+    setReceiptNumber("");
+    setCreatedReceiptId(null);
+    await loadReceivablePurchaseOrders();
+    await handleSelectPurchaseOrder(poId);
+  };
+
+  useEffect(() => {
+    const poParam = searchParams.get("purchaseOrderId");
+    if (poParam) {
+      openReceiptModalForPo(poParam);
+      searchParams.delete("purchaseOrderId");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams]);
 
   // [F1] Người dùng chủ động bỏ theo dõi phiếu nháp đang chờ để tạo mới từ đầu (chứng từ cũ vẫn lưu Draft trên server)
   const handleDiscardPendingReceipt = () => {
@@ -626,47 +833,37 @@ export function InventoryPage() {
     setReceiptReady(false);
     setReceiptNumber("");
     setReceiptError(null);
-
-    const defaultBr = selectedBranch || branches[0]?.id || "";
-    const activeCandidates = (availableSkus.length > 0 ? availableSkus : skus).filter(
-      (s) => s.isActive !== false
-    );
-    const candidate = activeCandidates[0];
-    if (candidate) {
-      const branchMatch = skus.find((s) => s.id === candidate.id && s.branchId === defaultBr);
-      setReceiptItems([
-        {
-          skuId: candidate.id,
-          skuCode: candidate.code,
-          skuName: candidate.name,
-          quantity: 10,
-          unitPrice:
-            branchMatch && branchMatch.averageCost > 0
-              ? branchMatch.averageCost
-              : candidate.averageCost > 0
-              ? candidate.averageCost
-              : 120000,
-        },
-      ]);
-    }
+    setSelectedPurchaseOrderId("");
+    setSelectedPoDetail(null);
+    setReceiptItems([]);
+    loadReceivablePurchaseOrders();
   };
 
-  const handleQuickCreateSupplier = async () => {
-    if (!newSupplierName.trim()) return;
+  // [U01-A] Hủy phiếu nhập kho nháp trên server
+  const handleCancelDraftReceipt = async () => {
+    if (!createdReceiptId) return;
+    const ok = window.confirm(
+      `Bạn có chắc chắn muốn hủy phiếu nhập nháp ${receiptNumber || createdReceiptId.slice(0, 8)} trên máy chủ không?`
+    );
+    if (!ok) return;
+
     setLoading(true);
-    const res = await apiAdapter.createSupplier({
-      name: newSupplierName.trim(),
-      code: `SUP-${Date.now().toString().slice(-4)}`,
-    });
-    setLoading(false);
-    if (res.error) {
-      setReceiptError(res.error.message);
-    } else if (res.data) {
-      const nextSuppliers = [...suppliers, { id: res.data.id, name: res.data.name }];
-      setSuppliers(nextSuppliers);
-      setSelectedSupplier(res.data.id);
-      setNewSupplierName("");
-      setQuickSupplierOpen(false);
+    setReceiptError(null);
+    try {
+      const res = await apiAdapter.cancelGoodsReceipt(createdReceiptId);
+      if (res.error) {
+        setReceiptError(res.error.message);
+        return;
+      }
+      clearSavedPendingReceipt(currentTenantId);
+      setCreatedReceiptId(null);
+      setReceiptReady(false);
+      setReceiptModal(false);
+      await Promise.all([loadBalances(), loadLedger()]);
+    } catch (err: any) {
+      setReceiptError(err?.message || "Không thể hủy phiếu nhập.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -681,40 +878,42 @@ export function InventoryPage() {
     0
   );
 
-  // [A07 & F1] Xử lý tạo và xác nhận phiếu nhập kho an toàn, idempotent retry
+  // [A07 & F1 & U01-A] Xử lý tạo và xác nhận phiếu nhập kho an toàn, idempotent retry
   const handleSaveReceipt = async () => {
     if (isConfirmingReceiptRef.current || createdReceiptId) return;
     const actor = receiptActor;
     setReceiptError(null);
+
+    if (!selectedPurchaseOrderId) {
+      setReceiptError("Bắt buộc chọn Đơn mua hàng đã duyệt để lập phiếu nhập kho.");
+      return;
+    }
+
     if (!selectedBranch || !selectedWarehouse) {
-      setReceiptError("Vui lòng chọn Chi nhánh và Kho hàng tiếp nhận thuộc chi nhánh đó.");
+      setReceiptError("Vui lòng chọn Kho hàng tiếp nhận.");
       return;
     }
     // Kiểm tra Kho phải thuộc đúng Chi nhánh đã chọn [A04]
     const validWh = warehouses.find((w) => w.id === selectedWarehouse && w.branchId === selectedBranch);
     if (!validWh) {
-      setReceiptError("Kho tiếp nhận không thuộc Chi nhánh đã chọn. Vui lòng chọn lại kho hợp lệ.");
+      setReceiptError("Kho tiếp nhận không thuộc Chi nhánh của đơn mua. Vui lòng chọn lại kho hợp lệ.");
       return;
     }
-    if (!selectedSupplier) {
-      setReceiptError(
-        "Vui lòng chọn Nhà cung cấp (hoặc bấm '+ Tạo nhanh NCC' nếu cửa hàng chưa có nhà cung cấp)."
-      );
+
+    const activeLines = receiptItems.filter((item) => Number(item.quantity) > 0);
+    if (activeLines.length === 0) {
+      setReceiptError("Vui lòng nhập số lượng thực nhận (> 0) cho ít nhất một mặt hàng.");
       return;
     }
-    if (receiptItems.length === 0) {
-      setReceiptError("Vui lòng thêm ít nhất một dòng mặt hàng.");
-      return;
-    }
-    if (
-      receiptItems.some(
-        (item) => !item.skuId || !Number.isFinite(Number(item.quantity)) || !Number.isFinite(Number(item.unitPrice)) || Number(item.quantity) <= 0 || Number(item.unitPrice) < 0
-      )
-    ) {
-      setReceiptError(
-        "Vui lòng kiểm tra lại SKU, số lượng (> 0) và đơn giá nhập (≥ 0) trên từng dòng hàng."
-      );
-      return;
+
+    // Kiểm tra không vượt quá số lượng còn lại của đơn mua
+    for (const line of activeLines) {
+      if (line.remainingQuantity !== undefined && line.quantity > line.remainingQuantity) {
+        setReceiptError(
+          `Mặt hàng ${line.skuCode} nhập vượt số lượng còn lại của đơn mua (Tối đa: ${line.remainingQuantity} ${line.unitName || ""}).`
+        );
+        return;
+      }
     }
 
     isConfirmingReceiptRef.current = true;
@@ -725,14 +924,12 @@ export function InventoryPage() {
       // Bước 1: Chỉ gọi API tạo mới nếu chưa có createdReceiptId (tránh tạo trùng phiếu khi Retry [A07])
       if (!receiptIdToConfirm) {
         const payload = {
-          branchId: selectedBranch,
+          purchaseOrderId: selectedPurchaseOrderId,
           warehouseId: selectedWarehouse,
-          supplierId: selectedSupplier || undefined,
-          notes: receiptNotes,
-          items: receiptItems.map((item) => ({
-            skuId: item.skuId,
+          note: receiptNotes.trim() || undefined,
+          items: activeLines.map((item) => ({
+            purchaseOrderItemId: item.purchaseOrderItemId!,
             quantity: Number(item.quantity) || 1,
-            unitPrice: Number(item.unitPrice) || 0,
           })),
         };
 
@@ -749,17 +946,18 @@ export function InventoryPage() {
         setCreatedReceiptId(receiptIdToConfirm);
         setReceiptNumber(res.data.number);
         setReceiptReady(true);
-        setQuickSupplierOpen(false);
 
         // [F1] Lưu thông tin phiếu nháp vào sessionStorage theo tenant để không bị mất khi đóng/mở form
         savePendingReceipt(
           {
             receiptId: receiptIdToConfirm,
+            purchaseOrderId: selectedPurchaseOrderId,
+            purchaseOrderNumber: res.data.purchaseOrderNumber || selectedPoDetail?.number,
             branchId: selectedBranch,
             warehouseId: selectedWarehouse,
             supplierId: selectedSupplier,
             notes: receiptNotes,
-            items: receiptItems,
+            items: activeLines,
           },
           currentTenantId
         );
@@ -902,15 +1100,23 @@ export function InventoryPage() {
     setReserveSuccess(null);
   };
 
-  // [F2] Khi người dùng thay đổi chi nhánh/kho/SKU/số lượng, sinh key mới cho ý định mới
+  // [F2, BF-013] Khi người dùng thay đổi chi nhánh/kho/SKU/số lượng, yêu cầu xác nhận nếu đang có thao tác retry/unknown
   const handleReserveFormChange = () => {
     if (isRetryingReserve) {
+      const confirmDiscard = window.confirm(
+        `Thao tác giữ chỗ trước đó (mã ${reserveIdempotencyKey.slice(
+          0,
+          8
+        )}...) chưa rõ kết quả và có thể đã thành công trên máy chủ. Bạn có chắc chắn muốn bỏ theo dõi để tạo giữ chỗ mới?`
+      );
+      if (!confirmDiscard) return false;
       clearSavedPendingReservation(currentTenantId);
       setIsRetryingReserve(false);
     }
     setReserveIdempotencyKey(generateUuid());
     setReserveError(null);
     setReserveSuccess(null);
+    return true;
   };
 
   const handleReserveStock = async () => {
@@ -1008,12 +1214,15 @@ export function InventoryPage() {
             <Button variant="secondary" disabled title="Chưa có luồng nhận trả hàng và ghi sổ kho.">
               <RotateCcw size={17} />Ghi nhận trả hàng <ComingSoonBadge />
             </Button>
+            <Button variant="secondary" onClick={() => navigate("/purchase-orders")}>
+              <ClipboardList size={17} />Đơn mua hàng
+            </Button>
             <Button variant="secondary" onClick={() => openReserveModal()}>
               <Lock size={17} />Giữ chỗ theo kho
             </Button>
             <Button variant="secondary" onClick={() => setReceiptListOpen(true)}>Phiếu nhập đã lưu</Button>
             <Button onClick={openReceiptModal}>
-              <Plus size={17} />Tạo phiếu nhập
+              <Plus size={17} />Lập phiếu nhập
             </Button>
           </>
         }
@@ -1081,17 +1290,20 @@ export function InventoryPage() {
             </span>
           </div>
           <div className="low-stock-links">
-            {lowStock.slice(0, 4).map((sku) => (
-              <button key={`${sku.id}-${sku.branchId || "b"}`} onClick={() => setTab("balance")}>
-                <strong>{sku.code} ({sku.branchName || "CN"})</strong>
-                <span>
-                  Khả dụng {sku.onHand - sku.reserved} / Ngưỡng {thresholds[sku.id] ?? sku.threshold}
-                </span>
-              </button>
-            ))}
+            {lowStock.slice(0, 4).map((sku) => {
+              const thresh = sku.reorderPoint !== undefined ? sku.reorderPoint : (thresholds[sku.id] ?? sku.threshold ?? 0);
+              return (
+                <button key={`${sku.id}-${sku.branchId || "b"}`} onClick={() => setTab("balance")}>
+                  <strong>{sku.code} ({sku.branchName || "CN"})</strong>
+                  <span>
+                    Khả dụng {sku.onHand - sku.reserved} / Ngưỡng {thresh}
+                  </span>
+                </button>
+              );
+            })}
           </div>
-          <Button variant="secondary" disabled title="Lưu ngưỡng cảnh báo lên máy chủ chưa khả dụng.">
-            <Settings2 size={16} />Cấu hình ngưỡng <ComingSoonBadge />
+          <Button variant="secondary" onClick={() => openReorderModal(lowStock[0])}>
+            <Settings2 size={16} />Cấu hình ngưỡng
           </Button>
         </section>
       )}
@@ -1104,9 +1316,27 @@ export function InventoryPage() {
           <button className={tab === "ledger" ? "active" : ""} onClick={() => { setTab("ledger"); void loadLedger(); }}>
             Sổ kho bất biến — Append-Only ({filteredLedger.length})
           </button>
-          <button type="button" onClick={loadData} disabled={loading}
-            style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <RefreshCw size={15} />Làm mới tồn & sổ kho
+          {/* Tạm ẩn tab Gợi ý nhập hàng; bỏ comment để mở lại, phần xử lý và panel bên dưới vẫn giữ nguyên.
+          {account?.role !== "Cashier" && (
+            <button
+              className={tab === "ai-reorder" ? "active" : ""}
+              onClick={() => {
+                setTab("ai-reorder");
+                void loadAiRecommendations();
+              }}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+            >
+              <Sparkles size={16} /> Gợi ý nhập hàng
+            </button>
+          )}
+          */}
+          <button
+            type="button"
+            onClick={tab === "ai-reorder" ? () => void loadAiRecommendations() : loadData}
+            disabled={loading || loadingAi}
+            style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6 }}
+          >
+            <RefreshCw size={15} />{tab === "ai-reorder" ? (loadingAi ? "Đang dự báo..." : "Cập nhật dự báo") : "Làm mới tồn & sổ kho"}
           </button>
         </div>
 
@@ -1253,8 +1483,8 @@ export function InventoryPage() {
                   ) : (
                     pagedSkus.map((sku) => {
                       const available = sku.onHand - sku.reserved;
-                      const thresh = thresholds[sku.id] ?? sku.threshold;
-                      const isUnder = available <= thresh;
+                      const thresh = sku.reorderPoint !== undefined ? sku.reorderPoint : (thresholds[sku.id] ?? sku.threshold ?? 0);
+                      const isUnder = thresh > 0 && available <= thresh;
                       const isInactive = sku.isActive === false;
                       return (
                         <tr key={`${sku.id}-${sku.branchId || "br"}-${sku.warehouseId || "wh"}`}>
@@ -1273,10 +1503,21 @@ export function InventoryPage() {
                             </div>
                           </td>
                           <td>
-                            <strong>{sku.branchName || "Chi nhánh chính"}</strong>
-                            <div style={{ fontSize: "12px", color: "#64748b" }}>
-                              {sku.warehouseName || "Tất cả các kho thuộc CN"}
-                            </div>
+                            {sku.branchId ? (
+                              <>
+                                <strong>{sku.branchName || "Chi nhánh chính"}</strong>
+                                <div style={{ fontSize: "12px", color: "#64748b" }}>
+                                  {sku.warehouseName || "Tất cả các kho thuộc CN"}
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <Badge tone="warning">Chưa nhập kho</Badge>
+                                <div style={{ fontSize: "12px", color: "#64748b", marginTop: "4px" }}>
+                                  Lập đơn mua rồi nhập kho để có tồn
+                                </div>
+                              </>
+                            )}
                           </td>
                           <td>
                             <strong>{sku.onHand}</strong>
@@ -1303,10 +1544,10 @@ export function InventoryPage() {
                               </Button>
                               <Button
                                 variant="ghost"
-                                disabled
-                                title="Cấu hình ngưỡng — Coming soon"
+                                onClick={() => openReorderModal(sku)}
+                                title="Cấu hình ngưỡng cảnh báo tồn kho an toàn"
                               >
-                                ≤{thresh} <ComingSoonBadge />
+                                ≤{thresh}
                               </Button>
                             </div>
                           </td>
@@ -1360,7 +1601,7 @@ export function InventoryPage() {
               </div>
             </div>
           </>
-        ) : (
+        ) : tab === "ledger" ? (
           <>
             <div className="toolbar ledger-filters">
               <label className="search-field">
@@ -1431,8 +1672,8 @@ export function InventoryPage() {
                     <th>SKU</th>
                     <th>Loại</th>
                     <th>Nghiệp vụ</th>
-                    <th>Số lượng</th>
-                    <th>Số dư sau</th>
+                    <th>Số lượng (theo đơn vị gốc)</th>
+                    <th>Số dư sau (theo đơn vị gốc)</th>
                     <th>Mã chứng từ</th>
                   </tr>
                 </thead>
@@ -1575,6 +1816,266 @@ export function InventoryPage() {
                 <BookOpen size={17} />
                 <strong>Sổ cái kho bất biến (Append-Only):</strong> Nghiêm cấm mọi lệnh UPDATE hoặc DELETE trực tiếp lên số lượng tồn. Sai lệch thực tế bắt buộc phải lập chứng từ Kiểm kê cân kho bù trừ (Compensating Transaction).
               </div>
+            </div>
+          </>
+        ) : (
+          /* GỢI Ý NHẬP HÀNG AI (CS-08) */
+          <>
+            <div className="toolbar" style={{ flexWrap: "wrap", gap: "12px", padding: "14px 16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "11px", fontWeight: 600, color: "#475569" }}>Chi nhánh:</span>
+                <Select
+                  aria-label="Chi nhánh dự báo"
+                  value={aiBranchFilter}
+                  onChange={(e) => {
+                    const nextVal = e.target.value;
+                    setAiBranchFilter(nextVal);
+                    void loadAiRecommendations(nextVal, aiLeadTime, aiSafetyStock, aiOnlyNeedsReorder);
+                  }}
+                  style={{ minWidth: "180px" }}
+                >
+                  <option value="all">Toàn bộ chi nhánh</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "11px", fontWeight: 600, color: "#475569" }}>Lead time (ngày):</span>
+                <Input
+                  type="number"
+                  min={1}
+                  max={180}
+                  value={aiLeadTime}
+                  onChange={(e) => setAiLeadTime(Math.max(1, Math.min(180, Number(e.target.value) || 1)))}
+                  style={{ width: "80px" }}
+                  title="Thời gian giao hàng từ nhà cung cấp (1 - 180 ngày)"
+                />
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "11px", fontWeight: 600, color: "#475569" }}>Tồn an toàn (ngày):</span>
+                <Input
+                  type="number"
+                  min={0}
+                  max={90}
+                  value={aiSafetyStock}
+                  onChange={(e) => setAiSafetyStock(Math.max(0, Math.min(90, Number(e.target.value) || 0)))}
+                  style={{ width: "80px" }}
+                  title="Số ngày dự phòng an toàn (0 - 90 ngày)"
+                />
+              </div>
+
+              <label style={{ display: "inline-flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "11px", color: "#334155" }}>
+                <input
+                  type="checkbox"
+                  checked={aiOnlyNeedsReorder}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setAiOnlyNeedsReorder(checked);
+                    void loadAiRecommendations(aiBranchFilter, aiLeadTime, aiSafetyStock, checked);
+                  }}
+                />
+                <span>Chỉ hiển thị SKU cần nhập</span>
+              </label>
+
+              <Button
+                variant="primary"
+                onClick={() => void loadAiRecommendations()}
+                disabled={loadingAi}
+                style={{ marginLeft: "auto" }}
+              >
+                <RefreshCw size={14} />
+                {loadingAi ? "Đang phân tích..." : "Phân tích lại"}
+              </Button>
+            </div>
+
+            {aiError && (
+              <div
+                style={{
+                  margin: "16px",
+                  background: "#fef2f2",
+                  border: "1px solid #fca5a5",
+                  color: "#b91c1c",
+                  padding: "12px 16px",
+                  borderRadius: "8px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "12px",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <AlertCircle size={18} />
+                  <span><strong>Lỗi phân tích gợi ý AI:</strong> {aiError}</span>
+                </div>
+                <Button variant="secondary" onClick={() => void loadAiRecommendations()}>
+                  <RefreshCw size={14} /> Thử lại
+                </Button>
+              </div>
+            )}
+
+            {aiError ? null : loadingAi ? (
+              <div style={{ textAlign: "center", padding: "48px 16px", color: "#64748b" }}>
+                <RefreshCw size={24} style={{ margin: "0 auto 12px" }} />
+                <strong>Đang phân tích dữ liệu xuất bán & tính toán gợi ý nhập hàng tối ưu...</strong>
+                <p style={{ margin: "4px 0 0", fontSize: "11px" }}>Hệ thống đang đối soát dữ liệu xuất bán theo chu kỳ Lead time và Tồn an toàn</p>
+              </div>
+            ) : !aiSummary || aiSummary.recommendations.length === 0 ? (
+              <div style={{ padding: "36px 16px" }}>
+                <EmptyState
+                  title="Chưa có gợi ý nhập hàng"
+                  description={
+                    aiOnlyNeedsReorder
+                      ? "Không có sản phẩm nào cần nhập thêm với bộ lọc hiện tại. Tất cả sản phẩm đều đủ tồn kho theo chu kỳ."
+                      : "Chưa có dữ liệu dự báo hoặc hệ thống chưa ghi nhận giao dịch xuất bán nào cho các SKU thuộc phạm vi này."
+                  }
+                />
+              </div>
+            ) : (
+              <>
+                {/* Summary KPI Strip */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "12px", padding: "16px", background: "#f8fafc", borderBottom: "1px solid var(--line)" }}>
+                  <div style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: "8px", padding: "12px 14px" }}>
+                    <small style={{ color: "var(--muted)", fontSize: "10px", display: "block" }}>Tổng SKU đã phân tích</small>
+                    <strong style={{ fontSize: "18px", color: "var(--ink)" }}>{aiSummary.totalSkusAnalyzed}</strong>
+                  </div>
+                  <div style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: "8px", padding: "12px 14px" }}>
+                    <small style={{ color: "var(--muted)", fontSize: "10px", display: "block" }}>SKU cần đặt hàng</small>
+                    <strong style={{ fontSize: "18px", color: aiSummary.skusNeedingReorder > 0 ? "#b91c1c" : "#16a34a" }}>
+                      {aiSummary.skusNeedingReorder}
+                    </strong>
+                  </div>
+                  <div style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: "8px", padding: "12px 14px" }}>
+                    <small style={{ color: "var(--muted)", fontSize: "10px", display: "block" }}>Tổng lượng đề xuất nhập</small>
+                    <strong style={{ fontSize: "18px", color: "var(--brand)" }}>
+                      {aiSummary.totalSuggestedQuantity.toLocaleString("vi-VN")}
+                    </strong>
+                  </div>
+                  <div style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: "8px", padding: "12px 14px" }}>
+                    <small style={{ color: "var(--muted)", fontSize: "10px", display: "block" }}>Thời gian phân tích</small>
+                    <strong style={{ fontSize: "12px", color: "#475569" }}>
+                      {new Date(aiSummary.evaluatedAt).toLocaleString("vi-VN")}
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>SKU / Sản phẩm</th>
+                        <th>Chi nhánh</th>
+                        <th>Tồn thực tế</th>
+                        <th>Đang giữ</th>
+                        <th>Khả dụng</th>
+                        <th>Ngưỡng cảnh báo</th>
+                        <th>Tốc độ bán / ngày</th>
+                        <th>Số ngày tồn</th>
+                        <th>Đề xuất nhập</th>
+                        <th>Trạng thái</th>
+                        <th>Độ tin cậy</th>
+                        <th>Lý do phân tích</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {aiSummary.recommendations.map((rec) => {
+                        const urgencyTone =
+                          rec.availableQuantity <= 0
+                            ? "danger"
+                            : rec.needsReorder
+                            ? "warning"
+                            : "neutral";
+
+                        const urgencyLabel =
+                          rec.availableQuantity <= 0
+                            ? "Khẩn cấp"
+                            : rec.needsReorder
+                            ? "Cần nhập"
+                            : "Bình thường";
+
+                        const conf = (rec.confidenceLevel || "").toLowerCase();
+                        const confidenceTone =
+                          conf === "high"
+                            ? "success"
+                            : conf === "medium"
+                            ? "warning"
+                            : "neutral";
+
+                        const confidenceLabel =
+                          conf === "high"
+                            ? "Cao"
+                            : conf === "medium"
+                            ? "Trung bình"
+                            : "Thấp";
+
+                        const hasLowData = conf === "low";
+
+                        return (
+                          <tr key={`${rec.skuId}-${rec.branchId}`}>
+                            <td>
+                              <strong>{rec.skuCode}</strong>
+                              <span style={{ display: "block", color: "var(--muted)", fontSize: "10px" }}>
+                                {rec.skuName}
+                              </span>
+                              <span style={{ fontSize: "9px", color: "#64748b" }}>
+                                ĐVT: {rec.baseUnit || "Đơn vị"}
+                              </span>
+                            </td>
+                            <td>{rec.branchName}</td>
+                            <td>{rec.onHandQuantity}</td>
+                            <td>{rec.reservedQuantity}</td>
+                            <td>
+                              <strong style={{ color: rec.availableQuantity <= rec.reorderPoint ? "#b91c1c" : "inherit" }}>
+                                {rec.availableQuantity}
+                              </strong>
+                            </td>
+                            <td>{rec.reorderPoint}</td>
+                            <td>{Number(rec.dailySalesVelocity || 0).toFixed(2)}</td>
+                            <td>
+                              <span
+                                style={{
+                                  fontWeight: rec.daysUntilStockout <= rec.leadTimeDays + rec.safetyStockDays ? 700 : 400,
+                                  color: rec.daysUntilStockout <= rec.leadTimeDays + rec.safetyStockDays ? "#b91c1c" : "inherit",
+                                }}
+                              >
+                                {rec.daysUntilStockout >= 999 ? "Chưa có dữ liệu bán" : `${rec.daysUntilStockout} ngày`}
+                              </span>
+                            </td>
+                            <td>
+                              <strong style={{ fontSize: "13px", color: rec.suggestedQuantity > 0 ? "var(--brand)" : "inherit" }}>
+                                {rec.suggestedQuantity > 0 ? `+${rec.suggestedQuantity.toLocaleString("vi-VN")}` : "0"}
+                              </strong>
+                            </td>
+                            <td>
+                              <Badge tone={urgencyTone}>{urgencyLabel}</Badge>
+                            </td>
+                            <td>
+                              <Badge tone={confidenceTone}>{confidenceLabel}</Badge>
+                              {hasLowData && (
+                                <span style={{ color: "#b45309", fontSize: "10px", display: "block", marginTop: "2px" }}>
+                                  Thiếu dữ liệu
+                                </span>
+                              )}
+                            </td>
+                            <td style={{ maxWidth: "260px", whiteSpace: "normal", fontSize: "10px", color: "#475569" }}>
+                              {rec.reason}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
+            <div className="readonly-note">
+              <Sparkles size={17} color="var(--brand)" />
+              <strong>Gợi ý thông minh (AI Reorder Recommendation):</strong> Kết quả được tính toán dựa trên dữ liệu xuất bán lịch sử, thời gian giao hàng và mức tồn kho an toàn. Đây là gợi ý tham khảo, hệ thống không tự động tạo đơn mua hàng (Purchase Order). Vui lòng rà soát trước khi đặt NCC.
             </div>
           </>
         )}
@@ -1733,82 +2234,123 @@ export function InventoryPage() {
                 </div>
               )}
 
-              {/* Thông tin chung phiếu nhập */}
+              {/* Thông tin chung phiếu nhập (U01-A) */}
               <div className="form-grid">
-                <label>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <span>Nhà cung cấp *</span>
-                    {!createdReceiptId && (
-                      <button
-                        type="button"
-                        onClick={() => setQuickSupplierOpen(!quickSupplierOpen)}
-                        style={{
-                          background: "none",
-                          border: "none",
-                          color: "#1769e0",
-                          fontSize: "11px",
-                          fontWeight: 600,
-                          cursor: "pointer",
-                        }}
-                      >
-                        {quickSupplierOpen ? "Đóng" : "+ Tạo nhanh NCC"}
-                      </button>
-                    )}
-                  </div>
-                  {quickSupplierOpen ? (
-                    <div className="inline-input">
-                      <Input
-                        placeholder="Tên NCC mới..."
-                        value={newSupplierName}
-                        onChange={(e) => setNewSupplierName(e.target.value)}
-                      />
-                      <Button variant="secondary" onClick={handleQuickCreateSupplier} disabled={loading}>
-                        Lưu
-                      </Button>
+                <label style={{ gridColumn: "span 2" }}>
+                  <span>Đơn mua hàng đã duyệt (Bắt buộc) *</span>
+                  {createdReceiptId ? (
+                    <div
+                      style={{
+                        padding: "8px 12px",
+                        background: "#f1f5f9",
+                        borderRadius: 6,
+                        border: "1px solid #cbd5e1",
+                        fontSize: 13,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {selectedPoDetail?.number || receiptNumber || "Đơn mua đã gắn kết"}
+                      {selectedPoDetail?.status && (
+                        <span style={{ marginLeft: 8, fontWeight: 400, color: "#64748b" }}>
+                          ({selectedPoDetail.status === "Approved" ? "Đã duyệt" : "Đã nhận một phần"})
+                        </span>
+                      )}
                     </div>
                   ) : (
-                    <Select
-                      value={selectedSupplier}
-                      disabled={Boolean(createdReceiptId)}
-                      onChange={(e) => setSelectedSupplier(e.target.value)}
-                    >
-                      <option value="">-- Chọn Nhà cung cấp --</option>
-                      {suppliers.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name}
-                        </option>
-                      ))}
-                    </Select>
+                    <>
+                      <Select
+                        value={selectedPurchaseOrderId}
+                        onChange={(e) => handleSelectPurchaseOrder(e.target.value)}
+                        required
+                      >
+                        <option value="">-- Chọn đơn mua hàng đã duyệt --</option>
+                        {receivablePos.map((po) => (
+                          <option key={po.id} value={po.id}>
+                            {po.number} — {po.supplierName} ({po.branchName}) [{po.status === "Approved" ? "Đã duyệt" : "Đã nhận một phần"}]
+                          </option>
+                        ))}
+                      </Select>
+                      {receivableError && (
+                        <div style={{ background: "#fee2e2", border: "1px solid #ef4444", color: "#b91c1c", padding: "8px 12px", borderRadius: 6, fontSize: 12, marginTop: 6 }}>
+                          {receivableError}{" "}
+                          <Button variant="secondary" onClick={() => void loadReceivablePurchaseOrders()}>
+                            Thử lại
+                          </Button>
+                        </div>
+                      )}
+                      {!receivableError && receivablePos.length === 0 && (
+                        <div
+                          style={{
+                            background: "#fef3c7",
+                            border: "1px solid #f59e0b",
+                            color: "#92400e",
+                            padding: "8px 12px",
+                            borderRadius: 6,
+                            fontSize: 12,
+                            marginTop: 6,
+                          }}
+                        >
+                          Chưa có đơn mua hàng nào đã duyệt. Mọi phiếu nhập từ nhà cung cấp phải lập từ đơn mua đã duyệt.
+                          <div style={{ marginTop: 6 }}>
+                            <Button
+                              variant="secondary"
+                              onClick={() => {
+                                closeReceiptModal();
+                                navigate("/purchase-orders");
+                              }}
+                            >
+                              Đi đến Quản lý Đơn mua hàng
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
                 </label>
 
-                {/* [A04] Chọn Chi nhánh tự động lọc dropdown Kho hàng của đúng chi nhánh đó */}
                 <label>
-                  <span>Chi nhánh nhận *</span>
-                  <Select
-                    value={selectedBranch}
-                    disabled={Boolean(createdReceiptId)}
-                    onChange={(e) => {
-                      const nextBranch = e.target.value;
-                      setSelectedBranch(nextBranch);
-                      const branchWhs = warehouses.filter((w) => w.branchId === nextBranch);
-                      setSelectedWarehouse(branchWhs[0]?.id || "");
+                  <span>Nhà cung cấp (Khóa theo đơn mua)</span>
+                  <div
+                    style={{
+                      padding: "8px 12px",
+                      background: "#f8fafc",
+                      borderRadius: 6,
+                      border: "1px solid #e2e8f0",
+                      fontSize: 13,
+                      fontWeight: 600,
                     }}
                   >
-                    {branches.map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name}
-                      </option>
-                    ))}
-                  </Select>
+                    {selectedPoDetail?.supplierName ||
+                      suppliers.find((s) => s.id === selectedSupplier)?.name ||
+                      "Chưa chọn đơn mua"}
+                  </div>
                 </label>
 
                 <label>
-                  <span>Kho tiếp nhận (Thuộc chi nhánh chọn) *</span>
+                  <span>Chi nhánh nhận (Khóa theo đơn mua)</span>
+                  <div
+                    style={{
+                      padding: "8px 12px",
+                      background: "#f8fafc",
+                      borderRadius: 6,
+                      border: "1px solid #e2e8f0",
+                      fontSize: 13,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {selectedPoDetail?.branchName ||
+                      branches.find((b) => b.id === selectedBranch)?.name ||
+                      "Chưa chọn đơn mua"}
+                  </div>
+                </label>
+
+                <label>
+                  <span>Kho tiếp nhận (Thuộc chi nhánh nhận) *</span>
                   <Select
                     value={selectedWarehouse}
                     disabled={Boolean(createdReceiptId) || receiptBranchWarehouses.length === 0}
                     onChange={(e) => setSelectedWarehouse(e.target.value)}
+                    required
                   >
                     {receiptBranchWarehouses.length === 0 ? (
                       <option value="">-- Chi nhánh này chưa có kho --</option>
@@ -1825,7 +2367,7 @@ export function InventoryPage() {
                 <label>
                   <span>Ghi chú chứng từ</span>
                   <Input
-                    placeholder="Nhập số hóa đơn NCC hoặc ghi chú..."
+                    placeholder="Ghi chú số hóa đơn NCC hoặc biên bản giao nhận..."
                     value={receiptNotes}
                     disabled={Boolean(createdReceiptId)}
                     onChange={(e) => setReceiptNotes(e.target.value)}
@@ -1833,7 +2375,7 @@ export function InventoryPage() {
                 </label>
               </div>
 
-              {/* Bảng dòng hàng đa dòng */}
+              {/* Bảng dòng hàng đa dòng (U01-A) */}
               <div style={{ marginTop: "18px", borderTop: "1px solid #e2e8f0", paddingTop: "14px" }}>
                 <div
                   style={{
@@ -1843,134 +2385,139 @@ export function InventoryPage() {
                     marginBottom: "10px",
                   }}
                 >
-                  <strong>Chi tiết mặt hàng nhập kho ({receiptItems.length} dòng)</strong>
-                  {!createdReceiptId && (
-                    <Button variant="secondary" onClick={addReceiptLine}>
-                      <Plus size={15} />Thêm dòng sản phẩm
-                    </Button>
-                  )}
+                  <strong>
+                    Chi tiết mặt hàng nhập kho ({receiptItems.length} dòng hàng từ đơn mua)
+                  </strong>
                 </div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "8px",
-                    maxHeight: "250px",
-                    overflowY: "auto",
-                  }}
-                >
-                  {receiptItems.map((item, idx) => {
-                    const candidateList = availableSkus.length > 0 ? availableSkus : skus;
-                    // [A03] Lấy số dư OnHand và giá vốn WAC thực tế tại đúng Chi nhánh & Kho được chọn ở Header phiếu nhập
-                    const branchSpecBalance = skus.find(
-                      (s) => s.id === item.skuId && s.branchId === selectedBranch
-                    );
-                    const whSpecBalance = modalWarehouseBalances.find((s) => s.id === item.skuId);
+                {receiptItems.length === 0 ? (
+                  <div
+                    style={{
+                      padding: 24,
+                      textAlign: "center",
+                      background: "#f8fafc",
+                      borderRadius: 6,
+                      color: "#64748b",
+                      fontSize: 13,
+                    }}
+                  >
+                    Vui lòng chọn một Đơn mua hàng đã duyệt ở trên để tải danh sách mặt hàng, đơn vị tính và đơn giá đã chốt.
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "8px",
+                      maxHeight: "280px",
+                      overflowY: "auto",
+                    }}
+                  >
+                    {receiptItems.map((item, idx) => {
+                      const isOver =
+                        item.remainingQuantity !== undefined &&
+                        item.quantity > item.remainingQuantity;
 
-                    const oldBranchOnHand = branchSpecBalance?.onHand ?? 0;
-                    const oldWarehouseOnHand = whSpecBalance?.onHand ?? oldBranchOnHand;
-                    const oldBranchWac = branchSpecBalance?.averageCost ?? 0;
-
-                    const inQty = Math.max(0, Number(item.quantity) || 0);
-                    const inPrice = Math.max(0, Number(item.unitPrice) || 0);
-                    const projectedWac =
-                      oldBranchOnHand + inQty > 0
-                        ? Math.round(
-                            (oldBranchOnHand * oldBranchWac + inQty * inPrice) /
-                              (oldBranchOnHand + inQty)
-                          )
-                        : inPrice;
-
-                    return (
-                      <div
-                        key={idx}
-                        style={{
-                          background: "#f8fafc",
-                          border: "1px solid #e2e8f0",
-                          borderRadius: "8px",
-                          padding: "10px",
-                          display: "grid",
-                          gridTemplateColumns: "1.9fr 0.8fr 1.1fr 1.5fr auto",
-                          gap: "8px",
-                          alignItems: "end",
-                        }}
-                      >
-                        <label>
-                          <span style={{ fontSize: "11px" }}>Chọn SKU / Sản phẩm *</span>
-                          <Select
-                            value={item.skuId}
-                            disabled={Boolean(createdReceiptId)}
-                            onChange={(e) => {
-                              const found = candidateList.find((s) => s.id === e.target.value);
-                              const next = [...receiptItems];
-                              next[idx].skuId = e.target.value;
-                              if (found) {
-                                next[idx].skuCode = found.code;
-                                next[idx].skuName = found.name;
-                              }
-                              setReceiptItems(next);
-                            }}
-                          >
-                            {candidateList.map((s) => (
-                              <option key={s.id} value={s.id} disabled={s.isActive === false}>
-                                {s.code} - {s.name} {s.isActive === false ? "[Ngừng hoạt động]" : ""}
-                              </option>
-                            ))}
-                          </Select>
-                        </label>
-                        <label>
-                          <span style={{ fontSize: "11px" }}>Số lượng *</span>
-                          <Input
-                            type="number"
-                            min="1"
-                            disabled={Boolean(createdReceiptId)}
-                            value={item.quantity}
-                            onChange={(e) => {
-                              const next = [...receiptItems];
-                              next[idx].quantity = Math.max(1, Number(e.target.value));
-                              setReceiptItems(next);
-                            }}
-                          />
-                        </label>
-                        <label>
-                          <span style={{ fontSize: "11px" }}>Đơn giá nhập (VNĐ)</span>
-                          <Input
-                            type="number"
-                            min="0"
-                            disabled={Boolean(createdReceiptId)}
-                            value={item.unitPrice}
-                            onChange={(e) => {
-                              const next = [...receiptItems];
-                              next[idx].unitPrice = Number(e.target.value);
-                              setReceiptItems(next);
-                            }}
-                          />
-                        </label>
-                        <div>
-                          <span style={{ fontSize: "11px", color: "#64748b" }}>
-                            Tồn CN: {oldBranchOnHand} (Kho: {oldWarehouseOnHand}) · WAC cũ:{" "}
-                            {oldBranchWac.toLocaleString("vi-VN")} ₫
-                          </span>
-                          <div style={{ fontWeight: 600, padding: "2px 0" }}>
-                            Thành tiền:{" "}
-                            {((item.quantity || 0) * (item.unitPrice || 0)).toLocaleString("vi-VN")} ₫
-                          </div>
-                          <div style={{ fontSize: "11px", color: "#0284c7", fontWeight: 600 }}>
-                            WAC mới tại CN: ~{projectedWac.toLocaleString("vi-VN")} ₫
-                          </div>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          disabled={receiptItems.length <= 1 || Boolean(createdReceiptId)}
-                          onClick={() => removeReceiptLine(idx)}
+                      return (
+                        <div
+                          key={idx}
+                          style={{
+                            background: isOver ? "#fef2f2" : "#f8fafc",
+                            border: isOver ? "1px solid #ef4444" : "1px solid #e2e8f0",
+                            borderRadius: "8px",
+                            padding: "10px",
+                            display: "grid",
+                            gridTemplateColumns: "1.8fr 1.1fr 1fr 1.3fr 1.2fr auto",
+                            gap: "8px",
+                            alignItems: "center",
+                          }}
                         >
-                          <Trash2 size={16} color="#ef4444" />
-                        </Button>
-                      </div>
-                    );
-                  })}
-                </div>
+                          <div>
+                            <strong style={{ fontSize: "13px" }}>{item.skuCode}</strong>
+                            <div style={{ fontSize: "11px", color: "#64748b" }}>
+                              {item.skuName}
+                              {modalWarehouseBalances.length > 0 && (
+                                <span> · Tồn kho hiện tại: {modalWarehouseBalances.find(s => s.id === item.skuId)?.onHand ?? 0}</span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div>
+                            <span style={{ fontSize: "11px", color: "#64748b", display: "block" }}>
+                              Đơn vị mua
+                            </span>
+                            <strong style={{ fontSize: "12px" }}>{item.unitName || "Đơn vị gốc"}</strong>
+                            {item.factorSnapshot && item.factorSnapshot > 1 ? (
+                              <div style={{ fontSize: "10px", color: "#0284c7" }}>
+                                (x{item.factorSnapshot} đơn vị gốc)
+                              </div>
+                            ) : null}
+                          </div>
+
+                          <div>
+                            <span style={{ fontSize: "11px", color: "#64748b", display: "block" }}>
+                              Đặt / Còn lại
+                            </span>
+                            <span style={{ fontSize: "12px" }}>
+                              {item.orderedQuantity ?? item.quantity} /{" "}
+                              <strong style={{ color: "#059669" }}>
+                                {item.remainingQuantity ?? item.quantity}
+                              </strong>
+                            </span>
+                          </div>
+
+                          <div>
+                            <span style={{ fontSize: "11px", fontWeight: 600, display: "block" }}>
+                              Thực nhận đợt này *
+                            </span>
+                            <NumberField
+                              aria-label={`Thực nhận ${item.skuCode}`}
+                              disabled={Boolean(createdReceiptId)}
+                              value={item.quantity || null}
+                              decimals={3}
+                              onChange={(value) => {
+                                setReceiptItems((current) =>
+                                  current.map((row, i) => (i === idx ? { ...row, quantity: value ?? 0 } : row))
+                                );
+                              }}
+                            />
+                            {isOver && (
+                              <span style={{ color: "#ef4444", fontSize: "10px", display: "block" }}>
+                                Vượt lượng còn lại!
+                              </span>
+                            )}
+                            {item.factorSnapshot && item.factorSnapshot > 1 ? (
+                              <div style={{ fontSize: "11px", color: "#4338ca", marginTop: "2px" }}>
+                                Quy đổi gốc: <strong>{(item.quantity * item.factorSnapshot).toLocaleString("vi-VN")}</strong> (đơn vị gốc)
+                              </div>
+                            ) : null}
+                          </div>
+
+                          <div>
+                            <span style={{ fontSize: "11px", color: "#64748b", display: "block" }}>
+                              Đơn giá mua (Đã chốt)
+                            </span>
+                            <div style={{ fontWeight: 600, fontSize: "12px" }}>
+                              {item.unitPrice.toLocaleString("vi-VN")} ₫
+                            </div>
+                            <div style={{ fontSize: "10px", color: "#059669" }}>
+                              🔒 Khóa theo PO
+                            </div>
+                          </div>
+
+                          <Button
+                            variant="ghost"
+                            disabled={receiptItems.length <= 1 || Boolean(createdReceiptId)}
+                            onClick={() => removeReceiptLine(idx)}
+                            title="Bỏ dòng khỏi đợt nhận này"
+                          >
+                            <Trash2 size={16} color="#ef4444" />
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Tổng kết phiếu */}
@@ -1986,10 +2533,10 @@ export function InventoryPage() {
                 }}
               >
                 <span>
-                  Tổng số lượng: <strong>{totalReceiptQuantity} sản phẩm</strong>
+                  Tổng số lượng thực nhận: <strong>{totalReceiptQuantity}</strong> (theo đơn vị mua)
                 </span>
                 <span style={{ fontSize: "15px" }}>
-                  Tổng thanh toán:{" "}
+                  Tổng giá trị phiếu nhập:{" "}
                   <strong style={{ color: "#16a34a" }}>
                     {totalReceiptAmount.toLocaleString("vi-VN")} ₫
                   </strong>
@@ -1998,10 +2545,9 @@ export function InventoryPage() {
 
               {/* Tác động WAC */}
               <div className="impact-box" style={{ marginTop: "12px" }}>
-                <strong>Cơ chế tự động hóa giá vốn bình quân (WAC) theo Chi nhánh:</strong>
+                <strong>Cơ chế đối chiếu giá vốn WAC từ Đơn mua hàng:</strong>
                 <p>
-                  Giá vốn dự kiến được tính dựa trên số dư thực tế (<code>OnHand</code>) và giá vốn cũ (
-                  <code>AverageCost</code>) tại đúng <strong>Chi nhánh & Kho tiếp nhận</strong> đã chọn ở trên.
+                  Đơn giá nhập được <strong>khóa chặt theo Đơn mua hàng đã được duyệt</strong>, đảm bảo tính bất biến và chuẩn xác của giá vốn bình quân (WAC) khi tăng tồn kho và ghi nhận sổ cái IN.
                 </p>
               </div>
 
@@ -2010,19 +2556,34 @@ export function InventoryPage() {
                   Đóng
                 </Button>
                 {createdReceiptId && (
-                  <Button
-                    variant="secondary"
-                    onClick={handleDiscardPendingReceipt}
-                    disabled={loading || verifyingPendingReceipt}
-                    style={{ color: "#dc2626", borderColor: "#fca5a5" }}
-                    title="Bỏ theo dõi phiếu này trên giao diện và tạo phiếu mới (phiếu cũ vẫn lưu ở trạng thái Draft trên máy chủ)"
-                  >
-                    Tạo phiếu khác
-                  </Button>
+                  <>
+                    <Button
+                      variant="danger"
+                      onClick={handleCancelDraftReceipt}
+                      disabled={loading || verifyingPendingReceipt}
+                      title="Hủy hoàn toàn phiếu nhập nháp này trên máy chủ OISM"
+                    >
+                      Hủy phiếu nháp này
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={handleDiscardPendingReceipt}
+                      disabled={loading || verifyingPendingReceipt}
+                      title="Bỏ theo dõi phiếu này trên giao diện và tạo phiếu mới (phiếu cũ vẫn lưu ở trạng thái Draft trên máy chủ)"
+                    >
+                      Tạo phiếu khác
+                    </Button>
+                  </>
                 )}
                 <Button
                   onClick={createdReceiptId ? handleConfirmReceipt : handleSaveReceipt}
-                  disabled={loading || verifyingPendingReceipt || (createdReceiptId ? !receiptReady : loadingModalWhStock || Boolean(modalWhError))}
+                  disabled={
+                    loading ||
+                    verifyingPendingReceipt ||
+                    (createdReceiptId
+                      ? !receiptReady
+                      : !selectedPurchaseOrderId || receiptItems.length === 0 || loadingModalWhStock || Boolean(modalWhError))
+                  }
                 >
                   {loading
                     ? "Đang xử lý..."
@@ -2148,6 +2709,7 @@ export function InventoryPage() {
             <label>
               <span>Chọn Chi nhánh *</span>
               <Select
+                disabled={isRetryingReserve}
                 value={reserveBranchId}
                 onChange={(e) => {
                   const nextBr = e.target.value;
@@ -2167,6 +2729,7 @@ export function InventoryPage() {
             <label>
               <span>Chọn Kho giữ chỗ (Thuộc chi nhánh) *</span>
               <Select
+                disabled={isRetryingReserve}
                 value={reserveWarehouseId}
                 onChange={(e) => {
                   setReserveWarehouseId(e.target.value);
@@ -2183,6 +2746,7 @@ export function InventoryPage() {
             <label>
               <span>Chọn Sản phẩm / SKU *</span>
               <Select
+                disabled={isRetryingReserve}
                 value={reserveSkuId}
                 onChange={(e) => {
                   setReserveSkuId(e.target.value);
@@ -2199,6 +2763,7 @@ export function InventoryPage() {
             <label>
               <span>Số lượng giữ chỗ *</span>
               <Input
+                disabled={isRetryingReserve}
                 type="number"
                 min="1"
                 value={reserveQty}
@@ -2283,6 +2848,52 @@ export function InventoryPage() {
                 : isRetryingReserve
                 ? "Thử lại thao tác giữ chỗ (Gửi cùng định danh)"
                 : "Xác nhận Giữ chỗ tại Kho này"}
+            </Button>
+          </div>
+        </Modal>
+      )}
+
+      {/* MODAL CẤU HÌNH NGƯỠNG CẢNH BÁO TỒN KHO AN TOÀN (CS-03) */}
+      {reorderModalSku && (
+        <Modal
+          title={`Cấu hình ngưỡng cảnh báo tồn kho: ${reorderModalSku.code}`}
+          onClose={() => setReorderModalSku(null)}
+        >
+          {reorderError && (
+            <div style={{ background: "#fee2e2", border: "1px solid #ef4444", color: "#b91c1c", padding: "10px", borderRadius: "8px", fontSize: "12px", marginBottom: "12px" }}>
+              {reorderError}
+            </div>
+          )}
+          <div className="form-grid">
+            <label className="full-field">
+              <span>Sản phẩm</span>
+              <Input value={`${reorderModalSku.code} - ${reorderModalSku.name}`} disabled />
+            </label>
+            <label>
+              <span>Chi nhánh áp dụng *</span>
+              <Select value={reorderBranchId} onChange={(e) => handleReorderBranchChange(e.target.value)}>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </Select>
+            </label>
+            <label>
+              <span>Ngưỡng cảnh báo tồn (ReorderPoint) *</span>
+              <NumberField
+                aria-label="Ngưỡng cảnh báo tồn"
+                value={reorderInputVal}
+                decimals={3}
+                onChange={(value) => setReorderInputVal(value ?? 0)}
+              />
+            </label>
+          </div>
+          <p style={{ fontSize: "12px", color: "#64748b", margin: "10px 0 16px" }}>
+            Khi số lượng tồn khả dụng (Available) tại chi nhánh nhỏ hơn hoặc bằng ngưỡng này, hệ thống sẽ kích hoạt trạng thái cảnh báo và đưa vào danh sách đề xuất nhập hàng.
+          </p>
+          <div className="modal-actions">
+            <Button variant="secondary" onClick={() => setReorderModalSku(null)}>Hủy</Button>
+            <Button onClick={handleSaveReorderPoint} disabled={savingReorder}>
+              {savingReorder ? "Đang lưu..." : "Lưu ngưỡng cảnh báo"}
             </Button>
           </div>
         </Modal>

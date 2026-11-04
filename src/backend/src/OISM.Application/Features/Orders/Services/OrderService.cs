@@ -4,10 +4,14 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
+using OISM.Application.Features.Catalog.Units.Services;
 using OISM.Application.Features.Inventory.Dtos;
 using OISM.Application.Features.Orders.Dtos;
+using OISM.Application.Features.Pricing.Dtos;
+using OISM.Application.Features.Pricing.Services;
 using OISM.Application.Features.Realtime;
 using OISM.Application.Features.Realtime.Dtos;
+using OISM.Application.Features.SalesInvoices.Services;
 using OISM.Domain.Entities;
 
 namespace OISM.Application.Features.Orders.Services;
@@ -20,6 +24,7 @@ public class OrderService : IOrderService, IPosCheckoutService
 {
     private readonly IAppDbContext _context;
     private readonly ICurrentTenantService _currentTenantService;
+    private readonly ISkuPriceResolver _skuPriceResolver;
     private readonly ILogger<OrderService> _logger;
 
     public const decimal MaxMoneyAmount = 999_999_999_999_999_999.99m; // numeric(20,2) limit (18 integer digits, 2 decimals)
@@ -30,13 +35,24 @@ public class OrderService : IOrderService, IPosCheckoutService
     public OrderService(
         IAppDbContext context,
         ICurrentTenantService currentTenantService,
+        ISkuPriceResolver skuPriceResolver,
         ILogger<OrderService>? logger = null,
         IRealtimeNotifier? realtimeNotifier = null)
     {
         _context = context;
         _currentTenantService = currentTenantService;
+        _skuPriceResolver = skuPriceResolver;
         _logger = logger ?? NullLogger<OrderService>.Instance;
         _realtimeNotifier = realtimeNotifier;
+    }
+
+    public OrderService(
+        IAppDbContext context,
+        ICurrentTenantService currentTenantService,
+        ILogger<OrderService>? logger = null,
+        IRealtimeNotifier? realtimeNotifier = null)
+        : this(context, currentTenantService, new SkuPriceResolver(context), logger, realtimeNotifier)
+    {
     }
 
     /// <summary>
@@ -190,6 +206,8 @@ public class OrderService : IOrderService, IPosCheckoutService
             // 6. Kiểm tra Idempotency dưới khóa
             var existingOrder = await _context.Orders
                 .Include(o => o.Items)
+                    .ThenInclude(i => i.SkuUnitPrice)
+                        .ThenInclude(p => p.PriceList)
                 .Include(o => o.Payment)
                 .FirstOrDefaultAsync(o => o.TenantId == tenantId.Value && o.RequestKey == dto.RequestKey, ct);
 
@@ -202,6 +220,18 @@ public class OrderService : IOrderService, IPosCheckoutService
                     existingOrder.Payment.Status != "Succeeded")
                 {
                     throw new IdempotencyPayloadMismatchException("RequestKey đã được sử dụng cho một đơn hàng không phải thanh toán POS hoàn tất.");
+                }
+
+                var priceListItems = existingOrder.Items
+                    .Where(i => i.PriceSource == "PriceList" && i.SkuUnitPrice != null)
+                    .ToList();
+                if (priceListItems.Count > 0)
+                {
+                    var existingCode = priceListItems.First().SkuUnitPrice?.PriceList?.Code;
+                    if (existingCode != null && !string.Equals(existingCode, "retail", StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new IdempotencyPayloadMismatchException("RequestKey đã được sử dụng với bảng giá khác.");
+                    }
                 }
 
                 // So sánh BranchId
@@ -250,16 +280,18 @@ public class OrderService : IOrderService, IPosCheckoutService
                 }
 
                 // So sánh danh mục sản phẩm (nhóm theo SkuId, so sánh tổng số lượng và đơn giá từng SKU)
-                foreach (var g in dto.Items.GroupBy(i => i.SkuId))
+                foreach (var g in dto.Items.GroupBy(i => (i.SkuId, i.UnitId)))
                 {
                     if (g.Select(x => Math.Round(x.UnitPrice, 2)).Distinct().Count() > 1)
                     {
-                        throw new OismException("VALIDATION_ERROR", "Các dòng cùng SKU trong giỏ hàng phải có cùng đơn giá.", 400);
+                        throw new OismException("VALIDATION_ERROR", "Các dòng cùng SKU và đơn vị trong giỏ hàng phải có cùng đơn giá.", 400);
                     }
                 }
 
+                var replayBaseUnits = await LoadBaseUnitsAsync(existingOrder.Items.Select(i => i.SkuId).Concat(dto.Items.Select(i => i.SkuId)), ct);
+
                 var existingItemSummary = existingOrder.Items
-                    .GroupBy(i => i.SkuId)
+                    .GroupBy(i => (i.SkuId, UnitId: NormalizeUnit(i.UnitId, i.SkuId, replayBaseUnits)))
                     .ToDictionary(g => g.Key, g => new
                     {
                         Quantity = g.Sum(x => x.Quantity),
@@ -267,7 +299,7 @@ public class OrderService : IOrderService, IPosCheckoutService
                     });
 
                 var requestItemSummary = dto.Items
-                    .GroupBy(i => i.SkuId)
+                    .GroupBy(i => (i.SkuId, UnitId: NormalizeUnit(i.UnitId, i.SkuId, replayBaseUnits)))
                     .ToDictionary(g => g.Key, g => new
                     {
                         Quantity = g.Sum(x => x.Quantity),
@@ -283,21 +315,24 @@ public class OrderService : IOrderService, IPosCheckoutService
                 {
                     if (!requestItemSummary.TryGetValue(kv.Key, out var reqData))
                     {
-                        throw new IdempotencyPayloadMismatchException($"RequestKey đã được sử dụng với danh mục SKU khác (thiếu SKU '{kv.Key}').");
+                        throw new IdempotencyPayloadMismatchException($"RequestKey đã được sử dụng với danh mục SKU khác (thiếu SKU '{kv.Key.SkuId}').");
                     }
 
                     if (reqData.Quantity != kv.Value.Quantity)
                     {
-                        throw new IdempotencyPayloadMismatchException($"RequestKey đã được sử dụng với số lượng mua khác cho SKU '{kv.Key}'.");
+                        throw new IdempotencyPayloadMismatchException($"RequestKey đã được sử dụng với số lượng mua khác cho SKU '{kv.Key.SkuId}'.");
                     }
 
                     if (reqData.UnitPrice != kv.Value.UnitPrice)
                     {
-                        throw new IdempotencyPayloadMismatchException($"RequestKey đã được sử dụng với đơn giá khác cho SKU '{kv.Key}'.");
+                        throw new IdempotencyPayloadMismatchException($"RequestKey đã được sử dụng với đơn giá khác cho SKU '{kv.Key.SkuId}'.");
                     }
                 }
 
                 _logger.LogInformation("Idempotent replay cho RequestKey {RequestKey}. Trả kết quả đơn {OrderNumber}.", dto.RequestKey, existingOrder.Number);
+
+                var existingInvoice = await _context.SalesInvoices.AsNoTracking()
+                    .FirstOrDefaultAsync(s => s.TenantId == tenantId.Value && s.OrderId == existingOrder.Id, ct);
 
                 var branchInfo = await _context.Branches.AsNoTracking().FirstOrDefaultAsync(b => b.TenantId == tenantId.Value && b.Id == existingOrder.BranchId, ct);
                 var cashierInfo = cashierUserId.HasValue
@@ -307,28 +342,30 @@ public class OrderService : IOrderService, IPosCheckoutService
                 var replayReceipt = new PosReceiptDto
                 {
                     OrderId = existingOrder.Id,
-                    ReceiptNumber = existingOrder.Number,
+                    ReceiptNumber = existingInvoice?.Number ?? existingOrder.Number,
                     OrderNumber = existingOrder.Number,
                     BranchId = existingOrder.BranchId,
-                    BranchName = branchInfo?.Name ?? string.Empty,
-                    BranchAddress = branchInfo?.Address,
+                    BranchName = existingInvoice != null ? existingInvoice.BranchNameSnapshot : (branchInfo?.Name ?? string.Empty),
+                    BranchAddress = existingInvoice != null ? existingInvoice.BranchAddressSnapshot : branchInfo?.Address,
                     BranchPhone = branchInfo?.Phone,
-                    CashierName = cashierInfo?.FullName ?? "Thu ngân",
-                    CustomerName = existingOrder.CustomerName,
-                    CustomerPhone = existingOrder.CustomerPhone,
-                    TotalAmount = existingOrder.TotalAmount,
-                    PaymentMethod = existingOrder.Payment?.Method ?? normalizedMethod,
+                    CashierName = existingInvoice?.IssuedByNameSnapshot ?? cashierInfo?.FullName ?? "Thu ngân",
+                    CustomerName = existingInvoice?.CustomerNameSnapshot ?? existingOrder.CustomerName,
+                    CustomerPhone = existingInvoice?.CustomerPhoneSnapshot ?? existingOrder.CustomerPhone,
+                    TotalAmount = existingInvoice?.TotalAmount ?? existingOrder.TotalAmount,
+                    PaymentMethod = existingInvoice?.PaymentMethodSnapshot ?? existingOrder.Payment?.Method ?? normalizedMethod,
                     AmountGiven = existingOrder.Payment?.CashReceived,
                     ChangeDue = existingOrder.Payment?.CashReceived.HasValue == true
                         ? existingOrder.Payment.CashReceived.Value - existingOrder.TotalAmount
                         : null,
-                    CreatedAt = existingOrder.CreatedAt,
+                    CreatedAt = existingInvoice?.IssuedAt ?? existingOrder.CreatedAt,
                     Items = existingOrder.Items.Select(i => new PosReceiptItemDto
                     {
                         SkuId = i.SkuId,
                         SkuCode = i.SkuCodeSnapshot,
                         ProductName = i.SkuNameSnapshot,
                         VariantName = null,
+                        UnitId = i.UnitId,
+                        UnitName = i.UnitNameSnapshot,
                         Quantity = i.Quantity,
                         UnitPrice = i.UnitPrice
                     }).ToList()
@@ -363,6 +400,8 @@ public class OrderService : IOrderService, IPosCheckoutService
             // 8. Tải và xác thực danh mục SKU trong Catalog
             var skus = await _context.ProductVariants
                 .Include(v => v.Product)
+                .Include(v => v.SkuUnits)
+                    .ThenInclude(u => u.Unit)
                 .Where(v => v.TenantId == tenantId.Value && sortedSkuIds.Contains(v.Id))
                 .ToDictionaryAsync(v => v.Id, ct);
 
@@ -380,40 +419,35 @@ public class OrderService : IOrderService, IPosCheckoutService
                 }
             }
 
-            // 9. Xác thực giá bán theo chính sách đã chốt (Backend luôn chốt theo giá niêm yết Catalog ProductVariant.RetailPrice)
-            var groupedItems = new Dictionary<Guid, decimal>();
+            // 9. Phân giải đơn vị, gom dòng theo (SKU, đơn vị) và xác thực giá bán theo giá niêm yết của đúng đơn vị đó
+            var priceKeys = new HashSet<SkuUnitPriceKey>();
             foreach (var item in dto.Items)
             {
-                if (groupedItems.TryGetValue(item.SkuId, out var existingQty))
+                var sku = skus[item.SkuId];
+                var resolved = SkuUnitResolver.ResolveForSale(sku, sku.SkuUnits, item.UnitId);
+                if (!resolved.UnitId.HasValue)
                 {
-                    var newQty = existingQty + item.Quantity;
-                    if (newQty > MaxQuantityAmount)
-                    {
-                        throw new OismException("VALIDATION_ERROR", $"Tổng số lượng mặt hàng SKU '{item.SkuCode}' vượt quá giới hạn tối đa cho phép của hệ thống.", 400);
-                    }
-                    groupedItems[item.SkuId] = newQty;
+                    throw new OismException("UNIT_PRICE_NOT_CONFIGURED", $"Đơn vị của mặt hàng '{sku.SKU}' chưa được cấu hình đơn vị gốc.", 422);
                 }
-                else
-                {
-                    groupedItems[item.SkuId] = item.Quantity;
-                }
+                priceKeys.Add(new SkuUnitPriceKey(item.SkuId, resolved.UnitId.Value));
             }
 
-            foreach (var item in dto.Items)
-            {
-                var catalogSku = skus[item.SkuId];
-                if (item.UnitPrice != catalogSku.RetailPrice)
-                {
-                    throw new OismException("PRICE_MISMATCH", $"Đơn giá của mặt hàng '{catalogSku.SKU}' ({item.UnitPrice:N0}đ) không khớp với giá bán lẻ niêm yết của hệ thống ({catalogSku.RetailPrice:N0}đ).", 400);
-                }
-            }
+            var now = DateTimeOffset.UtcNow;
+            var resolvedPrices = await _skuPriceResolver.ResolveAsync("retail", priceKeys, now, ct);
+
+            var orderLines = BuildOrderLines(
+                dto.Items.Select(i => new OrderLineInput(i.SkuId, i.UnitId, i.Quantity, i.UnitPrice)),
+                skus,
+                trustRequestedPrice: false,
+                resolvedPrices: resolvedPrices);
+            var groupedItems = SumBaseQuantityBySku(orderLines);
 
             // 10. Tính toán tổng tiền đơn hàng phía Server (kiểm tra tràn số CLR và giới hạn numeric(20,2))
             decimal totalAmount = 0m;
-            foreach (var kv in groupedItems)
+            foreach (var line in orderLines)
             {
-                var retailPrice = skus[kv.Key].RetailPrice;
-                var qty = kv.Value;
+                var retailPrice = line.UnitPrice;
+                var qty = line.Quantity;
                 try
                 {
                     checked
@@ -561,7 +595,6 @@ public class OrderService : IOrderService, IPosCheckoutService
             }
 
             // 14. Tạo đơn hàng và ghi sổ cái trong CSDL
-            var now = DateTimeOffset.UtcNow;
             var orderId = Guid.NewGuid();
             var orderNumber = $"POS-{now:yyyyMMdd}-{Guid.NewGuid():N}"[..20];
 
@@ -599,6 +632,7 @@ public class OrderService : IOrderService, IPosCheckoutService
                 TotalAmount = totalAmount,
                 RequestKey = dto.RequestKey,
                 CreatedBy = cashierUserId,
+                ConfirmedBy = cashierUserId,
                 ConfirmedAt = now,
                 CompletedAt = now,
                 CreatedAt = now
@@ -607,10 +641,9 @@ public class OrderService : IOrderService, IPosCheckoutService
 
             var createdOrderItems = new List<OrderItem>();
 
-            foreach (var kv in groupedItems)
+            foreach (var line in orderLines)
             {
-                var skuId = kv.Key;
-                var qty = kv.Value;
+                var skuId = line.SkuId;
                 var sku = skus[skuId];
                 var bBal = branchBalances[skuId];
 
@@ -622,15 +655,20 @@ public class OrderService : IOrderService, IPosCheckoutService
                     SkuId = skuId,
                     SkuCodeSnapshot = sku.SKU,
                     SkuNameSnapshot = string.IsNullOrWhiteSpace(sku.VariantName) ? sku.Product?.Name ?? sku.SKU : $"{sku.Product?.Name ?? sku.SKU} - {sku.VariantName}",
-                    Quantity = qty,
-                    UnitPrice = Math.Round(sku.RetailPrice, 2, MidpointRounding.AwayFromZero),
-                    CostPrice = Math.Round(bBal.AverageCost, 4, MidpointRounding.AwayFromZero), // Snapshot WAC
+                    UnitId = line.Unit.UnitId,
+                    UnitNameSnapshot = line.Unit.UnitName,
+                    FactorSnapshot = line.Unit.Factor,
+                    Quantity = line.Quantity,
+                    UnitPrice = Math.Round(line.UnitPrice, 2, MidpointRounding.AwayFromZero),
+                    CostPrice = Math.Round(bBal.AverageCost, 6, MidpointRounding.AwayFromZero), // Snapshot WAC theo đơn vị gốc
+                    SkuUnitPriceId = line.SkuUnitPriceId,
+                    PriceSource = line.PriceSource,
                     CreatedAt = now
                 };
                 _context.OrderItems.Add(orderItem);
                 createdOrderItems.Add(orderItem);
 
-                var allocs = allocationPlan[skuId];
+                var allocs = TakeAllocations(allocationPlan[skuId], line.BaseQuantity);
                 foreach (var alloc in allocs)
                 {
                     // 1. Trừ tồn vật lý kho
@@ -667,7 +705,7 @@ public class OrderService : IOrderService, IPosCheckoutService
                         SkuId = skuId,
                         Type = "OUT",
                         Quantity = alloc.Quantity,
-                        UnitCost = bBal.AverageCost, // Snapshot WAC
+                        UnitCost = Math.Round(bBal.AverageCost, 6, MidpointRounding.AwayFromZero), // Snapshot WAC
                         BalanceAfter = bBal.OnHand - alloc.Quantity,
                         SequenceNo = nextSeq,
                         OrderItemId = orderItem.Id,
@@ -696,6 +734,13 @@ public class OrderService : IOrderService, IPosCheckoutService
                 CreatedAt = now
             };
             _context.Payments.Add(payment);
+
+            var cashierUser = cashierUserId.HasValue
+                ? await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.TenantId == tenantId.Value && u.Id == cashierUserId.Value, ct)
+                : null;
+
+            var invoice = SalesInvoiceFactory.Create(order, branch, cashierUser, normalizedMethod, now);
+            _context.SalesInvoices.Add(invoice);
 
             // 16. Lưu xuống DB
             await _context.SaveChangesAsync(ct);
@@ -733,33 +778,31 @@ public class OrderService : IOrderService, IPosCheckoutService
             }
 
             // 18. Xây dựng DTO phản hồi quầy POS
-            var cashierUser = cashierUserId.HasValue
-                ? await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.TenantId == tenantId.Value && u.Id == cashierUserId.Value, ct)
-                : null;
-
             var receipt = new PosReceiptDto
             {
                 OrderId = order.Id,
-                ReceiptNumber = order.Number,
+                ReceiptNumber = invoice.Number,
                 OrderNumber = order.Number,
                 BranchId = branch.Id,
-                BranchName = branch.Name,
-                BranchAddress = branch.Address,
+                BranchName = invoice.BranchNameSnapshot,
+                BranchAddress = invoice.BranchAddressSnapshot,
                 BranchPhone = branch.Phone,
-                CashierName = cashierUser?.FullName ?? "Thu ngân",
-                CustomerName = dto.CustomerName,
-                CustomerPhone = dto.CustomerPhone,
+                CashierName = invoice.IssuedByNameSnapshot ?? cashierUser?.FullName ?? "Thu ngân",
+                CustomerName = invoice.CustomerNameSnapshot ?? dto.CustomerName,
+                CustomerPhone = invoice.CustomerPhoneSnapshot ?? dto.CustomerPhone,
                 TotalAmount = totalAmount,
-                PaymentMethod = normalizedMethod,
+                PaymentMethod = invoice.PaymentMethodSnapshot ?? normalizedMethod,
                 AmountGiven = cashReceived,
                 ChangeDue = changeDue,
-                CreatedAt = order.CreatedAt,
+                CreatedAt = invoice.IssuedAt,
                 Items = createdOrderItems.Select(i => new PosReceiptItemDto
                 {
                     SkuId = i.SkuId,
                     SkuCode = i.SkuCodeSnapshot,
                     ProductName = i.SkuNameSnapshot,
                     VariantName = null,
+                    UnitId = i.UnitId,
+                    UnitName = i.UnitNameSnapshot,
                     Quantity = i.Quantity,
                     UnitPrice = i.UnitPrice
                 }).ToList()
@@ -842,7 +885,8 @@ public class OrderService : IOrderService, IPosCheckoutService
             ExpectedTotalAmount: null,
             CreatedByUserId: createdByUserId,
             IsTrustedMarketplace: false,
-            Items: dto.Items?.Select(i => new InternalOrderCoreItem(i.SkuId, i.SkuCode, i.Quantity, i.UnitPrice)).ToList() ?? new());
+            Items: dto.Items?.Select(i => new InternalOrderCoreItem(i.SkuId, i.SkuCode, i.Quantity, i.UnitPrice, i.UnitId)).ToList() ?? new(),
+            PriceListCode: !string.IsNullOrWhiteSpace(dto.PriceListCode) ? dto.PriceListCode : "retail");
 
         return await CreateReservedOrderCoreAsync(coreReq, ct);
     }
@@ -868,7 +912,8 @@ public class OrderService : IOrderService, IPosCheckoutService
             ExpectedTotalAmount: context.ExpectedTotalAmount,
             CreatedByUserId: context.CreatedByUserId,
             IsTrustedMarketplace: true,
-            Items: context.Items.Select(i => new InternalOrderCoreItem(null, i.SkuCode, i.Quantity, i.UnitPrice)).ToList());
+            Items: context.Items.Select(i => new InternalOrderCoreItem(null, i.SkuCode, i.Quantity, i.UnitPrice)).ToList(),
+            PriceListCode: "retail");
 
         return await CreateReservedOrderCoreAsync(coreReq, ct);
     }
@@ -887,15 +932,183 @@ public class OrderService : IOrderService, IPosCheckoutService
         decimal? ExpectedTotalAmount,
         Guid? CreatedByUserId,
         bool IsTrustedMarketplace,
-        List<InternalOrderCoreItem> Items);
+        List<InternalOrderCoreItem> Items,
+        string PriceListCode = "retail");
 
     private record InternalOrderCoreItem(
         Guid? SkuId,
         string? SkuCode,
         decimal Quantity,
-        decimal UnitPrice);
+        decimal UnitPrice,
+        Guid? UnitId = null);
 
-    private static void ValidateAdminOrderReplayMatch(Order existingOrder, InternalOrderCoreRequest req)
+    private sealed record OrderLineInput(Guid SkuId, Guid? UnitId, decimal Quantity, decimal UnitPrice);
+
+    private sealed class OrderLinePlan
+    {
+        public required Guid SkuId { get; init; }
+        public required ResolvedSkuUnit Unit { get; init; }
+        public required decimal UnitPrice { get; init; }
+        public decimal Quantity { get; set; }
+        public decimal BaseQuantity { get; set; }
+        public Guid? SkuUnitPriceId { get; set; }
+        public required string PriceSource { get; init; }
+    }
+
+    /// <summary>
+    /// Phân giải đơn vị, gom các dòng cùng (SKU, đơn vị) và tính lượng gốc. Hệ số chỉ lấy từ cấu hình server, không nhận từ client.
+    /// </summary>
+    private static List<OrderLinePlan> BuildOrderLines(
+        IEnumerable<OrderLineInput> items,
+        IReadOnlyDictionary<Guid, ProductVariant> skus,
+        bool trustRequestedPrice,
+        IReadOnlyDictionary<SkuUnitPriceKey, ResolvedPrice>? resolvedPrices = null)
+    {
+        var itemsList = items.ToList();
+        var resolvedUnits = new Dictionary<OrderLineInput, ResolvedSkuUnit>();
+
+        foreach (var item in itemsList)
+        {
+            var sku = skus[item.SkuId];
+            var resolved = SkuUnitResolver.ResolveForSale(sku, sku.SkuUnits, item.UnitId);
+            if (!trustRequestedPrice && !resolved.UnitId.HasValue)
+            {
+                throw new OismException("UNIT_PRICE_NOT_CONFIGURED", $"Đơn vị của mặt hàng '{sku.SKU}' chưa được cấu hình đơn vị gốc.", 422);
+            }
+            resolvedUnits[item] = resolved;
+        }
+
+        if (!trustRequestedPrice)
+        {
+            var mismatches = new List<PriceMismatchItem>();
+
+            foreach (var item in itemsList)
+            {
+                var sku = skus[item.SkuId];
+                var resolved = resolvedUnits[item];
+                var key = new SkuUnitPriceKey(item.SkuId, resolved.UnitId!.Value);
+
+                if (resolvedPrices == null || !resolvedPrices.TryGetValue(key, out var price))
+                {
+                    throw new OismException("UNIT_PRICE_NOT_CONFIGURED", $"Đơn vị '{resolved.UnitName}' của mặt hàng '{sku.SKU}' chưa được cấu hình giá bán.", 422);
+                }
+
+                if (item.UnitPrice != price.Price)
+                {
+                    mismatches.Add(new PriceMismatchItem(item.SkuId, sku.SKU, resolved.UnitId, price.Price));
+                }
+            }
+
+            if (mismatches.Count > 0)
+            {
+                var distinctMismatches = mismatches
+                    .GroupBy(m => (m.SkuId, m.UnitId))
+                    .Select(g => g.First())
+                    .ToList();
+                throw new PriceMismatchException("Đơn giá của mặt hàng trong giỏ hàng không khớp với giá niêm yết của hệ thống.", distinctMismatches);
+            }
+        }
+
+        var lines = new List<OrderLinePlan>();
+        foreach (var item in itemsList)
+        {
+            var sku = skus[item.SkuId];
+            var resolved = resolvedUnits[item];
+
+            Guid? skuUnitPriceId = null;
+            string priceSource = "Marketplace";
+            decimal finalUnitPrice = item.UnitPrice;
+
+            if (!trustRequestedPrice)
+            {
+                var key = new SkuUnitPriceKey(item.SkuId, resolved.UnitId!.Value);
+                var price = resolvedPrices![key];
+                skuUnitPriceId = price.SkuUnitPriceId;
+                priceSource = "PriceList";
+                finalUnitPrice = price.Price;
+            }
+
+            var line = lines.FirstOrDefault(l => l.SkuId == item.SkuId && l.Unit.UnitId == resolved.UnitId);
+            if (line == null)
+            {
+                lines.Add(new OrderLinePlan
+                {
+                    SkuId = item.SkuId,
+                    Unit = resolved,
+                    UnitPrice = finalUnitPrice,
+                    Quantity = item.Quantity,
+                    SkuUnitPriceId = skuUnitPriceId,
+                    PriceSource = priceSource
+                });
+                continue;
+            }
+
+            line.Quantity += item.Quantity;
+            if (line.Quantity > MaxQuantityAmount)
+            {
+                throw new OismException("VALIDATION_ERROR", $"Tổng số lượng mặt hàng SKU '{sku.SKU}' vượt quá giới hạn tối đa cho phép của hệ thống.", 400);
+            }
+        }
+
+        foreach (var line in lines)
+        {
+            line.BaseQuantity = SkuUnitResolver.ComputeBaseQuantity(line.Quantity, line.Unit);
+        }
+
+        return lines;
+    }
+
+    private static Dictionary<Guid, decimal> SumBaseQuantityBySku(IEnumerable<OrderLinePlan> lines)
+    {
+        var totals = new Dictionary<Guid, decimal>();
+        foreach (var line in lines)
+        {
+            var total = totals.GetValueOrDefault(line.SkuId) + line.BaseQuantity;
+            if (total > MaxQuantityAmount)
+            {
+                throw new OismException("VALIDATION_ERROR", $"Tổng số lượng mặt hàng SKU '{line.SkuId}' vượt quá giới hạn tối đa cho phép của hệ thống.", 400);
+            }
+            totals[line.SkuId] = total;
+        }
+        return totals;
+    }
+
+    /// <summary>
+    /// Chia phân bổ kho của một SKU cho từng dòng đơn; phần đã lấy được trừ khỏi danh sách còn lại.
+    /// </summary>
+    private static List<(Warehouse Warehouse, WarehouseInventoryBalance Balance, decimal Quantity)> TakeAllocations(
+        List<(Warehouse Warehouse, WarehouseInventoryBalance Balance, decimal Quantity)> remaining,
+        decimal quantity)
+    {
+        var taken = new List<(Warehouse Warehouse, WarehouseInventoryBalance Balance, decimal Quantity)>();
+        for (var i = 0; i < remaining.Count && quantity > 0; i++)
+        {
+            var entry = remaining[i];
+            var take = Math.Min(entry.Quantity, quantity);
+            if (take <= 0) continue;
+
+            taken.Add((entry.Warehouse, entry.Balance, take));
+            remaining[i] = (entry.Warehouse, entry.Balance, entry.Quantity - take);
+            quantity -= take;
+        }
+        return taken;
+    }
+
+    private static Guid? NormalizeUnit(Guid? unitId, Guid skuId, IReadOnlyDictionary<Guid, Guid?> baseUnits)
+    {
+        return !unitId.HasValue || (baseUnits.TryGetValue(skuId, out var baseUnitId) && unitId == baseUnitId) ? null : unitId;
+    }
+
+    private async Task<Dictionary<Guid, Guid?>> LoadBaseUnitsAsync(IEnumerable<Guid> skuIds, CancellationToken ct)
+    {
+        var ids = skuIds.Distinct().ToList();
+        return await _context.ProductVariants
+            .AsNoTracking()
+            .Where(v => ids.Contains(v.Id))
+            .ToDictionaryAsync(v => v.Id, v => v.BaseUnitId, ct);
+    }
+
+    private static void ValidateAdminOrderReplayMatch(Order existingOrder, InternalOrderCoreRequest req, IReadOnlyDictionary<Guid, Guid?> baseUnits)
     {
         // So sánh Kênh bán
         if (!string.Equals(existingOrder.Channel, "Admin", StringComparison.OrdinalIgnoreCase))
@@ -933,7 +1146,7 @@ public class OrderService : IOrderService, IPosCheckoutService
 
         // So sánh danh mục SKU
         var existingItemSummary = existingOrder.Items
-            .GroupBy(i => i.SkuId)
+            .GroupBy(i => (i.SkuId, UnitId: NormalizeUnit(i.UnitId, i.SkuId, baseUnits)))
             .ToDictionary(g => g.Key, g => new
             {
                 Quantity = g.Sum(x => x.Quantity),
@@ -941,7 +1154,7 @@ public class OrderService : IOrderService, IPosCheckoutService
             });
 
         var requestItemSummary = req.Items
-            .GroupBy(i => i.SkuId!.Value)
+            .GroupBy(i => (SkuId: i.SkuId!.Value, UnitId: NormalizeUnit(i.UnitId, i.SkuId!.Value, baseUnits)))
             .ToDictionary(g => g.Key, g => new
             {
                 Quantity = g.Sum(x => x.Quantity),
@@ -957,17 +1170,31 @@ public class OrderService : IOrderService, IPosCheckoutService
         {
             if (!requestItemSummary.TryGetValue(kv.Key, out var reqData))
             {
-                throw new IdempotencyPayloadMismatchException($"RequestKey đã được sử dụng với danh mục SKU khác (thiếu SKU '{kv.Key}').");
+                throw new IdempotencyPayloadMismatchException($"RequestKey đã được sử dụng với danh mục SKU khác (thiếu SKU '{kv.Key.SkuId}').");
             }
 
             if (reqData.Quantity != kv.Value.Quantity)
             {
-                throw new IdempotencyPayloadMismatchException($"RequestKey đã được sử dụng với số lượng mua khác cho SKU '{kv.Key}'.");
+                throw new IdempotencyPayloadMismatchException($"RequestKey đã được sử dụng với số lượng mua khác cho SKU '{kv.Key.SkuId}'.");
             }
 
             if (reqData.UnitPrice != kv.Value.UnitPrice)
             {
-                throw new IdempotencyPayloadMismatchException($"RequestKey đã được sử dụng với đơn giá khác cho SKU '{kv.Key}'.");
+                throw new IdempotencyPayloadMismatchException($"RequestKey đã được sử dụng với đơn giá khác cho SKU '{kv.Key.SkuId}'.");
+            }
+        }
+
+        // So sánh Bảng giá
+        var priceListItems = existingOrder.Items
+            .Where(i => i.PriceSource == "PriceList" && i.SkuUnitPrice != null)
+            .ToList();
+        if (priceListItems.Count > 0)
+        {
+            var existingPriceListCode = priceListItems.First().SkuUnitPrice?.PriceList?.Code;
+            var reqPriceListCode = !string.IsNullOrWhiteSpace(req.PriceListCode) ? req.PriceListCode : "retail";
+            if (existingPriceListCode != null && !string.Equals(existingPriceListCode, reqPriceListCode, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new IdempotencyPayloadMismatchException("RequestKey đã được sử dụng với bảng giá khác.");
             }
         }
     }
@@ -1043,7 +1270,7 @@ public class OrderService : IOrderService, IPosCheckoutService
         // Kiểm tra tính nhất quán đơn giá nếu có dòng trùng SKU
         if (!req.IsTrustedMarketplace)
         {
-            foreach (var g in req.Items.GroupBy(i => i.SkuId!.Value))
+            foreach (var g in req.Items.GroupBy(i => (i.SkuId, i.UnitId)))
             {
                 if (g.Select(x => Math.Round(x.UnitPrice, 2)).Distinct().Count() > 1)
                 {
@@ -1067,12 +1294,14 @@ public class OrderService : IOrderService, IPosCheckoutService
         {
             var existingOrderByKey = await _context.Orders
                 .Include(o => o.Items)
+                    .ThenInclude(i => i.SkuUnitPrice)
+                        .ThenInclude(p => p.PriceList)
                 .Include(o => o.Payment)
                 .FirstOrDefaultAsync(o => o.TenantId == tenantId && o.RequestKey == req.RequestKey, ct);
 
             if (existingOrderByKey != null)
             {
-                ValidateAdminOrderReplayMatch(existingOrderByKey, req);
+                ValidateAdminOrderReplayMatch(existingOrderByKey, req, await LoadBaseUnitsAsync(existingOrderByKey.Items.Select(i => i.SkuId).Concat(req.Items.Select(i => i.SkuId!.Value)), ct));
                 _logger.LogInformation("Idempotent fast replay cho tạo đơn hàng trực tuyến với RequestKey {RequestKey}. Trả kết quả đơn {OrderNumber}.", req.RequestKey, existingOrderByKey.Number);
                 var replayDto = await MapToOrderResponseDtoAsync(existingOrderByKey, ct);
                 replayDto.IsReplay = true;
@@ -1121,6 +1350,8 @@ public class OrderService : IOrderService, IPosCheckoutService
             var requestedSkuIds = req.Items.Select(i => i.SkuId!.Value).Distinct().ToList();
             skus = await _context.ProductVariants
                 .Include(v => v.Product)
+                .Include(v => v.SkuUnits)
+                    .ThenInclude(u => u.Unit)
                 .Where(v => v.TenantId == tenantId && requestedSkuIds.Contains(v.Id))
                 .ToDictionaryAsync(v => v.Id, ct);
 
@@ -1135,6 +1366,8 @@ public class OrderService : IOrderService, IPosCheckoutService
             var requestedSkuCodes = req.Items.Select(i => i.SkuCode!.Trim().ToUpperInvariant()).Distinct().ToList();
             var skuList = await _context.ProductVariants
                 .Include(v => v.Product)
+                .Include(v => v.SkuUnits)
+                    .ThenInclude(u => u.Unit)
                 .Where(v => v.TenantId == tenantId && requestedSkuCodes.Contains(v.SKU.ToUpper()))
                 .ToListAsync(ct);
 
@@ -1157,49 +1390,49 @@ public class OrderService : IOrderService, IPosCheckoutService
             }
         }
 
-        // Gom nhóm số lượng theo SkuId
-        var groupedItems = new Dictionary<Guid, decimal>();
-        var itemUnitPrices = new Dictionary<Guid, decimal>();
-
-        foreach (var item in req.Items)
-        {
-            Guid skuId = !req.IsTrustedMarketplace ? item.SkuId!.Value : skusByCode[item.SkuCode!.Trim().ToUpperInvariant()].Id;
-
-            if (groupedItems.TryGetValue(skuId, out var existingQty))
-            {
-                var newQty = existingQty + item.Quantity;
-                if (newQty > MaxQuantityAmount)
-                {
-                    throw new OismException("VALIDATION_ERROR", $"Tổng số lượng mặt hàng SKU '{item.SkuCode}' vượt quá giới hạn tối đa cho phép của hệ thống.", 400);
-                }
-                groupedItems[skuId] = newQty;
-            }
-            else
-            {
-                groupedItems[skuId] = item.Quantity;
-                itemUnitPrices[skuId] = item.UnitPrice;
-            }
-        }
-
-        // Kiểm tra đơn giá khớp với RetailPrice niêm yết trong Catalog đối với Admin
+        var priceListCode = !string.IsNullOrWhiteSpace(req.PriceListCode) ? req.PriceListCode.Trim().ToLowerInvariant() : "retail";
+        IReadOnlyDictionary<SkuUnitPriceKey, ResolvedPrice>? resolvedPrices = null;
         if (!req.IsTrustedMarketplace)
         {
+            if (priceListCode != "retail" && priceListCode != "wholesale")
+            {
+                throw new PriceListNotFoundException(priceListCode);
+            }
+
+            var priceKeys = new HashSet<SkuUnitPriceKey>();
             foreach (var item in req.Items)
             {
-                var catalogSku = skus[item.SkuId!.Value];
-                if (item.UnitPrice != catalogSku.RetailPrice)
+                var skuId = item.SkuId!.Value;
+                var sku = skus[skuId];
+                var resolved = SkuUnitResolver.ResolveForSale(sku, sku.SkuUnits, item.UnitId);
+                if (!resolved.UnitId.HasValue)
                 {
-                    throw new OismException("PRICE_MISMATCH", $"Đơn giá của mặt hàng '{catalogSku.SKU}' ({item.UnitPrice:N0}đ) không khớp với giá bán lẻ niêm yết của hệ thống ({catalogSku.RetailPrice:N0}đ).", 400);
+                    throw new OismException("UNIT_PRICE_NOT_CONFIGURED", $"Đơn vị của mặt hàng '{sku.SKU}' chưa được cấu hình đơn vị gốc.", 422);
                 }
+                priceKeys.Add(new SkuUnitPriceKey(skuId, resolved.UnitId.Value));
             }
+
+            resolvedPrices = await _skuPriceResolver.ResolveAsync(priceListCode, priceKeys, DateTimeOffset.UtcNow, ct);
         }
+
+        // Phân giải đơn vị, gom dòng theo (SKU, đơn vị); Admin kiểm giá theo niêm yết của đúng đơn vị, sàn TMĐT giữ giá từ payload
+        var orderLines = BuildOrderLines(
+            req.Items.Select(i => new OrderLineInput(
+                !req.IsTrustedMarketplace ? i.SkuId!.Value : skusByCode[i.SkuCode!.Trim().ToUpperInvariant()].Id,
+                i.UnitId,
+                i.Quantity,
+                i.UnitPrice)),
+            skus,
+            trustRequestedPrice: req.IsTrustedMarketplace,
+            resolvedPrices: resolvedPrices);
+        var groupedItems = SumBaseQuantityBySku(orderLines);
 
         // Tính tổng tiền đơn hàng phía Server
         decimal totalAmount = 0m;
-        foreach (var kv in groupedItems)
+        foreach (var line in orderLines)
         {
-            var unitPrice = !req.IsTrustedMarketplace ? skus[kv.Key].RetailPrice : itemUnitPrices[kv.Key];
-            var qty = kv.Value;
+            var unitPrice = line.UnitPrice;
+            var qty = line.Quantity;
             try
             {
                 checked
@@ -1281,12 +1514,14 @@ public class OrderService : IOrderService, IPosCheckoutService
                 {
                     var existingOrder = await _context.Orders
                         .Include(o => o.Items)
+                            .ThenInclude(i => i.SkuUnitPrice)
+                                .ThenInclude(p => p.PriceList)
                         .Include(o => o.Payment)
                         .FirstOrDefaultAsync(o => o.TenantId == tenantId && o.RequestKey == req.RequestKey, ct);
 
                     if (existingOrder != null)
                     {
-                        ValidateAdminOrderReplayMatch(existingOrder, req);
+                        ValidateAdminOrderReplayMatch(existingOrder, req, await LoadBaseUnitsAsync(existingOrder.Items.Select(i => i.SkuId).Concat(req.Items.Select(i => i.SkuId!.Value)), ct));
                         _logger.LogInformation("Idempotent replay dÆ°á»›i khÃ³a cho táº¡o Ä‘Æ¡n hÃ ng trá»±c tuyáº¿n vá»›i RequestKey {RequestKey}. Tráº£ káº¿t quáº£ Ä‘Æ¡n {OrderNumber}.", req.RequestKey, existingOrder.Number);
                         await tx.CommitAsync(ct);
                         var replayDto = await MapToOrderResponseDtoAsync(existingOrder, ct);
@@ -1317,6 +1552,38 @@ public class OrderService : IOrderService, IPosCheckoutService
                         var replayDto = await MapToOrderResponseDtoAsync(existingOrder, ct);
                         replayDto.IsReplay = true;
                         return replayDto;
+                    }
+                }
+
+                // 6b. Đọc lại giá dưới khóa SKU: giá mới có thể đã có hiệu lực trong lúc đơn đợi khóa
+                if (!req.IsTrustedMarketplace)
+                {
+                    var lockedPrices = await _skuPriceResolver.ResolveAsync(
+                        priceListCode,
+                        orderLines.Select(l => new SkuUnitPriceKey(l.SkuId, l.Unit.UnitId!.Value)).ToHashSet(),
+                        DateTimeOffset.UtcNow,
+                        ct);
+
+                    var changedPrices = new List<PriceMismatchItem>();
+                    foreach (var line in orderLines)
+                    {
+                        if (!lockedPrices.TryGetValue(new SkuUnitPriceKey(line.SkuId, line.Unit.UnitId!.Value), out var lockedPrice))
+                        {
+                            throw new OismException("UNIT_PRICE_NOT_CONFIGURED", $"Đơn vị '{line.Unit.UnitName}' của mặt hàng '{skus[line.SkuId].SKU}' chưa được cấu hình giá bán.", 422);
+                        }
+
+                        if (lockedPrice.Price != line.UnitPrice)
+                        {
+                            changedPrices.Add(new PriceMismatchItem(line.SkuId, skus[line.SkuId].SKU, line.Unit.UnitId, lockedPrice.Price));
+                            continue;
+                        }
+
+                        line.SkuUnitPriceId = lockedPrice.SkuUnitPriceId;
+                    }
+
+                    if (changedPrices.Count > 0)
+                    {
+                        throw new PriceMismatchException("Đơn giá của mặt hàng trong giỏ hàng không khớp với giá niêm yết của hệ thống.", changedPrices);
                     }
                 }
 
@@ -1452,13 +1719,12 @@ public class OrderService : IOrderService, IPosCheckoutService
                 var createdOrderItems = new List<OrderItem>();
                 var createdReservations = new List<Reservation>();
 
-                foreach (var kv in groupedItems)
+                foreach (var line in orderLines)
                 {
-                    var skuId = kv.Key;
-                    var qty = kv.Value;
+                    var skuId = line.SkuId;
                     var sku = skus[skuId];
                     var bBal = branchBalances[skuId];
-                    var unitPrice = !req.IsTrustedMarketplace ? sku.RetailPrice : itemUnitPrices[skuId];
+                    var unitPrice = line.UnitPrice;
 
                     var orderItem = new OrderItem
                     {
@@ -1468,15 +1734,20 @@ public class OrderService : IOrderService, IPosCheckoutService
                         SkuId = skuId,
                         SkuCodeSnapshot = sku.SKU,
                         SkuNameSnapshot = string.IsNullOrWhiteSpace(sku.VariantName) ? sku.Product?.Name ?? sku.SKU : $"{sku.Product?.Name ?? sku.SKU} - {sku.VariantName}",
-                        Quantity = qty,
+                        UnitId = line.Unit.UnitId,
+                        UnitNameSnapshot = line.Unit.UnitName,
+                        FactorSnapshot = line.Unit.Factor,
+                        Quantity = line.Quantity,
                         UnitPrice = Math.Round(unitPrice, 2, MidpointRounding.AwayFromZero),
                         CostPrice = null, // CostPrice chỉ được snapshot khi Confirmed/Completed
+                        SkuUnitPriceId = line.SkuUnitPriceId,
+                        PriceSource = line.PriceSource,
                         CreatedAt = now
                     };
                     _context.OrderItems.Add(orderItem);
                     createdOrderItems.Add(orderItem);
 
-                    var allocs = allocationPlan[skuId];
+                    var allocs = TakeAllocations(allocationPlan[skuId], line.BaseQuantity);
                     foreach (var alloc in allocs)
                     {
                         // Tăng Reserved ở cấp kho và cấp chi nhánh; OnHand không đổi
@@ -1710,9 +1981,9 @@ public class OrderService : IOrderService, IPosCheckoutService
                     }
 
                     var totalAllocated = itemResList.Sum(r => r.Quantity);
-                    if (totalAllocated != item.Quantity)
+                    if (totalAllocated != item.BaseQuantity)
                     {
-                        throw new OismException("INVALID_STATE_TRANSITION", $"Số lượng giữ chỗ ({totalAllocated:G29}) không khớp với số lượng yêu cầu ({item.Quantity:G29}) của dòng đơn hàng SKU '{item.SkuCodeSnapshot}'.", 409);
+                        throw new OismException("INVALID_STATE_TRANSITION", $"Số lượng giữ chỗ ({totalAllocated:G29}) không khớp với lượng gốc yêu cầu ({item.BaseQuantity:G29}) của dòng đơn hàng SKU '{item.SkuCodeSnapshot}'.", 409);
                     }
                 }
 
@@ -1794,6 +2065,17 @@ public class OrderService : IOrderService, IPosCheckoutService
                 // 8. Cập nhật trạng thái đơn hàng sang Confirmed
                 order.Status = "Confirmed";
                 order.ConfirmedAt = now;
+                order.ConfirmedBy = confirmedByUserId;
+
+                var branch = await _context.Branches.AsNoTracking()
+                    .FirstOrDefaultAsync(b => b.TenantId == tenantId.Value && b.Id == order.BranchId, ct);
+                var confirmedByUser = confirmedByUserId.HasValue
+                    ? await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.TenantId == tenantId.Value && u.Id == confirmedByUserId.Value, ct)
+                    : null;
+                var paymentMethod = order.Payment?.Method;
+
+                var invoice = SalesInvoiceFactory.Create(order, branch, confirmedByUser, paymentMethod, now);
+                _context.SalesInvoices.Add(invoice);
 
                 await _context.SaveChangesAsync(ct);
 
@@ -2122,10 +2404,16 @@ public class OrderService : IOrderService, IPosCheckoutService
             .Select(b => b.Name)
             .FirstOrDefaultAsync(ct);
 
+        var invoiceInfo = await _context.SalesInvoices
+            .AsNoTracking()
+            .Where(s => s.TenantId == order.TenantId && s.OrderId == order.Id)
+            .Select(s => new { s.Id, s.Number })
+            .FirstOrDefaultAsync(ct);
+
         decimal? totalCogs = null;
         if (order.Items != null && order.Items.Count > 0 && order.Items.All(i => i.CostPrice.HasValue))
         {
-            totalCogs = Math.Round(order.Items.Sum(i => i.Quantity * i.CostPrice!.Value), 6, MidpointRounding.AwayFromZero);
+            totalCogs = Math.Round(order.Items.Sum(i => i.BaseQuantity * i.CostPrice!.Value), 6, MidpointRounding.AwayFromZero);
             if (totalCogs > MaxMoneyAmount)
             {
                 totalCogs = MaxMoneyAmount;
@@ -2149,6 +2437,9 @@ public class OrderService : IOrderService, IPosCheckoutService
             TotalCogs = totalCogs,
             RequestKey = order.RequestKey,
             CreatedBy = order.CreatedBy,
+            ConfirmedBy = order.ConfirmedBy,
+            SalesInvoiceId = invoiceInfo?.Id,
+            SalesInvoiceNumber = invoiceInfo?.Number,
             ConfirmedAt = order.ConfirmedAt,
             CompletedAt = order.CompletedAt,
             CancelledAt = order.CancelledAt,
@@ -2159,6 +2450,10 @@ public class OrderService : IOrderService, IPosCheckoutService
                 SkuId = i.SkuId,
                 SkuCodeSnapshot = i.SkuCodeSnapshot,
                 SkuNameSnapshot = i.SkuNameSnapshot,
+                UnitId = i.UnitId,
+                UnitName = i.UnitNameSnapshot,
+                FactorSnapshot = i.FactorSnapshot,
+                BaseQuantity = i.BaseQuantity,
                 Quantity = i.Quantity,
                 UnitPrice = i.UnitPrice,
                 CostPrice = i.CostPrice
@@ -2311,7 +2606,17 @@ public class OrderService : IOrderService, IPosCheckoutService
             return null;
         }
 
-        return MapToDetailDto(order);
+        var invoice = await _context.SalesInvoices
+            .AsNoTracking()
+            .Where(s => s.TenantId == tenantId.Value && s.OrderId == order.Id)
+            .Select(s => new { s.Id, s.Number })
+            .FirstOrDefaultAsync(ct);
+
+        var detail = MapToDetailDto(order);
+        detail.ConfirmedBy = order.ConfirmedBy;
+        detail.SalesInvoiceId = invoice?.Id;
+        detail.SalesInvoiceNumber = invoice?.Number;
+        return detail;
     }
 
     public async Task<OrderDetailDto> CreateOrderAsync(CreateOrderDto dto, Guid? userId, CancellationToken ct = default)
@@ -2333,6 +2638,7 @@ public class OrderService : IOrderService, IPosCheckoutService
             Items = dto.Items.Select(i => new OrderItemRequestDto
             {
                 SkuId = i.SkuId,
+                UnitId = i.UnitId,
                 Quantity = i.Quantity,
                 UnitPrice = i.UnitPrice
             }).ToList()
@@ -2453,6 +2759,7 @@ public class OrderService : IOrderService, IPosCheckoutService
             RequestKey = order.RequestKey,
             ItemCount = order.Items?.Count ?? 0,
             CreatedAt = order.CreatedAt,
+            ConfirmedBy = order.ConfirmedBy,
             ConfirmedAt = order.ConfirmedAt,
             CompletedAt = order.CompletedAt,
             CancelledAt = order.CancelledAt,
@@ -2462,6 +2769,10 @@ public class OrderService : IOrderService, IPosCheckoutService
                 SkuId = i.SkuId,
                 SkuCode = i.SkuCodeSnapshot ?? i.Sku?.SKU ?? string.Empty,
                 SkuName = i.SkuNameSnapshot ?? i.Sku?.Product?.Name ?? string.Empty,
+                UnitId = i.UnitId,
+                UnitName = i.UnitNameSnapshot,
+                FactorSnapshot = i.FactorSnapshot,
+                BaseQuantity = i.BaseQuantity,
                 Quantity = i.Quantity,
                 UnitPrice = i.UnitPrice,
                 CostPrice = i.CostPrice

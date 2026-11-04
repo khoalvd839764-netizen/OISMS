@@ -189,7 +189,16 @@ export async function scanPosBarcode(barcode: string, branchId?: string): Promis
 /**
  * Gửi yêu cầu Checkout thanh toán theo đề xuất DTO POS
  */
-export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{ success: boolean; message: string; orderNumber?: string; isPendingBackend?: boolean }> {
+export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{
+  success: boolean;
+  message: string;
+  orderNumber?: string;
+  receiptNumber?: string;
+  receipt?: any;
+  isPendingBackend?: boolean;
+  errorCode?: string;
+  currentPrices?: Array<{ skuId: string; skuCode?: string; unitId?: string | null; currentPrice: number }>;
+}> {
   try {
     const res = await fetch(`${API_BASE_URL}/api/orders/checkout`, {
       method: 'POST',
@@ -197,12 +206,35 @@ export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{ s
       body: JSON.stringify(request),
     });
 
+    if (res.status === 401) {
+      removeAuthToken();
+      window.dispatchEvent(new CustomEvent('pos-auth-expired'));
+      const errData = await res.json().catch(() => ({}));
+      const codeSuffix = errData.errorCode ? ` [${errData.errorCode}]` : '';
+      const detail = (errData.detail || errData.message || 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.') + codeSuffix;
+      return {
+        success: false,
+        message: detail,
+      };
+    }
+
     if (res.ok) {
-      const data = await res.json().catch(() => ({}));
+      const data = await res.json().catch(() => null);
+      const rawOrderNumber = data?.orderNumber || data?.number || data?.id || data?.orderId;
+      const serverOrderNumber = rawOrderNumber ? String(rawOrderNumber).trim() : '';
+      if (!data || !serverOrderNumber || serverOrderNumber === '00000000-0000-0000-0000-000000000000') {
+        return {
+          success: false,
+          message: 'Phản hồi thanh toán từ máy chủ không đúng định dạng (thiếu định danh đơn hàng). Giỏ hàng được giữ nguyên để đối soát.',
+        };
+      }
+      const receiptNumber = data?.receipt?.receiptNumber || data?.receiptNumber || serverOrderNumber;
       return {
         success: true,
         message: 'Thanh toán đơn hàng thành công!',
-        orderNumber: data.orderNumber || data.number,
+        orderNumber: serverOrderNumber,
+        receiptNumber,
+        receipt: data?.receipt,
       };
     }
 
@@ -216,9 +248,13 @@ export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{ s
     }
 
     const err = await res.json().catch(() => ({}));
+    const errorCode = err.errorCode || err.extensions?.errorCode;
+    const codeStr = errorCode ? ` [${errorCode}]` : '';
     return {
       success: false,
-      message: err.message || `Thanh toán thất bại (Mã lỗi ${res.status}).`,
+      message: (err.detail || err.message || `Thanh toán thất bại (Mã lỗi ${res.status}).`) + codeStr,
+      errorCode,
+      currentPrices: err.currentPrices || err.extensions?.currentPrices,
     };
   } catch (err: any) {
     return {

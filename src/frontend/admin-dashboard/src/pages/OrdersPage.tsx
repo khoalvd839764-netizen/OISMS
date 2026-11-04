@@ -1,6 +1,8 @@
 import { AlertCircle, Plus, RefreshCw, ShoppingBag } from "lucide-react";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
+import { pricingService } from "../services/pricingService";
+import type { EffectivePrice } from "../types/pricing";
 import { Button, Input, Modal, Select } from "../components/ui";
 import { apiAdapter, generateUuid, getPendingOrderStorageKey } from "../services/apiAdapter";
 import { useAuth } from "../context/AuthContext";
@@ -104,6 +106,17 @@ export function OrdersPage() {
   const [newWarehouseId, setNewWarehouseId] = useState("");
   const [newSkuId, setNewSkuId] = useState("");
   const [newQuantity, setNewQuantity] = useState(1);
+  const [newUnitId, setNewUnitId] = useState<string>("");
+  const [newPriceListCode, setNewPriceListCode] = useState<"retail" | "wholesale">("retail");
+  const [overridePrice, setOverridePrice] = useState<number | null>(null);
+  const [effectivePrices, setEffectivePrices] = useState<EffectivePrice[]>([]);
+  const [loadingPrices, setLoadingPrices] = useState(false);
+  const [priceLoadError, setPriceLoadError] = useState<string | null>(null);
+  const priceReqSeqRef = useRef(0);
+  const [priceMismatchNotice, setPriceMismatchNotice] = useState<{
+    message: string;
+    currentPrices: Array<{ skuId: string; skuCode: string; unitId?: string | null; currentPrice: number }>;
+  } | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
   const [loadingCreate, setLoadingCreate] = useState(false);
 
@@ -141,14 +154,18 @@ export function OrdersPage() {
     loadOrders();
   }, [loadOrders]);
 
-  // Lắng nghe sự kiện SignalR OrderCreated để tự động nạp lại bảng
+  // [BF-016] Lắng nghe sự kiện SignalR OrderCreated, ReservationExpired và Reconnected để tự động nạp lại bảng đơn hàng
   useEffect(() => {
-    const handleOrderCreated = () => {
+    const handleOrderRefresh = () => {
       loadOrders();
     };
-    window.addEventListener("oism:order-created", handleOrderCreated);
+    window.addEventListener("oism:order-created", handleOrderRefresh);
+    window.addEventListener("oism:reservation-expired", handleOrderRefresh);
+    window.addEventListener("oism:realtime-reconnected", handleOrderRefresh);
     return () => {
-      window.removeEventListener("oism:order-created", handleOrderCreated);
+      window.removeEventListener("oism:order-created", handleOrderRefresh);
+      window.removeEventListener("oism:reservation-expired", handleOrderRefresh);
+      window.removeEventListener("oism:realtime-reconnected", handleOrderRefresh);
     };
   }, [loadOrders]);
 
@@ -253,6 +270,38 @@ export function OrdersPage() {
     setCreateError(null);
   };
 
+  // Đơn vị bán được phép của SKU đang chọn; giá lấy theo đúng đơn vị và bảng giá từ server
+  const chosenSkuForForm = skusList.find((s) => s.id === newSkuId);
+  const sellableUnits = (chosenSkuForForm?.units || []).filter((u) => u.isActive !== false && u.canSell !== false);
+  const resolvedUnitId =
+    (sellableUnits.some((u) => u.unitId === newUnitId) ? newUnitId : "") ||
+    sellableUnits.find((u) => u.isBase)?.unitId ||
+    chosenSkuForForm?.baseUnitId ||
+    "";
+  const listedUnitPrice = effectivePrices.find((p) => p.unitId === resolvedUnitId)?.price ?? null;
+  const unitPriceForForm = overridePrice ?? listedUnitPrice;
+
+  useEffect(() => {
+    if (!createModal || !newSkuId || pendingSnapshot) return;
+    const seq = ++priceReqSeqRef.current;
+    setLoadingPrices(true);
+    setPriceLoadError(null);
+    setEffectivePrices([]);
+    pricingService
+      .getEffectivePrice(newSkuId, newPriceListCode)
+      .then((prices) => {
+        if (seq === priceReqSeqRef.current) setEffectivePrices(prices);
+      })
+      .catch((err: any) => {
+        if (seq === priceReqSeqRef.current) {
+          setPriceLoadError(err?.response?.data?.detail || "Không thể tải giá bán hiện hành.");
+        }
+      })
+      .finally(() => {
+        if (seq === priceReqSeqRef.current) setLoadingPrices(false);
+      });
+  }, [createModal, newSkuId, newPriceListCode, pendingSnapshot]);
+
   const handleFormChange = () => {
     // B01-F02: Tuyệt đối không cho phép gõ phím làm mất pending hoặc sinh key mới khi đang có pending snapshot
     if (isRetryingOrder || isUnknownState || pendingSnapshot) {
@@ -297,9 +346,23 @@ export function OrdersPage() {
       keyToSend = orderIdempotencyKey || generateUuid();
       setOrderIdempotencyKey(keyToSend);
 
+      if (loadingPrices) {
+        setCreateError("Đang tải giá bán hiện hành, vui lòng thử lại sau giây lát.");
+        return;
+      }
+      if (priceLoadError) {
+        setCreateError(priceLoadError);
+        return;
+      }
+      if (unitPriceForForm == null) {
+        setCreateError("Đơn vị này chưa có giá trong bảng giá đã chọn. Vui lòng tạo phiếu đổi giá trước khi bán.");
+        return;
+      }
+
       payloadToSend = {
         branchId: newBranchId,
         channel: "Admin", // B01-F01: Khóa chặt contract channel Admin cho đơn tạo thủ công
+        priceListCode: newPriceListCode,
         customerName: newCustomer.trim() || "Khách lẻ",
         requestKey: keyToSend,
         items: [
@@ -308,8 +371,9 @@ export function OrdersPage() {
             skuCode: chosenSku.code,
             productName: chosenSku.name,
             variantName: chosenSku.variant,
+            unitId: resolvedUnitId || undefined,
             quantity: newQuantity,
-            unitPrice: chosenSku.sellingPrice || 0, // Lưu snapshot giá tại thời điểm tạo
+            unitPrice: unitPriceForForm, // Lưu snapshot giá tại thời điểm tạo
           },
         ],
       };
@@ -346,6 +410,9 @@ export function OrdersPage() {
       setIsUnknownState(false);
       setCreateModal(false);
       setNewQuantity(1);
+      setNewUnitId("");
+      setOverridePrice(null);
+      setPriceMismatchNotice(null);
       await loadOrders();
     } catch (err: any) {
       const status = err?.response?.status;
@@ -355,6 +422,20 @@ export function OrdersPage() {
 
       // Phân định Definite Failure vs Indeterminate / Unknown State (B01-F02)
       if (status === 400) {
+        if (errorCode === "PRICE_MISMATCH") {
+          const mismatchList = data?.currentPrices || data?.extensions?.currentPrices || [];
+          setPriceMismatchNotice({
+            message: errorDetail,
+            currentPrices: mismatchList,
+          });
+          setCreateError(`Phát hiện giá niêm yết đã thay đổi: ${errorDetail}`);
+          clearSavedPendingOrder(account.tenantId, account.id);
+          setPendingSnapshot(null);
+          setIsRetryingOrder(false);
+          setIsUnknownState(false);
+          return;
+        }
+
         // Lỗi xác thực dứt khoát: cho phép sửa lại form
         const msg = `Lỗi xác thực dữ liệu (400): ${errorDetail}`;
         setCreateError(msg);
@@ -390,6 +471,13 @@ export function OrdersPage() {
           setIsRetryingOrder(true);
           setIsUnknownState(true);
         }
+      } else if (status && status >= 400 && status < 500 && status !== 408 && status !== 429) {
+        // Các lỗi 4xx còn lại, ví dụ 422 chưa cấu hình giá: server đã từ chối dứt khoát, cho phép sửa lại form
+        setCreateError(errorDetail);
+        clearSavedPendingOrder(account.tenantId, account.id);
+        setPendingSnapshot(null);
+        setIsRetryingOrder(false);
+        setIsUnknownState(false);
       } else {
         // Timeout mạng, rớt kết nối, lỗi 5xx -> Trạng thái Unknown (B01-F02)
         const msg = `Mất kết nối hoặc phản hồi chưa rõ từ máy chủ (${status || "Mạng"}). Đang bảo lưu nguyên vẹn yêu cầu để thử lại an toàn: ${errorDetail}`;
@@ -542,6 +630,22 @@ export function OrdersPage() {
                       required
                     />
                   </label>
+                  {(() => {
+                    const chosen = chosenSkuForForm;
+                    const selectedUnit = chosen?.units?.find((u) => u.unitId === resolvedUnitId);
+                    const factor = selectedUnit?.factorToBase || 1;
+                    const baseQty = newQuantity * factor;
+                    return (
+                      <div style={{ gridColumn: "1 / -1", fontSize: "12px", color: "#475569", padding: "6px 10px", background: "#f8fafc", borderRadius: "6px", border: "1px solid #e2e8f0" }}>
+                        Lượng giao dịch: <strong>{newQuantity} {selectedUnit?.unitName || chosen?.baseUnitName || "SP"}</strong>
+                        {factor > 1 && (
+                          <span style={{ color: "#4338ca", marginLeft: "10px" }}>
+                            • Quy đổi lượng tồn gốc: <strong>{baseQty.toLocaleString("vi-VN")} {chosen?.baseUnitName || ""}</strong> (Hệ số quy đổi: x{factor})
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                   <label>
                     <span>Kênh bán hàng *</span>
                     {/* B01-F01: Đơn tạo thủ công qua Admin bắt buộc channel Admin, hiển thị rõ ràng */}
@@ -592,7 +696,13 @@ export function OrdersPage() {
                       value={newSkuId}
                       disabled={isFormLocked}
                       onChange={(e) => {
-                        setNewSkuId(e.target.value);
+                        const sId = e.target.value;
+                        setNewSkuId(sId);
+                        const target = skusList.find((s) => s.id === sId);
+                        const bUnit = target?.units?.find((u) => u.isBase) || target?.units?.[0];
+                        setNewUnitId(bUnit?.unitId || target?.baseUnitId || "");
+                        setOverridePrice(null);
+                        setPriceMismatchNotice(null);
                         handleFormChange();
                       }}
                     >
@@ -621,7 +731,96 @@ export function OrdersPage() {
                       required
                     />
                   </label>
+                  {(() => {
+                    if (sellableUnits.length === 0) return null;
+                    return (
+                      <label>
+                        <span>Đơn vị tính giao dịch *</span>
+                        <Select
+                          value={resolvedUnitId}
+                          disabled={isFormLocked}
+                          onChange={(e) => {
+                            setNewUnitId(e.target.value);
+                            setOverridePrice(null);
+                            setPriceMismatchNotice(null);
+                            handleFormChange();
+                          }}
+                        >
+                          {sellableUnits.map((u) => (
+                            <option key={u.unitId} value={u.unitId}>
+                              {u.unitName} (x{u.factorToBase}{u.isBase ? " - gốc" : ""})
+                            </option>
+                          ))}
+                        </Select>
+                      </label>
+                    );
+                  })()}
+                  <label>
+                    <span>Bảng giá áp dụng *</span>
+                    <Select
+                      value={newPriceListCode}
+                      disabled={isFormLocked}
+                      onChange={(e) => {
+                        const code = e.target.value as "retail" | "wholesale";
+                        setNewPriceListCode(code);
+                        setOverridePrice(null);
+                        setPriceMismatchNotice(null);
+                        handleFormChange();
+                      }}
+                    >
+                      <option value="retail">Bảng giá bán lẻ (Retail)</option>
+                      <option value="wholesale">Bảng giá bán sỉ (Wholesale)</option>
+                    </Select>
+                  </label>
+                  <label>
+                    <span>Đơn giá áp dụng (VNĐ)</span>
+                    <Input
+                      type="text"
+                      disabled
+                      readOnly
+                      value={(() => {
+                        if (!chosenSkuForForm) return "—";
+                        if (loadingPrices) return "Đang tải giá...";
+                        if (priceLoadError) return "Không tải được giá";
+                        if (unitPriceForForm == null) return "Chưa có giá";
+                        return `${unitPriceForForm.toLocaleString("vi-VN")} ₫`;
+                      })()}
+                    />
+                  </label>
                 </div>
+
+                {priceMismatchNotice && (
+                  <div style={{ background: "#fffbeb", border: "1px solid #f59e0b", padding: "12px", borderRadius: "8px", margin: "12px 0" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "#b45309", fontWeight: 600 }}>
+                      <AlertCircle size={18} />
+                      <span>Phát hiện giá niêm yết đã thay đổi (PRICE_MISMATCH)</span>
+                    </div>
+                    <p style={{ fontSize: "12px", margin: "6px 0", color: "#78350f" }}>
+                      {priceMismatchNotice.message}
+                    </p>
+                    <ul style={{ fontSize: "12px", paddingLeft: "20px", margin: "4px 0", color: "#78350f" }}>
+                      {priceMismatchNotice.currentPrices.map((cp, idx) => (
+                        <li key={idx}>
+                          Mặt hàng <strong>{cp.skuCode}</strong>: Giá mới hiệu lực là <strong>{cp.currentPrice.toLocaleString("vi-VN")} ₫</strong>
+                        </li>
+                      ))}
+                    </ul>
+                    <Button
+                      variant="primary"
+                      style={{ marginTop: "8px" }}
+                      onClick={() => {
+                        const matched =
+                          priceMismatchNotice.currentPrices.find((p) => p.unitId === resolvedUnitId) ||
+                          priceMismatchNotice.currentPrices[0];
+                        if (matched) setOverridePrice(matched.currentPrice);
+                        setPriceMismatchNotice(null);
+                        setCreateError(null);
+                      }}
+                    >
+                      Xác nhận áp dụng giá mới & Cập nhật
+                    </Button>
+                  </div>
+                )}
               </>
             );
           })()}

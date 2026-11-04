@@ -37,6 +37,11 @@ public class ProductVariant : BaseEntity, IMustHaveTenant
     public string Unit { get; set; } = "piece";
 
     /// <summary>
+    /// Khóa ngoại liên kết tới đơn vị tính gốc trong bảng units.
+    /// </summary>
+    public Guid? BaseUnitId { get; set; }
+
+    /// <summary>
     /// Loại mã vạch: 'EAN13' hoặc 'Code128'. Phải đi cùng Barcode theo ck_skus_barcode_pair.
     /// </summary>
     public string? BarcodeType { get; set; }
@@ -117,6 +122,8 @@ public class ProductVariant : BaseEntity, IMustHaveTenant
     // Navigation properties
     public Tenant? Tenant { get; set; }
     public Product? Product { get; set; }
+    public Unit? BaseUnit { get; set; }
+    public ICollection<SkuUnit> SkuUnits { get; set; } = new List<SkuUnit>();
 
     public Dictionary<string, object> GetAttributes()
     {

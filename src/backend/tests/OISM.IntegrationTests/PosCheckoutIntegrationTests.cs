@@ -120,23 +120,8 @@ public class PosCheckoutIntegrationTests : IAsyncLifetime, IClassFixture<WebAppl
         var (context, tenantService) = CreatePostgresDbContext(tenantId);
         await using (context)
         {
-            var wacCalc = new WacCalculator();
-            var service = new GoodsReceiptService(context, tenantService, wacCalc);
-
-            var receiptDto = new CreateGoodsReceiptDto
-            {
-                BranchId = branchId,
-                WarehouseId = warehouseId,
-                SupplierId = supplierId,
-                Note = "Seed tồn kho cho integration test",
-                Items = new List<CreateGoodsReceiptItemDto>
-                {
-                    new() { SkuId = skuId, Quantity = quantity, UnitPrice = unitPrice }
-                }
-            };
-
-            var receipt = await service.CreateReceiptAsync(receiptDto, userId);
-            await service.ConfirmReceiptAsync(receipt.Id, userId);
+            await PriceSeed.SyncFromLegacyColumnsAsync(context);
+            await PurchaseOrderSeed.ReceiveStockAsync(context, tenantService, branchId, warehouseId, supplierId, userId, (skuId, quantity, unitPrice));
         }
     }
 
@@ -2367,6 +2352,7 @@ public class PosCheckoutIntegrationTests : IAsyncLifetime, IClassFixture<WebAppl
             };
             seedCtx.ProductVariants.Add(bigSku);
             await seedCtx.SaveChangesAsync();
+            await PriceSeed.SyncFromLegacyColumnsAsync(seedCtx);
         }
 
         var overTotalReq = new PosCheckoutRequestDto

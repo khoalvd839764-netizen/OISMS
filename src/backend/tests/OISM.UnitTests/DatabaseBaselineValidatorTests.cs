@@ -133,4 +133,71 @@ public class DatabaseBaselineValidatorTests
         normalized.Should().Contain("'Cashier'");
         normalized.Should().NotContain("'owner'");
     }
+
+    [Fact]
+    public void RequiredTables_MustContainPriceListTables()
+    {
+        DatabaseMigrationService.RequiredTables.Should().Contain([
+            "price_lists",
+            "price_change_requests",
+            "price_change_request_items",
+            "sku_unit_prices",
+            "purchase_orders",
+            "purchase_order_items",
+            "sales_invoices",
+            "stock_count_schedules",
+            "stock_count_periods",
+            "stock_count_approvals"
+        ]);
+        DatabaseMigrationService.RequiredTables.Length.Should().Be(43);
+    }
+
+    [Fact]
+    public void ExpectedTriggers_PriceTables_MustContainGuardsAndDenyMutation()
+    {
+        var priceGuard = DatabaseMigrationService.ExpectedTriggers
+            .FirstOrDefault(t => t.TableName == "price_change_requests" && t.TriggerName == "price_change_request_guard");
+        priceGuard.Should().NotBeNull();
+        priceGuard!.Timing.Should().Be("BEFORE");
+        priceGuard.IsRowLevel.Should().BeTrue();
+        priceGuard.HasUpdate.Should().BeTrue();
+
+        var itemAppendOnly = DatabaseMigrationService.ExpectedTriggers
+            .FirstOrDefault(t => t.TableName == "price_change_request_items" && t.TriggerName == "price_change_item_append_only");
+        itemAppendOnly.Should().NotBeNull();
+        itemAppendOnly!.HasUpdate.Should().BeTrue();
+        itemAppendOnly.HasDelete.Should().BeTrue();
+        itemAppendOnly.HasTruncate.Should().BeTrue();
+
+        var skuPriceGuard = DatabaseMigrationService.ExpectedTriggers
+            .FirstOrDefault(t => t.TableName == "sku_unit_prices" && t.TriggerName == "sku_unit_price_guard");
+        skuPriceGuard.Should().NotBeNull();
+        skuPriceGuard!.Timing.Should().Be("BEFORE");
+        skuPriceGuard.IsRowLevel.Should().BeTrue();
+        skuPriceGuard.HasUpdate.Should().BeTrue();
+    }
+
+    [Fact]
+    public void ExpectedCriticalConstraints_MustContainPriceConstraints()
+    {
+        DatabaseMigrationService.ExpectedCriticalConstraints
+            .Should().Contain(c => c.ConstraintName == "ck_price_lists_code")
+            .And.Contain(c => c.ConstraintName == "ck_price_change_requests_kind")
+            .And.Contain(c => c.ConstraintName == "ck_price_change_requests_status")
+            .And.Contain(c => c.ConstraintName == "ck_price_change_request_items_new_price")
+            .And.Contain(c => c.ConstraintName == "ck_sku_unit_prices_price")
+            .And.Contain(c => c.ConstraintName == "ck_order_items_price_source")
+            .And.Contain(c => c.ConstraintName == "ck_order_items_price_source_ref");
+    }
+
+    [Fact]
+    public void ExpectedForeignKeys_MustContainPriceForeignKeys()
+    {
+        DatabaseMigrationService.ExpectedForeignKeys
+            .Should().Contain(f => f.ConstraintName == "fk_price_lists_tenant_id")
+            .And.Contain(f => f.ConstraintName == "fk_price_change_requests_tenant_id")
+            .And.Contain(f => f.ConstraintName == "fk_price_change_request_items_tenant_id")
+            .And.Contain(f => f.ConstraintName == "fk_sku_unit_prices_tenant_id")
+            .And.Contain(f => f.ConstraintName == "fk_order_items_sku_unit_price_id");
+    }
 }

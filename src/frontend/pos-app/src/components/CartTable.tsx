@@ -1,6 +1,8 @@
 import React from 'react';
 import { Trash2, Plus, Minus, ShoppingCart, AlertTriangle, ArrowRight } from 'lucide-react';
 import type { CartItem } from '../types/pos';
+import { lineDecimalPlaces, maxQuantityForLine } from '../services/posCartUnits';
+import { QuantityInput } from './QuantityInput';
 
 interface CartTableProps {
   items: CartItem[];
@@ -9,6 +11,7 @@ interface CartTableProps {
   onRemoveItem: (variantId: string) => void;
   onClearCart: () => void;
   onFocusSearch: () => void;
+  onUpdateUnit?: (lineKey: string, newUnitId: string) => void;
 }
 
 export const CartTable: React.FC<CartTableProps> = ({
@@ -18,6 +21,7 @@ export const CartTable: React.FC<CartTableProps> = ({
   onRemoveItem,
   onClearCart,
   onFocusSearch,
+  onUpdateUnit,
 }) => {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
@@ -81,12 +85,13 @@ export const CartTable: React.FC<CartTableProps> = ({
           <tbody className="divide-y divide-slate-100 text-sm">
             {items.map((item, index) => {
               const isOutOfStock = item.available <= 0;
-              const isOverStock = item.available > 0 && item.quantity > item.available;
-              const isMaxStockReached = item.available > 0 && item.quantity >= item.available;
+              const maxQuantity = maxQuantityForLine(items, item);
+              const isOverStock = item.available > 0 && item.quantity > maxQuantity;
+              const isMaxStockReached = item.available > 0 && item.quantity >= maxQuantity;
               const subtotal = item.retailPrice * item.quantity;
 
               return (
-                <tr key={item.variantId} className="hover:bg-slate-50/60 transition-colors group">
+                <tr key={item.lineKey || `${item.variantId}:${item.unitId || ''}`} className="hover:bg-slate-50/60 transition-colors group">
                   {/* Row Index */}
                   <td className="py-3 pl-5 pr-2 text-center text-xs text-slate-400 font-mono">
                     {index + 1}
@@ -103,6 +108,25 @@ export const CartTable: React.FC<CartTableProps> = ({
                       </span>
                       {item.variantName && <span>Biến thể: {item.variantName}</span>}
                       {item.barcode && <span className="text-slate-400">Barcode: {item.barcode}</span>}
+                      {item.unitName && (
+                        <span className="font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded text-[11px]">
+                          ĐVT: {item.unitName}
+                        </span>
+                      )}
+                      {item.units && item.units.length > 1 && (
+                        <select
+                          value={item.unitId || ''}
+                          onChange={(e) => onUpdateUnit?.(item.lineKey || item.variantId, e.target.value)}
+                          className="text-[11px] bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded px-1.5 py-0.5 font-semibold text-slate-700 cursor-pointer focus:outline-none"
+                          title="Thay đổi đơn vị tính cho dòng này"
+                        >
+                          {item.units.map((u) => (
+                            <option key={u.unitId} value={u.unitId}>
+                              {u.unitName} (x{u.factor}{u.isBase ? ' - gốc' : ''}){u.salePrice == null ? ' - chưa có giá' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                     </div>
                     {isOutOfStock && (
                       <div className="flex items-center gap-1 text-[11px] text-rose-600 font-bold mt-1">
@@ -128,36 +152,30 @@ export const CartTable: React.FC<CartTableProps> = ({
                     <div className="inline-flex items-center rounded-lg border border-slate-200 bg-white p-0.5 shadow-xs">
                       <button
                         type="button"
-                        onClick={() => onUpdateQuantity(item.variantId, -1)}
+                        onClick={() => onUpdateQuantity(item.lineKey || item.variantId, -1)}
                         className="w-7 h-7 flex items-center justify-center text-slate-600 hover:bg-slate-100 rounded-md transition-colors"
                         title="Giảm 1"
                       >
                         <Minus className="w-3.5 h-3.5" />
                       </button>
-                      <input
-                        type="number"
-                        min="1"
-                        max={item.available > 0 ? item.available : 1}
+                      <QuantityInput
                         value={item.quantity}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value, 10);
-                          if (!isNaN(val) && val >= 1) {
-                            const maxLimit = item.available > 0 ? item.available : 1;
-                            onSetQuantity(item.variantId, Math.min(val, maxLimit));
-                          }
-                        }}
+                        max={maxQuantity}
+                        decimalPlaces={lineDecimalPlaces(item)}
+                        label={`Số lượng ${item.sku}`}
+                        onCommit={(quantity) => onSetQuantity(item.lineKey || item.variantId, quantity)}
                         className="w-12 text-center font-bold text-slate-800 text-sm focus:outline-none"
                       />
                       <button
                         type="button"
                         disabled={isMaxStockReached || isOutOfStock}
-                        onClick={() => onUpdateQuantity(item.variantId, 1)}
+                        onClick={() => onUpdateQuantity(item.lineKey || item.variantId, 1)}
                         className={`w-7 h-7 flex items-center justify-center rounded-md transition-colors ${
                           isMaxStockReached || isOutOfStock
                             ? 'text-slate-300 cursor-not-allowed bg-slate-50'
                             : 'text-slate-600 hover:bg-slate-100'
                         }`}
-                        title={isMaxStockReached ? `Đã đạt giới hạn tồn khả dụng (${item.available})` : 'Tăng 1'}
+                        title={isMaxStockReached ? `Đã đạt giới hạn tồn khả dụng (tối đa ${maxQuantity})` : 'Tăng 1'}
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>
@@ -173,7 +191,7 @@ export const CartTable: React.FC<CartTableProps> = ({
                   <td className="py-3 pr-5 pl-2 text-center">
                     <button
                       type="button"
-                      onClick={() => onRemoveItem(item.variantId)}
+                      onClick={() => onRemoveItem(item.lineKey || item.variantId)}
                       className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                       title="Xóa sản phẩm"
                     >

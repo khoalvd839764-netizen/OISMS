@@ -128,7 +128,7 @@ export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({ receipt, o
                         </div>
                       </td>
                       <td className="py-1 text-center font-bold text-slate-700">
-                        {item.quantity}
+                        {item.quantity}{item.unitName ? ` ${item.unitName}` : ''}
                       </td>
                       <td className="py-1 text-right text-slate-600 whitespace-nowrap">
                         {item.unitPrice.toLocaleString('vi-VN')}

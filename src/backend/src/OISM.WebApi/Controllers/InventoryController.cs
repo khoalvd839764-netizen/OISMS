@@ -1,8 +1,10 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using OISM.Application.Common.Exceptions;
 using OISM.Application.Features.Inventory.Dtos;
 using OISM.Application.Features.Inventory.Services;
+using OISM.Application.Features.SalesInvoices.Services;
 
 namespace OISM.WebApi.Controllers;
 
@@ -17,13 +19,16 @@ public class InventoryController : ControllerBase
 {
     private readonly IInventoryService _inventoryService;
     private readonly IReservationService _reservationService;
+    private readonly ISalesInvoiceService _salesInvoiceService;
 
     public InventoryController(
         IInventoryService inventoryService,
-        IReservationService reservationService)
+        IReservationService reservationService,
+        ISalesInvoiceService salesInvoiceService)
     {
         _inventoryService = inventoryService;
         _reservationService = reservationService;
+        _salesInvoiceService = salesInvoiceService;
     }
 
     private Guid? GetCurrentUserId()
@@ -45,6 +50,17 @@ public class InventoryController : ControllerBase
     public async Task<IActionResult> GetBalances([FromQuery] InventoryBalanceFilterDto filter, CancellationToken ct)
     {
         var result = await _inventoryService.GetBalancesAsync(filter, ct);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Tra cứu lịch sử xuất kho theo đơn vị tồn gốc phục vụ AI dự báo nhu cầu (CS-08).
+    /// </summary>
+    [HttpGet("export-history")]
+    [Authorize(Roles = "Owner,Staff")]
+    public async Task<IActionResult> GetExportHistory([FromServices] OISM.Application.Features.Ai.Services.IAiForecastingService aiService, [FromQuery] OISM.Application.Features.Ai.Dtos.ExportHistoryQueryDto query, CancellationToken ct)
+    {
+        var result = await aiService.GetExportHistoryAsync(query, ct);
         return Ok(result);
     }
 
@@ -125,5 +141,81 @@ public class InventoryController : ControllerBase
         {
             return BadRequest(new { message = ex.Message });
         }
+    }
+
+    /// <summary>
+    /// Cập nhật ngưỡng cảnh báo hết hàng (ReorderPoint) cho một SKU tại một Chi nhánh (CS-03).
+    /// </summary>
+    [HttpPut("reorder-point")]
+    [Authorize(Roles = "Owner,Staff")]
+    public async Task<IActionResult> UpdateReorderPoint([FromBody] UpdateReorderPointDto request, CancellationToken ct)
+    {
+        var validator = new UpdateReorderPointValidator();
+        var validationResult = await validator.ValidateAsync(request, ct);
+        if (!validationResult.IsValid)
+        {
+            throw new OismException("VALIDATION_ERROR", string.Join(" ", validationResult.Errors.Select(e => e.ErrorMessage)), 400);
+        }
+
+        var result = await _inventoryService.UpdateReorderPointAsync(request, ct);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Cập nhật hàng loạt ngưỡng cảnh báo hết hàng cho nhiều SKU tại một Chi nhánh (CS-03).
+    /// </summary>
+    [HttpPut("reorder-point/bulk")]
+    [Authorize(Roles = "Owner,Staff")]
+    public async Task<IActionResult> BulkUpdateReorderPoint([FromBody] BulkUpdateReorderPointDto request, CancellationToken ct)
+    {
+        var validator = new BulkUpdateReorderPointValidator();
+        var validationResult = await validator.ValidateAsync(request, ct);
+        if (!validationResult.IsValid)
+        {
+            throw new OismException("VALIDATION_ERROR", string.Join(" ", validationResult.Errors.Select(e => e.ErrorMessage)), 400);
+        }
+
+        var updatedCount = await _inventoryService.BulkUpdateReorderPointAsync(request, ct);
+        return Ok(new { updatedCount, message = $"Đã cập nhật ngưỡng cảnh báo cho {updatedCount} sản phẩm." });
+    }
+
+    /// <summary>
+    /// Truy vết toàn bộ chuỗi chứng từ và dòng sổ kho bắt đầu từ dòng sổ kho (Ledger Entry).
+    /// </summary>
+    [HttpGet("ledger/{id:guid}/trace")]
+    [Authorize(Roles = "Owner,Staff")]
+    public async Task<IActionResult> TraceLedgerEntry(Guid id, CancellationToken ct)
+    {
+        if (id == Guid.Empty)
+        {
+            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã dòng sổ kho không được để trống.");
+        }
+
+        try
+        {
+            var trace = await _salesInvoiceService.TraceByLedgerIdAsync(id, ct);
+            return Ok(trace);
+        }
+        catch (OismException ex)
+        {
+            return CreateProblemResult(ex.ErrorCode, "Lỗi truy vết", ex.StatusCode, ex.Message);
+        }
+    }
+
+    private IActionResult CreateProblemResult(string errorCode, string title, int statusCode, string detail)
+    {
+        var problem = new ProblemDetails
+        {
+            Title = title,
+            Status = statusCode,
+            Detail = detail,
+            Instance = HttpContext.Request.Path,
+            Extensions =
+            {
+                ["errorCode"] = errorCode,
+                ["timestamp"] = DateTimeOffset.UtcNow
+            }
+        };
+        return StatusCode(statusCode, problem);
     }
 }

@@ -48,7 +48,9 @@ let status: RealtimeStatus = "disconnected";
 let latestEvent: RealtimeEvent | null = null;
 let hubConnection: HubConnection | null = null;
 let currentBranchId: string | null = null;
-let isStarting = false;
+const joinedBranchIds = new Set<string>();
+let currentConnectionToken: string | null = null;
+let connectionGeneration = 0;
 
 function notifyStatus(next: RealtimeStatus) {
   status = next;
@@ -75,6 +77,7 @@ function initSignalRConnection(): HubConnection {
 
   // 1. Sự kiện đơn hàng mới toàn tenant
   connection.on("OrderCreated", (payload: any) => {
+    if (connection !== hubConnection) return;
     const orderNumber = payload.orderNumber || payload.OrderNumber || "Mới";
     const orderId = payload.orderId || payload.OrderId || "";
     const channel = payload.channel || payload.Channel || "POS";
@@ -99,11 +102,13 @@ function initSignalRConnection(): HubConnection {
 
   // 2. Sự kiện biến động tồn kho chi nhánh
   connection.on("StockLevelChanged", (payload: any) => {
+    if (connection !== hubConnection) return;
     window.dispatchEvent(new CustomEvent("oism:stock-changed", { detail: payload }));
   });
 
   // 3. Cảnh báo tồn kho dưới ngưỡng an toàn
   connection.on("LowStockWarning", (payload: any) => {
+    if (connection !== hubConnection) return;
     const skuCode = payload.skuCode || payload.SkuCode || "SKU";
     const available = Number(payload.currentAvailable ?? payload.CurrentAvailable ?? 0);
     const threshold = Number(payload.threshold ?? payload.Threshold ?? 0);
@@ -125,21 +130,47 @@ function initSignalRConnection(): HubConnection {
     window.dispatchEvent(new CustomEvent("oism:low-stock", { detail: payload }));
   });
 
-  // Trạng thái vòng đời kết nối
+  // 4. Sự kiện hết hạn giữ chỗ kho (BF-016)
+  connection.on("ReservationExpired", (payload: any) => {
+    if (connection !== hubConnection) return;
+    const orderCode = payload.orderNumber || payload.OrderNumber || payload.orderCode || "";
+    const event: RealtimeEvent = {
+      type: "reservation.expired",
+      id: `res-${payload.orderId || Date.now()}`,
+      title: `Hết hạn giữ chỗ #${orderCode}`,
+      message: payload.reason || "Đơn hàng đã quá hạn giữ chỗ tồn kho và tự động hủy.",
+      orderCode,
+      reason: payload.reason || "Timeout",
+      href: `/orders?orderId=${payload.orderId || ""}`,
+      createdAt: payload.createdAt || new Date().toISOString(),
+    };
+
+    latestEvent = event;
+    eventListeners.forEach((listener) => listener(event));
+    window.dispatchEvent(new CustomEvent("oism:reservation-expired", { detail: payload }));
+  });
+
+  // Trạng thái vòng đời kết nối (BF-002: Chặn callback từ kết nối cũ đã bị thay thế)
   connection.onreconnecting(() => {
+    if (connection !== hubConnection) return;
     notifyStatus("reconnecting");
   });
 
   connection.onreconnected(() => {
+    if (connection !== hubConnection) return;
     notifyStatus("connected");
-    if (currentBranchId) {
-      connection.invoke("JoinBranchGroup", currentBranchId).catch((err) => {
+    const branchesToRejoin = new Set<string>(joinedBranchIds);
+    if (currentBranchId) branchesToRejoin.add(currentBranchId);
+    branchesToRejoin.forEach((bId) => {
+      connection.invoke("JoinBranchGroup", bId).catch((err) => {
         console.warn("Lỗi khi tham gia lại nhóm chi nhánh sau reconnect:", err);
       });
-    }
+    });
+    window.dispatchEvent(new CustomEvent("oism:realtime-reconnected"));
   });
 
   connection.onclose(() => {
+    if (connection !== hubConnection) return;
     notifyStatus("disconnected");
   });
 
@@ -169,49 +200,84 @@ export const realtimeAdapter = {
       return;
     }
 
-    if (hubConnection && hubConnection.state === HubConnectionState.Connected) {
+    // [BF-002] Nếu token phiên hiện tại khác với token của kết nối đang có,
+    // ngắt kết nối cũ và tạo kết nối mới độc lập cho phiên mới.
+    if (hubConnection && currentConnectionToken && currentConnectionToken !== token) {
+      const oldConn = hubConnection;
+      hubConnection = null;
+      currentConnectionToken = null;
+      connectionGeneration++;
+      try {
+        await oldConn.stop();
+      } catch {}
+    }
+
+    if (hubConnection && hubConnection.state === HubConnectionState.Connected && currentConnectionToken === token) {
       notifyStatus("connected");
       return;
     }
 
-    if (isStarting) return;
-    isStarting = true;
+    const startGen = ++connectionGeneration;
 
     try {
-      if (!hubConnection) {
+      if (!hubConnection || currentConnectionToken !== token) {
         hubConnection = initSignalRConnection();
+        currentConnectionToken = token;
       }
 
-      if (hubConnection.state === HubConnectionState.Disconnected) {
-        await hubConnection.start();
+      const activeConn = hubConnection;
+      if (activeConn.state === HubConnectionState.Disconnected) {
+        await activeConn.start();
+        if (startGen !== connectionGeneration || activeConn !== hubConnection) {
+          try {
+            await activeConn.stop();
+          } catch {}
+          return;
+        }
         notifyStatus("connected");
 
-        if (currentBranchId) {
-          await hubConnection.invoke("JoinBranchGroup", currentBranchId).catch(console.warn);
+        const branchesToJoin = new Set<string>(joinedBranchIds);
+        if (currentBranchId) branchesToJoin.add(currentBranchId);
+        for (const bId of branchesToJoin) {
+          await activeConn.invoke("JoinBranchGroup", bId).catch(console.warn);
         }
       }
     } catch (error) {
-      console.warn("SignalR Hub connection failed (sẽ tự động thử lại):", error);
-      notifyStatus("disconnected");
-    } finally {
-      isStarting = false;
-    }
-  },
-
-  async stop(): Promise<void> {
-    if (hubConnection) {
-      try {
-        await hubConnection.stop();
-      } catch (err) {
-        console.error("Lỗi khi đóng kết nối SignalR:", err);
-      } finally {
+      if (startGen === connectionGeneration) {
+        console.warn("SignalR Hub connection failed (sẽ tự động thử lại):", error);
         notifyStatus("disconnected");
       }
     }
   },
 
+  async stop(): Promise<void> {
+    connectionGeneration++;
+    joinedBranchIds.clear();
+    if (hubConnection) {
+      const conn = hubConnection;
+      hubConnection = null;
+      currentConnectionToken = null;
+      currentBranchId = null;
+      latestEvent = null;
+      try {
+        await conn.stop();
+      } catch (err) {
+        console.error("Lỗi khi đóng kết nối SignalR:", err);
+      } finally {
+        notifyStatus("disconnected");
+      }
+    } else {
+      currentConnectionToken = null;
+      currentBranchId = null;
+      latestEvent = null;
+      notifyStatus("disconnected");
+    }
+  },
+
   async joinBranch(branchId: string): Promise<void> {
+    if (!branchId) return;
     currentBranchId = branchId;
+    joinedBranchIds.add(branchId);
     if (hubConnection && hubConnection.state === HubConnectionState.Connected && branchId) {
       try {
         await hubConnection.invoke("JoinBranchGroup", branchId);
@@ -222,6 +288,8 @@ export const realtimeAdapter = {
   },
 
   async leaveBranch(branchId: string): Promise<void> {
+    if (!branchId) return;
+    joinedBranchIds.delete(branchId);
     if (currentBranchId === branchId) {
       currentBranchId = null;
     }

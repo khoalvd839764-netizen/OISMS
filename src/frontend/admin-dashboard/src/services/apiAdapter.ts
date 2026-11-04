@@ -1,5 +1,23 @@
 import { httpClient } from "./httpClient";
 import type { ApiResult, BranchStockBreakdown, LedgerEntry, Order, PagedMeta, Sku } from "../types/domain";
+import type { DashboardSummary } from "../types/reports";
+import type { ReorderRecommendationQuery, ReorderRecommendationSummary } from "../types/ai";
+
+/**
+ * Lấy thông báo lỗi từ phản hồi backend: ProblemDetails dùng `detail`,
+ * lỗi validation tự động của ASP.NET dùng `errors` dạng { field: [message] }.
+ */
+function readApiError(err: any, fallback: string): string {
+  const data = err?.response?.data;
+  if (data?.detail) return data.detail;
+  if (data?.message) return data.message;
+  const errors = data?.errors;
+  if (errors && typeof errors === "object") {
+    const first = Object.values(errors).flat()[0];
+    if (typeof first === "string") return first;
+  }
+  return fallback;
+}
 
 function getActiveTenantId(): string {
   return localStorage.getItem("oism_tenant_id") || "default";
@@ -172,6 +190,7 @@ export const apiAdapter = {
             reserved,
             available: Math.max(0, onHand - reserved),
             averageCost: avgCost,
+            reorderPoint: Number(b.reorderPoint) || 0,
           },
         ];
 
@@ -205,12 +224,12 @@ export const apiAdapter = {
                 name: p.name,
                 variant: v.variantName || "",
                 barcode: v.barcode || "",
-                sellingPrice: Number(v.retailPrice) || 0,
-                wholesalePrice: Number(v.wholesalePrice) || 0,
+                sellingPrice: v.retailPrice !== null && v.retailPrice !== undefined ? Number(v.retailPrice) : null,
+                wholesalePrice: v.wholesalePrice !== null && v.wholesalePrice !== undefined ? Number(v.wholesalePrice) : null,
                 averageCost,
                 onHand,
                 reserved: bal ? bal.reserved : 0,
-                threshold: 5,
+                threshold: 0,
                 image: "",
                 isActive: variantActive,
                 productIsActive: prodActive,
@@ -218,6 +237,11 @@ export const apiAdapter = {
                 categoryName: p.categoryName || null,
                 brandId: p.brandId || null,
                 brandName: p.brandName || null,
+                baseUnitId: v.baseUnitId || null,
+                baseUnitCode: v.baseUnitCode || null,
+                baseUnitName: v.baseUnitName || null,
+                baseUnitPriceMissing: Boolean(v.baseUnitPriceMissing),
+                units: v.units || [],
                 totalInventoryValue,
                 branchBalances: bal?.branchBalances || [],
               });
@@ -235,7 +259,7 @@ export const apiAdapter = {
               averageCost: 0,
               onHand: 0,
               reserved: 0,
-              threshold: 5,
+              threshold: 0,
               image: "",
               isActive: prodActive,
               productIsActive: prodActive,
@@ -255,9 +279,7 @@ export const apiAdapter = {
       return {
         error: {
           code: !err?.response ? "NETWORK_ERROR" : "INVALID_STATE",
-          message:
-            err?.response?.data?.message ||
-            "Không thể tải danh sách sản phẩm & tồn kho từ máy chủ. Vui lòng kiểm tra kết nối và tải lại trang.",
+          message: readApiError(err, "Không thể tải danh sách sản phẩm & tồn kho từ máy chủ. Vui lòng kiểm tra kết nối và tải lại trang."),
         },
       };
     }
@@ -285,7 +307,7 @@ export const apiAdapter = {
       return { data: flatList };
     } catch (err: any) {
       return {
-        error: { message: err?.response?.data?.message || "Không thể tải danh mục hàng hóa từ máy chủ." },
+        error: { message: readApiError(err, "Không thể tải danh mục hàng hóa từ máy chủ.") },
       };
     }
   },
@@ -301,10 +323,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message:
-            err?.response?.data?.message ||
-            err?.response?.data?.errors?.[0] ||
-            "Tạo danh mục thất bại (kiểm tra không lặp quan hệ cha-con)",
+          message: readApiError(err, "Tạo danh mục thất bại (kiểm tra không lặp quan hệ cha-con)"),
         },
       };
     }
@@ -322,10 +341,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message:
-            err?.response?.data?.message ||
-            err?.response?.data?.errors?.[0] ||
-            "Cập nhật danh mục thất bại (Phát hiện vòng lặp quan hệ cha-con đệ quy)",
+          message: readApiError(err, "Cập nhật danh mục thất bại (Phát hiện vòng lặp quan hệ cha-con đệ quy)"),
         },
       };
     }
@@ -337,7 +353,7 @@ export const apiAdapter = {
       return { data: Array.isArray(res.data) ? res.data : [] };
     } catch (err: any) {
       return {
-        error: { message: err?.response?.data?.message || "Không thể tải danh sách thương hiệu từ máy chủ." },
+        error: { message: readApiError(err, "Không thể tải danh sách thương hiệu từ máy chủ.") },
       };
     }
   },
@@ -352,10 +368,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message:
-            err?.response?.data?.message ||
-            err?.response?.data?.errors?.[0] ||
-            "Tạo thương hiệu thất bại",
+          message: readApiError(err, "Tạo thương hiệu thất bại"),
         },
       };
     }
@@ -372,10 +385,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message:
-            err?.response?.data?.message ||
-            err?.response?.data?.errors?.[0] ||
-            "Cập nhật thương hiệu thất bại",
+          message: readApiError(err, "Cập nhật thương hiệu thất bại"),
         },
       };
     }
@@ -398,6 +408,7 @@ export const apiAdapter = {
       wholesalePrice?: number;
       color?: string;
       size?: string;
+      baseUnitId?: string;
     }>;
   }) {
     try {
@@ -415,6 +426,7 @@ export const apiAdapter = {
             wholesalePrice: Number(v.wholesalePrice) || 0,
             color: v.color || null,
             size: v.size || null,
+            baseUnitId: v.baseUnitId || undefined,
           })) || [],
       });
       return { data: res.data };
@@ -432,28 +444,8 @@ export const apiAdapter = {
     }
   },
 
-  async updateVariantPrices(
-    productId: string,
-    variantId: string,
-    payload: { retailPrice: number; wholesalePrice: number }
-  ) {
-    try {
-      const res = await httpClient.put(`/api/products/${productId}/variants/${variantId}/prices`, {
-        retailPrice: Number(payload.retailPrice) || 0,
-        wholesalePrice: Number(payload.wholesalePrice) || 0,
-      });
-      return { data: res.data };
-    } catch (err: any) {
-      return {
-        error: {
-          message:
-            err?.response?.data?.message ||
-            err?.response?.data?.errors?.[0] ||
-            "Cập nhật giá bán biến thể thất bại",
-        },
-      };
-    }
-  },
+  // [U04]: API PUT /api/products/{productId}/variants/{variantId}/prices đã bị đóng (trả HTTP 410 Gone).
+  // Mọi thao tác thay đổi giá phải tạo phiếu đổi giá qua pricingService.createPriceChangeRequest()
 
   async toggleVariantStatus(productId: string, variantId: string) {
     try {
@@ -462,7 +454,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || "Không thể đổi trạng thái biến thể SKU",
+          message: readApiError(err, "Không thể đổi trạng thái biến thể SKU"),
         },
       };
     }
@@ -475,7 +467,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || "Vô hiệu hóa sản phẩm thất bại",
+          message: readApiError(err, "Vô hiệu hóa sản phẩm thất bại"),
         },
       };
     }
@@ -512,7 +504,8 @@ export const apiAdapter = {
           averageCost: avgCost,
           onHand,
           reserved: Number(b.reserved) || 0,
-          threshold: 5,
+          threshold: b.reorderPoint !== undefined && b.reorderPoint !== null ? Number(b.reorderPoint) : (Number(b.threshold) || 0),
+          reorderPoint: Number(b.reorderPoint) || 0,
           image: "",
           isActive: b.isActive !== false,
           branchId: b.branchId || undefined,
@@ -528,9 +521,7 @@ export const apiAdapter = {
       return {
         error: {
           code: !err?.response ? "NETWORK_ERROR" : "INVALID_STATE",
-          message:
-            err?.response?.data?.message ||
-            "Không thể tải dữ liệu tồn kho từ máy chủ. Vui lòng kiểm tra kết nối mạng và thử lại.",
+          message: readApiError(err, "Không thể tải dữ liệu tồn kho từ máy chủ. Vui lòng kiểm tra kết nối mạng và thử lại."),
         },
       };
     }
@@ -543,7 +534,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || "Không tìm thấy tồn kho SKU tại chi nhánh",
+          message: readApiError(err, "Không tìm thấy tồn kho SKU tại chi nhánh"),
         },
       };
     }
@@ -598,9 +589,7 @@ export const apiAdapter = {
       return {
         error: {
           code: !err?.response ? "NETWORK_ERROR" : "INVALID_STATE",
-          message:
-            err?.response?.data?.message ||
-            "Không thể tải sổ cái kho (Ledger) từ máy chủ. Vui lòng thử lại.",
+          message: readApiError(err, "Không thể tải sổ cái kho (Ledger) từ máy chủ. Vui lòng thử lại."),
         },
       };
     }
@@ -641,10 +630,7 @@ export const apiAdapter = {
       return {
         error: {
           code: err?.response?.status === 409 ? "INSUFFICIENT_STOCK" : "INVALID_STATE",
-          message:
-            err?.response?.data?.message ||
-            err?.response?.data?.errors?.[0] ||
-            "Giữ chỗ tồn kho thất bại",
+          message: readApiError(err, "Giữ chỗ tồn kho thất bại"),
         },
       };
     }
@@ -658,7 +644,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || "Không thể tải danh sách nhà cung cấp từ máy chủ.",
+          message: readApiError(err, "Không thể tải danh sách nhà cung cấp từ máy chủ."),
         },
       };
     }
@@ -676,10 +662,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message:
-            err?.response?.data?.message ||
-            err?.response?.data?.errors?.[0] ||
-            "Tạo nhà cung cấp thất bại",
+          message: readApiError(err, "Tạo nhà cung cấp thất bại"),
         },
       };
     }
@@ -712,47 +695,43 @@ export const apiAdapter = {
         error: {
           code: err?.response?.status === 404 ? "NOT_FOUND" : "API_ERROR",
           status: err?.response?.status,
-          message:
-            err?.response?.data?.message ||
-            err?.response?.data?.errors?.[0] ||
-            "Không thể tải thông tin chi tiết phiếu nhập kho.",
+          message: readApiError(err, "Không thể tải thông tin chi tiết phiếu nhập kho."),
         },
       };
     }
   },
 
   async createGoodsReceipt(payload: {
-    supplierId?: string;
-    branchId: string;
+    purchaseOrderId: string;
     warehouseId: string;
     items: Array<{
-      skuId: string;
+      purchaseOrderItemId: string;
       quantity: number;
-      unitPrice: number;
     }>;
     notes?: string;
     note?: string;
+    number?: string;
+    // Tùy chọn để tương thích ngược
+    supplierId?: string;
+    branchId?: string;
   }) {
     try {
       const res = await httpClient.post("/api/goods-receipts", {
-        branchId: payload.branchId,
+        purchaseOrderId: payload.purchaseOrderId,
         warehouseId: payload.warehouseId,
-        supplierId: payload.supplierId,
+        number: payload.number || null,
         note: payload.notes || payload.note || null,
         items: payload.items.map((item) => ({
-          skuId: item.skuId,
+          purchaseOrderItemId: item.purchaseOrderItemId,
           quantity: Number(item.quantity) || 1,
-          unitPrice: Number(item.unitPrice) || 0,
         })),
       });
       return { data: res.data };
     } catch (err: any) {
       return {
         error: {
-          message:
-            err?.response?.data?.message ||
-            err?.response?.data?.errors?.[0] ||
-            "Lỗi tạo phiếu nhập kho",
+          code: err?.response?.data?.errorCode,
+          message: readApiError(err, "Lỗi tạo phiếu nhập kho"),
         },
       };
     }
@@ -765,10 +744,158 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message:
-            err?.response?.data?.message ||
-            err?.response?.data?.errors?.[0] ||
-            "Lỗi xác nhận phiếu nhập",
+          code: err?.response?.data?.errorCode,
+          message: readApiError(err, "Lỗi xác nhận phiếu nhập"),
+        },
+      };
+    }
+  },
+
+  async cancelGoodsReceipt(receiptId: string) {
+    try {
+      const res = await httpClient.post(`/api/goods-receipts/${receiptId}/cancel`);
+      return { data: res.data };
+    } catch (err: any) {
+      return {
+        error: {
+          code: err?.response?.data?.errorCode,
+          message: readApiError(err, "Lỗi hủy phiếu nhập"),
+        },
+      };
+    }
+  },
+
+  // --- GLOBAL SEARCH (CS-04) ---
+  async globalSearch(query: string, limit = 5) {
+    try {
+      const res = await httpClient.get(`/api/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+      return { data: res.data };
+    } catch (err: any) {
+      return {
+        error: {
+          message: readApiError(err, "Tìm kiếm toàn hệ thống thất bại."),
+        },
+      };
+    }
+  },
+
+  // --- USERS & RBAC (CS-02) ---
+  async getUsers(params?: { search?: string; role?: string; isActive?: boolean }) {
+    try {
+      const query = new URLSearchParams();
+      if (params?.search) query.append("search", params.search);
+      if (params?.role && params.role !== "all") query.append("role", params.role);
+      if (params?.isActive !== undefined) query.append("isActive", String(params.isActive));
+      const qs = query.toString();
+      const url = qs ? `/api/users?${qs}` : "/api/users";
+      const res = await httpClient.get(url);
+      return { data: Array.isArray(res.data) ? res.data : [] };
+    } catch (err: any) {
+      return {
+        error: {
+          message: readApiError(err, "Không thể tải danh sách nhân viên từ máy chủ."),
+        },
+      };
+    }
+  },
+
+  async createUser(payload: { displayName: string; email: string; phone?: string; password: string; role: string }) {
+    try {
+      const res = await httpClient.post("/api/users", payload);
+      return { data: res.data };
+    } catch (err: any) {
+      return {
+        error: {
+          message: readApiError(err, "Thêm nhân viên thất bại"),
+        },
+      };
+    }
+  },
+
+  async updateUser(id: string, payload: { displayName: string; phone?: string; role: string; isActive: boolean }) {
+    try {
+      const res = await httpClient.put(`/api/users/${id}`, payload);
+      return { data: res.data };
+    } catch (err: any) {
+      return {
+        error: {
+          message: readApiError(err, "Cập nhật nhân viên thất bại"),
+        },
+      };
+    }
+  },
+
+  async updateUserStatus(id: string, isActive: boolean) {
+    try {
+      const res = await httpClient.patch(`/api/users/${id}/status`, { isActive });
+      return { data: res.data };
+    } catch (err: any) {
+      return {
+        error: {
+          message: readApiError(err, "Không thể đổi trạng thái nhân viên"),
+        },
+      };
+    }
+  },
+
+  // --- INVENTORY REORDER POINT (CS-03) ---
+  async updateReorderPoint(payload: { branchId: string; skuId: string; reorderPoint: number }) {
+    try {
+      const res = await httpClient.put("/api/inventory/reorder-point", payload);
+      return { data: res.data };
+    } catch (err: any) {
+      return {
+        error: {
+          message: readApiError(err, "Cập nhật ngưỡng cảnh báo thất bại"),
+        },
+      };
+    }
+  },
+
+  async bulkUpdateReorderPoint(payload: { branchId: string; items: Array<{ skuId: string; reorderPoint: number }> }) {
+    try {
+      const res = await httpClient.put("/api/inventory/reorder-point/bulk", payload);
+      return { data: res.data };
+    } catch (err: any) {
+      return {
+        error: {
+          message: readApiError(err, "Cập nhật hàng loạt ngưỡng cảnh báo thất bại"),
+        },
+      };
+    }
+  },
+
+  // --- DASHBOARD SUMMARY (CS-07) ---
+  async getDashboardSummary(): Promise<ApiResult<DashboardSummary>> {
+    try {
+      const res = await httpClient.get<DashboardSummary>("/api/reports/dashboard-summary");
+      return { data: res.data };
+    } catch (err: any) {
+      return {
+        error: {
+          code: err?.response?.data?.errorCode || "DASHBOARD_ERROR",
+          message: readApiError(err, "Không thể tải số liệu tổng quan từ máy chủ."),
+        },
+      };
+    }
+  },
+
+  // --- AI FORECASTING & REORDER RECOMMENDATIONS (CS-08) ---
+  async getReorderRecommendations(query?: ReorderRecommendationQuery): Promise<ApiResult<ReorderRecommendationSummary>> {
+    try {
+      const params: Record<string, any> = {};
+      if (query?.branchId && query.branchId !== "all") params.branchId = query.branchId;
+      if (query?.leadTimeDays !== undefined) params.leadTimeDays = query.leadTimeDays;
+      if (query?.safetyStockDays !== undefined) params.safetyStockDays = query.safetyStockDays;
+      if (query?.onlyNeedsReorder !== undefined) params.onlyNeedsReorder = query.onlyNeedsReorder;
+
+      const res = await httpClient.get<ReorderRecommendationSummary>("/api/ai/reorder-recommendations", { params });
+      return { data: res.data };
+    } catch (err: any) {
+      return {
+        error: {
+          code: err?.response?.data?.errorCode || "AI_RECOMMENDATION_ERROR",
+          message: readApiError(err, "Không thể tải gợi ý nhập hàng từ máy chủ."),
         },
       };
     }
@@ -782,7 +909,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || "Không thể tải danh sách chi nhánh từ máy chủ.",
+          message: readApiError(err, "Không thể tải danh sách chi nhánh từ máy chủ."),
         },
       };
     }
@@ -795,7 +922,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || err?.response?.data?.errors?.[0] || "Tạo chi nhánh thất bại",
+          message: readApiError(err, "Tạo chi nhánh thất bại"),
         },
       };
     }
@@ -808,7 +935,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || err?.response?.data?.errors?.[0] || "Cập nhật chi nhánh thất bại",
+          message: readApiError(err, "Cập nhật chi nhánh thất bại"),
         },
       };
     }
@@ -821,7 +948,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || "Không thể đổi trạng thái chi nhánh",
+          message: readApiError(err, "Không thể đổi trạng thái chi nhánh"),
         },
       };
     }
@@ -835,7 +962,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || "Không thể tải danh sách kho hàng từ máy chủ.",
+          message: readApiError(err, "Không thể tải danh sách kho hàng từ máy chủ."),
         },
       };
     }
@@ -857,7 +984,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || err?.response?.data?.errors?.[0] || "Tạo kho hàng thất bại",
+          message: readApiError(err, "Tạo kho hàng thất bại"),
         },
       };
     }
@@ -870,7 +997,7 @@ export const apiAdapter = {
     } catch (err: any) {
       return {
         error: {
-          message: err?.response?.data?.message || "Không thể đổi trạng thái kho hàng",
+          message: readApiError(err, "Không thể đổi trạng thái kho hàng"),
         },
       };
     }

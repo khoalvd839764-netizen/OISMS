@@ -52,6 +52,14 @@ export interface SkuVelocityItem {
   totalRevenue: number;
   currentOnHand: number;
   daysWithoutSale: number;
+  baseUnitName?: string | null;
+}
+
+export interface UnitQuantity {
+  unitName: string;
+  onHand: number;
+  reserved: number;
+  available: number;
 }
 
 export interface InventoryVelocityReport {
@@ -59,6 +67,7 @@ export interface InventoryVelocityReport {
   totalOnHandQuantity: number;
   totalReservedQuantity: number;
   totalAvailableQuantity: number;
+  quantityByUnit: UnitQuantity[];
   bestSellers: SkuVelocityItem[];
   slowMovingItems: SkuVelocityItem[];
 }
@@ -76,4 +85,26 @@ export interface StockAlert {
   available: number;
   reorderPoint: number;
   alertLevel: StockAlertLevel | string;
+}
+
+export interface RecentOrder {
+  id: string;
+  number: string;
+  channel: string;
+  customerName?: string | null;
+  totalAmount: number;
+  status: string;
+  createdAt: string;
+}
+
+export interface DashboardSummary {
+  totalRevenue: number;
+  totalOrders: number;
+  totalGrossProfit: number | null;
+  grossMarginPercentage: number;
+  skuCount: number;
+  totalInventoryValue: number | null;
+  lowStockCount: number;
+  recentOrders: RecentOrder[];
+  recentRevenueTrend: DailyRevenueBreakdown[];
 }

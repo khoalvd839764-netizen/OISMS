@@ -78,3 +78,12 @@ Khi bấm nút **`[+ Thêm Sản Phẩm Mới]`**, một Modal xuất hiện v�
 * Hết hàng (`Available = 0`): Sử dụng Huy hiệu Đỏ `--badge--danger` (`#fff0f1` / `#8d3540`).
 * Sắp hết hàng (`Available <= Threshold`): Sử dụng Huy hiệu Vàng cam `--badge--warning` (`#fff5dc` / `#7a4900`).
 *(Chi tiết định nghĩa Design Tokens xem tại [`DOC-ERR-03`](../12-error-and-status-codes/03-color-system-tokens.md)).*
+
+---
+
+## 6. Cập Nhật Form Giá (04/11/2026)
+
+* **Phiếu đổi giá:** một bảng gồm các đơn vị được phép bán và hai cột giá bán lẻ, giá bán sỉ. Ô để trống giữ nguyên giá hiện tại; mỗi phiếu có thể đổi nhiều giá. Bắt buộc nhập lý do.
+* **Đơn vị quy đổi chưa có giá:** có nút dùng giá gợi ý theo hệ số. Giá chỉ được điền khi người dùng bấm, và server vẫn là nơi quyết định giá hiệu lực.
+* **Ô nhập số:** cho phép xóa hết, không tự chèn số 0, tự nhóm hàng nghìn và giữ đúng vị trí con trỏ.
+* **Tạo SKU:** form không điền sẵn 0 cho giá; phải nhập cả giá bán lẻ và giá bán sỉ.

@@ -1,3 +1,5 @@
+import type { SkuUnit } from "./units";
+
 export type Role = "Owner" | "Staff" | "Cashier";
 export type OrderStatus = "Draft" | "Pending" | "Reserved" | "Confirmed" | "Completed" | "Cancelled";
 
@@ -18,6 +20,7 @@ export interface BranchStockBreakdown {
   reserved: number;
   available: number;
   averageCost: number;
+  reorderPoint?: number;
 }
 
 export interface Sku {
@@ -27,12 +30,13 @@ export interface Sku {
   name: string;
   variant: string;
   barcode: string;
-  sellingPrice: number;
-  wholesalePrice: number;
+  sellingPrice: number | null;
+  wholesalePrice: number | null;
   averageCost: number;
   onHand: number;
   reserved: number;
   threshold: number;
+  reorderPoint?: number;
   image: string;
   isActive?: boolean;
   productIsActive?: boolean;
@@ -44,6 +48,11 @@ export interface Sku {
   branchName?: string;
   warehouseId?: string;
   warehouseName?: string;
+  baseUnitId?: string | null;
+  baseUnitCode?: string | null;
+  baseUnitName?: string | null;
+  baseUnitPriceMissing?: boolean;
+  units?: SkuUnit[];
   /** Tổng giá trị tồn kho của SKU cộng dồn theo đúng từng chi nhánh: sum(OnHand_branch * AverageCost_branch) */
   totalInventoryValue?: number;
   /** Số dư chi tiết theo từng Chi nhánh / Kho */

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { apiAdapter } from '../../services/apiAdapter';
+import { apiAdapter, generateUuid } from '../../services/apiAdapter';
 import { stockCountService } from '../../services/stockCountService';
 import type { Sku } from '../../types/domain';
 import { X, AlertCircle, Check } from 'lucide-react';
@@ -23,11 +23,16 @@ export const CreateStockCountModal: React.FC<CreateStockCountModalProps> = ({
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
   const [scopeMode, setScopeMode] = useState<'ALL' | 'PARTIAL'>('ALL');
   const [selectedSkuIds, setSelectedSkuIds] = useState<string[]>([]);
+  const [reason, setReason] = useState('');
   const [note, setNote] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [intentState, setIntentState] = useState<{ sig: string; key: string }>(() => ({
+    sig: '',
+    key: generateUuid ? generateUuid() : (crypto.randomUUID ? crypto.randomUUID() : `sc-${Date.now()}`),
+  }));
 
   useEffect(() => {
     if (!isOpen) return;
@@ -97,6 +102,11 @@ export const CreateStockCountModal: React.FC<CreateStockCountModalProps> = ({
       setErrorMessage('Vui lòng chọn kho kiểm kê.');
       return;
     }
+    if (!reason.trim()) {
+      setErrorMessage('Vui lòng nhập lý do kiểm kê đột xuất (bắt buộc theo quy định kiểm kê).');
+      return;
+    }
+
     if (scopeMode === 'PARTIAL' && selectedSkuIds.length === 0) {
       setErrorMessage('Vui lòng chọn ít nhất 1 mặt hàng SKU khi kiểm kê theo phạm vi nhóm.');
       return;
@@ -104,10 +114,23 @@ export const CreateStockCountModal: React.FC<CreateStockCountModalProps> = ({
 
     setSubmitting(true);
     try {
-      await stockCountService.createStockCount({
+      const currentSig = JSON.stringify({
         branchId: selectedBranchId,
         warehouseId: selectedWarehouseId,
         skuIds: scopeMode === 'PARTIAL' ? selectedSkuIds : null,
+      });
+      let activeKey = intentState.key;
+      if (intentState.sig !== currentSig) {
+        activeKey = generateUuid ? generateUuid() : (crypto.randomUUID ? crypto.randomUUID() : `sc-${Date.now()}`);
+        setIntentState({ sig: currentSig, key: activeKey });
+      }
+
+      await stockCountService.createStockCount({
+        requestKey: activeKey,
+        branchId: selectedBranchId,
+        warehouseId: selectedWarehouseId,
+        skuIds: scopeMode === 'PARTIAL' ? selectedSkuIds : null,
+        reason: reason.trim(),
         note: note.trim() || undefined,
       });
 
@@ -281,10 +304,25 @@ export const CreateStockCountModal: React.FC<CreateStockCountModalProps> = ({
                 </div>
               )}
 
+              {/* Lý do kiểm kê đột xuất */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
+                  Lý do kiểm kê đột xuất <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Ví dụ: Kiểm tra thất thoát, phát hiện chênh lệch quầy thu ngân, kiểm định kỳ đột xuất..."
+                  className="w-full border border-gray-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                  required
+                />
+              </div>
+
               {/* Ghi chú */}
               <div>
                 <label className="block text-xs font-semibold text-gray-700 uppercase mb-1">
-                  Ghi chú đợt kiểm kê
+                  Ghi chú bổ sung
                 </label>
                 <textarea
                   value={note}

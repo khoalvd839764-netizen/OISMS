@@ -11,7 +11,7 @@ public class StockTransferItemRequestDto
     [NotEmptyGuid(ErrorMessage = "Mã biến thể SKU không được rỗng (Guid.Empty).")]
     public Guid SkuId { get; set; }
 
-    [Range(typeof(decimal), "0.001", "999999999999999.999", ErrorMessage = "Số lượng chuyển phải lớn hơn 0 và không vượt quá giới hạn tối đa.")]
+    [DecimalRange("0.001", "999999999999999.999", ErrorMessage = "Số lượng chuyển phải lớn hơn 0 và không vượt quá giới hạn tối đa.")]
     public decimal Quantity { get; set; }
 }
 
@@ -84,6 +84,7 @@ public class StockTransferResponseDto
     public string? ToWarehouseName { get; set; }
     public string Status { get; set; } = "Draft"; // 'Draft', 'InTransit', 'Received', 'Cancelled'
     public Guid CreatedBy { get; set; }
+    public Guid? DispatchedBy { get; set; }
     public DateTimeOffset? DispatchedAt { get; set; }
     public DateTimeOffset? ReceivedAt { get; set; }
     public Guid? ReceivedBy { get; set; }

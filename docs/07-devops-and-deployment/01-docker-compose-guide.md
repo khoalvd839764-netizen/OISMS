@@ -24,7 +24,7 @@ Gói cài đặt Demo (`Demo installation package`) đóng gói toàn bộ hệ 
 
 | Tên Service | Công nghệ / Image | Cổng ánh xạ (Host:Container) | Vai trò trong hệ thống |
 | :--- | :--- | :---: | :--- |
-| **`postgres`** | `postgres:16-alpine` | `5432:5432` | Cơ sở dữ liệu quan hệ PostgreSQL lưu trữ 29 bảng, Sổ cái Append-Only và dữ liệu Multi-tenant. |
+| **`postgres`** | `postgres:16-alpine` | `5432:5432` | Cơ sở dữ liệu quan hệ PostgreSQL lưu trữ 33 bảng, Sổ cái Append-Only và dữ liệu Multi-tenant. |
 | **`backend`** | `.NET 8 Web API` | `5000:8080` | Máy chủ API chính, Swagger UI (`/swagger`), SignalR Hub và Hangfire Worker. Tự động chạy Migration & Seed Data khi khởi động. |
 | **`admin-dashboard`** | `React 19 + Nginx Alpine` | `5173:80` | Giao diện cổng đăng nhập tập trung và quản trị Web Admin Dashboard. |
 | **`pos-app`** | `React 19 PWA + Nginx Alpine` | `5174:80` | Giao diện bán hàng tại quầy PWA POS độc lập dành cho Thu ngân. |
@@ -44,3 +44,5 @@ docker compose ps
 - **Swagger API Documentation:** `http://localhost:5000/swagger`
 - **Web Admin & Unified Login Portal:** `http://localhost:5173`
 - **Standalone Web POS PWA:** `http://localhost:5174`
+
+> **Lưu ý khi đã có database:** rebuild không nâng cấp schema, vì dữ liệu nằm trong volume `oisms_postgres_data`. Nếu `/health/ready` trả 503 `Database schema is incomplete`, xem [Nâng cấp database đã có dữ liệu](../database/README.md#nâng-cấp-database-đã-có-dữ-liệu-cả-nhóm-đọc-khi-kéo-code-mới).

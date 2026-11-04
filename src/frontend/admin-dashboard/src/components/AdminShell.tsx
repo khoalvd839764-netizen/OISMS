@@ -1,10 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   Boxes,
   ChartNoAxesCombined,
   ChevronDown,
-  CircleHelp,
   ClipboardList,
   LayoutDashboard,
   LogOut,
@@ -19,18 +18,22 @@ import {
   X,
   ArrowLeftRight,
   ClipboardCheck,
+  Receipt,
 } from "lucide-react";
-import { Button, ComingSoonBadge } from "./ui";
+import { Button } from "./ui";
 import { useAuth } from "../context/AuthContext";
 import { NotificationCenter } from "./NotificationCenter";
+import { apiAdapter } from "../services/apiAdapter";
 
 const nav = [
   { to: "/admin", label: "Tổng quan", icon: LayoutDashboard },
   { to: "/products", label: "Sản phẩm", icon: PackageSearch },
+  { to: "/purchase-orders", label: "Đơn mua hàng", icon: ClipboardList },
   { to: "/inventory", label: "Kho & sổ kho", icon: Boxes },
   { to: "/inventory/transfers", label: "Chuyển kho", icon: ArrowLeftRight },
   { to: "/inventory/counts", label: "Kiểm kê kho", icon: ClipboardCheck },
   { to: "/orders", label: "Đơn đa kênh", icon: ShoppingBag },
+  { to: "/invoices", label: "Hóa đơn & Truy vết", icon: Receipt },
   { to: "/reports", label: "Báo cáo", icon: ChartNoAxesCombined },
 ];
 
@@ -39,6 +42,66 @@ export function AdminShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout, networkError, setNetworkError } = useAuth();
+
+  // Tìm kiếm toàn hệ thống đa thực thể (CS-04)
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<{
+    query: string;
+    products: Array<{ id: string; title: string; subtitle?: string; status?: string; url: string }>;
+    orders: Array<{ id: string; title: string; subtitle?: string; status?: string; url: string }>;
+    goodsReceipts: Array<{ id: string; title: string; subtitle?: string; status?: string; url: string }>;
+  } | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const searchSeqRef = useRef(0);
+  const searchBoxRef = useRef<HTMLDivElement>(null);
+
+  const performSearch = useCallback(async (queryText: string) => {
+    const q = queryText.trim();
+    const seq = ++searchSeqRef.current;
+    if (!q) {
+      setSearchResults(null);
+      setSearchError(null);
+      setIsSearching(false);
+      setShowDropdown(false);
+      return;
+    }
+
+    setIsSearching(true);
+    setSearchError(null);
+    setShowDropdown(true);
+
+    const res = await apiAdapter.globalSearch(q);
+    if (seq !== searchSeqRef.current) return;
+
+    if (res.error) {
+      setSearchError(res.error.message || "Tìm kiếm thất bại. Vui lòng thử lại.");
+      setSearchResults(null);
+    } else if (res.data) {
+      setSearchResults(res.data);
+      setSearchError(null);
+    }
+    setIsSearching(false);
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      performSearch(searchQuery);
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, performSearch]);
+
+  // Đóng danh sách kết quả khi bấm ra ngoài ô tìm kiếm
+  useEffect(() => {
+    if (!showDropdown) return;
+    const handleMouseDown = (e: MouseEvent) => {
+      if (!searchBoxRef.current?.contains(e.target as Node)) setShowDropdown(false);
+    };
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, [showDropdown]);
 
   const account = user || {
     id: "user",
@@ -62,6 +125,10 @@ export function AdminShell() {
     "/admin": "Tổng quan",
     "/products": "Sản phẩm",
     "/admin/products": "Sản phẩm",
+    "/purchase-orders": "Đơn mua hàng từ NCC",
+    "/admin/purchase-orders": "Đơn mua hàng từ NCC",
+    "/invoices": "Hóa đơn & Truy vết",
+    "/admin/invoices": "Hóa đơn & Truy vết",
     "/inventory": "Kho & sổ kho",
     "/admin/inventory": "Kho & sổ kho",
     "/inventory/transfers": "Chuyển kho nội bộ (2 Bước)",
@@ -73,8 +140,6 @@ export function AdminShell() {
     "/reports": "Báo cáo tài chính & tồn kho",
     "/admin/reports": "Báo cáo tài chính & tồn kho",
     "/demo-tools": "Công cụ demo",
-    "/handoff": "Handoff kỹ thuật",
-    "/admin/handoff": "Handoff kỹ thuật",
     "/organization": "Nhân viên & chi nhánh",
     "/admin/organization": "Nhân viên & chi nhánh",
   };
@@ -131,17 +196,9 @@ export function AdminShell() {
               {item.label === "Kho & sổ kho" && <i>3</i>}
             </NavLink>
           ))}
-          <span className="nav-label nav-label--spaced">HỆ THỐNG</span>
-          <NavLink to="/handoff" onClick={() => setOpen(false)}>
-            <ClipboardList size={19} />
-            <span>Handoff kỹ thuật</span>
-          </NavLink>
         </nav>
 
         <div className="sidebar-bottom">
-          <NavLink to="/handoff">
-            <CircleHelp size={18} />Trợ giúp & giả định
-          </NavLink>
           {account.role === "Owner" && (
             <NavLink to="/organization">
               <Settings2 size={18} />Nhân viên & chi nhánh
@@ -213,10 +270,183 @@ export function AdminShell() {
             <Button variant="ghost" className="mobile-toggle" aria-label="Mở menu điều hướng" aria-expanded={open} onClick={() => setOpen(true)}>
               <Menu size={20} />
             </Button>
-            <div className="search-box">
+            <div className="search-box" ref={searchBoxRef} style={{ position: "relative" }}>
               <Search size={18} />
-              <input disabled aria-label="Tìm kiếm toàn hệ thống — Coming soon" placeholder="Tìm kiếm toàn hệ thống" title="Tìm kiếm toàn hệ thống chưa khả dụng. Dùng tìm kiếm trong từng trang." />
-              <ComingSoonBadge />
+              <input
+                aria-label="Tìm kiếm toàn hệ thống"
+                placeholder="Tìm sản phẩm, đơn hàng, phiếu kho..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => { if (searchQuery.trim()) setShowDropdown(true); }}
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => { setSearchQuery(""); setShowDropdown(false); }}
+                  style={{ background: "transparent", border: "none", color: "#94a3b8", cursor: "pointer", padding: "2px" }}
+                >
+                  <X size={15} />
+                </button>
+              )}
+
+              {/* DROPDOWN KẾT QUẢ TÌM KIẾM TOÀN HỆ THỐNG (CS-04) */}
+              {showDropdown && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "calc(100% + 8px)",
+                    left: 0,
+                    width: "420px",
+                    maxWidth: "90vw",
+                    background: "#ffffff",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "10px",
+                    boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+                    zIndex: 1000,
+                    maxHeight: "450px",
+                    overflowY: "auto",
+                    padding: "8px 0",
+                  }}
+                >
+                  {isSearching ? (
+                    <div style={{ padding: "16px", textAlign: "center", color: "#64748b", fontSize: "13px" }}>
+                      Đang tìm kiếm toàn hệ thống...
+                    </div>
+                  ) : searchError ? (
+                    <div style={{ padding: "16px", textAlign: "center", color: "#b91c1c", fontSize: "13px" }}>
+                      <p style={{ margin: "0 0 8px" }}>{searchError}</p>
+                      <button
+                        type="button"
+                        onClick={() => performSearch(searchQuery)}
+                        style={{
+                          background: "#fff",
+                          border: "1px solid #f87171",
+                          color: "#b91c1c",
+                          borderRadius: "6px",
+                          padding: "4px 10px",
+                          fontSize: "12px",
+                          cursor: "pointer",
+                          fontWeight: 600,
+                        }}
+                      >
+                        Thử lại
+                      </button>
+                    </div>
+                  ) : !searchResults || (searchResults.products.length === 0 && searchResults.orders.length === 0 && searchResults.goodsReceipts.length === 0) ? (
+                    <div style={{ padding: "16px", textAlign: "center", color: "#64748b", fontSize: "13px" }}>
+                      Không tìm thấy kết quả phù hợp cho "{searchQuery}".
+                    </div>
+                  ) : (
+                    <div>
+                      {/* 1. SẢN PHẨM & SKU */}
+                      {searchResults.products.length > 0 && (
+                        <div>
+                          <div style={{ padding: "6px 14px", fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", background: "#f8fafc" }}>
+                            Sản phẩm & SKU ({searchResults.products.length})
+                          </div>
+                          {searchResults.products.map((p) => (
+                            <div
+                              key={p.id}
+                              onClick={() => {
+                                setShowDropdown(false);
+                                navigate(`${p.url}?q=${encodeURIComponent(searchQuery.trim())}`);
+                              }}
+                              style={{
+                                padding: "8px 14px",
+                                cursor: "pointer",
+                                borderBottom: "1px solid #f1f5f9",
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f5f9")}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                            >
+                              <div>
+                                <div style={{ fontSize: "13px", fontWeight: 600, color: "#1e293b" }}>{p.title}</div>
+                                <div style={{ fontSize: "11px", color: "#64748b" }}>{p.subtitle}</div>
+                              </div>
+                              <span style={{ fontSize: "11px", color: "#2563eb", fontWeight: 500 }}>Chi tiết →</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* 2. ĐƠN HÀNG */}
+                      {searchResults.orders.length > 0 && (
+                        <div>
+                          <div style={{ padding: "6px 14px", fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", background: "#f8fafc" }}>
+                            Đơn hàng đa kênh ({searchResults.orders.length})
+                          </div>
+                          {searchResults.orders.map((o) => (
+                            <div
+                              key={o.id}
+                              onClick={() => {
+                                setShowDropdown(false);
+                                navigate(`${o.url}?orderId=${o.id}`);
+                              }}
+                              style={{
+                                padding: "8px 14px",
+                                cursor: "pointer",
+                                borderBottom: "1px solid #f1f5f9",
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f5f9")}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                            >
+                              <div>
+                                <div style={{ fontSize: "13px", fontWeight: 600, color: "#1e293b" }}>{o.title}</div>
+                                <div style={{ fontSize: "11px", color: "#64748b" }}>{o.subtitle}</div>
+                              </div>
+                              <span style={{ fontSize: "10px", padding: "2px 6px", borderRadius: "4px", background: "#f1f5f9", color: "#475569" }}>
+                                {o.status}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* 3. PHIẾU NHẬP KHO */}
+                      {searchResults.goodsReceipts.length > 0 && (
+                        <div>
+                          <div style={{ padding: "6px 14px", fontSize: "11px", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", background: "#f8fafc" }}>
+                            Phiếu nhập kho ({searchResults.goodsReceipts.length})
+                          </div>
+                          {searchResults.goodsReceipts.map((g) => (
+                            <div
+                              key={g.id}
+                              onClick={() => {
+                                setShowDropdown(false);
+                                navigate(g.url);
+                              }}
+                              style={{
+                                padding: "8px 14px",
+                                cursor: "pointer",
+                                borderBottom: "1px solid #f1f5f9",
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f5f9")}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                            >
+                              <div>
+                                <div style={{ fontSize: "13px", fontWeight: 600, color: "#1e293b" }}>{g.title}</div>
+                                <div style={{ fontSize: "11px", color: "#64748b" }}>{g.subtitle}</div>
+                              </div>
+                              <span style={{ fontSize: "10px", padding: "2px 6px", borderRadius: "4px", background: "#f1f5f9", color: "#475569" }}>
+                                {g.status}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

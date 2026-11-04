@@ -61,6 +61,17 @@ public class SkuVelocityItemDto
     public decimal TotalRevenue { get; set; }
     public decimal CurrentOnHand { get; set; }
     public decimal DaysWithoutSale { get; set; }
+    /// <summary>Đơn vị gốc của SKU; null khi SKU chưa khai báo đơn vị gốc.</summary>
+    public string? BaseUnitName { get; set; }
+}
+
+/// <summary>Số lượng tồn của các SKU có cùng đơn vị gốc.</summary>
+public class UnitQuantityDto
+{
+    public string UnitName { get; set; } = string.Empty;
+    public decimal OnHand { get; set; }
+    public decimal Reserved { get; set; }
+    public decimal Available { get; set; }
 }
 
 public class InventoryVelocityReportDto
@@ -69,6 +80,8 @@ public class InventoryVelocityReportDto
     public decimal TotalOnHandQuantity { get; set; }
     public decimal TotalReservedQuantity { get; set; }
     public decimal TotalAvailableQuantity { get; set; }
+    /// <summary>Tồn tách theo đơn vị gốc, vì cộng gộp khác đơn vị (Cái, Kg) không có ý nghĩa.</summary>
+    public List<UnitQuantityDto> QuantityByUnit { get; set; } = new();
 
     public List<SkuVelocityItemDto> BestSellers { get; set; } = new();
     public List<SkuVelocityItemDto> SlowMovingItems { get; set; } = new();
@@ -90,4 +103,28 @@ public class StockAlertDto
     /// Mức độ cảnh báo: 'OutOfStock' (hết sạch), 'Critical' (dưới 50% ngưỡng), 'Warning' (chạm ngưỡng).
     /// </summary>
     public string AlertLevel { get; set; } = "Warning";
+}
+
+public class RecentOrderDto
+{
+    public Guid Id { get; set; }
+    public string Number { get; set; } = string.Empty;
+    public string Channel { get; set; } = string.Empty;
+    public string? CustomerName { get; set; }
+    public decimal TotalAmount { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public DateTimeOffset CreatedAt { get; set; }
+}
+
+public class DashboardSummaryDto
+{
+    public decimal TotalRevenue { get; set; }
+    public int TotalOrders { get; set; }
+    public decimal? TotalGrossProfit { get; set; }
+    public decimal GrossMarginPercentage { get; set; }
+    public int SkuCount { get; set; }
+    public decimal? TotalInventoryValue { get; set; }
+    public int LowStockCount { get; set; }
+    public List<RecentOrderDto> RecentOrders { get; set; } = new();
+    public List<DailyRevenueBreakdownDto> RecentRevenueTrend { get; set; } = new();
 }

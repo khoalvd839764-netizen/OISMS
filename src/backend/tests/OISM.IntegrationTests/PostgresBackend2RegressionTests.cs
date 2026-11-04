@@ -316,23 +316,20 @@ public class PostgresBackend2RegressionTests : IAsyncLifetime, IClassFixture<Web
         var product = await _client.GetFromJsonAsync<ProductResponse>($"/api/products/{productId}", _jsonOptions);
         var variantId = product!.Variants.First().Id;
 
-        // 2. Cập nhật bảng giá SKU qua /prices (BE2-06)
-        var updatePricesRes = await _client.PutAsJsonAsync($"/api/products/{productId}/variants/{variantId}/prices", new UpdateVariantPricesRequest
+        // 2. Cập nhật bảng giá SKU qua /prices (BE2-06) -> Nâng cấp U04 trả 410 Gone
+        var updatePricesRes = await _client.PutAsJsonAsync($"/api/products/{productId}/variants/{variantId}/prices", new
         {
             RetailPrice = 490000,
             WholesalePrice = 320000
         });
-        updatePricesRes.StatusCode.Should().Be(HttpStatusCode.OK);
-        var updatedVariant = await updatePricesRes.Content.ReadFromJsonAsync<ProductVariantResponse>(_jsonOptions);
-        updatedVariant!.RetailPrice.Should().Be(490000);
-        updatedVariant.WholesalePrice.Should().Be(320000);
+        updatePricesRes.StatusCode.Should().Be(HttpStatusCode.Gone);
 
         // 3. Cập nhật thông tin chi tiết biến thể và thuộc tính tùy ý (BE2-05)
         var updateVariantRes = await _client.PutAsJsonAsync($"/api/products/{productId}/variants/{variantId}", new UpdateVariantRequest
         {
             VariantName = "Xanh Đậm Co Giãn Size 30",
-            RetailPrice = 495000,
-            WholesalePrice = 325000,
+            RetailPrice = 450000,
+            WholesalePrice = 300000,
             Color = "Xanh Đậm",
             Size = "30",
             Attributes = new Dictionary<string, object> { ["stretch"] = "high", ["pockets"] = 5 },
@@ -412,17 +409,14 @@ public class PostgresBackend2RegressionTests : IAsyncLifetime, IClassFixture<Web
         var skuId = product!.Variants.First().Id;
 
         // 4. Lập phiếu nhập kho 100 cái và xác nhận nhập kho (Backend 1 Goods Receipt)
-        var grRes = await _client.PostAsJsonAsync("/api/goods-receipts", new OISM.Application.Features.Inventory.Dtos.CreateGoodsReceiptDto
-        {
-            BranchId = branch.Id,
-            WarehouseId = wh!.Id,
-            SupplierId = sup!.Id,
-            Note = "Nhập kho thử nghiệm POS",
-            Items = new List<OISM.Application.Features.Inventory.Dtos.CreateGoodsReceiptItemDto>
-            {
-                new() { SkuId = skuId, Quantity = 100m, UnitPrice = 80000m }
-            }
-        });
+        var grDto = await PurchaseOrderSeed.CreateDraftReceiptDtoViaApiAsync(
+            _client,
+            branch.Id,
+            wh!.Id,
+            sup!.Id,
+            "Nhập kho thử nghiệm POS",
+            (skuId, 100m, 80000m, null));
+        var grRes = await _client.PostAsJsonAsync("/api/goods-receipts", grDto);
         grRes.StatusCode.Should().Be(HttpStatusCode.Created);
         var gr = await grRes.Content.ReadFromJsonAsync<OISM.Application.Features.Inventory.Dtos.GoodsReceiptResponseDto>(_jsonOptions);
 
@@ -589,7 +583,7 @@ VALUES (@id, @tenantId, 'Thu Ngân 1', @email, '+84912345678', @hash, 'Cashier',
         {
             VariantName = "Polo Xanh Cập Nhật",
             Color = null,
-            RetailPrice = 210000,
+            RetailPrice = 200000,
             Attributes = new Dictionary<string, object> { ["CoLoR"] = "  rEd  " }
         });
         caseSpaceRes.StatusCode.Should().Be(HttpStatusCode.Conflict);
@@ -600,7 +594,7 @@ VALUES (@id, @tenantId, 'Thu Ngân 1', @email, '+84912345678', @hash, 'Cashier',
         {
             VariantName = "Polo Vàng Mới",
             Color = "Yellow",
-            RetailPrice = 220000,
+            RetailPrice = 200000,
             Attributes = new Dictionary<string, object> { ["color"] = "Red" }
         });
         explicitPrecedenceRes.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -693,17 +687,14 @@ VALUES (@id, @tenantId, 'Thu Ngân 1', @email, '+84912345678', @hash, 'Cashier',
         var product = await _client.GetFromJsonAsync<ProductResponse>($"/api/products/{prodObj.GetProperty("productId").GetGuid()}", _jsonOptions);
         var skuId = product!.Variants.First().Id;
 
-        var grRes = await _client.PostAsJsonAsync("/api/goods-receipts", new OISM.Application.Features.Inventory.Dtos.CreateGoodsReceiptDto
-        {
-            BranchId = branch1.Id,
-            WarehouseId = wh1!.Id,
-            SupplierId = sup!.Id,
-            Note = "Nhập vật tư kiểm thử kho",
-            Items = new List<OISM.Application.Features.Inventory.Dtos.CreateGoodsReceiptItemDto>
-            {
-                new() { SkuId = skuId, Quantity = 50m, UnitPrice = 30000m }
-            }
-        });
+        var grDto1 = await PurchaseOrderSeed.CreateDraftReceiptDtoViaApiAsync(
+            _client,
+            branch1.Id,
+            wh1!.Id,
+            sup!.Id,
+            "Nhập vật tư kiểm thử kho",
+            (skuId, 50m, 30000m, null));
+        var grRes = await _client.PostAsJsonAsync("/api/goods-receipts", grDto1);
         var gr = await grRes.Content.ReadFromJsonAsync<OISM.Application.Features.Inventory.Dtos.GoodsReceiptResponseDto>(_jsonOptions);
 
         var confirmRes = await _client.PostAsync($"/api/goods-receipts/{gr!.Id}/confirm", null);
@@ -734,17 +725,14 @@ VALUES (@id, @tenantId, 'Thu Ngân 1', @email, '+84912345678', @hash, 'Cashier',
         var whZeroStock = await whZeroStockRes.Content.ReadFromJsonAsync<WarehouseResponse>(_jsonOptions);
 
         // Tạo chứng từ phiếu nhập liên kết với kho này (trạng thái Draft, chưa nhập kho nên OnHand = 0)
-        var draftGrRes = await _client.PostAsJsonAsync("/api/goods-receipts", new OISM.Application.Features.Inventory.Dtos.CreateGoodsReceiptDto
-        {
-            BranchId = branch1.Id,
-            WarehouseId = whZeroStock!.Id,
-            SupplierId = sup!.Id,
-            Note = "Phiếu nhập nháp kiểm thử kho tồn 0",
-            Items = new List<OISM.Application.Features.Inventory.Dtos.CreateGoodsReceiptItemDto>
-            {
-                new() { SkuId = skuId, Quantity = 10m, UnitPrice = 30000m }
-            }
-        });
+        var draftGrDto = await PurchaseOrderSeed.CreateDraftReceiptDtoViaApiAsync(
+            _client,
+            branch1.Id,
+            whZeroStock!.Id,
+            sup!.Id,
+            "Phiếu nhập nháp kiểm thử kho tồn 0",
+            (skuId, 10m, 30000m, null));
+        var draftGrRes = await _client.PostAsJsonAsync("/api/goods-receipts", draftGrDto);
         draftGrRes.StatusCode.Should().Be(HttpStatusCode.Created);
 
         // Cố tình đổi chi nhánh của kho đã có chứng từ nhưng tồn kho bằng 0 -> Phải bị từ chối 409 Conflict
@@ -905,7 +893,7 @@ VALUES (@id, @tenantId, 'Thu Ngân 1', @email, '+84912345678', @hash, 'Cashier',
         var updateNestedRes = await _client.PutAsJsonAsync($"/api/products/{productId}/variants/{variantId}", new UpdateVariantRequest
         {
             VariantName = "Biến thể Đã Cập Nhật Lồng Nhau",
-            RetailPrice = 150000,
+            RetailPrice = 120000,
             Attributes = new Dictionary<string, object>
             {
                 ["dimensions"] = new Dictionary<string, object> { ["width"] = 15, ["height"] = 25, ["depth"] = 30 },
@@ -932,7 +920,7 @@ VALUES (@id, @tenantId, 'Thu Ngân 1', @email, '+84912345678', @hash, 'Cashier',
         var deleteAttrRes = await _client.PutAsJsonAsync($"/api/products/{productId}/variants/{variantId}", new UpdateVariantRequest
         {
             VariantName = "Biến thể Sau Xóa Thuộc Tính",
-            RetailPrice = 150000,
+            RetailPrice = 120000,
             Attributes = new Dictionary<string, object>
             {
                 ["sizes"] = null! // Xóa key sizes
@@ -1090,7 +1078,7 @@ VALUES (@id, @tenantId, 'Thu Ngân 1', @email, '+84912345678', @hash, 'Cashier',
         var updateNestedRes = await _client.PutAsJsonAsync($"/api/products/{productId}/variants/{variantId}", new UpdateVariantRequest
         {
             VariantName = "Biến thể Đã Cập Nhật Null Lồng Nhau",
-            RetailPrice = 260000,
+            RetailPrice = 250000,
             Attributes = new Dictionary<string, object>
             {
                 ["positions"] = new List<object?> { null, "L", null },
@@ -1120,7 +1108,7 @@ VALUES (@id, @tenantId, 'Thu Ngân 1', @email, '+84912345678', @hash, 'Cashier',
         var deleteTopRes = await _client.PutAsJsonAsync($"/api/products/{productId}/variants/{variantId}", new UpdateVariantRequest
         {
             VariantName = "Biến thể Xóa Positions Cấp Ngoài",
-            RetailPrice = 260000,
+            RetailPrice = 250000,
             Attributes = new Dictionary<string, object>
             {
                 ["positions"] = null! // Xóa key cấp ngoài

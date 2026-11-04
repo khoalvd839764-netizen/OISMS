@@ -168,21 +168,7 @@ public class WebhookIntegrationTests : IAsyncLifetime, IClassFixture<WebApplicat
 
             if (initialOnHand > 0)
             {
-                var wacCalc = new WacCalculator();
-                var grService = new GoodsReceiptService(context, tenantService, wacCalc);
-                var receiptDto = new CreateGoodsReceiptDto
-                {
-                    BranchId = branch.Id,
-                    WarehouseId = wh.Id,
-                    SupplierId = supplier.Id,
-                    Note = "Seed stock via GoodsReceipt",
-                    Items = new List<CreateGoodsReceiptItemDto>
-                    {
-                        new() { SkuId = sku.Id, Quantity = initialOnHand, UnitPrice = 50_000m }
-                    }
-                };
-                var receipt = await grService.CreateReceiptAsync(receiptDto, user.Id);
-                await grService.ConfirmReceiptAsync(receipt.Id, user.Id);
+                await PurchaseOrderSeed.ReceiveStockAsync(context, tenantService, branch.Id, wh.Id, supplier.Id, user.Id, (sku.Id, initialOnHand, 50_000m));
             }
 
             var bBal = await context.InventoryBalances.FirstAsync(b => b.TenantId == OismsDatabaseSeeder.TenantAId && b.BranchId == branch.Id && b.SkuId == sku.Id);
@@ -1738,6 +1724,11 @@ public class WebhookIntegrationTests : IAsyncLifetime, IClassFixture<WebApplicat
         var status201Count = results.Count(r => r.StatusCode == HttpStatusCode.Created);
         var status200Count = results.Count(r => r.StatusCode == HttpStatusCode.OK);
 
+        var unexpectedResponses = string.Join(" | ", results
+            .Where(r => r.StatusCode != HttpStatusCode.Created && r.StatusCode != HttpStatusCode.OK)
+            .Select(r => $"{(int)r.StatusCode}: {r.Body}"));
+        unexpectedResponses.Should().BeEmpty("mọi submission phải nhận 201 hoặc 200, phản hồi khác phải được chẩn đoán được");
+
         status201Count.Should().Be(1, "Trong 50 submissions đồng thời cùng key, đúng 1 request đầu tiên nhận HTTP 201 Created.");
         status200Count.Should().Be(49, "49 submissions còn lại phải nhận HTTP 200 OK (idempotent replay).");
 
@@ -1984,23 +1975,19 @@ public class WebhookIntegrationTests : IAsyncLifetime, IClassFixture<WebApplicat
             };
             setupDb.ProductVariants.Add(sku2);
             await setupDb.SaveChangesAsync();
+            await PriceSeed.SyncFromLegacyColumnsAsync(setupDb);
 
             var user = await setupDb.Users.FirstAsync(u => u.TenantId == infra.TenantId && u.Email == "owner@shopa.local");
             var supplier = await setupDb.Suppliers.FirstAsync(s => s.TenantId == infra.TenantId);
-            var grService = new GoodsReceiptService(setupDb, tService, new WacCalculator());
-            var receipt = await grService.CreateReceiptAsync(new CreateGoodsReceiptDto
-            {
-                BranchId = infra.BranchId,
-                WarehouseId = infra.WarehouseId,
-                SupplierId = supplier.Id,
-                Note = "Seed stock multi-sku",
-                Items = new List<CreateGoodsReceiptItemDto>
-                {
-                    new() { SkuId = infra.SkuId, Quantity = 10m, UnitPrice = 50_000m },
-                    new() { SkuId = sku2.Id, Quantity = 10m, UnitPrice = 60_000m }
-                }
-            }, user.Id);
-            await grService.ConfirmReceiptAsync(receipt.Id, user.Id);
+            await PurchaseOrderSeed.ReceiveStockAsync(
+                setupDb,
+                tService,
+                infra.BranchId,
+                infra.WarehouseId,
+                supplier.Id,
+                user.Id,
+                (infra.SkuId, 10m, 50_000m),
+                (sku2.Id, 10m, 60_000m));
         }
 
         // Đua 2 tác vụ đảo thứ tự SKU kèm theo Observer quan sát mọi mã lỗi SQL trước retry:
@@ -2317,7 +2304,13 @@ public class WebhookIntegrationTests : IAsyncLifetime, IClassFixture<WebApplicat
             var rows = new List<string>();
             foreach (var table in new[] { "orders", "order_items", "reservations", "inventory_transactions", "payments", "inventory_balances", "warehouse_inventory_balances" })
             {
-                await using var sql = new NpgsqlCommand($"SELECT COALESCE(jsonb_agg(to_jsonb(t) - 'webhook_payload_signature' ORDER BY t.tenant_id, t.id), '[]'::jsonb)::text FROM {table} t", connection);
+                string stripExpr = table switch
+                {
+                    "orders" => "to_jsonb(t) - 'webhook_payload_signature'",
+                    "order_items" => "to_jsonb(t) - 'unit_id' - 'unit_name_snapshot' - 'factor_snapshot' - 'base_quantity'",
+                    _ => "to_jsonb(t)"
+                };
+                await using var sql = new NpgsqlCommand($"SELECT COALESCE(jsonb_agg({stripExpr} ORDER BY t.tenant_id, t.id), '[]'::jsonb)::text FROM {table} t", connection);
                 rows.Add((string)(await sql.ExecuteScalarAsync())!);
             }
             return string.Join("\n", rows);
@@ -2343,6 +2336,13 @@ public class WebhookIntegrationTests : IAsyncLifetime, IClassFixture<WebApplicat
         // 5. Đối soát dữ liệu nghiệp vụ: Không đổi bất kỳ dòng nào (bỏ qua cột webhook_payload_signature mới)
         var after = await Snapshot();
         (before == after).Should().BeTrue("Dữ liệu nghiệp vụ cũ không được thay đổi sau khi upgrade schema.");
+
+        // Khẳng định các cột multi-unit mới trên order_items có đúng giá trị backfill
+        await using (var checkCmd = new NpgsqlCommand("SELECT COUNT(*) FROM order_items WHERE factor_snapshot != 1 OR base_quantity != quantity OR unit_id IS NULL OR unit_name_snapshot IS NULL;", connection))
+        {
+            var invalidBackfillCount = (long)(await checkCmd.ExecuteScalarAsync())!;
+            invalidBackfillCount.Should().Be(0, "Mọi order_items cũ phải có unit_id, unit_name_snapshot, factor_snapshot = 1 và base_quantity = quantity.");
+        }
 
         // 6. Comprehensive validator kiểm tra toàn diện schema
         var validation = await DatabaseMigrationService.ValidateSchemaComprehensiveAsync(connection, null, default);

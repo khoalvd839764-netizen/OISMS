@@ -5,13 +5,17 @@ import {
   STOCK_COUNT_STATUS_COLOR,
 } from '../../types/stockCount';
 import { stockCountService, type ProblemDetailsError } from '../../services/stockCountService';
+import { useAuth } from '../../context/AuthContext';
 import {
   X,
   AlertTriangle,
   CheckCircle2,
   Save,
   Ban,
-  Info,
+  Send,
+  RotateCcw,
+  ShieldAlert,
+  Clock,
 } from 'lucide-react';
 
 interface StockCountDetailDrawerProps {
@@ -25,6 +29,9 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
   onClose,
   onRefresh,
 }) => {
+  const { user } = useAuth();
+  const isOwner = user?.role === 'Owner';
+
   const [detail, setDetail] = useState<StockCount | null>(null);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -37,16 +44,38 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
   const [errorDetails, setErrorDetails] = useState<ProblemDetailsError | null>(null);
   const [sequenceDrift, setSequenceDrift] = useState(false);
   const activeReqRef = useRef(0);
+  const busyIdsRef = useRef<Set<string>>(new Set());
+  const currentCountIdRef = useRef<string | null>(countId);
+  currentCountIdRef.current = countId;
+
+  // Đồng bộ phiếu và các ô nhập theo dữ liệu server (đếm lại sẽ xóa số đếm cũ trên server)
+  const applyServerDetail = (data: StockCount) => {
+    setDetail(data);
+    const initialCounted: Record<string, string> = {};
+    const initialCost: Record<string, string> = {};
+    data.items.forEach((item) => {
+      if (item.countedQuantity !== undefined && item.countedQuantity !== null) {
+        initialCounted[item.skuId] = String(item.countedQuantity);
+      }
+      if (item.adjustmentUnitCost !== undefined && item.adjustmentUnitCost !== null) {
+        initialCost[item.skuId] = String(item.adjustmentUnitCost);
+      }
+    });
+    setCountedMap(initialCounted);
+    setCostMap(initialCost);
+  };
 
   useEffect(() => {
     if (!countId) {
       setDetail(null);
+      setActionLoading(false);
       return;
     }
 
     const reqSeq = ++activeReqRef.current;
     setDetail(null);
     setLoading(true);
+    setActionLoading(busyIdsRef.current.has(countId));
     setErrorDetails(null);
     setSequenceDrift(false);
 
@@ -54,21 +83,7 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
       try {
         const data = await stockCountService.getStockCountById(countId);
         if (reqSeq !== activeReqRef.current) return;
-        setDetail(data);
-
-        // Khởi tạo map giá trị đếm
-        const initialCounted: Record<string, string> = {};
-        const initialCost: Record<string, string> = {};
-        data.items.forEach((item) => {
-          if (item.countedQuantity !== undefined && item.countedQuantity !== null) {
-            initialCounted[item.skuId] = String(item.countedQuantity);
-          }
-          if (item.adjustmentUnitCost !== undefined && item.adjustmentUnitCost !== null) {
-            initialCost[item.skuId] = String(item.adjustmentUnitCost);
-          }
-        });
-        setCountedMap(initialCounted);
-        setCostMap(initialCost);
+        applyServerDetail(data);
       } catch (err: any) {
         if (reqSeq !== activeReqRef.current) return;
         setErrorDetails({
@@ -87,24 +102,97 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
 
   if (!countId) return null;
 
-  const isEditable = detail?.status === 'Draft' || detail?.status === 'Counting';
+  const isCounting = detail?.status === 'Draft' || detail?.status === 'Counting';
+  const isPending = detail?.status === 'PendingApproval';
+  const isConfirmed = detail?.status === 'Confirmed';
 
-  // Lưu bản đếm thực tế
+  // Lưu bản đếm thực tế (POST /api/stock-counts/{id}/record)
   const handleSaveCounts = async () => {
     if (!detail || detail.id !== countId || loading || actionLoading) return;
+
+    // Chỉ lưu những dòng đã nhập. Ô để trống là chưa đếm, không được coi là đếm được 0.
+    const itemsToRecord = detail.items
+      .filter((item) => (countedMap[item.skuId] ?? '').trim() !== '')
+      .map((item) => {
+        const costStr = costMap[item.skuId];
+        const costVal = costStr && Number(costStr) > 0 ? Number(costStr) : undefined;
+        return {
+          skuId: item.skuId,
+          countedQuantity: Number(countedMap[item.skuId]),
+          adjustmentUnitCost: costVal,
+        };
+      });
+
+    if (itemsToRecord.length === 0) {
+      setErrorDetails({
+        title: 'Chưa có số đếm để lưu',
+        detail: 'Vui lòng nhập số đếm cho ít nhất một mặt hàng.',
+      });
+      return;
+    }
+
     const targetId = detail.id;
     const actionSeq = ++activeReqRef.current;
+    busyIdsRef.current.add(targetId);
     setActionLoading(true);
     setErrorDetails(null);
     setSequenceDrift(false);
 
     try {
+      const updated = await stockCountService.recordCounts(targetId, {
+        items: itemsToRecord,
+      });
+
+      if (currentCountIdRef.current !== targetId) return;
+      applyServerDetail(updated);
+      onRefresh();
+      alert('Đã lưu kết quả kiểm đếm lên máy chủ thành công!');
+    } catch (err: any) {
+      if (currentCountIdRef.current !== targetId) return;
+      if (err.errorCode === 'STOCK_COUNT_SEQUENCE_DRIFT') {
+        setSequenceDrift(true);
+      }
+      setErrorDetails(err);
+    } finally {
+      busyIdsRef.current.delete(targetId);
+      if (currentCountIdRef.current === targetId || actionSeq === activeReqRef.current) {
+        setActionLoading(busyIdsRef.current.has(currentCountIdRef.current || ''));
+      }
+    }
+  };
+
+  // Nộp kết quả kiểm đếm để trình duyệt (Counting -> PendingApproval) (U03)
+  const handleSubmitForApproval = async () => {
+    if (!detail || detail.id !== countId || loading || actionLoading) return;
+
+    // Kiểm tra các mặt hàng chưa đếm
+    const uncounted = detail.items.filter(
+      (item) => countedMap[item.skuId] === undefined || countedMap[item.skuId].trim() === ''
+    );
+    if (uncounted.length > 0) {
+      const proceed = confirm(
+        `Còn ${uncounted.length} mặt hàng chưa nhập số đếm. Bạn có muốn gán số đếm bằng 0 cho các mặt hàng này và nộp duyệt không?`
+      );
+      if (!proceed) return;
+    }
+
+    const note = prompt('Ghi chú nộp kiểm kê để trình duyệt (tùy chọn):', detail.note || '');
+    if (note === null) return; // Người dùng hủy
+
+    const targetId = detail.id;
+    const actionSeq = ++activeReqRef.current;
+    busyIdsRef.current.add(targetId);
+    setActionLoading(true);
+    setErrorDetails(null);
+    setSequenceDrift(false);
+
+    try {
+      // Tự động record trước khi nộp
       const itemsToRecord = detail.items.map((item) => {
         const valStr = countedMap[item.skuId];
-        const countedVal = valStr !== undefined && valStr.trim() !== '' ? Number(valStr) : item.expectedQuantity;
+        const countedVal = valStr !== undefined && valStr.trim() !== '' ? Number(valStr) : 0;
         const costStr = costMap[item.skuId];
         const costVal = costStr && Number(costStr) > 0 ? Number(costStr) : undefined;
-
         return {
           skuId: item.skuId,
           countedQuantity: countedVal,
@@ -112,82 +200,61 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
         };
       });
 
-      const updated = await stockCountService.recordCounts(targetId, {
-        items: itemsToRecord,
+      await stockCountService.recordCounts(targetId, { items: itemsToRecord });
+
+      const submitted = await stockCountService.submitStockCount(targetId, {
+        note: note.trim() || undefined,
       });
 
-      if (actionSeq !== activeReqRef.current || countId !== targetId) return;
-      setDetail(updated);
+      if (currentCountIdRef.current !== targetId) return;
+      setDetail(submitted);
       onRefresh();
-      alert('Đã lưu kết quả kiểm đếm thành công!');
+      alert('Đã nộp kết quả kiểm đếm thành công! Đợt kiểm kê chuyển sang trạng thái "Chờ duyệt chênh lệch" (PendingApproval).');
     } catch (err: any) {
-      if (actionSeq !== activeReqRef.current || countId !== targetId) return;
+      if (currentCountIdRef.current !== targetId) return;
+      if (err.errorCode === 'STOCK_COUNT_SEQUENCE_DRIFT') {
+        setSequenceDrift(true);
+      }
       setErrorDetails(err);
     } finally {
-      if (actionSeq === activeReqRef.current && countId === targetId) {
-        setActionLoading(false);
+      busyIdsRef.current.delete(targetId);
+      if (currentCountIdRef.current === targetId || actionSeq === activeReqRef.current) {
+        setActionLoading(busyIdsRef.current.has(currentCountIdRef.current || ''));
       }
     }
   };
 
-  // Chốt kiểm kê & Cân bằng tồn
+  // Phê duyệt cân bằng tồn (Chỉ Owner) (PendingApproval -> Confirmed)
   const handleConfirmCount = async () => {
     if (!detail || detail.id !== countId || loading || actionLoading) return;
 
-    // Kiểm tra dirty: Người dùng đã sửa số lượng hoặc đơn giá so với bản ghi đã lưu trên server chưa?
-    const hasDirtyEdits = detail.items.some((item) => {
-      const currentCountStr = countedMap[item.skuId];
-      const savedCountStr =
-        item.countedQuantity !== undefined && item.countedQuantity !== null
-          ? String(item.countedQuantity)
-          : '';
-      if (
-        currentCountStr !== undefined &&
-        currentCountStr.trim() !== '' &&
-        currentCountStr.trim() !== savedCountStr.trim()
-      ) {
-        return true;
-      }
-
-      const currentCostStr = costMap[item.skuId];
-      const savedCostStr =
-        item.adjustmentUnitCost !== undefined && item.adjustmentUnitCost !== null
-          ? String(item.adjustmentUnitCost)
-          : '';
-      if (
-        currentCostStr !== undefined &&
-        currentCostStr.trim() !== '' &&
-        currentCostStr.trim() !== savedCostStr.trim()
-      ) {
-        return true;
-      }
-      return false;
-    });
-
-    if (hasDirtyEdits) {
-      alert("Bạn có thay đổi số lượng đếm hoặc giá vốn chưa được lưu. Vui lòng bấm 'Lưu kết quả đếm' trước khi Chốt kiểm kê.");
+    if (!isOwner) {
+      setErrorDetails({
+        title: 'Quyền truy cập bị từ chối (403 Forbidden)',
+        detail: 'Chỉ Chủ cửa hàng (Owner) mới có quyền phê duyệt cân bằng tồn kho theo quy định kiểm kê.',
+        errorCode: 'FORBIDDEN',
+        status: 403,
+      });
       return;
     }
 
-    // Kiểm tra đã nhập hết chưa
-    const uncounted = detail.items.filter(
-      (item) => countedMap[item.skuId] === undefined || countedMap[item.skuId].trim() === ''
+    // Nhập ghi chú duyệt nếu tự duyệt (self-counter)
+    let note = detail.note;
+    const promptNote = prompt(
+      'Nhập ghi chú phê duyệt cân bằng tồn kho (Bắt buộc nếu bạn là người trực tiếp kiểm đếm):',
+      detail.note || ''
     );
-    if (uncounted.length > 0) {
-      const proceed = confirm(
-        `Còn ${uncounted.length} mặt hàng chưa nhập số đếm. Bạn có muốn gán bằng tồn sổ sách để chốt không?`
-      );
-      if (!proceed) return;
-    }
+    if (promptNote === null) return;
+    note = promptNote.trim();
 
     const targetId = detail.id;
     const actionSeq = ++activeReqRef.current;
+    busyIdsRef.current.add(targetId);
     setActionLoading(true);
     setErrorDetails(null);
     setSequenceDrift(false);
 
     try {
-      // Chuẩn bị SkuAdjustmentCosts map nếu có surplus
       const skuAdjustmentCosts: Record<string, number> = {};
       Object.entries(costMap).forEach(([skuId, costStr]) => {
         const val = Number(costStr);
@@ -197,23 +264,129 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
       });
 
       const confirmed = await stockCountService.confirmStockCount(targetId, {
-        note: detail.note,
+        note: note || undefined,
         skuAdjustmentCosts: Object.keys(skuAdjustmentCosts).length > 0 ? skuAdjustmentCosts : undefined,
       });
 
-      if (actionSeq !== activeReqRef.current || countId !== targetId) return;
+      if (currentCountIdRef.current !== targetId) return;
       setDetail(confirmed);
       onRefresh();
-      alert('Đã chốt kiểm kê và tạo chứng từ cân bằng tồn kho thành công!');
+      alert('Đã phê duyệt và chốt kiểm kê thành công! Số dư tồn kho đã được cân bằng chính thức.');
     } catch (err: any) {
-      if (actionSeq !== activeReqRef.current || countId !== targetId) return;
-      if (err.errorCode === 'STOCK_COUNT_DRIFT_DETECTED' || err.status === 409) {
+      if (currentCountIdRef.current !== targetId) return;
+      if (err.errorCode === 'STOCK_COUNT_SEQUENCE_DRIFT') {
         setSequenceDrift(true);
       }
       setErrorDetails(err);
     } finally {
-      if (actionSeq === activeReqRef.current && countId === targetId) {
-        setActionLoading(false);
+      busyIdsRef.current.delete(targetId);
+      if (currentCountIdRef.current === targetId || actionSeq === activeReqRef.current) {
+        setActionLoading(busyIdsRef.current.has(currentCountIdRef.current || ''));
+      }
+    }
+  };
+
+  // Owner yêu cầu đếm lại (Request Recount)
+  const handleRequestRecount = async () => {
+    if (!detail || detail.id !== countId || loading || actionLoading) return;
+
+    if (!isOwner) {
+      alert('Chỉ Owner mới có quyền yêu cầu kiểm đếm lại.');
+      return;
+    }
+
+    const reason = prompt('Nhập lý do yêu cầu kiểm đếm lại (bắt buộc):');
+    if (!reason || !reason.trim()) {
+      alert('Lý do yêu cầu kiểm đếm lại là bắt buộc.');
+      return;
+    }
+
+    // Mặc định chọn tất cả SKU có chênh lệch hoặc toàn bộ
+    const diffSkus = detail.items.filter((i) => (i.differenceQuantity ?? 0) !== 0).map((i) => i.skuId);
+    const skuIdsToRecount = diffSkus.length > 0 ? diffSkus : detail.items.map((i) => i.skuId);
+
+    const targetId = detail.id;
+    const actionSeq = ++activeReqRef.current;
+    busyIdsRef.current.add(targetId);
+    setActionLoading(true);
+    setErrorDetails(null);
+
+    try {
+      const updated = await stockCountService.requestRecount(targetId, {
+        skuIds: skuIdsToRecount,
+        reason: reason.trim(),
+      });
+
+      if (currentCountIdRef.current !== targetId) return;
+      applyServerDetail(updated);
+      onRefresh();
+      alert('Đã gửi yêu cầu kiểm đếm lại thành công!');
+    } catch (err: any) {
+      if (currentCountIdRef.current !== targetId) return;
+      setErrorDetails(err);
+    } finally {
+      busyIdsRef.current.delete(targetId);
+      if (currentCountIdRef.current === targetId || actionSeq === activeReqRef.current) {
+        setActionLoading(busyIdsRef.current.has(currentCountIdRef.current || ''));
+      }
+    }
+  };
+
+  // Đếm lại các SKU bị lệch sequence / yêu cầu đếm lại (Recount)
+  const handleRecountDrifted = async () => {
+    if (!detail || detail.id !== countId || loading || actionLoading) return;
+
+    // Phiếu ở Chờ duyệt phải do Owner trả về đếm lại, nên cần lý do trước khi gửi
+    let requestReason: string | null = null;
+    if (detail.status === 'PendingApproval') {
+      if (!isOwner) {
+        setErrorDetails({
+          title: 'Cần Chủ cửa hàng xử lý',
+          detail: 'Phiếu đang chờ duyệt. Chỉ Owner mới có thể trả phiếu về để đếm lại các SKU bị lệch.',
+        });
+        return;
+      }
+      requestReason = prompt('Nhập lý do yêu cầu đếm lại các SKU bị lệch (bắt buộc):');
+      if (!requestReason || !requestReason.trim()) return;
+    }
+
+    const targetId = detail.id;
+    const actionSeq = ++activeReqRef.current;
+    busyIdsRef.current.add(targetId);
+    setActionLoading(true);
+    setErrorDetails(null);
+
+    try {
+      // Backend chỉ nhận đúng các SKU đang lệch, nên đọc lại trạng thái lệch mới nhất từ server
+      const fresh = await stockCountService.getStockCountById(targetId);
+      const driftedSkus = fresh.items.filter((i) => i.isDrifted).map((i) => i.skuId);
+      if (driftedSkus.length === 0) {
+        if (currentCountIdRef.current !== targetId) return;
+        applyServerDetail(fresh);
+        setSequenceDrift(false);
+        alert('Hiện không còn SKU nào bị lệch. Bạn có thể tiếp tục thao tác trên phiếu.');
+        return;
+      }
+
+      const updated = fresh.status === 'PendingApproval'
+        ? await stockCountService.requestRecount(targetId, {
+            skuIds: driftedSkus,
+            reason: (requestReason || '').trim(),
+          })
+        : await stockCountService.recountDrifted(targetId, { skuIds: driftedSkus });
+
+      if (currentCountIdRef.current !== targetId) return;
+      applyServerDetail(updated);
+      setSequenceDrift(false);
+      onRefresh();
+      alert('Đã cập nhật yêu cầu đếm lại! Phiếu chuyển về trạng thái tiếp tục kiểm đếm.');
+    } catch (err: any) {
+      if (currentCountIdRef.current !== targetId) return;
+      setErrorDetails(err);
+    } finally {
+      busyIdsRef.current.delete(targetId);
+      if (currentCountIdRef.current === targetId || actionSeq === activeReqRef.current) {
+        setActionLoading(busyIdsRef.current.has(currentCountIdRef.current || ''));
       }
     }
   };
@@ -226,22 +399,26 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
 
     const targetId = detail.id;
     const actionSeq = ++activeReqRef.current;
+    busyIdsRef.current.add(targetId);
     setActionLoading(true);
     setErrorDetails(null);
+
     try {
       const cancelled = await stockCountService.cancelStockCount(targetId, {
-        reason: reason || undefined,
+        reason: reason.trim() || undefined,
       });
-      if (actionSeq !== activeReqRef.current || countId !== targetId) return;
+
+      if (currentCountIdRef.current !== targetId) return;
       setDetail(cancelled);
       onRefresh();
-      alert('Đã hủy đợt kiểm kê.');
+      alert('Đã hủy đợt kiểm kê thành công.');
     } catch (err: any) {
-      if (actionSeq !== activeReqRef.current || countId !== targetId) return;
+      if (currentCountIdRef.current !== targetId) return;
       setErrorDetails(err);
     } finally {
-      if (actionSeq === activeReqRef.current && countId === targetId) {
-        setActionLoading(false);
+      busyIdsRef.current.delete(targetId);
+      if (currentCountIdRef.current === targetId || actionSeq === activeReqRef.current) {
+        setActionLoading(busyIdsRef.current.has(currentCountIdRef.current || ''));
       }
     }
   };
@@ -297,13 +474,35 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
             </div>
           ) : detail ? (
             <>
-              {detail.status === 'Confirmed' && (
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-900" role="status">
-                  {detail.items.every((item) => item.countedQuantity === item.expectedQuantity)
-                    ? 'Đợt kiểm kê đã xác nhận và không có chênh lệch. Tồn kho giữ nguyên nên không phát sinh bút toán mới; phiếu vẫn được lưu trong lịch sử kiểm kê.'
-                    : `Đợt kiểm kê đã xác nhận. Xem lịch sử tại Kho & sổ kho → Sổ kho → Kiểm kê cân kho, tìm mã ${detail.number}.`}
+              {/* Status Banners */}
+              {isConfirmed && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-900 flex items-center gap-2" role="status">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>
+                    {detail.items.every((item) => item.countedQuantity === item.expectedQuantity)
+                      ? 'Đợt kiểm kê đã được phê duyệt và không có chênh lệch. Tồn kho giữ nguyên; phiếu được lưu trong lịch sử kiểm kê.'
+                      : `Đợt kiểm kê đã được phê duyệt chốt cân bằng tồn kho. Chứng từ điều chỉnh đã được ghi sổ tự động.`}
+                  </span>
                 </div>
               )}
+
+              {isPending && (
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 text-xs flex items-start gap-3">
+                  <Clock className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-bold text-sm">Đợt kiểm kê đang chờ phê duyệt chênh lệch (PendingApproval)</h4>
+                    <p className="mt-1 text-blue-800">
+                      Số lượng kiểm đếm thực tế đã được nộp và khóa đối soát. Tồn kho sổ sách CHƯA bị thay đổi cho đến khi Chủ cửa hàng (Owner) chính thức phê duyệt chốt cân bằng tồn.
+                    </p>
+                    {!isOwner && (
+                      <p className="mt-1 font-semibold text-amber-800">
+                        * Tài khoản của bạn là Nhân viên (Staff). Chỉ có Chủ cửa hàng (Owner) mới có quyền duyệt chốt cân bằng tồn kho.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Sequence Drift Alert Banner (HTTP 409) */}
               {sequenceDrift && (
                 <div className="p-4 bg-amber-50 border-2 border-amber-400 rounded-xl flex items-start gap-3 text-amber-900">
@@ -312,8 +511,16 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
                     <h4 className="font-bold text-sm">Phát hiện biến động kho xen ngang (Sequence Drift)</h4>
                     <p className="text-xs text-amber-800 mt-1">
                       Trong quá trình kiểm đếm, kho này đã phát sinh giao dịch nhập/xuất hoặc chuyển hàng khác, làm sai lệch sequence đối soát.
-                      Hệ thống đã khóa chốt để đảm bảo an toàn. Bạn cần tải lại số liệu tồn kho snapshot mới để đối soát lại trước khi chốt.
+                      Hệ thống đã khóa chốt để đảm bảo an toàn. Bạn cần bấm &quot;Đếm lại SKU lệch&quot; để đối soát lại trước khi nộp/chốt.
                     </p>
+                    <button
+                      type="button"
+                      onClick={handleRecountDrifted}
+                      className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg text-xs"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Đếm lại các SKU bị lệch sequence</span>
+                    </button>
                   </div>
                 </div>
               )}
@@ -331,12 +538,18 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
                 </div>
               )}
 
-              {/* Thông tin metadata */}
+              {/* Metadata */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-gray-50 p-3.5 rounded-lg border border-gray-200 text-xs">
                 <div>
                   <span className="text-gray-500 block">Ngày tạo:</span>
                   <span className="font-medium text-gray-800">
                     {detail.createdAt ? new Date(detail.createdAt).toLocaleString('vi-VN') : '—'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-500 block">Thời gian nộp:</span>
+                  <span className="font-medium text-gray-800">
+                    {detail.submittedAt ? new Date(detail.submittedAt).toLocaleString('vi-VN') : 'Chưa nộp'}
                   </span>
                 </div>
                 <div>
@@ -347,70 +560,72 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
                 </div>
                 <div>
                   <span className="text-gray-500 block">Số dòng SKU:</span>
-                  <span className="font-medium text-gray-800">{detail.items.length} mặt hàng</span>
-                </div>
-                <div>
-                  <span className="text-gray-500 block">Mã chứng từ cân bằng:</span>
-                  <span className="font-mono font-medium text-indigo-700">
-                    {detail.generatedAdjustmentId ? detail.generatedAdjustmentId.slice(0, 8) : 'Chưa tạo'}
-                  </span>
+                  <span className="font-bold text-gray-800">{detail.items.length} mặt hàng</span>
                 </div>
               </div>
 
-              {detail.note && (
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-900 flex items-start gap-2">
-                  <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
-                  <span>
-                    <strong>Ghi chú:</strong> {detail.note}
-                  </span>
+              {/* Ghi chú & Lý do đột xuất */}
+              {(detail.adHocReason || detail.note) && (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-1">
+                  {detail.adHocReason && (
+                    <div>
+                      <span className="font-bold text-slate-700">Lý do kiểm kê đột xuất: </span>
+                      <span className="text-slate-900">{detail.adHocReason}</span>
+                    </div>
+                  )}
+                  {detail.note && (
+                    <div>
+                      <span className="font-bold text-slate-700">Ghi chú: </span>
+                      <span className="text-slate-900">{detail.note}</span>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Bảng chi tiết SKU kiểm đếm */}
+              {/* Table of items */}
               <div className="border border-gray-200 rounded-lg overflow-hidden">
-                <div className="bg-gray-100 px-4 py-2.5 font-semibold text-xs text-gray-700 uppercase flex justify-between items-center">
-                  <span>Danh sách mặt hàng kiểm kê</span>
+                <div className="bg-gray-50 px-4 py-2.5 border-b border-gray-200 font-semibold text-xs text-gray-700 flex justify-between">
+                  <span>Danh sách mặt hàng kiểm kê (theo đơn vị gốc)</span>
                   <span className="text-gray-500 font-normal">
-                    {isEditable ? '✏️ Nhập số lượng thực tế kiểm đếm' : '🔒 Đã khóa sổ'}
+                    {isCounting ? 'Đang mở cho phép nhập số đếm' : isPending ? 'Đã khóa số đếm - Chờ duyệt' : 'Đã hoàn tất'}
                   </span>
                 </div>
-                <div className="overflow-x-auto max-h-96">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="bg-gray-50 border-b border-gray-200 text-gray-600 font-semibold">
-                        <th className="py-2.5 px-3">Mã SKU / Tên SP</th>
-                        <th className="py-2.5 px-3 text-right">Tồn sổ sách</th>
-                        <th className="py-2.5 px-3 text-right">Thực tế đếm</th>
-                        <th className="py-2.5 px-3 text-right">Chênh lệch</th>
-                        <th className="py-2.5 px-3 text-right">Đơn giá Đ/C (nếu thừa)</th>
+
+                <div className="overflow-x-auto max-h-[350px]">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-gray-100/70 border-b border-gray-200 text-gray-600 uppercase text-[10px] tracking-wider sticky top-0 z-10">
+                      <tr>
+                        <th className="py-2 px-3">Mặt hàng / SKU</th>
+                        <th className="py-2 px-3 text-right">Tồn sổ sách (gốc)</th>
+                        <th className="py-2 px-3 text-right">Thực tế (gốc)</th>
+                        <th className="py-2 px-3 text-right">Chênh lệch</th>
+                        <th className="py-2 px-3 text-right">Đơn giá WAC (nếu thừa)</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200">
+                    <tbody className="divide-y divide-gray-100 font-mono">
                       {detail.items.map((item) => {
-                        const countedStr = countedMap[item.skuId] ?? (item.countedQuantity !== null && item.countedQuantity !== undefined ? String(item.countedQuantity) : '');
-                        const countedNum = countedStr !== '' ? Number(countedStr) : null;
+                        const valStr = countedMap[item.skuId];
+                        const countedNum = valStr !== undefined && valStr.trim() !== '' ? Number(valStr) : null;
                         const diff = countedNum !== null ? countedNum - item.expectedQuantity : null;
                         const isSurplus = diff !== null && diff > 0;
                         const isShortage = diff !== null && diff < 0;
 
                         return (
-                          <tr key={item.id || item.skuId} className="hover:bg-gray-50">
-                            <td className="py-2.5 px-3">
-                              <div className="font-semibold text-indigo-700">{item.skuCode}</div>
-                              <div className="text-gray-500 text-[11px] truncate max-w-xs">
-                                {item.productName || 'Sản phẩm'}
-                              </div>
+                          <tr key={item.id} className="hover:bg-gray-50/80">
+                            <td className="py-2.5 px-3 font-sans">
+                              <div className="font-semibold text-gray-900">{item.productName}</div>
+                              <div className="text-[11px] text-gray-500 font-mono">{item.skuCode}</div>
                             </td>
-                            <td className="py-2.5 px-3 text-right font-medium text-gray-800">
+                            <td className="py-2.5 px-3 text-right text-gray-700 font-bold">
                               {item.expectedQuantity}
                             </td>
                             <td className="py-2.5 px-3 text-right">
-                              {isEditable ? (
+                              {isCounting ? (
                                 <input
                                   type="number"
                                   min="0"
                                   step="any"
-                                  value={countedStr}
+                                  value={countedMap[item.skuId] || ''}
                                   onChange={(e) =>
                                     setCountedMap({
                                       ...countedMap,
@@ -444,7 +659,7 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
                               )}
                             </td>
                             <td className="py-2.5 px-3 text-right">
-                              {isSurplus && isEditable ? (
+                              {isSurplus && isCounting ? (
                                 <input
                                   type="number"
                                   min="0"
@@ -479,36 +694,91 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
         </div>
 
         {/* Drawer Footer Actions */}
-        {detail && isEditable && (
+        {detail && (
           <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex flex-wrap justify-between items-center gap-3">
-            <button
-              onClick={handleCancelCount}
-              disabled={actionLoading}
-              className="px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg flex items-center gap-1.5"
-            >
-              <Ban className="w-4 h-4" />
-              Hủy đợt kiểm kê
-            </button>
-
-            <div className="flex gap-2">
+            {/* Cancel action */}
+            {isCounting && (
               <button
-                onClick={handleSaveCounts}
+                type="button"
+                onClick={handleCancelCount}
                 disabled={actionLoading}
-                className="px-4 py-2 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 flex items-center gap-1.5 shadow-sm"
+                className="px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg flex items-center gap-1.5"
               >
-                <Save className="w-4 h-4 text-gray-600" />
-                Lưu kết quả đếm
+                <Ban className="w-4 h-4" />
+                Hủy đợt kiểm kê
               </button>
+            )}
 
-              <button
-                onClick={handleConfirmCount}
-                disabled={actionLoading}
-                className="px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg flex items-center gap-1.5 shadow-sm"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                {actionLoading ? 'Đang hạch toán...' : 'Chốt kiểm kê & Cân bằng tồn'}
-              </button>
-            </div>
+            {/* In Counting state: Record & Submit */}
+            {isCounting && (
+              <div className="flex items-center gap-2 ml-auto">
+                <button
+                  type="button"
+                  onClick={handleSaveCounts}
+                  disabled={actionLoading}
+                  className="px-4 py-2 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 flex items-center gap-1.5 shadow-sm"
+                >
+                  <Save className="w-4 h-4 text-gray-600" />
+                  Lưu số đếm
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSubmitForApproval}
+                  disabled={actionLoading}
+                  className="px-5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg flex items-center gap-1.5 shadow-sm"
+                >
+                  <Send className="w-4 h-4" />
+                  {actionLoading ? 'Đang nộp...' : 'Nộp kết quả để duyệt (Submit)'}
+                </button>
+              </div>
+            )}
+
+            {/* In PendingApproval state: Confirm & Request Recount */}
+            {isPending && (
+              <div className="flex items-center gap-2 ml-auto">
+                {isOwner && (
+                  <button
+                    type="button"
+                    onClick={handleRequestRecount}
+                    disabled={actionLoading}
+                    className="px-4 py-2 text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 rounded-lg flex items-center gap-1.5 shadow-sm"
+                  >
+                    <RotateCcw className="w-4 h-4 text-amber-700" />
+                    Yêu cầu đếm lại
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleConfirmCount}
+                  disabled={actionLoading || !isOwner}
+                  title={!isOwner ? 'Chỉ Chủ cửa hàng (Owner) mới có quyền duyệt chốt tồn kho' : undefined}
+                  className={`px-5 py-2 text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-sm ${
+                    isOwner
+                      ? 'text-white bg-emerald-600 hover:bg-emerald-700'
+                      : 'text-gray-400 bg-gray-200 cursor-not-allowed'
+                  }`}
+                >
+                  {isOwner ? (
+                    <CheckCircle2 className="w-4 h-4" />
+                  ) : (
+                    <ShieldAlert className="w-4 h-4 text-gray-400" />
+                  )}
+                  {actionLoading
+                    ? 'Đang hạch toán...'
+                    : isOwner
+                    ? 'Phê duyệt cân bằng tồn (Confirm)'
+                    : 'Chờ Owner phê duyệt'}
+                </button>
+              </div>
+            )}
+
+            {isConfirmed && (
+              <div className="text-xs text-slate-500 font-medium ml-auto">
+                Đợt kiểm kê đã hoàn tất.
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -3,13 +3,13 @@
 ## Bàn giao kết nối Docker–database — 16/10/2026
 
 - PostgreSQL đã chạy healthy trong Docker; backend kết nối thành công bằng tài khoản runtime `oisms_app` qua `postgres:5432`.
-- Endpoint `http://localhost:5000/health/ready` trả **200 Healthy**, xác nhận đủ **29 bảng**, không thiếu bảng trong danh sách kiểm tra và trigger bảo vệ ledger đang bật.
+- Endpoint `http://localhost:5000/health/ready` trả **200 Healthy**, xác nhận đủ **43 bảng**, không thiếu bảng trong danh sách kiểm tra và trigger bảo vệ ledger đang bật.
 - Khi phát triển local, công cụ quản lý database kết nối `localhost:5432` (hoặc cổng host đã cấu hình); thông tin đăng nhập lấy từ `.env`, không đưa mật khẩu vào Git. Không copy đè `.env.example` lên `.env` mỗi lần khởi động.
 - Có thể bàn giao nền tảng kết nối để Khoa/TV2 triển khai Entity/DbContext, tenant filter và API. Kết quả readiness không thay kiểm thử nghiệp vụ WAC/nhập/xuất/giữ chỗ; việc giữ dữ liệu sau restart vẫn cần xác minh bằng bản ghi thử.
 
 Kiểm tra lại kết nối: `Invoke-RestMethod http://localhost:5000/health/ready`.
 
-Tài liệu chuẩn chung cho Khoa (Backend 1), TV2 (Backend 2) và các thành viên tích hợp. PostgreSQL 16+, **29 bảng nghiệp vụ, 94 khóa ngoại, 86 CHECK trên bảng**, cùng UNIQUE/index và trigger. Việc gom file không thay đổi mô hình nghiệp vụ v0.5.
+Tài liệu chuẩn chung cho Khoa (Backend 1), TV2 (Backend 2) và các thành viên tích hợp. PostgreSQL 16+, **43 bảng nghiệp vụ** (bản bàn giao gốc v0.5 có 29 bảng, 94 khóa ngoại, 86 CHECK; Sprint 3 thêm `shop_integrations`, Upgrade 05 thêm `units`, `sku_units`, `sku_unit_factor_history`, Upgrade 04 thêm `price_lists`, `price_change_requests`, `price_change_request_items`, `sku_unit_prices`, Upgrade 01-A thêm `purchase_orders`, `purchase_order_items`, Upgrade 02 thêm `sales_invoices`, Upgrade 03 thêm `stock_count_schedules`, `stock_count_periods`, `stock_count_approvals`), cùng UNIQUE/index và trigger. Việc gom file không thay đổi mô hình nghiệp vụ v0.5.
 
 ## Bộ file bàn giao
 
@@ -23,12 +23,63 @@ Chỉ cần hai file này để hiểu và cài database mới. File SQL không 
 
 Script database duy nhất được giữ trong `scripts` là `scripts/test-database-schema.cjs`. Script đọc trực tiếp SQL và README tại đây, tạo dữ liệu kiểm thử trong PostgreSQL nhúng rồi đóng phiên; không cần generator, seed hay file SQL phụ. SQL bàn giao là nguồn cấu trúc hiện hành.
 
+## Nâng cấp database đã có dữ liệu (cả nhóm đọc khi kéo code mới)
+
+**Dấu hiệu cần nâng cấp:** Admin báo "Không thể tải dữ liệu từ máy chủ Backend", còn `http://localhost:5000/health/ready` trả 503 với nội dung `Database schema is incomplete` và danh sách bảng thiếu.
+
+**Rebuild không sửa được lỗi này.** `docker compose up -d --build` chỉ tạo lại code, còn dữ liệu nằm trong volume `oisms_postgres_data`. Backend không tự nâng cấp schema; `init-oisms.sh` chỉ chạy khi volume còn trống.
+
+| Trường hợp | Việc cần làm |
+| :--- | :--- |
+| Database mới tinh (volume trống) | Chỉ cần `docker compose up -d --build`. Schema lấy từ `oisms_schema.sql`, không chạy migration |
+| Database đã có dữ liệu | Backup rồi chạy các file trong `docker/postgres/migrations/` theo thứ tự tên file, như bên dưới |
+| Dữ liệu trên máy không cần giữ | `docker compose down -v` rồi `up -d --build`. **Cờ `-v` xóa toàn bộ dữ liệu trong volume**, kể cả tài khoản đã tạo |
+
+Không chạy `oisms_schema.sql` lên database đã có dữ liệu. Không sửa file migration đã có: mỗi thay đổi schema tạo file mới, đồng thời cập nhật `oisms_schema.sql`.
+
+Git Bash, Linux, macOS (chạy ở thư mục gốc repo):
+
+```bash
+docker compose up -d postgres
+docker compose exec -T postgres sh -c 'PGPASSWORD=$POSTGRES_PASSWORD pg_dump -U $POSTGRES_USER -d $POSTGRES_DB -Fc -f /tmp/oisms_backup.dump'
+docker compose cp postgres:/tmp/oisms_backup.dump ./oisms_backup.dump
+for f in docker/postgres/migrations/*.sql; do
+  docker compose cp "$f" postgres:/tmp/migration.sql
+  docker compose exec -T postgres sh -c 'PGPASSWORD=$POSTGRES_PASSWORD psql -U $POSTGRES_USER -d $POSTGRES_DB -v ON_ERROR_STOP=1 -q -f /tmp/migration.sql' || { echo "LOI: $f"; break; }
+done
+docker compose up -d --build
+```
+
+PowerShell (Windows):
+
+```powershell
+docker compose up -d postgres
+docker compose exec -T postgres sh -c 'PGPASSWORD=$POSTGRES_PASSWORD pg_dump -U $POSTGRES_USER -d $POSTGRES_DB -Fc -f /tmp/oisms_backup.dump'
+docker compose cp postgres:/tmp/oisms_backup.dump ./oisms_backup.dump
+foreach ($f in Get-ChildItem docker/postgres/migrations/*.sql | Sort-Object Name) {
+  docker compose cp $f.FullName postgres:/tmp/migration.sql
+  docker compose exec -T postgres sh -c 'PGPASSWORD=$POSTGRES_PASSWORD psql -U $POSTGRES_USER -d $POSTGRES_DB -v ON_ERROR_STOP=1 -q -f /tmp/migration.sql'
+  if ($LASTEXITCODE -ne 0) { Write-Error "LOI: $($f.Name)"; break }
+}
+docker compose up -d --build
+```
+
+File `oisms_backup.dump` chứa dữ liệu thật, không commit lên Git. Nâng cấp xong, `/health/ready` phải trả 200 với `tablesCount: 43`. Gặp lỗi thì dừng lại và báo nhóm; mỗi file chạy trong một giao dịch nên file lỗi tự hoàn tác phần của nó, các file đã chạy xong trước đó vẫn giữ nguyên.
+
+Khôi phục từ backup khi cần (xóa dữ liệu hiện tại của database `oisms`):
+
+```bash
+docker compose stop backend
+docker compose cp ./oisms_backup.dump postgres:/tmp/oisms_backup.dump
+docker compose exec -T postgres sh -c 'PGPASSWORD=$POSTGRES_PASSWORD pg_restore -U $POSTGRES_USER -d $POSTGRES_DB --clean --if-exists /tmp/oisms_backup.dump'
+```
+
 ## Cài mới bằng một file SQL
 
 Điều kiện: PostgreSQL **16 trở lên**, client `psql`, tài khoản quản trị/migration có CREATEDB và CREATEROLE cùng quyền tạo schema objects. Database tên `oisms` chưa tồn tại. Chạy ở môi trường riêng của dự án, không có tiến trình cùng tạo database/role.
 
 ```powershell
-psql -h localhost -p 5432 -U postgres -d postgres -W -f "D:\CNPM workbase\docs\database\oisms_schema.sql"
+psql -h localhost -p 5432 -U postgres -d postgres -W -f "D:\OISMS\docs\database\oisms_schema.sql"
 ```
 
 Thay host/port/user theo môi trường. `-W` nhập mật khẩu qua prompt; không đặt mật khẩu trong SQL/Git. Script tạo `oisms`, dùng lệnh `\connect` của psql để chuyển kết nối, rồi cài bảng/trigger/quyền trong một transaction.
@@ -99,7 +150,7 @@ Cơ chế khởi tạo tự động hoạt động dựa trên cơ chế entrypo
 1. Khi volume `postgres_data` còn trống, PostgreSQL chạy script initdb.
 2. Script phát hiện database `oisms` đã được tạo sẵn qua biến `POSTGRES_DB=oisms`.
 3. Script xử lý việc file `oisms_schema.sql` có chứa `CREATE DATABASE oisms` và `\connect oisms` bằng cách bóc tách an toàn phần cài đặt DDL từ `-- OISMS_SCHEMA_BEGIN`, rồi thực thi trực tiếp vào database `oisms`.
-4. Nếu bảng nghiệp vụ đã tồn tại (≥29 bảng), script bỏ qua DDL để bảo toàn dữ liệu. Nếu phát hiện bảng dở dang (1-28 bảng), script cảnh báo dữ liệu hiện có và yêu cầu migration chứ không tự ý ghi đè hay xóa bảng.
+4. Nếu bảng nghiệp vụ đã tồn tại (≥33 bảng), script bỏ qua DDL để bảo toàn dữ liệu. Nếu phát hiện số bảng thấp hơn (1-32 bảng, kể cả database Sprint 3 có 30 bảng chưa nâng cấp), script cảnh báo dữ liệu hiện có và yêu cầu migration chứ không tự ý ghi đè hay xóa bảng.
 5. Tạo nhóm quyền `oisms_runtime` (NOLOGIN), sau đó cấu hình tài khoản runtime backend `oisms_app`:
    - Sử dụng cơ chế truyền biến `\getenv` của psql và hàm `format('%I', ...)` / `format('%L', ...)` trong khối PL/pgSQL; tuyệt đối **không nội suy chuỗi SQL**.
    - Hỗ trợ mật khẩu có dấu nháy và ký tự đặc biệt, không bao giờ in mật khẩu ra log.
@@ -164,7 +215,7 @@ Kiểm tra trạng thái sẵn sàng của Backend qua Readiness Endpoint:
 ```powershell
 curl http://localhost:5000/health/ready
 ```
-Endpoint `/health/ready` thực hiện mở kết nối PostgreSQL bằng tài khoản runtime `oisms_app`, kiểm tra đủ 29 bảng, trigger bất biến sổ cái và quyền hạn trước khi trả về HTTP 200 `Healthy` (trả về HTTP 503 `Unhealthy` nếu thất bại, không để lộ connection string hoặc mật khẩu).
+Endpoint `/health/ready` thực hiện mở kết nối PostgreSQL bằng tài khoản runtime `oisms_app`, kiểm tra đủ 33 bảng, trigger bất biến sổ cái và quyền hạn trước khi trả về HTTP 200 `Healthy` (trả về HTTP 503 `Unhealthy` nếu thất bại, không để lộ connection string hoặc mật khẩu).
 
 ### Xem log cơ sở dữ liệu
 
@@ -197,7 +248,7 @@ Hệ thống đã trải qua quy trình kiểm chứng tự động toàn diện
 Endpoint `GET /health/ready` thực hiện kiểm tra sâu thực tế:
 - Mở kết nối thật tới CSDL bằng tài khoản runtime `oisms_app` (timeout 5s).
 - Kiểm tra tài khoản kết nối không có đặc quyền quản trị trực tiếp hoặc thừa hưởng, không sở hữu schema/bảng (trả về HTTP 503 `Degraded` nếu vi phạm).
-- Xác minh đầy đủ 29/29 bảng nghiệp vụ trong schema `public` (trả về HTTP 503 `Unhealthy` nếu thiếu bảng).
+- Xác minh đầy đủ 33/33 bảng nghiệp vụ trong schema `public` (trả về HTTP 503 `Unhealthy` nếu thiếu bảng).
 - Xác minh trigger `ledger_append_only` đang kích hoạt (`tgenabled IN ('O', 'A')`) trên `public.inventory_transactions`.
 - Bảo mật: Tuyệt đối không để lộ chuỗi kết nối hoặc mật khẩu ra HTTP response khi xảy ra lỗi.
 
@@ -226,7 +277,7 @@ Khi container khởi động lại hoặc khi volume `postgres_data` đã tồn 
    docker compose exec postgres pg_dump -U postgres -d oisms -F c -b -v -f /var/lib/postgresql/data/backup_pre_migration.dump
    ```
 2. **Soạn script migration tăng dần (Incremental SQL):**
-   Không chạy lại toàn bộ `oisms_schema.sql`. Tạo file SQL migration tăng dần (ví dụ `migrations/V0.6__add_column.sql`) chứa các lệnh `ALTER TABLE`, `CREATE INDEX`, v.v.
+   Không chạy lại toàn bộ `oisms_schema.sql`. Tạo file SQL migration tăng dần trong `docker/postgres/migrations/` chứa các lệnh `ALTER TABLE`, `CREATE INDEX`, v.v. Bản hiện có: `20261027_sprint3.sql`, `20261102_multi_unit.sql` (Upgrade 05, chạy lại an toàn; backfill `unit_id`, không sửa ledger).
 3. **Thực thi script bằng tài khoản quản trị `postgres`:**
    ```powershell
    docker compose exec -i postgres psql -U postgres -d oisms -f /path/to/migration.sql
@@ -1329,5 +1380,194 @@ Lưu cấu hình kết nối gian hàng sàn thương mại điện tử (Shopee
 
 - `REVOKE ALL ON public.shop_integrations FROM PUBLIC;`
 - `GRANT SELECT, INSERT, UPDATE, DELETE ON public.shop_integrations TO oisms_runtime;`
+
+### 31. `units`
+
+Danh mục đơn vị tính theo tenant. Bộ mặc định: `kg`, `g`, `tan`, `lit`, `ml`, `m`, `piece`, `bao`, `thung`, `hop`, `chai`.
+
+| Cột | Kiểu PostgreSQL | Bắt buộc | Mặc định / cách ghi |
+|---|---|---|---|
+| `id` (PK) | `uuid` | Có | `gen_random_uuid()` |
+| `tenant_id` | `uuid` | Có | Backend phải cung cấp |
+| `code` | `varchar(30)` | Có | Mã chuẩn hóa chữ thường, duy nhất trong tenant |
+| `name` | `varchar(100)` | Có | Tên hiển thị |
+| `symbol` | `varchar(20)` | Có | Ký hiệu |
+| `measure_group` | `varchar(20)` | Có | `Mass`, `Volume`, `Length`, `Count`, `Packaging` |
+| `decimal_places` | `smallint` | Có | `3`, trong khoảng 0..3 |
+| `is_active` | `boolean` | Có | `true` |
+| `created_at` | `timestamptz` | Có | `now()` |
+| `updated_at` | `timestamptz` | Không | Backend ghi khi sửa |
+
+**UNIQUE:** `(tenant_id, id)`; `(tenant_id, code)`.
+
+**Quan hệ FK:** `(tenant_id)` → `tenants(id)`.
+
+### 32. `sku_units`
+
+Cấu hình đơn vị mua/bán của từng SKU và hệ số quy đổi về đơn vị gốc. Mỗi SKU có một dòng đơn vị gốc hệ số 1.
+
+| Cột | Kiểu PostgreSQL | Bắt buộc | Mặc định / cách ghi |
+|---|---|---|---|
+| `id` (PK) | `uuid` | Có | `gen_random_uuid()` |
+| `tenant_id`, `sku_id`, `unit_id` | `uuid` | Có | Backend phải cung cấp |
+| `factor_to_base` | `numeric(18,6)` | Có | Lớn hơn 0 |
+| `can_purchase`, `can_sell` | `boolean` | Có | `true` |
+| `is_default_purchase`, `is_default_sale` | `boolean` | Có | `false` |
+| `barcode` | `varchar(128)` | Không | Mã vạch quy cách |
+| `quantity_decimal_places` | `smallint` | Có | `3`, trong khoảng 0..3 |
+| `sale_price` | `numeric(20,2)` | Không | Giá tạm cho đơn vị không phải gốc, đến khi có Upgrade 04 |
+| `version` | `integer` | Có | `1`, tăng khi đổi hệ số |
+| `is_active` | `boolean` | Có | `true` |
+| `updated_by` | `uuid` | Không | Người sửa, lấy từ JWT |
+| `created_at`, `updated_at` | `timestamptz` | `created_at` có | `now()` |
+
+**UNIQUE:** `(tenant_id, id)`; `(tenant_id, sku_id, unit_id)`; `ux_sku_units_barcode (tenant_id, barcode) WHERE barcode IS NOT NULL`; `ux_sku_units_default_sale`, `ux_sku_units_default_purchase (tenant_id, sku_id) WHERE <mặc định> AND is_active`.
+
+**Quan hệ FK:** `(tenant_id)` → `tenants(id)`; `(tenant_id, sku_id)` → `skus`; `(tenant_id, unit_id)` → `units`; `(tenant_id, updated_by)` → `users`.
+
+### 33. `sku_unit_factor_history`
+
+Lịch sử đổi hệ số, chỉ thêm. Trigger `factor_history_append_only` chặn UPDATE, DELETE, TRUNCATE; `oisms_runtime` chỉ có SELECT, INSERT.
+
+| Cột | Kiểu PostgreSQL | Bắt buộc | Mặc định / cách ghi |
+|---|---|---|---|
+| `id` (PK) | `uuid` | Có | `gen_random_uuid()` |
+| `tenant_id`, `sku_unit_id` | `uuid` | Có | Backend phải cung cấp |
+| `old_factor` | `numeric(18,6)` | Không | NULL ở dòng đầu tiên |
+| `new_factor` | `numeric(18,6)` | Có | Lớn hơn 0 |
+| `old_version` | `integer` | Không | NULL ở dòng đầu tiên |
+| `new_version` | `integer` | Có | Backend ghi |
+| `changed_by` | `uuid` | Không | Người đổi, lấy từ JWT |
+| `changed_at` | `timestamptz` | Có | `now()` |
+
+**UNIQUE:** `(tenant_id, id)`.
+
+**Quan hệ FK:** `(tenant_id)` → `tenants(id)`; `(tenant_id, sku_unit_id)` → `sku_units`; `(tenant_id, changed_by)` → `users`.
+
+### Cột Upgrade 05 trên bảng có sẵn
+
+- `skus.base_unit_id uuid NULL` → `units`; NULL nghĩa là chưa cấu hình, giữ `skus.unit` trong giai đoạn chuyển tiếp.
+- `order_items`, `goods_receipt_items`: `unit_id uuid NULL` → `units`; `unit_name_snapshot varchar(100)`; `factor_snapshot numeric(18,6) DEFAULT 1`, lớn hơn 0; `base_quantity numeric(18,3) GENERATED ALWAYS AS (quantity * factor_snapshot) STORED`.
+- `uq_order_items_2` đổi thành `UNIQUE NULLS NOT DISTINCT (tenant_id, order_id, sku_id, unit_id)`. `uq_goods_receipt_items_2` giữ nguyên.
+- `oisms_check_stock` so giữ chỗ với `base_quantity`; `oisms_protect_order_item` chặn đổi `factor_snapshot`, `unit_id`, `unit_name_snapshot` trên dòng đã xác nhận.
+- Trigger `protect_receipt_item` (`oisms_protect_receipt_item`) chặn sửa số lượng, đơn giá, đơn vị, hệ số và chặn xóa dòng của phiếu nhập đã xác nhận.
+
+### 40. `sales_invoices`
+
+Hóa đơn bán hàng gắn với mỗi lần xuất bán, bảng chỉ thêm (append-only, OISMS-47-U02). Trigger `sales_invoice_append_only` chặn UPDATE, DELETE, TRUNCATE; `oisms_runtime` chỉ có quyền SELECT, INSERT.
+
+| Cột | Kiểu PostgreSQL | Bắt buộc | Mặc định / cách ghi |
+|---|---|---|---|
+| `id` (PK) | `uuid` | Có | `gen_random_uuid()` |
+| `tenant_id` | `uuid` | Có | Backend lấy từ JWT |
+| `number` | `varchar(50)` | Có | `INV-YYYYMMDD-{HEX8}` |
+| `order_id` | `uuid` | Có | Mã đơn hàng gốc |
+| `branch_id` | `uuid` | Có | Chi nhánh xuất bán |
+| `channel` | `varchar(20)` | Có | Khớp với orders: 'POS', 'Admin', 'Shopee', 'TikTok', 'Lazada' |
+| `branch_name_snapshot` | `varchar(200)` | Có | Tên chi nhánh tại thời điểm lập |
+| `branch_address_snapshot` | `text` | Không | Địa chỉ chi nhánh tại thời điểm lập |
+| `customer_name_snapshot` | `varchar(200)` | Không | Tên khách hàng |
+| `customer_phone_snapshot` | `varchar(32)` | Không | Số điện thoại khách hàng |
+| `issued_by` | `uuid` | Không | Người lập hóa đơn |
+| `issued_by_name_snapshot` | `varchar(150)` | Không | Tên người lập hóa đơn |
+| `total_amount` | `numeric(20,2)` | Có | Tổng tiền hóa đơn (>= 0) |
+| `payment_method_snapshot` | `varchar(20)` | Không | 'Cash', 'BankTransfer' hoặc NULL |
+| `issued_at` | `timestamptz` | Có | Thời điểm phát hành |
+| `created_at` | `timestamptz` | Có | `now()` |
+| `updated_at` | `timestamptz` | Không | NULL |
+
+**UNIQUE:** `(tenant_id, id)`; `(tenant_id, number)`; `(tenant_id, order_id)`.
+**INDEX:** `ix_sales_invoices_time (tenant_id, issued_at, id)`.
+**Quan hệ FK:** `(tenant_id)` → `tenants(id)`; `(tenant_id, order_id, branch_id)` → `orders(tenant_id, id, branch_id)`; `(tenant_id, branch_id)` → `branches(tenant_id, id)`; `(tenant_id, issued_by)` → `users(tenant_id, id)`.
+
+### 41. `stock_count_schedules`
+
+Cấu hình lịch kiểm kê định kỳ theo kho (OISMS-47-U03). Quyền runtime: SELECT, INSERT, UPDATE.
+
+| Cột | Kiểu PostgreSQL | Bắt buộc | Mặc định / cách ghi |
+|---|---|---|---|
+| `id` (PK) | `uuid` | Có | `gen_random_uuid()` |
+| `tenant_id` | `uuid` | Có | Backend lấy từ JWT |
+| `branch_id` | `uuid` | Có | Chi nhánh của kho kiểm kê |
+| `warehouse_id` | `uuid` | Có | Kho áp dụng lịch kiểm kê |
+| `period_type` | `varchar(20)` | Có | 'MidMonth', 'EndOfMonth' |
+| `day_of_month` | `smallint` | Không | 1..28 nếu MidMonth, NULL nếu EndOfMonth |
+| `local_time` | `time` | Có | Giờ kiểm kê theo giờ cửa hàng (+07:00) |
+| `due_days` | `smallint` | Có | Số ngày cho phép hoàn thành (1..14) |
+| `assignee_user_id` | `uuid` | Có | Nhân viên được giao phụ trách (Owner hoặc Staff) |
+| `is_active` | `boolean` | Có | `true` |
+| `created_by` | `uuid` | Có | Người tạo lịch |
+| `updated_by` | `uuid` | Không | Người cập nhật lịch gần nhất |
+| `created_at` | `timestamptz` | Có | `now()` |
+| `updated_at` | `timestamptz` | Không | NULL |
+
+**UNIQUE:** `uq_stock_count_schedules_1 (tenant_id, id)`; `uq_stock_count_schedules_2 (tenant_id, warehouse_id, period_type)`.
+**CHECK:** `ck_stock_count_schedules_period_type`, `ck_stock_count_schedules_day`, `ck_stock_count_schedules_due_days`.
+**Quan hệ FK:** `(tenant_id)` → `tenants(id)`; `(tenant_id, warehouse_id, branch_id)` → `warehouses(tenant_id, id, branch_id)`; `(tenant_id, assignee_user_id)` → `users(tenant_id, id)`; `(tenant_id, created_by)` → `users(tenant_id, id)`; `(tenant_id, updated_by)` → `users(tenant_id, id)`.
+
+### 42. `stock_count_periods`
+
+Kỳ kiểm kê được sinh tự động bởi job định kỳ (OISMS-47-U03). Quyền runtime: SELECT, INSERT, UPDATE.
+
+| Cột | Kiểu PostgreSQL | Bắt buộc | Mặc định / cách ghi |
+|---|---|---|---|
+| `id` (PK) | `uuid` | Có | `gen_random_uuid()` |
+| `tenant_id` | `uuid` | Có | Backend lấy từ JWT |
+| `schedule_id` | `uuid` | Có | Lịch gốc sinh ra kỳ |
+| `branch_id` | `uuid` | Có | Chi nhánh |
+| `warehouse_id` | `uuid` | Có | Kho |
+| `period_type` | `varchar(20)` | Có | 'MidMonth', 'EndOfMonth' |
+| `period_key` | `varchar(20)` | Có | 'yyyy-MM-MID' hoặc 'yyyy-MM-END' |
+| `scheduled_at` | `timestamptz` | Có | Thời điểm bắt đầu dự kiến |
+| `due_at` | `timestamptz` | Có | Hạn hoàn tất kiểm kê |
+| `assignee_user_id` | `uuid` | Có | Người phụ trách |
+| `status` | `varchar(20)` | Có | 'Planned', 'InProgress', 'Completed', 'Cancelled' |
+| `completed_at` | `timestamptz` | Không | Thời điểm hoàn tất (khi chốt kiểm kê) |
+| `created_at` | `timestamptz` | Có | `now()` |
+| `updated_at` | `timestamptz` | Không | NULL |
+
+**UNIQUE:** `uq_stock_count_periods_1 (tenant_id, id)`; `uq_stock_count_periods_2 (tenant_id, warehouse_id, period_key)`.
+**INDEX:** `ix_stock_count_periods_status_due (tenant_id, status, due_at, id)`.
+**CHECK:** `ck_stock_count_periods_period_type`, `ck_stock_count_periods_status`, `ck_stock_count_periods_due`, `ck_stock_count_periods_completed`.
+**Quan hệ FK:** `(tenant_id)` → `tenants(id)`; `(tenant_id, schedule_id)` → `stock_count_schedules(tenant_id, id)`; `(tenant_id, warehouse_id, branch_id)` → `warehouses(tenant_id, id, branch_id)`; `(tenant_id, assignee_user_id)` → `users(tenant_id, id)`.
+
+### 43. `stock_count_approvals`
+
+Nhật ký xét duyệt đợt kiểm kê, bảng chỉ thêm (append-only, OISMS-47-U03). Trigger `stock_count_approval_append_only` chặn UPDATE, DELETE, TRUNCATE; `oisms_runtime` chỉ có quyền SELECT, INSERT.
+
+| Cột | Kiểu PostgreSQL | Bắt buộc | Mặc định / cách ghi |
+|---|---|---|---|
+| `id` (PK) | `uuid` | Có | `gen_random_uuid()` |
+| `tenant_id` | `uuid` | Có | Backend lấy từ JWT |
+| `stock_count_id` | `uuid` | Có | Đợt kiểm kê được thao tác |
+| `action` | `varchar(20)` | Có | 'Submitted', 'Approved', 'RecountRequested', 'Recounted', 'Cancelled' |
+| `actor_user_id` | `uuid` | Có | Người thực hiện hành động |
+| `reason` | `text` | Không | Lý do / ghi chú phê duyệt hoặc yêu cầu đếm lại |
+| `differences` | `jsonb` | Có | Snapshot sai lệch số lượng tại thời điểm thao tác |
+| `created_at` | `timestamptz` | Có | `now()` |
+| `updated_at` | `timestamptz` | Không | NULL |
+
+**UNIQUE:** `uq_stock_count_approvals_1 (tenant_id, id)`.
+**INDEX:** `ix_stock_count_approvals_count (tenant_id, stock_count_id, created_at)`.
+**CHECK:** `ck_stock_count_approvals_action`.
+**Quan hệ FK:** `(tenant_id)` → `tenants(id)`; `(tenant_id, stock_count_id)` → `stock_counts(tenant_id, id)`; `(tenant_id, actor_user_id)` → `users(tenant_id, id)`.
+
+### Cột Upgrade 03 trên bảng có sẵn
+- `stock_counts.count_type varchar(20) NOT NULL DEFAULT 'AdHoc'`
+- `stock_counts.ad_hoc_reason text NULL`
+- `stock_counts.period_id uuid NULL` → `stock_count_periods(tenant_id, id)`
+- `stock_counts.submitted_by uuid NULL` → `users(tenant_id, id)`
+- `stock_counts.submitted_at timestamptz NULL`
+- `stock_counts.status`: Thêm trạng thái `PendingApproval` (Draft, Counting, PendingApproval, Confirmed, Cancelled).
+- `stock_count_items.counted_by uuid NULL` → `users(tenant_id, id)`
+- `stock_count_items.counted_at timestamptz NULL`
+- `stock_count_items.snapshot_at timestamptz NULL`
+- Partial unique index `uq_stock_counts_active_period` trên `(tenant_id, period_id) WHERE period_id IS NOT NULL AND status <> 'Cancelled'`.
+
+### Cột Upgrade 02 trên bảng có sẵn
+- `orders.confirmed_by uuid NULL` → `users(tenant_id, id)`
+- `stock_transfers.dispatched_by uuid NULL` → `users(tenant_id, id)`
+- `oisms_protect_order`: Chặn đổi `confirmed_by` sau khi đơn đã xác nhận.
+- `oisms_protect_order_item`: Chặn đổi `sku_code_snapshot`, `sku_name_snapshot` trên đơn đã xác nhận.
 
 <!-- DATABASE_DICTIONARY_END -->

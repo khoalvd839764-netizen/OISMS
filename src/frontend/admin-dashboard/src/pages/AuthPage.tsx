@@ -1,7 +1,7 @@
 import { ArrowRight, Check, Eye, EyeOff, LockKeyhole, Mail, Phone, ShieldCheck, Store, User, AlertCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Button, Input } from "../components/ui";
+import { Button, ComingSoonBadge, Input } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 
 export function AuthPage() {
@@ -159,7 +159,7 @@ export function AuthPage() {
               <Mail size={17} />
               <Input
                 type="email"
-                placeholder={register ? "owner@cuahang.vn" : "owner@shopa.local"}
+                placeholder="owner@cuahang.vn"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -204,6 +204,15 @@ export function AuthPage() {
             </label>
           )}
 
+          {!register && (
+            <div className="auth-forgot">
+              <button type="button" disabled title="Tính năng đặt lại mật khẩu chưa được triển khai.">
+                Quên mật khẩu?
+              </button>
+              <ComingSoonBadge />
+            </div>
+          )}
+
           <Button
             type="submit"
             className="auth-submit"
@@ -226,47 +235,6 @@ export function AuthPage() {
               {register ? "Đăng nhập" : "Đăng ký doanh nghiệp"}
             </Button>
           </div>
-
-          {!register && (
-            <div className="demo-login" style={{ fontSize: "11px", color: "#64748b", marginTop: "12px", borderTop: "1px dashed #cbd5e1", paddingTop: "8px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                <strong>Tài khoản kiểm thử mẫu:</strong>
-                <span style={{ fontSize: "10px", color: "#94a3b8" }}>Bấm để điền nhanh</span>
-              </div>
-              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail("owner@shopa.local");
-                    setPassword("YourStrongDemoPassword123!");
-                  }}
-                  style={{ background: "#f1f5f9", border: "1px solid #cbd5e1", borderRadius: "4px", padding: "4px 8px", cursor: "pointer", fontSize: "11px" }}
-                >
-                  👑 Chủ cửa hàng (Owner)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail("staff@shopa.local");
-                    setPassword("YourStrongDemoPassword123!");
-                  }}
-                  style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "4px", padding: "4px 8px", cursor: "pointer", fontSize: "11px", color: "#166534" }}
-                >
-                  📦 Nhân viên kho (Staff)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEmail("cashier@shopa.local");
-                    setPassword("YourStrongDemoPassword123!");
-                  }}
-                  style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "4px", padding: "4px 8px", cursor: "pointer", fontSize: "11px", color: "#991b1b" }}
-                >
-                  💳 Thu ngân (Thử lỗi 403)
-                </button>
-              </div>
-            </div>
-          )}
         </form>
       </section>
     </main>

@@ -18,11 +18,13 @@ namespace OISM.Infrastructure.Jobs;
 public static class HangfireConfigurationExtensions
 {
     public const string RecurringJobId = "oisms-reservation-expiry";
+    public const string StockCountPeriodJobId = "oisms-stock-count-periods";
 
     public static IServiceCollection AddOismHangfire(this IServiceCollection services, IConfiguration configuration)
     {
-        // Luôn đăng ký IReservationExpiryJob trong DI container để có thể inject độc lập
+        // Luôn đăng ký các background jobs trong DI container để có thể inject độc lập
         services.AddScoped<IReservationExpiryJob, ReservationExpiryJob>();
+        services.AddScoped<IStockCountPeriodJob, StockCountPeriodJob>();
 
         var enabled = configuration.GetValue<bool>("Hangfire:Enabled", false);
         if (!enabled)
@@ -80,6 +82,15 @@ public static class HangfireConfigurationExtensions
             RecurringJobId,
             job => job.ExecuteAsync(null, CancellationToken.None),
             "*/1 * * * *",
+            new RecurringJobOptions
+            {
+                TimeZone = TimeZoneInfo.Utc
+            });
+
+        recurringJobManager.AddOrUpdate<IStockCountPeriodJob>(
+            StockCountPeriodJobId,
+            job => job.ExecuteAsync(null, CancellationToken.None),
+            "5 * * * *",
             new RecurringJobOptions
             {
                 TimeZone = TimeZoneInfo.Utc

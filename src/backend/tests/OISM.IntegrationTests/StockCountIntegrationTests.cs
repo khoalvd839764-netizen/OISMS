@@ -32,7 +32,7 @@ namespace OISM.IntegrationTests;
 /// AC-10: Phân quyền RBAC (401 unauth, 403 Cashier), Cross-tenant 404, Kiểm tra biên số lượng (null items, scale >3, magnitude, warehouse-branch mismatch).
 /// AC-11: Tương thích ngược schema & migration (Cài mới, UpgradeDatabaseSchemaAsync idempotent, phát hiện schema drift, legacy stock count).
 /// </summary>
-public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebApplicationFactoryWithPostgres>
+public partial class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebApplicationFactoryWithPostgres>
 {
     private readonly WebApplicationFactoryWithPostgres _factory;
     private readonly HttpClient _client;
@@ -281,6 +281,13 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         return (context, tenantService);
     }
 
+    private const string SelfApprovalNote = "Owner duy nhất tự duyệt trong test";
+
+    private static async Task SubmitForApprovalAsync(HttpClient client, Guid stockCountId)
+    {
+        await client.PostAsync($"/api/stock-counts/{stockCountId}/submit", null);
+    }
+
     private async Task SeedDatabaseAsync()
     {
         var (context, _) = CreatePostgresDbContext(null);
@@ -420,6 +427,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
             }
 
             await context.SaveChangesAsync();
+            await PriceSeed.SyncFromLegacyColumnsAsync(context);
 
             return new TestInfrastructure(
                 tenantId,
@@ -444,23 +452,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         var (context, tenantService) = CreatePostgresDbContext(tenantId);
         await using (context)
         {
-            var wacCalc = new WacCalculator();
-            var service = new GoodsReceiptService(context, tenantService, wacCalc);
-
-            var receiptDto = new CreateGoodsReceiptDto
-            {
-                BranchId = branchId,
-                WarehouseId = warehouseId,
-                SupplierId = supplierId,
-                Note = "Seed tồn kho cho stock count test",
-                Items = new List<CreateGoodsReceiptItemDto>
-                {
-                    new() { SkuId = skuId, Quantity = quantity, UnitPrice = unitPrice }
-                }
-            };
-
-            var receipt = await service.CreateReceiptAsync(receiptDto, userId);
-            await service.ConfirmReceiptAsync(receipt.Id, userId);
+            await PurchaseOrderSeed.ReceiveStockAsync(context, tenantService, branchId, warehouseId, supplierId, userId, (skuId, quantity, unitPrice));
         }
     }
 
@@ -480,6 +472,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         var requestKey = Guid.NewGuid();
         var requestDto = new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = requestKey,
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -541,6 +534,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         // Chế độ ALL: SkuIds = null
         var requestDto = new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -567,6 +561,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         // Kho A2 hoàn toàn chưa có mặt hàng/số dư nào
         var requestDto = new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA2Id,
@@ -594,6 +589,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
             var svc = new StockCountService(context, tenantService, new WacCalculator(), Microsoft.Extensions.Logging.Abstractions.NullLogger<StockCountService>.Instance);
             var createTask = svc.CreateStockCountAsync(new CreateStockCountRequestDto
             {
+                Reason = "Kiểm kê đột xuất trong test",
                 RequestKey = Guid.NewGuid(),
                 BranchId = infra.BranchAId,
                 WarehouseId = infra.WarehouseA1Id,
@@ -641,6 +637,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
             var svc = new StockCountService(context, tenantService, new WacCalculator(), Microsoft.Extensions.Logging.Abstractions.NullLogger<StockCountService>.Instance);
             var dto = new CreateStockCountRequestDto
             {
+                Reason = "Kiểm kê đột xuất trong test",
                 RequestKey = Guid.NewGuid(),
                 BranchId = infra.BranchAId,
                 WarehouseId = infra.WarehouseA1Id,
@@ -751,6 +748,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
             var allDto = new CreateStockCountRequestDto
             {
+                Reason = "Kiểm kê đột xuất trong test",
                 RequestKey = sharedKey,
                 BranchId = infra.BranchAId,
                 WarehouseId = infra.WarehouseA1Id,
@@ -760,6 +758,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
             var selectedDto = new CreateStockCountRequestDto
             {
+                Reason = "Kiểm kê đột xuất trong test",
                 RequestKey = sharedKey,
                 BranchId = infra.BranchAId,
                 WarehouseId = infra.WarehouseA1Id,
@@ -815,6 +814,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         var requestKey = Guid.NewGuid();
         var requestDto = new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = requestKey,
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -856,6 +856,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         var requestKey = Guid.NewGuid();
         var dto1 = new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = requestKey,
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -869,6 +870,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         // Gửi lại cùng key nhưng đổi Note hoặc đổi SKU -> 409 IDEMPOTENCY_CONFLICT
         var dto2 = new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = requestKey,
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -892,6 +894,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         var requestKey = Guid.NewGuid();
         var dto1 = new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = requestKey,
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -904,6 +907,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         // Đảo ngược thứ tự SkuIds -> Canonical hash vẫn trùng khớp, trả replay 200 OK
         var dtoReversed = new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = requestKey,
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -928,6 +932,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         var requestKey = Guid.NewGuid();
         var createDto = new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = requestKey,
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -942,16 +947,16 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         {
             Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 10m } }
         });
-
         // Replay create endpoint -> trả về 200 OK với trạng thái Counting
         var replayCounting = await _client.PostAsJsonAsync("/api/stock-counts", createDto);
         replayCounting.StatusCode.Should().Be(HttpStatusCode.OK);
         var countingData = await replayCounting.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
         countingData!.Status.Should().Be("Counting");
         countingData.IsReplay.Should().BeTrue();
+        await SubmitForApprovalAsync(_client, count.Id);
 
         // Confirm phiếu -> Chuyển sang Confirmed
-        await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+        await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
 
         // Replay create endpoint -> trả về 200 OK với trạng thái Confirmed
         var replayConfirmed = await _client.PostAsJsonAsync("/api/stock-counts", createDto);
@@ -973,6 +978,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
         var resA = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = sharedKey,
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -999,6 +1005,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
         var resB = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = sharedKey,
             BranchId = branchBId,
             WarehouseId = warehouseBId,
@@ -1025,6 +1032,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
             var req = new CreateStockCountRequestDto
             {
+                Reason = "Kiểm kê đột xuất trong test",
                 RequestKey = Guid.NewGuid(),
                 BranchId = infra.BranchAId,
                 WarehouseId = infra.WarehouseA1Id,
@@ -1063,6 +1071,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
             var req = new CreateStockCountRequestDto
             {
+                Reason = "Kiểm kê đột xuất trong test",
                 RequestKey = sharedKey,
                 BranchId = infra.BranchAId,
                 WarehouseId = infra.WarehouseA1Id,
@@ -1111,6 +1120,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         var requestKey = Guid.NewGuid();
         var reqDto = new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = requestKey,
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -1150,6 +1160,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         var requestKey = Guid.NewGuid();
         var reqDto = new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = requestKey,
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -1190,6 +1201,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         var requestKey = Guid.NewGuid();
         var reqDto = new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = requestKey,
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -1231,6 +1243,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
         var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -1271,6 +1284,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
         var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -1302,6 +1316,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
         var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -1328,6 +1343,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
         var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -1364,6 +1380,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
         var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -1376,9 +1393,10 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         {
             Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 10m } }
         });
+        await SubmitForApprovalAsync(_client, count.Id);
 
         // Confirm khi chưa đếm hết -> 409 INVALID_STATE_TRANSITION
-        var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+        var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
         confirmRes.StatusCode.Should().Be(HttpStatusCode.Conflict);
         var body = await confirmRes.Content.ReadAsStringAsync();
         body.Should().Contain("INVALID_STATE_TRANSITION");
@@ -1402,6 +1420,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
         var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -1422,9 +1441,10 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
                 new() { SkuId = infra.Sku3Id, CountedQuantity = 10m }
             }
         });
+        await SubmitForApprovalAsync(_client, count.Id);
 
         // Confirm
-        var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+        var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
         var body = await confirmRes.Content.ReadAsStringAsync();
         confirmRes.StatusCode.Should().Be(HttpStatusCode.OK, $"Confirm failed: {body}");
         var confirmed = await confirmRes.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
@@ -1516,6 +1536,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
         var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -1528,8 +1549,9 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         {
             Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 10m } }
         });
+        await SubmitForApprovalAsync(_client, count.Id);
 
-        var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+        var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
         confirmRes.StatusCode.Should().Be(HttpStatusCode.OK);
         var confirmed = await confirmRes.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
         confirmed!.Status.Should().Be("Confirmed");
@@ -1565,6 +1587,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         // 1. Tạo đợt kiểm kê và ghi nhận số đếm
         var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -1576,22 +1599,23 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         {
             Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 12m } }
         });
+        await SubmitForApprovalAsync(_client, count.Id);
 
         // 2. Giao dịch xen giữa: Có phiếu nhập kho hàng mới cho SKU1 tại Kho A1 -> Sequence của SKU1 tại Kho A1 tăng
         await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku1Id, 5m, 50000m);
 
         // 3. Confirm phiếu kiểm kê -> Phát hiện sequence drift và từ chối 409 STOCK_COUNT_SEQUENCE_DRIFT
-        var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+        var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
         confirmRes.StatusCode.Should().Be(HttpStatusCode.Conflict);
 
         var body = await confirmRes.Content.ReadAsStringAsync();
         body.Should().Contain("STOCK_COUNT_SEQUENCE_DRIFT");
 
-        // Đối soát CSDL: Phiếu kiểm kê vẫn ở trạng thái Counting, không sinh InventoryAdjustment
+        // Đối soát CSDL: Phiếu kiểm kê vẫn ở trạng thái PendingApproval, không sinh InventoryAdjustment
         await using (var verifyContext = CreatePostgresDbContext(infra.TenantId).Context)
         {
             var c = await verifyContext.StockCounts.FirstAsync(x => x.Id == count.Id);
-            c.Status.Should().Be("Counting");
+            c.Status.Should().Be("PendingApproval");
             c.GeneratedAdjustmentId.Should().BeNull();
         }
     }
@@ -1607,6 +1631,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
         var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -1618,6 +1643,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         {
             Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 20m } }
         });
+        await SubmitForApprovalAsync(_client, count.Id);
 
         // Mô phỏng tồn biến động rồi quay về giá trị ban đầu nhưng Sequence đã tăng:
         // 1. Nhập thêm 5 cái vào Kho A1 (OnHand: 20 -> 25, Seq tăng)
@@ -1640,7 +1666,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         await _client.PostAsJsonAsync($"/api/stock-transfers/{trf!.Id}/dispatch", new OISM.Application.Features.StockTransfers.Dtos.DispatchStockTransferRequestDto());
 
         // Confirm phải phát hiện sequence drift
-        var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+        var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
         confirmRes.StatusCode.Should().Be(HttpStatusCode.Conflict);
         var body = await confirmRes.Content.ReadAsStringAsync();
         body.Should().Contain("STOCK_COUNT_SEQUENCE_DRIFT");
@@ -1660,6 +1686,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         // 1. Tạo kiểm kê cho Kho A1
         var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -1671,12 +1698,13 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         {
             Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 10m } }
         });
+        await SubmitForApprovalAsync(_client, count.Id);
 
         // 2. Nhập thêm hàng vào Kho A2 (làm tăng Branch Sequence nhưng KHÔNG làm tăng Warehouse A1 Sequence)
         await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA2Id, infra.SupplierId, infra.UserId, infra.Sku1Id, 5m, 50000m);
 
         // 3. Confirm phiếu kiểm kê Kho A1: KHÔNG bị báo drift nhầm vì Warehouse A1 Sequence không đổi
-        var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+        var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
         confirmRes.StatusCode.Should().Be(HttpStatusCode.OK, "Giao dịch ở kho khác cùng chi nhánh không được kích hoạt false drift.");
     }
 
@@ -1693,6 +1721,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         // 1. Kiểm kê chỉ cho SKU1
         var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -1704,12 +1733,13 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         {
             Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 10m } }
         });
+        await SubmitForApprovalAsync(_client, count.Id);
 
         // 2. Có giao dịch phát sinh trên SKU2 trong cùng Kho A1
         await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku2Id, 5m, 60000m);
 
         // 3. Confirm SKU1: KHÔNG bị false drift vì sequence của SKU1 tại Kho A1 không đổi
-        var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+        var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
         confirmRes.StatusCode.Should().Be(HttpStatusCode.OK, "Giao dịch trên SKU khác không được gây false drift cho SKU đang kiểm kê.");
     }
 
@@ -1731,6 +1761,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         // Kiểm kê Kho A1: Đếm 15 cái (Thừa +5 cái so với sổ sách 10)
         var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -1746,9 +1777,10 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
                 new() { SkuId = infra.Sku1Id, CountedQuantity = 15m, AdjustmentUnitCost = 999999m }
             }
         });
+        await SubmitForApprovalAsync(_client, count.Id);
 
         // Confirm
-        var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+        var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
         confirmRes.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Quyết định B: Khi chi nhánh đã có WAC > 0, bắt buộc dùng WAC hiện tại (50,000). Giá client gửi không được ghi đè WAC.
@@ -1770,6 +1802,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
         var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -1782,9 +1815,10 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         {
             Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku2Id, CountedQuantity = 5m, AdjustmentUnitCost = null } }
         });
+        await SubmitForApprovalAsync(_client, count.Id);
 
         // 1. Confirm khi thiếu đơn giá -> 422 ADJUSTMENT_COST_REQUIRED
-        var confirmFail = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+        var confirmFail = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
         confirmFail.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         var bodyFail = await confirmFail.Content.ReadAsStringAsync();
         bodyFail.Should().Contain("ADJUSTMENT_COST_REQUIRED");
@@ -1792,6 +1826,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         // 1b. Confirm khi truyền đơn giá = 0 -> cũng phải bị từ chối 422 ADJUSTMENT_COST_REQUIRED (T4B-F03)
         var confirmZeroCost = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto
         {
+            Note = SelfApprovalNote,
             SkuAdjustmentCosts = new Dictionary<Guid, decimal> { [infra.Sku2Id] = 0m }
         });
         confirmZeroCost.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
@@ -1801,6 +1836,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         // 2. Cung cấp đơn giá điều chỉnh hợp lệ qua ConfirmStockCountRequestDto hoặc record lại
         var confirmSuccess = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto
         {
+            Note = SelfApprovalNote,
             SkuAdjustmentCosts = new Dictionary<Guid, decimal> { [infra.Sku2Id] = 75000m }
         });
         var successBody = await confirmSuccess.Content.ReadAsStringAsync();
@@ -1850,6 +1886,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
         var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -1863,8 +1900,9 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         {
             Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 6m } }
         });
+        await SubmitForApprovalAsync(_client, count.Id);
 
-        var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+        var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
         confirmRes.StatusCode.Should().Be(HttpStatusCode.Conflict);
 
         var body = await confirmRes.Content.ReadAsStringAsync();
@@ -1893,6 +1931,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         // Kiểm kê tại Kho A1 (chưa có tồn cho SKU2)
         var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -1910,10 +1949,11 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
                 new() { SkuId = infra.Sku2Id, CountedQuantity = 999_999_999_999_999.999m }
             }
         });
+        await SubmitForApprovalAsync(_client, count.Id);
         recRes.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Confirm: Hệ thống phải chủ động phát hiện tràn số tính toán và trả 400 VALIDATION_ERROR, KHÔNG lỗi 500
-        var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+        var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
         confirmRes.StatusCode.Should().Be(HttpStatusCode.BadRequest, "Tràn số tính toán cấp chi nhánh phải được kiểm soát trả về 400 VALIDATION_ERROR.");
         var body = await confirmRes.Content.ReadAsStringAsync();
         body.Should().Contain("VALIDATION_ERROR");
@@ -1923,7 +1963,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         await using (var verifyContext = CreatePostgresDbContext(infra.TenantId).Context)
         {
             var dbCount = await verifyContext.StockCounts.FirstAsync(c => c.Id == count.Id);
-            dbCount.Status.Should().Be("Counting");
+            dbCount.Status.Should().Be("PendingApproval");
             dbCount.GeneratedAdjustmentId.Should().BeNull();
 
             var bal = await verifyContext.InventoryBalances.FirstAsync(b => b.BranchId == infra.BranchAId && b.SkuId == infra.Sku2Id);
@@ -1944,6 +1984,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         // Kiểm kê SKU2 tại Kho A1 (chi nhánh chưa có tồn kho nào)
         var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -1961,10 +2002,11 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
                 new() { SkuId = infra.Sku2Id, CountedQuantity = maxQty, AdjustmentUnitCost = unitCost }
             }
         });
+        await SubmitForApprovalAsync(_client, count.Id);
         recRes.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Confirm: Nằm chính xác trong ngưỡng biên tối đa -> Thành công 200 OK
-        var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+        var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
         var body = await confirmRes.Content.ReadAsStringAsync();
         confirmRes.StatusCode.Should().Be(HttpStatusCode.OK, $"Confirm biên hợp lệ phải thành công 200 OK: {body}");
 
@@ -1986,6 +2028,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         // SKU3 chưa có tồn kho và chưa có WAC
         var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -2004,10 +2047,11 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
                 new() { SkuId = infra.Sku3Id, CountedQuantity = countedQty, AdjustmentUnitCost = largeUnitCost }
             }
         });
+        await SubmitForApprovalAsync(_client, count.Id);
         recRes.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // Confirm: Không bị chặn bởi artificial MaxTotalCostAmount cap, thành công 200 OK
-        var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+        var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
         var body = await confirmRes.Content.ReadAsStringAsync();
         confirmRes.StatusCode.Should().Be(HttpStatusCode.OK, $"Confirm giá trị lớn hợp lệ phải thành công 200 OK: {body}");
 
@@ -2054,6 +2098,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         // 1. Hủy khi còn Draft
         var createRes1 = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -2069,6 +2114,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         // 2. Hủy khi đang Counting
         var createRes2 = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -2105,6 +2151,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
         var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -2133,6 +2180,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         // 1. Confirm khi phiếu mới ở Draft (chưa ghi số đếm) -> 409 INVALID_STATE_TRANSITION
         var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -2140,7 +2188,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         });
         var count = await createRes.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
 
-        var confirmDraft = await _client.PostAsJsonAsync($"/api/stock-counts/{count!.Id}/confirm", new ConfirmStockCountRequestDto());
+        var confirmDraft = await _client.PostAsJsonAsync($"/api/stock-counts/{count!.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
         confirmDraft.StatusCode.Should().Be(HttpStatusCode.Conflict);
         var bodyDraft = await confirmDraft.Content.ReadAsStringAsync();
         bodyDraft.Should().Contain("INVALID_STATE_TRANSITION");
@@ -2148,7 +2196,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         // 2. Hủy phiếu -> Confirm phiếu đã Cancelled -> 409 INVALID_STATE_TRANSITION
         await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/cancel", new CancelStockCountRequestDto());
 
-        var confirmCancelled = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+        var confirmCancelled = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
         confirmCancelled.StatusCode.Should().Be(HttpStatusCode.Conflict);
         var bodyCancelled = await confirmCancelled.Content.ReadAsStringAsync();
         bodyCancelled.Should().Contain("INVALID_STATE_TRANSITION");
@@ -2163,6 +2211,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
         var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -2174,15 +2223,16 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         {
             Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 0m } }
         });
+        await SubmitForApprovalAsync(_client, count.Id);
 
         // Confirm lần 1: 200 OK
-        var confirmRes1 = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+        var confirmRes1 = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
         confirmRes1.StatusCode.Should().Be(HttpStatusCode.OK);
         var confirmed1 = await confirmRes1.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
         confirmed1!.IsReplay.Should().BeFalse();
 
         // Confirm lần 2: 409 INVALID_STATE_TRANSITION (không replay 200 - T4B-F02)
-        var confirmRes2 = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+        var confirmRes2 = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
         confirmRes2.StatusCode.Should().Be(HttpStatusCode.Conflict);
         var body2 = await confirmRes2.Content.ReadAsStringAsync();
         body2.Should().Contain("INVALID_STATE_TRANSITION");
@@ -2203,6 +2253,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
         var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -2214,6 +2265,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         {
             Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 15m } }
         });
+        await SubmitForApprovalAsync(_client, count.Id);
 
         // 50 requests concurrent confirm
         const int concurrency = 50;
@@ -2221,7 +2273,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         {
             using var client = _factory.CreateClient();
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
-            return await client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+            return await client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
         });
 
         var responses = await Task.WhenAll(tasks);
@@ -2263,6 +2315,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
         var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -2274,6 +2327,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         {
             Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 15m } }
         });
+        await SubmitForApprovalAsync(_client, count.Id);
 
         using var clientConfirm = _factory.CreateClient();
         clientConfirm.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
@@ -2281,7 +2335,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         using var clientCancel = _factory.CreateClient();
         clientCancel.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
 
-        var taskConfirm = clientConfirm.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+        var taskConfirm = clientConfirm.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
         var taskCancel = clientCancel.PostAsJsonAsync($"/api/stock-counts/{count.Id}/cancel", new CancelStockCountRequestDto { Reason = "Race test" });
 
         var responses = await Task.WhenAll(taskConfirm, taskCancel);
@@ -2310,6 +2364,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         // Tạo 2 đợt kiểm kê A và B cùng snapshot SKU1
         var createA = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -2319,6 +2374,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
         var createB = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -2335,6 +2391,8 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         {
             Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 14m } }
         });
+        await SubmitForApprovalAsync(_client, countA.Id);
+        await SubmitForApprovalAsync(_client, countB.Id);
 
         // Chạy thực sự đồng thời 2 lệnh confirm qua Task.WhenAll
         using var clientA = _factory.CreateClient();
@@ -2344,8 +2402,8 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
         var deadlocksBefore = await GetDatabaseDeadlockCountAsync();
 
-        var confirmTaskA = clientA.PostAsJsonAsync($"/api/stock-counts/{countA.Id}/confirm", new ConfirmStockCountRequestDto());
-        var confirmTaskB = clientB.PostAsJsonAsync($"/api/stock-counts/{countB.Id}/confirm", new ConfirmStockCountRequestDto());
+        var confirmTaskA = clientA.PostAsJsonAsync($"/api/stock-counts/{countA.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
+        var confirmTaskB = clientB.PostAsJsonAsync($"/api/stock-counts/{countB.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
 
         var responses = await Task.WhenAll(confirmTaskA, confirmTaskB);
         var deadlocksAfter = await GetDatabaseDeadlockCountAsync();
@@ -2381,7 +2439,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
             {
                 dbCountA.Status.Should().Be("Confirmed");
                 dbCountA.GeneratedAdjustmentId.Should().NotBeNull();
-                dbCountB.Status.Should().Be("Counting");
+                dbCountB.Status.Should().Be("PendingApproval");
                 dbCountB.GeneratedAdjustmentId.Should().BeNull();
 
                 whBal.OnHand.Should().Be(12m);
@@ -2401,7 +2459,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
             {
                 dbCountB.Status.Should().Be("Confirmed");
                 dbCountB.GeneratedAdjustmentId.Should().NotBeNull();
-                dbCountA.Status.Should().Be("Counting");
+                dbCountA.Status.Should().Be("PendingApproval");
                 dbCountA.GeneratedAdjustmentId.Should().BeNull();
 
                 whBal.OnHand.Should().Be(14m);
@@ -2431,6 +2489,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
         var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -2443,6 +2502,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         {
             Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 12m } }
         });
+        await SubmitForApprovalAsync(_client, count.Id);
 
         // Chạy đồng thời: 1 request ghi đếm tiếp vs 1 request confirm
         using var clientRecord = _factory.CreateClient();
@@ -2454,7 +2514,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         {
             Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 15m } }
         });
-        var taskConfirm = clientConfirm.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+        var taskConfirm = clientConfirm.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
 
         var responses = await Task.WhenAll(taskRecord, taskConfirm);
         var resRecord = responses[0];
@@ -2518,6 +2578,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         // Tạo kiểm kê đếm được 8 cái (thiếu -2 cái)
         var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -2529,6 +2590,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         {
             Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 8m } }
         });
+        await SubmitForApprovalAsync(_client, count.Id);
 
         // Chạy đồng thời: POS checkout mua 3 cái vs Confirm kiểm kê chốt tồn
         using var clientPos = _factory.CreateClient();
@@ -2551,7 +2613,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         clientConfirm.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
 
         var taskPos = clientPos.PostAsJsonAsync("/api/pos/checkout", posDto);
-        var taskConfirm = clientConfirm.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+        var taskConfirm = clientConfirm.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
 
         var responses = await Task.WhenAll(taskPos, taskConfirm);
         var resPos = responses[0];
@@ -2591,7 +2653,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
                 var err = await resConfirm.Content.ReadAsStringAsync();
                 err.Should().Contain("STOCK_COUNT_SEQUENCE_DRIFT");
 
-                dbCount.Status.Should().Be("Counting");
+                dbCount.Status.Should().Be("PendingApproval");
                 dbCount.GeneratedAdjustmentId.Should().BeNull();
                 bal.OnHand.Should().Be(7m, "Tồn sau POS bán 3 cái là 7.");
                 whBal.OnHand.Should().Be(7m);
@@ -2619,6 +2681,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         // Tạo kiểm kê cho SKU1 và SKU2 (thứ tự tự nhiên SKU1, SKU2)
         var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -2634,6 +2697,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
                 new() { SkuId = infra.Sku2Id, CountedQuantity = 8m }
             }
         });
+        await SubmitForApprovalAsync(_client, count.Id);
 
         // Chuyển kho tạo phiếu với thứ tự đảo ngược (SKU2 trước, SKU1 sau)
         var trfRes = await _client.PostAsJsonAsync("/api/stock-transfers", new OISM.Application.Features.StockTransfers.Dtos.CreateStockTransferRequestDto
@@ -2659,7 +2723,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
         var deadlocksBefore = await GetDatabaseDeadlockCountAsync();
 
-        var taskConfirm = clientConfirm.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+        var taskConfirm = clientConfirm.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
         var taskDispatch = clientDispatch.PostAsJsonAsync($"/api/stock-transfers/{trf!.Id}/dispatch", new OISM.Application.Features.StockTransfers.Dtos.DispatchStockTransferRequestDto());
 
         var responses = await Task.WhenAll(taskConfirm, taskDispatch);
@@ -2730,7 +2794,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
                 var body = await resConfirm.Content.ReadAsStringAsync();
                 body.Should().Contain("STOCK_COUNT_SEQUENCE_DRIFT");
 
-                dbCount.Status.Should().Be("Counting");
+                dbCount.Status.Should().Be("PendingApproval");
                 dbCount.GeneratedAdjustmentId.Should().BeNull();
 
                 whBal1.OnHand.Should().Be(8m, "SKU1: 10 - 2 (transfer) = 8.");
@@ -2757,6 +2821,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         // Tạo kiểm kê đếm được 15 cái (surplus +5)
         var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -2768,6 +2833,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         {
             Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 15m } }
         });
+        await SubmitForApprovalAsync(_client, count.Id);
 
         // Chạy đồng thời: Nhập kho thêm 5 cái @ 50,000 bằng GoodsReceiptService thật vs Confirm kiểm kê
         using var clientConfirm = _factory.CreateClient();
@@ -2778,7 +2844,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
             await SeedStockAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.SupplierId, infra.UserId, infra.Sku1Id, 5m, 50000m);
             return HttpStatusCode.OK;
         });
-        var taskConfirm = clientConfirm.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+        var taskConfirm = clientConfirm.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
 
         await Task.WhenAll(taskReceipt, taskConfirm);
         var resConfirm = await taskConfirm;
@@ -2831,6 +2897,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
             var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
             {
+                Reason = "Kiểm kê đột xuất trong test",
                 RequestKey = Guid.NewGuid(),
                 BranchId = infra.BranchAId,
                 WarehouseId = infra.WarehouseA1Id,
@@ -2842,6 +2909,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
             {
                 Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 5m } }
             });
+            await SubmitForApprovalAsync(_client, count.Id);
 
             var adminOrderDto = new OISM.Application.Features.Orders.Dtos.CreateOrderRequestDto
             {
@@ -2864,7 +2932,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
             order!.Status.Should().Be("Reserved");
 
             // 2. Count confirm đua sau: Tồn counted 5 < Reserved 8 -> phải bị từ chối 409 INSUFFICIENT_STOCK
-            var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+            var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
             confirmRes.StatusCode.Should().Be(HttpStatusCode.Conflict);
             var confirmBody = await confirmRes.Content.ReadAsStringAsync();
             confirmBody.Should().Contain("INSUFFICIENT_STOCK");
@@ -2885,7 +2953,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
                 activeReservations.Should().Be(8m);
 
                 var dbCount = await verifyCtx.StockCounts.FirstAsync(c => c.Id == count.Id);
-                dbCount.Status.Should().Be("Counting");
+                dbCount.Status.Should().Be("PendingApproval");
                 dbCount.GeneratedAdjustmentId.Should().BeNull();
 
                 var adjs = await verifyCtx.InventoryAdjustments.CountAsync(a => a.Id == dbCount.GeneratedAdjustmentId);
@@ -2901,6 +2969,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
             var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
             {
+                Reason = "Kiểm kê đột xuất trong test",
                 RequestKey = Guid.NewGuid(),
                 BranchId = infra.BranchAId,
                 WarehouseId = infra.WarehouseA1Id,
@@ -2912,9 +2981,10 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
             {
                 Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku2Id, CountedQuantity = 5m } }
             });
+            await SubmitForApprovalAsync(_client, count.Id);
 
             // 1. Count confirm trước: Chốt tồn kho về 5m (OUT 5m)
-            var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+            var confirmRes = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
             confirmRes.StatusCode.Should().Be(HttpStatusCode.OK);
 
             // 2. Admin create đua sau: Tồn khả dụng chỉ còn 5m < 8m -> phải bị từ chối 409 INSUFFICIENT_STOCK
@@ -2979,6 +3049,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
             var createRes = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
             {
+                Reason = "Kiểm kê đột xuất trong test",
                 RequestKey = Guid.NewGuid(),
                 BranchId = infra.BranchAId,
                 WarehouseId = infra.WarehouseA1Id,
@@ -2990,6 +3061,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
             {
                 Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku3Id, CountedQuantity = 5m } }
             });
+            await SubmitForApprovalAsync(_client, count.Id);
 
             var adminKey = Guid.NewGuid();
             var adminOrderDto = new OISM.Application.Features.Orders.Dtos.CreateOrderRequestDto
@@ -3012,7 +3084,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
             clientConfirm.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
 
             var taskOrder = clientOrder.PostAsJsonAsync("/api/orders", adminOrderDto);
-            var taskConfirm = clientConfirm.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto());
+            var taskConfirm = clientConfirm.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
 
             var responses = await Task.WhenAll(taskOrder, taskConfirm);
             var resOrder = responses[0];
@@ -3046,7 +3118,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
                     whBal.Reserved.Should().Be(8m);
 
                     var dbCount = await verifyCtx.StockCounts.FirstAsync(c => c.Id == count.Id);
-                    dbCount.Status.Should().Be("Counting");
+                    dbCount.Status.Should().Be("PendingApproval");
                     dbCount.GeneratedAdjustmentId.Should().BeNull();
                 }
                 else
@@ -3087,6 +3159,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         var requestKey = Guid.NewGuid();
         var createDto = new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = requestKey,
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -3135,10 +3208,11 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         // =====================================================================
         // 3. Fault khi ConfirmStockCountAsync
         // =====================================================================
+        await faultyService.SubmitStockCountAsync(created.Id, infra.UserId);
         var baselineBeforeConfirm = await CaptureFullBaselineAsync(infra.TenantId, infra.BranchAId, infra.WarehouseA1Id, infra.Sku1Id, created.Id);
 
         interceptor.ShouldFail = true;
-        var actConfirm = () => faultyService.ConfirmStockCountAsync(created.Id, new ConfirmStockCountRequestDto(), infra.UserId);
+        var actConfirm = () => faultyService.ConfirmStockCountAsync(created.Id, new ConfirmStockCountRequestDto { Note = SelfApprovalNote }, infra.UserId);
         await actConfirm.Should().ThrowAsync<MidstreamStockCountFaultException>();
 
         // Bằng chứng EF Core đã sinh và gửi SQL cho StockCount, StockCountItem, Adjustment, Ledger và Balances trước khi ném lỗi
@@ -3149,7 +3223,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
         // Retry Confirm thành công đúng 1 lần
         interceptor.ShouldFail = false;
-        var confirmed = await faultyService.ConfirmStockCountAsync(created.Id, new ConfirmStockCountRequestDto(), infra.UserId);
+        var confirmed = await faultyService.ConfirmStockCountAsync(created.Id, new ConfirmStockCountRequestDto { Note = SelfApprovalNote }, infra.UserId);
         confirmed.Status.Should().Be("Confirmed");
         confirmed.GeneratedAdjustmentId.Should().NotBeNull();
 
@@ -3193,6 +3267,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
         var createResA = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -3208,9 +3283,10 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         unauthCreate.StatusCode.Should().Be(HttpStatusCode.Unauthorized, "Create yêu cầu xác thực 401.");
 
         var unauthRecord = await _client.PostAsJsonAsync($"/api/stock-counts/{countA!.Id}/record", new RecordStockCountBatchRequestDto());
+        await SubmitForApprovalAsync(_client, countA.Id);
         unauthRecord.StatusCode.Should().Be(HttpStatusCode.Unauthorized, "Record yêu cầu xác thực 401.");
 
-        var unauthConfirm = await _client.PostAsJsonAsync($"/api/stock-counts/{countA.Id}/confirm", new ConfirmStockCountRequestDto());
+        var unauthConfirm = await _client.PostAsJsonAsync($"/api/stock-counts/{countA.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
         unauthConfirm.StatusCode.Should().Be(HttpStatusCode.Unauthorized, "Confirm yêu cầu xác thực 401.");
 
         var unauthCancel = await _client.PostAsJsonAsync($"/api/stock-counts/{countA.Id}/cancel", new CancelStockCountRequestDto());
@@ -3224,9 +3300,10 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         cashierCreate.StatusCode.Should().Be(HttpStatusCode.Forbidden, "Cashier không có quyền tạo kiểm kê 403.");
 
         var cashierRecord = await _client.PostAsJsonAsync($"/api/stock-counts/{countA.Id}/record", new RecordStockCountBatchRequestDto());
+        await SubmitForApprovalAsync(_client, countA.Id);
         cashierRecord.StatusCode.Should().Be(HttpStatusCode.Forbidden, "Cashier không có quyền ghi số đếm 403.");
 
-        var cashierConfirm = await _client.PostAsJsonAsync($"/api/stock-counts/{countA.Id}/confirm", new ConfirmStockCountRequestDto());
+        var cashierConfirm = await _client.PostAsJsonAsync($"/api/stock-counts/{countA.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
         cashierConfirm.StatusCode.Should().Be(HttpStatusCode.Forbidden, "Cashier không có quyền chốt kiểm kê 403.");
 
         var cashierCancel = await _client.PostAsJsonAsync($"/api/stock-counts/{countA.Id}/cancel", new CancelStockCountRequestDto());
@@ -3238,6 +3315,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
         var crossCreate = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -3247,6 +3325,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
         var crossCreateAll = await _client.PostAsJsonAsync("/api/stock-counts", new CreateStockCountRequestDto
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -3258,9 +3337,10 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         {
             Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 5m } }
         });
+        await SubmitForApprovalAsync(_client, countA.Id);
         crossRecord.StatusCode.Should().Be(HttpStatusCode.NotFound, "Tenant B không thể ghi số đếm cho phiếu của Tenant A.");
 
-        var crossConfirm = await _client.PostAsJsonAsync($"/api/stock-counts/{countA.Id}/confirm", new ConfirmStockCountRequestDto());
+        var crossConfirm = await _client.PostAsJsonAsync($"/api/stock-counts/{countA.Id}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
         crossConfirm.StatusCode.Should().Be(HttpStatusCode.NotFound, "Tenant B không thể chốt kiểm kê cho phiếu của Tenant A.");
 
         var crossCancel = await _client.PostAsJsonAsync($"/api/stock-counts/{countA.Id}/cancel", new CancelStockCountRequestDto());
@@ -3296,6 +3376,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
 
         CreateStockCountRequestDto ValidDto() => new()
         {
+            Reason = "Kiểm kê đột xuất trong test",
             RequestKey = Guid.NewGuid(),
             BranchId = infra.BranchAId,
             WarehouseId = infra.WarehouseA1Id,
@@ -3394,29 +3475,34 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
         {
             Items = new List<RecordStockCountItemRequestDto> { new() { SkuId = infra.Sku1Id, CountedQuantity = 10m } }
         });
+        await SubmitForApprovalAsync(_client, count.Id);
         goodRecord.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // 4.2. Validation khi Confirm: SkuAdjustmentCosts chứa SKU ngoài đợt, đơn giá âm, đơn giá scale > 6, đơn giá tràn số
         var badConfirmForeignSku = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto
         {
+            Note = SelfApprovalNote,
             SkuAdjustmentCosts = new Dictionary<Guid, decimal> { [infra.Sku2Id] = 50000m }
         });
         badConfirmForeignSku.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
         var badConfirmNegCost = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto
         {
+            Note = SelfApprovalNote,
             SkuAdjustmentCosts = new Dictionary<Guid, decimal> { [infra.Sku1Id] = -50000m }
         });
         badConfirmNegCost.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
         var badConfirmCostScale = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto
         {
+            Note = SelfApprovalNote,
             SkuAdjustmentCosts = new Dictionary<Guid, decimal> { [infra.Sku1Id] = 50000.1234567m }
         });
         badConfirmCostScale.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 
         var badConfirmCostOverflow = await _client.PostAsJsonAsync($"/api/stock-counts/{count.Id}/confirm", new ConfirmStockCountRequestDto
         {
+            Note = SelfApprovalNote,
             SkuAdjustmentCosts = new Dictionary<Guid, decimal> { [infra.Sku1Id] = 1_000_000_000_000_000_000m }
         });
         badConfirmCostOverflow.StatusCode.Should().Be(HttpStatusCode.BadRequest);
@@ -3555,7 +3641,7 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
                 _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
 
                 // Thao tác Confirm/Cancel trên phiếu Confirmed cũ đều bị từ chối 409 INVALID_STATE_TRANSITION
-                var badReconfirm = await _client.PostAsJsonAsync($"/api/stock-counts/{legacyConfirmedId}/confirm", new ConfirmStockCountRequestDto());
+                var badReconfirm = await _client.PostAsJsonAsync($"/api/stock-counts/{legacyConfirmedId}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
                 badReconfirm.StatusCode.Should().Be(HttpStatusCode.Conflict);
 
                 var badCancelConf = await _client.PostAsJsonAsync($"/api/stock-counts/{legacyConfirmedId}/cancel", new CancelStockCountRequestDto());
@@ -3572,7 +3658,8 @@ public class StockCountIntegrationTests : IAsyncLifetime, IClassFixture<WebAppli
                 cancelRes.StatusCode.Should().Be(HttpStatusCode.OK);
 
                 // 7. Thao tác trên phiếu Counting legacy: Confirm thành công, tạo đúng 1 adjustment và liên kết generated_adjustment_id
-                var confRes = await _client.PostAsJsonAsync($"/api/stock-counts/{legacyCountingId}/confirm", new ConfirmStockCountRequestDto());
+                await SubmitForApprovalAsync(_client, legacyCountingId);
+                var confRes = await _client.PostAsJsonAsync($"/api/stock-counts/{legacyCountingId}/confirm", new ConfirmStockCountRequestDto { Note = SelfApprovalNote });
                 confRes.StatusCode.Should().Be(HttpStatusCode.OK, "Phiếu Counting legacy phải confirm thành công sau nâng cấp schema.");
                 var confData = await confRes.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
                 confData!.Status.Should().Be("Confirmed");

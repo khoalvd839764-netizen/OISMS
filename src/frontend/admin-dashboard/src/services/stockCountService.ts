@@ -4,10 +4,19 @@ import type {
   StockCount,
   CreateStockCountRequest,
   RecordStockCountBatchRequest,
+  SubmitStockCountRequest,
+  RecountStockCountRequest,
+  RequestRecountRequest,
   ConfirmStockCountRequest,
   CancelStockCountRequest,
   StockCountFilter,
   StockCountPagedResult,
+  StockCountSchedule,
+  CreateStockCountScheduleRequest,
+  UpdateStockCountScheduleRequest,
+  StockCountScheduleFilter,
+  StockCountPeriod,
+  StockCountPeriodFilter,
 } from '../types/stockCount';
 
 function getStorageKey(): string {
@@ -58,9 +67,46 @@ export function parseProblemDetails(error: any): ProblemDetailsError {
   };
 }
 
+let lastCountIntent: { signature: string; requestKey: string; timestamp: number } | null = null;
+
+function getCountIntentStorageKey(): string {
+  const tenantId = localStorage.getItem('oism_tenant_id') || 'default';
+  return `oism_count_intent_${tenantId}`;
+}
+
+function resolveCountRequestKey(sig: string, explicitKey?: string): string {
+  if (lastCountIntent && lastCountIntent.signature === sig) {
+    return lastCountIntent.requestKey;
+  }
+  try {
+    const raw = sessionStorage.getItem(getCountIntentStorageKey());
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.signature === sig && parsed.requestKey) {
+        lastCountIntent = parsed;
+        return parsed.requestKey;
+      }
+    }
+  } catch {}
+  const key = explicitKey || generateUuid();
+  const intent = { signature: sig, requestKey: key, timestamp: Date.now() };
+  lastCountIntent = intent;
+  try {
+    sessionStorage.setItem(getCountIntentStorageKey(), JSON.stringify(intent));
+  } catch {}
+  return key;
+}
+
+function clearCountIntent(): void {
+  lastCountIntent = null;
+  try {
+    sessionStorage.removeItem(getCountIntentStorageKey());
+  } catch {}
+}
+
 export const stockCountService = {
   /**
-   * Lấy danh sách các đợt kiểm kê có phân trang (PR26-F04)
+   * Lấy danh sách các đợt kiểm kê có phân trang
    */
   async getStockCounts(filter?: StockCountFilter): Promise<StockCountPagedResult> {
     const params: Record<string, any> = {};
@@ -125,13 +171,22 @@ export const stockCountService = {
    * Khởi tạo đợt kiểm kê mới (POST /api/stock-counts)
    */
   async createStockCount(req: CreateStockCountRequest): Promise<StockCount> {
-    const requestKey = req.requestKey || generateUuid();
+    const sig = JSON.stringify({
+      branchId: req.branchId,
+      warehouseId: req.warehouseId,
+      skuIds: req.skuIds && req.skuIds.length > 0 ? req.skuIds : null,
+      reason: req.reason,
+    });
+
+    const requestKey = resolveCountRequestKey(sig, req.requestKey);
+
     const payload = {
       requestKey,
       branchId: req.branchId,
       warehouseId: req.warehouseId,
       skuIds: req.skuIds && req.skuIds.length > 0 ? req.skuIds : null,
-      note: req.note,
+      reason: req.reason?.trim() || undefined,
+      note: req.note?.trim() || undefined,
     };
 
     let result: StockCount;
@@ -143,14 +198,13 @@ export const stockCountService = {
           'X-Request-Key': requestKey,
         },
       });
+      clearCountIntent();
       result = response.data;
     } catch (error: any) {
-      // Ném lỗi ProblemDetails để UI hiển thị thông báo chi tiết
       const pd = parseProblemDetails(error);
       throw pd;
     }
 
-    // Đồng bộ vào cache
     const list = loadLocalCounts();
     const existingIdx = list.findIndex((c) => c.id === result.id);
     if (existingIdx >= 0) {
@@ -176,7 +230,6 @@ export const stockCountService = {
       throw pd;
     }
 
-    // Cập nhật cache
     const list = loadLocalCounts();
     const idx = list.findIndex((c) => c.id === id);
     if (idx >= 0) {
@@ -188,7 +241,30 @@ export const stockCountService = {
   },
 
   /**
-   * Chốt kiểm kê & Cân bằng tồn (POST /api/stock-counts/{id}/confirm)
+   * Nộp đợt kiểm kê để trình duyệt (Counting -> PendingApproval) (POST /api/stock-counts/{id}/submit)
+   */
+  async submitStockCount(id: string, req?: SubmitStockCountRequest): Promise<StockCount> {
+    let result: StockCount;
+    try {
+      const response = await httpClient.post<StockCount>(`/api/stock-counts/${id}/submit`, req || {});
+      result = response.data;
+    } catch (error: any) {
+      const pd = parseProblemDetails(error);
+      throw pd;
+    }
+
+    const list = loadLocalCounts();
+    const idx = list.findIndex((c) => c.id === id);
+    if (idx >= 0) {
+      list[idx] = result;
+      saveLocalCounts(list);
+    }
+
+    return result;
+  },
+
+  /**
+   * Chốt kiểm kê & Cân bằng tồn (POST /api/stock-counts/{id}/confirm) - Chỉ Owner
    */
   async confirmStockCount(id: string, req?: ConfirmStockCountRequest): Promise<StockCount> {
     let result: StockCount;
@@ -200,7 +276,52 @@ export const stockCountService = {
       throw pd;
     }
 
-    // Cập nhật cache
+    const list = loadLocalCounts();
+    const idx = list.findIndex((c) => c.id === id);
+    if (idx >= 0) {
+      list[idx] = result;
+      saveLocalCounts(list);
+    }
+
+    return result;
+  },
+
+  /**
+   * Owner yêu cầu đếm lại các SKU bị lệch sequence (POST /api/stock-counts/{id}/request-recount) - Chỉ Owner
+   */
+  async requestRecount(id: string, req: RequestRecountRequest): Promise<StockCount> {
+    let result: StockCount;
+    try {
+      const response = await httpClient.post<StockCount>(`/api/stock-counts/${id}/request-recount`, req);
+      result = response.data;
+    } catch (error: any) {
+      const pd = parseProblemDetails(error);
+      throw pd;
+    }
+
+    const list = loadLocalCounts();
+    const idx = list.findIndex((c) => c.id === id);
+    if (idx >= 0) {
+      list[idx] = result;
+      saveLocalCounts(list);
+    }
+
+    return result;
+  },
+
+  /**
+   * Nhân viên cập nhật số lượng đếm lại cho các SKU bị lệch sequence (POST /api/stock-counts/{id}/recount)
+   */
+  async recountDrifted(id: string, req: RecountStockCountRequest): Promise<StockCount> {
+    let result: StockCount;
+    try {
+      const response = await httpClient.post<StockCount>(`/api/stock-counts/${id}/recount`, req);
+      result = response.data;
+    } catch (error: any) {
+      const pd = parseProblemDetails(error);
+      throw pd;
+    }
+
     const list = loadLocalCounts();
     const idx = list.findIndex((c) => c.id === id);
     if (idx >= 0) {
@@ -224,7 +345,6 @@ export const stockCountService = {
       throw pd;
     }
 
-    // Cập nhật cache
     const list = loadLocalCounts();
     const idx = list.findIndex((c) => c.id === id);
     if (idx >= 0) {
@@ -233,5 +353,60 @@ export const stockCountService = {
     }
 
     return result;
+  },
+
+  // =========================================================================
+  // SCHEDULES & PERIODS API (U03)
+  // =========================================================================
+
+  async getSchedules(filter?: StockCountScheduleFilter): Promise<{ items: StockCountSchedule[]; totalCount: number }> {
+    const params: Record<string, any> = {};
+    if (filter?.branchId) params.branchId = filter.branchId;
+    if (filter?.warehouseId) params.warehouseId = filter.warehouseId;
+    if (filter?.periodType) params.periodType = filter.periodType;
+    if (filter?.isActive !== undefined) params.isActive = filter.isActive;
+    if (filter?.pageNumber) params.pageNumber = filter.pageNumber;
+    if (filter?.pageSize) params.pageSize = filter.pageSize;
+
+    const res = await httpClient.get('/api/stock-count-schedules', { params });
+    const data = res.data;
+    if (Array.isArray(data)) {
+      return { items: data, totalCount: data.length };
+    }
+    return { items: data?.items || [], totalCount: data?.totalCount || 0 };
+  },
+
+  async createSchedule(req: CreateStockCountScheduleRequest): Promise<StockCountSchedule> {
+    const res = await httpClient.post<StockCountSchedule>('/api/stock-count-schedules', req);
+    return res.data;
+  },
+
+  async updateSchedule(id: string, req: UpdateStockCountScheduleRequest): Promise<StockCountSchedule> {
+    const res = await httpClient.put<StockCountSchedule>(`/api/stock-count-schedules/${id}`, req);
+    return res.data;
+  },
+
+  async getPeriods(filter?: StockCountPeriodFilter): Promise<{ items: StockCountPeriod[]; totalCount: number }> {
+    const params: Record<string, any> = {};
+    if (filter?.branchId) params.branchId = filter.branchId;
+    if (filter?.warehouseId) params.warehouseId = filter.warehouseId;
+    if (filter?.status) params.status = filter.status;
+    if (filter?.overdue !== undefined) params.overdue = filter.overdue;
+    if (filter?.from) params.from = filter.from;
+    if (filter?.to) params.to = filter.to;
+    if (filter?.pageNumber) params.pageNumber = filter.pageNumber;
+    if (filter?.pageSize) params.pageSize = filter.pageSize;
+
+    const res = await httpClient.get('/api/stock-count-periods', { params });
+    const data = res.data;
+    if (Array.isArray(data)) {
+      return { items: data, totalCount: data.length };
+    }
+    return { items: data?.items || [], totalCount: data?.totalCount || 0 };
+  },
+
+  async startPeriod(id: string): Promise<StockCount> {
+    const res = await httpClient.post<StockCount>(`/api/stock-count-periods/${id}/start`);
+    return res.data;
   },
 };

@@ -15,6 +15,7 @@ public class GoodsReceipt : BaseEntity, IMustHaveTenant
     /// </summary>
     public string Number { get; set; } = string.Empty;
 
+    public Guid? PurchaseOrderId { get; set; }
     public Guid BranchId { get; set; }
     public Guid WarehouseId { get; set; }
     public Guid SupplierId { get; set; }
@@ -32,6 +33,7 @@ public class GoodsReceipt : BaseEntity, IMustHaveTenant
 
     // Navigation properties
     public Tenant? Tenant { get; set; }
+    public PurchaseOrder? PurchaseOrder { get; set; }
     public Branch? Branch { get; set; }
     public Warehouse? Warehouse { get; set; }
     public Supplier? Supplier { get; set; }

@@ -5,19 +5,27 @@ import {
   ChevronRight,
   Filter,
   FolderTree,
-  MoreHorizontal,
   Plus,
   Power,
   RefreshCw,
   Search,
   Tag,
   Trash2,
+  Layers,
+  TrendingUp,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Badge, Button, Input, Modal, PageTitle, Select } from "../components/ui";
+import { NumberField } from "../components/NumberField";
 import { apiAdapter } from "../services/apiAdapter";
 import { useAuth } from "../context/AuthContext";
 import type { Sku } from "../types/domain";
+import { unitService } from "../services/unitService";
+import { SkuUnitManagementModal } from "../components/units/SkuUnitManagementModal";
+import { CreatePriceChangeModal } from "../components/pricing/CreatePriceChangeModal";
+import { PriceManagementModal } from "../components/pricing/PriceManagementModal";
+import type { Unit } from "../types/units";
 
 // Hàm sinh mã vạch chuẩn EAN-13 hợp lệ kèm số kiểm tra Checksum (893 = Mã quốc gia Việt Nam)
 function generateEan13(): string {
@@ -33,7 +41,14 @@ function generateEan13(): string {
 
 export function ProductsPage() {
   const { user } = useAuth();
-  const [query, setQuery] = useState("");
+  const [searchParams] = useSearchParams();
+  const urlQuery = searchParams.get("q");
+  const [query, setQuery] = useState(urlQuery ?? "");
+
+  // Kết quả tìm kiếm toàn hệ thống mở trang này với từ khóa trên URL
+  useEffect(() => {
+    if (urlQuery !== null) setQuery(urlQuery);
+  }, [urlQuery]);
   const [categoryFilter, setCategoryFilter] = useState("");
   const [brandFilter, setBrandFilter] = useState("");
   const [activeFilter, setActiveFilter] = useState<"all" | "active" | "inactive">("all");
@@ -55,6 +70,10 @@ export function ProductsPage() {
     Array<{ id: string; name: string; rawName?: string; code?: string; parentId?: string | null; level?: number }>
   >([]);
   const [brands, setBrands] = useState<Array<{ id: string; name: string; code?: string }>>([]);
+  const [unitsList, setUnitsList] = useState<Unit[]>([]);
+  const [unitModalSku, setUnitModalSku] = useState<Sku | null>(null);
+  const [priceChangeModalSku, setPriceChangeModalSku] = useState<Sku | null>(null);
+  const [priceManagementOpen, setPriceManagementOpen] = useState(false);
 
   // Form tạo sản phẩm mới
   const [prodName, setProdName] = useState("");
@@ -66,16 +85,17 @@ export function ProductsPage() {
       variantName: string;
       sku: string;
       barcode: string;
-      retailPrice: number;
-      wholesalePrice: number;
+      retailPrice: number | null;
+      wholesalePrice: number | null;
+      baseUnitId?: string;
     }>
   >([
     {
       variantName: "Mặc định",
       sku: `SKU-${Date.now().toString().slice(-5)}`,
       barcode: generateEan13(),
-      retailPrice: 150000,
-      wholesalePrice: 100000,
+      retailPrice: null,
+      wholesalePrice: null,
     },
   ]);
 
@@ -89,10 +109,8 @@ export function ProductsPage() {
   const [brandName, setBrandName] = useState("");
   const [brandCode, setBrandCode] = useState("");
 
-  // Form cập nhật giá & trạng thái biến thể SKU (BE2-06 & A10)
+  // Form cập nhật trạng thái biến thể SKU (U04: không sửa giá tại đây)
   const [editingSku, setEditingSku] = useState<Sku | null>(null);
-  const [editRetailPrice, setEditRetailPrice] = useState<number>(0);
-  const [editWholesalePrice, setEditWholesalePrice] = useState<number>(0);
 
   // Trạng thái thông báo
   const [formError, setFormError] = useState<string | null>(null);
@@ -101,13 +119,20 @@ export function ProductsPage() {
   const loadData = async () => {
     setLoading(true);
     setLoadError(null);
-    const [pRes, cRes, bRes] = await Promise.all([
+    const [pRes, cRes, bRes, uRes] = await Promise.all([
       apiAdapter.getSkus(),
       apiAdapter.getCategories(),
       apiAdapter.getBrands(),
+      unitService.getUnits().catch(() => null),
     ]);
+    if (Array.isArray(uRes)) {
+      setUnitsList(uRes.filter((u) => u.isActive));
+    }
 
     // [A09] Báo lỗi kết nối rõ ràng thay vì biến thành mảng rỗng = 0
+    if (uRes === null) {
+      setLoadError("Không thể tải danh mục đơn vị tính. Vui lòng thử lại trước khi chọn đơn vị gốc.");
+    }
     if (pRes.error) {
       setLoadError(pRes.error.message);
     }
@@ -128,8 +153,8 @@ export function ProductsPage() {
         variantName: `Biến thể ${variants.length + 1}`,
         sku: `SKU-${Date.now().toString().slice(-5)}-${variants.length + 1}`,
         barcode: generateEan13(),
-        retailPrice: 150000,
-        wholesalePrice: 100000,
+        retailPrice: null,
+        wholesalePrice: null,
       },
     ]);
   };
@@ -149,8 +174,8 @@ export function ProductsPage() {
         variantName: "Mặc định",
         sku: `SKU-${Date.now().toString().slice(-5)}`,
         barcode: generateEan13(),
-        retailPrice: 150000,
-        wholesalePrice: 100000,
+        retailPrice: null,
+        wholesalePrice: null,
       },
     ]);
   };
@@ -171,8 +196,8 @@ export function ProductsPage() {
       setFormError("Phát hiện trùng lặp mã SKU ngay trong danh sách biến thể đang tạo.");
       return;
     }
-    if (variants.some((v) => Number(v.retailPrice) < 0 || Number(v.wholesalePrice) < 0)) {
-      setFormError("Giá bán lẻ và giá bán sỉ không được nhỏ hơn 0.");
+    if (variants.some((v) => v.retailPrice == null || v.wholesalePrice == null)) {
+      setFormError("Vui lòng nhập giá bán lẻ và giá bán sỉ cho từng biến thể.");
       return;
     }
 
@@ -188,6 +213,7 @@ export function ProductsPage() {
         barcode: v.barcode.trim(),
         retailPrice: Number(v.retailPrice) || 0,
         wholesalePrice: Number(v.wholesalePrice) || 0,
+        baseUnitId: v.baseUnitId || undefined,
       })),
     };
 
@@ -324,6 +350,12 @@ export function ProductsPage() {
               }}
             >
               <Tag size={17} />Thương hiệu ({brands.length})
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => setPriceManagementOpen(true)}
+            >
+              <TrendingUp size={17} />Bảng giá & Phiếu đổi giá
             </Button>
             {(user?.role === "Owner" || user?.role === "Staff") && (
               <Button
@@ -504,7 +536,10 @@ export function ProductsPage() {
               ) : (
                 pagedProducts.map((sku) => {
                   const available = sku.onHand - sku.reserved;
-                  const isLow = available <= sku.threshold;
+                  // Cảnh báo theo ngưỡng thật của từng chi nhánh, giống tab Kho và báo cáo cảnh báo
+                  const isLow = (sku.branchBalances ?? []).some(
+                    (b) => (b.reorderPoint ?? 0) > 0 && b.onHand - b.reserved <= (b.reorderPoint ?? 0)
+                  );
                   const isInactive = sku.isActive === false;
                   return (
                     <tr key={sku.id} style={isInactive ? { opacity: 0.72 } : undefined}>
@@ -528,7 +563,16 @@ export function ProductsPage() {
                         <code>{sku.barcode || "N/A"}</code>
                       </td>
                       <td>
-                        <strong>{sku.sellingPrice.toLocaleString("vi-VN")} ₫</strong>
+                        {sku.sellingPrice != null ? (
+                          <strong>{sku.sellingPrice.toLocaleString("vi-VN")} ₫</strong>
+                        ) : (
+                          <span style={{ color: "#d97706", fontWeight: 600 }}>Chưa có giá</span>
+                        )}
+                        {sku.baseUnitPriceMissing && (
+                          <span style={{ display: "block", fontSize: "11px", color: "#ef4444", fontWeight: 500, marginTop: "2px" }}>
+                            ⚠️ Thiếu giá cơ sở
+                          </span>
+                        )}
                       </td>
                       <td>
                         <strong className={isLow ? "text-warning" : ""}>{available}</strong>
@@ -551,19 +595,37 @@ export function ProductsPage() {
                         )}
                       </td>
                       {(user?.role === "Owner" || user?.role === "Staff") && (
-                        <td>
+                        <td style={{ whiteSpace: "nowrap" }}>
                           <Button
                             variant="ghost"
-                            title="Cập nhật giá bán lẻ / giá sỉ & trạng thái SKU"
+                            title="Cấu hình Đơn vị tính & Quy cách"
+                            onClick={() => {
+                              setUnitModalSku(sku);
+                            }}
+                            style={{ marginRight: "4px" }}
+                          >
+                            <Layers size={17} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            title="Tạo phiếu đổi giá bán"
+                            onClick={() => {
+                              setPriceChangeModalSku(sku);
+                            }}
+                            style={{ marginRight: "4px" }}
+                          >
+                            <TrendingUp size={17} /> Đổi giá
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            title="Quản lý trạng thái hoạt động SKU"
                             onClick={() => {
                               setFormError(null);
                               setFormSuccess(null);
                               setEditingSku(sku);
-                              setEditRetailPrice(sku.sellingPrice);
-                              setEditWholesalePrice(sku.wholesalePrice);
                             }}
                           >
-                            <MoreHorizontal size={19} />
+                            <Power size={17} />
                           </Button>
                         </td>
                       )}
@@ -618,7 +680,7 @@ export function ProductsPage() {
 
       {/* MODAL 1: THÊM SẢN PHẨM & BIẾN THỂ SKU ĐA DÒNG */}
       {productModal && (
-        <Modal title="Thêm sản phẩm mới kèm biến thể SKU" onClose={() => setProductModal(false)}>
+        <Modal wide title="Thêm sản phẩm mới kèm biến thể SKU" onClose={() => setProductModal(false)}>
           {formError && (
             <div
               style={{
@@ -681,7 +743,7 @@ export function ProductsPage() {
             </label>
           </div>
 
-          <div style={{ marginTop: "18px", borderTop: "1px solid #e2e8f0", paddingTop: "14px" }}>
+          <div style={{ margin: "18px 20px 0", borderTop: "1px solid #e2e8f0", paddingTop: "14px" }}>
             <div
               style={{
                 display: "flex",
@@ -714,8 +776,8 @@ export function ProductsPage() {
                     borderRadius: "8px",
                     padding: "10px",
                     display: "grid",
-                    gridTemplateColumns: "1.2fr 1.2fr 1.5fr 1fr 1fr auto",
-                    gap: "8px",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+                    gap: "10px",
                     alignItems: "end",
                   }}
                 >
@@ -743,7 +805,7 @@ export function ProductsPage() {
                       placeholder="SKU-001"
                     />
                   </label>
-                  <label>
+                  <label style={{ gridColumn: "span 2", minWidth: 0 }}>
                     <span style={{ fontSize: "11px" }}>Barcode (EAN-13)</span>
                     <div className="inline-input">
                       <Input
@@ -769,37 +831,57 @@ export function ProductsPage() {
                     </div>
                   </label>
                   <label>
-                    <span style={{ fontSize: "11px" }}>Giá lẻ (VNĐ)</span>
-                    <Input
-                      type="number"
-                      min="0"
+                    <span style={{ fontSize: "11px" }}>Giá lẻ *</span>
+                    <NumberField
+                      aria-label="Giá bán lẻ"
                       value={v.retailPrice}
-                      onChange={(e) => {
-                        const next = [...variants];
-                        next[idx].retailPrice = Number(e.target.value);
-                        setVariants(next);
+                      decimals={2}
+                      suffix="₫"
+                      placeholder="Ví dụ: 150.000"
+                      onChange={(value) => {
+                        setVariants((current) => current.map((row, i) => (i === idx ? { ...row, retailPrice: value } : row)));
                       }}
                     />
                   </label>
                   <label>
-                    <span style={{ fontSize: "11px" }}>Giá sỉ (VNĐ)</span>
-                    <Input
-                      type="number"
-                      min="0"
+                    <span style={{ fontSize: "11px" }}>Giá sỉ *</span>
+                    <NumberField
+                      aria-label="Giá bán sỉ"
                       value={v.wholesalePrice}
-                      onChange={(e) => {
-                        const next = [...variants];
-                        next[idx].wholesalePrice = Number(e.target.value);
-                        setVariants(next);
+                      decimals={2}
+                      suffix="₫"
+                      placeholder="Ví dụ: 120.000"
+                      onChange={(value) => {
+                        setVariants((current) => current.map((row, i) => (i === idx ? { ...row, wholesalePrice: value } : row)));
                       }}
                     />
+                  </label>
+                  <label>
+                    <span style={{ fontSize: "11px" }}>Đơn vị gốc</span>
+                    <Select
+                      value={v.baseUnitId || ""}
+                      onChange={(e) => {
+                        const next = [...variants];
+                        next[idx].baseUnitId = e.target.value;
+                        setVariants(next);
+                      }}
+                    >
+                      <option value="">Mặc định (cái)</option>
+                      {unitsList.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name} ({u.symbol})
+                        </option>
+                      ))}
+                    </Select>
                   </label>
                   <Button
                     variant="ghost"
                     disabled={variants.length <= 1}
                     onClick={() => removeVariantRow(idx)}
+                    title="Xóa biến thể này"
+                    style={{ justifySelf: "start" }}
                   >
-                    <Trash2 size={16} color="#ef4444" />
+                    <Trash2 size={16} color="#ef4444" /> Xóa biến thể
                   </Button>
                 </div>
               ))}
@@ -1088,10 +1170,10 @@ export function ProductsPage() {
         </Modal>
       )}
 
-      {/* MODAL 4: CẬP NHẬT BẢNG GIÁ & TRẠNG THÁI BIẾN THỂ SKU (BE2-06 & A10) */}
+      {/* MODAL 4: QUẢN LÝ TRẠNG THÁI BIẾN THỂ SKU (Form sửa SKU không gửi trường giá - U04) */}
       {editingSku && (
         <Modal
-          title={`Quản lý SKU: ${editingSku.code}`}
+          title={`Quản lý trạng thái SKU: ${editingSku.code}`}
           onClose={() => setEditingSku(null)}
         >
           {formError && (
@@ -1109,7 +1191,7 @@ export function ProductsPage() {
               {formError}
             </div>
           )}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", padding: "12px 16px", background: "#f8fafc", borderRadius: "8px" }}>
             <div>
               <strong>Trạng thái kinh doanh hiện tại:</strong>{" "}
               {editingSku.isActive === false ? (
@@ -1139,62 +1221,70 @@ export function ProductsPage() {
             </Button>
           </div>
 
-          {user?.role === "Owner" && (
-            <div className="form-grid">
-              <label>
-                <span>Giá bán lẻ (Retail Price - VNĐ) *</span>
-                <Input
-                  type="number"
-                  min="0"
-                  value={editRetailPrice}
-                  onChange={(e) => setEditRetailPrice(Number(e.target.value))}
-                />
-              </label>
-              <label>
-                <span>Giá bán sỉ (Wholesale Price - VNĐ) *</span>
-                <Input
-                  type="number"
-                  min="0"
-                  value={editWholesalePrice}
-                  onChange={(e) => setEditWholesalePrice(Number(e.target.value))}
-                />
-              </label>
+          <div style={{ padding: "0 16px 12px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", fontSize: "12px" }}>
+              <div>
+                <span style={{ color: "#64748b" }}>Giá bán lẻ hiện tại:</span>{" "}
+                <strong>
+                  {editingSku.sellingPrice != null ? `${editingSku.sellingPrice.toLocaleString("vi-VN")} ₫` : "Chưa có giá"}
+                </strong>
+              </div>
+              <div>
+                <span style={{ color: "#64748b" }}>Giá bán sỉ hiện tại:</span>{" "}
+                <strong>
+                  {editingSku.wholesalePrice != null ? `${editingSku.wholesalePrice.toLocaleString("vi-VN")} ₫` : "Chưa có giá"}
+                </strong>
+              </div>
             </div>
-          )}
-          <div className="hint-box" style={{ marginTop: "12px" }}>
-            Giá vốn bình quân hiện tại (WAC):{" "}
-            <strong>{editingSku.averageCost.toLocaleString("vi-VN")} ₫</strong>. Khi SKU ở trạng thái{" "}
-            <strong>[Ngừng hoạt động]</strong>, mặt hàng sẽ bị khóa không cho chọn vào đơn hàng hoặc giỏ POS.
           </div>
+
+          <div className="hint-box" style={{ margin: "0 16px 14px" }}>
+            <p style={{ margin: 0 }}>
+              <strong>Quy tắc bảng giá:</strong> Không cho phép sửa trực tiếp giá trên form thông tin SKU. Mọi lần thay đổi giá bán lẻ hoặc giá bán sỉ bắt buộc phải tạo <strong>Phiếu đổi giá (Price Change Request)</strong> để lưu vết và phê duyệt theo quy trình.
+            </p>
+            <p style={{ margin: "6px 0 0" }}>
+              Giá vốn bình quân hiện tại (WAC): <strong>{editingSku.averageCost.toLocaleString("vi-VN")} ₫</strong>.
+            </p>
+          </div>
+
           <div className="modal-actions">
             <Button variant="secondary" onClick={() => setEditingSku(null)}>
-              Hủy
+              Đóng
             </Button>
-            {user?.role === "Owner" && (
-              <Button
-                disabled={loading}
-                onClick={async () => {
-                  setFormError(null);
-                  setLoading(true);
-                  const res = await apiAdapter.updateVariantPrices(editingSku.productId, editingSku.id, {
-                    retailPrice: editRetailPrice,
-                    wholesalePrice: editWholesalePrice,
-                  });
-                  setLoading(false);
-                  if (res.error) {
-                    setFormError(res.error.message);
-                  } else {
-                    setEditingSku(null);
-                    loadData();
-                  }
-                }}
-              >
-                {loading ? "Đang lưu..." : "Lưu bảng giá"}
-              </Button>
-            )}
+            <Button
+              variant="primary"
+              onClick={() => {
+                const target = editingSku;
+                setEditingSku(null);
+                setPriceChangeModalSku(target);
+              }}
+            >
+              <TrendingUp size={15} /> Tạo phiếu đổi giá
+            </Button>
           </div>
         </Modal>
       )}
+
+      <SkuUnitManagementModal
+        isOpen={Boolean(unitModalSku)}
+        onClose={() => setUnitModalSku(null)}
+        sku={unitModalSku}
+        onUpdated={loadData}
+      />
+
+      <CreatePriceChangeModal
+        isOpen={Boolean(priceChangeModalSku)}
+        onClose={() => setPriceChangeModalSku(null)}
+        sku={priceChangeModalSku}
+        onCreated={loadData}
+      />
+
+      <PriceManagementModal
+        isOpen={priceManagementOpen}
+        onClose={() => setPriceManagementOpen(false)}
+        allSkus={products}
+        onDataChanged={loadData}
+      />
     </>
   );
 }

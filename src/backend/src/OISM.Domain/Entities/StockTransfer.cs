@@ -23,6 +23,7 @@ public class StockTransfer : BaseEntity, IMustHaveTenant
     public string Status { get; set; } = "Draft";
 
     public Guid CreatedBy { get; set; }
+    public Guid? DispatchedBy { get; set; }
     public DateTimeOffset? DispatchedAt { get; set; }
     public DateTimeOffset? ReceivedAt { get; set; }
     public Guid? ReceivedBy { get; set; }
@@ -35,6 +36,7 @@ public class StockTransfer : BaseEntity, IMustHaveTenant
     public Warehouse? FromWarehouse { get; set; }
     public Warehouse? ToWarehouse { get; set; }
     public User? CreatedByUser { get; set; }
+    public User? DispatchedByUser { get; set; }
     public User? ReceivedByUser { get; set; }
 
     public ICollection<StockTransferItem> Items { get; set; } = new List<StockTransferItem>();

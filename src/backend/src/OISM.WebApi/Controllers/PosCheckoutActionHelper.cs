@@ -55,6 +55,24 @@ public static class PosCheckoutActionHelper
             var result = await posCheckoutService.CheckoutPosAsync(dto, cashierUserId, ct);
             return controller.Ok(result);
         }
+        catch (PriceMismatchException ex)
+        {
+            var problem = new ProblemDetails
+            {
+                Type = $"https://oisms.local/errors/{ex.ErrorCode}",
+                Title = GetTitleForErrorCode(ex.ErrorCode),
+                Status = ex.StatusCode,
+                Detail = ex.Message,
+                Instance = controller.HttpContext?.Request.Path.Value ?? string.Empty,
+                Extensions =
+                {
+                    ["errorCode"] = ex.ErrorCode,
+                    ["currentPrices"] = ex.CurrentPrices,
+                    ["timestamp"] = DateTimeOffset.UtcNow
+                }
+            };
+            return controller.StatusCode(ex.StatusCode, problem);
+        }
         catch (OismException ex)
         {
             return CreateProblemResult(controller, ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);

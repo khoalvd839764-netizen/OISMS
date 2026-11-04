@@ -578,6 +578,10 @@ function compileAndLoadModule(source, fileName, env, imports = {}) {
       exports: mod.exports,
       require: (name) => {
         if (name in imports) return imports[name];
+        // Helper thuần của giỏ hàng được nạp bằng mã nguồn thật, không giả lập
+        if (name.endsWith('services/posCartUnits')) {
+          return compileAndLoadModule(fs.readFileSync(path.resolve(__dirname, 'src/services/posCartUnits.ts'), 'utf8'), 'posCartUnits.ts', {});
+        }
         throw new Error(`Unexpected import in test VM: ${name}`);
       },
     },
@@ -2370,6 +2374,7 @@ test('26. S3-POS-B01 T02-AC-01 & T02-AC-02: Server Snapshot Overrides Local Cart
           skuCode: 'POLO-NAM-DEN-M',
           productName: serverSnapshotProductName,
           variantName: 'Đen / M',
+          unitName: 'Thùng',
           quantity: 2,
           unitPrice: 200000,
           subtotal: 400000,
@@ -2392,6 +2397,7 @@ test('26. S3-POS-B01 T02-AC-01 & T02-AC-02: Server Snapshot Overrides Local Cart
   });
   assert.equal(mapped.items[0].name, `${serverSnapshotProductName} - Đen / M`, 'Mapper must map server snapshot item name');
   assert.equal(mapped.items[0].sku, 'POLO-NAM-DEN-M');
+  assert.equal(mapped.items[0].unitName, 'Thùng', 'Mapper must keep the server snapshot unit name on the receipt');
   assert.equal(mapped.items[0].quantity, 2);
   assert.equal(mapped.items[0].unitPrice, 200000);
   assert.equal(mapped.items[0].subtotal, 400000);

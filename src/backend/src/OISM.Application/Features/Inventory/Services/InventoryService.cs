@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
 using OISM.Application.Features.Inventory.Dtos;
 
@@ -9,6 +10,8 @@ public interface IInventoryService
     Task<PagedResult<InventoryBalanceDto>> GetBalancesAsync(InventoryBalanceFilterDto filter, CancellationToken ct = default);
     Task<PagedResult<InventoryLedgerDto>> GetLedgerAsync(InventoryLedgerFilterDto filter, CancellationToken ct = default);
     Task<InventoryBalanceDto?> GetSkuBalanceAtBranchAsync(Guid branchId, Guid skuId, CancellationToken ct = default);
+    Task<InventoryBalanceDto> UpdateReorderPointAsync(UpdateReorderPointDto request, CancellationToken ct = default);
+    Task<int> BulkUpdateReorderPointAsync(BulkUpdateReorderPointDto request, CancellationToken ct = default);
 }
 
 public class InventoryService : IInventoryService
@@ -87,7 +90,7 @@ public class InventoryService : IInventoryService
                 })
                 .ToListAsync(ct);
 
-            // Bổ sung WAC từ branch balances cho các SKU này (nếu có kết quả)
+            // Bổ sung WAC và ReorderPoint từ branch balances cho các SKU này (nếu có kết quả)
             if (items.Count > 0)
             {
                 var skuIds = items.Select(i => i.SkuId).Distinct().ToList();
@@ -95,16 +98,17 @@ public class InventoryService : IInventoryService
 
                 var branchWacs = await _context.InventoryBalances
                     .Where(b => branchIds.Contains(b.BranchId) && skuIds.Contains(b.SkuId))
-                    .Select(b => new { b.BranchId, b.SkuId, b.AverageCost })
+                    .Select(b => new { b.BranchId, b.SkuId, b.AverageCost, b.ReorderPoint })
                     .ToListAsync(ct);
 
-                var wacLookup = branchWacs.ToDictionary(b => (b.BranchId, b.SkuId), b => b.AverageCost);
+                var wacLookup = branchWacs.ToDictionary(b => (b.BranchId, b.SkuId));
 
                 foreach (var item in items)
                 {
-                    if (wacLookup.TryGetValue((item.BranchId, item.SkuId), out var wac))
+                    if (wacLookup.TryGetValue((item.BranchId, item.SkuId), out var info))
                     {
-                        item.AverageCost = wac;
+                        item.AverageCost = info.AverageCost;
+                        item.ReorderPoint = info.ReorderPoint;
                     }
                 }
             }
@@ -159,7 +163,8 @@ public class InventoryService : IInventoryService
                     WarehouseName = "Tất cả các kho",
                     OnHand = b.OnHand,
                     Reserved = b.Reserved,
-                    AverageCost = b.AverageCost
+                    AverageCost = b.AverageCost,
+                    ReorderPoint = b.ReorderPoint
                 })
                 .ToListAsync(ct);
 
@@ -198,8 +203,128 @@ public class InventoryService : IInventoryService
             WarehouseName = "Tất cả các kho",
             OnHand = balance.OnHand,
             Reserved = balance.Reserved,
-            AverageCost = balance.AverageCost
+            AverageCost = balance.AverageCost,
+            ReorderPoint = balance.ReorderPoint
         };
+    }
+
+    public async Task<InventoryBalanceDto> UpdateReorderPointAsync(UpdateReorderPointDto request, CancellationToken ct = default)
+    {
+        var tenantId = RequireTenantId();
+
+        var sku = await _context.Skus.AsNoTracking().FirstOrDefaultAsync(s => s.Id == request.SkuId, ct);
+        if (sku == null)
+        {
+            throw new OismException("SKU_NOT_FOUND", "Không tìm thấy thông tin sản phẩm (SKU).", 404);
+        }
+
+        var branch = await _context.Branches.AsNoTracking().FirstOrDefaultAsync(b => b.Id == request.BranchId, ct);
+        if (branch == null)
+        {
+            throw new OismException("BRANCH_NOT_FOUND", "Không tìm thấy thông tin chi nhánh.", 404);
+        }
+
+        var productName = await _context.Products
+            .Where(p => p.Id == sku.ProductId)
+            .Select(p => p.Name)
+            .FirstOrDefaultAsync(ct);
+
+        var balance = await _context.InventoryBalances
+            .FirstOrDefaultAsync(b => b.BranchId == request.BranchId && b.SkuId == request.SkuId, ct);
+
+        if (balance == null)
+        {
+            balance = new Domain.Entities.InventoryBalance
+            {
+                TenantId = tenantId,
+                BranchId = request.BranchId,
+                SkuId = request.SkuId,
+                OnHand = 0,
+                Reserved = 0,
+                AverageCost = 0,
+                ReorderPoint = request.ReorderPoint,
+                LastSequence = 0
+            };
+            _context.InventoryBalances.Add(balance);
+        }
+        else
+        {
+            balance.ReorderPoint = request.ReorderPoint;
+        }
+
+        await _context.SaveChangesAsync(ct);
+
+        return new InventoryBalanceDto
+        {
+            SkuId = balance.SkuId,
+            SkuCode = sku.SKU,
+            ProductName = productName ?? string.Empty,
+            Barcode = sku.Barcode,
+            BranchId = balance.BranchId,
+            BranchName = branch.Name,
+            OnHand = balance.OnHand,
+            Reserved = balance.Reserved,
+            AverageCost = balance.AverageCost,
+            ReorderPoint = balance.ReorderPoint
+        };
+    }
+
+    public async Task<int> BulkUpdateReorderPointAsync(BulkUpdateReorderPointDto request, CancellationToken ct = default)
+    {
+        var tenantId = RequireTenantId();
+
+        var branchExists = await _context.Branches.AnyAsync(b => b.Id == request.BranchId, ct);
+        if (!branchExists)
+        {
+            throw new OismException("BRANCH_NOT_FOUND", "Không tìm thấy thông tin chi nhánh.", 404);
+        }
+
+        var skuIds = request.Items.Select(i => i.SkuId).Distinct().ToList();
+        if (skuIds.Count != request.Items.Count)
+        {
+            throw new OismException("DUPLICATE_SKU", "Danh sách cấu hình có SKU bị lặp.", 400);
+        }
+
+        var foundSkuCount = await _context.Skus.CountAsync(s => skuIds.Contains(s.Id), ct);
+        if (foundSkuCount != skuIds.Count)
+        {
+            throw new OismException("SKU_NOT_FOUND", "Danh sách cấu hình có SKU không tồn tại.", 404);
+        }
+
+        var existingBalances = await _context.InventoryBalances
+            .Where(b => b.BranchId == request.BranchId && skuIds.Contains(b.SkuId))
+            .ToListAsync(ct);
+
+        var balanceLookup = existingBalances.ToDictionary(b => b.SkuId);
+        var updatedCount = 0;
+
+        foreach (var item in request.Items)
+        {
+            if (balanceLookup.TryGetValue(item.SkuId, out var balance))
+            {
+                balance.ReorderPoint = item.ReorderPoint;
+                updatedCount++;
+            }
+            else
+            {
+                var newBalance = new Domain.Entities.InventoryBalance
+                {
+                    TenantId = tenantId,
+                    BranchId = request.BranchId,
+                    SkuId = item.SkuId,
+                    OnHand = 0,
+                    Reserved = 0,
+                    AverageCost = 0,
+                    ReorderPoint = item.ReorderPoint,
+                    LastSequence = 0
+                };
+                _context.InventoryBalances.Add(newBalance);
+                updatedCount++;
+            }
+        }
+
+        await _context.SaveChangesAsync(ct);
+        return updatedCount;
     }
 
     public async Task<PagedResult<InventoryLedgerDto>> GetLedgerAsync(InventoryLedgerFilterDto filter, CancellationToken ct = default)
@@ -287,10 +412,32 @@ public class InventoryService : IInventoryService
             foreach (var item in counts) sources[item.Id] = ("StockCount", item.StockCountId, item.Number);
         }
 
+        var orderIds = transactions.Where(t => t.OrderItem != null).Select(t => t.OrderItem!.OrderId).Distinct().ToArray();
+        var invoicesByOrderId = new Dictionary<Guid, (Guid Id, string Number)>();
+        if (orderIds.Length > 0)
+        {
+            var invoices = await _context.SalesInvoices.AsNoTracking()
+                .Where(s => orderIds.Contains(s.OrderId))
+                .Select(s => new { s.Id, s.OrderId, s.Number })
+                .ToListAsync(ct);
+            foreach (var inv in invoices)
+            {
+                invoicesByOrderId[inv.OrderId] = (inv.Id, inv.Number);
+            }
+        }
+
         var items = transactions.Select(t =>
         {
             var sourceKey = t.TransferItemId ?? t.AdjustmentItemId ?? t.StockCountItemId ?? Guid.Empty;
             var hasSource = sources.TryGetValue(sourceKey, out var source);
+            var orderId = t.OrderItem?.OrderId;
+            Guid? salesInvoiceId = null;
+            string? salesInvoiceNumber = null;
+            if (orderId.HasValue && invoicesByOrderId.TryGetValue(orderId.Value, out var inv))
+            {
+                salesInvoiceId = inv.Id;
+                salesInvoiceNumber = inv.Number;
+            }
             return new InventoryLedgerDto
         {
             Id = t.Id,
@@ -311,6 +458,8 @@ public class InventoryService : IInventoryService
                 : t.OrderItemId.HasValue ? "Order" : t.SalesReturnItemId.HasValue ? "SalesReturn" : "Unknown",
             DocumentId = hasSource ? source.Id : t.ReceiptItem?.ReceiptId ?? t.OrderItem?.OrderId,
             DocumentNumber = hasSource ? source.Number : t.ReceiptItem?.Receipt?.Number ?? t.OrderItem?.Order?.Number,
+            SalesInvoiceId = salesInvoiceId,
+            SalesInvoiceNumber = salesInvoiceNumber,
             ReferenceId = t.ReferenceId,
             CreatedAt = t.CreatedAt
         };

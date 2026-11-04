@@ -88,18 +88,7 @@ public class OrderProcessAndSimulatorRegressionTests : IAsyncLifetime, IClassFix
 
         if (initialStock > 0)
         {
-            var receiptsService = new GoodsReceiptService(db, tenantService, new WacCalculator());
-            var receipt = await receiptsService.CreateReceiptAsync(new CreateGoodsReceiptDto
-            {
-                BranchId = branch.Id,
-                WarehouseId = warehouse.Id,
-                SupplierId = supplier.Id,
-                Items = new List<CreateGoodsReceiptItemDto>
-                {
-                    new() { SkuId = sku.Id, Quantity = initialStock, UnitPrice = 100m }
-                }
-            }, user.Id);
-            await receiptsService.ConfirmReceiptAsync(receipt.Id, user.Id);
+            await PurchaseOrderSeed.ReceiveStockAsync(db, tenantService, branch.Id, warehouse.Id, supplier.Id, user.Id, (sku.Id, initialStock, 100m));
         }
 
         return (tenantId, token, branch.Id, warehouse.Id, sku.Id, sku.SKU, sku.RetailPrice, user.Id);

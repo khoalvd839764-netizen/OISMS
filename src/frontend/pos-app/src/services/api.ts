@@ -151,6 +151,7 @@ export function mapServerReceiptToReceiptData(
       name: `${productName}${variantPart}`,
       sku: (typeof item.skuCode === 'string' && item.skuCode.trim()) || '',
       skuId: (typeof item.skuId === 'string' && item.skuId.trim()) || undefined,
+      unitName: (typeof item.unitName === 'string' && item.unitName.trim()) || undefined,
       quantity,
       unitPrice,
       subtotal,
@@ -895,6 +896,7 @@ export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<Che
         detail,
         isDefinitiveError: true,
         message,
+        currentPrices: errBody.currentPrices || errBody.extensions?.currentPrices,
       };
     }
 

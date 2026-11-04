@@ -532,19 +532,6 @@ public class BarcodeAndCatalogTests
     }
 
     [Fact]
-    public void UpdateVariantPricesValidator_ShouldValidateNonNegativePrices()
-    {
-        // Arrange
-        var validator = new UpdateVariantPricesValidator();
-        var validReq = new UpdateVariantPricesRequest { RetailPrice = 100000, WholesalePrice = 80000 };
-        var invalidReq = new UpdateVariantPricesRequest { RetailPrice = -1, WholesalePrice = 80000 };
-
-        // Act & Assert
-        validator.Validate(validReq).IsValid.Should().BeTrue();
-        validator.Validate(invalidReq).IsValid.Should().BeFalse();
-    }
-
-    [Fact]
     public void UpdateCategoryAndBrandValidator_ShouldFail_WhenNameIsEmpty()
     {
         // Arrange
@@ -638,32 +625,6 @@ public class BarcodeAndCatalogTests
         result.Errors.Should().Contain(e => e.ErrorMessage.Contains("null"));
     }
 
-    [Fact]
-    public void UpdateVariantPricesValidator_ShouldFail_WhenPriceExceedsLimitOrHasMoreThanTwoDecimals()
-    {
-        var validator = new UpdateVariantPricesValidator();
-
-        var overflowReq = new UpdateVariantPricesRequest
-        {
-            RetailPrice = 1_000_000_000_000_000_000m,
-            WholesalePrice = 50000
-        };
-        validator.Validate(overflowReq).IsValid.Should().BeFalse();
-
-        var scaleReq = new UpdateVariantPricesRequest
-        {
-            RetailPrice = 99.999m,
-            WholesalePrice = 50000
-        };
-        validator.Validate(scaleReq).IsValid.Should().BeFalse();
-
-        var validReq = new UpdateVariantPricesRequest
-        {
-            RetailPrice = 99.99m,
-            WholesalePrice = 50000
-        };
-        validator.Validate(validReq).IsValid.Should().BeTrue();
-    }
 }
 
 
