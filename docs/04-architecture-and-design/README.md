@@ -16,6 +16,7 @@
 | **1** | `DOC-ARC-01` | [`01-clean-architecture.md`](./01-clean-architecture.md) | `v1.0.0` | Kiến trúc phân tầng Clean Architecture 4 lớp (`Domain`, `Application`, `Infrastructure`, `WebAPI`). |
 | **2** | `DOC-ARC-02` | [`02-multi-tenant-design.md`](./02-multi-tenant-design.md) | `v1.0.0` | Thiết kế SaaS Multi-tenancy, cơ chế phân giải `TenantId` từ JWT và bảo vệ đa lớp chống rò rỉ dữ liệu. |
 | **3** | `DOC-ARC-03` | [`03-database-design.md`](./03-database-design.md) | `v1.0.0` | Sơ đồ thực thể liên kết (ERD), thiết kế bảng Sổ cái Append-Only và chiến lược Indexing quy mô lớn. |
+| **3b** | `DOC-ERD-FULL` | [`../ERD.md`](../ERD.md) | `v2.0.0` | Tài liệu đặc tả toàn diện 43 thực thể CSDL (ERD.md), ánh xạ Clean Architecture ORM và chuẩn hóa thuộc tính. |
 | **4** | `DOC-ARC-04` | [`04-state-machines.md`](./04-state-machines.md) | `v1.0.0` | Sơ đồ máy trạng thái (State Machine) cho Đơn hàng đa kênh, Phiếu nhập kho và Chuyển kho 2 bước. |
 | **5** | `DOC-SEQ-01` | [`sequence-diagrams/seq-pos-fast-checkout.md`](./sequence-diagrams/seq-pos-fast-checkout.md) | `v1.0.0` | Sơ đồ trình tự thanh toán nhanh nguyên tử tại quầy POS (`Reserve -> Confirm -> Deduct`). |
 | **6** | `DOC-SEQ-02` | [`sequence-diagrams/seq-online-reservation.md`](./sequence-diagrams/seq-online-reservation.md) | `v1.0.0` | Sơ đồ trình tự giữ chỗ tồn kho, xử lý Idempotency và khóa CSDL chống bán vượt trong Flash Sale. |
