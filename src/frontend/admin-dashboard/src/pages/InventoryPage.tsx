@@ -21,6 +21,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Badge, Button, ComingSoonBadge, EmptyState, Input, Modal, PageTitle, Select } from "../components/ui";
+import { NumberField } from "../components/NumberField";
 import { apiAdapter, generateUuid } from "../services/apiAdapter";
 import { realtimeAdapter } from "../services/realtimeAdapter";
 import { useAuth } from "../context/AuthContext";
@@ -266,6 +267,7 @@ export function InventoryPage() {
   const [selectedPurchaseOrderId, setSelectedPurchaseOrderId] = useState<string>("");
   const [selectedPoDetail, setSelectedPoDetail] = useState<PurchaseOrderResponse | null>(null);
   const [, setLoadingPos] = useState(false);
+  const [receivableError, setReceivableError] = useState<string | null>(null);
 
   // Cấu hình ngưỡng cảnh báo
   const [thresholds] = useState<Record<string, number>>({});
@@ -575,7 +577,15 @@ export function InventoryPage() {
     [ledger, warehouseFilter, operationFilter, directionFilter, searchQuery]
   );
 
-  const activeBalanceSource = balanceWarehouseFilter !== "all" ? warehouseBalances : skus;
+  // SKU mới tạo chưa có dòng số dư nên API tồn kho không trả về; vẫn hiện để người dùng biết cần nhập hàng.
+  const activeBalanceSource = useMemo(() => {
+    if (balanceWarehouseFilter !== "all") return warehouseBalances;
+    const withBalance = new Set(skus.map((s) => s.id));
+    const notReceived = availableSkus
+      .filter((s) => s.isActive !== false && s.id !== s.productId && !withBalance.has(s.id))
+      .map((s) => ({ ...s, branchId: undefined, branchName: undefined, warehouseId: undefined, warehouseName: undefined }));
+    return [...skus, ...notReceived];
+  }, [balanceWarehouseFilter, warehouseBalances, skus, availableSkus]);
 
   const filteredSkus = useMemo(
     () =>
@@ -619,15 +629,18 @@ export function InventoryPage() {
   // [U01-A] Tải danh sách đơn mua có thể nhận hàng (Approved hoặc PartiallyReceived)
   const loadReceivablePurchaseOrders = async () => {
     setLoadingPos(true);
+    setReceivableError(null);
     try {
-      const res = await purchaseOrderService.getPurchaseOrders({ pageSize: 100 });
-      const filtered = (res.items || []).filter(
-        (po) => po.status === "Approved" || po.status === "PartiallyReceived"
-      );
+      const [approved, partial] = await Promise.all([
+        purchaseOrderService.getPurchaseOrders({ status: "Approved", pageSize: 100 }),
+        purchaseOrderService.getPurchaseOrders({ status: "PartiallyReceived", pageSize: 100 }),
+      ]);
+      const filtered = [...(partial.items || []), ...(approved.items || [])];
       setReceivablePos(filtered);
       return filtered;
     } catch (err: any) {
-      console.error("Không thể tải danh sách đơn mua:", err);
+      setReceivablePos([]);
+      setReceivableError(err?.response?.data?.detail || "Không thể tải danh sách đơn mua hàng đã duyệt.");
       return [];
     } finally {
       setLoadingPos(false);
@@ -872,7 +885,7 @@ export function InventoryPage() {
     setReceiptError(null);
 
     if (!selectedPurchaseOrderId) {
-      setReceiptError("Bắt buộc chọn Đơn mua hàng đã duyệt để lập phiếu nhập kho (U01-A).");
+      setReceiptError("Bắt buộc chọn Đơn mua hàng đã duyệt để lập phiếu nhập kho.");
       return;
     }
 
@@ -1303,6 +1316,7 @@ export function InventoryPage() {
           <button className={tab === "ledger" ? "active" : ""} onClick={() => { setTab("ledger"); void loadLedger(); }}>
             Sổ kho bất biến — Append-Only ({filteredLedger.length})
           </button>
+          {/* Tạm ẩn tab Gợi ý nhập hàng; bỏ comment để mở lại, phần xử lý và panel bên dưới vẫn giữ nguyên.
           {account?.role !== "Cashier" && (
             <button
               className={tab === "ai-reorder" ? "active" : ""}
@@ -1315,6 +1329,7 @@ export function InventoryPage() {
               <Sparkles size={16} /> Gợi ý nhập hàng
             </button>
           )}
+          */}
           <button
             type="button"
             onClick={tab === "ai-reorder" ? () => void loadAiRecommendations() : loadData}
@@ -1488,10 +1503,21 @@ export function InventoryPage() {
                             </div>
                           </td>
                           <td>
-                            <strong>{sku.branchName || "Chi nhánh chính"}</strong>
-                            <div style={{ fontSize: "12px", color: "#64748b" }}>
-                              {sku.warehouseName || "Tất cả các kho thuộc CN"}
-                            </div>
+                            {sku.branchId ? (
+                              <>
+                                <strong>{sku.branchName || "Chi nhánh chính"}</strong>
+                                <div style={{ fontSize: "12px", color: "#64748b" }}>
+                                  {sku.warehouseName || "Tất cả các kho thuộc CN"}
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <Badge tone="warning">Chưa nhập kho</Badge>
+                                <div style={{ fontSize: "12px", color: "#64748b", marginTop: "4px" }}>
+                                  Lập đơn mua rồi nhập kho để có tồn
+                                </div>
+                              </>
+                            )}
                           </td>
                           <td>
                             <strong>{sku.onHand}</strong>
@@ -2211,7 +2237,7 @@ export function InventoryPage() {
               {/* Thông tin chung phiếu nhập (U01-A) */}
               <div className="form-grid">
                 <label style={{ gridColumn: "span 2" }}>
-                  <span>Đơn mua hàng đã duyệt (Bắt buộc theo U01-A) *</span>
+                  <span>Đơn mua hàng đã duyệt (Bắt buộc) *</span>
                   {createdReceiptId ? (
                     <div
                       style={{
@@ -2244,7 +2270,15 @@ export function InventoryPage() {
                           </option>
                         ))}
                       </Select>
-                      {receivablePos.length === 0 && (
+                      {receivableError && (
+                        <div style={{ background: "#fee2e2", border: "1px solid #ef4444", color: "#b91c1c", padding: "8px 12px", borderRadius: 6, fontSize: 12, marginTop: 6 }}>
+                          {receivableError}{" "}
+                          <Button variant="secondary" onClick={() => void loadReceivablePurchaseOrders()}>
+                            Thử lại
+                          </Button>
+                        </div>
+                      )}
+                      {!receivableError && receivablePos.length === 0 && (
                         <div
                           style={{
                             background: "#fef3c7",
@@ -2256,7 +2290,7 @@ export function InventoryPage() {
                             marginTop: 6,
                           }}
                         >
-                          Chưa có đơn mua hàng nào đã duyệt. Theo quy định U01-A, mọi phiếu nhập NCC phải lập từ đơn mua đã duyệt.
+                          Chưa có đơn mua hàng nào đã duyệt. Mọi phiếu nhập từ nhà cung cấp phải lập từ đơn mua đã duyệt.
                           <div style={{ marginTop: 6 }}>
                             <Button
                               variant="secondary"
@@ -2436,17 +2470,15 @@ export function InventoryPage() {
                             <span style={{ fontSize: "11px", fontWeight: 600, display: "block" }}>
                               Thực nhận đợt này *
                             </span>
-                            <Input
-                              type="number"
-                              min="0"
-                              step="any"
-                              max={item.remainingQuantity}
+                            <NumberField
+                              aria-label={`Thực nhận ${item.skuCode}`}
                               disabled={Boolean(createdReceiptId)}
-                              value={item.quantity}
-                              onChange={(e) => {
-                                const next = [...receiptItems];
-                                next[idx].quantity = Number(e.target.value);
-                                setReceiptItems(next);
+                              value={item.quantity || null}
+                              decimals={3}
+                              onChange={(value) => {
+                                setReceiptItems((current) =>
+                                  current.map((row, i) => (i === idx ? { ...row, quantity: value ?? 0 } : row))
+                                );
                               }}
                             />
                             {isOver && (
@@ -2513,7 +2545,7 @@ export function InventoryPage() {
 
               {/* Tác động WAC */}
               <div className="impact-box" style={{ marginTop: "12px" }}>
-                <strong>Cơ chế đối chiếu giá vốn WAC từ Đơn mua hàng (U01-A):</strong>
+                <strong>Cơ chế đối chiếu giá vốn WAC từ Đơn mua hàng:</strong>
                 <p>
                   Đơn giá nhập được <strong>khóa chặt theo Đơn mua hàng đã được duyệt</strong>, đảm bảo tính bất biến và chuẩn xác của giá vốn bình quân (WAC) khi tăng tồn kho và ghi nhận sổ cái IN.
                 </p>
@@ -2847,13 +2879,11 @@ export function InventoryPage() {
             </label>
             <label>
               <span>Ngưỡng cảnh báo tồn (ReorderPoint) *</span>
-              <Input
-                type="number"
-                min="0"
-                step="1"
+              <NumberField
+                aria-label="Ngưỡng cảnh báo tồn"
                 value={reorderInputVal}
-                onChange={(e) => setReorderInputVal(Math.max(0, parseInt(e.target.value) || 0))}
-                required
+                decimals={3}
+                onChange={(value) => setReorderInputVal(value ?? 0)}
               />
             </label>
           </div>

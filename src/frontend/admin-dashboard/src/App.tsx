@@ -10,7 +10,6 @@ import { StockCountsPage } from "./pages/StockCountsPage";
 import { OrdersPage } from "./pages/OrdersPage";
 import { SalesInvoicesPage } from "./pages/SalesInvoicesPage";
 import { ReportsPage } from "./pages/ReportsPage";
-import { HandoffPage } from "./pages/HandoffPage";
 import { PosPage } from "./pages/PosPage";
 import { AccessPage } from "./pages/AccessPage";
 import { AuthPage } from "./pages/AuthPage";
@@ -51,8 +50,6 @@ export default function App() {
               <Route path="/admin/orders" element={<OrdersPage />} />
               <Route path="/invoices" element={<SalesInvoicesPage />} />
               <Route path="/admin/invoices" element={<SalesInvoicesPage />} />
-              <Route path="/handoff" element={<HandoffPage />} />
-              <Route path="/admin/handoff" element={<HandoffPage />} />
 
               {/* Chỉ Owner được truy cập trang Báo cáo & Quản lý Chi nhánh / Tổ chức */}
               <Route element={<ProtectedRoute allowedRoles={["Owner"]} />}>

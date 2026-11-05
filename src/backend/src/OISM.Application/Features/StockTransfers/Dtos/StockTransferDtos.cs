@@ -11,7 +11,7 @@ public class StockTransferItemRequestDto
     [NotEmptyGuid(ErrorMessage = "Mã biến thể SKU không được rỗng (Guid.Empty).")]
     public Guid SkuId { get; set; }
 
-    [Range(typeof(decimal), "0.001", "999999999999999.999", ErrorMessage = "Số lượng chuyển phải lớn hơn 0 và không vượt quá giới hạn tối đa.")]
+    [DecimalRange("0.001", "999999999999999.999", ErrorMessage = "Số lượng chuyển phải lớn hơn 0 và không vượt quá giới hạn tối đa.")]
     public decimal Quantity { get; set; }
 }
 

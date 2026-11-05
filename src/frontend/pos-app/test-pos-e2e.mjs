@@ -578,6 +578,10 @@ function compileAndLoadModule(source, fileName, env, imports = {}) {
       exports: mod.exports,
       require: (name) => {
         if (name in imports) return imports[name];
+        // Helper thuần của giỏ hàng được nạp bằng mã nguồn thật, không giả lập
+        if (name.endsWith('services/posCartUnits')) {
+          return compileAndLoadModule(fs.readFileSync(path.resolve(__dirname, 'src/services/posCartUnits.ts'), 'utf8'), 'posCartUnits.ts', {});
+        }
         throw new Error(`Unexpected import in test VM: ${name}`);
       },
     },

@@ -1,6 +1,8 @@
 import React from 'react';
 import { Trash2, Plus, Minus, ShoppingCart, AlertTriangle, ArrowRight } from 'lucide-react';
 import type { CartItem } from '../types/pos';
+import { lineDecimalPlaces, maxQuantityForLine } from '../services/posCartUnits';
+import { QuantityInput } from './QuantityInput';
 
 interface CartTableProps {
   items: CartItem[];
@@ -83,8 +85,9 @@ export const CartTable: React.FC<CartTableProps> = ({
           <tbody className="divide-y divide-slate-100 text-sm">
             {items.map((item, index) => {
               const isOutOfStock = item.available <= 0;
-              const isOverStock = item.available > 0 && item.quantity > item.available;
-              const isMaxStockReached = item.available > 0 && item.quantity >= item.available;
+              const maxQuantity = maxQuantityForLine(items, item);
+              const isOverStock = item.available > 0 && item.quantity > maxQuantity;
+              const isMaxStockReached = item.available > 0 && item.quantity >= maxQuantity;
               const subtotal = item.retailPrice * item.quantity;
 
               return (
@@ -155,18 +158,12 @@ export const CartTable: React.FC<CartTableProps> = ({
                       >
                         <Minus className="w-3.5 h-3.5" />
                       </button>
-                      <input
-                        type="number"
-                        min="1"
-                        max={item.available > 0 ? item.available : 1}
+                      <QuantityInput
                         value={item.quantity}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value, 10);
-                          if (!isNaN(val) && val >= 1) {
-                            const maxLimit = item.available > 0 ? item.available : 1;
-                            onSetQuantity(item.lineKey || item.variantId, Math.min(val, maxLimit));
-                          }
-                        }}
+                        max={maxQuantity}
+                        decimalPlaces={lineDecimalPlaces(item)}
+                        label={`Số lượng ${item.sku}`}
+                        onCommit={(quantity) => onSetQuantity(item.lineKey || item.variantId, quantity)}
                         className="w-12 text-center font-bold text-slate-800 text-sm focus:outline-none"
                       />
                       <button
@@ -178,7 +175,7 @@ export const CartTable: React.FC<CartTableProps> = ({
                             ? 'text-slate-300 cursor-not-allowed bg-slate-50'
                             : 'text-slate-600 hover:bg-slate-100'
                         }`}
-                        title={isMaxStockReached ? `Đã đạt giới hạn tồn khả dụng (${item.available})` : 'Tăng 1'}
+                        title={isMaxStockReached ? `Đã đạt giới hạn tồn khả dụng (tối đa ${maxQuantity})` : 'Tăng 1'}
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>

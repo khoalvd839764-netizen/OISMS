@@ -31,7 +31,7 @@ Hệ thống OISMS (Omnichannel Inventory & Sales Management System) được tr
 | **7** | Trung tâm Đơn hàng đa kênh | `/admin/orders` | ✅ | ✅ | ❌ | [`05-order-screens.md`](./05-order-screens.md) |
 | **8** | Quầy Bán hàng POS tích hợp | `/pos` | ✅ | ✅ | ✅ | [`06-pos-terminal-screens.md`](./06-pos-terminal-screens.md) |
 | **9** | Quầy Bán hàng POS độc lập (PWA) | `http://localhost:5174` | ✅ | ✅ | ✅ | [`06-pos-terminal-screens.md`](./06-pos-terminal-screens.md) |
-| **10** | Điều phối & Bàn giao vận chuyển | `/admin/handoff` | ✅ | ✅ | ❌ | [`07-handoff-screens.md`](./07-handoff-screens.md) |
+| **10** | Điều phối & Bàn giao vận chuyển *(đã tạm gỡ 04/11/2026)* | `/admin/handoff` | ✅ | ✅ | ❌ | [`07-handoff-screens.md`](./07-handoff-screens.md) |
 | **11** | Báo cáo Doanh thu & Quản trị Lãi gộp | `/admin/reports` | ✅ | ❌ | ❌ | [`08-report-screens.md`](./08-report-screens.md) |
 | **12** | Quản lý Cơ cấu Tổ chức & Chi nhánh | `/admin/organization` | ✅ | ❌ | ❌ | [`09-organization-screens.md`](./09-organization-screens.md) |
 
@@ -92,6 +92,24 @@ Giao diện POS được tối ưu hóa cho màn hình cảm ứng, máy POS hai
 4. [`04-inventory-screens.md`](./04-inventory-screens.md) — Đặc tả Màn hình Sổ cái bất biến, Phiếu nhập kho (tính WAC), Chuyển kho 2 bước, Kiểm kê kho (Drift check) và Giữ chỗ.
 5. [`05-order-screens.md`](./05-order-screens.md) — Đặc tả Trung tâm Đơn hàng đa kênh, Vòng đời trạng thái đơn hàng, Drawer chi tiết đơn và Tạo đơn thủ công.
 6. [`06-pos-terminal-screens.md`](./06-pos-terminal-screens.md) — Đặc tả Màn hình Bán hàng POS tại quầy, Giỏ hàng, Modal thanh toán tiền mặt/QR và In hóa đơn nhiệt.
-7. [`07-handoff-screens.md`](./07-handoff-screens.md) — Đặc tả Màn hình Quét mã vận đơn bàn giao shipper và In phiếu đóng gói (Packing Slip).
+7. [`07-handoff-screens.md`](./07-handoff-screens.md) — Đặc tả Màn hình Quét mã vận đơn bàn giao shipper và In phiếu đóng gói (Packing Slip). Màn hình đã tạm gỡ khỏi Admin.
 8. [`08-report-screens.md`](./08-report-screens.md) — Đặc tả Màn hình Báo cáo Doanh thu - Giá vốn - Lãi gộp, Định giá kho theo WAC và Gợi ý tái đặt hàng AI.
 9. [`09-organization-screens.md`](./09-organization-screens.md) — Đặc tả Màn hình Quản lý Chi nhánh, Kho trực thuộc, Danh bạ Nhà cung cấp và Phân quyền nhân sự.
+
+## Cập nhật màn hình 04/11/2026
+
+| Route | Vai trò | Nội dung |
+| --- | --- | --- |
+| `/purchase-orders` | Owner, Staff | Tạo, sửa đơn mua; Owner duyệt, đóng, hủy; mở lập phiếu nhập từ đơn đã duyệt |
+| `/invoices` | Owner, Staff | Danh sách, chi tiết, in lại hóa đơn và truy vết đến dòng sổ `OUT` |
+| `/inventory/counts` | Owner, Staff | Phiếu kiểm kê, kỳ theo lịch, lịch định kỳ (chỉ Owner thêm lịch), đếm lại, duyệt chênh lệch (chỉ Owner) |
+| `/inventory` | Owner, Staff | Tab Gợi ý nhập hàng đang tạm ẩn; phiếu nhập bắt buộc chọn đơn mua đã duyệt; SKU chưa có tồn hiện nhãn "Chưa nhập kho" |
+| `/products` | Owner, Staff | Cấu hình đơn vị, tạo phiếu đổi giá theo bảng đơn vị và bảng giá, quản lý bảng giá và lịch sử giá |
+| `/reports` | Theo báo cáo | Tab vận tốc kho hiện tồn theo từng đơn vị gốc |
+| `/login` và đăng nhập POS PWA | Công khai | Bỏ tài khoản mẫu; có nút Quên mật khẩu đang tắt, nhãn Coming soon |
+| `/orders` | Owner, Staff | Chọn đơn vị và bảng giá; giá lấy từ server, đơn vị chưa có giá bị chặn |
+| `/pos` và POS PWA | Owner, Staff, Cashier | Chọn đơn vị trên từng dòng, quét mã quy cách, nhập số lẻ theo đơn vị, xác nhận giá mới khi `PRICE_MISMATCH` |
+
+Mục Bàn giao vận chuyển trong sơ đồ sidebar ở mục 3.1 thuộc đặc tả cũ, hiện không có trên menu Admin.
+
+Hiện trạng và phần còn thiếu: [báo cáo nghiệm thu](../report-after-upgrade/frontend-coming-soon-va-upgrade.md).

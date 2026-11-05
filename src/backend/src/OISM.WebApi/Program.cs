@@ -445,7 +445,7 @@ public class NpgsqlDatabaseReadinessService : IDatabaseReadinessService
 
             return new ReadinessCheckResult(
                 true, StatusCodes.Status200OK, "Healthy",
-                "Database connection, schema completeness (29 tables), trigger immutability, and runtime permissions verified.",
+                $"Database connection, schema completeness ({RequiredTables.Length} tables), trigger immutability, and runtime permissions verified.",
                 CurrentUser: currentUser,
                 TablesCount: existingTables.Count,
                 TriggerVerified: true,

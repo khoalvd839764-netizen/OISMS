@@ -3,7 +3,7 @@
 ## Bàn giao kết nối Docker–database — 16/10/2026
 
 - PostgreSQL đã chạy healthy trong Docker; backend kết nối thành công bằng tài khoản runtime `oisms_app` qua `postgres:5432`.
-- Endpoint `http://localhost:5000/health/ready` trả **200 Healthy**, xác nhận đủ **29 bảng**, không thiếu bảng trong danh sách kiểm tra và trigger bảo vệ ledger đang bật.
+- Endpoint `http://localhost:5000/health/ready` trả **200 Healthy**, xác nhận đủ **43 bảng**, không thiếu bảng trong danh sách kiểm tra và trigger bảo vệ ledger đang bật.
 - Khi phát triển local, công cụ quản lý database kết nối `localhost:5432` (hoặc cổng host đã cấu hình); thông tin đăng nhập lấy từ `.env`, không đưa mật khẩu vào Git. Không copy đè `.env.example` lên `.env` mỗi lần khởi động.
 - Có thể bàn giao nền tảng kết nối để Khoa/TV2 triển khai Entity/DbContext, tenant filter và API. Kết quả readiness không thay kiểm thử nghiệp vụ WAC/nhập/xuất/giữ chỗ; việc giữ dữ liệu sau restart vẫn cần xác minh bằng bản ghi thử.
 
@@ -64,7 +64,7 @@ foreach ($f in Get-ChildItem docker/postgres/migrations/*.sql | Sort-Object Name
 docker compose up -d --build
 ```
 
-File `oisms_backup.dump` chứa dữ liệu thật, không commit lên Git. Nâng cấp xong, `/health/ready` phải trả 200 với `tablesCount: 40`. Gặp lỗi thì dừng lại và báo nhóm; mỗi file chạy trong một giao dịch nên file lỗi tự hoàn tác phần của nó, các file đã chạy xong trước đó vẫn giữ nguyên.
+File `oisms_backup.dump` chứa dữ liệu thật, không commit lên Git. Nâng cấp xong, `/health/ready` phải trả 200 với `tablesCount: 43`. Gặp lỗi thì dừng lại và báo nhóm; mỗi file chạy trong một giao dịch nên file lỗi tự hoàn tác phần của nó, các file đã chạy xong trước đó vẫn giữ nguyên.
 
 Khôi phục từ backup khi cần (xóa dữ liệu hiện tại của database `oisms`):
 
@@ -79,7 +79,7 @@ docker compose exec -T postgres sh -c 'PGPASSWORD=$POSTGRES_PASSWORD pg_restore 
 Điều kiện: PostgreSQL **16 trở lên**, client `psql`, tài khoản quản trị/migration có CREATEDB và CREATEROLE cùng quyền tạo schema objects. Database tên `oisms` chưa tồn tại. Chạy ở môi trường riêng của dự án, không có tiến trình cùng tạo database/role.
 
 ```powershell
-psql -h localhost -p 5432 -U postgres -d postgres -W -f "D:\CNPM workbase\docs\database\oisms_schema.sql"
+psql -h localhost -p 5432 -U postgres -d postgres -W -f "D:\OISMS\docs\database\oisms_schema.sql"
 ```
 
 Thay host/port/user theo môi trường. `-W` nhập mật khẩu qua prompt; không đặt mật khẩu trong SQL/Git. Script tạo `oisms`, dùng lệnh `\connect` của psql để chuyển kết nối, rồi cài bảng/trigger/quyền trong một transaction.

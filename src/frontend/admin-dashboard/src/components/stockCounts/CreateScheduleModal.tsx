@@ -117,7 +117,7 @@ export const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
         <div className="px-6 py-4 bg-slate-900 text-white flex justify-between items-center">
           <div className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-indigo-400" />
-            <h3 className="font-bold text-base">Thêm Lịch Kiểm Kê Định Kỳ (U03)</h3>
+            <h3 className="font-bold text-base">Thêm Lịch Kiểm Kê Định Kỳ</h3>
           </div>
           <button
             type="button"

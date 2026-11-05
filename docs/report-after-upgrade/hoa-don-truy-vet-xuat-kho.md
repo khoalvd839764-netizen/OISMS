@@ -8,6 +8,8 @@
 | Phạm vi | Backend, test, tài liệu API. **Chưa có giao diện (`P2`).** |
 | Trạng thái | Backend đã kiểm chứng trên PostgreSQL 16 riêng. Chưa kiểm chứng đầu cuối từ giao diện. Database đang chạy phải chạy migration trước, xem mục Triển khai. |
 
+> **Cập nhật 04/11/2026:** giao diện của phần này đã có. Kết quả nghiệm thu xem [báo cáo frontend](frontend-coming-soon-va-upgrade.md). Các mục "chưa có giao diện" bên dưới là hiện trạng tại ngày kiểm tra ghi trong bảng.
+
 ## Đã làm
 
 - **Dữ liệu:** thêm `sales_invoices` chỉ INSERT, `orders.confirmed_by`, `stock_transfers.dispatched_by`. Migration: [`20261103_sales_invoices.sql`](../../docker/postgres/migrations/20261103_sales_invoices.sql).

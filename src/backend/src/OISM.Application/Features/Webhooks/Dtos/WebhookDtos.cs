@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using OISM.Application.Common.Attributes;
 
 namespace OISM.Application.Features.Webhooks.Dtos;
 
@@ -9,11 +10,11 @@ public class CanonicalWebhookItemDto
     public string SkuCode { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Số lượng mua là bắt buộc.")]
-    [Range(typeof(decimal), "0.001", "999999999999999.999", ErrorMessage = "Số lượng mua phải lớn hơn 0.")]
+    [DecimalRange("0.001", "999999999999999.999", ErrorMessage = "Số lượng mua phải lớn hơn 0.")]
     public decimal? Quantity { get; set; }
 
     [Required(ErrorMessage = "Đơn giá là bắt buộc.")]
-    [Range(typeof(decimal), "0", "999999999999.99", ErrorMessage = "Đơn giá không được âm.")]
+    [DecimalRange("0", "999999999999.99", ErrorMessage = "Đơn giá không được âm.")]
     public decimal? UnitPrice { get; set; }
 }
 
@@ -54,7 +55,7 @@ public class CanonicalWebhookPayloadDto
     public string? ShippingAddress { get; set; }
 
     [Required(ErrorMessage = "Tổng tiền đơn hàng là bắt buộc.")]
-    [Range(typeof(decimal), "0", "999999999999999999.99", ErrorMessage = "Tổng tiền đơn hàng không hợp lệ.")]
+    [DecimalRange("0", "999999999999999999.99", ErrorMessage = "Tổng tiền đơn hàng không hợp lệ.")]
     public decimal? TotalAmount { get; set; }
 
     [Required(ErrorMessage = "Danh sách sản phẩm là bắt buộc.")]

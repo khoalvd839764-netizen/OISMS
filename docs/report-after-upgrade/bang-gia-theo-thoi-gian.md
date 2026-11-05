@@ -8,6 +8,8 @@
 | Phạm vi | Backend P0–P5 và tài liệu. **Chưa có giao diện.** |
 | Trạng thái | Backend đã kiểm chứng. **Chưa nên đưa lên môi trường đang dùng thật trước khi frontend cập nhật.** |
 
+> **Cập nhật 04/11/2026:** giao diện của phần này đã có. Kết quả nghiệm thu xem [báo cáo frontend](frontend-coming-soon-va-upgrade.md). Các mục "chưa có giao diện" bên dưới là hiện trạng tại ngày kiểm tra ghi trong bảng.
+
 ## Đã làm
 
 - **Dữ liệu:** thêm 4 bảng `price_lists`, `price_change_requests`, `price_change_request_items`, `sku_unit_prices`; thêm `sku_unit_price_id`, `price_source` trên `order_items`. Migration: [`20261102_price_lists.sql`](../../docker/postgres/migrations/20261102_price_lists.sql).

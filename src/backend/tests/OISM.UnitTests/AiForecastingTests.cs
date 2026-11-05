@@ -66,6 +66,40 @@ public class AiForecastingTests
     }
 
     [Fact]
+    public async Task GetReorderRecommendationsAsync_ExcludesInactiveSku_AndFormatsReason()
+    {
+        var (context, tenantMock, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh A" };
+        var active = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, SKU = "SKU-ACTIVE", Unit = "piece", IsActive = true };
+        var inactive = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, SKU = "SKU-INACTIVE", Unit = "piece", IsActive = false };
+        context.Branches.Add(branch);
+        context.Skus.AddRange(active, inactive);
+        foreach (var sku in new[] { active, inactive })
+        {
+            context.InventoryBalances.Add(new InventoryBalance
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                BranchId = branch.Id,
+                SkuId = sku.Id,
+                OnHand = 5.000m,
+                Reserved = 0m,
+                ReorderPoint = 10.000m
+            });
+        }
+        await context.SaveChangesAsync();
+
+        var result = await new AiForecastingService(context, tenantMock.Object)
+            .GetReorderRecommendationsAsync(new ReorderRecommendationQueryDto());
+
+        result.TotalSkusAnalyzed.Should().Be(1);
+        var rec = result.Recommendations.Should().ContainSingle().Subject;
+        rec.SkuCode.Should().Be("SKU-ACTIVE");
+        rec.Reason.Should().Contain("(5)").And.Contain("(10)");
+        rec.Reason.Should().NotContain("999 ngày");
+    }
+
+    [Fact]
     public async Task GetReorderRecommendationsAsync_SuggestsReorder_WhenStockBelowReorderPoint()
     {
         // Arrange

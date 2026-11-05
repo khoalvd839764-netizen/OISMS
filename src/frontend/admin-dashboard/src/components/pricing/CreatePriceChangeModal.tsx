@@ -1,12 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
-import { Button, Input, Modal, Select } from '../ui';
+import { Button, Input, Modal } from '../ui';
+import { NumberField } from '../NumberField';
 import { pricingService } from '../../services/pricingService';
 import { unitService } from '../../services/unitService';
 import { generateUuid } from '../../services/apiAdapter';
 import { useAuth } from '../../context/AuthContext';
 import type { Sku } from '../../types/domain';
 import type { SkuUnit } from '../../types/units';
+import type { EffectivePrice } from '../../types/pricing';
 
 interface CreatePriceChangeModalProps {
   isOpen: boolean;
@@ -14,6 +16,16 @@ interface CreatePriceChangeModalProps {
   sku: Sku | null;
   onCreated: () => void;
 }
+
+type PriceListCode = 'retail' | 'wholesale';
+
+const PRICE_LISTS: Array<{ code: PriceListCode; label: string }> = [
+  { code: 'retail', label: 'Giá bán lẻ' },
+  { code: 'wholesale', label: 'Giá bán sỉ' },
+];
+
+const priceKey = (unitId: string, list: PriceListCode) => `${unitId}:${list}`;
+const formatPrice = (value: number) => `${value.toLocaleString('vi-VN')} ₫`;
 
 export const CreatePriceChangeModal: React.FC<CreatePriceChangeModalProps> = ({
   isOpen,
@@ -25,314 +37,272 @@ export const CreatePriceChangeModal: React.FC<CreatePriceChangeModalProps> = ({
   const isOwner = account?.role === 'Owner';
 
   const [units, setUnits] = useState<SkuUnit[]>([]);
+  const [effectivePrices, setEffectivePrices] = useState<EffectivePrice[]>([]);
   const [loadingUnits, setLoadingUnits] = useState(false);
+  const [unitsError, setUnitsError] = useState<string | null>(null);
 
-  const [selectedPriceList, setSelectedPriceList] = useState<'retail' | 'wholesale'>('retail');
-  const [selectedUnitId, setSelectedUnitId] = useState<string>('');
-  const [newPrice, setNewPrice] = useState<number>(0);
-  const [reason, setReason] = useState<string>('');
-  const [applyImmediately, setApplyImmediately] = useState<boolean>(true);
-  const [scheduledDateTime, setScheduledDateTime] = useState<string>('');
+  // Giá mới theo từng đơn vị và bảng giá; bỏ trống nghĩa là giữ giá hiện tại
+  const [newPrices, setNewPrices] = useState<Record<string, number | null>>({});
+  const [reason, setReason] = useState('');
+  const [applyImmediately, setApplyImmediately] = useState(true);
+  const [scheduledDateTime, setScheduledDateTime] = useState('');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Client-Driven Idempotency Key: duy trì ổn định khi người dùng bấm Thử lại
-  const [idempotencyKey, setIdempotencyKey] = useState<string>(() => generateUuid());
+  // Giữ nguyên key khi thử lại cùng nội dung; đổi nội dung thì là yêu cầu mới
+  const intentRef = useRef<{ signature: string; key: string } | null>(null);
 
   useEffect(() => {
     if (!isOpen || !sku) return;
     setError(null);
     setSuccess(null);
-    setIdempotencyKey(generateUuid());
+    setNewPrices({});
     setReason('');
     setApplyImmediately(true);
     setScheduledDateTime('');
+    intentRef.current = null;
 
-    // Thiết lập giá mặc định theo bảng giá
-    if (selectedPriceList === 'retail') {
-      setNewPrice(sku.sellingPrice ?? 0);
-    } else {
-      setNewPrice(sku.wholesalePrice ?? 0);
-    }
-
-    // Tải danh sách đơn vị tính của SKU
-    const loadUnits = async () => {
+    let active = true;
+    const load = async () => {
       setLoadingUnits(true);
+      setUnitsError(null);
+      setUnits([]);
+      setEffectivePrices([]);
       try {
-        const skuUnits = await unitService.getSkuUnits(sku.productId, sku.id);
-        setUnits(skuUnits);
-        const base = skuUnits.find((u) => u.isBase);
-        if (base) {
-          setSelectedUnitId(base.unitId);
-        } else if (skuUnits.length > 0) {
-          setSelectedUnitId(skuUnits[0].unitId);
-        }
+        const [skuUnits, retailPrices, wholesalePrices] = await Promise.all([
+          unitService.getSkuUnits(sku.productId, sku.id),
+          pricingService.getEffectivePrice(sku.id, 'retail'),
+          pricingService.getEffectivePrice(sku.id, 'wholesale'),
+        ]);
+        const prices = [...retailPrices, ...wholesalePrices];
+        if (!active) return;
+        const sellable = skuUnits
+          .filter((u) => u.isActive !== false && u.canSell !== false)
+          .sort((a, b) => Number(b.isBase) - Number(a.isBase) || a.factorToBase - b.factorToBase);
+        setUnits(sellable);
+        setEffectivePrices(prices);
       } catch (err: any) {
-        console.error('Không thể tải danh sách đơn vị của SKU:', err);
+        if (!active) return;
+        setUnitsError(err?.response?.data?.detail || 'Không thể tải đơn vị và giá hiện hành của SKU.');
       } finally {
-        setLoadingUnits(false);
+        if (active) setLoadingUnits(false);
       }
     };
-
-    void loadUnits();
+    void load();
+    return () => {
+      active = false;
+    };
   }, [isOpen, sku?.id]);
 
   if (!isOpen || !sku) return null;
+
+  const currentPrice = (unitId: string, list: PriceListCode) =>
+    effectivePrices.find((p) => p.unitId === unitId && p.priceListCode === list)?.price ?? null;
+
+  // Gợi ý cho đơn vị quy đổi chưa có giá: chỉ điền khi người dùng bấm, server vẫn là nơi quyết định giá
+  const suggestedPrice = (unit: SkuUnit, list: PriceListCode) => {
+    if (unit.isBase || currentPrice(unit.unitId, list) != null) return null;
+    const base = units.find((u) => u.isBase);
+    const basePrice = base ? newPrices[priceKey(base.unitId, list)] ?? currentPrice(base.unitId, list) : null;
+    return basePrice != null ? Math.round(basePrice * unit.factorToBase * 100) / 100 : null;
+  };
+
+  const changes = units.flatMap((unit) =>
+    PRICE_LISTS.flatMap(({ code }) => {
+      const next = newPrices[priceKey(unit.unitId, code)];
+      if (next == null || next === currentPrice(unit.unitId, code)) return [];
+      return [{ priceListCode: code, skuId: sku.id, unitId: unit.unitId, newPrice: next }];
+    })
+  );
 
   const handleSubmit = async () => {
     setError(null);
     setSuccess(null);
 
-    if (!selectedUnitId) {
-      setError('Vui lòng chọn đơn vị tính áp dụng giá.');
-      return;
-    }
-
-    if (newPrice < 0 || !Number.isFinite(newPrice)) {
-      setError('Đơn giá mới phải là số hợp lệ và không được âm (≥ 0).');
+    if (changes.length === 0) {
+      setError('Vui lòng nhập ít nhất một giá mới khác giá hiện tại.');
       return;
     }
 
     const trimmedReason = reason.trim();
     if (!trimmedReason) {
-      setError('Vui lòng nhập lý do thay đổi giá (tối đa 500 ký tự).');
-      return;
-    }
-    if (trimmedReason.length > 500) {
-      setError('Lý do thay đổi giá không được vượt quá 500 ký tự.');
+      setError('Vui lòng nhập lý do thay đổi giá.');
       return;
     }
 
     let validFromIso: string | null = null;
     if (!applyImmediately) {
-      if (!scheduledDateTime) {
-        setError('Vui lòng chọn ngày và giờ bắt đầu có hiệu lực cho giá mới.');
-        return;
-      }
       const parsedDate = new Date(scheduledDateTime);
-      if (isNaN(parsedDate.getTime()) || parsedDate.getTime() <= Date.now()) {
-        setError('Thời điểm hiệu lực trong tương lai phải lớn hơn thời điểm hiện tại.');
+      if (!scheduledDateTime || isNaN(parsedDate.getTime()) || parsedDate.getTime() <= Date.now()) {
+        setError('Vui lòng chọn thời điểm hiệu lực trong tương lai.');
         return;
       }
       validFromIso = parsedDate.toISOString();
     }
 
+    const payload = { reason: trimmedReason, requestedValidFrom: validFromIso, items: changes };
+    const signature = JSON.stringify(payload);
+    if (intentRef.current?.signature !== signature) {
+      intentRef.current = { signature, key: generateUuid() };
+    }
+
     setLoading(true);
     try {
-      const res = await pricingService.createPriceChangeRequest(
-        {
-          reason: trimmedReason,
-          requestedValidFrom: validFromIso,
-          items: [
-            {
-              priceListCode: selectedPriceList,
-              skuId: sku.id,
-              unitId: selectedUnitId,
-              newPrice: Number(newPrice),
-            },
-          ],
-        },
-        idempotencyKey
+      const res = await pricingService.createPriceChangeRequest(payload, intentRef.current.key);
+      setSuccess(
+        res.status === 'Approved'
+          ? `Đã cập nhật ${changes.length} giá.`
+          : `Đã tạo phiếu đổi ${changes.length} giá, đang chờ Chủ cửa hàng duyệt.`
       );
-
-      if (res.status === 'Approved') {
-        setSuccess('Phiếu đổi giá đã được phê duyệt và kích hoạt thành công!');
-      } else {
-        setSuccess(
-          'Phiếu đổi giá đã được tạo thành công và đang ở trạng thái Chờ duyệt (Pending) từ Chủ cửa hàng.'
-        );
-      }
-
       onCreated();
-      setTimeout(() => {
-        onClose();
-      }, 1200);
+      setTimeout(onClose, 1200);
     } catch (err: any) {
       const data = err?.response?.data;
-      const msg = data?.detail || data?.message || err?.message || 'Lỗi khi tạo phiếu đổi giá.';
-      setError(`Lỗi: ${msg}`);
-      // Giữ nguyên idempotencyKey để nếu người dùng nhấn lại thì backend nhận diện idempotent retry
+      setError(data?.detail || data?.message || 'Không thể tạo phiếu đổi giá. Vui lòng thử lại.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Modal title={`Tạo phiếu đổi giá: ${sku.code}`} onClose={onClose}>
-      <div style={{ padding: '0 4px' }}>
-        {error && (
-          <div
-            style={{
-              background: '#fef2f2',
-              border: '1px solid #ef4444',
-              color: '#b91c1c',
-              padding: '12px 14px',
-              borderRadius: '8px',
-              fontSize: '12px',
-              marginBottom: '14px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-          >
-            <AlertCircle size={18} />
-            <span>{error}</span>
+    <Modal wide title={`Đổi giá bán: ${sku.name}${sku.variant ? ` · ${sku.variant}` : ''}`} onClose={onClose}>
+      <div className="price-editor">
+        <p className="price-editor__hint">
+          Mã <strong>{sku.code}</strong>. Nhập giá mới ở ô cần đổi, ô để trống sẽ giữ nguyên giá hiện tại.
+        </p>
+
+        {unitsError && (
+          <div className="price-editor__alert price-editor__alert--error" role="alert">
+            <AlertCircle size={16} />
+            <span>{unitsError}</span>
           </div>
         )}
 
-        {success && (
-          <div
-            style={{
-              background: '#dcfce7',
-              border: '1px solid #22c55e',
-              color: '#15803d',
-              padding: '12px 14px',
-              borderRadius: '8px',
-              fontSize: '12px',
-              marginBottom: '14px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-          >
-            <CheckCircle2 size={18} />
-            <span>{success}</span>
-          </div>
-        )}
-
-        <div style={{ marginBottom: '14px' }}>
-          <strong style={{ fontSize: '13px', display: 'block' }}>{sku.name}</strong>
-          <span style={{ fontSize: '11px', color: '#64748b' }}>
-            SKU: {sku.code} · WAC hiện tại:{' '}
-            {sku.averageCost ? `${sku.averageCost.toLocaleString('vi-VN')} ₫` : '0 ₫'}
-          </span>
-        </div>
-
-        <div className="form-grid compact">
-          <label>
-            <span>Bảng giá áp dụng *</span>
-            <Select
-              value={selectedPriceList}
-              onChange={(e) => {
-                const val = e.target.value as 'retail' | 'wholesale';
-                setSelectedPriceList(val);
-                if (val === 'retail') {
-                  setNewPrice(sku.sellingPrice ?? 0);
-                } else {
-                  setNewPrice(sku.wholesalePrice ?? 0);
-                }
-              }}
-            >
-              <option value="retail">Bảng giá bán lẻ (Retail)</option>
-              <option value="wholesale">Bảng giá bán sỉ (Wholesale)</option>
-            </Select>
-          </label>
-
-          <label>
-            <span>Đơn vị tính áp dụng *</span>
-            <Select
-              value={selectedUnitId}
-              onChange={(e) => setSelectedUnitId(e.target.value)}
-              disabled={loadingUnits}
-            >
-              {units.map((u) => (
-                <option key={u.unitId} value={u.unitId}>
-                  {u.unitName} ({u.unitSymbol}) {u.isBase ? '— [Đơn vị gốc]' : `(Hệ số ${u.factorToBase})`}
-                </option>
-              ))}
-            </Select>
-          </label>
-        </div>
-
-        <div className="form-grid compact" style={{ paddingTop: 0 }}>
-          <label>
-            <span>Đơn giá mới (VNĐ) *</span>
-            <Input
-              type="number"
-              min="0"
-              value={newPrice}
-              onChange={(e) => setNewPrice(Number(e.target.value))}
-              placeholder="Nhập giá mới..."
-            />
-          </label>
-
-          <label>
-            <span>Hiệu lực thời gian *</span>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}>
-                <input
-                  type="radio"
-                  name="applyTime"
-                  checked={applyImmediately}
-                  onChange={() => setApplyImmediately(true)}
-                />
-                <span>Áp dụng ngay khi duyệt</span>
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}>
-                <input
-                  type="radio"
-                  name="applyTime"
-                  checked={!applyImmediately}
-                  onChange={() => setApplyImmediately(false)}
-                />
-                <span>Lên lịch ngày tương lai</span>
-              </label>
+        {loadingUnits ? (
+          <p className="price-editor__hint">Đang tải giá hiện hành...</p>
+        ) : (
+          !unitsError && (
+            <div className="table-wrap">
+              <table className="price-editor__table">
+                <thead>
+                  <tr>
+                    <th>Đơn vị bán</th>
+                    {PRICE_LISTS.map((list) => (
+                      <th key={list.code}>{list.label}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {units.map((unit) => (
+                    <tr key={unit.unitId}>
+                      <td>
+                        <strong>{unit.unitName}</strong>
+                        <small>{unit.isBase ? 'Đơn vị gốc' : `Bằng ${unit.factorToBase} đơn vị gốc`}</small>
+                      </td>
+                      {PRICE_LISTS.map(({ code, label }) => {
+                        const key = priceKey(unit.unitId, code);
+                        const current = currentPrice(unit.unitId, code);
+                        const suggestion = suggestedPrice(unit, code);
+                        return (
+                          <td key={code}>
+                            <NumberField
+                              aria-label={`${label} theo ${unit.unitName}`}
+                              value={newPrices[key] ?? null}
+                              onChange={(value) => setNewPrices((prev) => ({ ...prev, [key]: value }))}
+                              decimals={2}
+                              suffix="₫"
+                              placeholder={current != null ? current.toLocaleString('vi-VN') : 'Nhập giá'}
+                              disabled={loading}
+                            />
+                            <small>
+                              {current != null ? `Hiện tại: ${formatPrice(current)}` : 'Chưa có giá'}
+                              {suggestion != null && newPrices[key] == null && (
+                                <button
+                                  type="button"
+                                  className="price-editor__suggest"
+                                  onClick={() => setNewPrices((prev) => ({ ...prev, [key]: suggestion }))}
+                                >
+                                  Dùng {formatPrice(suggestion)}
+                                </button>
+                              )}
+                            </small>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                  {units.length === 0 && (
+                    <tr>
+                      <td colSpan={3}>SKU này chưa có đơn vị được phép bán.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-          </label>
-        </div>
-
-        {!applyImmediately && (
-          <div style={{ padding: '0 20px 14px' }}>
-            <label>
-              <span style={{ fontSize: '11px', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
-                Chọn thời điểm bắt đầu có hiệu lực *
-              </span>
-              <Input
-                type="datetime-local"
-                value={scheduledDateTime}
-                onChange={(e) => setScheduledDateTime(e.target.value)}
-              />
-            </label>
-          </div>
+          )
         )}
 
-        <div style={{ padding: '0 20px 14px' }}>
+        <div className="price-editor__row">
           <label>
-            <span style={{ fontSize: '11px', fontWeight: 600, display: 'block', marginBottom: '4px' }}>
-              Lý do thay đổi giá (bắt buộc) *
-            </span>
+            <span>Lý do đổi giá *</span>
             <Input
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="Ví dụ: Điều chỉnh theo giá thị trường, chương trình mùa vụ..."
+              placeholder="Ví dụ: Điều chỉnh theo giá nhà cung cấp"
               maxLength={500}
+              disabled={loading}
             />
           </label>
+          <div>
+            <span className="price-editor__label">Thời điểm áp dụng</span>
+            <div className="price-editor__options">
+              <label>
+                <input type="radio" name="priceApplyTime" checked={applyImmediately} onChange={() => setApplyImmediately(true)} />
+                {isOwner ? 'Áp dụng ngay' : 'Ngay khi được duyệt'}
+              </label>
+              <label>
+                <input type="radio" name="priceApplyTime" checked={!applyImmediately} onChange={() => setApplyImmediately(false)} />
+                Chọn ngày giờ
+              </label>
+            </div>
+            {!applyImmediately && (
+              <Input type="datetime-local" value={scheduledDateTime} onChange={(e) => setScheduledDateTime(e.target.value)} />
+            )}
+          </div>
         </div>
 
-        <div className="hint-box" style={{ margin: '0 20px 14px' }}>
-          {isOwner ? (
-            <span>
-              <strong>Quyền hạn Chủ shop (Owner):</strong> Phiếu đổi giá sẽ được phê duyệt tự động và có hiệu lực ngay (hoặc đúng mốc thời gian đã lên lịch).
-            </span>
-          ) : (
-            <span>
-              <strong>Quyền hạn Nhân viên (Staff):</strong> Phiếu đổi giá sẽ chuyển sang trạng thái{' '}
-              <strong>Chờ duyệt (Pending)</strong> để Chủ shop phê duyệt trước khi có hiệu lực. Trong thời gian này cửa hàng vẫn bán theo giá cũ.
-            </span>
-          )}
-        </div>
+        {error && (
+          <div className="price-editor__alert price-editor__alert--error" role="alert">
+            <AlertCircle size={16} />
+            <span>{error}</span>
+          </div>
+        )}
+        {success && (
+          <div className="price-editor__alert price-editor__alert--success" role="status">
+            <CheckCircle2 size={16} />
+            <span>{success}</span>
+          </div>
+        )}
+        {!isOwner && !success && (
+          <p className="price-editor__hint">Phiếu sẽ chờ Chủ cửa hàng duyệt. Trong lúc đó cửa hàng vẫn bán theo giá cũ.</p>
+        )}
+      </div>
 
-        <div className="modal-actions">
-          <Button variant="secondary" onClick={onClose} disabled={loading}>
-            Hủy
-          </Button>
-          <Button onClick={handleSubmit} disabled={loading}>
-            {loading ? 'Đang gửi...' : isOwner ? 'Xác nhận & Cập nhật giá' : 'Tạo phiếu chờ duyệt'}
-          </Button>
-        </div>
+      <div className="modal-actions">
+        <Button variant="secondary" onClick={onClose} disabled={loading}>
+          Hủy
+        </Button>
+        <Button onClick={handleSubmit} disabled={loading || loadingUnits || Boolean(unitsError) || Boolean(success)}>
+          {loading
+            ? 'Đang gửi...'
+            : changes.length === 0
+            ? isOwner ? 'Lưu giá mới' : 'Gửi duyệt'
+            : isOwner
+            ? `Lưu ${changes.length} giá mới`
+            : `Gửi duyệt ${changes.length} giá`}
+        </Button>
       </div>
     </Modal>
   );

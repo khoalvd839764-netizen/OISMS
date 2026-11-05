@@ -52,6 +52,14 @@ export interface SkuVelocityItem {
   totalRevenue: number;
   currentOnHand: number;
   daysWithoutSale: number;
+  baseUnitName?: string | null;
+}
+
+export interface UnitQuantity {
+  unitName: string;
+  onHand: number;
+  reserved: number;
+  available: number;
 }
 
 export interface InventoryVelocityReport {
@@ -59,6 +67,7 @@ export interface InventoryVelocityReport {
   totalOnHandQuantity: number;
   totalReservedQuantity: number;
   totalAvailableQuantity: number;
+  quantityByUnit: UnitQuantity[];
   bestSellers: SkuVelocityItem[];
   slowMovingItems: SkuVelocityItem[];
 }

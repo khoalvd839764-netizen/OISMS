@@ -1724,6 +1724,11 @@ public class WebhookIntegrationTests : IAsyncLifetime, IClassFixture<WebApplicat
         var status201Count = results.Count(r => r.StatusCode == HttpStatusCode.Created);
         var status200Count = results.Count(r => r.StatusCode == HttpStatusCode.OK);
 
+        var unexpectedResponses = string.Join(" | ", results
+            .Where(r => r.StatusCode != HttpStatusCode.Created && r.StatusCode != HttpStatusCode.OK)
+            .Select(r => $"{(int)r.StatusCode}: {r.Body}"));
+        unexpectedResponses.Should().BeEmpty("mọi submission phải nhận 201 hoặc 200, phản hồi khác phải được chẩn đoán được");
+
         status201Count.Should().Be(1, "Trong 50 submissions đồng thời cùng key, đúng 1 request đầu tiên nhận HTTP 201 Created.");
         status200Count.Should().Be(49, "49 submissions còn lại phải nhận HTTP 200 OK (idempotent replay).");
 
