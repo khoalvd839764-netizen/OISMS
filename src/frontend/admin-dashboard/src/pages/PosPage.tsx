@@ -209,7 +209,8 @@ export function PosPage() {
     setCart((prevCart) => {
       return prevCart
         .map((item) => {
-          if (item.lineKey === key || item.variantId === key) {
+          const isMatch = item.lineKey ? item.lineKey === key : item.variantId === key;
+          if (isMatch) {
             const nextQty = item.quantity + delta;
             if (delta > 0 && nextQty > item.available) {
               alert(`Số lượng không được vượt quá tồn khả dụng (${item.available}) của mặt hàng này.`);
@@ -226,7 +227,8 @@ export function PosPage() {
   const handleSetQuantity = (key: string, quantity: number) => {
     setCart((prevCart) =>
       prevCart.map((item) => {
-        if (item.lineKey === key || item.variantId === key) {
+        const isMatch = item.lineKey ? item.lineKey === key : item.variantId === key;
+        if (isMatch) {
           const maxAllowed = item.available > 0 ? item.available : 1;
           const clamped = Math.min(Math.max(1, Number.isFinite(quantity) ? Math.floor(quantity) : 1), maxAllowed);
           return { ...item, quantity: clamped };
@@ -237,7 +239,9 @@ export function PosPage() {
   };
 
   const handleRemoveItem = (key: string) => {
-    setCart((prevCart) => prevCart.filter((item) => item.lineKey !== key && item.variantId !== key));
+    setCart((prevCart) =>
+      prevCart.filter((item) => (item.lineKey ? item.lineKey !== key : item.variantId !== key))
+    );
   };
 
   const handleUpdateUnit = (lineKey: string, newUnitId: string) => {

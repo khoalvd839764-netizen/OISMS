@@ -92,6 +92,11 @@ export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({ receipt, o
               <div className="text-[10px] text-slate-500 mt-0.5">
                 Số HĐ: <span className="font-mono font-bold text-slate-800">{receipt.receiptNumber}</span>
               </div>
+              {receipt.orderNumber && receipt.orderNumber !== receipt.receiptNumber && (
+                <div className="text-[10px] text-slate-500">
+                  Số đơn: <span className="font-mono font-semibold text-slate-700">{receipt.orderNumber}</span>
+                </div>
+              )}
               <div className="text-[10px] text-slate-500">
                 Ngày: {receipt.createdAt}
               </div>

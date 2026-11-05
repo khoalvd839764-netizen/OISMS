@@ -136,6 +136,8 @@ export function AdminShell() {
     "/admin/inventory/counts": "Kiểm kê kho & cân bằng tồn",
     "/orders": "Đơn đa kênh",
     "/admin/orders": "Đơn đa kênh",
+    "/invoices": "Hóa đơn & Truy vết",
+    "/admin/invoices": "Hóa đơn & Truy vết",
     "/reports": "Báo cáo tài chính & tồn kho",
     "/admin/reports": "Báo cáo tài chính & tồn kho",
     "/demo-tools": "Công cụ demo",
