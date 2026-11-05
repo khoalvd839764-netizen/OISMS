@@ -206,7 +206,7 @@ public class OrderService : IOrderService, IPosCheckoutService
             // 6. Kiểm tra Idempotency dưới khóa
             var existingOrder = await _context.Orders
                 .Include(o => o.Items)
-                    .ThenInclude(i => i.SkuUnitPrice)
+                    .ThenInclude(i => i.SkuUnitPrice!)
                         .ThenInclude(p => p.PriceList)
                 .Include(o => o.Payment)
                 .FirstOrDefaultAsync(o => o.TenantId == tenantId.Value && o.RequestKey == dto.RequestKey, ct);
@@ -1294,7 +1294,7 @@ public class OrderService : IOrderService, IPosCheckoutService
         {
             var existingOrderByKey = await _context.Orders
                 .Include(o => o.Items)
-                    .ThenInclude(i => i.SkuUnitPrice)
+                    .ThenInclude(i => i.SkuUnitPrice!)
                         .ThenInclude(p => p.PriceList)
                 .Include(o => o.Payment)
                 .FirstOrDefaultAsync(o => o.TenantId == tenantId && o.RequestKey == req.RequestKey, ct);
@@ -1514,7 +1514,7 @@ public class OrderService : IOrderService, IPosCheckoutService
                 {
                     var existingOrder = await _context.Orders
                         .Include(o => o.Items)
-                            .ThenInclude(i => i.SkuUnitPrice)
+                            .ThenInclude(i => i.SkuUnitPrice!)
                                 .ThenInclude(p => p.PriceList)
                         .Include(o => o.Payment)
                         .FirstOrDefaultAsync(o => o.TenantId == tenantId && o.RequestKey == req.RequestKey, ct);
@@ -1522,7 +1522,7 @@ public class OrderService : IOrderService, IPosCheckoutService
                     if (existingOrder != null)
                     {
                         ValidateAdminOrderReplayMatch(existingOrder, req, await LoadBaseUnitsAsync(existingOrder.Items.Select(i => i.SkuId).Concat(req.Items.Select(i => i.SkuId!.Value)), ct));
-                        _logger.LogInformation("Idempotent replay dÆ°á»›i khÃ³a cho táº¡o Ä‘Æ¡n hÃ ng trá»±c tuyáº¿n vá»›i RequestKey {RequestKey}. Tráº£ káº¿t quáº£ Ä‘Æ¡n {OrderNumber}.", req.RequestKey, existingOrder.Number);
+                        _logger.LogInformation("Idempotent replay dưới khóa cho tạo đơn hàng trực tuyến với RequestKey {RequestKey}. Trả kết quả đơn {OrderNumber}.", req.RequestKey, existingOrder.Number);
                         await tx.CommitAsync(ct);
                         var replayDto = await MapToOrderResponseDtoAsync(existingOrder, ct);
                         replayDto.IsReplay = true;

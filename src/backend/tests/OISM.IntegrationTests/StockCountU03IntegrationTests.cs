@@ -352,8 +352,8 @@ public partial class StockCountIntegrationTests
         var detail = await GetCountAsync(owner, count.Id);
         detail.Status.Should().Be("Confirmed");
         detail.Note.Should().Contain("Kiểm kê định kỳ", "ghi chú gốc không được bị ghi đè");
-        detail.Approvals.Select(a => a.Action).Should().Equal("Submitted", "Approved");
-        detail.Approvals.Last().Differences.Single(d => d.SkuId == infra.Sku1Id).Delta.Should().Be(-3m);
+        detail.Approvals!.Select(a => a.Action).Should().Equal("Submitted", "Approved");
+        detail.Approvals!.Last().Differences.Single(d => d.SkuId == infra.Sku1Id).Delta.Should().Be(-3m);
 
         var period = (await GetPeriodsAsync(owner)).Single(p => p.Id == detail.PeriodId);
         period.Status.Should().Be("Completed");
@@ -448,7 +448,7 @@ public partial class StockCountIntegrationTests
         sku1.CountedBy.Should().BeNull();
         sku1.IsDrifted.Should().BeFalse();
         detail.Items.Single(i => i.SkuId == infra.Sku3Id).CountedQuantity.Should().Be(10m, "SKU không lệch giữ nguyên số đếm");
-        detail.Approvals.Single(a => a.Action == "Recounted").Differences.Single(d => d.SkuId == infra.Sku1Id).CountedQuantity.Should().Be(9m, "số đếm cũ phải còn trong hồ sơ");
+        detail.Approvals!.Single(a => a.Action == "Recounted").Differences.Single(d => d.SkuId == infra.Sku1Id).CountedQuantity.Should().Be(9m, "số đếm cũ phải còn trong hồ sơ");
 
         (await staff.PostAsync($"/api/stock-counts/{count.Id}/submit", null)).StatusCode.Should().Be(HttpStatusCode.BadRequest, "còn dòng chưa đếm");
 
@@ -497,7 +497,7 @@ public partial class StockCountIntegrationTests
         responses.Count(r => r.StatusCode == HttpStatusCode.Conflict).Should().Be(9);
 
         (await ReadStockAsync(infra, infra.Sku1Id)).OnHand.Should().Be(8m);
-        (await GetCountAsync(owner, count.Id)).Approvals.Count(a => a.Action == "Approved").Should().Be(1);
+        (await GetCountAsync(owner, count.Id)).Approvals!.Count(a => a.Action == "Approved").Should().Be(1);
     }
 
     // ---------------------------------------------------------------------
