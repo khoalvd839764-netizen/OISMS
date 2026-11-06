@@ -129,30 +129,16 @@ public class StockTransferService : IStockTransferService
         var incomingSignature = ComputePayloadSignature(dto);
 
         // 2. Mở ExecutionStrategy và Transaction
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            _context.ClearChangeTracker();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
             try
             {
-                if (_context.IsRelationalDatabase)
-                {
-                    // Khóa Advisory theo thứ tự: SKU -> RequestKey
-                    var sortedSkuIds = dto.Items.Select(i => i.SkuId).Distinct().OrderBy(id => id).ToList();
-                    foreach (var skuId in sortedSkuIds)
-                    {
-                        await _context.ExecuteSqlRawAsync(
-                            "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/' || {1}::text || '/' || {2}::text, 0));",
-                            new object[] { tenantId.Value.ToString(), dto.FromBranchId.ToString(), skuId.ToString() },
-                            ct);
-                    }
+                // Khóa Advisory theo thứ tự: SKU -> RequestKey
+                await _context.Locks.LockSkuStockAsync(tenantId.Value, dto.FromBranchId, dto.Items.Select(i => i.SkuId), ct);
 
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/request_key/' || {1}::text, 0));",
-                        new object[] { tenantId.Value.ToString(), dto.RequestKey.ToString() },
-                        ct);
-                }
+                await _context.Locks.LockRequestKeyAsync(tenantId.Value, dto.RequestKey, ct);
 
                 // Kiểm tra Idempotency dưới khóa TRƯỚC KHI validate tài nguyên tạo mới
                 var existingTransfer = await _context.StockTransfers
@@ -253,13 +239,7 @@ public class StockTransferService : IStockTransferService
                 }
 
                 // 4. Sinh mã phiếu an toàn concurrency bằng advisory lock cho tenant number
-                if (_context.IsRelationalDatabase)
-                {
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/stock_transfer_number', 0));",
-                        new object[] { tenantId.Value.ToString() },
-                        ct);
-                }
+                await _context.Locks.LockStockTransferNumberAsync(tenantId.Value, ct);
 
                 var transferNumber = await GenerateTransferNumberAsync(tenantId.Value, ct);
 
@@ -329,12 +309,11 @@ public class StockTransferService : IStockTransferService
         }
 
         List<Func<Task>> pendingNotifications = new();
-        var strategy = _context.CreateExecutionStrategy();
-        var result = await strategy.ExecuteAsync(async () =>
+        var result = await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
             pendingNotifications.Clear();
-            _context.ClearChangeTracker();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
             try
             {
                 // Đọc metadata gợi ý khóa TRƯỚC KHI khóa để tuân thủ thứ tự: SKU -> RequestKey (nếu có) -> Chứng từ
@@ -344,35 +323,20 @@ public class StockTransferService : IStockTransferService
                     .Select(t => new { t.FromBranchId, t.RequestKey, SkuIds = t.Items.Select(i => i.SkuId).Distinct().ToList() })
                     .FirstOrDefaultAsync(ct);
 
-                if (_context.IsRelationalDatabase)
+                if (hint != null)
                 {
-                    if (hint != null)
+                    // 1. Khóa SKU theo thứ tự tăng dần tại chi nhánh xuất
+                    await _context.Locks.LockSkuStockAsync(tenantId.Value, hint.FromBranchId, hint.SkuIds, ct);
+
+                    // 2. Khóa RequestKey nếu có
+                    if (hint.RequestKey.HasValue)
                     {
-                        // 1. Khóa SKU theo thứ tự tăng dần tại chi nhánh xuất
-                        foreach (var skuId in hint.SkuIds.OrderBy(id => id))
-                        {
-                            await _context.ExecuteSqlRawAsync(
-                                "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/' || {1}::text || '/' || {2}::text, 0));",
-                                new object[] { tenantId.Value.ToString(), hint.FromBranchId.ToString(), skuId.ToString() },
-                                ct);
-                        }
-
-                        // 2. Khóa RequestKey nếu có
-                        if (hint.RequestKey.HasValue)
-                        {
-                            await _context.ExecuteSqlRawAsync(
-                                "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/request_key/' || {1}::text, 0));",
-                                new object[] { tenantId.Value.ToString(), hint.RequestKey.Value.ToString() },
-                                ct);
-                        }
+                        await _context.Locks.LockRequestKeyAsync(tenantId.Value, hint.RequestKey.Value, ct);
                     }
-
-                    // 3. Khóa Advisory theo Transfer
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/transfer/' || {1}::text, 0));",
-                        new object[] { tenantId.Value.ToString(), transferId.ToString() },
-                        ct);
                 }
+
+                // 3. Khóa Advisory theo Transfer
+                await _context.Locks.LockStockTransferAsync(tenantId.Value, transferId, ct);
 
                 // Đọc lại dữ liệu đầy đủ dưới khóa
                 var transfer = await _context.StockTransfers
@@ -541,12 +505,11 @@ public class StockTransferService : IStockTransferService
         }
 
         List<Func<Task>> pendingNotifications = new();
-        var strategy = _context.CreateExecutionStrategy();
-        var result = await strategy.ExecuteAsync(async () =>
+        var result = await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
             pendingNotifications.Clear();
-            _context.ClearChangeTracker();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
             try
             {
                 // Đọc metadata gợi ý khóa TRƯỚC KHI khóa để tuân thủ thứ tự: SKU -> RequestKey (nếu có) -> Chứng từ
@@ -556,35 +519,20 @@ public class StockTransferService : IStockTransferService
                     .Select(t => new { t.ToBranchId, t.RequestKey, SkuIds = t.Items.Select(i => i.SkuId).Distinct().ToList() })
                     .FirstOrDefaultAsync(ct);
 
-                if (_context.IsRelationalDatabase)
+                if (hint != null)
                 {
-                    if (hint != null)
+                    // 1. Khóa SKU theo thứ tự tăng dần tại chi nhánh đích
+                    await _context.Locks.LockSkuStockAsync(tenantId.Value, hint.ToBranchId, hint.SkuIds, ct);
+
+                    // 2. Khóa RequestKey nếu có
+                    if (hint.RequestKey.HasValue)
                     {
-                        // 1. Khóa SKU theo thứ tự tăng dần tại chi nhánh đích
-                        foreach (var skuId in hint.SkuIds.OrderBy(id => id))
-                        {
-                            await _context.ExecuteSqlRawAsync(
-                                "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/' || {1}::text || '/' || {2}::text, 0));",
-                                new object[] { tenantId.Value.ToString(), hint.ToBranchId.ToString(), skuId.ToString() },
-                                ct);
-                        }
-
-                        // 2. Khóa RequestKey nếu có
-                        if (hint.RequestKey.HasValue)
-                        {
-                            await _context.ExecuteSqlRawAsync(
-                                "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/request_key/' || {1}::text, 0));",
-                                new object[] { tenantId.Value.ToString(), hint.RequestKey.Value.ToString() },
-                                ct);
-                        }
+                        await _context.Locks.LockRequestKeyAsync(tenantId.Value, hint.RequestKey.Value, ct);
                     }
-
-                    // 3. Khóa Advisory theo Transfer
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/transfer/' || {1}::text, 0));",
-                        new object[] { tenantId.Value.ToString(), transferId.ToString() },
-                        ct);
                 }
+
+                // 3. Khóa Advisory theo Transfer
+                await _context.Locks.LockStockTransferAsync(tenantId.Value, transferId, ct);
 
                 // Đọc lại dữ liệu đầy đủ dưới khóa
                 var transfer = await _context.StockTransfers
@@ -774,11 +722,10 @@ public class StockTransferService : IStockTransferService
             throw new OismException("UNAUTHORIZED", "Không xác định được danh tính Tenant.", 401);
         }
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            _context.ClearChangeTracker();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
             try
             {
                 // Đọc metadata gợi ý khóa TRƯỚC KHI khóa để tuân thủ thứ tự: SKU -> RequestKey (nếu có) -> Chứng từ
@@ -788,32 +735,17 @@ public class StockTransferService : IStockTransferService
                     .Select(t => new { t.FromBranchId, t.RequestKey, SkuIds = t.Items.Select(i => i.SkuId).Distinct().ToList() })
                     .FirstOrDefaultAsync(ct);
 
-                if (_context.IsRelationalDatabase)
+                if (hint != null)
                 {
-                    if (hint != null)
+                    await _context.Locks.LockSkuStockAsync(tenantId.Value, hint.FromBranchId, hint.SkuIds, ct);
+
+                    if (hint.RequestKey.HasValue)
                     {
-                        foreach (var skuId in hint.SkuIds.OrderBy(id => id))
-                        {
-                            await _context.ExecuteSqlRawAsync(
-                                "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/' || {1}::text || '/' || {2}::text, 0));",
-                                new object[] { tenantId.Value.ToString(), hint.FromBranchId.ToString(), skuId.ToString() },
-                                ct);
-                        }
-
-                        if (hint.RequestKey.HasValue)
-                        {
-                            await _context.ExecuteSqlRawAsync(
-                                "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/request_key/' || {1}::text, 0));",
-                                new object[] { tenantId.Value.ToString(), hint.RequestKey.Value.ToString() },
-                                ct);
-                        }
+                        await _context.Locks.LockRequestKeyAsync(tenantId.Value, hint.RequestKey.Value, ct);
                     }
-
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/transfer/' || {1}::text, 0));",
-                        new object[] { tenantId.Value.ToString(), transferId.ToString() },
-                        ct);
                 }
+
+                await _context.Locks.LockStockTransferAsync(tenantId.Value, transferId, ct);
 
                 var transfer = await _context.StockTransfers
                     .FirstOrDefaultAsync(t => t.TenantId == tenantId.Value && t.Id == transferId, ct);

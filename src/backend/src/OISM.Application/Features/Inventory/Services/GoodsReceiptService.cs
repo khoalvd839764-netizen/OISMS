@@ -36,21 +36,8 @@ public class GoodsReceiptService : IGoodsReceiptService
         _context = context;
         _currentTenantService = currentTenantService;
         _wacCalculator = wacCalculator;
-        _sqlLockService = sqlLockService ?? NoOpSqlLockService.Instance;
+        _sqlLockService = sqlLockService ?? context.Locks;
         _realtimeNotifier = realtimeNotifier;
-    }
-
-    private sealed class NoOpSqlLockService : ISqlLockService
-    {
-        public static readonly NoOpSqlLockService Instance = new();
-        public Task LockCategoryTreeAsync(Guid tenantId, CancellationToken ct = default) => Task.CompletedTask;
-        public Task LockProductAsync(Guid productId, CancellationToken ct = default) => Task.CompletedTask;
-        public Task LockRefreshTokenAsync(string tokenHash, CancellationToken ct = default) => Task.CompletedTask;
-        public Task LockWarehouseAsync(Guid warehouseId, Guid tenantId, CancellationToken ct = default) => Task.CompletedTask;
-        public Task LockUnitCatalogAsync(Guid tenantId, CancellationToken ct = default) => Task.CompletedTask;
-        public Task LockPriceChangeRequestAsync(Guid tenantId, Guid requestId, CancellationToken ct = default) => Task.CompletedTask;
-        public Task LockSkuUnitPriceAsync(Guid tenantId, Guid priceId, CancellationToken ct = default) => Task.CompletedTask;
-        public Task LockPurchaseOrderAsync(Guid tenantId, Guid purchaseOrderId, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private Guid RequireTenantId()
@@ -285,23 +272,16 @@ public class GoodsReceiptService : IGoodsReceiptService
         var tenantId = RequireTenantId();
 
         List<Func<Task>> pendingNotifications = new();
-        var strategy = _context.CreateExecutionStrategy();
-        var result = await strategy.ExecuteAsync(async () =>
+        var result = await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
             pendingNotifications.Clear();
-            _context.ClearChangeTracker();
-            await using var transaction = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var transaction = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             try
             {
                 // 1. Advisory lock phiếu nhập
-                if (_context.IsRelationalDatabase)
-                {
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/goods_receipt/' || {1}::text, 0));",
-                        new object[] { tenantId.ToString(), id.ToString() },
-                        ct);
-                }
+                await _sqlLockService.LockGoodsReceiptAsync(tenantId, id, ct);
 
                 // 2. Tải phiếu nhập tươi mới từ DB sau khi đã có khóa chứng từ
                 var receipt = await _context.GoodsReceipts
@@ -339,13 +319,6 @@ public class GoodsReceiptService : IGoodsReceiptService
 
                 // 4. LockPurchaseOrderAsync (đúng thứ tự: phiếu nhập -> phiếu mua -> SKU)
                 await _sqlLockService.LockPurchaseOrderAsync(tenantId, poId, ct);
-                if (_context.IsRelationalDatabase && ReferenceEquals(_sqlLockService, NoOpSqlLockService.Instance))
-                {
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/purchase_order/' || {1}::text, 0));",
-                        new object[] { tenantId.ToString(), poId.ToString() },
-                        ct);
-                }
 
                 // 5. Tải phiếu mua và các dòng SAU KHÓA
                 var po = await _context.PurchaseOrders
@@ -403,16 +376,7 @@ public class GoodsReceiptService : IGoodsReceiptService
                 var sortedItems = receipt.Items.OrderBy(i => i.SkuId).ToList();
                 var skuIds = sortedItems.Select(i => i.SkuId).Distinct().ToList();
 
-                if (_context.IsRelationalDatabase)
-                {
-                    foreach (var skuId in skuIds)
-                    {
-                        await _context.ExecuteSqlRawAsync(
-                            "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/' || {1}::text || '/' || {2}::text, 0));",
-                            new object[] { tenantId.ToString(), receipt.BranchId.ToString(), skuId.ToString() },
-                            ct);
-                    }
-                }
+                await _sqlLockService.LockSkuStockAsync(tenantId, receipt.BranchId, skuIds, ct);
 
                 // 8. Tải tồn kho hiện tại cấp Chi nhánh và cấp Kho, cộng tồn, tính WAC, ghi sổ kho
                 var branchBalances = await _context.InventoryBalances
@@ -515,10 +479,7 @@ public class GoodsReceiptService : IGoodsReceiptService
                 // 10. SaveChanges, SET CONSTRAINTS ALL IMMEDIATE, commit
                 await _context.SaveChangesAsync(ct);
 
-                if (_context.IsRelationalDatabase)
-                {
-                    await _context.ExecuteSqlRawAsync("SET CONSTRAINTS ALL IMMEDIATE;", Array.Empty<object>(), ct);
-                }
+                await _sqlLockService.SetConstraintsImmediateAsync(ct);
 
                 await transaction.CommitAsync(ct);
 
@@ -548,7 +509,7 @@ public class GoodsReceiptService : IGoodsReceiptService
             catch (DbUpdateException dbEx) when (_context.DatabaseErrors.IsUniqueViolation(dbEx))
             {
                 await transaction.RollbackAsync(ct);
-                _context.ClearChangeTracker();
+                _context.UnitOfWork.ResetTracking();
                 var isConfirmed = await _context.GoodsReceipts.AnyAsync(r => r.Id == id && r.Status == "Confirmed", ct);
                 if (isConfirmed)
                 {
@@ -584,22 +545,15 @@ public class GoodsReceiptService : IGoodsReceiptService
     {
         var tenantId = RequireTenantId();
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            _context.ClearChangeTracker();
-            await using var transaction = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var transaction = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             try
             {
                 // Cùng khóa phiếu nhập với xác nhận
-                if (_context.IsRelationalDatabase)
-                {
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/goods_receipt/' || {1}::text, 0));",
-                        new object[] { tenantId.ToString(), id.ToString() },
-                        ct);
-                }
+                await _sqlLockService.LockGoodsReceiptAsync(tenantId, id, ct);
 
                 var receipt = await _context.GoodsReceipts
                     .Include(r => r.Items)

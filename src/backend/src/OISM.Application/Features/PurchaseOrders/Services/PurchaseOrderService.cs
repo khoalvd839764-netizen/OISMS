@@ -57,11 +57,10 @@ public class PurchaseOrderService : IPurchaseOrderService
         var tenantId = RequireTenantId();
         ValidateHeaderAndItemsBasic(dto.SupplierId, dto.BranchId, dto.Number, dto.Note, dto.Items);
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            _context.ClearChangeTracker();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             var existing = await LoadPurchaseOrderGraphQuery()
                 .FirstOrDefaultAsync(p => p.TenantId == tenantId && p.RequestKey == requestKey, ct);
@@ -162,7 +161,7 @@ public class PurchaseOrderService : IPurchaseOrderService
             catch (DbUpdateException ex) when (_context.DatabaseErrors.IsUniqueViolation(ex, "uq_purchase_orders_3"))
             {
                 await tx.RollbackAsync(ct);
-                _context.ClearChangeTracker();
+                _context.UnitOfWork.ResetTracking();
 
                 var reloaded = await LoadPurchaseOrderGraphQuery()
                     .FirstOrDefaultAsync(p => p.TenantId == tenantId && p.RequestKey == requestKey, ct);
@@ -205,11 +204,10 @@ public class PurchaseOrderService : IPurchaseOrderService
         var tenantId = RequireTenantId();
         ValidateHeaderAndItemsBasic(dto.SupplierId, dto.BranchId, dto.Number, dto.Note, dto.Items);
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            _context.ClearChangeTracker();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             await _sqlLockService.LockPurchaseOrderAsync(tenantId, id, ct);
 
@@ -319,11 +317,10 @@ public class PurchaseOrderService : IPurchaseOrderService
     {
         var tenantId = RequireTenantId();
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            _context.ClearChangeTracker();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             await _sqlLockService.LockPurchaseOrderAsync(tenantId, id, ct);
 
@@ -383,11 +380,10 @@ public class PurchaseOrderService : IPurchaseOrderService
 
         var tenantId = RequireTenantId();
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            _context.ClearChangeTracker();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             await _sqlLockService.LockPurchaseOrderAsync(tenantId, id, ct);
 
@@ -426,11 +422,10 @@ public class PurchaseOrderService : IPurchaseOrderService
     {
         var tenantId = RequireTenantId();
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            _context.ClearChangeTracker();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             await _sqlLockService.LockPurchaseOrderAsync(tenantId, id, ct);
 

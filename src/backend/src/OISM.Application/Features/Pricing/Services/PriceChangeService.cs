@@ -39,10 +39,9 @@ public class PriceChangeService : IPriceChangeService
         var tenantId = _currentTenantService.TenantId
             ?? throw new OismException("UNAUTHORIZED", "Chưa xác thực thông tin khách thuê.", 401);
 
-        var strategy = _dbContext.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _dbContext.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            using var tx = await _dbContext.BeginTransactionAsync(ct);
+            using var tx = await _dbContext.UnitOfWork.BeginTransactionAsync(ct);
 
             // 1. Kiểm tra Idempotency dưới khóa/giao dịch
             var existingRequest = await _dbContext.PriceChangeRequests
@@ -215,10 +214,9 @@ public class PriceChangeService : IPriceChangeService
         var tenantId = _currentTenantService.TenantId
             ?? throw new OismException("UNAUTHORIZED", "Chưa xác thực thông tin khách thuê.", 401);
 
-        var strategy = _dbContext.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _dbContext.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            using var tx = await _dbContext.BeginTransactionAsync(ct);
+            using var tx = await _dbContext.UnitOfWork.BeginTransactionAsync(ct);
 
             await _sqlLockService.LockPriceChangeRequestAsync(tenantId, id, ct);
 
@@ -314,10 +312,9 @@ public class PriceChangeService : IPriceChangeService
         var tenantId = _currentTenantService.TenantId
             ?? throw new OismException("UNAUTHORIZED", "Chưa xác thực thông tin khách thuê.", 401);
 
-        var strategy = _dbContext.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _dbContext.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            using var tx = await _dbContext.BeginTransactionAsync(ct);
+            using var tx = await _dbContext.UnitOfWork.BeginTransactionAsync(ct);
 
             await _sqlLockService.LockPriceChangeRequestAsync(tenantId, id, ct);
 
@@ -368,10 +365,9 @@ public class PriceChangeService : IPriceChangeService
         var tenantId = _currentTenantService.TenantId
             ?? throw new OismException("UNAUTHORIZED", "Chưa xác thực thông tin khách thuê.", 401);
 
-        var strategy = _dbContext.CreateExecutionStrategy();
-        await strategy.ExecuteAsync(async () =>
+        await _dbContext.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            using var tx = await _dbContext.BeginTransactionAsync(ct);
+            using var tx = await _dbContext.UnitOfWork.BeginTransactionAsync(ct);
 
             await _sqlLockService.LockSkuUnitPriceAsync(tenantId, skuUnitPriceId, ct);
 

@@ -186,11 +186,9 @@ public class ProductService : IProductService
         }
 
         var tenantId = _currentTenantService.TenantId ?? Guid.Empty;
-        var strategy = _context.CreateExecutionStrategy();
-
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
             try
             {
                 await _lockService.LockUnitCatalogAsync(tenantId, ct);
@@ -384,10 +382,9 @@ public class ProductService : IProductService
 
     public async Task<ProductVariantResponse> CreateVariantAsync(Guid productId, CreateVariantRequest request, PriceActor actor, CancellationToken ct = default)
     {
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             await _lockService.LockProductAsync(productId, ct);
             var tenantId = _currentTenantService.TenantId ?? Guid.Empty;
@@ -563,10 +560,9 @@ public class ProductService : IProductService
 
     public async Task<ProductVariantResponse> UpdateVariantAsync(Guid productId, Guid variantId, UpdateVariantRequest request, Guid? userId = null, CancellationToken ct = default)
     {
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             await _lockService.LockProductAsync(productId, ct);
             var tenantId = _currentTenantService.TenantId ?? Guid.Empty;

@@ -69,14 +69,12 @@ public class AuthService : IAuthService
             }
         }
 
-        var strategy = _context.CreateExecutionStrategy();
-
         try
         {
-            return await strategy.ExecuteAsync(async () =>
+            return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
             {
                 using var privilegedScope = _context.OpenPrivilegedScope();
-                await using var transaction = await _context.BeginTransactionAsync(ct);
+                await using var transaction = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
                 try
                 {
@@ -211,12 +209,10 @@ public class AuthService : IAuthService
         }
 
         var tokenHash = RefreshTokenEntity.HashToken(request.RefreshToken);
-        var strategy = _context.CreateExecutionStrategy();
-
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
             using var privilegedScope = _context.OpenPrivilegedScope();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             try
             {

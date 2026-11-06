@@ -32,7 +32,7 @@ flowchart TD
     end
 
     subgraph Application["3. Application Layer (OISM.Application)"]
-        App["Features/&lt;Module&gt;/Services • DTOs • Validators (FluentValidation) • Interfaces (IAppDbContext, ICurrentTenantService, ISqlLockService...)"]
+        App["Features/&lt;Module&gt;/Services • DTOs • Validators (FluentValidation) • Interfaces (IAppDbContext, IUnitOfWork, ISqlLockService...)"]
     end
 
     subgraph Domain["4. Domain Layer (OISM.Domain)"]
@@ -60,13 +60,13 @@ flowchart TD
 
 ## 3. Quy Tắc Khi Thêm Mã Mới
 
-1. Controller chỉ điều phối HTTP (đọc request, gọi service, trả kết quả). Nghiệp vụ, transaction, khóa và ghi sổ nằm trong service của `OISM.Application`.
+1. Controller điều phối HTTP. Service của `OISM.Application` điều phối nghiệp vụ, ghi sổ, phạm vi transaction và thứ tự lấy khóa. Infrastructure triển khai transaction, retry và SQL khóa qua `IUnitOfWork` và `ISqlLockService`.
 2. Không có middleware tenant riêng. `TenantId` được `CurrentTenantService` đọc từ claim `tenantId` của JWT đã xác thực; không đọc từ header hay body.
 3. Bảng nghiệp vụ mới: entity triển khai `IMustHaveTenant`, có cột `tenant_id` và query filter trong `AppDbContext`.
 4. Sự kiện realtime gửi qua `IRealtimeNotifier` sau khi transaction đã commit.
 
 ## 4. Nợ Kỹ Thuật Đã Biết
 
-- `OISM.Application` vẫn tham chiếu `Microsoft.EntityFrameworkCore` và một số service cũ còn SQL PostgreSQL thuần (`FOR UPDATE`, `pg_advisory_xact_lock`). Đây là đánh đổi có chủ đích để giữ khóa đúng thứ tự; không refactor tiện tay.
+- `OISM.Application` vẫn tham chiếu `Microsoft.EntityFrameworkCore` cho truy vấn và lưu entity qua `IAppDbContext`.
 - Rà soát lại ngày 06/11/2026 ghi 8 chỗ lệch còn lại (BF-028..035) và kế hoạch sửa 4 đợt: [CHECKLIST mục E](../bug-fixaffter/CHECKLIST.md#e-kế-hoạch-hoàn-thiện-clean-architecture-bf-028035).
 - Chi tiết rà soát: [Upgrade 06 — Rà soát Clean Architecture](../Upgrade-recommended/06-ra-soat-clean-architecture.md) và [báo cáo sau nâng cấp](../report-after-upgrade/clean-architecture.md).

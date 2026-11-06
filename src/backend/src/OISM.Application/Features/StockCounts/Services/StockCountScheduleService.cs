@@ -141,24 +141,14 @@ public class StockCountScheduleService : IStockCountScheduleService
             throw new OismException("VALIDATION_ERROR", "Hạn hoàn tất kiểm kê phải từ 1 đến 14 ngày.", 400);
         }
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            _context.ClearChangeTracker();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
-            if (_context.IsRelationalDatabase)
-            {
-                await _context.ExecuteSqlRawAsync(
-                    "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/stock_count_schedule/' || {1}::text || '/' || {2}::text, 0));",
-                    new object[] { tenantId.Value.ToString(), dto.WarehouseId.ToString(), periodType },
-                    ct);
+            await _context.Locks.LockStockCountScheduleAsync(tenantId.Value, dto.WarehouseId, periodType, ct);
 
-                await _context.ExecuteSqlRawAsync(
-                    "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/stock_count_period_generate', 0));",
-                    new object[] { tenantId.Value.ToString() },
-                    ct);
-            }
+            await _context.Locks.LockStockCountPeriodGenerationAsync(tenantId.Value, ct);
 
             // Kiểm tra trùng lặp (warehouse, period_type)
             var exists = await _context.StockCountSchedules
@@ -267,24 +257,14 @@ public class StockCountScheduleService : IStockCountScheduleService
             throw new OismException("NOT_FOUND", "Không tìm thấy lịch kiểm kê trong phạm vi doanh nghiệp.", 404);
         }
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            _context.ClearChangeTracker();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
-            if (_context.IsRelationalDatabase)
-            {
-                await _context.ExecuteSqlRawAsync(
-                    "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/stock_count_schedule/' || {1}::text || '/' || {2}::text, 0));",
-                    new object[] { tenantId.Value.ToString(), hint.WarehouseId.ToString(), hint.PeriodType },
-                    ct);
+            await _context.Locks.LockStockCountScheduleAsync(tenantId.Value, hint.WarehouseId, hint.PeriodType, ct);
 
-                await _context.ExecuteSqlRawAsync(
-                    "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/stock_count_period_generate', 0));",
-                    new object[] { tenantId.Value.ToString() },
-                    ct);
-            }
+            await _context.Locks.LockStockCountPeriodGenerationAsync(tenantId.Value, ct);
 
             var schedule = await _context.StockCountSchedules
                 .Include(s => s.Branch)
@@ -487,19 +467,12 @@ public class StockCountScheduleService : IStockCountScheduleService
             throw new OismException("UNAUTHORIZED", "Không xác định được danh tính Tenant.", 401);
         }
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            _context.ClearChangeTracker();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
-            if (_context.IsRelationalDatabase)
-            {
-                await _context.ExecuteSqlRawAsync(
-                    "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/stock_count_period_generate', 0));",
-                    new object[] { tenantId.Value.ToString() },
-                    ct);
-            }
+            await _context.Locks.LockStockCountPeriodGenerationAsync(tenantId.Value, ct);
 
             var now = nowUtc ?? DateTimeOffset.UtcNow;
             var activeSchedules = await _context.StockCountSchedules

@@ -114,10 +114,9 @@ public class WarehouseService : IWarehouseService
             tenantId = whStub.TenantId;
         }
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync<WarehouseResponse?>(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync<WarehouseResponse?>(async () =>
         {
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             await _lockService.LockWarehouseAsync(id, tenantId.Value, ct);
 

@@ -34,7 +34,7 @@ public static class DependencyInjection
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IDatabaseMigrationService, DatabaseMigrationService>();
         services.AddSingleton<IDatabaseReadinessService, NpgsqlDatabaseReadinessService>();
-        services.AddScoped<ISqlLockService, SqlLockService>();
+        services.AddScoped<ISqlLockService>(provider => provider.GetRequiredService<AppDbContext>().Locks);
         services.AddScoped<IWarehouseBranchReassignmentStore, WarehouseBranchReassignmentStore>();
         services.AddOismHangfire(configuration);
 

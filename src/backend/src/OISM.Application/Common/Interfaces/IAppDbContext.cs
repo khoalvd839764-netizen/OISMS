@@ -1,6 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Storage;
 using OISM.Domain.Entities;
 
 namespace OISM.Application.Common.Interfaces;
@@ -11,9 +9,8 @@ namespace OISM.Application.Common.Interfaces;
 public interface IAppDbContext
 {
     IDbErrorTranslator DatabaseErrors { get; }
-    bool IsRelationalDatabase { get; }
-    bool HasActiveTransaction { get; }
-    Task<int> ExecuteSqlRawAsync(string sql, object[] parameters, CancellationToken cancellationToken = default);
+    IUnitOfWork UnitOfWork { get; }
+    ISqlLockService Locks { get; }
     DbSet<Tenant> Tenants { get; }
     DbSet<User> Users { get; }
     DbSet<RefreshToken> RefreshTokens { get; }
@@ -59,9 +56,6 @@ public interface IAppDbContext
     int SaveChanges(bool acceptAllChangesOnSuccess);
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default);
-    Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default);
-    IExecutionStrategy CreateExecutionStrategy();
-    void ClearChangeTracker();
 
     IDisposable OpenPrivilegedScope();
     bool IsPrivilegedScopeActive { get; }

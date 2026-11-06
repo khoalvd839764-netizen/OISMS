@@ -60,29 +60,19 @@ public class ReservationService : IReservationService
 
         // Bắt đầu một transaction READ COMMITTED bao bọc trong ExecutionStrategy
         List<Func<Task>> pendingNotifications = new();
-        var strategy = _context.CreateExecutionStrategy();
-        var result = await strategy.ExecuteAsync(async () =>
+        var result = await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
             pendingNotifications.Clear();
-            await using var transaction = await _context.BeginTransactionAsync(ct);
+            await using var transaction = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             try
             {
             // BE1-09: Lấy advisory lock theo (Tenant, Branch, SKU) trước khi đọc tồn kho để tránh Race Condition
-            if (_context.IsRelationalDatabase)
-            {
-                await _context.ExecuteSqlRawAsync(
-                    "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/' || {1}::text || '/' || {2}::text, 0));",
-                    new object[] { tenantId.ToString(), dto.BranchId.ToString(), dto.SkuId.ToString() },
-                    ct);
+            await _context.Locks.LockSkuStockAsync(tenantId, dto.BranchId, [dto.SkuId], ct);
 
-                if (dto.RequestKey.HasValue)
-                {
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/request_key/' || {1}::text, 0));",
-                        new object[] { tenantId.ToString(), dto.RequestKey.Value.ToString() },
-                        ct);
-                }
+            if (dto.RequestKey.HasValue)
+            {
+                await _context.Locks.LockRequestKeyAsync(tenantId, dto.RequestKey.Value, ct);
             }
 
             // Kiểm tra kho hợp lệ và thuộc chi nhánh yêu cầu
@@ -365,10 +355,7 @@ public class ReservationService : IReservationService
             }
 
             // Kiểm tra Deferred Constraints trước khi COMMIT
-            if (_context.IsRelationalDatabase)
-            {
-                await _context.ExecuteSqlRawAsync("SET CONSTRAINTS ALL IMMEDIATE;", Array.Empty<object>(), ct);
-            }
+            await _context.Locks.SetConstraintsImmediateAsync(ct);
 
             await transaction.CommitAsync(ct);
             if (_realtimeNotifier != null)

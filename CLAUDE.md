@@ -56,7 +56,7 @@ CI chạy khi push hoặc mở PR vào `main`, `master`, `develop`: build và te
 - **Idempotency:** thao tác ghi quan trọng dùng `RequestKey` hoặc `Idempotency-Key`: cùng key và payload trả kết quả cũ, khác payload trả 409. Frontend giữ nguyên key khi retry lúc kết quả chưa rõ.
 - **Trạng thái đơn:** `Draft → Reserved → Confirmed → Completed`; `Draft` hoặc `Reserved → Cancelled`. Xem `docs/04-architecture-and-design/04-state-machines.md`.
 - **Phân quyền:** ba vai trò `Owner`, `Staff`, `Cashier`. Báo cáo tài chính và trường giá vốn phải kiểm tra quyền ở cả dữ liệu trả về.
-- **Clean Architecture:** controller chỉ điều phối HTTP, nghiệp vụ nằm trong Application. Nợ đã biết: Application vẫn tham chiếu EF Core và một số service cũ còn SQL PostgreSQL. Không tiện tay refactor phần này.
+- **Clean Architecture:** controller điều phối HTTP, Application điều phối nghiệp vụ qua `IUnitOfWork` và `ISqlLockService`. SQL khóa và cách thực thi transaction nằm trong Infrastructure. Application vẫn tham chiếu EF Core cho truy vấn và lưu entity.
 - **Múi giờ báo cáo:** ngày nghiệp vụ theo `UTC+07:00`, lọc theo khoảng nửa mở `CreatedAt < endBoundary`.
 
 ## Database

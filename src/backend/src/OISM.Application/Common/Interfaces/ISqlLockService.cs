@@ -7,6 +7,28 @@ namespace OISM.Application.Common.Interfaces;
 public interface ISqlLockService
 {
     /// <summary>
+    /// Acquires the stock advisory locks in ascending SKU order within the current transaction.
+    /// </summary>
+    Task LockSkuStockAsync(Guid tenantId, Guid branchId, IEnumerable<Guid> skuIds, CancellationToken ct = default);
+    Task LockRequestKeyAsync(Guid tenantId, Guid requestKey, CancellationToken ct = default);
+    Task LockGoodsReceiptAsync(Guid tenantId, Guid receiptId, CancellationToken ct = default);
+    Task LockStockTransferAsync(Guid tenantId, Guid transferId, CancellationToken ct = default);
+    Task LockStockTransferNumberAsync(Guid tenantId, CancellationToken ct = default);
+    Task LockStockCountScheduleAsync(Guid tenantId, Guid warehouseId, string periodType, CancellationToken ct = default);
+    Task LockStockCountPeriodGenerationAsync(Guid tenantId, CancellationToken ct = default);
+    Task LockStockCountPeriodAsync(Guid tenantId, Guid periodId, CancellationToken ct = default);
+    Task LockStockCountNumberAsync(Guid tenantId, CancellationToken ct = default);
+    Task LockStockCountAsync(Guid tenantId, Guid stockCountId, CancellationToken ct = default);
+    Task LockInventoryAdjustmentNumberAsync(Guid tenantId, CancellationToken ct = default);
+    Task LockExternalOrderAsync(Guid tenantId, string channel, string shopId, string externalOrderId, CancellationToken ct = default);
+    Task LockOrderAsync(Guid tenantId, Guid orderId, CancellationToken ct = default);
+    Task LockOrderRowAsync(Guid tenantId, Guid orderId, CancellationToken ct = default);
+    Task LockOrderReservationRowsAsync(Guid tenantId, Guid orderId, CancellationToken ct = default);
+    Task LockBranchInventoryRowsAsync(Guid tenantId, Guid branchId, IEnumerable<Guid> skuIds, CancellationToken ct = default);
+    Task LockWarehouseInventoryRowsAsync(Guid tenantId, Guid branchId, Guid warehouseId, IEnumerable<Guid> skuIds, CancellationToken ct = default);
+    Task SetConstraintsImmediateAsync(CancellationToken ct = default);
+
+    /// <summary>
     /// Khóa toàn bộ cây danh mục của Tenant bằng advisory lock để chống race condition và vòng lặp phân cấp.
     /// </summary>
     Task LockCategoryTreeAsync(Guid tenantId, CancellationToken ct = default);

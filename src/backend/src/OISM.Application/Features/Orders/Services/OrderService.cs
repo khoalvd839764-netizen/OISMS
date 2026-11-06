@@ -176,32 +176,19 @@ public class OrderService : IOrderService, IPosCheckoutService
 
         // 4. Bao bọc toàn bộ chuỗi xử lý trong ExecutionStrategy tương thích NpgsqlRetryingExecutionStrategy
         List<Func<Task>> pendingNotifications = new();
-        var strategy = _context.CreateExecutionStrategy();
-        var result = await strategy.ExecuteAsync(async () =>
+        var result = await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
             pendingNotifications.Clear();
-            _context.ClearChangeTracker();
+            _context.UnitOfWork.ResetTracking();
 
             // Mở Transaction CSDL duy nhất cho toàn bộ chuỗi xử lý
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
             try
             {
             // 5. Lấy PostgreSQL Advisory Locks theo thứ tự xác định: SKU Locks -> RequestKey Lock
-            if (_context.IsRelationalDatabase)
-            {
-                foreach (var skuId in sortedSkuIds)
-                {
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/' || {1}::text || '/' || {2}::text, 0));",
-                        new object[] { tenantId.Value.ToString(), dto.BranchId.ToString(), skuId.ToString() },
-                        ct);
-                }
+            await _context.Locks.LockSkuStockAsync(tenantId.Value, dto.BranchId, sortedSkuIds, ct);
 
-                await _context.ExecuteSqlRawAsync(
-                    "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/request_key/' || {1}::text, 0));",
-                    new object[] { tenantId.Value.ToString(), dto.RequestKey.ToString() },
-                    ct);
-            }
+            await _context.Locks.LockRequestKeyAsync(tenantId.Value, dto.RequestKey, ct);
 
             // 6. Kiểm tra Idempotency dưới khóa
             var existingOrder = await _context.Orders
@@ -746,10 +733,7 @@ public class OrderService : IOrderService, IPosCheckoutService
             await _context.SaveChangesAsync(ct);
 
             // 17. Chốt kiểm tra Deferred Constraints của PostgreSQL trước khi COMMIT
-            if (_context.IsRelationalDatabase)
-            {
-                await _context.ExecuteSqlRawAsync("SET CONSTRAINTS ALL IMMEDIATE;", Array.Empty<object>(), ct);
-            }
+            await _context.Locks.SetConstraintsImmediateAsync(ct);
 
             await tx.CommitAsync(ct);
 
@@ -1473,40 +1457,24 @@ public class OrderService : IOrderService, IPosCheckoutService
 
         // 4. Bao bọc trong ExecutionStrategy
         List<Func<Task>> pendingNotifications = new();
-        var strategy = _context.CreateExecutionStrategy();
-        var executionResult = await strategy.ExecuteAsync(async () =>
+        var executionResult = await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
             pendingNotifications.Clear();
-            _context.ClearChangeTracker();
+            _context.UnitOfWork.ResetTracking();
 
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
             try
             {
                 // 5. Lấy PostgreSQL Advisory Locks theo thứ tự xác định: SKU Locks -> RequestKey / External Order Lock
-                if (_context.IsRelationalDatabase)
-                {
-                    foreach (var skuId in sortedSkuIds)
-                    {
-                        await _context.ExecuteSqlRawAsync(
-                            "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/' || {1}::text || '/' || {2}::text, 0));",
-                            new object[] { tenantId.ToString(), req.BranchId.ToString(), skuId.ToString() },
-                            ct);
-                    }
+                await _context.Locks.LockSkuStockAsync(tenantId, req.BranchId, sortedSkuIds, ct);
 
-                    if (!req.IsTrustedMarketplace)
-                    {
-                        await _context.ExecuteSqlRawAsync(
-                            "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/request_key/' || {1}::text, 0));",
-                            new object[] { tenantId.ToString(), req.RequestKey.ToString() },
-                            ct);
-                    }
-                    else
-                    {
-                        await _context.ExecuteSqlRawAsync(
-                            "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/external_order/' || {1}::text || '/' || {2}::text || '/' || {3}::text, 0));",
-                            new object[] { tenantId.ToString(), req.Channel, req.ExternalShopId ?? string.Empty, req.ExternalOrderId ?? string.Empty },
-                            ct);
-                    }
+                if (!req.IsTrustedMarketplace)
+                {
+                    await _context.Locks.LockRequestKeyAsync(tenantId, req.RequestKey, ct);
+                }
+                else
+                {
+                    await _context.Locks.LockExternalOrderAsync(tenantId, req.Channel, req.ExternalShopId ?? string.Empty, req.ExternalOrderId ?? string.Empty, ct);
                 }
 
                 // 6. Kiểm tra Idempotency dưới khóa
@@ -1779,10 +1747,7 @@ public class OrderService : IOrderService, IPosCheckoutService
                 // Tuyệt đối không ghi Sổ cái (Ledger) và không tạo Payment tại bước tạo đơn Reserved
                 await _context.SaveChangesAsync(ct);
 
-                if (_context.IsRelationalDatabase)
-                {
-                    await _context.ExecuteSqlRawAsync("SET CONSTRAINTS ALL IMMEDIATE;", Array.Empty<object>(), ct);
-                }
+                await _context.Locks.SetConstraintsImmediateAsync(ct);
 
                 await tx.CommitAsync(ct);
 
@@ -1870,12 +1835,11 @@ public class OrderService : IOrderService, IPosCheckoutService
             throw new OismException("VALIDATION_ERROR", "Mã đơn hàng không được để trống (Guid.Empty).", 400);
         }
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            _context.ClearChangeTracker();
+            _context.UnitOfWork.ResetTracking();
 
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
             try
             {
                 // 1. Pre-read để lấy metadata cần thiết cho việc khóa
@@ -1897,26 +1861,11 @@ public class OrderService : IOrderService, IPosCheckoutService
                 var sortedSkuIds = meta.SkuIds.Distinct().OrderBy(id => id).ToList();
 
                 // 2. Lấy khóa theo thứ tự phân cấp: SKU Locks -> RequestKey Lock -> Order Lock
-                if (_context.IsRelationalDatabase)
-                {
-                    foreach (var skuId in sortedSkuIds)
-                    {
-                        await _context.ExecuteSqlRawAsync(
-                            "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/' || {1}::text || '/' || {2}::text, 0));",
-                            new object[] { tenantId.Value.ToString(), meta.BranchId.ToString(), skuId.ToString() },
-                            ct);
-                    }
+                await _context.Locks.LockSkuStockAsync(tenantId.Value, meta.BranchId, sortedSkuIds, ct);
 
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/request_key/' || {1}::text, 0));",
-                        new object[] { tenantId.Value.ToString(), meta.RequestKey.ToString() },
-                        ct);
+                await _context.Locks.LockRequestKeyAsync(tenantId.Value, meta.RequestKey, ct);
 
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/order/' || {1}::text, 0));",
-                        new object[] { tenantId.Value.ToString(), orderId.ToString() },
-                        ct);
-                }
+                await _context.Locks.LockOrderAsync(tenantId.Value, orderId, ct);
 
                 // 3. Đọc dữ liệu đơn hàng dưới khóa
                 var order = await _context.Orders
@@ -2079,10 +2028,7 @@ public class OrderService : IOrderService, IPosCheckoutService
 
                 await _context.SaveChangesAsync(ct);
 
-                if (_context.IsRelationalDatabase)
-                {
-                    await _context.ExecuteSqlRawAsync("SET CONSTRAINTS ALL IMMEDIATE;", Array.Empty<object>(), ct);
-                }
+                await _context.Locks.SetConstraintsImmediateAsync(ct);
 
                 await tx.CommitAsync(ct);
 
@@ -2112,22 +2058,15 @@ public class OrderService : IOrderService, IPosCheckoutService
             throw new OismException("VALIDATION_ERROR", "Mã đơn hàng không được để trống (Guid.Empty).", 400);
         }
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            _context.ClearChangeTracker();
+            _context.UnitOfWork.ResetTracking();
 
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
             try
             {
                 // 1. Khóa theo OrderId
-                if (_context.IsRelationalDatabase)
-                {
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/order/' || {1}::text, 0));",
-                        new object[] { tenantId.Value.ToString(), orderId.ToString() },
-                        ct);
-                }
+                await _context.Locks.LockOrderAsync(tenantId.Value, orderId, ct);
 
                 // 2. Đọc đơn hàng dưới khóa
                 var order = await _context.Orders
@@ -2165,10 +2104,7 @@ public class OrderService : IOrderService, IPosCheckoutService
                 // Tuyệt đối không thay đổi tồn kho, không ghi ledger OUT lần thứ hai
                 await _context.SaveChangesAsync(ct);
 
-                if (_context.IsRelationalDatabase)
-                {
-                    await _context.ExecuteSqlRawAsync("SET CONSTRAINTS ALL IMMEDIATE;", Array.Empty<object>(), ct);
-                }
+                await _context.Locks.SetConstraintsImmediateAsync(ct);
 
                 await tx.CommitAsync(ct);
 
@@ -2203,13 +2139,12 @@ public class OrderService : IOrderService, IPosCheckoutService
         }
 
         List<Func<Task>> pendingNotifications = new();
-        var strategy = _context.CreateExecutionStrategy();
-        var result = await strategy.ExecuteAsync(async () =>
+        var result = await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
             pendingNotifications.Clear();
-            _context.ClearChangeTracker();
+            _context.UnitOfWork.ResetTracking();
 
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
             try
             {
                 // 1. Pre-read để lấy metadata khóa
@@ -2232,26 +2167,11 @@ public class OrderService : IOrderService, IPosCheckoutService
                 var sortedSkuIds = meta.ItemSkuIds.Concat(meta.ResSkuIds).Distinct().OrderBy(id => id).ToList();
 
                 // 2. Khóa advisory locks: SKU Locks -> RequestKey Lock -> Order Lock
-                if (_context.IsRelationalDatabase)
-                {
-                    foreach (var skuId in sortedSkuIds)
-                    {
-                        await _context.ExecuteSqlRawAsync(
-                            "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/' || {1}::text || '/' || {2}::text, 0));",
-                            new object[] { tenantId.Value.ToString(), meta.BranchId.ToString(), skuId.ToString() },
-                            ct);
-                    }
+                await _context.Locks.LockSkuStockAsync(tenantId.Value, meta.BranchId, sortedSkuIds, ct);
 
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/request_key/' || {1}::text, 0));",
-                        new object[] { tenantId.Value.ToString(), meta.RequestKey.ToString() },
-                        ct);
+                await _context.Locks.LockRequestKeyAsync(tenantId.Value, meta.RequestKey, ct);
 
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/order/' || {1}::text, 0));",
-                        new object[] { tenantId.Value.ToString(), orderId.ToString() },
-                        ct);
-                }
+                await _context.Locks.LockOrderAsync(tenantId.Value, orderId, ct);
 
                 // 3. Đọc dữ liệu đơn hàng dưới khóa
                 var order = await _context.Orders
@@ -2323,10 +2243,7 @@ public class OrderService : IOrderService, IPosCheckoutService
                 // Không thay đổi OnHand, không ghi ledger OUT
                 await _context.SaveChangesAsync(ct);
 
-                if (_context.IsRelationalDatabase)
-                {
-                    await _context.ExecuteSqlRawAsync("SET CONSTRAINTS ALL IMMEDIATE;", Array.Empty<object>(), ct);
-                }
+                await _context.Locks.SetConstraintsImmediateAsync(ct);
 
                 await tx.CommitAsync(ct);
 
@@ -2953,13 +2870,12 @@ public class OrderService : IOrderService, IPosCheckoutService
     internal async Task<bool> ExpireSingleOrderAsync(Guid tenantId, Guid orderId, DateTimeOffset effectiveCutoff, CancellationToken ct)
     {
         List<Func<Task>> pendingNotifications = new();
-        var strategy = _context.CreateExecutionStrategy();
-        var result = await strategy.ExecuteAsync(async () =>
+        var result = await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
             pendingNotifications.Clear();
-            _context.ClearChangeTracker();
+            _context.UnitOfWork.ResetTracking();
 
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
             try
             {
                 // 1. Pre-read để lấy metadata khóa
@@ -2982,45 +2898,18 @@ public class OrderService : IOrderService, IPosCheckoutService
                 var sortedSkuIds = meta.ItemSkuIds.Concat(meta.ResSkuIds).Distinct().OrderBy(id => id).ToList();
 
                 // 2. Khóa advisory locks theo thứ tự chuẩn: SKU Locks -> RequestKey Lock -> Order Lock
-                if (_context.IsRelationalDatabase)
-                {
-                    foreach (var skuId in sortedSkuIds)
-                    {
-                        await _context.ExecuteSqlRawAsync(
-                            "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/' || {1}::text || '/' || {2}::text, 0));",
-                            new object[] { tenantId.ToString(), meta.BranchId.ToString(), skuId.ToString() },
-                            ct);
-                    }
+                await _context.Locks.LockSkuStockAsync(tenantId, meta.BranchId, sortedSkuIds, ct);
 
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/request_key/' || {1}::text, 0));",
-                        new object[] { tenantId.ToString(), meta.RequestKey.ToString() },
-                        ct);
+                await _context.Locks.LockRequestKeyAsync(tenantId, meta.RequestKey, ct);
 
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/order/' || {1}::text, 0));",
-                        new object[] { tenantId.ToString(), orderId.ToString() },
-                        ct);
+                await _context.Locks.LockOrderAsync(tenantId, orderId, ct);
 
-                    // Khóa dòng FOR UPDATE: orders, reservations, inventory_balances
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT id FROM orders WHERE tenant_id = {0} AND id = {1} FOR UPDATE;",
-                        new object[] { tenantId, orderId },
-                        ct);
+                // Khóa dòng FOR UPDATE: orders, reservations, inventory_balances
+                await _context.Locks.LockOrderRowAsync(tenantId, orderId, ct);
 
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT id FROM reservations WHERE tenant_id = {0} AND order_id = {1} FOR UPDATE;",
-                        new object[] { tenantId, orderId },
-                        ct);
+                await _context.Locks.LockOrderReservationRowsAsync(tenantId, orderId, ct);
 
-                    foreach (var skuId in sortedSkuIds)
-                    {
-                        await _context.ExecuteSqlRawAsync(
-                            "SELECT id FROM inventory_balances WHERE tenant_id = {0} AND branch_id = {1} AND sku_id = {2} FOR UPDATE;",
-                            new object[] { tenantId, meta.BranchId, skuId },
-                            ct);
-                    }
-                }
+                await _context.Locks.LockBranchInventoryRowsAsync(tenantId, meta.BranchId, sortedSkuIds, ct);
 
                 // 3. Đọc dữ liệu đơn hàng dưới khóa
                 var order = await _context.Orders
@@ -3081,18 +2970,9 @@ public class OrderService : IOrderService, IPosCheckoutService
 
                 // 4. Khóa dòng warehouse_inventory_balances theo thứ tự warehouseId, skuId
                 var resWarehouseIds = activeReservations.Select(r => r.WarehouseId).Distinct().OrderBy(id => id).ToList();
-                if (_context.IsRelationalDatabase)
+                foreach (var whId in resWarehouseIds)
                 {
-                    foreach (var whId in resWarehouseIds)
-                    {
-                        foreach (var skuId in sortedSkuIds)
-                        {
-                            await _context.ExecuteSqlRawAsync(
-                                "SELECT id FROM warehouse_inventory_balances WHERE tenant_id = {0} AND branch_id = {1} AND warehouse_id = {2} AND sku_id = {3} FOR UPDATE;",
-                                new object[] { tenantId, meta.BranchId, whId, skuId },
-                                ct);
-                        }
-                    }
+                    await _context.Locks.LockWarehouseInventoryRowsAsync(tenantId, meta.BranchId, whId, sortedSkuIds, ct);
                 }
 
                 var branchBalances = await _context.InventoryBalances
@@ -3141,10 +3021,7 @@ public class OrderService : IOrderService, IPosCheckoutService
 
                 await _context.SaveChangesAsync(ct);
 
-                if (_context.IsRelationalDatabase)
-                {
-                    await _context.ExecuteSqlRawAsync("SET CONSTRAINTS ALL IMMEDIATE;", Array.Empty<object>(), ct);
-                }
+                await _context.Locks.SetConstraintsImmediateAsync(ct);
 
                 await tx.CommitAsync(ct);
 

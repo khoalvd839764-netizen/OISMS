@@ -262,7 +262,7 @@ public class WebhookIntegrationTests : IAsyncLifetime, IClassFixture<WebApplicat
 
                 .Where(ex => ex.InnerException != null && (ex.InnerException.Message.Contains("23503") || ex.InnerException.Message.Contains("fk_shop_integrations_branch")));
 
-            context.ClearChangeTracker();
+            context.ChangeTracker.Clear();
 
             // 2. Unique external identity: (tenant_id, channel, external_shop_id) must be unique
 
@@ -318,7 +318,7 @@ public class WebhookIntegrationTests : IAsyncLifetime, IClassFixture<WebApplicat
 
                 .Where(ex => ex.InnerException != null && (ex.InnerException.Message.Contains("23505") || ex.InnerException.Message.Contains("uq_shop_integrations_2")));
 
-            context.ClearChangeTracker();
+            context.ChangeTracker.Clear();
 
             // 3. Unique secret hash across all integrations: uq_shop_integrations_secret_hash (T5-F02)
 
@@ -378,7 +378,7 @@ public class WebhookIntegrationTests : IAsyncLifetime, IClassFixture<WebApplicat
 
                 .Where(ex => ex.InnerException != null && (ex.InnerException.Message.Contains("23505") || ex.InnerException.Message.Contains("uq_shop_integrations_secret_hash")));
 
-            context.ClearChangeTracker();
+            context.ChangeTracker.Clear();
 
             // 4. Unique external order in orders: (tenant_id, channel, external_shop_id, external_order_id)
 
