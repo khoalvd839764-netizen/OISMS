@@ -150,7 +150,7 @@ Cơ chế khởi tạo tự động hoạt động dựa trên cơ chế entrypo
 1. Khi volume `postgres_data` còn trống, PostgreSQL chạy script initdb.
 2. Script phát hiện database `oisms` đã được tạo sẵn qua biến `POSTGRES_DB=oisms`.
 3. Script xử lý việc file `oisms_schema.sql` có chứa `CREATE DATABASE oisms` và `\connect oisms` bằng cách bóc tách an toàn phần cài đặt DDL từ `-- OISMS_SCHEMA_BEGIN`, rồi thực thi trực tiếp vào database `oisms`.
-4. Nếu bảng nghiệp vụ đã tồn tại (≥33 bảng), script bỏ qua DDL để bảo toàn dữ liệu. Nếu phát hiện số bảng thấp hơn (1-32 bảng, kể cả database Sprint 3 có 30 bảng chưa nâng cấp), script cảnh báo dữ liệu hiện có và yêu cầu migration chứ không tự ý ghi đè hay xóa bảng.
+4. Nếu bảng nghiệp vụ đã tồn tại (≥43 bảng), script bỏ qua DDL để bảo toàn dữ liệu. Nếu phát hiện số bảng thấp hơn (1-42 bảng, tức database cũ chưa nâng cấp), script báo lỗi, yêu cầu chạy migration và không tự ý ghi đè hay xóa bảng. Cuối script kiểm tra đủ 43 bảng có tên trong danh sách và đúng 1 trigger `ledger_append_only` đang bật.
 5. Tạo nhóm quyền `oisms_runtime` (NOLOGIN), sau đó cấu hình tài khoản runtime backend `oisms_app`:
    - Sử dụng cơ chế truyền biến `\getenv` của psql và hàm `format('%I', ...)` / `format('%L', ...)` trong khối PL/pgSQL; tuyệt đối **không nội suy chuỗi SQL**.
    - Hỗ trợ mật khẩu có dấu nháy và ký tự đặc biệt, không bao giờ in mật khẩu ra log.
@@ -215,7 +215,7 @@ Kiểm tra trạng thái sẵn sàng của Backend qua Readiness Endpoint:
 ```powershell
 curl http://localhost:5000/health/ready
 ```
-Endpoint `/health/ready` thực hiện mở kết nối PostgreSQL bằng tài khoản runtime `oisms_app`, kiểm tra đủ 33 bảng, trigger bất biến sổ cái và quyền hạn trước khi trả về HTTP 200 `Healthy` (trả về HTTP 503 `Unhealthy` nếu thất bại, không để lộ connection string hoặc mật khẩu).
+Endpoint `/health/ready` thực hiện mở kết nối PostgreSQL bằng tài khoản runtime `oisms_app`, kiểm tra đủ 43 bảng (`RequiredTables` trong `Program.cs`), trigger bất biến sổ cái và quyền hạn trước khi trả về HTTP 200 `Healthy` (trả về HTTP 503 `Unhealthy` nếu thất bại, không để lộ connection string hoặc mật khẩu).
 
 ### Xem log cơ sở dữ liệu
 
@@ -248,11 +248,11 @@ Hệ thống đã trải qua quy trình kiểm chứng tự động toàn diện
 Endpoint `GET /health/ready` thực hiện kiểm tra sâu thực tế:
 - Mở kết nối thật tới CSDL bằng tài khoản runtime `oisms_app` (timeout 5s).
 - Kiểm tra tài khoản kết nối không có đặc quyền quản trị trực tiếp hoặc thừa hưởng, không sở hữu schema/bảng (trả về HTTP 503 `Degraded` nếu vi phạm).
-- Xác minh đầy đủ 33/33 bảng nghiệp vụ trong schema `public` (trả về HTTP 503 `Unhealthy` nếu thiếu bảng).
+- Xác minh đầy đủ 43/43 bảng nghiệp vụ trong schema `public` (trả về HTTP 503 `Unhealthy` nếu thiếu bảng).
 - Xác minh trigger `ledger_append_only` đang kích hoạt (`tgenabled IN ('O', 'A')`) trên `public.inventory_transactions`.
 - Bảo mật: Tuyệt đối không để lộ chuỗi kết nối hoặc mật khẩu ra HTTP response khi xảy ra lỗi.
 
-#### 4. Tổng hợp số liệu kiểm thử thực tế
+#### 4. Tổng hợp số liệu kiểm thử thực tế (mốc 16/10/2026, khi schema còn 29 bảng)
 | Phạm vi kiểm thử | Công cụ / Môi trường | Số test | Kết quả | Chi tiết kiểm chứng |
 | :--- | :--- | :--- | :--- | :--- |
 | **CSDL & Provisioning** | `scripts/test-database-schema.cjs` (PostgreSQL 16 PGlite) | 26 / 26 | **PASS (100%)** | 29 bảng, 94 FK, 86 CHECK, chống UPDATE/DELETE sổ cái, cân bằng tồn kho, mật khẩu ký tự đặc biệt, chặn quyền admin/thừa hưởng role |
@@ -277,13 +277,24 @@ Khi container khởi động lại hoặc khi volume `postgres_data` đã tồn 
    docker compose exec postgres pg_dump -U postgres -d oisms -F c -b -v -f /var/lib/postgresql/data/backup_pre_migration.dump
    ```
 2. **Soạn script migration tăng dần (Incremental SQL):**
-   Không chạy lại toàn bộ `oisms_schema.sql`. Tạo file SQL migration tăng dần trong `docker/postgres/migrations/` chứa các lệnh `ALTER TABLE`, `CREATE INDEX`, v.v. Bản hiện có: `20261027_sprint3.sql`, `20261102_multi_unit.sql` (Upgrade 05, chạy lại an toàn; backfill `unit_id`, không sửa ledger).
+   Không chạy lại toàn bộ `oisms_schema.sql`. Tạo file SQL migration tăng dần trong `docker/postgres/migrations/` chứa các lệnh `ALTER TABLE`, `CREATE INDEX`, v.v. Bản hiện có, chạy theo thứ tự tên file:
+
+   | File | Nội dung |
+   | :--- | :--- |
+   | `20261027_sprint3.sql` | Sprint 2 → 3: idempotency, liên kết kiểm kê–điều chỉnh, `shop_integrations` |
+   | `20261102_multi_unit.sql` | Upgrade 05: `units`, `sku_units`, `sku_unit_factor_history`, backfill `unit_id` |
+   | `20261102_price_lists.sql` | Upgrade 04: `price_lists`, `price_change_requests(_items)`, `sku_unit_prices` |
+   | `20261102_purchase_orders.sql` | Upgrade 01-A: `purchase_orders`, `purchase_order_items` |
+   | `20261103_sales_invoices.sql` | Upgrade 02: `sales_invoices` |
+   | `20261103_stock_count_schedules.sql` | Upgrade 03: `stock_count_schedules`, `stock_count_periods`, `stock_count_approvals` |
+
+   Các file được viết để chạy lại an toàn; mỗi khối nằm trong transaction.
 3. **Thực thi script bằng tài khoản quản trị `postgres`:**
    ```powershell
    docker compose exec -i postgres psql -U postgres -d oisms -f /path/to/migration.sql
    ```
-4. **Nếu sử dụng EF Core Migration:**
-   Cấu hình connection string migration với tài khoản `postgres` (hoặc tài khoản DBA có quyền DDL) để thực thi `dotnet ef database update`.
+4. **Không dùng EF Core migrations.** Dự án không có thư mục `Migrations` và backend không tự nâng cấp schema (`DatabaseMigrationService` chỉ được integration test gọi để kiểm tra nâng cấp chạy lại an toàn, không chạy lúc khởi động). Mỗi thay đổi schema gồm: file mới trong `docker/postgres/migrations/` (không sửa file cũ), cập nhật `oisms_schema.sql`, thêm bảng vào `RequiredTables` trong `Program.cs`, sửa số bảng kiểm tra trong `docker/postgres/init-oisms.sh`.
+5. **Trên máy chủ AWS:** xem [13-deploy-aws/04](../13-deploy-aws/04-quy-trinh-deploy-va-cap-nhat.md#33-có-migration).
 
 ## Quy ước tên và dữ liệu
 
@@ -423,13 +434,13 @@ Test cần `@electric-sql/pglite`; đặt `OISMS_TEST_MODULES` trỏ đến thư
 
 ## Quản lý thay đổi và bàn giao giữa hai backend
 
-- SQL này là baseline cài mới. Khi đưa vào EF Core migration, phải mang theo function/trigger/index/quyền, không chỉ generate entity rồi coi tương đương.
+- SQL này là baseline cài mới. Dự án không dùng EF Core migration; nếu sau này chuyển sang, phải mang theo function/trigger/index/quyền, không chỉ generate entity rồi coi tương đương.
 - Thay đổi cấu trúc sửa file SQL bàn giao và phần tương ứng trong README, review cùng nhau; nếu database đã triển khai thì tạo migration riêng có chuyển dữ liệu rõ ràng. Không sửa migration đã chạy trên môi trường chung.
 - Một người phụ trách migration tại một thời điểm; người còn lại cập nhật sau khi merge. Không chỉnh tay DB cá nhân rồi quên cập nhật nguồn.
 - Entity, DTO, Swagger và frontend phải thống nhất kiểu, nullable, enum và phạm vi tenant/branch/warehouse.
 - Danh mục có is_active; chứng từ đã ghi ledger phải bảo toàn lịch sử. Các điều kiện nguồn chứng từ đúng SKU/kho/lượng, trả không vượt bán và chống sửa chứng từ đã ghi kho vẫn phải được kiểm tra trong service.
 - Không tự chọn chính sách hủy sau Confirmed/Completed, nhận chuyển thiếu/từng phần hoặc split payment. Hiện một payment/đơn, chuyển hai bước cơ bản.
-- Không thêm bảng dự phòng; thay đổi dựa trên yêu cầu rõ ràng. Hangfire có thể tạo các bảng kỹ thuật riêng khi tích hợp, ngoài 29 bảng nghiệp vụ.
+- Không thêm bảng dự phòng; thay đổi dựa trên yêu cầu rõ ràng. Hangfire tạo bảng kỹ thuật riêng trong schema `hangfire` khi bật, ngoài 43 bảng nghiệp vụ.
 
 ## Index và bằng chứng kiểm thử
 

@@ -87,4 +87,4 @@
 - [ ] **3. Detailed Design (UML 2.0):** Phân hệ `04-architecture-and-design/03-database-design.md` (ERD), `04-state-machines.md` và `sequence-diagrams/`.
 - [ ] **4. API Specifications (Swagger/Postman):** Phân hệ `05-api-contracts/`.
 - [ ] **5. Software Testing Document (Unit, Integration, Concurrency):** Phân hệ `06-testing-and-qa/`.
-- [ ] **6. System Implementation, Deployment & User Guide:** Phân hệ `07-devops-and-deployment/` và `08-sprints/`.
+- [ ] **6. System Implementation, Deployment & User Guide:** Phân hệ `07-devops-and-deployment/`, `13-deploy-aws/` (triển khai thực tế trên AWS EC2) và `08-sprints/`.

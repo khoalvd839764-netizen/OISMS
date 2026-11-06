@@ -92,7 +92,7 @@ Giao diện **Quầy Thu Ngân Bán Lẻ (POS Counter)** được thiết kế c
 | `GET` | `/api/pos/search` | `PosCatalogController.Search` | [`DOC-API-05 - 05-pos-endpoints.md`](../05-api-contracts/05-pos-endpoints.md#1-danh-mục-endpoints-quầy-bán-hàng-pos-apipos) | `AUTH_UNAUTHORIZED`, `BRANCH_INACTIVE_OR_INVALID` (Xem [`DOC-ERR-02`](../12-error-and-status-codes/02-error-codes-catalog.md)) |
 | `GET` | `/api/pos/barcode/{code}` | `PosCatalogController.GetByBarcode` | [`DOC-API-05 - 05-pos-endpoints.md`](../05-api-contracts/05-pos-endpoints.md#1-danh-mục-endpoints-quầy-bán-hàng-pos-apipos) | `SKU_NOT_FOUND`, `SKU_INACTIVE` |
 | `POST` | `/api/pos/checkout`<br/>*(Alias: `/api/orders/checkout`)* | `PosCheckoutActionHelper.ExecuteCheckoutAsync` $\rightarrow$ `OrderService.CheckoutPosAsync` | [`DOC-API-05 - 05-pos-endpoints.md`](../05-api-contracts/05-pos-endpoints.md#1-danh-mục-endpoints-quầy-bán-hàng-pos-apipos) | `INSUFFICIENT_STOCK`, `IDEMPOTENCY_PAYLOAD_MISMATCH`, `INSUFFICIENT_CASH_RECEIVED`, `PRICE_MISMATCH`, `NO_ACTIVE_WAREHOUSE`, `INVALID_PAYMENT_METHOD` |
-| `GET` | `/api/branches` | `BranchController.GetBranches` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#3-endpoints-quản-lý-chi-nhánh-kho-hàng--nhà-cung-cấp-fr-auth-04) | `AUTH_UNAUTHORIZED` |
+| `GET` | `/api/branches` | `BranchController.GetBranches` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#2-danh-mục-endpoints-chi-nhánh-kho--nhà-cung-cấp-fr-auth-04) | `AUTH_UNAUTHORIZED` |
 
 ---
 

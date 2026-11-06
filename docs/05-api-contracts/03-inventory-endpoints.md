@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-API-03` |
-| **Phiên bản (Version)** | `v1.1.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-02` |
+| **Phiên bản (Version)** | `v1.3.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-INV-01..04`, `FR-COST-01`, `FR-RSE-01..03` (Trang 2, 3, 5) |
 | **Phạm vi áp dụng** | `InventoryController`, `GoodsReceiptsController`, `StockTransfersController`, `StocktakesController` |
 
@@ -17,6 +17,7 @@
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả danh sách Endpoints quản lý Sổ cái kho bất biến, Phiếu nhập kho, Giữ chỗ, Chuyển kho và Kiểm kê. | `INIT-API-03` |
 | `v1.1.0` | `2026-11-02` | Nhóm dự án OISMS | Thêm API phiếu mua, đổi hợp đồng lập phiếu nhập, thêm hủy phiếu nhập nháp; sửa route phiếu nhập theo code. | `OISMS-47-U01A` |
 | `v1.2.0` | `2026-11-03` | Nhóm dự án OISMS | Bổ sung API lịch kiểm kê (`stock-count-schedules`), kỳ kiểm kê (`stock-count-periods`), quy trình nộp duyệt chênh lệch (`stock-counts`). | `OISMS-47-U03` |
+| `v1.3.0` | `2026-11-06` | Nhóm dự án OISMS | Sửa route chuyển kho thành `/api/stock-transfers`; thêm API tồn theo SKU/chi nhánh, lịch sử xuất kho, ngưỡng đặt hàng lại, alias `/api/inventory-transactions`; sửa quyền xem tồn. | `OISMS-46` |
 
 ---
 
@@ -24,8 +25,12 @@
 
 | Method | Endpoint | Quyền (RBAC) | Mã FR | Mô tả & Quy tắc xử lý |
 | :---: | :--- | :---: | :---: | :--- |
-| `GET` | `/api/inventory/balances` | `Owner, Staff` | `FR-INV-01`, `FR-RSE-01` | Tra cứu số dư tồn kho chi tiết (`OnHand`, `Reserved`, `Available = OnHand - Reserved`, `UnitCost` WAC) theo Chi nhánh/Kho/SKU. |
-| `GET` | `/api/inventory/ledger` | `Owner, Staff` | `FR-INV-01` | Tra cứu lịch sử Sổ cái kho chỉ ghi thêm (`InventoryTransaction`), hỗ trợ lọc theo Chi nhánh, Kho, SKU, Loại giao dịch (`IN`/`OUT`) và Thời gian. Trả kèm `salesInvoiceId` và `salesInvoiceNumber` đối với các dòng xuất bán hàng (Upgrade 02). |
+| `GET` | `/api/inventory/balances` | `Owner, Staff, Cashier` | `FR-INV-01`, `FR-RSE-01` | Tra cứu số dư tồn kho chi tiết (`OnHand`, `Reserved`, `Available = OnHand - Reserved`, `UnitCost` WAC) theo Chi nhánh/Kho/SKU. |
+| `GET` | `/api/inventory/ledger`<br/>*(Alias: `/api/inventory-transactions`)* | `Owner, Staff` | `FR-INV-01` | Tra cứu lịch sử Sổ cái kho chỉ ghi thêm (`InventoryTransaction`), hỗ trợ lọc theo Chi nhánh, Kho, SKU, Loại giao dịch (`IN`/`OUT`) và Thời gian. Trả kèm `salesInvoiceId` và `salesInvoiceNumber` đối với các dòng xuất bán hàng (Upgrade 02). |
+| `GET` | `/api/inventory/balances/sku/{skuId}/branch/{branchId}` | `Owner, Staff, Cashier` | `FR-INV-01` | Tồn của một SKU tại một chi nhánh (theo đơn vị gốc). |
+| `GET` | `/api/inventory/export-history` | `Owner, Staff` | `FR-AI-01` | Lịch sử xuất kho theo ngày dùng cho biểu đồ và gợi ý nhập hàng. |
+| `PUT` | `/api/inventory/reorder-point` | `Owner, Staff` | `CS-03` | Đặt ngưỡng đặt hàng lại (`reorder_point`) cho một SKU tại chi nhánh. |
+| `PUT` | `/api/inventory/reorder-point/bulk` | `Owner, Staff` | `CS-03` | Đặt ngưỡng cho nhiều SKU một lần. |
 | `GET` | `/api/inventory/ledger/{id}/trace` | `Owner, Staff` | `OISMS-47-U02` | Truy vết chuỗi chứng từ nguồn và các dòng sổ kho liên quan bắt đầu từ một dòng sổ cái kho (`DocumentTraceDto`). |
 | `POST` | `/api/goods-receipts` | `Owner, Staff` | `FR-INV-02`, `OISMS-47-U01A` | Lập phiếu nhập `Draft` từ phiếu mua đã duyệt. Xem mục 1.1. |
 | `GET` | `/api/goods-receipts`, `/api/goods-receipts/{id}` | `Owner, Staff` | `FR-INV-02` | Danh sách và chi tiết phiếu nhập. Lọc thêm được theo `purchaseOrderId`. |
@@ -118,9 +123,11 @@ Trạng thái phiếu mua: xem [máy trạng thái](../04-architecture-and-desig
 
 | Method | Endpoint | Quyền (RBAC) | Mã FR | Mô tả & Quy tắc xử lý |
 | :---: | :--- | :---: | :---: | :--- |
-| `POST` | `/api/inventory/transfers` | `Owner, Staff` | `FR-INV-03` | Tạo phiếu chuyển kho giữa Chi nhánh A và Chi nhánh B. |
-| `POST` | `/api/inventory/transfers/{id}/dispatch` | `Owner, Staff` | `FR-INV-03` | Bước 1 — Xuất kho vận chuyển (`Out-bound transit`): Trừ tồn Kho A và ghi Sổ cái `OUT`. |
-| `POST` | `/api/inventory/transfers/{id}/receive` | `Owner, Staff` | `FR-INV-03` | Bước 2 — Xác nhận nhập tại Kho B (`In-bound confirmation`): Tăng tồn Kho B và ghi Sổ cái `IN`. |
+| `GET` | `/api/stock-transfers`, `/api/stock-transfers/{id}` | `Owner, Staff` | `FR-INV-03` | Danh sách và chi tiết phiếu chuyển kho. |
+| `POST` | `/api/stock-transfers` | `Owner, Staff` | `FR-INV-03` | Tạo phiếu chuyển kho `Draft` giữa kho của Chi nhánh A và Chi nhánh B. |
+| `POST` | `/api/stock-transfers/{id}/dispatch` | `Owner, Staff` | `FR-INV-03` | Bước 1 — Xuất kho vận chuyển (`Draft → InTransit`): trừ tồn kho A, chụp giá vốn, ghi Sổ cái `OUT`. |
+| `POST` | `/api/stock-transfers/{id}/receive` | `Owner, Staff` | `FR-INV-03` | Bước 2 — Xác nhận nhập tại kho B (`InTransit → Received`): tăng tồn kho B, tính lại WAC, ghi Sổ cái `IN`. |
+| `POST` | `/api/stock-transfers/{id}/cancel` | `Owner, Staff` | `FR-INV-03` | Hủy phiếu khi còn `Draft`. |
 
 ---
 

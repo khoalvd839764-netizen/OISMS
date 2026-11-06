@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-ARC-04` |
-| **Phiên bản (Version)** | `v1.1.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-02` |
+| **Phiên bản (Version)** | `v1.3.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-ORD-02`, `FR-INV-02..03`, `FR-RSE-02..03` (Trang 2, 3) |
 | **Phạm vi áp dụng** | Đơn hàng (`Order`), Giữ chỗ (`Reservation`), Phiếu nhập (`GoodsReceipt`) & Chuyển kho (`StockTransfer`) |
 
@@ -17,6 +17,7 @@
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả máy trạng thái chuẩn UML 2.0 cho Đơn hàng, Giữ chỗ, Phiếu nhập và Phiếu chuyển kho 2 bước. | `INIT-ARC-04` |
 | `v1.1.0` | `2026-11-02` | Nhóm dự án OISMS | Thêm máy trạng thái Phiếu mua hàng. | `OISMS-47-U01A` |
 | `v1.2.0` | `2026-11-03` | Nhóm dự án OISMS | Bổ sung máy trạng thái Đợt kiểm kê (StockCount) và Kỳ kiểm kê (StockCountPeriod). | `OISMS-47-U03` |
+| `v1.3.0` | `2026-11-06` | Nhóm dự án OISMS | Đối chiếu với service: thêm máy trạng thái Giữ chỗ, `PendingApproval → Cancelled` của kiểm kê, kỳ kiểm kê bị hủy khi tắt lịch; ghi chú Hangfire mặc định tắt. | `OISMS-46` |
 
 ---
 
@@ -28,8 +29,23 @@ stateDiagram-v2
     Draft --> Reserved : Reserve thành công (Tăng reserved, giảm available)
     Draft --> Cancelled : Không đủ tồn khả dụng / Hủy nháp
     Reserved --> Confirmed : Duyệt đơn / POS Checkout (Trừ on_hand, giảm reserved, ghi Ledger OUT, chụp CostPrice, lập SalesInvoice)
-    Reserved --> Cancelled : Nhân viên hủy / Hangfire hủy đơn quá hạn (Giảm reserved, hoàn lại available)
+    Reserved --> Cancelled : Nhân viên hủy / job hết hạn giữ chỗ (Giảm reserved, không ghi Ledger IN bù)
     Confirmed --> Completed : Giao hàng thành công / Hoàn tất tại quầy POS
+```
+
+- POS checkout (`POST /api/pos/checkout`, `POST /api/orders/checkout`) đi thẳng từ giỏ hàng tới `Completed` trong một transaction: trừ `on_hand`, ghi `OUT`, chụp `OrderItem.CostPrice`, lập `SalesInvoice`.
+- `POST /api/orders/{id}/process` (xử lý đóng gói) gọi lại luồng Confirm cho đơn `Reserved`; đơn đã `Confirmed` thì trả nguyên kết quả. Không có trạng thái `Processing` trong DB (CHECK của `orders.status` chỉ có 5 giá trị trên).
+- Hủy đơn `Draft` chỉ áp dụng cho nháp chưa thanh toán; đơn đã `Confirmed`/`Completed` không hủy được, phải xử lý bằng trả hàng (CS-01, chưa làm).
+- Job hết hạn giữ chỗ (`ReservationExpiryJob`, mỗi phút) chỉ chạy khi `Hangfire:Enabled=true`; cấu hình mặc định và Docker Compose đang tắt.
+
+### 1.1. Máy Trạng Thái Phiếu Giữ Chỗ (`Reservation`)
+
+```mermaid
+stateDiagram-v2
+    [*] --> Active : Reserve thành công (tăng reserved tại kho và chi nhánh)
+    Active --> Consumed : Đơn được Confirm (trừ on_hand, ghi OUT)
+    Active --> Released : Hủy đơn khi giữ chỗ còn hạn
+    Active --> Expired : Hủy đơn / job quét khi expires_at đã qua
 ```
 
 ---
@@ -87,6 +103,7 @@ stateDiagram-v2
     PendingApproval --> Confirmed : Owner phê duyệt chốt kiểm kê (Atomic: Bút toán sổ cái + Cân bằng tồn)
     Draft --> Cancelled : Hủy phiếu kiểm kê nháp
     Counting --> Cancelled : Hủy phiếu khi đang đếm
+    PendingApproval --> Cancelled : Hủy phiếu đang chờ duyệt
 ```
 
 ### 4.2. Máy Trạng Thái Kỳ Kiểm Kê Định Kỳ (`StockCountPeriod`)
@@ -97,5 +114,7 @@ stateDiagram-v2
     Planned --> InProgress : Bắt đầu đếm kỳ (StartPeriod - Chụp snapshot & tạo phiếu kiểm kê)
     InProgress --> Completed : Phiếu kiểm kê được duyệt chốt (Confirmed)
     InProgress --> Planned : Phiếu kiểm kê bị hủy (Cancelled - Cho phép bắt đầu lại)
-    Planned --> Cancelled : Quản trị hủy kỳ kiểm kê
+    Planned --> Cancelled : Owner tắt lịch kiểm kê (các kỳ Planned trong tương lai)
 ```
+
+Kỳ kiểm kê được sinh bởi `StockCountPeriodJob` (phút thứ 5 mỗi giờ) khi `Hangfire:Enabled=true`. Khi Hangfire tắt, lịch vẫn lưu được nhưng kỳ mới không tự sinh.

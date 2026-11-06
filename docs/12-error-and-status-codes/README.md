@@ -28,7 +28,7 @@ Phân hệ **`12-error-and-status-codes`** quy định chuẩn hóa hai trụ c�
 | STT | Mã tài liệu | Tên file | Phiên bản | Nội dung chính |
 | :---: | :---: | :--- | :---: | :--- |
 | **1** | `DOC-ERR-01` | [`01-error-response-spec.md`](./01-error-response-spec.md) | `v1.0.0` | Đặc tả cấu trúc JSON Problem Details chuẩn RFC 7807, Bảng ánh xạ mã trạng thái HTTP chuẩn (400, 401, 403, 404, 409, 422, 500) và cơ chế xử lý ngoại lệ tập trung trên Backend & Frontend. |
-| **2** | `DOC-ERR-02` | [`02-error-codes-catalog.md`](./02-error-codes-catalog.md) | `v1.0.0` | Từ điển toàn diện các mã lỗi nghiệp vụ (`ErrorCode Catalog`) được phân loại theo phân hệ: Xác thực & Tenant, Danh mục & Sản phẩm, Tồn kho & Sổ cái, Đơn hàng đa kênh & POS Checkout, Chuyển kho & Kiểm kê. |
+| **2** | `DOC-ERR-02` | [`02-error-codes-catalog.md`](./02-error-codes-catalog.md) | `v1.2.0` | Từ điển toàn diện các mã lỗi nghiệp vụ (`ErrorCode Catalog`) được phân loại theo phân hệ: Xác thực & Tenant, Danh mục & Sản phẩm, Tồn kho & Sổ cái, Đơn hàng đa kênh & POS Checkout, Chuyển kho & Kiểm kê. |
 | **3** | `DOC-ERR-03` | [`03-color-system-tokens.md`](./03-color-system-tokens.md) | `v1.0.0` | Bảng mã màu Design Tokens (HEX, RGB, CSS Variables, Tailwind classes) cho các cấp độ thông báo: Danger (Đỏ), Warning (Vàng cam), Success (Xanh lá), Info/Brand (Xanh dương) và Neutral (Xám). |
 | **4** | `DOC-ERR-04` | [`04-ui-feedback-guidelines.md`](./04-ui-feedback-guidelines.md) | `v1.0.0` | Hướng dẫn triển khai phản hồi thị giác trên Frontend: Quy chuẩn Toast, Inline validation, Modal chặn tương tác, Ma trận màu sắc cho Badge trạng thái Đơn hàng, Phiếu kho, và Trạng thái mạng POS. |
 

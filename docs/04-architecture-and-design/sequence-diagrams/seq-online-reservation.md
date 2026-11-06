@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-SEQ-02` |
-| **Phiên bản (Version)** | `v1.0.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-10-22` |
+| **Phiên bản (Version)** | `v1.1.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-RSE-01..03`, `NFR-PERF-02`, `3.2.e` (Trang 2, 3, 4, 5) |
 | **Phạm vi áp dụng** | `ReservationService.cs`, `POST /api/inventory/reserve` & Webhook Ingestion |
 
@@ -16,6 +16,7 @@
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Thiết kế Sequence Diagram cho cơ chế khóa CSDL chống bán vượt và bảo vệ Idempotency khi giữ chỗ. | `INIT-SEQ-02` |
 
+| `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Đồng bộ khóa advisory theo (Tenant, Branch, SKU) và theo RequestKey; thời hạn giữ chỗ mặc định 15 phút do `DurationMinutes`. | `OISMS-46` |
 ---
 
 ## Sơ Đồ Trình Tự Giữ Chỗ Chịu Tải Cao (Flash Sale 50 Concurrent Requests)
@@ -28,10 +29,10 @@ sequenceDiagram
     participant Svc as ReservationService
     participant DB as PostgreSQL (Advisory & Row Lock)
 
-    Client->>API: POST /api/inventory/reserve (SkuId, WarehouseId, Quantity, OrderId, RequestKey)
+    Client->>API: POST /api/inventory/reserve (OrderItemId, SkuId, BranchId, WarehouseId, Quantity, DurationMinutes, RequestKey)
     API->>Svc: ReserveStockAsync(request)
     Svc->>DB: BEGIN TRANSACTION
-    Svc->>DB: SELECT pg_advisory_xact_lock(hash(TenantId + RequestKey / OrderItemId))
+    Svc->>DB: SELECT pg_advisory_xact_lock(hashtextextended(Tenant/Branch/SKU)) và khóa theo RequestKey
     Svc->>DB: Kiểm tra Idempotency: Đã có Reservation Active cho cùng RequestKey / OrderItemId?
     alt Đã tồn tại Reservation khớp thông số (Retry do mạng)
         DB-->>Svc: Trả về bản ghi Reservation cũ
@@ -46,7 +47,7 @@ sequenceDiagram
             Svc-->>Client: HTTP 409 Conflict (Chặn bán vượt thành công)
         else Available >= Quantity
             Svc->>DB: Tăng Reserved ở cả 2 cấp (Warehouse & Branch)
-            Svc->>DB: INSERT INTO reservations (Status = Active, ExpiresAt = +15 mins)
+            Svc->>DB: INSERT INTO reservations (Status = Active, ExpiresAt = now + DurationMinutes, mặc định 15)
             Svc->>DB: COMMIT TRANSACTION
             Svc-->>Client: HTTP 200 OK (Trả về ReservationId & Available mới)
         end
