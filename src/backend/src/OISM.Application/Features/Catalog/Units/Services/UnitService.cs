@@ -60,7 +60,7 @@ public class UnitService : IUnitService
 
         if (missing.Count == 0) return;
 
-        if (_context.HasActiveTransaction)
+        if (_context.UnitOfWork.HasActiveTransaction)
         {
             await _sqlLockService.LockUnitCatalogAsync(tenantId, ct);
             var currentCodes = await _context.Units
@@ -90,10 +90,9 @@ public class UnitService : IUnitService
             return;
         }
 
-        var strategy = _context.CreateExecutionStrategy();
-        await strategy.ExecuteAsync(async () =>
+        await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
             await _sqlLockService.LockUnitCatalogAsync(tenantId, ct);
 
             var currentCodes = await _context.Units
@@ -179,10 +178,9 @@ public class UnitService : IUnitService
             throw new OismException("VALIDATION_ERROR", "Số chữ số thập phân cho phép từ 0 đến 3.", 400);
         }
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             await _sqlLockService.LockUnitCatalogAsync(tenantId, ct);
 
@@ -231,10 +229,9 @@ public class UnitService : IUnitService
             throw new OismException("VALIDATION_ERROR", "Ký hiệu đơn vị tính không được để trống và không quá 20 ký tự.", 400);
         }
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             await _sqlLockService.LockUnitCatalogAsync(tenantId, ct);
 
@@ -345,10 +342,9 @@ public class UnitService : IUnitService
         // Tự khởi tạo đơn vị gốc nếu variant.BaseUnitId == null
         if (!variant.BaseUnitId.HasValue)
         {
-            var strategy = _context.CreateExecutionStrategy();
-            await strategy.ExecuteAsync(async () =>
+            await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
             {
-                await using var tx = await _context.BeginTransactionAsync(ct);
+                await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
                 await _sqlLockService.LockProductAsync(productId, ct);
                 await _sqlLockService.LockUnitCatalogAsync(tenantId, ct);
                 await EnsureBaseUnitConfiguredAsync(variant, ct);
@@ -394,10 +390,9 @@ public class UnitService : IUnitService
             throw new OismException("VALIDATION_ERROR", "Mã vạch không được vượt quá 128 ký tự.", 400);
         }
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             // Thứ tự khóa bắt buộc: LockProductAsync -> LockUnitCatalogAsync
             await _sqlLockService.LockProductAsync(productId, ct);
@@ -574,10 +569,9 @@ public class UnitService : IUnitService
             throw new OismException("VALIDATION_ERROR", "Mã vạch không được vượt quá 128 ký tự.", 400);
         }
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             // Thứ tự khóa bắt buộc: LockProductAsync -> LockUnitCatalogAsync
             await _sqlLockService.LockProductAsync(productId, ct);
@@ -810,10 +804,9 @@ public class UnitService : IUnitService
     {
         var tenantId = RequireTenantId();
 
-        var strategy = _context.CreateExecutionStrategy();
-        await strategy.ExecuteAsync(async () =>
+        await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             await _sqlLockService.LockProductAsync(productId, ct);
             await _sqlLockService.LockUnitCatalogAsync(tenantId, ct);

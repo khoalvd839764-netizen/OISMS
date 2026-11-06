@@ -6,6 +6,7 @@ using OISM.Application.Features.Inventory.Dtos;
 using OISM.Application.Features.Pricing.Dtos;
 using OISM.Application.Features.Pricing.Services;
 using OISM.Application.Features.Realtime;
+using OISM.Domain.Common;
 using OISM.Domain.Entities;
 
 namespace OISM.Application.Features.Inventory.Services;
@@ -60,29 +61,19 @@ public class ReservationService : IReservationService
 
         // Bắt đầu một transaction READ COMMITTED bao bọc trong ExecutionStrategy
         List<Func<Task>> pendingNotifications = new();
-        var strategy = _context.CreateExecutionStrategy();
-        var result = await strategy.ExecuteAsync(async () =>
+        var result = await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
             pendingNotifications.Clear();
-            await using var transaction = await _context.BeginTransactionAsync(ct);
+            await using var transaction = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             try
             {
             // BE1-09: Lấy advisory lock theo (Tenant, Branch, SKU) trước khi đọc tồn kho để tránh Race Condition
-            if (_context.IsRelationalDatabase)
-            {
-                await _context.ExecuteSqlRawAsync(
-                    "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/' || {1}::text || '/' || {2}::text, 0));",
-                    new object[] { tenantId.ToString(), dto.BranchId.ToString(), dto.SkuId.ToString() },
-                    ct);
+            await _context.Locks.LockSkuStockAsync(tenantId, dto.BranchId, [dto.SkuId], ct);
 
-                if (dto.RequestKey.HasValue)
-                {
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/request_key/' || {1}::text, 0));",
-                        new object[] { tenantId.ToString(), dto.RequestKey.Value.ToString() },
-                        ct);
-                }
+            if (dto.RequestKey.HasValue)
+            {
+                await _context.Locks.LockRequestKeyAsync(tenantId, dto.RequestKey.Value, ct);
             }
 
             // Kiểm tra kho hợp lệ và thuộc chi nhánh yêu cầu
@@ -163,7 +154,7 @@ public class ReservationService : IReservationService
 
                 if (existingReservation != null)
                 {
-                    if (existingReservation.Status == "Active" &&
+                    if (existingReservation.Status == ReservationStatus.Active &&
                         existingReservation.OrderId == dto.OrderId.Value &&
                         existingReservation.SkuId == dto.SkuId &&
                         existingReservation.BranchId == dto.BranchId &&
@@ -217,7 +208,7 @@ public class ReservationService : IReservationService
 
                         // Payload khớp -> kiểm tra trạng thái
                         var nowUtc = DateTimeOffset.UtcNow;
-                        if (existingResByKey.Status == "Active" && existingResByKey.ExpiresAt > nowUtc)
+                        if (existingResByKey.IsActiveAt(nowUtc))
                         {
                             // Trả về kết quả cũ, KHÔNG tạo Order, KHÔNG tăng Reserved
                             await transaction.CommitAsync(ct);
@@ -289,7 +280,7 @@ public class ReservationService : IReservationService
                     Number = orderNumber,
                     BranchId = dto.BranchId,
                     Channel = "POS",
-                    Status = "Draft",
+                    Status = OrderStatus.Draft,
                     TotalAmount = dto.Quantity * priceInfo.Price,
                     RequestKey = dto.RequestKey ?? Guid.NewGuid(),
                     CreatedBy = userId,
@@ -349,7 +340,7 @@ public class ReservationService : IReservationService
                 WarehouseId = dto.WarehouseId,
                 SkuId = dto.SkuId,
                 Quantity = dto.Quantity,
-                Status = "Active",
+                Status = ReservationStatus.Active,
                 ExpiresAt = expiresAt,
                 CreatedAt = now
             };
@@ -359,16 +350,13 @@ public class ReservationService : IReservationService
             {
                 await _context.SaveChangesAsync(ct);
             }
-            catch (DbUpdateException ex) when (IsReservationConflict(ex))
+            catch (DbUpdateException ex) when (_context.DatabaseErrors.IsUniqueViolation(ex, "uq_reservations_2"))
             {
                 throw new InvalidOperationException("Dòng đơn hàng này đã được giữ chỗ tại kho được chỉ định.");
             }
 
             // Kiểm tra Deferred Constraints trước khi COMMIT
-            if (_context.IsRelationalDatabase)
-            {
-                await _context.ExecuteSqlRawAsync("SET CONSTRAINTS ALL IMMEDIATE;", Array.Empty<object>(), ct);
-            }
+            await _context.Locks.SetConstraintsImmediateAsync(ct);
 
             await transaction.CommitAsync(ct);
             if (_realtimeNotifier != null)
@@ -422,22 +410,5 @@ public class ReservationService : IReservationService
         }
 
         return result;
-    }
-
-    private static bool IsReservationConflict(DbUpdateException ex)
-    {
-        var inner = ex.InnerException;
-        if (inner == null) return false;
-
-        var type = inner.GetType();
-        if (type.Name == "PostgresException")
-        {
-            var sqlState = type.GetProperty("SqlState")?.GetValue(inner) as string;
-            var constraintName = type.GetProperty("ConstraintName")?.GetValue(inner) as string;
-            var message = inner.Message;
-            return sqlState == "23505" &&
-                   (constraintName == "uq_reservations_2" || message.Contains("uq_reservations_2"));
-        }
-        return false;
     }
 }

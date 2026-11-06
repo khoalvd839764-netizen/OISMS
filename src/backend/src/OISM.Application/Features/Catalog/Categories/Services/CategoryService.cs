@@ -82,15 +82,14 @@ public class CategoryService : ICategoryService
             tenantId = catStub.TenantId;
         }
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync<CategoryResponse?>(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync<CategoryResponse?>(async () =>
         {
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
             try
             {
                 await _lockService.LockCategoryTreeAsync(tenantId.Value, ct);
 
-                _context.ClearChangeTracker();
+                _context.UnitOfWork.ResetTracking();
 
                 var category = await _context.Categories.FirstOrDefaultAsync(c => c.Id == id, ct);
                 if (category == null)

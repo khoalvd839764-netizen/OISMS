@@ -121,11 +121,15 @@ export const SalesInvoicesPage: React.FC = () => {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const next = filterNumber.trim();
-    setPageIndex(1);
-    if (next !== appliedNumber) {
-      setAppliedNumber(next);
+    if (pageIndex === 1) {
+      if (next !== appliedNumber) {
+        setAppliedNumber(next);
+      } else {
+        loadInvoices();
+      }
     } else {
-      loadInvoices();
+      setPageIndex(1);
+      setAppliedNumber(next);
     }
   };
 
@@ -135,7 +139,11 @@ export const SalesInvoicesPage: React.FC = () => {
     setFilterBranchId('');
     setFilterFromDate('');
     setFilterToDate('');
-    setPageIndex(1);
+    if (pageIndex === 1) {
+      loadInvoices();
+    } else {
+      setPageIndex(1);
+    }
   };
 
   const formatCurrency = (val: number) => {

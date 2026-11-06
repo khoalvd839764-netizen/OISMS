@@ -20,7 +20,7 @@ public class StockTransfer : BaseEntity, IMustHaveTenant
     /// <summary>
     /// Trạng thái chuyển kho: 'Draft', 'InTransit', 'Received', 'Cancelled'.
     /// </summary>
-    public string Status { get; set; } = "Draft";
+    public string Status { get; set; } = StockTransferStatus.Draft;
 
     public Guid CreatedBy { get; set; }
     public Guid? DispatchedBy { get; set; }
@@ -40,4 +40,32 @@ public class StockTransfer : BaseEntity, IMustHaveTenant
     public User? ReceivedByUser { get; set; }
 
     public ICollection<StockTransferItem> Items { get; set; } = new List<StockTransferItem>();
+
+    public bool IsDraft => Status == StockTransferStatus.Draft;
+    public bool CanReceive => Status == StockTransferStatus.InTransit;
+
+    public void Dispatch(Guid userId, DateTimeOffset at)
+    {
+        StateTransition.Ensure(IsDraft, nameof(StockTransfer), Status, StockTransferStatus.InTransit);
+        Status = StockTransferStatus.InTransit;
+        DispatchedBy = userId;
+        DispatchedAt = at;
+        UpdatedAt = at;
+    }
+
+    public void Receive(Guid userId, DateTimeOffset at)
+    {
+        StateTransition.Ensure(CanReceive, nameof(StockTransfer), Status, StockTransferStatus.Received);
+        Status = StockTransferStatus.Received;
+        ReceivedBy = userId;
+        ReceivedAt = at;
+        UpdatedAt = at;
+    }
+
+    public void Cancel(DateTimeOffset at)
+    {
+        StateTransition.Ensure(IsDraft, nameof(StockTransfer), Status, StockTransferStatus.Cancelled);
+        Status = StockTransferStatus.Cancelled;
+        UpdatedAt = at;
+    }
 }

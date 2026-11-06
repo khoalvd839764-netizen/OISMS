@@ -200,7 +200,8 @@ export function PosPage() {
     setCart((prevCart) => {
       return prevCart
         .map((item) => {
-          if (item.lineKey === key || item.variantId === key) {
+          const isMatch = item.lineKey ? item.lineKey === key : item.variantId === key;
+          if (isMatch) {
             const nextQty = normalizeQuantity(item.quantity + delta, lineDecimalPlaces(item));
             const maxQty = maxQuantityForLine(prevCart, item);
             if (delta > 0 && nextQty > maxQty) {
@@ -218,7 +219,8 @@ export function PosPage() {
   const handleSetQuantity = (key: string, quantity: number) => {
     setCart((prevCart) =>
       prevCart.map((item) => {
-        if (item.lineKey === key || item.variantId === key) {
+        const isMatch = item.lineKey ? item.lineKey === key : item.variantId === key;
+        if (isMatch) {
           const decimalPlaces = lineDecimalPlaces(item);
           const minQty = decimalPlaces > 0 ? 1 / 10 ** decimalPlaces : 1;
           const maxQty = Math.max(minQty, maxQuantityForLine(prevCart, item));
@@ -231,7 +233,9 @@ export function PosPage() {
   };
 
   const handleRemoveItem = (key: string) => {
-    setCart((prevCart) => prevCart.filter((item) => item.lineKey !== key && item.variantId !== key));
+    setCart((prevCart) =>
+      prevCart.filter((item) => (item.lineKey ? item.lineKey !== key : item.variantId !== key))
+    );
   };
 
   const handleUpdateUnit = (lineKey: string, newUnitId: string) => {

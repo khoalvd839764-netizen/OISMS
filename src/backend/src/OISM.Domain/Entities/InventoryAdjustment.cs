@@ -18,7 +18,7 @@ public class InventoryAdjustment : BaseEntity, IMustHaveTenant
     /// <summary>
     /// Trạng thái điều chỉnh: 'Draft', 'Confirmed', 'Cancelled'.
     /// </summary>
-    public string Status { get; set; } = "Draft";
+    public string Status { get; set; } = InventoryAdjustmentStatus.Draft;
 
     public Guid CreatedBy { get; set; }
     public Guid? ConfirmedBy { get; set; }
@@ -32,4 +32,13 @@ public class InventoryAdjustment : BaseEntity, IMustHaveTenant
     public User? ConfirmedByUser { get; set; }
 
     public ICollection<InventoryAdjustmentItem> Items { get; set; } = new List<InventoryAdjustmentItem>();
+
+    public void Confirm(Guid userId, DateTimeOffset at)
+    {
+        StateTransition.Ensure(Status == InventoryAdjustmentStatus.Draft,
+            nameof(InventoryAdjustment), Status, InventoryAdjustmentStatus.Confirmed);
+        Status = InventoryAdjustmentStatus.Confirmed;
+        ConfirmedBy = userId;
+        ConfirmedAt = at;
+    }
 }

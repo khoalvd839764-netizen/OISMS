@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
 using OISM.Application.Features.Catalog.Categories;
 using OISM.Application.Features.Catalog.Categories.Services;
+using OISM.WebApi.Http;
 
 namespace OISM.WebApi.Controllers;
 
@@ -46,6 +46,7 @@ public class CategoriesController : ControllerBase
     /// </summary>
     [HttpPost]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.MessageBadRequest)]
     public async Task<IActionResult> CreateCategory([FromBody] CreateCategoryRequest request, CancellationToken ct)
     {
         var validator = new CreateCategoryValidator();
@@ -55,15 +56,8 @@ public class CategoriesController : ControllerBase
             return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
         }
 
-        try
-        {
-            var response = await _categoryService.CreateCategoryAsync(request, ct);
-            return StatusCode(201, response);
-        }
-        catch (OismException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        var response = await _categoryService.CreateCategoryAsync(request, ct);
+        return StatusCode(201, response);
     }
 
     /// <summary>
@@ -71,6 +65,7 @@ public class CategoriesController : ControllerBase
     /// </summary>
     [HttpPut("{id}")]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.MessageBadRequest)]
     public async Task<IActionResult> UpdateCategory(Guid id, [FromBody] UpdateCategoryRequest request, CancellationToken ct)
     {
         var validator = new UpdateCategoryValidator();
@@ -80,21 +75,14 @@ public class CategoriesController : ControllerBase
             return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
         }
 
-        try
+        var tenantId = GetCurrentTenantId();
+        var response = await _categoryService.UpdateCategoryAsync(id, request, tenantId, ct);
+        if (response == null)
         {
-            var tenantId = GetCurrentTenantId();
-            var response = await _categoryService.UpdateCategoryAsync(id, request, tenantId, ct);
-            if (response == null)
-            {
-                return NotFound(new { message = "Không tìm thấy danh mục." });
-            }
+            return NotFound(new { message = "Không tìm thấy danh mục." });
+        }
 
-            return Ok(response);
-        }
-        catch (OismException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        return Ok(response);
     }
 
     /// <summary>

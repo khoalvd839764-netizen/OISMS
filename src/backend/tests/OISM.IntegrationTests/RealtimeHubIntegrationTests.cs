@@ -262,6 +262,16 @@ public class RealtimeHubIntegrationTests : IClassFixture<CustomWebApplicationFac
         // 7. Cố tình tham gia chi nhánh không tồn tại -> Bị từ chối bằng HubException
         var joinNonExistentBranch = async () => await hubOwner.InvokeAsync("JoinBranchGroup", Guid.NewGuid());
         await joinNonExistentBranch.Should().ThrowAsync<HubException>();
+
+        using var scope = _factory.Services.CreateScope();
+        scope.ServiceProvider.GetRequiredService<ICurrentTenantService>().SetTenant(tenantA.TenantId);
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var inactiveBranch = new Branch { Name = "Chi nhánh đã ngưng", IsActive = false };
+        db.Branches.Add(inactiveBranch);
+        await db.SaveChangesAsync();
+
+        var joinInactiveBranch = async () => await hubOwner.InvokeAsync("JoinBranchGroup", inactiveBranch.Id);
+        await joinInactiveBranch.Should().ThrowAsync<HubException>();
     }
 
     #endregion

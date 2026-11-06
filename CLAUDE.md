@@ -56,12 +56,12 @@ CI chạy khi push hoặc mở PR vào `main`, `master`, `develop`: build và te
 - **Idempotency:** thao tác ghi quan trọng dùng `RequestKey` hoặc `Idempotency-Key`: cùng key và payload trả kết quả cũ, khác payload trả 409. Frontend giữ nguyên key khi retry lúc kết quả chưa rõ.
 - **Trạng thái đơn:** `Draft → Reserved → Confirmed → Completed`; `Draft` hoặc `Reserved → Cancelled`. Xem `docs/04-architecture-and-design/04-state-machines.md`.
 - **Phân quyền:** ba vai trò `Owner`, `Staff`, `Cashier`. Báo cáo tài chính và trường giá vốn phải kiểm tra quyền ở cả dữ liệu trả về.
-- **Clean Architecture:** controller chỉ điều phối HTTP, nghiệp vụ nằm trong Application. Nợ đã biết: Application vẫn tham chiếu EF Core và một số service cũ còn SQL PostgreSQL. Không tiện tay refactor phần này.
+- **Clean Architecture:** controller điều phối HTTP, Application điều phối nghiệp vụ qua `IUnitOfWork` và `ISqlLockService`. SQL khóa và cách thực thi transaction nằm trong Infrastructure. Application vẫn tham chiếu EF Core cho truy vấn và lưu entity.
 - **Múi giờ báo cáo:** ngày nghiệp vụ theo `UTC+07:00`, lọc theo khoảng nửa mở `CreatedAt < endBoundary`.
 
 ## Database
 
-- Không dùng EF migrations. Mỗi thay đổi schema gồm: một file mới trong `docker/postgres/migrations/` (không sửa file cũ), cập nhật `oisms_schema.sql`, thêm bảng vào `RequiredTables` trong `Program.cs`, sửa số bảng kiểm tra trong `docker/postgres/init-oisms.sh`.
+- Không dùng EF migrations. Mỗi thay đổi schema gồm: một file mới trong `docker/postgres/migrations/` (không sửa file cũ), cập nhật `oisms_schema.sql`, thêm bảng vào `DatabaseMigrationService.RequiredTables` trong Infrastructure, sửa số bảng kiểm tra trong `docker/postgres/init-oisms.sh`.
 - Không chạy `oisms_schema.sql` lên DB đã có dữ liệu. `init-oisms.sh` chỉ chạy khi volume trống; rebuild không nâng cấp schema. `/health/ready` trả 503 "schema is incomplete" nghĩa là còn thiếu migration.
 - Không tự chạy `docker compose down -v` vì lệnh này xóa dữ liệu local.
 - Backend chạy bằng tài khoản `oisms_app` ít quyền; `postgres` chỉ dùng cho migration và backup.

@@ -215,7 +215,7 @@ Kiểm tra trạng thái sẵn sàng của Backend qua Readiness Endpoint:
 ```powershell
 curl http://localhost:5000/health/ready
 ```
-Endpoint `/health/ready` thực hiện mở kết nối PostgreSQL bằng tài khoản runtime `oisms_app`, kiểm tra đủ 43 bảng (`RequiredTables` trong `Program.cs`), trigger bất biến sổ cái và quyền hạn trước khi trả về HTTP 200 `Healthy` (trả về HTTP 503 `Unhealthy` nếu thất bại, không để lộ connection string hoặc mật khẩu).
+Endpoint `/health/ready` thực hiện mở kết nối PostgreSQL bằng tài khoản runtime `oisms_app`, kiểm tra đủ 43 bảng (`DatabaseMigrationService.RequiredTables` trong Infrastructure), trigger bất biến sổ cái và quyền hạn trước khi trả về HTTP 200 `Healthy` (trả về HTTP 503 `Unhealthy` nếu thất bại, không để lộ connection string hoặc mật khẩu).
 
 ### Xem log cơ sở dữ liệu
 
@@ -293,7 +293,7 @@ Khi container khởi động lại hoặc khi volume `postgres_data` đã tồn 
    ```powershell
    docker compose exec -i postgres psql -U postgres -d oisms -f /path/to/migration.sql
    ```
-4. **Không dùng EF Core migrations.** Dự án không có thư mục `Migrations` và backend không tự nâng cấp schema (`DatabaseMigrationService` chỉ được integration test gọi để kiểm tra nâng cấp chạy lại an toàn, không chạy lúc khởi động). Mỗi thay đổi schema gồm: file mới trong `docker/postgres/migrations/` (không sửa file cũ), cập nhật `oisms_schema.sql`, thêm bảng vào `RequiredTables` trong `Program.cs`, sửa số bảng kiểm tra trong `docker/postgres/init-oisms.sh`.
+4. **Không dùng EF Core migrations.** Dự án không có thư mục `Migrations` và backend không tự nâng cấp schema (`DatabaseMigrationService` chỉ được integration test gọi để kiểm tra nâng cấp chạy lại an toàn, không chạy lúc khởi động). Mỗi thay đổi schema gồm: file mới trong `docker/postgres/migrations/` (không sửa file cũ), cập nhật `oisms_schema.sql`, thêm bảng vào `DatabaseMigrationService.RequiredTables` trong Infrastructure, sửa số bảng kiểm tra trong `docker/postgres/init-oisms.sh`.
 5. **Trên máy chủ AWS:** xem [13-deploy-aws/04](../13-deploy-aws/04-quy-trinh-deploy-va-cap-nhat.md#33-có-migration).
 
 ## Quy ước tên và dữ liệu

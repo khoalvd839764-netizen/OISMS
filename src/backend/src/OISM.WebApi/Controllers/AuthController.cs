@@ -1,11 +1,11 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using OISM.Application.Common.Exceptions;
 using OISM.Application.Features.Auth.CurrentUser;
 using OISM.Application.Features.Auth.Login;
 using OISM.Application.Features.Auth.RefreshToken;
 using OISM.Application.Features.Auth.RegisterTenant;
 using OISM.Application.Features.Auth.Services;
+using OISM.WebApi.Http;
 
 namespace OISM.WebApi.Controllers;
 
@@ -24,6 +24,7 @@ public class AuthController : ControllerBase
     /// Đăng ký Cửa hàng (Tenant) mới kèm tài khoản Chủ shop (Owner) ban đầu (FR-AUTH-01).
     /// </summary>
     [HttpPost("register-tenant")]
+    [ApiErrorContract(ApiErrorProfile.Register)]
     public async Task<IActionResult> RegisterTenant([FromBody] RegisterTenantRequest request, CancellationToken ct)
     {
         var validator = new RegisterTenantValidator();
@@ -33,23 +34,8 @@ public class AuthController : ControllerBase
             return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
         }
 
-        try
-        {
-            var response = await _authService.RegisterTenantAsync(request, ct);
-            return StatusCode(201, response);
-        }
-        catch (OismException ex) when (ex.StatusCode == 409)
-        {
-            return Conflict(new { message = ex.Message });
-        }
-        catch (OismException ex) when (ex.StatusCode == 400)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-        catch (Exception)
-        {
-            return StatusCode(500, new { message = "Đã xảy ra lỗi trong quá trình xử lý đăng ký." });
-        }
+        var response = await _authService.RegisterTenantAsync(request, ct);
+        return StatusCode(201, response);
     }
 
     /// <summary>
@@ -57,6 +43,7 @@ public class AuthController : ControllerBase
     /// Trả về JWT Access Token (hạn 60p) và Refresh Token (hạn 7 ngày).
     /// </summary>
     [HttpPost("login")]
+    [ApiErrorContract(ApiErrorProfile.Login)]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken ct)
     {
         var validator = new LoginValidator();
@@ -66,21 +53,15 @@ public class AuthController : ControllerBase
             return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
         }
 
-        try
-        {
-            var response = await _authService.LoginAsync(request, ct);
-            return Ok(response);
-        }
-        catch (OismException ex) when (ex.StatusCode == 401)
-        {
-            return Unauthorized(new { message = ex.Message });
-        }
+        var response = await _authService.LoginAsync(request, ct);
+        return Ok(response);
     }
 
     /// <summary>
     /// Làm mới Access Token bằng Refresh Token (Token Rotation nguyên tử, chống race condition trên PostgreSQL).
     /// </summary>
     [HttpPost("refresh-token")]
+    [ApiErrorContract(ApiErrorProfile.RefreshToken)]
     public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.RefreshToken))
@@ -88,19 +69,8 @@ public class AuthController : ControllerBase
             return BadRequest(new { message = "Refresh token không được để trống." });
         }
 
-        try
-        {
-            var response = await _authService.RefreshTokenAsync(request, ct);
-            return Ok(response);
-        }
-        catch (OismException ex) when (ex.StatusCode == 401)
-        {
-            return Unauthorized(new { message = ex.Message });
-        }
-        catch (OismException ex) when (ex.StatusCode == 400)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        var response = await _authService.RefreshTokenAsync(request, ct);
+        return Ok(response);
     }
 
     /// <summary>
@@ -120,8 +90,7 @@ public class AuthController : ControllerBase
     [HttpGet("me")]
     public async Task<IActionResult> GetMe(CancellationToken ct)
     {
-        var userIdClaim = User.FindFirst("userId")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+        if (User.GetUserId() is not { } userId)
         {
             return Unauthorized(new { message = "Không xác định được phiên người dùng." });
         }

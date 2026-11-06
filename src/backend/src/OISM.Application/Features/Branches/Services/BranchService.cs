@@ -49,6 +49,9 @@ public class BranchService : IBranchService
         };
     }
 
+    public Task<bool> ExistsActiveAsync(Guid tenantId, Guid branchId, CancellationToken ct = default) =>
+        _context.Branches.AnyAsync(b => b.TenantId == tenantId && b.Id == branchId && b.IsActive, ct);
+
     public async Task<BranchResponse> CreateBranchAsync(CreateBranchRequest request, CancellationToken ct = default)
     {
         var branch = new Branch

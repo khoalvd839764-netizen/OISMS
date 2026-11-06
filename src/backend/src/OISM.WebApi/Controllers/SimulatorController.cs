@@ -1,9 +1,8 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using OISM.Application.Common.Exceptions;
 using OISM.Application.Features.Simulator.Dtos;
 using OISM.Application.Features.Simulator.Services;
+using OISM.WebApi.Http;
 
 namespace OISM.WebApi.Controllers;
 
@@ -24,56 +23,18 @@ public class SimulatorController : ControllerBase
         _simulatorService = simulatorService;
     }
 
-    private Guid? GetCurrentUserId()
-    {
-        var claim = User.FindFirst("userId")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (Guid.TryParse(claim, out var userId))
-        {
-            return userId;
-        }
-        return null;
-    }
-
     /// <summary>
     /// Chạy mô phỏng tải đồng thời (Concurrency Simulation Runner) cho 1 SKU.
     /// Giúp kiểm chứng khả năng chịu tải và chống bán vượt (Anti-Overselling) theo tiêu chuẩn nghiệm thu Sprint 3 (NFR-PERF-02).
     /// </summary>
     [HttpPost("batch")]
+    [ApiErrorContract(ApiErrorProfile.Simulator)]
     public async Task<IActionResult> RunBatchSimulation(
         [FromBody] SimulationBatchRequestDto request,
         CancellationToken ct)
     {
-        if (!ModelState.IsValid)
-        {
-            return BadRequest(ModelState);
-        }
-
-        try
-        {
-            var userId = GetCurrentUserId();
-            var result = await _simulatorService.RunConcurrencySimulationAsync(request, userId, ct);
-            return Ok(result);
-        }
-        catch (OismException ex)
-        {
-            var problem = new ProblemDetails
-            {
-                Type = $"https://oisms.local/errors/{ex.ErrorCode}",
-                Title = ex.ErrorCode,
-                Status = ex.StatusCode,
-                Detail = ex.Message,
-                Instance = HttpContext.Request.Path,
-                Extensions =
-                {
-                    ["errorCode"] = ex.ErrorCode,
-                    ["timestamp"] = DateTimeOffset.UtcNow
-                }
-            };
-            return StatusCode(ex.StatusCode, problem);
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        var userId = User.GetUserId();
+        var result = await _simulatorService.RunConcurrencySimulationAsync(request, userId, ct);
+        return Ok(result);
     }
 }

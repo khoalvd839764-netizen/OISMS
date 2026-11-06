@@ -5,6 +5,7 @@ using OISM.Application.Common.Interfaces;
 using OISM.Application.Features.Catalog.Units.Services;
 using OISM.Application.Features.Inventory.Dtos;
 using OISM.Application.Features.Realtime;
+using OISM.Domain.Common;
 using OISM.Domain.Entities;
 
 namespace OISM.Application.Features.Inventory.Services;
@@ -36,21 +37,8 @@ public class GoodsReceiptService : IGoodsReceiptService
         _context = context;
         _currentTenantService = currentTenantService;
         _wacCalculator = wacCalculator;
-        _sqlLockService = sqlLockService ?? NoOpSqlLockService.Instance;
+        _sqlLockService = sqlLockService ?? context.Locks;
         _realtimeNotifier = realtimeNotifier;
-    }
-
-    private sealed class NoOpSqlLockService : ISqlLockService
-    {
-        public static readonly NoOpSqlLockService Instance = new();
-        public Task LockCategoryTreeAsync(Guid tenantId, CancellationToken ct = default) => Task.CompletedTask;
-        public Task LockProductAsync(Guid productId, CancellationToken ct = default) => Task.CompletedTask;
-        public Task LockRefreshTokenAsync(string tokenHash, CancellationToken ct = default) => Task.CompletedTask;
-        public Task LockWarehouseAsync(Guid warehouseId, Guid tenantId, CancellationToken ct = default) => Task.CompletedTask;
-        public Task LockUnitCatalogAsync(Guid tenantId, CancellationToken ct = default) => Task.CompletedTask;
-        public Task LockPriceChangeRequestAsync(Guid tenantId, Guid requestId, CancellationToken ct = default) => Task.CompletedTask;
-        public Task LockSkuUnitPriceAsync(Guid tenantId, Guid priceId, CancellationToken ct = default) => Task.CompletedTask;
-        public Task LockPurchaseOrderAsync(Guid tenantId, Guid purchaseOrderId, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private Guid RequireTenantId()
@@ -89,7 +77,7 @@ public class GoodsReceiptService : IGoodsReceiptService
             throw new KeyNotFoundException($"Không tìm thấy Phiếu mua hàng với ID '{dto.PurchaseOrderId}'.");
         }
 
-        if (po.Status != "Approved" && po.Status != "PartiallyReceived")
+        if (!po.CanReceive)
         {
             throw new PurchaseOrderNotReceivableException(
                 $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', chỉ cho phép lập phiếu nhập khi ở 'Approved' hoặc 'PartiallyReceived'.");
@@ -138,7 +126,7 @@ public class GoodsReceiptService : IGoodsReceiptService
         var exists = await _context.GoodsReceipts.AnyAsync(r => r.Number == number, ct);
         if (exists)
         {
-            throw new InvalidOperationException($"Mã phiếu nhập '{number}' đã tồn tại trong gian hàng.");
+            throw DuplicateReceiptNumber(number);
         }
 
         var now = DateTimeOffset.UtcNow;
@@ -150,7 +138,7 @@ public class GoodsReceiptService : IGoodsReceiptService
             BranchId = po.BranchId,
             WarehouseId = dto.WarehouseId,
             SupplierId = po.SupplierId,
-            Status = "Draft",
+            Status = GoodsReceiptStatus.Draft,
             Note = dto.Note,
             CreatedBy = userId,
             CreatedAt = now
@@ -204,13 +192,16 @@ public class GoodsReceiptService : IGoodsReceiptService
             _context.GoodsReceipts.Add(receipt);
             await _context.SaveChangesAsync(ct);
         }
-        catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("23505") == true || ex.InnerException?.Message.Contains("uq_goods_receipts_2") == true)
+        catch (DbUpdateException ex) when (_context.DatabaseErrors.IsUniqueViolation(ex, "uq_goods_receipts_2"))
         {
-            throw new InvalidOperationException($"Mã phiếu nhập '{number}' đã tồn tại trong gian hàng.");
+            throw DuplicateReceiptNumber(number);
         }
 
         return await MapToResponseDtoAsync(receipt.Id, ct);
     }
+
+    private static OismException DuplicateReceiptNumber(string number) =>
+        new("VALIDATION_ERROR", $"Mã phiếu nhập '{number}' đã tồn tại trong gian hàng.", 409);
 
     public async Task<PagedResult<GoodsReceiptResponseDto>> GetReceiptsAsync(GoodsReceiptFilterDto filter, CancellationToken ct = default)
     {
@@ -282,23 +273,16 @@ public class GoodsReceiptService : IGoodsReceiptService
         var tenantId = RequireTenantId();
 
         List<Func<Task>> pendingNotifications = new();
-        var strategy = _context.CreateExecutionStrategy();
-        var result = await strategy.ExecuteAsync(async () =>
+        var result = await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
             pendingNotifications.Clear();
-            _context.ClearChangeTracker();
-            await using var transaction = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var transaction = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             try
             {
                 // 1. Advisory lock phiếu nhập
-                if (_context.IsRelationalDatabase)
-                {
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/goods_receipt/' || {1}::text, 0));",
-                        new object[] { tenantId.ToString(), id.ToString() },
-                        ct);
-                }
+                await _sqlLockService.LockGoodsReceiptAsync(tenantId, id, ct);
 
                 // 2. Tải phiếu nhập tươi mới từ DB sau khi đã có khóa chứng từ
                 var receipt = await _context.GoodsReceipts
@@ -310,12 +294,12 @@ public class GoodsReceiptService : IGoodsReceiptService
                     throw new KeyNotFoundException($"Không tìm thấy Phiếu nhập kho với ID '{id}'.");
                 }
 
-                if (receipt.Status == "Confirmed")
+                if (receipt.Status == GoodsReceiptStatus.Confirmed)
                 {
                     throw new InvalidOperationException($"Phiếu nhập '{receipt.Number}' đã được xác nhận trước đó.");
                 }
 
-                if (receipt.Status == "Cancelled")
+                if (receipt.Status == GoodsReceiptStatus.Cancelled)
                 {
                     throw new OismException("INVALID_STATE_TRANSITION", $"Không thể xác nhận phiếu nhập '{receipt.Number}' đã bị hủy.", 409);
                 }
@@ -336,13 +320,6 @@ public class GoodsReceiptService : IGoodsReceiptService
 
                 // 4. LockPurchaseOrderAsync (đúng thứ tự: phiếu nhập -> phiếu mua -> SKU)
                 await _sqlLockService.LockPurchaseOrderAsync(tenantId, poId, ct);
-                if (_context.IsRelationalDatabase && ReferenceEquals(_sqlLockService, NoOpSqlLockService.Instance))
-                {
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/purchase_order/' || {1}::text, 0));",
-                        new object[] { tenantId.ToString(), poId.ToString() },
-                        ct);
-                }
 
                 // 5. Tải phiếu mua và các dòng SAU KHÓA
                 var po = await _context.PurchaseOrders
@@ -354,7 +331,7 @@ public class GoodsReceiptService : IGoodsReceiptService
                     throw new PurchaseOrderItemMismatchException("Không tìm thấy phiếu mua hàng tương ứng với phiếu nhập.");
                 }
 
-                if (po.Status != "Approved" && po.Status != "PartiallyReceived" && po.Status != "Received")
+                if (!po.CanReceive && po.Status != PurchaseOrderStatus.Received)
                 {
                     throw new PurchaseOrderNotReceivableException(
                         $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', không thể xác nhận nhập kho.");
@@ -388,7 +365,7 @@ public class GoodsReceiptService : IGoodsReceiptService
                     // 6. Kiểm tra vượt lượng còn được nhận trên từng dòng
                     var itemBaseQuantity = item.Quantity * item.FactorSnapshot;
                     var orderedBaseQuantity = poItem.Quantity * poItem.FactorSnapshot;
-                    if (po.Status == "Received" || poItem.ReceivedBaseQuantity + itemBaseQuantity > orderedBaseQuantity)
+                    if (po.Status == PurchaseOrderStatus.Received || poItem.ReceivedBaseQuantity + itemBaseQuantity > orderedBaseQuantity)
                     {
                         var remainingBase = Math.Max(0m, orderedBaseQuantity - poItem.ReceivedBaseQuantity);
                         throw new PurchaseOrderOverReceiptException(
@@ -400,16 +377,7 @@ public class GoodsReceiptService : IGoodsReceiptService
                 var sortedItems = receipt.Items.OrderBy(i => i.SkuId).ToList();
                 var skuIds = sortedItems.Select(i => i.SkuId).Distinct().ToList();
 
-                if (_context.IsRelationalDatabase)
-                {
-                    foreach (var skuId in skuIds)
-                    {
-                        await _context.ExecuteSqlRawAsync(
-                            "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/' || {1}::text || '/' || {2}::text, 0));",
-                            new object[] { tenantId.ToString(), receipt.BranchId.ToString(), skuId.ToString() },
-                            ct);
-                    }
-                }
+                await _sqlLockService.LockSkuStockAsync(tenantId, receipt.BranchId, skuIds, ct);
 
                 // 8. Tải tồn kho hiện tại cấp Chi nhánh và cấp Kho, cộng tồn, tính WAC, ghi sổ kho
                 var branchBalances = await _context.InventoryBalances
@@ -499,23 +467,13 @@ public class GoodsReceiptService : IGoodsReceiptService
                 }
 
                 // Cập nhật trạng thái phiếu mua: đủ mọi dòng thì Received, còn lại PartiallyReceived
-                var allFullyReceived = po.Items.All(pi => pi.ReceivedBaseQuantity >= pi.Quantity * pi.FactorSnapshot);
-                po.Status = allFullyReceived ? "Received" : "PartiallyReceived";
-                po.UpdatedAt = now;
-
-                // Cập nhật trạng thái phiếu nhập
-                receipt.Status = "Confirmed";
-                receipt.ConfirmedAt = now;
-                receipt.ConfirmedBy = userId;
-                receipt.UpdatedAt = now;
+                po.UpdateReceivingStatus(now);
+                receipt.Confirm(userId, now);
 
                 // 10. SaveChanges, SET CONSTRAINTS ALL IMMEDIATE, commit
                 await _context.SaveChangesAsync(ct);
 
-                if (_context.IsRelationalDatabase)
-                {
-                    await _context.ExecuteSqlRawAsync("SET CONSTRAINTS ALL IMMEDIATE;", Array.Empty<object>(), ct);
-                }
+                await _sqlLockService.SetConstraintsImmediateAsync(ct);
 
                 await transaction.CommitAsync(ct);
 
@@ -537,16 +495,16 @@ public class GoodsReceiptService : IGoodsReceiptService
 
                 return await MapToResponseDtoAsync(receipt.Id, ct);
             }
-            catch (DbUpdateException dbEx) when (dbEx.InnerException?.Message.Contains("ck_purchase_order_items_received_range") == true)
+            catch (DbUpdateException dbEx) when (_context.DatabaseErrors.IsCheckViolation(dbEx, "ck_purchase_order_items_received_range"))
             {
                 await transaction.RollbackAsync(ct);
                 throw new PurchaseOrderOverReceiptException();
             }
-            catch (DbUpdateException dbEx) when (dbEx.InnerException?.Message.Contains("23505") == true || dbEx.InnerException?.Message.Contains("uq_inventory_transactions") == true)
+            catch (DbUpdateException dbEx) when (_context.DatabaseErrors.IsUniqueViolation(dbEx))
             {
                 await transaction.RollbackAsync(ct);
-                _context.ClearChangeTracker();
-                var isConfirmed = await _context.GoodsReceipts.AnyAsync(r => r.Id == id && r.Status == "Confirmed", ct);
+                _context.UnitOfWork.ResetTracking();
+                var isConfirmed = await _context.GoodsReceipts.AnyAsync(r => r.Id == id && r.Status == GoodsReceiptStatus.Confirmed, ct);
                 if (isConfirmed)
                 {
                     throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu nhập '{id}' đã được xác nhận trước đó.", 409);
@@ -581,22 +539,15 @@ public class GoodsReceiptService : IGoodsReceiptService
     {
         var tenantId = RequireTenantId();
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            _context.ClearChangeTracker();
-            await using var transaction = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var transaction = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             try
             {
                 // Cùng khóa phiếu nhập với xác nhận
-                if (_context.IsRelationalDatabase)
-                {
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/goods_receipt/' || {1}::text, 0));",
-                        new object[] { tenantId.ToString(), id.ToString() },
-                        ct);
-                }
+                await _sqlLockService.LockGoodsReceiptAsync(tenantId, id, ct);
 
                 var receipt = await _context.GoodsReceipts
                     .Include(r => r.Items)
@@ -607,13 +558,12 @@ public class GoodsReceiptService : IGoodsReceiptService
                     throw new KeyNotFoundException($"Không tìm thấy Phiếu nhập kho với ID '{id}'.");
                 }
 
-                if (receipt.Status != "Draft")
+                if (!receipt.IsDraft)
                 {
                     throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu nhập '{receipt.Number}' đang ở trạng thái '{receipt.Status}', chỉ được hủy khi ở trạng thái 'Draft'.", 409);
                 }
 
-                receipt.Status = "Cancelled";
-                receipt.UpdatedAt = DateTimeOffset.UtcNow;
+                receipt.Cancel(DateTimeOffset.UtcNow);
 
                 await _context.SaveChangesAsync(ct);
                 await transaction.CommitAsync(ct);

@@ -18,7 +18,7 @@ public class StockCount : BaseEntity, IMustHaveTenant
     /// <summary>
     /// Trạng thái kiểm kê: 'Draft', 'Counting', 'PendingApproval', 'Confirmed', 'Cancelled'.
     /// </summary>
-    public string Status { get; set; } = "Draft";
+    public string Status { get; set; } = StockCountStatus.Draft;
 
     public string CountType { get; set; } = "AdHoc";
     public string? AdHocReason { get; set; }
@@ -44,4 +44,51 @@ public class StockCount : BaseEntity, IMustHaveTenant
 
     public ICollection<StockCountItem> Items { get; set; } = new List<StockCountItem>();
     public ICollection<StockCountApproval> Approvals { get; set; } = new List<StockCountApproval>();
+
+    public bool CanRecordCounts => Status is StockCountStatus.Draft or StockCountStatus.Counting;
+    public bool IsCounting => Status == StockCountStatus.Counting;
+    public bool IsPendingApproval => Status == StockCountStatus.PendingApproval;
+    public bool CanCancel => Status is StockCountStatus.Draft or StockCountStatus.Counting or StockCountStatus.PendingApproval;
+
+    public void StartCounting(DateTimeOffset at)
+    {
+        StateTransition.Ensure(CanRecordCounts, nameof(StockCount), Status, StockCountStatus.Counting);
+        Status = StockCountStatus.Counting;
+        UpdatedAt = at;
+    }
+
+    public void Submit(Guid userId, DateTimeOffset at)
+    {
+        StateTransition.Ensure(IsCounting, nameof(StockCount), Status, StockCountStatus.PendingApproval);
+        Status = StockCountStatus.PendingApproval;
+        SubmittedBy = userId;
+        SubmittedAt = at;
+        UpdatedAt = at;
+    }
+
+    public void RequestRecount(DateTimeOffset at)
+    {
+        StateTransition.Ensure(IsPendingApproval, nameof(StockCount), Status, StockCountStatus.Counting);
+        Status = StockCountStatus.Counting;
+        SubmittedBy = null;
+        SubmittedAt = null;
+        UpdatedAt = at;
+    }
+
+    public void Confirm(Guid userId, Guid adjustmentId, DateTimeOffset at)
+    {
+        StateTransition.Ensure(IsPendingApproval, nameof(StockCount), Status, StockCountStatus.Confirmed);
+        Status = StockCountStatus.Confirmed;
+        ConfirmedBy = userId;
+        ConfirmedAt = at;
+        GeneratedAdjustmentId = adjustmentId;
+        UpdatedAt = at;
+    }
+
+    public void Cancel(DateTimeOffset at)
+    {
+        StateTransition.Ensure(CanCancel, nameof(StockCount), Status, StockCountStatus.Cancelled);
+        Status = StockCountStatus.Cancelled;
+        UpdatedAt = at;
+    }
 }

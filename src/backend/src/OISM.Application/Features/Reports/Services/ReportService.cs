@@ -1,3 +1,4 @@
+using OISM.Domain.Common;
 using Microsoft.EntityFrameworkCore;
 using OISM.Application.Common.Helpers;
 using OISM.Application.Common.Interfaces;
@@ -36,7 +37,7 @@ public class ReportService : IReportService
             .AsNoTracking()
             .Include(o => o.Branch)
             .Include(o => o.Items)
-            .Where(o => o.TenantId == tenantId && (o.Status == "Confirmed" || o.Status == "Completed"));
+            .Where(o => o.TenantId == tenantId && (o.Status == OrderStatus.Confirmed || o.Status == OrderStatus.Completed));
 
         if (filter.BranchId.HasValue && filter.BranchId.Value != Guid.Empty)
         {
@@ -223,7 +224,7 @@ public class ReportService : IReportService
         var ordersQuery = _context.Orders
             .AsNoTracking()
             .Include(o => o.Items)
-            .Where(o => o.TenantId == tenantId && (o.Status == "Confirmed" || o.Status == "Completed"));
+            .Where(o => o.TenantId == tenantId && (o.Status == OrderStatus.Confirmed || o.Status == OrderStatus.Completed));
 
         if (filter.BranchId.HasValue && filter.BranchId.Value != Guid.Empty)
         {
@@ -404,7 +405,7 @@ public class ReportService : IReportService
         var revenueOrders = await _context.Orders
             .AsNoTracking()
             .Include(o => o.Items)
-            .Where(o => o.TenantId == tenantId && (o.Status == "Confirmed" || o.Status == "Completed"))
+            .Where(o => o.TenantId == tenantId && (o.Status == OrderStatus.Confirmed || o.Status == OrderStatus.Completed))
             .ToListAsync(ct);
 
         decimal totalRevenue = revenueOrders.Sum(o => o.TotalAmount);

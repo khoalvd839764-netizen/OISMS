@@ -9,7 +9,7 @@ Chi tiết từng lỗi nằm trong thư mục [`errors/`](./errors/), mỗi l�
 
 | Nhóm | Đã xong | Cần kiểm chứng / một phần | Chưa làm |
 | :--- | :---: | :---: | :---: |
-| Lỗi `BF-001..027` | 16 | 4 | 7 |
+| Lỗi `BF-001..035` | 24 | 4 | 7 |
 | Coming Soon `CS-01..08` + Quên mật khẩu | 3 | 3 | 3 |
 | Upgrade (GVHD) | 6 | 0 | 1 |
 
@@ -53,6 +53,21 @@ Chi tiết từng lỗi nằm trong thư mục [`errors/`](./errors/), mỗi l�
 | [ ] | [BF-025](./errors/BF-025-integration-test-crlf-tren-windows.md) | P2 | Test | Test AC01 fail trên Windows do CRLF | Chưa sửa |
 | [ ] | [BF-026](./errors/BF-026-health-ready-lo-thong-tin-db.md) | P3 | Deploy | `/health/ready` công khai trả tên user DB | Chưa sửa |
 | [ ] | [BF-027](./errors/BF-027-tong-so-luong-bao-cao-cong-khac-don-vi.md) | P3 | Backend/Báo cáo | `total*Quantity` cộng gộp khác đơn vị | Chưa sửa |
+
+### A3. Rà soát lại Clean Architecture, 06/11/2026 (BF-028..035)
+
+Chia thành nhiều đợt fix, xem [mục E](#e-kế-hoạch-hoàn-thiện-clean-architecture-bf-028035).
+
+| | Mã | Ưu tiên | Tầng | Lỗi | Đợt |
+| :---: | :--- | :---: | :--- | :--- | :---: |
+| [x] | [BF-028](./errors/BF-028-hub-signalr-truy-van-thang-dbcontext.md) | P2 | WebApi | `NotificationHub` truy vấn thẳng `IAppDbContext` và `IgnoreQueryFilters` | 2 |
+| [x] | [BF-029](./errors/BF-029-readiness-check-npgsql-nam-trong-webapi.md) | P2 | WebApi | Readiness check Npgsql (~180 dòng) nằm trong `Program.cs`, WebApi tham chiếu `Npgsql` | 2 |
+| [x] | [BF-030](./errors/BF-030-controller-bat-loi-postgresql.md) | P2 | WebApi | `GoodsReceiptsController` bắt `PostgresException` 23505 | 1 |
+| [x] | [BF-031](./errors/BF-031-controller-tu-anh-xa-exception-trung-lap.md) | P2 | WebApi | 19 controller tự ánh xạ exception, body lỗi không đồng nhất; 25 bản sao `GetCurrentUserId`; 14 kiểm tra `ModelState` thừa | 1 |
+| [x] | [BF-032](./errors/BF-032-application-chua-sql-postgresql-tho.md) | P2 | Application | SQL PostgreSQL thô trong 6 service | 3 |
+| [x] | [BF-033](./errors/BF-033-application-bat-postgresexception.md) | P2 | Application | Bắt `PostgresException` ở 8 chỗ, 7 service | 2 |
+| [x] | [BF-034](./errors/BF-034-iappdbcontext-lo-chi-tiet-ha-tang.md) | P2 | Application | `IAppDbContext` lộ SQL/transaction EF; 38 nhánh `IsRelationalDatabase` | 3 |
+| [x] | [BF-035](./errors/BF-035-domain-anemic-trang-thai-chuoi.md) | P3 | Domain | Entity anemic, 59 chỗ so trạng thái bằng chuỗi, `MediatR` không dùng | 4 |
 
 ---
 
@@ -102,3 +117,27 @@ Lưu ý: kỳ kiểm kê chỉ tự sinh khi bật Hangfire (`Hangfire:Enabled=t
 - [ ] Màn Handoff: bỏ đặc tả [07-handoff-screens.md](../11-ui-screens/07-handoff-screens.md) hay làm lại.
 - [ ] Đơn vị mặc định cho phép 3 chữ số lẻ, nên POS nhận cả số lẻ với "Cái": có cấm hay không.
 - [ ] Kiểm chứng lại BF-003, BF-015, BF-019, BF-020 trên `pos-app` hiện tại.
+
+---
+
+## E. Kế hoạch hoàn thiện Clean Architecture (BF-028..035)
+
+Rà soát ngày 06/11/2026 ghi nhận chiều phụ thuộc giữa các project đã đúng. Các đợt 1 đến 4 được thực hiện trên PR #38 theo phạm vi đã chốt.
+
+| Đợt | Lỗi | Nội dung | Rủi ro | Bằng chứng cần có |
+| :---: | :--- | :--- | :---: | :--- |
+| [x] 1 | BF-030, BF-031 | Dùng bộ lọc MVC và middleware chung cho phản hồi lỗi, bỏ các `try/catch` trong controller và kiểm tra `ModelState` lặp, dùng chung cách đọc user ID, chuyển bắt lỗi trùng mã phiếu nhập vào service | Thấp | Toàn bộ integration test, `npm test` POS và đối chiếu hợp đồng lỗi |
+| [x] 2 | BF-028, BF-029, BF-033, gỡ MediatR (BF-035) | Hub gọi service, readiness check chuyển sang Infrastructure và dùng chung danh sách bảng với migration, Infrastructure triển khai `IDbErrorTranslator` | Thấp–TB | Build, unit test, integration test auth, sản phẩm, kho, giá và readiness |
+| [x] 3 | BF-032, BF-034 | SQL khóa nằm trong `ISqlLockService`, transaction và retry qua `IUnitOfWork`. Giữ thứ tự khóa và vị trí commit trong từng service | **Cao** | Test cạnh tranh tồn kho, idempotency, kiểm kê, nhập kho và chuyển kho trên PostgreSQL thật |
+| [x] 4 | BF-035 | Hằng số trạng thái theo loại chứng từ, chuyển trạng thái trong entity và tách dịch vụ đơn hàng | TB | Unit test Domain và integration test đơn hàng, POS, webhook, kho và kiểm kê |
+
+Đợt 1 và 2 đã qua build backend .NET 8, toàn bộ `dotnet test src/backend/OISM.sln --no-build -c Release --verbosity normal` với PostgreSQL 16, build Admin/POS và test POS trên commit `c95c21c`. [GitHub Actions #134](https://github.com/khoalvd839764-netizen/OISMS/actions/runs/42185858352)
+
+Đợt 3 đã qua 223 unit test, 17 integration test trên PostgreSQL 16.15 cục bộ và 63 test POS. Bộ test PostgreSQL bao gồm cạnh tranh 50 yêu cầu giữ chỗ và checkout, replay, duyệt kiểm kê song song, nhập vượt phiếu mua, xuất và nhận chuyển kho đồng thời, cùng các luồng hết hạn giữ chỗ. Toàn bộ suite backend trên PostgreSQL 16 và job frontend đều qua trên commit `a73d96b`. [GitHub Actions #136](https://github.com/khoalvd839764-netizen/OISMS/actions/runs/42193764424)
+
+Đợt 4 đã qua 237 unit test, gồm 14 ca chuyển trạng thái Domain, cùng 15 integration test cục bộ và 63 test POS. Toàn bộ suite backend trên PostgreSQL 16 và job frontend đều qua trên commit `df26020`. [GitHub Actions #138](https://github.com/khoalvd839764-netizen/OISMS/actions/runs/42197568799)
+
+Nguyên tắc:
+- Theo kế hoạch, nhóm thống nhất phạm vi thay đổi transaction, khóa, ledger, reservation và idempotency trước khi triển khai. Nghiệm thu đợt 3 dựa trên kết quả kiểm thử PostgreSQL.
+- Mỗi đợt không đổi hợp đồng API (status, `errorCode`, hình dạng body) trừ khi đã chốt với frontend; nếu đổi thì cập nhật `docs/05-api-contracts` và `docs/12-error-and-status-codes` cùng PR.
+- Báo kết quả theo PASS/FAIL/NOT RUN, ghi rõ lệnh đã chạy.

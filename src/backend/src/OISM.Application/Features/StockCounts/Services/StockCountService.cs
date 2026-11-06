@@ -9,6 +9,7 @@ using OISM.Application.Features.Inventory.Services;
 using OISM.Application.Features.Orders.Dtos;
 using OISM.Application.Features.Realtime;
 using OISM.Application.Features.StockCounts.Dtos;
+using OISM.Domain.Common;
 using OISM.Domain.Entities;
 
 namespace OISM.Application.Features.StockCounts.Services;
@@ -88,7 +89,7 @@ public class StockCountService : IStockCountService
             throw new OismException("NOT_FOUND", "Không tìm thấy kỳ kiểm kê trong phạm vi doanh nghiệp.", 404);
         }
 
-        if (period.Status == "Completed" || period.Status == "Cancelled")
+        if (!period.CanStart)
         {
             throw new OismException("INVALID_STATE_TRANSITION", $"Kỳ kiểm kê ở trạng thái '{period.Status}', không thể bắt đầu đếm.", 409);
         }
@@ -179,36 +180,20 @@ public class StockCountService : IStockCountService
 
         while (true)
         {
-            var strategy = _context.CreateExecutionStrategy();
-            var (shouldRetry, response, newCandidates) = await strategy.ExecuteAsync(async () =>
+            var (shouldRetry, response, newCandidates) = await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
             {
-                _context.ClearChangeTracker();
-                var tx = await _context.BeginTransactionAsync(ct);
+                _context.UnitOfWork.ResetTracking();
+                var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
                 try
                 {
                     // 1. Phân cấp khóa: SKU khóa trước (ascending) -> RequestKey -> Kỳ (nếu có)
-                    if (_context.IsRelationalDatabase)
+                    await _context.Locks.LockSkuStockAsync(tenantId.Value, dto.BranchId, candidateSkuIds, ct);
+
+                    await _context.Locks.LockRequestKeyAsync(tenantId.Value, dto.RequestKey, ct);
+
+                    if (periodId.HasValue)
                     {
-                        foreach (var skuId in candidateSkuIds)
-                        {
-                            await _context.ExecuteSqlRawAsync(
-                                "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/' || {1}::text || '/' || {2}::text, 0));",
-                                new object[] { tenantId.Value.ToString(), dto.BranchId.ToString(), skuId.ToString() },
-                                ct);
-                        }
-
-                        await _context.ExecuteSqlRawAsync(
-                            "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/request_key/' || {1}::text, 0));",
-                            new object[] { tenantId.Value.ToString(), dto.RequestKey.ToString() },
-                            ct);
-
-                        if (periodId.HasValue)
-                        {
-                            await _context.ExecuteSqlRawAsync(
-                                "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/stock_count_period/' || {1}::text, 0));",
-                                new object[] { tenantId.Value.ToString(), periodId.Value.ToString() },
-                                ct);
-                        }
+                        await _context.Locks.LockStockCountPeriodAsync(tenantId.Value, periodId.Value, ct);
                     }
 
                     // 2. Dưới khóa kỳ, nếu có phiếu chưa hủy: trả phiếu đó với IsReplay = true
@@ -220,7 +205,7 @@ public class StockCountService : IStockCountService
                                     .ThenInclude(s => s!.Product)
                             .Include(c => c.Branch)
                             .Include(c => c.Warehouse)
-                            .FirstOrDefaultAsync(c => c.TenantId == tenantId.Value && c.PeriodId == periodId.Value && c.Status != "Cancelled", ct);
+                            .FirstOrDefaultAsync(c => c.TenantId == tenantId.Value && c.PeriodId == periodId.Value && c.Status != StockCountStatus.Cancelled, ct);
 
                         if (activePeriodCount != null)
                         {
@@ -235,7 +220,7 @@ public class StockCountService : IStockCountService
                         {
                             throw new OismException("NOT_FOUND", "Không tìm thấy kỳ kiểm kê trong phạm vi doanh nghiệp.", 404);
                         }
-                        if (period.Status == "Completed" || period.Status == "Cancelled")
+                        if (!period.CanStart)
                         {
                             throw new OismException("INVALID_STATE_TRANSITION", $"Kỳ kiểm kê ở trạng thái '{period.Status}', không thể bắt đầu đếm.", 409);
                         }
@@ -378,13 +363,7 @@ public class StockCountService : IStockCountService
                     }
 
                     // 6. Sinh mã kiểm kê an toàn dưới Advisory Lock
-                    if (_context.IsRelationalDatabase)
-                    {
-                        await _context.ExecuteSqlRawAsync(
-                            "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/stock_count_number', 0));",
-                            new object[] { tenantId.Value.ToString() },
-                            ct);
-                    }
+                    await _context.Locks.LockStockCountNumberAsync(tenantId.Value, ct);
 
                     var todayPrefix = $"CNT-{now:yyyyMMdd}-";
                     var countToday = await _context.StockCounts
@@ -403,7 +382,7 @@ public class StockCountService : IStockCountService
                         CountType = countType,
                         AdHocReason = adHocReason,
                         PeriodId = periodId,
-                        Status = "Draft",
+                        Status = StockCountStatus.Draft,
                         CreatedBy = createdByUserId,
                         Note = dto.Note?.Trim(),
                         CreatedAt = now,
@@ -416,8 +395,7 @@ public class StockCountService : IStockCountService
                             .FirstOrDefaultAsync(p => p.TenantId == tenantId.Value && p.Id == periodId.Value, ct);
                         if (periodToUpdate != null)
                         {
-                            periodToUpdate.Status = "InProgress";
-                            periodToUpdate.UpdatedAt = now;
+                            periodToUpdate.Start(now);
                         }
                     }
 
@@ -542,29 +520,15 @@ public class StockCountService : IStockCountService
             throw new OismException("NOT_FOUND", "Không tìm thấy đợt kiểm kê trong phạm vi doanh nghiệp.", 404);
         }
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            _context.ClearChangeTracker();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             // 1. Khóa SKU -> Khóa Document
-            if (_context.IsRelationalDatabase)
-            {
-                var distinctSkus = dto.Items.Select(i => i.SkuId).Distinct().OrderBy(x => x).ToList();
-                foreach (var skuId in distinctSkus)
-                {
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/' || {1}::text || '/' || {2}::text, 0));",
-                        new object[] { tenantId.Value.ToString(), hint.BranchId.ToString(), skuId.ToString() },
-                        ct);
-                }
+            await _context.Locks.LockSkuStockAsync(tenantId.Value, hint.BranchId, dto.Items.Select(i => i.SkuId), ct);
 
-                await _context.ExecuteSqlRawAsync(
-                    "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/stock_count/' || {1}::text, 0));",
-                    new object[] { tenantId.Value.ToString(), stockCountId.ToString() },
-                    ct);
-            }
+            await _context.Locks.LockStockCountAsync(tenantId.Value, stockCountId, ct);
 
             // 2. Nạp lại fresh StockCount dưới khóa
             var stockCount = await _context.StockCounts
@@ -580,7 +544,7 @@ public class StockCountService : IStockCountService
                 throw new OismException("NOT_FOUND", "Không tìm thấy đợt kiểm kê trong phạm vi doanh nghiệp.", 404);
             }
 
-            if (stockCount.Status != "Draft" && stockCount.Status != "Counting")
+            if (!stockCount.CanRecordCounts)
             {
                 throw new OismException("INVALID_STATE_TRANSITION", $"Không thể ghi số đếm cho đợt kiểm kê ở trạng thái '{stockCount.Status}'. Chỉ cho phép ghi số đếm ở trạng thái Draft hoặc Counting.", 409);
             }
@@ -605,11 +569,7 @@ public class StockCountService : IStockCountService
                 existingItem.UpdatedAt = now;
             }
 
-            if (stockCount.Status == "Draft")
-            {
-                stockCount.Status = "Counting";
-            }
-            stockCount.UpdatedAt = now;
+            stockCount.StartCounting(now);
 
             await _context.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
@@ -647,19 +607,12 @@ public class StockCountService : IStockCountService
             throw new OismException("NOT_FOUND", "Không tìm thấy đợt kiểm kê trong phạm vi doanh nghiệp.", 404);
         }
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            _context.ClearChangeTracker();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
-            if (_context.IsRelationalDatabase)
-            {
-                await _context.ExecuteSqlRawAsync(
-                    "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/stock_count/' || {1}::text, 0));",
-                    new object[] { tenantId.Value.ToString(), stockCountId.ToString() },
-                    ct);
-            }
+            await _context.Locks.LockStockCountAsync(tenantId.Value, stockCountId, ct);
 
             var stockCount = await _context.StockCounts
                 .Include(c => c.Items)
@@ -674,7 +627,7 @@ public class StockCountService : IStockCountService
                 throw new OismException("NOT_FOUND", "Không tìm thấy đợt kiểm kê trong phạm vi doanh nghiệp.", 404);
             }
 
-            if (stockCount.Status != "Counting")
+            if (!stockCount.IsCounting)
             {
                 throw new OismException("INVALID_STATE_TRANSITION", $"Đợt kiểm kê phải ở trạng thái Counting mới được nộp. Trạng thái hiện tại: '{stockCount.Status}'.", 409);
             }
@@ -730,10 +683,7 @@ public class StockCountService : IStockCountService
             };
             _context.StockCountApprovals.Add(approval);
 
-            stockCount.Status = "PendingApproval";
-            stockCount.SubmittedBy = userId;
-            stockCount.SubmittedAt = now;
-            stockCount.UpdatedAt = now;
+            stockCount.Submit(userId, now);
 
             await _context.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
@@ -780,29 +730,15 @@ public class StockCountService : IStockCountService
             throw new OismException("NOT_FOUND", "Không tìm thấy đợt kiểm kê trong phạm vi doanh nghiệp.", 404);
         }
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            _context.ClearChangeTracker();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             // Khóa SKU (ascending) -> Khóa phiếu
-            if (_context.IsRelationalDatabase)
-            {
-                var sortedSkus = dto.SkuIds.Distinct().OrderBy(x => x).ToList();
-                foreach (var skuId in sortedSkus)
-                {
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/' || {1}::text || '/' || {2}::text, 0));",
-                        new object[] { tenantId.Value.ToString(), hint.BranchId.ToString(), skuId.ToString() },
-                        ct);
-                }
+            await _context.Locks.LockSkuStockAsync(tenantId.Value, hint.BranchId, dto.SkuIds, ct);
 
-                await _context.ExecuteSqlRawAsync(
-                    "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/stock_count/' || {1}::text, 0));",
-                    new object[] { tenantId.Value.ToString(), stockCountId.ToString() },
-                    ct);
-            }
+            await _context.Locks.LockStockCountAsync(tenantId.Value, stockCountId, ct);
 
             var stockCount = await _context.StockCounts
                 .Include(c => c.Items)
@@ -817,7 +753,7 @@ public class StockCountService : IStockCountService
                 throw new OismException("NOT_FOUND", "Không tìm thấy đợt kiểm kê trong phạm vi doanh nghiệp.", 404);
             }
 
-            if (stockCount.Status != "Counting")
+            if (!stockCount.IsCounting)
             {
                 throw new OismException("INVALID_STATE_TRANSITION", $"Chỉ có thể đếm lại SKU bị lệch khi đợt kiểm kê ở trạng thái Counting. Trạng thái hiện tại: '{stockCount.Status}'.", 409);
             }
@@ -946,29 +882,15 @@ public class StockCountService : IStockCountService
             throw new OismException("NOT_FOUND", "Không tìm thấy đợt kiểm kê trong phạm vi doanh nghiệp.", 404);
         }
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            _context.ClearChangeTracker();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             // Khóa SKU (ascending) -> Khóa phiếu
-            if (_context.IsRelationalDatabase)
-            {
-                var sortedSkus = dto.SkuIds.Distinct().OrderBy(x => x).ToList();
-                foreach (var skuId in sortedSkus)
-                {
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/' || {1}::text || '/' || {2}::text, 0));",
-                        new object[] { tenantId.Value.ToString(), hint.BranchId.ToString(), skuId.ToString() },
-                        ct);
-                }
+            await _context.Locks.LockSkuStockAsync(tenantId.Value, hint.BranchId, dto.SkuIds, ct);
 
-                await _context.ExecuteSqlRawAsync(
-                    "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/stock_count/' || {1}::text, 0));",
-                    new object[] { tenantId.Value.ToString(), stockCountId.ToString() },
-                    ct);
-            }
+            await _context.Locks.LockStockCountAsync(tenantId.Value, stockCountId, ct);
 
             var stockCount = await _context.StockCounts
                 .Include(c => c.Items)
@@ -983,7 +905,7 @@ public class StockCountService : IStockCountService
                 throw new OismException("NOT_FOUND", "Không tìm thấy đợt kiểm kê trong phạm vi doanh nghiệp.", 404);
             }
 
-            if (stockCount.Status != "PendingApproval")
+            if (!stockCount.IsPendingApproval)
             {
                 throw new OismException("INVALID_STATE_TRANSITION", $"Chỉ có thể yêu cầu đếm lại khi đợt kiểm kê ở trạng thái PendingApproval. Trạng thái hiện tại: '{stockCount.Status}'.", 409);
             }
@@ -1041,10 +963,7 @@ public class StockCountService : IStockCountService
             }
 
             // Chuyển về Counting, xóa submitted_by, submitted_at
-            stockCount.Status = "Counting";
-            stockCount.SubmittedBy = null;
-            stockCount.SubmittedAt = null;
-            stockCount.UpdatedAt = now;
+            stockCount.RequestRecount(now);
 
             await _context.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
@@ -1103,37 +1022,20 @@ public class StockCountService : IStockCountService
         }
 
         List<Func<Task>> pendingNotifications = new();
-        var strategy = _context.CreateExecutionStrategy();
-        var result = await strategy.ExecuteAsync(async () =>
+        var result = await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
             pendingNotifications.Clear();
-            _context.ClearChangeTracker();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             // 1. Phân cấp khóa: SKU khóa trước -> Document khóa sau
-            if (_context.IsRelationalDatabase)
+            await _context.Locks.LockSkuStockAsync(tenantId.Value, hint.BranchId, hint.SkuIds, ct);
+
+            await _context.Locks.LockStockCountAsync(tenantId.Value, stockCountId, ct);
+
+            if (hint.PeriodId.HasValue)
             {
-                var sortedSkus = hint.SkuIds.Distinct().OrderBy(x => x).ToList();
-                foreach (var skuId in sortedSkus)
-                {
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/' || {1}::text || '/' || {2}::text, 0));",
-                        new object[] { tenantId.Value.ToString(), hint.BranchId.ToString(), skuId.ToString() },
-                        ct);
-                }
-
-                await _context.ExecuteSqlRawAsync(
-                    "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/stock_count/' || {1}::text, 0));",
-                    new object[] { tenantId.Value.ToString(), stockCountId.ToString() },
-                    ct);
-
-                if (hint.PeriodId.HasValue)
-                {
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/stock_count_period/' || {1}::text, 0));",
-                        new object[] { tenantId.Value.ToString(), hint.PeriodId.Value.ToString() },
-                        ct);
-                }
+                await _context.Locks.LockStockCountPeriodAsync(tenantId.Value, hint.PeriodId.Value, ct);
             }
 
             // 2. Nạp lại fresh StockCount dưới khóa
@@ -1151,7 +1053,7 @@ public class StockCountService : IStockCountService
             }
 
             // AC-05: Phải PendingApproval. Confirm từ Counting trả 409 và không ghi tồn.
-            if (stockCount.Status != "PendingApproval")
+            if (!stockCount.IsPendingApproval)
             {
                 throw new OismException("INVALID_STATE_TRANSITION", $"Đợt kiểm kê phải ở trạng thái PendingApproval mới được duyệt và chốt kiểm kê. Trạng thái hiện tại: '{stockCount.Status}'.", 409);
             }
@@ -1343,13 +1245,7 @@ public class StockCountService : IStockCountService
             }
 
             // 4. Tạo chứng từ InventoryAdjustment liên kết duy nhất với StockCount
-            if (_context.IsRelationalDatabase)
-            {
-                await _context.ExecuteSqlRawAsync(
-                    "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/inventory_adjustment_number', 0));",
-                    new object[] { tenantId.Value.ToString() },
-                    ct);
-            }
+            await _context.Locks.LockInventoryAdjustmentNumberAsync(tenantId.Value, ct);
 
             var now = DateTimeOffset.UtcNow;
             var adjPrefix = $"ADJ-{now:yyyyMMdd}-";
@@ -1367,12 +1263,10 @@ public class StockCountService : IStockCountService
                 Reason = !string.IsNullOrWhiteSpace(dto?.Note)
                     ? dto.Note.Trim()
                     : $"Điều chỉnh cân bằng theo đợt kiểm kê {stockCount.Number}",
-                Status = "Confirmed",
                 CreatedBy = confirmedByUserId,
-                ConfirmedBy = confirmedByUserId,
-                ConfirmedAt = now,
                 CreatedAt = now
             };
+            adjustment.Confirm(confirmedByUserId, now);
 
             // 5. Cập nhật tồn kho 2 cấp, WAC và Ledger
             foreach (var (item, delta, unitCost, oldBranchOnHand, oldBranchWac) in itemPlan)
@@ -1501,18 +1395,12 @@ public class StockCountService : IStockCountService
                     .FirstOrDefaultAsync(p => p.TenantId == tenantId.Value && p.Id == stockCount.PeriodId.Value, ct);
                 if (period != null)
                 {
-                    period.Status = "Completed";
-                    period.CompletedAt = now;
-                    period.UpdatedAt = now;
+                    period.Complete(now);
                 }
             }
 
             // 6. Cập nhật trạng thái StockCount
-            stockCount.Status = "Confirmed";
-            stockCount.ConfirmedBy = confirmedByUserId;
-            stockCount.ConfirmedAt = now;
-            stockCount.GeneratedAdjustmentId = adjustment.Id;
-            stockCount.UpdatedAt = now;
+            stockCount.Confirm(confirmedByUserId, adjustment.Id, now);
 
             _context.InventoryAdjustments.Add(adjustment);
             await _context.SaveChangesAsync(ct);
@@ -1562,26 +1450,16 @@ public class StockCountService : IStockCountService
             throw new OismException("NOT_FOUND", "Không tìm thấy đợt kiểm kê trong phạm vi doanh nghiệp.", 404);
         }
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            _context.ClearChangeTracker();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
-            if (_context.IsRelationalDatabase)
+            await _context.Locks.LockStockCountAsync(tenantId.Value, stockCountId, ct);
+
+            if (hint.PeriodId.HasValue)
             {
-                await _context.ExecuteSqlRawAsync(
-                    "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/stock_count/' || {1}::text, 0));",
-                    new object[] { tenantId.Value.ToString(), stockCountId.ToString() },
-                    ct);
-
-                if (hint.PeriodId.HasValue)
-                {
-                    await _context.ExecuteSqlRawAsync(
-                        "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/stock_count_period/' || {1}::text, 0));",
-                        new object[] { tenantId.Value.ToString(), hint.PeriodId.Value.ToString() },
-                        ct);
-                }
+                await _context.Locks.LockStockCountPeriodAsync(tenantId.Value, hint.PeriodId.Value, ct);
             }
 
             var stockCount = await _context.StockCounts
@@ -1597,15 +1475,14 @@ public class StockCountService : IStockCountService
                 throw new OismException("NOT_FOUND", "Không tìm thấy đợt kiểm kê trong phạm vi doanh nghiệp.", 404);
             }
 
-            if (stockCount.Status == "Confirmed" || stockCount.Status == "Cancelled")
+            if (!stockCount.CanCancel)
             {
                 throw new OismException("INVALID_STATE_TRANSITION",
                     $"Không thể hủy đợt kiểm kê ở trạng thái '{stockCount.Status}'. Chỉ cho phép hủy đợt kiểm kê ở trạng thái Draft, Counting hoặc PendingApproval.", 409);
             }
 
             var now = DateTimeOffset.UtcNow;
-            stockCount.Status = "Cancelled";
-            stockCount.UpdatedAt = now;
+            stockCount.Cancel(now);
             if (!string.IsNullOrWhiteSpace(reason))
             {
                 stockCount.Note = string.IsNullOrWhiteSpace(stockCount.Note)
@@ -1639,9 +1516,7 @@ public class StockCountService : IStockCountService
                     .FirstOrDefaultAsync(p => p.TenantId == tenantId.Value && p.Id == stockCount.PeriodId.Value, ct);
                 if (period != null)
                 {
-                    period.Status = "Planned";
-                    period.CompletedAt = null;
-                    period.UpdatedAt = now;
+                    period.Reopen(now);
                 }
             }
 

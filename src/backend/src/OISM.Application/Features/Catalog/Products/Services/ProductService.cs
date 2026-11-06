@@ -186,11 +186,9 @@ public class ProductService : IProductService
         }
 
         var tenantId = _currentTenantService.TenantId ?? Guid.Empty;
-        var strategy = _context.CreateExecutionStrategy();
-
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
             try
             {
                 await _lockService.LockUnitCatalogAsync(tenantId, ct);
@@ -369,7 +367,7 @@ public class ProductService : IProductService
                 await tx.RollbackAsync(ct);
                 throw new OismException("DUPLICATE_BARCODE", "Mã vạch (Barcode) đã tồn tại trong cửa hàng.", 409);
             }
-            catch (DbUpdateException ex) when (IsSkuUniqueViolation(ex))
+            catch (DbUpdateException ex) when (_context.DatabaseErrors.IsUniqueViolation(ex, "uq_skus_2"))
             {
                 await tx.RollbackAsync(ct);
                 throw new OismException("DUPLICATE_SKU", "Mã SKU đã tồn tại trong cửa hàng.", 409);
@@ -384,10 +382,9 @@ public class ProductService : IProductService
 
     public async Task<ProductVariantResponse> CreateVariantAsync(Guid productId, CreateVariantRequest request, PriceActor actor, CancellationToken ct = default)
     {
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             await _lockService.LockProductAsync(productId, ct);
             var tenantId = _currentTenantService.TenantId ?? Guid.Empty;
@@ -553,7 +550,7 @@ public class ProductService : IProductService
                 await tx.RollbackAsync(ct);
                 throw new OismException("DUPLICATE_BARCODE", "Mã vạch (Barcode) đã tồn tại trong cửa hàng.", 409);
             }
-            catch (DbUpdateException ex) when (IsSkuUniqueViolation(ex))
+            catch (DbUpdateException ex) when (_context.DatabaseErrors.IsUniqueViolation(ex, "uq_skus_2"))
             {
                 await tx.RollbackAsync(ct);
                 throw new OismException("DUPLICATE_SKU", $"Mã SKU '{skuFormatted}' đã tồn tại trong cửa hàng.", 409);
@@ -563,10 +560,9 @@ public class ProductService : IProductService
 
     public async Task<ProductVariantResponse> UpdateVariantAsync(Guid productId, Guid variantId, UpdateVariantRequest request, Guid? userId = null, CancellationToken ct = default)
     {
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             await _lockService.LockProductAsync(productId, ct);
             var tenantId = _currentTenantService.TenantId ?? Guid.Empty;
@@ -771,7 +767,7 @@ public class ProductService : IProductService
                 await tx.RollbackAsync(ct);
                 throw new OismException("DUPLICATE_BARCODE", "Mã vạch (Barcode) đã tồn tại trong cửa hàng.", 409);
             }
-            catch (DbUpdateException ex) when (IsSkuUniqueViolation(ex))
+            catch (DbUpdateException ex) when (_context.DatabaseErrors.IsUniqueViolation(ex, "uq_skus_2"))
             {
                 await tx.RollbackAsync(ct);
                 throw new OismException("DUPLICATE_SKU", "Mã SKU đã tồn tại trong cửa hàng.", 409);
@@ -1005,36 +1001,7 @@ public class ProductService : IProductService
         };
     }
 
-    private static bool IsBarcodeUniqueViolation(DbUpdateException ex)
-    {
-        var inner = ex.InnerException;
-        if (inner == null) return false;
-        var type = inner.GetType();
-        if (type.Name == "PostgresException")
-        {
-            var sqlState = type.GetProperty("SqlState")?.GetValue(inner) as string;
-            var constraintName = type.GetProperty("ConstraintName")?.GetValue(inner) as string;
-            var message = inner.Message;
-            return sqlState == "23505" &&
-                   (constraintName == "uq_skus_3" || message.Contains("uq_skus_3") ||
-                    constraintName == "ux_sku_units_barcode" || message.Contains("ux_sku_units_barcode"));
-        }
-        return false;
-    }
-
-    private static bool IsSkuUniqueViolation(DbUpdateException ex)
-    {
-        var inner = ex.InnerException;
-        if (inner == null) return false;
-        var type = inner.GetType();
-        if (type.Name == "PostgresException")
-        {
-            var sqlState = type.GetProperty("SqlState")?.GetValue(inner) as string;
-            var constraintName = type.GetProperty("ConstraintName")?.GetValue(inner) as string;
-            var message = inner.Message;
-            return sqlState == "23505" &&
-                   (constraintName == "uq_skus_2" || message.Contains("uq_skus_2"));
-        }
-        return false;
-    }
+    private bool IsBarcodeUniqueViolation(DbUpdateException ex) =>
+        _context.DatabaseErrors.IsUniqueViolation(ex, "uq_skus_3") ||
+        _context.DatabaseErrors.IsUniqueViolation(ex, "ux_sku_units_barcode");
 }

@@ -27,7 +27,7 @@
 | **01** | [`01-users-and-rbac/`](./01-users-and-rbac/README.md) | `MOD-USR-01` | Yêu cầu | 5 tác nhân, ma trận RBAC (`Owner`, `Staff`, `Cashier`) kèm bảng lệch với code, vòng đời Tenant. |
 | **02** | [`02-functional-requirements/`](./02-functional-requirements/README.md) | `MOD-FR-02` | Yêu cầu | 12 file `FR-*` và bảng hiện trạng triển khai theo từng mã. |
 | **03** | [`03-non-functional-requirements/`](./03-non-functional-requirements/README.md) | `MOD-NFR-03` | Yêu cầu | Hiệu năng `p95`, Flash Sale `50 reqs/1 SKU`, cô lập tenant, ACID, sổ cái bất biến, coverage `≥ 80%`, hiện trạng đáp ứng. |
-| **04** | [`04-architecture-and-design/`](./04-architecture-and-design/README.md) | `MOD-ARC-04` | Thiết kế | Clean Architecture 4 tầng, multi-tenant, ERD 43 bảng, máy trạng thái, 4 sơ đồ trình tự. |
+| **04** | [`04-architecture-and-design/`](./04-architecture-and-design/README.md) | `MOD-ARC-04` | Thiết kế | Clean Architecture 4 tầng, multi-tenant, ERD 43 bảng (chi tiết: [`ERD.md`](./ERD.md)), máy trạng thái, 4 sơ đồ trình tự. |
 | **05** | [`05-api-contracts/`](./05-api-contracts/README.md) | `MOD-API-05` | Thiết kế | Hợp đồng REST API theo 25 controller (đã đối chiếu route và `[Authorize]`). |
 | **06** | [`06-testing-and-qa/`](./06-testing-and-qa/README.md) | `MOD-QA-06` | Kiểm thử | RTM, cấu trúc bộ test (unit 221, integration trên PostgreSQL thật, test POS), stress test, DoD. |
 | **07** | [`07-devops-and-deployment/`](./07-devops-and-deployment/README.md) | `MOD-OPS-07` | Vận hành | Docker Compose local, CI GitHub Actions, biến môi trường, Nginx SPA. |

@@ -327,6 +327,20 @@ public class PurchaseOrderIntegrationTests : IAsyncLifetime, IClassFixture<WebAp
         gr1Res.StatusCode.Should().Be(HttpStatusCode.Created);
         var gr1 = (await gr1Res.Content.ReadFromJsonAsync<GoodsReceiptResponseDto>(_jsonOptions))!;
 
+        var duplicateResponse = await _client.PostAsJsonAsync("/api/goods-receipts", new CreateGoodsReceiptDto
+        {
+            PurchaseOrderId = approvedPo.Id,
+            WarehouseId = warehouseId,
+            Number = gr1.Number,
+            Items = [new() { PurchaseOrderItemId = poItemId, Quantity = 1m }]
+        });
+        duplicateResponse.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        duplicateResponse.Content.Headers.ContentType!.MediaType.Should().Be("application/problem+json");
+        var duplicateProblem = await ReadProblemAsync(duplicateResponse);
+        duplicateProblem.GetProperty("errorCode").GetString().Should().Be("VALIDATION_ERROR");
+        duplicateProblem.GetProperty("title").GetString().Should().Be("Xung đột dữ liệu");
+        duplicateProblem.GetProperty("message").GetString().Should().Be(duplicateProblem.GetProperty("detail").GetString());
+
         var cf1Res = await _client.PostAsync($"/api/goods-receipts/{gr1.Id}/confirm", null);
         cf1Res.StatusCode.Should().Be(HttpStatusCode.OK, await cf1Res.Content.ReadAsStringAsync());
 

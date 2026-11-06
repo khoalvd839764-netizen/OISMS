@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using OISM.Application.Common.Exceptions;
 using OISM.Application.Features.Catalog.Units;
 using OISM.Application.Features.Catalog.Units.Services;
 using OISM.Application.Features.Pricing.Dtos;
+using OISM.WebApi.Http;
 
 namespace OISM.WebApi.Controllers;
 
@@ -23,17 +23,11 @@ public class UnitsController : ControllerBase
     /// </summary>
     [HttpGet("api/units")]
     [Authorize(Roles = "Owner,Staff,Cashier")]
+    [ApiErrorContract(ApiErrorProfile.Units)]
     public async Task<IActionResult> GetUnits(CancellationToken ct)
     {
-        try
-        {
-            var units = await _unitService.GetUnitsAsync(ct);
-            return Ok(units);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, ex.StatusCode, ex.Message);
-        }
+        var units = await _unitService.GetUnitsAsync(ct);
+        return Ok(units);
     }
 
     /// <summary>
@@ -41,21 +35,15 @@ public class UnitsController : ControllerBase
     /// </summary>
     [HttpGet("api/units/{id:guid}")]
     [Authorize(Roles = "Owner,Staff,Cashier")]
+    [ApiErrorContract(ApiErrorProfile.Units)]
     public async Task<IActionResult> GetUnitById(Guid id, CancellationToken ct)
     {
-        try
+        var unit = await _unitService.GetUnitByIdAsync(id, ct);
+        if (unit == null)
         {
-            var unit = await _unitService.GetUnitByIdAsync(id, ct);
-            if (unit == null)
-            {
-                return CreateProblemResult("UNIT_NOT_FOUND", 404, "Không tìm thấy đơn vị tính.");
-            }
-            return Ok(unit);
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.Units, "UNIT_NOT_FOUND", 404, "Không tìm thấy đơn vị tính.");
         }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, ex.StatusCode, ex.Message);
-        }
+        return Ok(unit);
     }
 
     /// <summary>
@@ -63,17 +51,11 @@ public class UnitsController : ControllerBase
     /// </summary>
     [HttpPost("api/units")]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.Units)]
     public async Task<IActionResult> CreateUnit([FromBody] CreateUnitRequest request, CancellationToken ct)
     {
-        try
-        {
-            var unit = await _unitService.CreateUnitAsync(request, ct);
-            return CreatedAtAction(nameof(GetUnitById), new { id = unit.Id }, unit);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, ex.StatusCode, ex.Message);
-        }
+        var unit = await _unitService.CreateUnitAsync(request, ct);
+        return CreatedAtAction(nameof(GetUnitById), new { id = unit.Id }, unit);
     }
 
     /// <summary>
@@ -81,17 +63,11 @@ public class UnitsController : ControllerBase
     /// </summary>
     [HttpPut("api/units/{id:guid}")]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.Units)]
     public async Task<IActionResult> UpdateUnit(Guid id, [FromBody] UpdateUnitRequest request, CancellationToken ct)
     {
-        try
-        {
-            var unit = await _unitService.UpdateUnitAsync(id, request, ct);
-            return Ok(unit);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, ex.StatusCode, ex.Message);
-        }
+        var unit = await _unitService.UpdateUnitAsync(id, request, ct);
+        return Ok(unit);
     }
 
     /// <summary>
@@ -99,17 +75,11 @@ public class UnitsController : ControllerBase
     /// </summary>
     [HttpGet("api/products/{productId:guid}/variants/{variantId:guid}/units")]
     [Authorize(Roles = "Owner,Staff,Cashier")]
+    [ApiErrorContract(ApiErrorProfile.Units)]
     public async Task<IActionResult> GetSkuUnits(Guid productId, Guid variantId, CancellationToken ct)
     {
-        try
-        {
-            var units = await _unitService.GetSkuUnitsAsync(productId, variantId, ct);
-            return Ok(units);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, ex.StatusCode, ex.Message);
-        }
+        var units = await _unitService.GetSkuUnitsAsync(productId, variantId, ct);
+        return Ok(units);
     }
 
     /// <summary>
@@ -117,19 +87,13 @@ public class UnitsController : ControllerBase
     /// </summary>
     [HttpPost("api/products/{productId:guid}/variants/{variantId:guid}/units")]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.Units)]
     public async Task<IActionResult> CreateSkuUnit(Guid productId, Guid variantId, [FromBody] CreateSkuUnitRequest request, CancellationToken ct)
     {
-        try
-        {
-            var userId = GetCurrentUserId();
-            var actor = new PriceActor(userId, User.IsInRole("Owner"));
-            var unit = await _unitService.CreateSkuUnitAsync(productId, variantId, request, userId, actor, ct);
-            return Ok(unit);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, ex.StatusCode, ex.Message);
-        }
+        var userId = User.GetUserId();
+        var actor = new PriceActor(userId, User.IsInRole("Owner"));
+        var unit = await _unitService.CreateSkuUnitAsync(productId, variantId, request, userId, actor, ct);
+        return Ok(unit);
     }
 
     /// <summary>
@@ -137,18 +101,12 @@ public class UnitsController : ControllerBase
     /// </summary>
     [HttpPut("api/products/{productId:guid}/variants/{variantId:guid}/units/{skuUnitId:guid}")]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.Units)]
     public async Task<IActionResult> UpdateSkuUnit(Guid productId, Guid variantId, Guid skuUnitId, [FromBody] UpdateSkuUnitRequest request, CancellationToken ct)
     {
-        try
-        {
-            var userId = GetCurrentUserId();
-            var unit = await _unitService.UpdateSkuUnitAsync(productId, variantId, skuUnitId, request, userId, ct);
-            return Ok(unit);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, ex.StatusCode, ex.Message);
-        }
+        var userId = User.GetUserId();
+        var unit = await _unitService.UpdateSkuUnitAsync(productId, variantId, skuUnitId, request, userId, ct);
+        return Ok(unit);
     }
 
     /// <summary>
@@ -156,18 +114,12 @@ public class UnitsController : ControllerBase
     /// </summary>
     [HttpDelete("api/products/{productId:guid}/variants/{variantId:guid}/units/{skuUnitId:guid}")]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.Units)]
     public async Task<IActionResult> DeleteSkuUnit(Guid productId, Guid variantId, Guid skuUnitId, CancellationToken ct)
     {
-        try
-        {
-            var userId = GetCurrentUserId();
-            await _unitService.DeleteSkuUnitAsync(productId, variantId, skuUnitId, userId, ct);
-            return NoContent();
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, ex.StatusCode, ex.Message);
-        }
+        var userId = User.GetUserId();
+        await _unitService.DeleteSkuUnitAsync(productId, variantId, skuUnitId, userId, ct);
+        return NoContent();
     }
 
     /// <summary>
@@ -175,44 +127,10 @@ public class UnitsController : ControllerBase
     /// </summary>
     [HttpGet("api/products/{productId:guid}/variants/{variantId:guid}/units/{skuUnitId:guid}/history")]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.Units)]
     public async Task<IActionResult> GetSkuUnitHistory(Guid productId, Guid variantId, Guid skuUnitId, CancellationToken ct)
     {
-        try
-        {
-            var history = await _unitService.GetSkuUnitHistoryAsync(productId, variantId, skuUnitId, ct);
-            return Ok(history);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, ex.StatusCode, ex.Message);
-        }
-    }
-
-    private Guid? GetCurrentUserId()
-    {
-        var claim = User.FindFirst("userId")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        if (Guid.TryParse(claim, out var userId))
-        {
-            return userId;
-        }
-        return null;
-    }
-
-    private ObjectResult CreateProblemResult(string errorCode, int statusCode, string detail)
-    {
-        var problem = new ProblemDetails
-        {
-            Type = $"https://oisms.local/errors/{errorCode}",
-            Title = errorCode,
-            Status = statusCode,
-            Detail = detail,
-            Instance = HttpContext.Request.Path,
-            Extensions =
-            {
-                ["errorCode"] = errorCode,
-                ["timestamp"] = DateTimeOffset.UtcNow
-            }
-        };
-        return StatusCode(statusCode, problem);
+        var history = await _unitService.GetSkuUnitHistoryAsync(productId, variantId, skuUnitId, ct);
+        return Ok(history);
     }
 }

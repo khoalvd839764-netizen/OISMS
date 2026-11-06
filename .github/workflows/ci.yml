@@ -66,13 +66,13 @@ jobs:
     - name: Build Admin Dashboard
       working-directory: src/frontend/admin-dashboard
       run: |
-        npm install
+        npm ci
         npm run build
 
     - name: Build POS App
       working-directory: src/frontend/pos-app
       run: |
-        npm install
+        npm ci
         npm run build
 
     - name: POS regression tests (source, component and guard fixtures)

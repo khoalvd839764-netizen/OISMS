@@ -45,8 +45,8 @@ Reverse proxy đứng trước các dịch vụ nội bộ, nhận mọi request
 
 - **Một cửa vào:** chỉ Caddy mở cổng; backend, DB nằm trong mạng riêng.
 - **Định tuyến theo đường dẫn:** `/api/*`, `/hubs/*`, `/health*` → backend; còn lại → frontend. Nhờ vậy frontend và API **cùng origin** (cùng scheme + host + port), trình duyệt không áp dụng CORS. Đó là lý do không phải thêm domain production vào chính sách CORS của backend (chỉ có `localhost:5173/5174`).
-- **TLS termination:** Caddy giải mã HTTPS, gọi backend bằng HTTP nội bộ. Backend vẫn có `UseHttpsRedirection()` nhưng container không có cổng HTTPS nên middleware này không chuyển hướng.
-- **Header chuyển tiếp:** `X-Forwarded-For`, `X-Forwarded-Proto` mang IP/scheme gốc. Backend hiện chưa bật `UseForwardedHeaders`, nên log thấy IP của Caddy chứ không phải IP người dùng.
+- **TLS termination:** Caddy giải mã HTTPS, gọi backend bằng HTTP nội bộ. `UseHttpsRedirection()` chỉ bật khi không phải Development và có cấu hình `UseHttpsRedirection=true`; sau Caddy không cần bật vì Caddy đã chuyển HTTP sang HTTPS.
+- **Header chuyển tiếp:** `X-Forwarded-For`, `X-Forwarded-Proto` mang IP/scheme gốc. Backend bật `UseForwardedHeaders` và chỉ tin proxy trong dải mạng riêng (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, loopback), nên `RemoteIpAddress` là IP người dùng khi đi qua Caddy trong mạng Docker.
 - **WebSocket:** SignalR nâng cấp kết nối HTTP bằng header `Upgrade: websocket`. Caddy `reverse_proxy` hỗ trợ sẵn. JWT cho hub đi qua query `access_token` vì WebSocket trình duyệt không gửi được header `Authorization`; backend chỉ đọc query này với đường dẫn `/hubs/notifications`.
 
 ## 5. Docker
