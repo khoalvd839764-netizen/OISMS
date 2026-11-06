@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OISM.Application.Common.Interfaces;
 using OISM.Application.Features.Orders.Services;
+using OISM.Domain.Common;
 using OISM.Infrastructure.Persistence;
 
 namespace OISM.Infrastructure.Jobs;
@@ -46,7 +47,7 @@ public class ReservationExpiryJob : IReservationExpiryJob
             var baseQuery = db.Reservations
                 .IgnoreQueryFilters()
                 .AsNoTracking()
-                .Where(r => r.Status == "Active" && r.ExpiresAt <= effectiveCutoff)
+                .Where(r => r.Status == ReservationStatus.Active && r.ExpiresAt <= effectiveCutoff)
                 .Select(r => r.TenantId)
                 .Distinct();
 
