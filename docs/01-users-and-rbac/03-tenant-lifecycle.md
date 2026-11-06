@@ -36,7 +36,7 @@ sequenceDiagram
         Validator-->>Client: HTTP 400 Bad Request / 409 Conflict
     else Hợp lệ
         API->>DB: BEGIN TRANSACTION (Privileged Scope)
-        API->>DB: 1. Tạo bản ghi Tenant (Sinh TenantId, Code chuẩn hóa, IsActive = true)
+        API->>DB: 1. Tạo bản ghi Tenant (Sinh TenantId, IsActive = true; TenantCode chỉ trả về, không lưu cột)
         API->>DB: 2. Tạo tài khoản User với Role = Owner (Mật khẩu băm BCrypt)
         API->>DB: COMMIT TRANSACTION
         API-->>Client: HTTP 201 Created (TenantId, TenantCode, TenantName, UserId, Email)

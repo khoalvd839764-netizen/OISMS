@@ -191,6 +191,23 @@ else if (seedEnabledInConfig && !DemoSeedPolicy.IsEnvironmentAllowed(app.Environ
         app.Environment.EnvironmentName, seedResult.Reason);
 }
 
+// Đọc IP và scheme gốc khi chạy sau reverse proxy (Caddy trong mạng Docker).
+// Mặc định ASP.NET chỉ tin proxy loopback, nên phải khai báo dải mạng riêng mà Docker dùng.
+var forwardedHeadersOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |
+                       Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+};
+forwardedHeadersOptions.KnownNetworks.Clear();
+forwardedHeadersOptions.KnownProxies.Clear();
+foreach (var (prefix, length) in new[] { ("10.0.0.0", 8), ("172.16.0.0", 12), ("192.168.0.0", 16), ("127.0.0.0", 8) })
+{
+    forwardedHeadersOptions.KnownNetworks.Add(
+        new Microsoft.AspNetCore.HttpOverrides.IPNetwork(System.Net.IPAddress.Parse(prefix), length));
+}
+forwardedHeadersOptions.KnownProxies.Add(System.Net.IPAddress.IPv6Loopback);
+app.UseForwardedHeaders(forwardedHeadersOptions);
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -200,12 +217,6 @@ if (app.Environment.IsDevelopment())
         c.RoutePrefix = "swagger";
     });
 }
-
-app.UseForwardedHeaders(new ForwardedHeadersOptions
-{
-    ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |
-                       Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
-});
 
 app.UseCors("AllowFrontendApps");
 app.UseMiddleware<OISM.WebApi.Middlewares.ExceptionHandlingMiddleware>();

@@ -1,318 +1,940 @@
-# TÀI LIỆU THIẾT KẾ THỰC THỂ LIÊN KẾT (ERD.MD) - HỆ THỐNG OISMS
-**Hệ thống Quản lý Bán hàng & Tồn kho Đa kênh (Omnichannel Inventory and Sales Management System)**
+# TÀI LIỆU THỰC THỂ LIÊN KẾT (ERD) — OISMS
+
+| Thông tin kiểm soát tài liệu | Chi tiết |
+| :--- | :--- |
+| **Mã tài liệu** | `DOC-ERD-FULL` |
+| **Phiên bản** | `v2.1.0` |
+| **Ngày hiệu lực** | `2026-11-06` |
+| **Nguồn** | Sinh từ `docs/database/oisms_schema.sql` (cột, kiểu, khóa ngoại) và `OISM.Infrastructure/Persistence/Configurations/*.cs` (ánh xạ entity) |
+| **Liên quan** | [`04-architecture-and-design/03-database-design.md`](./04-architecture-and-design/03-database-design.md) (ERD rút gọn, chỉ mục), [`database/README.md`](./database/README.md) (từ điển dữ liệu, ràng buộc CHECK) |
+
+> Bảng cột ở mục 4 được sinh tự động từ file schema. Khi đổi schema, sinh lại mục này thay vì sửa tay. `oisms_schema.sql` luôn là nguồn đúng nếu có chỗ lệch.
 
 ---
 
-## 1. MÔ HÌNH ÁNH XẠ CLEAN ARCHITECTURE & ORM
+## 1. Ánh Xạ Clean Architecture & ORM
 
-Hệ thống OISMS áp dụng kiến trúc **Clean Architecture 4 tầng** kết hợp **Object-Relational Mapping (ORM)** với **Entity Framework Core 8** trên nền tảng .NET 8. 
+- Entity nằm ở `OISM.Domain/Entities`, ánh xạ sang bảng bằng Fluent API (`IEntityTypeConfiguration<T>`) trong `OISM.Infrastructure/Persistence/Configurations`. Tên cột dùng `snake_case` (`EFCore.NamingConventions`).
+- Provider là **Npgsql** (PostgreSQL 16). Hệ thống **phụ thuộc PostgreSQL**: trigger `ledger_append_only`, cột sinh `reference_id`, `jsonb`, `pg_advisory_xact_lock` và `SELECT ... FOR UPDATE` trong một số service ở `OISM.Application` (`OrderService`, `ReservationService`, ...). Không thể đổi sang SQL Server/MySQL chỉ bằng cách thay `UseNpgsql`; đây là nợ kỹ thuật đã ghi nhận.
+- Không dùng EF Core migrations. Schema cài mới từ `oisms_schema.sql`; nâng cấp bằng file trong `docker/postgres/migrations/`.
+- Mọi bảng nghiệp vụ (trừ `tenants`) có `tenant_id`; khóa ngoại dùng cặp `(tenant_id, id)` nên không thể tham chiếu chéo tenant. Entity triển khai `IMustHaveTenant` và có global query filter trong `AppDbContext`.
+- Số lượng (`on_hand`, `quantity`...) là `numeric(18,3)` theo **đơn vị gốc** của SKU; tiền `numeric(20,2)`; giá vốn `numeric(20,6)`.
 
-Mọi thực thể kinh doanh (Business Entities) được định nghĩa độc lập ở tầng lõi (**Domain Layer**) dưới dạng POCO (Plain Old CLR Objects), sau đó được ánh xạ một-một sang các bảng CSDL vật lý thông qua tầng **Infrastructure Layer** (sử dụng Fluent API `IEntityTypeConfiguration<T>`).
+## 2. Sơ Đồ Quan Hệ Chính
 
-```
-[ Domain Layer: Business Entities (POCO) ]
-                     │
-                     ▼
-[ Infrastructure: EF Core Configurations (Fluent API) ]
-                     │
-                     ▼
-[ Database Engine: PostgreSQL / MySQL / SQL Server (43 Tables) ]
-```
-
-### Tính độc lập & Khả năng chuyển đổi Cơ sở dữ liệu (Database Portability)
-Nhờ nguyên lý đảo ngược phụ thuộc (Dependency Inversion) của Clean Architecture:
-- Toàn bộ nghiệp vụ ở tầng **`OISM.Domain`** và **`OISM.Application`** hoàn toàn không phụ thuộc vào hệ quản trị CSDL cụ thể nào (không chứa câu lệnh SQL raw của PostgreSQL).
-- Khi cần chuyển đổi giữa các HQT CSDL (**PostgreSQL $\leftrightarrow$ MS SQL Server $\leftrightarrow$ MySQL**), chỉ cần thay đổi cấu hình Provider tại tầng **`OISM.Infrastructure/DependencyInjection.cs`**:
-  - **PostgreSQL**: `options.UseNpgsql(connStr)`
-  - **MS SQL Server**: `options.UseSqlServer(connStr)`
-  - **MySQL**: `options.UseMySql(connStr, ServerVersion.AutoDetect(connStr))`
-
----
-
-## 2. SƠ ĐỒ THỰC THỂ QUAN HỆ TỔNG QUAN (CORE MERMAID ERD)
+Chỉ vẽ quan hệ nghiệp vụ chính; quan hệ tới `tenants` (mọi bảng) và tới `users` (người tạo/duyệt) được lược bớt. Danh sách đủ khóa ngoại ở mục 4.
 
 ```mermaid
 erDiagram
-    TENANTS ||--o{ USERS : "sở hữu"
-    USERS ||--o{ REFRESH_TOKENS : "cấp"
-    TENANTS ||--o{ BRANCHES : "quản lý"
-    BRANCHES ||--o{ WAREHOUSES : "chứa"
-    
-    TENANTS ||--o{ CATEGORIES : "phân loại"
-    TENANTS ||--o{ BRANDS : "nhãn hiệu"
-    TENANTS ||--o{ UNITS : "đơn vị chuẩn"
-    
-    CATEGORIES ||--o{ PRODUCTS : "phân nhóm"
-    BRANDS ||--o{ PRODUCTS : "sản xuất"
-    PRODUCTS ||--o{ SKUS : "biến thể hàng hóa"
-    
-    UNITS ||--o{ SKUS : "đơn vị gốc"
-    SKUS ||--o{ SKU_UNITS : "quy cách đóng gói"
-    UNITS ||--o{ SKU_UNITS : "đơn vị quy đổi"
-    SKU_UNITS ||--o{ SKU_UNIT_FACTOR_HISTORY : "lịch sử hệ số"
-    
-    TENANTS ||--o{ PRICE_LISTS : "áp dụng"
-    SKUS ||--o{ SKU_UNIT_PRICES : "giá theo đơn vị"
-    PRICE_LISTS ||--o{ SKU_UNIT_PRICES : "thuộc bảng giá"
-    PRICE_CHANGE_REQUESTS ||--o{ PRICE_CHANGE_REQUEST_ITEMS : "chi tiết đổi giá"
-    
-    TENANTS ||--o{ SUPPLIERS : "hợp tác"
-    SUPPLIERS ||--o{ PURCHASE_ORDERS : "nhận đơn"
-    PURCHASE_ORDERS ||--o{ PURCHASE_ORDER_ITEMS : "chi tiết mua"
-    PURCHASE_ORDERS ||--o{ GOODS_RECEIPTS : "nhập kho theo đơn"
-    GOODS_RECEIPTS ||--o{ GOODS_RECEIPT_ITEMS : "chi tiết nhập"
-    
-    SKUS ||--o{ INVENTORY_BALANCES : "tồn chi nhánh (WAC)"
-    SKUS ||--o{ WAREHOUSE_INVENTORY_BALANCES : "tồn kho vật lý"
-    SKUS ||--o{ INVENTORY_TRANSACTIONS : "ghi sổ cái (Append-Only)"
-    
-    BRANCHES ||--o{ ORDERS : "bán hàng"
-    ORDERS ||--o{ ORDER_ITEMS : "dòng hàng"
-    ORDER_ITEMS ||--o{ RESERVATIONS : "giữ chỗ kho"
-    ORDERS ||--o{ PAYMENTS : "thanh toán"
-    ORDERS ||--o| SALES_INVOICES : "hóa đơn xuất bán (1-1)"
-    
-    WAREHOUSES ||--o{ STOCK_TRANSFERS : "xuất chuyển"
-    STOCK_TRANSFERS ||--o{ STOCK_TRANSFER_ITEMS : "chi tiết chuyển"
-    
-    WAREHOUSES ||--o{ STOCK_COUNTS : "kiểm kê"
-    STOCK_COUNTS ||--o{ STOCK_COUNT_ITEMS : "chi tiết kiểm"
-    STOCK_COUNT_SCHEDULES ||--o{ STOCK_COUNT_PERIODS : "sinh kỳ định kỳ"
-    STOCK_COUNTS ||--o{ STOCK_COUNT_APPROVALS : "duyệt chốt"
+    BRANCHES ||--o{ WAREHOUSES : "branch_id"
+    CATEGORIES ||--o{ CATEGORIES : "parent_id"
+    CATEGORIES ||--o{ PRODUCTS : "category_id"
+    BRANDS ||--o{ PRODUCTS : "brand_id"
+    PRODUCTS ||--o{ SKUS : "product_id"
+    BRANCHES ||--o{ GOODS_RECEIPTS : "branch_id"
+    WAREHOUSES ||--o{ GOODS_RECEIPTS : "warehouse_id"
+    SUPPLIERS ||--o{ GOODS_RECEIPTS : "supplier_id"
+    GOODS_RECEIPTS ||--o{ GOODS_RECEIPT_ITEMS : "receipt_id"
+    SKUS ||--o{ GOODS_RECEIPT_ITEMS : "sku_id"
+    BRANCHES ||--o{ INVENTORY_BALANCES : "branch_id"
+    SKUS ||--o{ INVENTORY_BALANCES : "sku_id"
+    WAREHOUSES ||--o{ WAREHOUSE_INVENTORY_BALANCES : "warehouse_id"
+    SKUS ||--o{ WAREHOUSE_INVENTORY_BALANCES : "sku_id"
+    BRANCHES ||--o{ STOCK_TRANSFERS : "from_branch_id"
+    WAREHOUSES ||--o{ STOCK_TRANSFERS : "from_warehouse_id"
+    STOCK_TRANSFERS ||--o{ STOCK_TRANSFER_ITEMS : "transfer_id"
+    SKUS ||--o{ STOCK_TRANSFER_ITEMS : "sku_id"
+    BRANCHES ||--o{ STOCK_COUNTS : "branch_id"
+    WAREHOUSES ||--o{ STOCK_COUNTS : "warehouse_id"
+    INVENTORY_ADJUSTMENTS ||--o{ STOCK_COUNTS : "generated_adjustment_id"
+    STOCK_COUNTS ||--o{ STOCK_COUNT_ITEMS : "stock_count_id"
+    SKUS ||--o{ STOCK_COUNT_ITEMS : "sku_id"
+    BRANCHES ||--o{ INVENTORY_ADJUSTMENTS : "branch_id"
+    WAREHOUSES ||--o{ INVENTORY_ADJUSTMENTS : "warehouse_id"
+    INVENTORY_ADJUSTMENTS ||--o{ INVENTORY_ADJUSTMENT_ITEMS : "adjustment_id"
+    SKUS ||--o{ INVENTORY_ADJUSTMENT_ITEMS : "sku_id"
+    INVENTORY_TRANSACTIONS ||--o{ INVENTORY_ADJUSTMENT_ITEMS : "original_transaction_id"
+    BRANCHES ||--o{ ORDERS : "branch_id"
+    ORDERS ||--o{ ORDER_ITEMS : "order_id"
+    SKUS ||--o{ ORDER_ITEMS : "sku_id"
+    WAREHOUSES ||--o{ RESERVATIONS : "warehouse_id"
+    ORDER_ITEMS ||--o{ RESERVATIONS : "order_item_id"
+    ORDERS ||--o{ RESERVATIONS : "order_id"
+    ORDERS ||--o{ PAYMENTS : "order_id"
+    ORDERS ||--o{ SALES_RETURNS : "order_id"
+    BRANCHES ||--o{ SALES_RETURNS : "branch_id"
+    WAREHOUSES ||--o{ SALES_RETURNS : "warehouse_id"
+    SALES_RETURNS ||--o{ SALES_RETURN_ITEMS : "sales_return_id"
+    ORDER_ITEMS ||--o{ SALES_RETURN_ITEMS : "order_item_id"
+    WAREHOUSES ||--o{ INVENTORY_TRANSACTIONS : "warehouse_id"
+    SKUS ||--o{ INVENTORY_TRANSACTIONS : "sku_id"
+    BRANCHES ||--o{ INVENTORY_TRANSACTIONS : "branch_id"
+    GOODS_RECEIPT_ITEMS ||--o{ INVENTORY_TRANSACTIONS : "receipt_item_id"
+    ORDER_ITEMS ||--o{ INVENTORY_TRANSACTIONS : "order_item_id"
+    STOCK_TRANSFER_ITEMS ||--o{ INVENTORY_TRANSACTIONS : "transfer_item_id"
+    STOCK_COUNT_ITEMS ||--o{ INVENTORY_TRANSACTIONS : "stock_count_item_id"
+    SALES_RETURN_ITEMS ||--o{ INVENTORY_TRANSACTIONS : "sales_return_item_id"
+    INVENTORY_ADJUSTMENT_ITEMS ||--o{ INVENTORY_TRANSACTIONS : "adjustment_item_id"
+    BRANCHES ||--o{ DAILY_SALES_SUMMARIES : "branch_id"
+    SKUS ||--o{ DAILY_SALES_SUMMARIES : "sku_id"
+    BRANCHES ||--o{ REPLENISHMENT_SUGGESTIONS : "branch_id"
+    SKUS ||--o{ REPLENISHMENT_SUGGESTIONS : "sku_id"
+    BRANCHES ||--o{ SHOP_INTEGRATIONS : "branch_id"
+    UNITS ||--o{ SKUS : "base_unit_id"
+    SKUS ||--o{ SKU_UNITS : "sku_id"
+    UNITS ||--o{ SKU_UNITS : "unit_id"
+    SKU_UNITS ||--o{ SKU_UNIT_FACTOR_HISTORY : "sku_unit_id"
+    UNITS ||--o{ GOODS_RECEIPT_ITEMS : "unit_id"
+    UNITS ||--o{ ORDER_ITEMS : "unit_id"
+    PRICE_CHANGE_REQUESTS ||--o{ PRICE_CHANGE_REQUEST_ITEMS : "request_id"
+    PRICE_LISTS ||--o{ PRICE_CHANGE_REQUEST_ITEMS : "price_list_id"
+    SKU_UNITS ||--o{ PRICE_CHANGE_REQUEST_ITEMS : "sku_id"
+    PRICE_LISTS ||--o{ SKU_UNIT_PRICES : "price_list_id"
+    PRICE_CHANGE_REQUEST_ITEMS ||--o{ SKU_UNIT_PRICES : "source_item_id"
+    SKU_UNITS ||--o{ SKU_UNIT_PRICES : "sku_id"
+    SKU_UNIT_PRICES ||--o{ ORDER_ITEMS : "sku_unit_price_id"
+    SUPPLIERS ||--o{ PURCHASE_ORDERS : "supplier_id"
+    BRANCHES ||--o{ PURCHASE_ORDERS : "branch_id"
+    PURCHASE_ORDERS ||--o{ PURCHASE_ORDER_ITEMS : "purchase_order_id"
+    SKUS ||--o{ PURCHASE_ORDER_ITEMS : "sku_id"
+    UNITS ||--o{ PURCHASE_ORDER_ITEMS : "unit_id"
+    PURCHASE_ORDERS ||--o{ GOODS_RECEIPTS : "purchase_order_id"
+    PURCHASE_ORDER_ITEMS ||--o{ GOODS_RECEIPT_ITEMS : "purchase_order_item_id"
+    ORDERS ||--o{ SALES_INVOICES : "order_id"
+    BRANCHES ||--o{ SALES_INVOICES : "branch_id"
+    STOCK_COUNT_PERIODS ||--o{ STOCK_COUNTS : "period_id"
+    WAREHOUSES ||--o{ STOCK_COUNT_SCHEDULES : "warehouse_id"
+    STOCK_COUNT_SCHEDULES ||--o{ STOCK_COUNT_PERIODS : "schedule_id"
+    WAREHOUSES ||--o{ STOCK_COUNT_PERIODS : "warehouse_id"
+    STOCK_COUNTS ||--o{ STOCK_COUNT_APPROVALS : "stock_count_id"
 ```
 
----
+## 3. Danh Mục 43 Bảng
 
-## 3. DANH MỤC 43 THỰC THỂ & ÁNH XẠ CODE (MAPPING DIRECTORY)
+| STT | Bảng | Entity (Domain) | Nhóm |
+| :---: | :--- | :--- | :--- |
+| 1 | `tenants` | `Tenant` | Tổ chức & xác thực |
+| 2 | `users` | `User` | Tổ chức & xác thực |
+| 3 | `refresh_tokens` | `RefreshToken` | Tổ chức & xác thực |
+| 4 | `branches` | `Branch` | Tổ chức & xác thực |
+| 5 | `warehouses` | `Warehouse` | Tổ chức & xác thực |
+| 6 | `categories` | `Category` | Danh mục & đơn vị tính (U05) |
+| 7 | `brands` | `Brand` | Danh mục & đơn vị tính (U05) |
+| 8 | `units` | `Unit` | Danh mục & đơn vị tính (U05) |
+| 9 | `products` | `Product` | Danh mục & đơn vị tính (U05) |
+| 10 | `skus` | `ProductVariant` | Danh mục & đơn vị tính (U05) |
+| 11 | `sku_units` | `SkuUnit` | Danh mục & đơn vị tính (U05) |
+| 12 | `sku_unit_factor_history` | `SkuUnitFactorHistory` | Danh mục & đơn vị tính (U05) |
+| 13 | `price_lists` | `PriceList` | Bảng giá theo thời gian (U04) |
+| 14 | `price_change_requests` | `PriceChangeRequest` | Bảng giá theo thời gian (U04) |
+| 15 | `price_change_request_items` | `PriceChangeRequestItem` | Bảng giá theo thời gian (U04) |
+| 16 | `sku_unit_prices` | `SkuUnitPrice` | Bảng giá theo thời gian (U04) |
+| 17 | `suppliers` | `Supplier` | Mua hàng & nhập kho (U01-A) |
+| 18 | `purchase_orders` | `PurchaseOrder` | Mua hàng & nhập kho (U01-A) |
+| 19 | `purchase_order_items` | `PurchaseOrderItem` | Mua hàng & nhập kho (U01-A) |
+| 20 | `goods_receipts` | `GoodsReceipt` | Mua hàng & nhập kho (U01-A) |
+| 21 | `goods_receipt_items` | `GoodsReceiptItem` | Mua hàng & nhập kho (U01-A) |
+| 22 | `inventory_balances` | `InventoryBalance` | Tồn kho, chuyển kho, điều chỉnh |
+| 23 | `warehouse_inventory_balances` | `WarehouseInventoryBalance` | Tồn kho, chuyển kho, điều chỉnh |
+| 24 | `stock_transfers` | `StockTransfer` | Tồn kho, chuyển kho, điều chỉnh |
+| 25 | `stock_transfer_items` | `StockTransferItem` | Tồn kho, chuyển kho, điều chỉnh |
+| 26 | `inventory_adjustments` | `InventoryAdjustment` | Tồn kho, chuyển kho, điều chỉnh |
+| 27 | `inventory_adjustment_items` | `InventoryAdjustmentItem` | Tồn kho, chuyển kho, điều chỉnh |
+| 28 | `stock_counts` | `StockCount` | Kiểm kê (U03) |
+| 29 | `stock_count_items` | `StockCountItem` | Kiểm kê (U03) |
+| 30 | `stock_count_schedules` | `StockCountSchedule` | Kiểm kê (U03) |
+| 31 | `stock_count_periods` | `StockCountPeriod` | Kiểm kê (U03) |
+| 32 | `stock_count_approvals` | `StockCountApproval` | Kiểm kê (U03) |
+| 33 | `orders` | `Order` | Bán hàng, POS, hóa đơn (U02) |
+| 34 | `order_items` | `OrderItem` | Bán hàng, POS, hóa đơn (U02) |
+| 35 | `reservations` | `Reservation` | Bán hàng, POS, hóa đơn (U02) |
+| 36 | `payments` | `Payment` | Bán hàng, POS, hóa đơn (U02) |
+| 37 | `sales_invoices` | `SalesInvoice` | Bán hàng, POS, hóa đơn (U02) |
+| 38 | `sales_returns` | — *(chưa có entity, backend chưa dùng)* | Bán hàng, POS, hóa đơn (U02) |
+| 39 | `sales_return_items` | — *(chưa có entity, backend chưa dùng)* | Bán hàng, POS, hóa đơn (U02) |
+| 40 | `inventory_transactions` | `InventoryTransaction` | Sổ cái |
+| 41 | `daily_sales_summaries` | — *(chưa có entity, backend chưa dùng)* | Báo cáo, AI, tích hợp sàn |
+| 42 | `replenishment_suggestions` | — *(chưa có entity, backend chưa dùng)* | Báo cáo, AI, tích hợp sàn |
+| 43 | `shop_integrations` | `ShopIntegration` | Báo cáo, AI, tích hợp sàn |
 
-| STT | Tên Thực thể (Domain Entity) | Tên Bảng (Database Table) | Phân hệ (Subsystem) | Mô tả nghiệp vụ |
-| :---: | :--- | :--- | :--- | :--- |
-| 1 | `Tenant` | `tenants` | Multi-Tenant | Doanh nghiệp/Chủ gian hàng độc lập |
-| 2 | `User` | `users` | Auth & RBAC | Tài khoản người dùng (Owner, Staff, Cashier) |
-| 3 | `RefreshToken` | `refresh_tokens` | Auth & RBAC | Token xoay vòng duy trì phiên đăng nhập |
-| 4 | `Branch` | `branches` | Organization | Chi nhánh kinh doanh (điểm chốt WAC) |
-| 5 | `Warehouse` | `warehouses` | Organization | Kho vật lý trực thuộc chi nhánh |
-| 6 | `Category` | `categories` | Catalog | Cây danh mục sản phẩm đa cấp |
-| 7 | `Brand` | `brands` | Catalog | Thương hiệu sản phẩm |
-| 8 | `Unit` | `units` | Catalog / U05 | Danh mục đơn vị tính (cái, hộp, thùng, kg...) |
-| 9 | `Product` | `products` | Catalog | Sản phẩm thông tin chung (SP mẹ) |
-| 10 | `ProductVariant` | `skus` | Catalog / SKU | Biến thể hàng hóa cụ thể (mã vạch, tồn, giá) |
-| 11 | `SkuUnit` | `sku_units` | Catalog / U05 | Quy cách đơn vị quy đổi theo SKU |
-| 12 | `SkuUnitFactorHistory` | `sku_unit_factor_history` | Catalog / U05 | Lịch sử biến động tỷ lệ quy đổi (Append-only) |
-| 13 | `PriceList` | `price_lists` | Pricing / U04 | Bảng giá (Bán lẻ, Bán sỉ) |
-| 14 | `PriceChangeRequest` | `price_change_requests` | Pricing / U04 | Phiếu đề xuất thay đổi giá bán |
-| 15 | `PriceChangeRequestItem`| `price_change_request_items`| Pricing / U04 | Chi tiết đề xuất đổi giá từng SKU |
-| 16 | `SkuUnitPrice` | `sku_unit_prices` | Pricing / U04 | Giá bán áp dụng theo đơn vị và bảng giá |
-| 17 | `Supplier` | `suppliers` | Purchasing | Nhà cung cấp hàng hóa |
-| 18 | `PurchaseOrder` | `purchase_orders` | Purchasing / U01-A | Đơn đặt mua hàng từ nhà cung cấp |
-| 19 | `PurchaseOrderItem` | `purchase_order_items` | Purchasing / U01-A | Chi tiết số lượng và giá đặt mua |
-| 20 | `GoodsReceipt` | `goods_receipts` | Purchasing / U01-A | Phiếu nhập kho thực tế |
-| 21 | `GoodsReceiptItem` | `goods_receipt_items` | Purchasing / U01-A | Chi tiết nhập kho từng mặt hàng & giá vốn |
-| 22 | `InventoryBalance` | `inventory_balances` | Inventory / Ledger | Tổng tồn và giá vốn bình quân (WAC) chi nhánh |
-| 23 | `WarehouseInventoryBalance`| `warehouse_inventory_balances`| Inventory | Tồn vật lý và số lượng giữ chỗ riêng từng kho |
-| 24 | `StockTransfer` | `stock_transfers` | Inventory | Phiếu điều chuyển hàng giữa các kho |
-| 25 | `StockTransferItem` | `stock_transfer_items` | Inventory | Chi tiết danh mục và lượng hàng chuyển |
-| 26 | `StockCount` | `stock_counts` | Inventory / U03 | Phiếu kiểm kê kho thực tế |
-| 27 | `StockCountItem` | `stock_count_items` | Inventory / U03 | Chi tiết số lượng đếm, tồn sổ sách, chênh lệch |
-| 28 | `InventoryAdjustment` | `inventory_adjustments` | Inventory | Phiếu điều chỉnh cân đối tồn kho phát sinh |
-| 29 | `InventoryAdjustmentItem`| `inventory_adjustment_items`| Inventory | Chi tiết điều chỉnh tăng/giảm và lý do |
-| 30 | `Order` | `orders` | Sales & POS | Đơn hàng bán (POS, Admin, Shopee, TikTok...) |
-| 31 | `OrderItem` | `order_items` | Sales & POS | Chi tiết dòng hàng bán, chụp snapshot giá |
-| 32 | `Reservation` | `reservations` | Sales & POS | Bản ghi giữ chỗ tồn kho chống bán vượt (Oversell) |
-| 33 | `Payment` | `payments` | Sales & POS | Giao dịch thanh toán đơn hàng (Tiền mặt, CK) |
-| 34 | `SalesInvoice` | `sales_invoices` | Invoicing / U02 | Hóa đơn bán hàng điện tử nội bộ (Truy vết) |
-| 35 | `StockCountSchedule` | `stock_count_schedules` | Inventory / U03 | Cấu hình lịch kiểm kê tự động |
-| 36 | `StockCountPeriod` | `stock_count_periods` | Inventory / U03 | Kỳ kiểm kê được kích hoạt theo lịch |
-| 37 | `StockCountApproval` | `stock_count_approvals` | Inventory / U03 | Nhật ký nộp/duyệt/yêu cầu đếm lại kiểm kê |
-| 38 | `SalesReturn` | `sales_returns` | Sales Returns | Phiếu khách hàng trả lại hàng |
-| 39 | `SalesReturnItem` | `sales_return_items` | Sales Returns | Chi tiết số lượng và số tiền hoàn trả |
-| 40 | `InventoryTransaction` | `inventory_transactions` | Inventory / Ledger | Sổ cái kho bất biến (Append-Only Transaction Log) |
-| 41 | `DailySalesSummary` | `daily_sales_summaries` | Reporting | Báo cáo doanh số và giá vốn tổng hợp theo ngày |
-| 42 | `ReplenishmentSuggestion`| `replenishment_suggestions` | AI Analytics | Gợi ý số lượng đặt hàng thông minh từ AI |
-| 43 | `ShopIntegration` | `shop_integrations` | Omnichannel | Cấu hình kết nối API sàn TMĐT |
+Ghi chú:
+- `skus` ánh xạ tới entity `ProductVariant`.
+- `Role`, `UserRole` có trong `OISM.Domain/Entities` nhưng không có bảng; vai trò lưu ở cột `users.role` (`Owner`, `Staff`, `Cashier`).
+- `Tenant.Code` là thuộc tính bỏ qua khi ánh xạ (`Ignore`), không có cột trong `tenants`.
+- 4 bảng chưa có entity: `sales_returns`, `sales_return_items` (trả hàng CS-01 chưa làm), `daily_sales_summaries` (báo cáo tính trực tiếp từ đơn), `replenishment_suggestions` (gợi ý nhập tính trực tiếp từ sổ cái, đơn và tồn).
 
----
+## 4. Cột Và Khóa Ngoại Từng Bảng
 
-## 4. CHI TIẾT CÁC THỰC THỂ DỮ LIỆU CỐT LÕI (DETAILED ENTITY SPECIFICATIONS)
+Ký hiệu: **PK** khóa chính, **NN** NOT NULL, **GEN** cột sinh tự động. Khóa ngoại ghi dạng `cột → bảng`.
 
-### 4.1. Phân hệ Tổ chức & Xác thực (Tenants, Users, Branches, Warehouses)
+### Tổ chức & xác thực
 
-#### Bảng `tenants` (Doanh nghiệp đa thuê bao)
-| Thuộc tính (Column) | Kiểu dữ liệu | Ràng buộc | Mô tả |
-| :--- | :--- | :--- | :--- |
-| `id` | `uuid` | PK | Mã định danh người thuê bao |
-| `name` | `varchar(150)` | NOT NULL | Tên công ty/cửa hàng |
-| `code` | `varchar(50)` | UNIQUE | Mã định danh viết tắt |
-| `is_active` | `boolean` | DEFAULT true | Trạng thái hoạt động |
-| `created_at` | `timestamptz` | DEFAULT now() | Ngày tạo |
+#### `tenants` — `Tenant`
 
-#### Bảng `users` (Người dùng hệ thống)
-| Thuộc tính (Column) | Kiểu dữ liệu | Ràng buộc | Mô tả |
-| :--- | :--- | :--- | :--- |
-| `id` | `uuid` | PK | Mã định danh người dùng |
-| `tenant_id` | `uuid` | FK $\rightarrow$ tenants(id) | Thuộc doanh nghiệp nào |
-| `email` | `varchar(150)` | UNIQUE | Địa chỉ email đăng nhập |
-| `password_hash`| `varchar(255)` | NOT NULL | Mật khẩu băm (BCrypt) |
-| `full_name` | `varchar(150)` | NOT NULL | Họ và tên hiển thị |
-| `role` | `varchar(50)` | CHECK (Role IN ('Owner', 'Staff', 'Cashier')) | Phân quyền vai trò |
-| `branch_id` | `uuid` | FK $\rightarrow$ branches(id) | Chi nhánh làm việc mặc định |
-| `is_active` | `boolean` | DEFAULT true | Trạng thái tài khoản |
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `name` | `varchar(200)` | NN |
+| `is_active` | `boolean` | NN, mặc định `true` |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
 
-#### Bảng `branches` (Chi nhánh - Chốt giá vốn WAC)
-| Thuộc tính (Column) | Kiểu dữ liệu | Ràng buộc | Mô tả |
-| :--- | :--- | :--- | :--- |
-| `id` | `uuid` | PK | Mã chi nhánh |
-| `tenant_id` | `uuid` | FK $\rightarrow$ tenants(id) | Thuộc doanh nghiệp |
-| `name` | `varchar(150)` | NOT NULL | Tên chi nhánh |
-| `code` | `varchar(50)` | UNIQUE (tenant_id, code) | Mã chi nhánh |
-| `address` | `text` | NULL | Địa chỉ chi nhánh |
-| `phone` | `varchar(32)` | NULL | Số điện thoại liên hệ |
+#### `users` — `User`
 
-#### Bảng `warehouses` (Kho vật lý)
-| Thuộc tính (Column) | Kiểu dữ liệu | Ràng buộc | Mô tả |
-| :--- | :--- | :--- | :--- |
-| `id` | `uuid` | PK | Mã kho |
-| `tenant_id` | `uuid` | FK $\rightarrow$ tenants(id) | Thuộc doanh nghiệp |
-| `branch_id` | `uuid` | FK $\rightarrow$ branches(id) | Trực thuộc chi nhánh |
-| `name` | `varchar(150)` | NOT NULL | Tên kho hàng |
-| `code` | `varchar(50)` | UNIQUE (tenant_id, code) | Mã kho |
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `email` | `varchar(254)` |  |
+| `phone` | `varchar(16)` |  |
+| `password_hash` | `varchar(255)` | NN |
+| `display_name` | `varchar(150)` | NN |
+| `role` | `varchar(20)` | NN |
+| `is_active` | `boolean` | NN, mặc định `true` |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
 
----
+#### `refresh_tokens` — `RefreshToken`
 
-### 4.2. Phân hệ Danh mục, Đơn vị tính & Bảng giá (Catalog, Units, Pricing)
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `user_id` | `uuid` | NN, FK → `users` |
+| `token_hash` | `varchar(128)` | NN |
+| `expires_at` | `timestamptz` | NN |
+| `revoked_at` | `timestamptz` |  |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
 
-#### Bảng `products` & `skus` (Sản phẩm & Biến thể SKU)
-- `products`: Lưu thông tin chung (Tên, Danh mục, Thương hiệu).
-- `skus`: Lưu biến thể hàng hóa độc lập:
-  - `id`: `uuid` (PK)
-  - `tenant_id`: `uuid` (FK)
-  - `product_id`: `uuid` (FK)
-  - `sku_code`: `varchar(80)` (Mã SKU duy nhất trong Tenant)
-  - `barcode`: `varchar(50)` (Mã vạch EAN-13 quét tại POS)
-  - `base_unit_id`: `uuid` (FK $\rightarrow$ `units`: đơn vị chuẩn cơ sở)
-  - `retail_price`: `numeric(20,2)` (Giá bán lẻ)
-  - `wholesale_price`: `numeric(20,2)` (Giá bán buôn)
-  - `attributes`: `jsonb` (Thuộc tính biến thể: Màu, Size, Dung tích...)
+#### `branches` — `Branch`
 
-#### Bảng `sku_units` (Đơn vị quy đổi - U05)
-| Thuộc tính (Column) | Kiểu dữ liệu | Ràng buộc | Mô tả |
-| :--- | :--- | :--- | :--- |
-| `id` | `uuid` | PK | Khóa chính |
-| `tenant_id` | `uuid` | FK | Doanh nghiệp |
-| `sku_id` | `uuid` | FK $\rightarrow$ skus(id) | Thuộc SKU nào |
-| `unit_id` | `uuid` | FK $\rightarrow$ units(id) | Đơn vị quy đổi (thùng, lốc, bao...) |
-| `factor_to_base`| `numeric(18,6)`| CHECK > 0 | Hệ số quy đổi về đơn vị gốc |
-| `barcode` | `varchar(50)` | NULL | Mã vạch riêng của quy cách đóng gói |
-| `version` | `integer` | DEFAULT 1 | Phiên bản hệ số (chống sửa đè) |
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `name` | `varchar(200)` | NN |
+| `address` | `text` |  |
+| `is_active` | `boolean` | NN, mặc định `true` |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
 
-#### Bảng `price_change_requests` & `price_change_request_items` (Quy trình duyệt giá - U04)
-- Quy trình thay đổi giá minh bạch 2 bước:
-  1. Nhân viên lập phiếu đề xuất thay đổi giá lẻ/giá sỉ/giá theo quy cách.
-  2. Chủ cửa hàng (Owner) phê duyệt: Chỉ khi được duyệt, giá mới được ghi nhận vào `sku_unit_prices` và áp dụng cho các đơn hàng mới.
-  3. Hỗ trợ Idempotency Key chống gửi lặp đề xuất khi mạng lag.
+#### `warehouses` — `Warehouse`
 
----
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `branch_id` | `uuid` | NN, FK → `branches` |
+| `name` | `varchar(200)` | NN |
+| `is_active` | `boolean` | NN, mặc định `true` |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
 
-### 4.3. Phân hệ Mua hàng & Nhập kho (Purchasing & Goods Receipts - U01-A)
+### Danh mục & đơn vị tính (U05)
 
-#### Bảng `purchase_orders` (Phiếu đặt mua hàng)
-| Thuộc tính (Column) | Kiểu dữ liệu | Ràng buộc | Mô tả |
-| :--- | :--- | :--- | :--- |
-| `id` | `uuid` | PK | Mã phiếu mua |
-| `tenant_id` | `uuid` | FK | Doanh nghiệp |
-| `number` | `varchar(50)` | UNIQUE (tenant_id, number) | Mã chứng từ PO |
-| `supplier_id` | `uuid` | FK $\rightarrow$ suppliers(id) | Nhà cung cấp |
-| `branch_id` | `uuid` | FK $\rightarrow$ branches(id) | Chi nhánh đặt mua |
-| `status` | `varchar(20)` | CHECK IN ('Draft', 'Approved', 'PartiallyReceived', 'Completed', 'Cancelled') | Trạng thái phê duyệt |
-| `total_amount` | `numeric(20,2)`| NOT NULL | Tổng giá trị đặt hàng |
+#### `categories` — `Category`
 
-#### Bảng `goods_receipts` (Phiếu nhập kho thực tế)
-- **Ràng buộc nghiệp vụ quan trọng**: Phiếu nhập kho từ nhà cung cấp **bắt buộc phải tham chiếu tới `purchase_order_id` đã được phê duyệt**.
-- Hệ thống tự động kiểm tra số lượng nhập thực tế không được vượt quá số lượng còn được phép nhập trên đơn đặt mua (`received_quantity <= ordered_quantity`).
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `parent_id` | `uuid` | FK → `categories` |
+| `name` | `varchar(200)` | NN |
+| `is_active` | `boolean` | NN, mặc định `true` |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
 
----
+#### `brands` — `Brand`
 
-### 4.4. Phân hệ Bán hàng Đa kênh & POS (Orders, Reservations, Invoices - U02)
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `name` | `varchar(200)` | NN |
+| `is_active` | `boolean` | NN, mặc định `true` |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
 
-#### Bảng `orders` & `order_items`
-- Lưu trữ mọi đơn hàng từ các kênh: POS, Admin Web, Shopee, TikTok Shop, Lazada.
-- Mỗi dòng `order_items` lưu trữ:
-  - `unit_id`: Đơn vị giao dịch (hộp/thùng/kg).
-  - `quantity`: Số lượng giao dịch.
-  - `factor_snapshot`: Hệ số quy đổi tại thời điểm đặt đơn.
-  - `base_quantity`: `quantity * factor_snapshot` (Số lượng tính theo đơn vị gốc để trừ kho).
-  - `cost_price`: Giá vốn WAC được chụp (snapshot) ngay khi xác nhận đơn.
+#### `units` — `Unit`
 
-#### Bảng `reservations` (Cơ chế giữ chỗ chống bán vượt)
-- Khi đơn hàng được tiếp nhận, hệ thống sinh bản ghi giữ chỗ (`Active`) trên bảng `reservations` trỏ trực tiếp xuống từng kho vật lý.
-- Khi xuất hàng thành công $\rightarrow$ chuyển trạng thái `Consumed`. Nếu hủy đơn $\rightarrow$ chuyển trạng thái `Released`.
-- Đảm bảo tính nhất quán kể cả khi có nhiều nhân viên thu ngân POS cùng bán một mặt hàng cùng lúc.
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `code` | `varchar(30)` | NN |
+| `name` | `varchar(100)` | NN |
+| `symbol` | `varchar(20)` | NN |
+| `measure_group` | `varchar(20)` | NN |
+| `decimal_places` | `smallint` | NN, mặc định `3` |
+| `is_active` | `boolean` | NN, mặc định `true` |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
 
-#### Bảng `sales_invoices` (Hóa đơn xuất bán - U02)
-- Hóa đơn điện tử nội bộ được sinh tự động khi đơn hàng hoàn tất xuất kho.
-- Quan hệ 1-1 với đơn hàng (`order_id`).
-- Bảng Append-Only: Không cho phép chỉnh sửa hoặc xóa hóa đơn sau khi đã phát hành.
-- Cung cấp API `GET /api/sales-invoices/{id}/trace` cho phép truy vết xuyên suốt:
-  **Hóa đơn (INV-) $\longrightarrow$ Đơn hàng (ORD-) $\longrightarrow$ Dòng xuất kho thực tế trong Sổ cái (OUT Ledger)**.
+#### `products` — `Product`
 
----
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `category_id` | `uuid` | FK → `categories` |
+| `brand_id` | `uuid` | FK → `brands` |
+| `name` | `varchar(250)` | NN |
+| `description` | `text` |  |
+| `is_active` | `boolean` | NN, mặc định `true` |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
 
-### 4.5. Phân hệ Sổ cái Bất biến & Kiểm kê kho (Ledger & Stock Counts - U03)
+#### `skus` — `ProductVariant`
 
-#### Bảng `inventory_transactions` (Sổ cái kho bất biến - Core Ledger)
-- Lưu trữ mọi biến động kho với nguyên tắc **Append-Only** (nghiêm cấm mọi thao tác UPDATE/DELETE nhờ Database Trigger `trg_prevent_ledger_tampering`).
-- Mỗi dòng giao dịch có:
-  - `type`: `IN` (Nhập kho/Trả hàng) hoặc `OUT` (Xuất bán/Xuất hủy).
-  - `quantity`: Số lượng biến động theo đơn vị chuẩn gốc.
-  - `unit_cost`: Giá vốn WAC tương ứng.
-  - `balance_after`: Số dư tồn lũy kế ngay sau giao dịch.
-  - `sequence_no`: Số thứ tự giao dịch tăng đơn điệu theo cặp `(branch_id, sku_id)` để chống xung đột tương tranh.
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `product_id` | `uuid` | NN, FK → `products` |
+| `code` | `varchar(80)` | NN |
+| `attributes` | `jsonb` | NN, mặc định `'{}'::jsonb` |
+| `unit` | `varchar(30)` | NN, mặc định `'piece'` |
+| `barcode_type` | `varchar(20)` |  |
+| `barcode` | `varchar(128)` |  |
+| `retail_price` | `numeric(20,2)` | NN |
+| `wholesale_price` | `numeric(20,2)` | NN |
+| `base_unit_id` | `uuid` | FK → `units` |
+| `is_active` | `boolean` | NN, mặc định `true` |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
 
-#### Bảng `stock_counts` & `stock_count_approvals` (Kiểm kê kho 3 bước - U03)
-- Quy trình kiểm kê phân quyền nghiêm ngặt:
-  $$\text{Draft} \longrightarrow \text{Counting (Đang đếm)} \longrightarrow \text{PendingApproval (Chờ duyệt)} \longrightarrow \text{Confirmed (Đã chốt)}$$
-- Nhân viên kho (`Staff`) chỉ có quyền nộp kết quả đếm (`/submit`).
-- Chủ cửa hàng (`Owner`) có quyền:
-  - Yêu cầu đếm lại (`/request-recount`): chuyển trạng thái về Counting.
-  - Phê duyệt chốt kiểm kê (`/confirm`): Khi duyệt, hệ thống tự động sinh bút toán bù trừ cân đối kho vào Sổ cái `inventory_transactions` đúng một lần duy nhất.
+#### `sku_units` — `SkuUnit`
 
----
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `sku_id` | `uuid` | NN, FK → `skus` |
+| `unit_id` | `uuid` | NN, FK → `units` |
+| `factor_to_base` | `numeric(18,6)` | NN |
+| `can_purchase` | `boolean` | NN, mặc định `true` |
+| `can_sell` | `boolean` | NN, mặc định `true` |
+| `is_default_purchase` | `boolean` | NN, mặc định `false` |
+| `is_default_sale` | `boolean` | NN, mặc định `false` |
+| `barcode` | `varchar(128)` |  |
+| `quantity_decimal_places` | `smallint` | NN, mặc định `3` |
+| `sale_price` | `numeric(20,2)` |  |
+| `version` | `integer` | NN, mặc định `1` |
+| `is_active` | `boolean` | NN, mặc định `true` |
+| `updated_by` | `uuid` | FK → `users` |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
 
-## 5. HƯỚNG DẪN TRÌNH BÀY & DEBUG LUỒNG ĐI (DEBUG FLOW CHO SINH VIÊN)
+#### `sku_unit_factor_history` — `SkuUnitFactorHistory`
 
-Khi giảng viên yêu cầu: *"Đọc hiểu source code và giải thích luồng đi (debug) trong chương trình"*, sinh viên thực hiện các bước sau:
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `sku_unit_id` | `uuid` | NN, FK → `sku_units` |
+| `old_factor` | `numeric(18,6)` |  |
+| `new_factor` | `numeric(18,6)` | NN |
+| `old_version` | `integer` |  |
+| `new_version` | `integer` | NN |
+| `changed_by` | `uuid` | FK → `users` |
+| `changed_at` | `timestamptz` | NN, mặc định `now()` |
 
-### Luồng mẫu: Quá trình Xác nhận Đơn hàng & Xuất kho (Order Confirmation Flow)
+### Bảng giá theo thời gian (U04)
+
+#### `price_lists` — `PriceList`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `code` | `varchar(30)` | NN |
+| `name` | `varchar(100)` | NN |
+| `is_active` | `boolean` | NN, mặc định `true` |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+
+#### `price_change_requests` — `PriceChangeRequest`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `request_key` | `uuid` | NN |
+| `kind` | `varchar(20)` | NN |
+| `status` | `varchar(20)` | NN |
+| `reason` | `varchar(500)` | NN |
+| `requested_valid_from` | `timestamptz` |  |
+| `created_by` | `uuid` | FK → `users` |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `reviewed_by` | `uuid` | FK → `users` |
+| `reviewed_at` | `timestamptz` |  |
+| `review_note` | `varchar(500)` |  |
+
+#### `price_change_request_items` — `PriceChangeRequestItem`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `request_id` | `uuid` | NN, FK → `price_change_requests` |
+| `price_list_id` | `uuid` | NN, FK → `price_lists` |
+| `sku_id` | `uuid` | NN, FK → `sku_units` |
+| `unit_id` | `uuid` | NN, FK → `sku_units` |
+| `new_price` | `numeric(20,2)` | NN |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+
+#### `sku_unit_prices` — `SkuUnitPrice`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `price_list_id` | `uuid` | NN, FK → `price_lists` |
+| `sku_id` | `uuid` | NN, FK → `sku_units` |
+| `unit_id` | `uuid` | NN, FK → `sku_units` |
+| `price` | `numeric(20,2)` | NN |
+| `valid_from` | `timestamptz` | NN |
+| `source_item_id` | `uuid` | NN, FK → `price_change_request_items` |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `cancelled_at` | `timestamptz` |  |
+| `cancelled_by` | `uuid` | FK → `users` |
+| `cancel_reason` | `varchar(500)` |  |
+
+### Mua hàng & nhập kho (U01-A)
+
+#### `suppliers` — `Supplier`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `name` | `varchar(200)` | NN |
+| `phone` | `varchar(32)` |  |
+| `email` | `varchar(254)` |  |
+| `address` | `text` |  |
+| `is_active` | `boolean` | NN, mặc định `true` |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+
+#### `purchase_orders` — `PurchaseOrder`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `number` | `varchar(50)` | NN |
+| `request_key` | `uuid` | NN |
+| `supplier_id` | `uuid` | NN, FK → `suppliers` |
+| `branch_id` | `uuid` | NN, FK → `branches` |
+| `status` | `varchar(20)` | NN |
+| `note` | `varchar(1000)` |  |
+| `created_by` | `uuid` | NN, FK → `users` |
+| `approved_by` | `uuid` | FK → `users` |
+| `approved_at` | `timestamptz` |  |
+| `closed_by` | `uuid` | FK → `users` |
+| `closed_at` | `timestamptz` |  |
+| `close_reason` | `varchar(500)` |  |
+| `cancelled_by` | `uuid` | FK → `users` |
+| `cancelled_at` | `timestamptz` |  |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+
+#### `purchase_order_items` — `PurchaseOrderItem`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `purchase_order_id` | `uuid` | NN, FK → `purchase_orders` |
+| `sku_id` | `uuid` | NN, FK → `skus` |
+| `unit_id` | `uuid` | FK → `units` |
+| `unit_name_snapshot` | `varchar(100)` | NN, mặc định `''` |
+| `factor_snapshot` | `numeric(18,6)` | NN, mặc định `1` |
+| `quantity_decimal_places` | `smallint` | NN, mặc định `3` |
+| `quantity` | `numeric(18,3)` | NN |
+| `ordered_base_quantity` | `numeric(18,3)` | GEN |
+| `unit_price` | `numeric(20,6)` | NN |
+| `received_base_quantity` | `numeric(18,3)` | NN, mặc định `0` |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+
+#### `goods_receipts` — `GoodsReceipt`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `number` | `varchar(50)` | NN |
+| `purchase_order_id` | `uuid` | FK → `purchase_orders` |
+| `branch_id` | `uuid` | NN, FK → `branches`, `warehouses` |
+| `warehouse_id` | `uuid` | NN, FK → `warehouses` |
+| `supplier_id` | `uuid` | NN, FK → `suppliers` |
+| `status` | `varchar(20)` | NN, mặc định `'Draft'` |
+| `note` | `text` |  |
+| `created_by` | `uuid` | NN, FK → `users` |
+| `confirmed_at` | `timestamptz` |  |
+| `confirmed_by` | `uuid` | FK → `users` |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+
+#### `goods_receipt_items` — `GoodsReceiptItem`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `receipt_id` | `uuid` | NN, FK → `goods_receipts` |
+| `purchase_order_item_id` | `uuid` | FK → `purchase_order_items` |
+| `sku_id` | `uuid` | NN, FK → `purchase_order_items`, `skus` |
+| `unit_id` | `uuid` | FK → `units` |
+| `unit_name_snapshot` | `varchar(100)` | NN, mặc định `''` |
+| `factor_snapshot` | `numeric(18,6)` | NN, mặc định `1` |
+| `quantity` | `numeric(18,3)` | NN |
+| `base_quantity` | `numeric(18,3)` | GEN |
+| `unit_price` | `numeric(20,6)` | NN |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+
+### Tồn kho, chuyển kho, điều chỉnh
+
+#### `inventory_balances` — `InventoryBalance`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `branch_id` | `uuid` | NN, FK → `branches` |
+| `sku_id` | `uuid` | NN, FK → `skus` |
+| `on_hand` | `numeric(18,3)` | NN, mặc định `0` |
+| `reserved` | `numeric(18,3)` | NN, mặc định `0` |
+| `average_cost` | `numeric(20,6)` | NN, mặc định `0` |
+| `reorder_point` | `numeric(18,3)` | NN, mặc định `0` |
+| `last_sequence` | `bigint` | NN, mặc định `0` |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+
+#### `warehouse_inventory_balances` — `WarehouseInventoryBalance`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `branch_id` | `uuid` | NN, FK → `warehouses` |
+| `warehouse_id` | `uuid` | NN, FK → `warehouses` |
+| `sku_id` | `uuid` | NN, FK → `skus` |
+| `on_hand` | `numeric(18,3)` | NN, mặc định `0` |
+| `reserved` | `numeric(18,3)` | NN, mặc định `0` |
+| `last_sequence` | `bigint` | NN, mặc định `0` |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+
+#### `stock_transfers` — `StockTransfer`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `number` | `varchar(50)` | NN |
+| `request_key` | `uuid` |  |
+| `payload_signature` | `varchar(128)` |  |
+| `from_branch_id` | `uuid` | NN, FK → `branches`, `warehouses` |
+| `to_branch_id` | `uuid` | NN, FK → `branches`, `warehouses` |
+| `from_warehouse_id` | `uuid` | NN, FK → `warehouses` |
+| `to_warehouse_id` | `uuid` | NN, FK → `warehouses` |
+| `status` | `varchar(20)` | NN, mặc định `'Draft'` |
+| `created_by` | `uuid` | NN, FK → `users` |
+| `dispatched_by` | `uuid` | FK → `users` |
+| `dispatched_at` | `timestamptz` |  |
+| `received_at` | `timestamptz` |  |
+| `received_by` | `uuid` | FK → `users` |
+| `note` | `text` |  |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+
+#### `stock_transfer_items` — `StockTransferItem`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `transfer_id` | `uuid` | NN, FK → `stock_transfers` |
+| `sku_id` | `uuid` | NN, FK → `skus` |
+| `quantity` | `numeric(18,3)` | NN |
+| `unit_cost` | `numeric(20,6)` |  |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+
+#### `inventory_adjustments` — `InventoryAdjustment`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `number` | `varchar(50)` | NN |
+| `branch_id` | `uuid` | NN, FK → `branches`, `warehouses` |
+| `warehouse_id` | `uuid` | NN, FK → `warehouses` |
+| `reason` | `text` | NN |
+| `status` | `varchar(20)` | NN, mặc định `'Draft'` |
+| `created_by` | `uuid` | NN, FK → `users` |
+| `confirmed_by` | `uuid` | FK → `users` |
+| `confirmed_at` | `timestamptz` |  |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+
+#### `inventory_adjustment_items` — `InventoryAdjustmentItem`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `adjustment_id` | `uuid` | NN, FK → `inventory_adjustments` |
+| `sku_id` | `uuid` | NN, FK → `skus` |
+| `quantity_delta` | `numeric(18,3)` | NN |
+| `unit_cost` | `numeric(20,6)` |  |
+| `original_transaction_id` | `uuid` | FK → `inventory_transactions` |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+
+### Kiểm kê (U03)
+
+#### `stock_counts` — `StockCount`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `number` | `varchar(50)` | NN |
+| `branch_id` | `uuid` | NN, FK → `branches`, `inventory_adjustments`, `warehouses` |
+| `warehouse_id` | `uuid` | NN, FK → `inventory_adjustments`, `warehouses` |
+| `status` | `varchar(20)` | NN, mặc định `'Draft'` |
+| `created_by` | `uuid` | NN, FK → `users` |
+| `confirmed_by` | `uuid` | FK → `users` |
+| `confirmed_at` | `timestamptz` |  |
+| `note` | `text` |  |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+| `request_key` | `uuid` |  |
+| `payload_signature` | `varchar(128)` |  |
+| `generated_adjustment_id` | `uuid` | FK → `inventory_adjustments` |
+| `count_type` | `varchar(20)` | NN, mặc định `'AdHoc'` |
+| `ad_hoc_reason` | `text` |  |
+| `period_id` | `uuid` | FK → `stock_count_periods` |
+| `submitted_by` | `uuid` | FK → `users` |
+| `submitted_at` | `timestamptz` |  |
+
+#### `stock_count_items` — `StockCountItem`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `stock_count_id` | `uuid` | NN, FK → `stock_counts` |
+| `sku_id` | `uuid` | NN, FK → `skus` |
+| `expected_quantity` | `numeric(18,3)` | NN |
+| `counted_quantity` | `numeric(18,3)` |  |
+| `balance_sequence_at_snapshot` | `bigint` | NN |
+| `adjustment_unit_cost` | `numeric(20,6)` |  |
+| `counted_by` | `uuid` | FK → `users` |
+| `counted_at` | `timestamptz` |  |
+| `snapshot_at` | `timestamptz` |  |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+
+#### `stock_count_schedules` — `StockCountSchedule`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `branch_id` | `uuid` | NN, FK → `warehouses` |
+| `warehouse_id` | `uuid` | NN, FK → `warehouses` |
+| `period_type` | `varchar(20)` | NN |
+| `day_of_month` | `smallint` |  |
+| `local_time` | `time` | NN |
+| `due_days` | `smallint` | NN |
+| `assignee_user_id` | `uuid` | NN, FK → `users` |
+| `is_active` | `boolean` | NN, mặc định `true` |
+| `created_by` | `uuid` | NN, FK → `users` |
+| `updated_by` | `uuid` | FK → `users` |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+
+#### `stock_count_periods` — `StockCountPeriod`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `schedule_id` | `uuid` | NN, FK → `stock_count_schedules` |
+| `branch_id` | `uuid` | NN, FK → `warehouses` |
+| `warehouse_id` | `uuid` | NN, FK → `warehouses` |
+| `period_type` | `varchar(20)` | NN |
+| `period_key` | `varchar(20)` | NN |
+| `scheduled_at` | `timestamptz` | NN |
+| `due_at` | `timestamptz` | NN |
+| `assignee_user_id` | `uuid` | NN, FK → `users` |
+| `status` | `varchar(20)` | NN, mặc định `'Planned'` |
+| `completed_at` | `timestamptz` |  |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+
+#### `stock_count_approvals` — `StockCountApproval`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `stock_count_id` | `uuid` | NN, FK → `stock_counts` |
+| `action` | `varchar(20)` | NN |
+| `actor_user_id` | `uuid` | NN, FK → `users` |
+| `reason` | `text` |  |
+| `differences` | `jsonb` | NN |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+
+### Bán hàng, POS, hóa đơn (U02)
+
+#### `orders` — `Order`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `number` | `varchar(50)` | NN |
+| `branch_id` | `uuid` | NN, FK → `branches` |
+| `channel` | `varchar(20)` | NN |
+| `external_shop_id` | `varchar(100)` |  |
+| `external_order_id` | `varchar(100)` |  |
+| `status` | `varchar(20)` | NN, mặc định `'Draft'` |
+| `customer_name` | `varchar(200)` |  |
+| `customer_phone` | `varchar(32)` |  |
+| `shipping_address` | `text` |  |
+| `total_amount` | `numeric(20,2)` | NN, mặc định `0` |
+| `request_key` | `uuid` | NN |
+| `webhook_payload_signature` | `varchar(64)` |  |
+| `created_by` | `uuid` | FK → `users` |
+| `confirmed_by` | `uuid` | FK → `users` |
+| `confirmed_at` | `timestamptz` |  |
+| `completed_at` | `timestamptz` |  |
+| `cancelled_at` | `timestamptz` |  |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+
+#### `order_items` — `OrderItem`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `order_id` | `uuid` | NN, FK → `orders` |
+| `sku_id` | `uuid` | NN, FK → `skus` |
+| `sku_code_snapshot` | `varchar(80)` | NN |
+| `sku_name_snapshot` | `varchar(250)` | NN |
+| `unit_id` | `uuid` | FK → `units` |
+| `unit_name_snapshot` | `varchar(100)` | NN, mặc định `''` |
+| `factor_snapshot` | `numeric(18,6)` | NN, mặc định `1` |
+| `quantity` | `numeric(18,3)` | NN |
+| `base_quantity` | `numeric(18,3)` | GEN |
+| `unit_price` | `numeric(20,2)` | NN |
+| `cost_price` | `numeric(20,6)` |  |
+| `sku_unit_price_id` | `uuid` | FK → `sku_unit_prices` |
+| `price_source` | `varchar(20)` | NN, mặc định `'Legacy'` |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+
+#### `reservations` — `Reservation`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `order_id` | `uuid` | NN, FK → `order_items`, `orders` |
+| `order_item_id` | `uuid` | NN, FK → `order_items` |
+| `branch_id` | `uuid` | NN, FK → `orders`, `warehouses` |
+| `warehouse_id` | `uuid` | NN, FK → `warehouses` |
+| `sku_id` | `uuid` | NN, FK → `order_items` |
+| `quantity` | `numeric(18,3)` | NN |
+| `status` | `varchar(20)` | NN, mặc định `'Active'` |
+| `expires_at` | `timestamptz` | NN |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+
+#### `payments` — `Payment`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `order_id` | `uuid` | NN, FK → `orders` |
+| `method` | `varchar(20)` | NN |
+| `status` | `varchar(20)` | NN, mặc định `'Pending'` |
+| `amount` | `numeric(20,2)` | NN |
+| `cash_received` | `numeric(20,2)` |  |
+| `paid_at` | `timestamptz` |  |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+
+#### `sales_invoices` — `SalesInvoice`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `number` | `varchar(50)` | NN |
+| `order_id` | `uuid` | NN, FK → `orders` |
+| `branch_id` | `uuid` | NN, FK → `branches`, `orders` |
+| `channel` | `varchar(20)` | NN |
+| `branch_name_snapshot` | `varchar(200)` | NN |
+| `branch_address_snapshot` | `text` |  |
+| `customer_name_snapshot` | `varchar(200)` |  |
+| `customer_phone_snapshot` | `varchar(32)` |  |
+| `issued_by` | `uuid` | FK → `users` |
+| `issued_by_name_snapshot` | `varchar(150)` |  |
+| `total_amount` | `numeric(20,2)` | NN |
+| `payment_method_snapshot` | `varchar(20)` |  |
+| `issued_at` | `timestamptz` | NN |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+
+#### `sales_returns`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `number` | `varchar(50)` | NN |
+| `order_id` | `uuid` | NN, FK → `orders` |
+| `branch_id` | `uuid` | NN, FK → `branches`, `warehouses` |
+| `warehouse_id` | `uuid` | NN, FK → `warehouses` |
+| `status` | `varchar(20)` | NN, mặc định `'Draft'` |
+| `reason` | `text` | NN |
+| `created_by` | `uuid` | NN, FK → `users` |
+| `confirmed_by` | `uuid` | FK → `users` |
+| `confirmed_at` | `timestamptz` |  |
+| `refund_method` | `varchar(20)` |  |
+| `refunded_at` | `timestamptz` |  |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+
+#### `sales_return_items`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `sales_return_id` | `uuid` | NN, FK → `sales_returns` |
+| `order_id` | `uuid` | NN, FK → `order_items`, `sales_returns` |
+| `order_item_id` | `uuid` | NN, FK → `order_items` |
+| `sku_id` | `uuid` | NN, FK → `order_items` |
+| `quantity` | `numeric(18,3)` | NN |
+| `refund_amount` | `numeric(20,2)` | NN |
+| `original_unit_cost` | `numeric(20,6)` | NN |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+
+### Sổ cái
+
+#### `inventory_transactions` — `InventoryTransaction`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `branch_id` | `uuid` | NN, FK → `branches`, `warehouses` |
+| `warehouse_id` | `uuid` | NN, FK → `warehouses` |
+| `sku_id` | `uuid` | NN, FK → `skus` |
+| `type` | `varchar(3)` | NN |
+| `quantity` | `numeric(18,3)` | NN |
+| `unit_cost` | `numeric(20,6)` | NN |
+| `balance_after` | `numeric(18,3)` | NN |
+| `sequence_no` | `bigint` | NN |
+| `receipt_item_id` | `uuid` | FK → `goods_receipt_items` |
+| `order_item_id` | `uuid` | FK → `order_items` |
+| `transfer_item_id` | `uuid` | FK → `stock_transfer_items` |
+| `stock_count_item_id` | `uuid` | FK → `stock_count_items` |
+| `sales_return_item_id` | `uuid` | FK → `sales_return_items` |
+| `adjustment_item_id` | `uuid` | FK → `inventory_adjustment_items` |
+| `reference_id` | `uuid` | NN, GEN |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+
+### Báo cáo, AI, tích hợp sàn
+
+#### `daily_sales_summaries`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `business_date` | `date` | NN |
+| `branch_id` | `uuid` | NN, FK → `branches` |
+| `channel` | `varchar(20)` | NN |
+| `sku_id` | `uuid` | NN, FK → `skus` |
+| `sold_quantity` | `numeric(18,3)` | NN |
+| `returned_quantity` | `numeric(18,3)` | NN |
+| `revenue` | `numeric(20,2)` | NN |
+| `return_amount` | `numeric(20,2)` | NN |
+| `cost_of_goods_sold` | `numeric(20,2)` | NN |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+
+#### `replenishment_suggestions`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `branch_id` | `uuid` | NN, FK → `branches` |
+| `sku_id` | `uuid` | NN, FK → `skus` |
+| `forecast_date` | `date` | NN |
+| `horizon_days` | `integer` | NN |
+| `predicted_quantity` | `numeric(18,3)` | NN |
+| `suggested_quantity` | `numeric(18,3)` | NN |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+
+#### `shop_integrations` — `ShopIntegration`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `channel` | `varchar(20)` | NN |
+| `external_shop_id` | `varchar(100)` | NN |
+| `branch_id` | `uuid` | NN, FK → `branches` |
+| `is_active` | `boolean` | NN, mặc định `true` |
+| `secret_hash` | `varchar(255)` | NN |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+
+## 5. Quy Tắc Dữ Liệu Quan Trọng
+
+- **Sổ cái `inventory_transactions` chỉ INSERT.** Trigger `ledger_append_only` chặn `UPDATE`, `DELETE`, `TRUNCATE`. Mỗi dòng có đúng một nguồn chứng từ (`receipt_item_id`, `order_item_id`, `transfer_item_id`, `stock_count_item_id`, `sales_return_item_id`, `adjustment_item_id`); `reference_id` là cột sinh từ nguồn đó. `sequence_no` tăng theo `(tenant_id, branch_id, sku_id)`.
+- **Hai cấp tồn:** `inventory_balances` (chi nhánh, giữ `average_cost` WAC và `reorder_point`) và `warehouse_inventory_balances` (từng kho). CHECK `reserved <= on_hand`, `on_hand >= 0`.
+- **Giữ chỗ:** `reservations.status` ∈ `Active`, `Consumed`, `Released`, `Expired`; duy nhất theo `(tenant_id, order_item_id, warehouse_id)`.
+- **Đơn hàng:** `orders.status` ∈ `Draft`, `Reserved`, `Confirmed`, `Completed`, `Cancelled`. `order_items` lưu `unit_id`, `factor_snapshot`, `base_quantity`, `cost_price` (WAC chụp khi xuất), `sku_unit_price_id`, `price_source`.
+- **Phiếu mua:** `purchase_orders.status` ∈ `Draft`, `Approved`, `PartiallyReceived`, `Received`, `Closed`, `Cancelled`. Phiếu nhập phải gắn phiếu mua đã duyệt và không nhập vượt `received_base_quantity`.
+- **Hóa đơn bán:** `sales_invoices` 1–1 với `orders` (`uq_sales_invoices_3`), số hóa đơn duy nhất trong tenant, lập cùng transaction với dòng `OUT`.
+- **Kiểm kê:** `stock_counts.status` ∈ `Draft`, `Counting`, `PendingApproval`, `Confirmed`, `Cancelled`; `stock_count_periods.status` ∈ `Planned`, `InProgress`, `Completed`, `Cancelled`.
+- **Giá:** `price_change_requests.status` ∈ `Pending`, `Approved`, `Rejected`; giá hiệu lực lưu ở `sku_unit_prices` theo `(bảng giá, SKU, đơn vị, valid_from)`. Cột `skus.retail_price`, `wholesale_price` là dữ liệu cũ, không dùng khi bán.
+
+## 6. Luồng Mẫu Để Trình Bày / Debug: Xác Nhận Đơn Online
+
+```text
+[Admin] POST /api/orders/{id}/confirm
+   │
+   ▼  OISM.WebApi/Controllers/OrdersController.cs        — [Authorize(Roles="Owner,Staff")], chỉ điều phối HTTP
+   ▼  OISM.Application/Features/Orders/Services/OrderService.cs  — ConfirmOrderAsync
+   │    1. BeginTransaction
+   │    2. Khóa: pg_advisory_xact_lock theo (tenant, chi nhánh, SKU) và theo đơn, lấy sau khi mở transaction
+   │    3. Kiểm tra trạng thái Reserved, reservation Active
+   │    4. Trừ on_hand + reserved ở warehouse_inventory_balances và inventory_balances
+   │    5. INSERT inventory_transactions (type OUT, unit_cost = average_cost)
+   │    6. order_items.cost_price = WAC; reservations → Consumed; orders → Confirmed
+   │    7. INSERT sales_invoices (số INV-...)
+   │    8. SaveChanges (AppDbContext kiểm tra tenant guard) → Commit
+   │    9. Sau commit: IRealtimeNotifier phát SignalR
+   ▼  OISM.Infrastructure/Persistence/AppDbContext.cs     — global query filter theo tenantId từ JWT
+[PostgreSQL] trigger ledger_append_only bảo vệ sổ cái
 ```
-[Client / POS App]
-       │
-       ▼ (1) POST /api/orders/{id}/confirm
-[WebAPI: OrdersController]
-       │   - Middleware giải mã JWT (TenantId, UserId, Roles)
-       │   - Validate trạng thái DTO
-       ▼ (2) Execute Command
-[Application: OrderProcessingService]
-       │   - Kiểm tra tồn khả dụng (Available = OnHand - Reserved)
-       │   - Khóa bản ghi (Distributed Lock / SQL Lock)
-       ▼ (3) Domain Logic & Mutation
-[Domain: Order & Inventory Entities]
-       │   - Order.Confirm()
-       │   - Cập nhật số dư kho (InventoryBalance, WarehouseInventoryBalance)
-       │   - Tạo bản ghi sổ cái (InventoryTransaction: Type = 'OUT')
-       ▼ (4) Data Persistence (ORM)
-[Infrastructure: AppDbContext]
-       │   - Ghi trong Database Transaction:
-       │     BEGIN TRANSACTION;
-       │     INSERT INTO inventory_transactions ...;
-       │     UPDATE inventory_balances ...;
-       │     INSERT INTO sales_invoices ...;
-       │     COMMIT;
-       ▼ (5) Return Response
-[Client: Nhận mã Hóa đơn INV- và cập nhật giao diện]
-```
 
-### Các bước trả lời phản biện với Giảng viên:
-1. **Chỉ ra vị trí Breakpoint**: Đặt breakpoint ở Controller (`src/backend/src/OISM.WebAPI/Controllers/`), sau đó bấm **F11 (Step Into)** để đưa giảng viên qua tầng **Application**, rồi vào phương thức Domain của Entity.
-2. **Chứng minh ORM mapping**: Mở file Entity tương ứng trong `src/backend/src/OISM.Domain/Entities/` và file Configuration trong `src/backend/src/OISM.Infrastructure/Persistence/Configurations/` để chỉ rõ thuộc tính nào map với cột nào trong CSDL.
-3. **Chứng minh tính bảo vệ dữ liệu**: Giải thích cách EF Core áp dụng **Global Query Filter** (`e.TenantId == _currentTenantId`) để tự động cô lập dữ liệu giữa các cửa hàng, không bao giờ lo lộ dữ liệu giữa các khách hàng khác nhau.
-4. **Chứng minh khả năng đổi Database**: Mở `DependencyInjection.cs`, giải thích rằng toàn bộ Business Logic không có cú pháp SQL của riêng PostgreSQL; nếu muốn sang MySQL hay SQL Server thì chỉ cần thay `UseNpgsql` thành `UseSqlServer` / `UseMySql`.
+Gợi ý khi trình bày: đặt breakpoint ở `OrdersController.ConfirmOrder`, Step Into vào `OrderService.ConfirmOrderAsync`; mở `Persistence/Configurations/OrderItemConfiguration.cs` để chỉ thuộc tính ↔ cột; mở `AppDbContext.cs` để chỉ `HasQueryFilter` và `EnforceTenantGuardsAndAudit`.

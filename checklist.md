@@ -20,7 +20,7 @@
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | • Tổng hợp toàn bộ yêu cầu đề bài (`28 FR + AI`, `11 NFR`, `5 Task Packages`, `6 Deliverables`) và đánh dấu nghiệm thu `[x]` các hạng mục đã hoàn thành trong Sprint 2.<br/>• **Check thay đổi khi đối chiếu Confluence (`Page ID: 5275650`, Version 9):** Đồng bộ chính xác lịch trình (`S2: 13–17/10`, `S3: 18–22/10`, `S4: 23–27/10`, `S5: 28/10–01/11`) và phân công 5 thành viên cho các hạng mục chưa hoàn thành `[ ]`. | `INIT-SYNC-CHK-S2` |
 | `v1.1.0` | `2026-10-27` | Lê Võ Đăng Khoa — Backend 1 | Cập nhật checklist BE1 Sprint 3 theo hồ sơ T01–T06, B-01 và PR #21; tách phần backend đã đạt khỏi UI, API đọc/báo cáo BE2 và công việc Sprint 4; đồng bộ phân công Simulator theo bản v11 đã lưu trong repo. | `SYNC-BE1-S3-CHECKLIST` |
 | `v1.2.0` | `2026-10-29` | Rà soát sản phẩm | Bổ sung checklist hiện trạng Admin/POS, 20 nhóm lỗi và 8 mục Coming soon; giữ nguyên bằng chứng Sprint 2/BE1 lịch sử, không tự nâng thành nghiệm thu toàn sản phẩm. | `docs/bug-fixaffter/` |
-| `v1.4.0` | `2026-11-05` | Rà soát Thạc sĩ / Tech Lead | Rà soát toàn diện VS Code, Docker, GitHub Actions CI, Jira/Checklist, Backend .NET 8 (ForwardedHeaders, CORS order, null safety, log encoding) và Frontend React 19 (Multi-unit LineKey, pagination race condition, receipt order matching). | `MASTER-REVIEW-OISMS-47` |
+| `v1.4.0` | `2026-11-05` | Phùng Minh Nhựt — Backend 2 (chỉnh sửa sau review: Lê Võ Đăng Khoa) | Rà soát toàn diện VS Code, Docker, GitHub Actions CI, Jira/Checklist, Backend .NET 8 (ForwardedHeaders, CORS order, null safety, log encoding) và Frontend React 19 (Multi-unit LineKey, pagination race condition, receipt order matching). | `MASTER-REVIEW-OISMS-47` |
 
 ---
 
