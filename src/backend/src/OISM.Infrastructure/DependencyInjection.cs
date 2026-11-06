@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using OISM.Application.Common.Interfaces;
+using OISM.Infrastructure.Health;
 using OISM.Infrastructure.Jobs;
 using OISM.Infrastructure.Persistence;
 using OISM.Infrastructure.Services;
@@ -32,6 +33,7 @@ public static class DependencyInjection
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IDatabaseMigrationService, DatabaseMigrationService>();
+        services.AddSingleton<IDatabaseReadinessService, NpgsqlDatabaseReadinessService>();
         services.AddScoped<ISqlLockService, SqlLockService>();
         services.AddScoped<IWarehouseBranchReassignmentStore, WarehouseBranchReassignmentStore>();
         services.AddOismHangfire(configuration);

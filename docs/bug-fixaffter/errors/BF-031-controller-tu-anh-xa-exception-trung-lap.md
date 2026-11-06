@@ -2,7 +2,7 @@
 
 | Mục | Giá trị |
 | :--- | :--- |
-| **Trạng thái** | ❌ Chưa sửa |
+| **Trạng thái** | 🟡 Đã sửa, chờ kiểm chứng PostgreSQL trên CI |
 | **Ưu tiên** | P2 |
 | **Khu vực** | Backend / Clean Architecture / WebApi |
 | **Phát hiện** | 06/11/2026, rà soát lại Clean Architecture sau Upgrade 06 (commit `6ad3cf6`) |
@@ -36,6 +36,10 @@ Thống kê cách ánh xạ hiện tại (06/11/2026):
 5. Bỏ 14 lần kiểm tra `ModelState.IsValid` thừa.
 6. Endpoint auth đang trả `{ message }`: chốt với frontend trước khi chuyển sang ProblemDetails (cập nhật `authAdapter.ts`, `posApi.ts` nếu cần).
 7. Test: toàn bộ integration test (các test đang so `errorCode` và HTTP status là lưới an toàn), `npm test` POS, đối chiếu lại [danh mục mã lỗi](../../12-error-and-status-codes/02-error-codes-catalog.md).
+
+## Cách đã sửa
+
+Gom ánh xạ exception vào bộ lọc MVC và dùng chung bộ dựng ProblemDetails với middleware. Giữ các dạng body đã có cho từng endpoint, kể cả `message` và `currentPrices`. Dùng chung extension đọc user ID và bộ kiểm tra ModelState của `[ApiController]`.
 
 ## Điều kiện đóng
 

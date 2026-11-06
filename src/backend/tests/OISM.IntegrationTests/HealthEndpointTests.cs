@@ -1,4 +1,5 @@
 using System.Net;
+using OISM.Infrastructure.Health;
 using System.Text.Json;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;

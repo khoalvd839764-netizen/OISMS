@@ -359,7 +359,7 @@ public class ReservationService : IReservationService
             {
                 await _context.SaveChangesAsync(ct);
             }
-            catch (DbUpdateException ex) when (IsReservationConflict(ex))
+            catch (DbUpdateException ex) when (_context.DatabaseErrors.IsUniqueViolation(ex, "uq_reservations_2"))
             {
                 throw new InvalidOperationException("Dòng đơn hàng này đã được giữ chỗ tại kho được chỉ định.");
             }
@@ -422,22 +422,5 @@ public class ReservationService : IReservationService
         }
 
         return result;
-    }
-
-    private static bool IsReservationConflict(DbUpdateException ex)
-    {
-        var inner = ex.InnerException;
-        if (inner == null) return false;
-
-        var type = inner.GetType();
-        if (type.Name == "PostgresException")
-        {
-            var sqlState = type.GetProperty("SqlState")?.GetValue(inner) as string;
-            var constraintName = type.GetProperty("ConstraintName")?.GetValue(inner) as string;
-            var message = inner.Message;
-            return sqlState == "23505" &&
-                   (constraintName == "uq_reservations_2" || message.Contains("uq_reservations_2"));
-        }
-        return false;
     }
 }

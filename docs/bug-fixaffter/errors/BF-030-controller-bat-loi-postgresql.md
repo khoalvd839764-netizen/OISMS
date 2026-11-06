@@ -2,7 +2,7 @@
 
 | Mục | Giá trị |
 | :--- | :--- |
-| **Trạng thái** | ❌ Chưa sửa |
+| **Trạng thái** | 🟡 Đã sửa, chờ kiểm chứng PostgreSQL trên CI |
 | **Ưu tiên** | P2 |
 | **Khu vực** | Backend / Clean Architecture / WebApi |
 | **Phát hiện** | 06/11/2026, rà soát lại Clean Architecture sau Upgrade 06 (commit `6ad3cf6`) |
@@ -19,6 +19,10 @@
 2. Tạm thời dùng cách bắt lỗi giống các service khác; khi làm BF-033 thì chuyển sang `IDbErrorTranslator`.
 3. Xóa khối catch trong controller.
 4. Test: tạo hai phiếu nhập cùng `number` trên PostgreSQL thật trả 409 với đúng `errorCode`.
+
+## Cách đã sửa
+
+`GoodsReceiptService` chuyển cả số phiếu đã có và xung đột trên `uq_goods_receipts_2` thành HTTP 409 `VALIDATION_ERROR` qua lớp ánh xạ chung. Giữ mã hiện hành để tương thích frontend. Test API PostgreSQL kiểm tra trùng số, status và body.
 
 ## Điều kiện đóng
 

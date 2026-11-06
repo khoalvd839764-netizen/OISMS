@@ -1,6 +1,6 @@
 using System.Text.Json;
-using Microsoft.AspNetCore.Mvc;
 using OISM.Application.Common.Exceptions;
+using OISM.WebApi.Http;
 
 namespace OISM.WebApi.Middlewares;
 
@@ -71,19 +71,8 @@ public class ExceptionHandlingMiddleware
 
         context.Response.StatusCode = statusCode;
 
-        var problemDetails = new ProblemDetails
-        {
-            Type = $"https://oisms.local/errors/{errorCode}",
-            Title = title,
-            Status = statusCode,
-            Detail = detail,
-            Instance = context.Request.Path,
-            Extensions =
-            {
-                ["errorCode"] = errorCode,
-                ["timestamp"] = DateTimeOffset.UtcNow
-            }
-        };
+        var problemDetails = ApiErrorResponse.CreateProblemDetails(
+            context, errorCode, title, statusCode, detail, exception as PriceMismatchException);
 
         var json = JsonSerializer.Serialize(problemDetails, new JsonSerializerOptions
         {

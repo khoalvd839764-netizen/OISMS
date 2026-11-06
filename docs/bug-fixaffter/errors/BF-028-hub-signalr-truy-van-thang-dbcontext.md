@@ -2,7 +2,7 @@
 
 | Mục | Giá trị |
 | :--- | :--- |
-| **Trạng thái** | ❌ Chưa sửa |
+| **Trạng thái** | 🟡 Đã sửa, chờ kiểm chứng PostgreSQL trên CI |
 | **Ưu tiên** | P2 |
 | **Khu vực** | Backend / Clean Architecture / WebApi |
 | **Phát hiện** | 06/11/2026, rà soát lại Clean Architecture sau Upgrade 06 (commit `6ad3cf6`) |
@@ -20,6 +20,10 @@
 1. Thêm `IBranchService.ExistsActiveAsync(Guid tenantId, Guid branchId, CancellationToken)` trong `Features/Branches`.
 2. Hub gọi service này, bỏ inject `IAppDbContext` và bỏ `IgnoreQueryFilters` trong WebApi.
 3. Test: integration test SignalR hiện có (join chi nhánh đúng tenant, sai tenant, chi nhánh tắt) vẫn PASS.
+
+## Cách đã sửa
+
+`NotificationHub` gọi `IBranchService.ExistsActiveAsync` với tenant từ claim. Truy vấn giữ query filter của tenant và kiểm tra chi nhánh đang hoạt động. Test SignalR bao phủ chi nhánh hợp lệ, khác tenant, không tồn tại và đã ngưng.
 
 ## Điều kiện đóng
 

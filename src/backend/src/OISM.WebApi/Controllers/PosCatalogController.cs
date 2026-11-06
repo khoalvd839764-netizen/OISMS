@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using OISM.Application.Common.Exceptions;
 using OISM.Application.Features.Orders.Dtos;
 using OISM.Application.Features.Orders.Services;
 using OISM.Application.Features.Pos;
+using OISM.WebApi.Http;
 
 namespace OISM.WebApi.Controllers;
 
@@ -31,6 +31,7 @@ public class PosCatalogController : ControllerBase
     /// </summary>
     [HttpPost("checkout")]
     [Authorize(Roles = "Owner,Staff,Cashier")]
+    [ApiErrorContract(ApiErrorProfile.PosCheckout)]
     public async Task<IActionResult> Checkout(
         [FromBody] PosCheckoutRequestDto dto,
         [FromHeader(Name = "Idempotency-Key")] string? idempotencyKeyHeader,
@@ -45,38 +46,26 @@ public class PosCatalogController : ControllerBase
     /// Hỗ trợ tra cứu tồn khả dụng theo Chi nhánh (branchId) tái sử dụng công thức Available = OnHand - Reserved.
     /// </summary>
     [HttpGet("search")]
+    [ApiErrorContract(ApiErrorProfile.MessageValidation)]
     public async Task<IActionResult> Search([FromQuery] string query, [FromQuery] Guid? branchId, CancellationToken ct)
     {
-        try
-        {
-            var results = await _posCatalogService.SearchAsync(query, branchId, ct);
-            return Ok(results);
-        }
-        catch (OismException ex) when (ex.StatusCode == 400)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        var results = await _posCatalogService.SearchAsync(query, branchId, ct);
+        return Ok(results);
     }
 
     /// <summary>
     /// Quét mã vạch (Barcode Scanner) tìm chính xác một SKU kèm tồn khả dụng (FR-POS-01, FR-PROD-03, BE2-07).
     /// </summary>
     [HttpGet("barcode/{barcode}")]
+    [ApiErrorContract(ApiErrorProfile.MessageValidation)]
     public async Task<IActionResult> GetByBarcode(string barcode, [FromQuery] Guid? branchId, CancellationToken ct)
     {
-        try
+        var result = await _posCatalogService.GetByBarcodeAsync(barcode, branchId, ct);
+        if (result == null)
         {
-            var result = await _posCatalogService.GetByBarcodeAsync(barcode, branchId, ct);
-            if (result == null)
-            {
-                return NotFound(new { message = $"Không tìm thấy sản phẩm nào khớp với mã vạch '{barcode}'." });
-            }
+            return NotFound(new { message = $"Không tìm thấy sản phẩm nào khớp với mã vạch '{barcode}'." });
+        }
 
-            return Ok(result);
-        }
-        catch (OismException ex) when (ex.StatusCode == 400)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        return Ok(result);
     }
 }

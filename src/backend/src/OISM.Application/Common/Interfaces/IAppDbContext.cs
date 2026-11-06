@@ -10,6 +10,7 @@ namespace OISM.Application.Common.Interfaces;
 /// </summary>
 public interface IAppDbContext
 {
+    IDbErrorTranslator DatabaseErrors { get; }
     bool IsRelationalDatabase { get; }
     bool HasActiveTransaction { get; }
     Task<int> ExecuteSqlRawAsync(string sql, object[] parameters, CancellationToken cancellationToken = default);

@@ -5,7 +5,7 @@ Nơi theo dõi lỗi của OISMS: lỗi nào đã sửa, lỗi nào chưa, kèm 
 - Xem nhanh: [**CHECKLIST.md**](./CHECKLIST.md)
 - Chi tiết từng lỗi: thư mục [`errors/`](./errors/), mỗi lỗi một file
 
-Cập nhật: **06/11/2026**. Hiện có **35 lỗi**: 16 đã sửa, 4 cần kiểm chứng lại, 15 chưa sửa (trong đó BF-028..035 là chỗ lệch Clean Architecture, sửa theo nhiều đợt).
+Cập nhật: **06/11/2026**. Hiện có **35 lỗi**: 16 đã sửa, 10 cần kiểm chứng hoặc mới sửa một phần, 9 chưa sửa (trong đó BF-028..035 là chỗ lệch Clean Architecture, sửa theo nhiều đợt).
 
 ## Cấu trúc
 

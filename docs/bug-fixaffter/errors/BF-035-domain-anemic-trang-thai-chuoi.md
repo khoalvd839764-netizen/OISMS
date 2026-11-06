@@ -2,7 +2,7 @@
 
 | Mục | Giá trị |
 | :--- | :--- |
-| **Trạng thái** | ❌ Chưa sửa |
+| **Trạng thái** | 🟡 Đã sửa một phần |
 | **Ưu tiên** | P3 |
 | **Khu vực** | Backend / Clean Architecture / Domain |
 | **Phát hiện** | 06/11/2026, rà soát lại Clean Architecture sau Upgrade 06 (commit `6ad3cf6`) |
@@ -22,6 +22,10 @@
 3. Đợt 4: đưa luật chuyển trạng thái vào entity (`Order.Confirm()`, `StockCount.Submit()`...) ném `INVALID_STATE_TRANSITION`; service chỉ điều phối khóa, transaction, ghi sổ.
 4. Đợt 4: tách `OrderService` thành checkout POS, vòng đời đơn Admin, nhận đơn từ sàn, truy vấn đơn.
 5. Test: unit test cho từng luật chuyển trạng thái của entity; integration test hiện có vẫn PASS.
+
+## Cách đã sửa
+
+Đã gỡ gói `MediatR` không dùng. Phần kiểu trạng thái, chuyển trạng thái trong entity và tách `OrderService` còn thuộc đợt 4.
 
 ## Điều kiện đóng
 

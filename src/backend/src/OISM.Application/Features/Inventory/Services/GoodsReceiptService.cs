@@ -138,7 +138,7 @@ public class GoodsReceiptService : IGoodsReceiptService
         var exists = await _context.GoodsReceipts.AnyAsync(r => r.Number == number, ct);
         if (exists)
         {
-            throw new InvalidOperationException($"Mã phiếu nhập '{number}' đã tồn tại trong gian hàng.");
+            throw DuplicateReceiptNumber(number);
         }
 
         var now = DateTimeOffset.UtcNow;
@@ -204,13 +204,16 @@ public class GoodsReceiptService : IGoodsReceiptService
             _context.GoodsReceipts.Add(receipt);
             await _context.SaveChangesAsync(ct);
         }
-        catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("23505") == true || ex.InnerException?.Message.Contains("uq_goods_receipts_2") == true)
+        catch (DbUpdateException ex) when (_context.DatabaseErrors.IsUniqueViolation(ex, "uq_goods_receipts_2"))
         {
-            throw new InvalidOperationException($"Mã phiếu nhập '{number}' đã tồn tại trong gian hàng.");
+            throw DuplicateReceiptNumber(number);
         }
 
         return await MapToResponseDtoAsync(receipt.Id, ct);
     }
+
+    private static OismException DuplicateReceiptNumber(string number) =>
+        new("VALIDATION_ERROR", $"Mã phiếu nhập '{number}' đã tồn tại trong gian hàng.", 409);
 
     public async Task<PagedResult<GoodsReceiptResponseDto>> GetReceiptsAsync(GoodsReceiptFilterDto filter, CancellationToken ct = default)
     {
@@ -537,12 +540,12 @@ public class GoodsReceiptService : IGoodsReceiptService
 
                 return await MapToResponseDtoAsync(receipt.Id, ct);
             }
-            catch (DbUpdateException dbEx) when (dbEx.InnerException?.Message.Contains("ck_purchase_order_items_received_range") == true)
+            catch (DbUpdateException dbEx) when (_context.DatabaseErrors.IsCheckViolation(dbEx, "ck_purchase_order_items_received_range"))
             {
                 await transaction.RollbackAsync(ct);
                 throw new PurchaseOrderOverReceiptException();
             }
-            catch (DbUpdateException dbEx) when (dbEx.InnerException?.Message.Contains("23505") == true || dbEx.InnerException?.Message.Contains("uq_inventory_transactions") == true)
+            catch (DbUpdateException dbEx) when (_context.DatabaseErrors.IsUniqueViolation(dbEx))
             {
                 await transaction.RollbackAsync(ct);
                 _context.ClearChangeTracker();

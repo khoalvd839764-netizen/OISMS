@@ -68,6 +68,5 @@ flowchart TD
 ## 4. Nợ Kỹ Thuật Đã Biết
 
 - `OISM.Application` vẫn tham chiếu `Microsoft.EntityFrameworkCore` và một số service cũ còn SQL PostgreSQL thuần (`FOR UPDATE`, `pg_advisory_xact_lock`). Đây là đánh đổi có chủ đích để giữ khóa đúng thứ tự; không refactor tiện tay.
-- Gói `MediatR` có trong `OISM.Application.csproj` nhưng chưa dùng; các use case gọi trực tiếp service.
 - Rà soát lại ngày 06/11/2026 ghi 8 chỗ lệch còn lại (BF-028..035) và kế hoạch sửa 4 đợt: [CHECKLIST mục E](../bug-fixaffter/CHECKLIST.md#e-kế-hoạch-hoàn-thiện-clean-architecture-bf-028035).
 - Chi tiết rà soát: [Upgrade 06 — Rà soát Clean Architecture](../Upgrade-recommended/06-ra-soat-clean-architecture.md) và [báo cáo sau nâng cấp](../report-after-upgrade/clean-architecture.md).

@@ -159,7 +159,7 @@ public class PurchaseOrderService : IPurchaseOrderService
                 await _context.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);
             }
-            catch (DbUpdateException ex) when (IsRequestKeyConflict(ex))
+            catch (DbUpdateException ex) when (_context.DatabaseErrors.IsUniqueViolation(ex, "uq_purchase_orders_3"))
             {
                 await tx.RollbackAsync(ct);
                 _context.ClearChangeTracker();
@@ -181,7 +181,7 @@ public class PurchaseOrderService : IPurchaseOrderService
 
                 throw;
             }
-            catch (DbUpdateException ex) when (IsNumberConflict(ex))
+            catch (DbUpdateException ex) when (_context.DatabaseErrors.IsUniqueViolation(ex, "uq_purchase_orders_2"))
             {
                 await tx.RollbackAsync(ct);
                 throw new OismException("VALIDATION_ERROR", $"Mã phiếu mua '{number}' đã tồn tại trong gian hàng.", 409);
@@ -653,20 +653,6 @@ public class PurchaseOrderService : IPurchaseOrderService
         }
 
         return true;
-    }
-
-    private static bool IsRequestKeyConflict(DbUpdateException ex)
-    {
-        var msg = ex.InnerException?.Message ?? string.Empty;
-        return msg.Contains("uq_purchase_orders_3") ||
-               (msg.Contains("23505") && msg.Contains("request_key"));
-    }
-
-    private static bool IsNumberConflict(DbUpdateException ex)
-    {
-        var msg = ex.InnerException?.Message ?? string.Empty;
-        return msg.Contains("uq_purchase_orders_2") ||
-               (msg.Contains("23505") && msg.Contains("number"));
     }
 
     private static PurchaseOrderResponseDto MapToResponseDto(PurchaseOrder po)

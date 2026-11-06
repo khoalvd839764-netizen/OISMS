@@ -172,12 +172,12 @@ public class PriceChangeService : IPriceChangeService
                 await _dbContext.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);
             }
-            catch (DbUpdateException ex) when (IsPriceValidFromConflict(ex))
+            catch (DbUpdateException ex) when (_dbContext.DatabaseErrors.IsUniqueViolation(ex, "ux_sku_unit_prices_active_key"))
             {
                 await tx.RollbackAsync(ct);
                 throw new PriceValidFromConflictException();
             }
-            catch (DbUpdateException ex) when (IsRequestKeyConflict(ex))
+            catch (DbUpdateException ex) when (_dbContext.DatabaseErrors.IsUniqueViolation(ex, "uq_price_change_requests_2"))
             {
                 await tx.RollbackAsync(ct);
 
@@ -289,7 +289,7 @@ public class PriceChangeService : IPriceChangeService
                 await _dbContext.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);
             }
-            catch (DbUpdateException ex) when (IsPriceValidFromConflict(ex))
+            catch (DbUpdateException ex) when (_dbContext.DatabaseErrors.IsUniqueViolation(ex, "ux_sku_unit_prices_active_key"))
             {
                 await tx.RollbackAsync(ct);
                 throw new PriceValidFromConflictException();
@@ -621,38 +621,6 @@ public class PriceChangeService : IPriceChangeService
     // timestamptz chỉ giữ tới micro giây, còn client có thể gửi tới 100 nano giây
     private static DateTimeOffset? TruncateToMicroseconds(DateTimeOffset? value) =>
         value?.AddTicks(-(value.Value.Ticks % 10));
-
-    private static bool IsPriceValidFromConflict(DbUpdateException ex)
-    {
-        var inner = ex.InnerException;
-        if (inner == null) return false;
-        var type = inner.GetType();
-        if (type.Name == "PostgresException")
-        {
-            var sqlState = type.GetProperty("SqlState")?.GetValue(inner) as string;
-            var constraintName = type.GetProperty("ConstraintName")?.GetValue(inner) as string;
-            var message = inner.Message;
-            return sqlState == "23505" &&
-                   (constraintName == "ux_sku_unit_prices_active_key" || message.Contains("ux_sku_unit_prices_active_key"));
-        }
-        return false;
-    }
-
-    private static bool IsRequestKeyConflict(DbUpdateException ex)
-    {
-        var inner = ex.InnerException;
-        if (inner == null) return false;
-        var type = inner.GetType();
-        if (type.Name == "PostgresException")
-        {
-            var sqlState = type.GetProperty("SqlState")?.GetValue(inner) as string;
-            var constraintName = type.GetProperty("ConstraintName")?.GetValue(inner) as string;
-            var message = inner.Message;
-            return sqlState == "23505" &&
-                   (constraintName == "uq_price_change_requests_2" || message.Contains("uq_price_change_requests_2"));
-        }
-        return false;
-    }
 
     private async Task<PriceChangeRequestResponse> LoadAndMapResponseAsync(Guid id, Guid tenantId, CancellationToken ct)
     {

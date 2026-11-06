@@ -174,7 +174,7 @@ public class WarehouseService : IWarehouseService
 
                     await tx.CommitAsync(ct);
                 }
-                catch (Exception ex) when (IsForeignKeyViolation(ex))
+                catch (Exception ex) when (_context.DatabaseErrors.IsForeignKeyViolation(ex))
                 {
                     await tx.RollbackAsync(ct);
                     throw new OismException("FK_VIOLATION",
@@ -200,7 +200,7 @@ public class WarehouseService : IWarehouseService
                 await _context.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);
             }
-            catch (Exception ex) when (IsForeignKeyViolation(ex))
+            catch (Exception ex) when (_context.DatabaseErrors.IsForeignKeyViolation(ex))
             {
                 await tx.RollbackAsync(ct);
                 throw new OismException("FK_VIOLATION",
@@ -239,16 +239,5 @@ public class WarehouseService : IWarehouseService
 
         return new WarehouseToggleResult(warehouse.Id, warehouse.IsActive,
             $"Đã {(warehouse.IsActive ? "kích hoạt" : "ngưng hoạt động")} kho hàng thành công.");
-    }
-
-    private static bool IsForeignKeyViolation(Exception ex)
-    {
-        if (ex is DbUpdateException dbEx && dbEx.InnerException != null)
-        {
-            return dbEx.InnerException.Message.Contains("23503") ||
-                   dbEx.InnerException.GetType().Name == "PostgresException";
-        }
-
-        return ex.Message.Contains("23503") || ex.GetType().Name == "PostgresException";
     }
 }

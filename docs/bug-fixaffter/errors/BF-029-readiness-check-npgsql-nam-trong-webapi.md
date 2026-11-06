@@ -2,7 +2,7 @@
 
 | Mục | Giá trị |
 | :--- | :--- |
-| **Trạng thái** | ❌ Chưa sửa |
+| **Trạng thái** | 🟡 Đã sửa, chờ kiểm chứng PostgreSQL trên CI |
 | **Ưu tiên** | P2 |
 | **Khu vực** | Backend / Clean Architecture / WebApi |
 | **Phát hiện** | 06/11/2026, rà soát lại Clean Architecture sau Upgrade 06 (commit `6ad3cf6`) |
@@ -21,6 +21,10 @@
 2. Giữ một nguồn duy nhất cho `RequiredTables` (dùng chung với `DatabaseMigrationService`). Cập nhật quy trình đổi schema trong CLAUDE.md và `docs/database/README.md` cho đúng vị trí mới.
 3. Gỡ `PackageReference Npgsql` khỏi `OISM.WebApi.csproj`.
 4. Test: các integration test readiness (thiếu bảng, trigger tắt, user có quyền admin, timeout) vẫn PASS; `/health/ready` trả 200 trên DB đủ 43 bảng.
+
+## Cách đã sửa
+
+Readiness được đăng ký trong Infrastructure và dùng chung `DatabaseMigrationService.RequiredTables`. Các route `/health/ready` và `/health` tiếp tục trả payload readiness hiện có. WebApi đã bỏ tham chiếu gói Npgsql trực tiếp.
 
 ## Điều kiện đóng
 

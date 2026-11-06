@@ -123,43 +123,21 @@ public class AuthService : IAuthService
         }
         catch (DbUpdateException ex)
         {
-            var inner = ex.InnerException;
-            if (inner != null && inner.GetType().Name == "PostgresException")
+            if (_context.DatabaseErrors.IsUniqueViolation(ex, "uq_users_2"))
             {
-                var sqlState = inner.GetType().GetProperty("SqlState")?.GetValue(inner) as string;
-                var constraintName = inner.GetType().GetProperty("ConstraintName")?.GetValue(inner) as string;
-                var message = inner.Message;
-
-                if (sqlState == "23505")
-                {
-                    if (constraintName == "uq_users_2" || message.Contains("uq_users_2") || message.Contains("Email"))
-                    {
-                        throw new OismException("EMAIL_ALREADY_EXISTS", "Email này đã được sử dụng bởi một tài khoản khác trong hệ thống.", 409);
-                    }
-                    if (constraintName == "uq_users_3" || message.Contains("uq_users_3") || message.Contains("Phone"))
-                    {
-                        throw new OismException("PHONE_ALREADY_EXISTS", "Số điện thoại này đã được sử dụng bởi một tài khoản khác trong hệ thống.", 409);
-                    }
-                    throw new OismException("CONFLICT", "Dữ liệu đăng ký bị trùng lặp trong hệ thống.", 409);
-                }
-                if (sqlState == "23514")
-                {
-                    throw new OismException("CONSTRAINT_VIOLATION", "Dữ liệu không thỏa mãn ràng buộc hệ thống.", 400);
-                }
+                throw new OismException("EMAIL_ALREADY_EXISTS", "Email này đã được sử dụng bởi một tài khoản khác trong hệ thống.", 409);
             }
-
-            var innerMsg = ex.InnerException?.Message ?? ex.Message;
-            if (innerMsg.Contains("23505") || innerMsg.Contains("uq_users_2") || innerMsg.Contains("uq_users_3"))
+            if (_context.DatabaseErrors.IsUniqueViolation(ex, "uq_users_3"))
             {
-                if (innerMsg.Contains("uq_users_2") || innerMsg.Contains("Email"))
-                {
-                    throw new OismException("EMAIL_ALREADY_EXISTS", "Email này đã được sử dụng bởi một tài khoản khác trong hệ thống.", 409);
-                }
-                if (innerMsg.Contains("uq_users_3") || innerMsg.Contains("Phone"))
-                {
-                    throw new OismException("PHONE_ALREADY_EXISTS", "Số điện thoại này đã được sử dụng bởi một tài khoản khác trong hệ thống.", 409);
-                }
+                throw new OismException("PHONE_ALREADY_EXISTS", "Số điện thoại này đã được sử dụng bởi một tài khoản khác trong hệ thống.", 409);
+            }
+            if (_context.DatabaseErrors.IsUniqueViolation(ex))
+            {
                 throw new OismException("CONFLICT", "Dữ liệu đăng ký bị trùng lặp trong hệ thống.", 409);
+            }
+            if (_context.DatabaseErrors.IsCheckViolation(ex))
+            {
+                throw new OismException("CONSTRAINT_VIOLATION", "Dữ liệu không thỏa mãn ràng buộc hệ thống.", 400);
             }
             throw;
         }

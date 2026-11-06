@@ -16,6 +16,8 @@ public class AppDbContext : DbContext, IAppDbContext
 {
     private readonly ICurrentTenantService _currentTenantService;
 
+    public IDbErrorTranslator DatabaseErrors { get; } = new PostgresDbErrorTranslator();
+
     public AppDbContext(
         DbContextOptions<AppDbContext> options,
         ICurrentTenantService currentTenantService) : base(options)

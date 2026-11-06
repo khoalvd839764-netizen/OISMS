@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using OISM.Application.Common.Exceptions;
 using OISM.Application.Features.Catalog.Products;
 using OISM.Application.Features.Catalog.Products.Services;
 using OISM.Application.Features.Pricing.Dtos;
+using OISM.WebApi.Http;
 
 namespace OISM.WebApi.Controllers;
 
@@ -50,6 +50,7 @@ public class ProductsController : ControllerBase
     /// </summary>
     [HttpPost]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.ProductMutation)]
     public async Task<IActionResult> CreateProduct([FromBody] CreateProductRequest request, CancellationToken ct)
     {
         var validator = new CreateProductValidator();
@@ -59,28 +60,9 @@ public class ProductsController : ControllerBase
             return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
         }
 
-        try
-        {
-            var actor = new PriceActor(GetCurrentUserId(), User.IsInRole("Owner"));
-            var productId = await _productService.CreateProductAsync(request, actor, ct);
-            return StatusCode(201, new { message = "Tạo sản phẩm và biến thể thành công!", productId });
-        }
-        catch (OismException ex) when (ex.StatusCode == 404)
-        {
-            return NotFound(new { errorCode = ex.ErrorCode, message = ex.Message });
-        }
-        catch (OismException ex) when (ex.StatusCode == 409)
-        {
-            return Conflict(new { errorCode = ex.ErrorCode, message = ex.Message });
-        }
-        catch (OismException ex) when (ex.StatusCode == 400)
-        {
-            return BadRequest(new { errorCode = ex.ErrorCode, message = ex.Message });
-        }
-        catch (OismException ex) when (ex.StatusCode == 422)
-        {
-            return UnprocessableEntity(new { errorCode = ex.ErrorCode, message = ex.Message });
-        }
+        var actor = new PriceActor(User.GetUserId(), User.IsInRole("Owner"));
+        var productId = await _productService.CreateProductAsync(request, actor, ct);
+        return StatusCode(201, new { message = "Tạo sản phẩm và biến thể thành công!", productId });
     }
 
     /// <summary>
@@ -89,6 +71,7 @@ public class ProductsController : ControllerBase
     /// </summary>
     [HttpPost("{id}/variants")]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.ProductMutation)]
     public async Task<IActionResult> CreateVariant(Guid id, [FromBody] CreateVariantRequest request, CancellationToken ct)
     {
         var validator = new CreateVariantValidator();
@@ -98,28 +81,9 @@ public class ProductsController : ControllerBase
             return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
         }
 
-        try
-        {
-            var actor = new PriceActor(GetCurrentUserId(), User.IsInRole("Owner"));
-            var variantResponse = await _productService.CreateVariantAsync(id, request, actor, ct);
-            return StatusCode(201, variantResponse);
-        }
-        catch (OismException ex) when (ex.StatusCode == 404)
-        {
-            return NotFound(new { errorCode = ex.ErrorCode, message = ex.Message });
-        }
-        catch (OismException ex) when (ex.StatusCode == 409)
-        {
-            return Conflict(new { errorCode = ex.ErrorCode, message = ex.Message });
-        }
-        catch (OismException ex) when (ex.StatusCode == 400)
-        {
-            return BadRequest(new { errorCode = ex.ErrorCode, message = ex.Message });
-        }
-        catch (OismException ex) when (ex.StatusCode == 422)
-        {
-            return UnprocessableEntity(new { errorCode = ex.ErrorCode, message = ex.Message });
-        }
+        var actor = new PriceActor(User.GetUserId(), User.IsInRole("Owner"));
+        var variantResponse = await _productService.CreateVariantAsync(id, request, actor, ct);
+        return StatusCode(201, variantResponse);
     }
 
     /// <summary>
@@ -128,6 +92,7 @@ public class ProductsController : ControllerBase
     /// </summary>
     [HttpPut("{productId}/variants/{variantId}")]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.ProductMutation)]
     public async Task<IActionResult> UpdateVariant(Guid productId, Guid variantId, [FromBody] UpdateVariantRequest request, CancellationToken ct)
     {
         var validator = new UpdateVariantValidator();
@@ -137,27 +102,8 @@ public class ProductsController : ControllerBase
             return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
         }
 
-        try
-        {
-            var variantResponse = await _productService.UpdateVariantAsync(productId, variantId, request, GetCurrentUserId(), ct);
-            return Ok(variantResponse);
-        }
-        catch (OismException ex) when (ex.StatusCode == 404)
-        {
-            return NotFound(new { errorCode = ex.ErrorCode, message = ex.Message });
-        }
-        catch (OismException ex) when (ex.StatusCode == 409)
-        {
-            return Conflict(new { errorCode = ex.ErrorCode, message = ex.Message });
-        }
-        catch (OismException ex) when (ex.StatusCode == 400)
-        {
-            return BadRequest(new { errorCode = ex.ErrorCode, message = ex.Message });
-        }
-        catch (OismException ex) when (ex.StatusCode == 422)
-        {
-            return UnprocessableEntity(new { errorCode = ex.ErrorCode, message = ex.Message });
-        }
+        var variantResponse = await _productService.UpdateVariantAsync(productId, variantId, request, User.GetUserId(), ct);
+        return Ok(variantResponse);
     }
 
     /// <summary>
@@ -223,6 +169,7 @@ public class ProductsController : ControllerBase
     /// </summary>
     [HttpPut("{id}")]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.MessageValidation)]
     public async Task<IActionResult> UpdateProduct(Guid id, [FromBody] UpdateProductRequest request, CancellationToken ct)
     {
         var validator = new UpdateProductValidator();
@@ -232,20 +179,13 @@ public class ProductsController : ControllerBase
             return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
         }
 
-        try
+        var success = await _productService.UpdateProductAsync(id, request, ct);
+        if (!success)
         {
-            var success = await _productService.UpdateProductAsync(id, request, ct);
-            if (!success)
-            {
-                return NotFound(new { message = "Không tìm thấy sản phẩm." });
-            }
+            return NotFound(new { message = "Không tìm thấy sản phẩm." });
+        }
 
-            return Ok(new { message = "Cập nhật sản phẩm thành công." });
-        }
-        catch (OismException ex) when (ex.StatusCode == 400)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        return Ok(new { message = "Cập nhật sản phẩm thành công." });
     }
 
     /// <summary>
@@ -262,11 +202,5 @@ public class ProductsController : ControllerBase
         }
 
         return Ok(new { message = "Đã vô hiệu hóa sản phẩm thành công." });
-    }
-
-    private Guid? GetCurrentUserId()
-    {
-        var claim = User.FindFirst("userId")?.Value ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        return Guid.TryParse(claim, out var userId) ? userId : null;
     }
 }

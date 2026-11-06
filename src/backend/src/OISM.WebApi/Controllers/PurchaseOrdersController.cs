@@ -1,9 +1,9 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Features.PurchaseOrders.Dtos;
 using OISM.Application.Features.PurchaseOrders.Services;
+using OISM.WebApi.Http;
 
 namespace OISM.WebApi.Controllers;
 
@@ -42,13 +42,13 @@ public class PurchaseOrdersController : ControllerBase
     {
         if (id == Guid.Empty)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã phiếu mua không được để trống.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.PurchaseOrders, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã phiếu mua không được để trống.");
         }
 
         var po = await _purchaseOrderService.GetPurchaseOrderByIdAsync(id, ct);
         if (po == null)
         {
-            return CreateProblemResult("NOT_FOUND", "Không tìm thấy dữ liệu", StatusCodes.Status404NotFound, $"Không tìm thấy phiếu mua hàng với ID '{id}'.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.PurchaseOrders, "NOT_FOUND", "Không tìm thấy dữ liệu", StatusCodes.Status404NotFound, $"Không tìm thấy phiếu mua hàng với ID '{id}'.");
         }
 
         return Ok(po);
@@ -59,6 +59,7 @@ public class PurchaseOrdersController : ControllerBase
     /// </summary>
     [HttpPost]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.PurchaseOrders)]
     public async Task<IActionResult> Create(
         [FromBody] CreatePurchaseOrderDto? dto,
         [FromHeader(Name = "Idempotency-Key")] string? idempotencyKeyHeader,
@@ -67,35 +68,28 @@ public class PurchaseOrdersController : ControllerBase
     {
         if (dto == null)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Dữ liệu phiếu mua không được để trống.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.PurchaseOrders, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Dữ liệu phiếu mua không được để trống.");
         }
 
         var rawHeader = !string.IsNullOrWhiteSpace(idempotencyKeyHeader) ? idempotencyKeyHeader : xRequestKeyHeader;
         if (string.IsNullOrWhiteSpace(rawHeader))
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Bắt buộc cung cấp Idempotency-Key hoặc X-Request-Key header.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.PurchaseOrders, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Bắt buộc cung cấp Idempotency-Key hoặc X-Request-Key header.");
         }
 
         if (!Guid.TryParse(rawHeader.Trim(), out var requestKey) || requestKey == Guid.Empty)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Giá trị Idempotency-Key header không phải là GUID hợp lệ.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.PurchaseOrders, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Giá trị Idempotency-Key header không phải là GUID hợp lệ.");
         }
 
-        try
+        var userId = RequireUserId();
+        var result = await _purchaseOrderService.CreateAsync(dto, requestKey, userId, ct);
+        if (result.IsReplay)
         {
-            var userId = GetCurrentUserId();
-            var result = await _purchaseOrderService.CreateAsync(dto, requestKey, userId, ct);
-            if (result.IsReplay)
-            {
-                return Ok(result);
-            }
+            return Ok(result);
+        }
 
-            return StatusCode(StatusCodes.Status201Created, result);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
-        }
+        return StatusCode(StatusCodes.Status201Created, result);
     }
 
     /// <summary>
@@ -103,6 +97,7 @@ public class PurchaseOrdersController : ControllerBase
     /// </summary>
     [HttpPut("{id:guid}")]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.PurchaseOrders)]
     public async Task<IActionResult> UpdateDraft(
         Guid id,
         [FromBody] UpdatePurchaseOrderDraftDto? dto,
@@ -110,24 +105,17 @@ public class PurchaseOrdersController : ControllerBase
     {
         if (id == Guid.Empty)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã phiếu mua không được để trống.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.PurchaseOrders, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã phiếu mua không được để trống.");
         }
 
         if (dto == null)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Dữ liệu phiếu mua không được để trống.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.PurchaseOrders, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Dữ liệu phiếu mua không được để trống.");
         }
 
-        try
-        {
-            var userId = GetCurrentUserId();
-            var result = await _purchaseOrderService.UpdateDraftAsync(id, dto, userId, ct);
-            return Ok(result);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
-        }
+        var userId = RequireUserId();
+        var result = await _purchaseOrderService.UpdateDraftAsync(id, dto, userId, ct);
+        return Ok(result);
     }
 
     /// <summary>
@@ -135,6 +123,7 @@ public class PurchaseOrdersController : ControllerBase
     /// </summary>
     [HttpPost("{id:guid}/approve")]
     [Authorize(Roles = "Owner")]
+    [ApiErrorContract(ApiErrorProfile.PurchaseOrders)]
     public async Task<IActionResult> Approve(
         Guid id,
         [FromBody] ApprovePurchaseOrderRequestDto? dto,
@@ -142,20 +131,13 @@ public class PurchaseOrdersController : ControllerBase
     {
         if (id == Guid.Empty)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã phiếu mua không được để trống.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.PurchaseOrders, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã phiếu mua không được để trống.");
         }
 
-        try
-        {
-            var userId = GetCurrentUserId();
-            var confirmZeroPrice = dto?.ConfirmZeroPrice ?? false;
-            var result = await _purchaseOrderService.ApproveAsync(id, confirmZeroPrice, userId, ct);
-            return Ok(result);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
-        }
+        var userId = RequireUserId();
+        var confirmZeroPrice = dto?.ConfirmZeroPrice ?? false;
+        var result = await _purchaseOrderService.ApproveAsync(id, confirmZeroPrice, userId, ct);
+        return Ok(result);
     }
 
     /// <summary>
@@ -163,6 +145,7 @@ public class PurchaseOrdersController : ControllerBase
     /// </summary>
     [HttpPost("{id:guid}/close")]
     [Authorize(Roles = "Owner")]
+    [ApiErrorContract(ApiErrorProfile.PurchaseOrders)]
     public async Task<IActionResult> Close(
         Guid id,
         [FromBody] ClosePurchaseOrderRequestDto? dto,
@@ -170,19 +153,12 @@ public class PurchaseOrdersController : ControllerBase
     {
         if (id == Guid.Empty)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã phiếu mua không được để trống.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.PurchaseOrders, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã phiếu mua không được để trống.");
         }
 
-        try
-        {
-            var userId = GetCurrentUserId();
-            var result = await _purchaseOrderService.CloseAsync(id, dto?.Reason, userId, ct);
-            return Ok(result);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
-        }
+        var userId = RequireUserId();
+        var result = await _purchaseOrderService.CloseAsync(id, dto?.Reason, userId, ct);
+        return Ok(result);
     }
 
     /// <summary>
@@ -190,67 +166,19 @@ public class PurchaseOrdersController : ControllerBase
     /// </summary>
     [HttpPost("{id:guid}/cancel")]
     [Authorize(Roles = "Owner")]
+    [ApiErrorContract(ApiErrorProfile.PurchaseOrders)]
     public async Task<IActionResult> Cancel(Guid id, CancellationToken ct)
     {
         if (id == Guid.Empty)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã phiếu mua không được để trống.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.PurchaseOrders, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã phiếu mua không được để trống.");
         }
 
-        try
-        {
-            var userId = GetCurrentUserId();
-            var result = await _purchaseOrderService.CancelAsync(id, userId, ct);
-            return Ok(result);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
-        }
+        var userId = RequireUserId();
+        var result = await _purchaseOrderService.CancelAsync(id, userId, ct);
+        return Ok(result);
     }
 
-    private Guid GetCurrentUserId()
-    {
-        var claim = User.FindFirst("userId")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(claim) || !Guid.TryParse(claim, out var userId))
-        {
-            throw new OismException("UNAUTHORIZED", "Không xác định được danh tính người dùng từ Token.", 401);
-        }
-        return userId;
-    }
-
-    private ObjectResult CreateProblemResult(string errorCode, string title, int statusCode, string detail)
-    {
-        var problem = new ProblemDetails
-        {
-            Type = $"https://oisms.local/errors/{errorCode}",
-            Title = title,
-            Status = statusCode,
-            Detail = detail,
-            Instance = HttpContext.Request.Path,
-            Extensions =
-            {
-                ["errorCode"] = errorCode,
-                ["timestamp"] = DateTimeOffset.UtcNow
-            }
-        };
-        return StatusCode(statusCode, problem);
-    }
-
-    private static string GetTitleForErrorCode(string errorCode) => errorCode switch
-    {
-        "PURCHASE_ORDER_REQUIRED" => "Yêu cầu phiếu mua hàng",
-        "PURCHASE_ORDER_NOT_RECEIVABLE" => "Phiếu mua không ở trạng thái nhận hàng",
-        "PURCHASE_ORDER_OVER_RECEIPT" => "Vượt số lượng đặt mua",
-        "PURCHASE_ORDER_ITEM_MISMATCH" => "Dòng hàng không khớp phiếu mua",
-        "PURCHASE_ORDER_ZERO_PRICE_CONFIRM_REQUIRED" => "Yêu cầu xác nhận đơn giá 0",
-        "UNIT_NOT_ALLOWED" => "Đơn vị tính không hợp lệ",
-        "INVALID_UNIT_QUANTITY" => "Số lượng đơn vị không hợp lệ",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH" => "Xung đột khóa Idempotency",
-        "INVALID_STATE_TRANSITION" => "Chuyển trạng thái không hợp lệ",
-        "VALIDATION_ERROR" => "Lỗi xác thực dữ liệu",
-        "NOT_FOUND" => "Không tìm thấy dữ liệu",
-        "UNAUTHORIZED" => "Chưa xác thực",
-        _ => "Lỗi xử lý nghiệp vụ"
-    };
+    private Guid RequireUserId() =>
+        User.GetUserId() ?? throw new OismException("UNAUTHORIZED", "Không xác định được danh tính người dùng từ Token.", 401);
 }

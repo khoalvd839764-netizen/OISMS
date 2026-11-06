@@ -2,7 +2,7 @@
 
 | Mục | Giá trị |
 | :--- | :--- |
-| **Trạng thái** | ❌ Chưa sửa |
+| **Trạng thái** | 🟡 Đã sửa, chờ kiểm chứng PostgreSQL trên CI |
 | **Ưu tiên** | P2 |
 | **Khu vực** | Backend / Clean Architecture / Application |
 | **Phát hiện** | 06/11/2026, rà soát lại Clean Architecture sau Upgrade 06 (commit `6ad3cf6`) |
@@ -19,6 +19,10 @@
 2. Hiện thực bằng Npgsql trong `OISM.Infrastructure`.
 3. Thay 8 chỗ trên, giữ nguyên `errorCode` và status đang trả.
 4. Test: các integration test trùng email/số điện thoại, trùng SKU/barcode, trùng mốc giá, kho có phụ thuộc vẫn PASS.
+
+## Cách đã sửa
+
+Infrastructure đọc SQLSTATE và tên ràng buộc qua `IDbErrorTranslator`. Application giữ mã nghiệp vụ cho từng ràng buộc. Lỗi kho chỉ được nhận là FK khi PostgreSQL trả đúng SQLSTATE của khóa ngoại.
 
 ## Điều kiện đóng
 

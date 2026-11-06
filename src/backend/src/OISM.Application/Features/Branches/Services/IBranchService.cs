@@ -11,6 +11,7 @@ public interface IBranchService
 {
     Task<List<BranchResponse>> GetBranchesAsync(CancellationToken ct = default);
     Task<BranchResponse?> GetBranchByIdAsync(Guid id, CancellationToken ct = default);
+    Task<bool> ExistsActiveAsync(Guid tenantId, Guid branchId, CancellationToken ct = default);
     Task<BranchResponse> CreateBranchAsync(CreateBranchRequest request, CancellationToken ct = default);
     Task<BranchResponse?> UpdateBranchAsync(Guid id, UpdateBranchRequest request, CancellationToken ct = default);
     Task<BranchToggleResult?> ToggleStatusAsync(Guid id, CancellationToken ct = default);

@@ -1,9 +1,8 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using OISM.Application.Common.Exceptions;
 using OISM.Application.Features.StockCounts.Dtos;
 using OISM.Application.Features.StockCounts.Services;
+using OISM.WebApi.Http;
 
 namespace OISM.WebApi.Controllers;
 
@@ -43,61 +42,22 @@ public class StockCountPeriodsController : ControllerBase
     /// </summary>
     [HttpPost("{id:guid}/start")]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.StockCountPeriods)]
     public async Task<IActionResult> StartPeriod([FromRoute] Guid id, CancellationToken ct)
     {
         if (id == Guid.Empty)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã kỳ kiểm kê không được để trống (Guid.Empty).");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.StockCountPeriods, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã kỳ kiểm kê không được để trống (Guid.Empty).");
         }
 
-        try
+        var userId = User.GetUserId() ?? Guid.Empty;
+        var result = await _stockCountService.StartPeriodAsync(id, userId, ct);
+
+        if (result.IsReplay)
         {
-            var userId = GetCurrentUserId() ?? Guid.Empty;
-            var result = await _stockCountService.StartPeriodAsync(id, userId, ct);
-
-            if (result.IsReplay)
-            {
-                return Ok(result);
-            }
-
-            return StatusCode(StatusCodes.Status201Created, result);
+            return Ok(result);
         }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
-        }
-    }
 
-    private Guid? GetCurrentUserId()
-    {
-        var claim = User.FindFirst("userId")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        return Guid.TryParse(claim, out var userId) ? userId : null;
+        return StatusCode(StatusCodes.Status201Created, result);
     }
-
-    private ObjectResult CreateProblemResult(string errorCode, string title, int statusCode, string detail)
-    {
-        var problem = new ProblemDetails
-        {
-            Type = $"https://oisms.local/errors/{errorCode}",
-            Title = title,
-            Status = statusCode,
-            Detail = detail,
-            Instance = HttpContext.Request.Path,
-            Extensions =
-            {
-                ["errorCode"] = errorCode,
-                ["timestamp"] = DateTimeOffset.UtcNow
-            }
-        };
-        return StatusCode(statusCode, problem);
-    }
-
-    private static string GetTitleForErrorCode(string errorCode) => errorCode switch
-    {
-        "NOT_FOUND" => "Không tìm thấy dữ liệu",
-        "EMPTY_WAREHOUSE_STOCK_COUNT" => "Kho không có sản phẩm để kiểm kê",
-        "VALIDATION_ERROR" => "Lỗi xác thực dữ liệu",
-        "INVALID_STATE_TRANSITION" => "Chuyển trạng thái không hợp lệ",
-        _ => "Lỗi xử lý nghiệp vụ"
-    };
 }

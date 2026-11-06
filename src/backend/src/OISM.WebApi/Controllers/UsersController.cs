@@ -1,9 +1,9 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Features.Users;
 using OISM.Application.Features.Users.Services;
+using OISM.WebApi.Http;
 
 namespace OISM.WebApi.Controllers;
 
@@ -21,12 +21,6 @@ public class UsersController : ControllerBase
     public UsersController(IUserService userService)
     {
         _userService = userService;
-    }
-
-    private Guid GetCurrentUserId()
-    {
-        var claim = User.FindFirst("userId")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        return Guid.TryParse(claim, out var uid) ? uid : Guid.Empty;
     }
 
     /// <summary>
@@ -91,7 +85,7 @@ public class UsersController : ControllerBase
             throw new OismException("VALIDATION_ERROR", string.Join(" ", validationResult.Errors.Select(e => e.ErrorMessage)), 400);
         }
 
-        var response = await _userService.UpdateUserAsync(id, request, GetCurrentUserId(), ct);
+        var response = await _userService.UpdateUserAsync(id, request, User.GetUserId() ?? Guid.Empty, ct);
         return Ok(response);
     }
 
@@ -104,7 +98,7 @@ public class UsersController : ControllerBase
         [FromBody] UpdateUserStatusRequest request,
         CancellationToken ct)
     {
-        var response = await _userService.UpdateUserStatusAsync(id, request.IsActive, GetCurrentUserId(), ct);
+        var response = await _userService.UpdateUserStatusAsync(id, request.IsActive, User.GetUserId() ?? Guid.Empty, ct);
         return Ok(response);
     }
 }

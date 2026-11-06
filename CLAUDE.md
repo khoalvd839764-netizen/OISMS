@@ -61,7 +61,7 @@ CI chạy khi push hoặc mở PR vào `main`, `master`, `develop`: build và te
 
 ## Database
 
-- Không dùng EF migrations. Mỗi thay đổi schema gồm: một file mới trong `docker/postgres/migrations/` (không sửa file cũ), cập nhật `oisms_schema.sql`, thêm bảng vào `RequiredTables` trong `Program.cs`, sửa số bảng kiểm tra trong `docker/postgres/init-oisms.sh`.
+- Không dùng EF migrations. Mỗi thay đổi schema gồm: một file mới trong `docker/postgres/migrations/` (không sửa file cũ), cập nhật `oisms_schema.sql`, thêm bảng vào `DatabaseMigrationService.RequiredTables` trong Infrastructure, sửa số bảng kiểm tra trong `docker/postgres/init-oisms.sh`.
 - Không chạy `oisms_schema.sql` lên DB đã có dữ liệu. `init-oisms.sh` chỉ chạy khi volume trống; rebuild không nâng cấp schema. `/health/ready` trả 503 "schema is incomplete" nghĩa là còn thiếu migration.
 - Không tự chạy `docker compose down -v` vì lệnh này xóa dữ liệu local.
 - Backend chạy bằng tài khoản `oisms_app` ít quyền; `postgres` chỉ dùng cho migration và backup.

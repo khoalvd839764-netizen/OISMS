@@ -1,10 +1,9 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using OISM.Application.Common.Exceptions;
 using OISM.Application.Features.Orders.Dtos;
 using OISM.Application.Features.Orders.Services;
 using OISM.Application.Features.SalesInvoices.Services;
+using OISM.WebApi.Http;
 
 namespace OISM.WebApi.Controllers;
 
@@ -29,16 +28,6 @@ public class OrdersController : ControllerBase
         _posCheckoutService = posCheckoutService;
         _orderService = orderService;
         _salesInvoiceService = salesInvoiceService;
-    }
-
-    private Guid? GetCurrentUserId()
-    {
-        var claim = User.FindFirst("userId")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (Guid.TryParse(claim, out var userId))
-        {
-            return userId;
-        }
-        return null;
     }
 
     /// <summary>
@@ -72,22 +61,16 @@ public class OrdersController : ControllerBase
     /// </summary>
     [HttpGet("{id:guid}/trace")]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.Orders)]
     public async Task<IActionResult> TraceById(Guid id, CancellationToken ct)
     {
         if (id == Guid.Empty)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã đơn hàng không được để trống.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.Orders, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã đơn hàng không được để trống.");
         }
 
-        try
-        {
-            var trace = await _salesInvoiceService.TraceByOrderIdAsync(id, ct);
-            return Ok(trace);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
-        }
+        var trace = await _salesInvoiceService.TraceByOrderIdAsync(id, ct);
+        return Ok(trace);
     }
 
     /// <summary>
@@ -97,6 +80,7 @@ public class OrdersController : ControllerBase
     /// </summary>
     [HttpPost("checkout")]
     [Authorize(Roles = "Owner,Staff,Cashier")]
+    [ApiErrorContract(ApiErrorProfile.PosCheckout)]
     public async Task<IActionResult> Checkout(
         [FromBody] PosCheckoutRequestDto dto,
         [FromHeader(Name = "Idempotency-Key")] string? idempotencyKeyHeader,
@@ -112,6 +96,7 @@ public class OrdersController : ControllerBase
     /// </summary>
     [HttpPost]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.Orders)]
     public async Task<IActionResult> CreateOrder(
         [FromBody] CreateOrderRequestDto dto,
         [FromHeader(Name = "Idempotency-Key")] string? idempotencyKeyHeader,
@@ -120,7 +105,7 @@ public class OrdersController : ControllerBase
     {
         if (dto == null)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Dữ liệu yêu cầu không được để trống.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.Orders, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Dữ liệu yêu cầu không được để trống.");
         }
 
         var rawHeaderKey = !string.IsNullOrWhiteSpace(idempotencyKeyHeader) ? idempotencyKeyHeader : xRequestKeyHeader;
@@ -130,55 +115,24 @@ public class OrdersController : ControllerBase
             {
                 if (dto.RequestKey != Guid.Empty && dto.RequestKey != parsedHeaderGuid)
                 {
-                    return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "RequestKey trong payload không khớp với Idempotency-Key trong header.");
+                    return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.Orders, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "RequestKey trong payload không khớp với Idempotency-Key trong header.");
                 }
             }
             else
             {
-                return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Giá trị Idempotency-Key trong header không phải là GUID hợp lệ.");
+                return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.Orders, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Giá trị Idempotency-Key trong header không phải là GUID hợp lệ.");
             }
         }
 
-        if (!ModelState.IsValid)
+        var userId = User.GetUserId();
+        var result = await _orderService.CreateOrderAsync(dto, userId, ct);
+
+        if (result.IsReplay)
         {
-            var firstError = ModelState.Values.SelectMany(v => v.Errors).FirstOrDefault()?.ErrorMessage ?? "Dữ liệu yêu cầu không hợp lệ.";
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, firstError);
+            return Ok(result);
         }
 
-        try
-        {
-            var userId = GetCurrentUserId();
-            var result = await _orderService.CreateOrderAsync(dto, userId, ct);
-
-            if (result.IsReplay)
-            {
-                return Ok(result);
-            }
-
-            return StatusCode(StatusCodes.Status201Created, result);
-        }
-        catch (PriceMismatchException ex)
-        {
-            var problem = new ProblemDetails
-            {
-                Type = $"https://oisms.local/errors/{ex.ErrorCode}",
-                Title = GetTitleForErrorCode(ex.ErrorCode),
-                Status = ex.StatusCode,
-                Detail = ex.Message,
-                Instance = HttpContext.Request.Path.Value ?? string.Empty,
-                Extensions =
-                {
-                    ["errorCode"] = ex.ErrorCode,
-                    ["currentPrices"] = ex.CurrentPrices,
-                    ["timestamp"] = DateTimeOffset.UtcNow
-                }
-            };
-            return StatusCode(ex.StatusCode, problem);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
-        }
+        return StatusCode(StatusCodes.Status201Created, result);
     }
 
     /// <summary>
@@ -187,21 +141,15 @@ public class OrdersController : ControllerBase
     /// </summary>
     [HttpPost("{id:guid}/confirm")]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.Orders)]
     public async Task<IActionResult> ConfirmOrder(
         [FromRoute] Guid id,
         [FromBody] ConfirmOrderRequestDto? dto,
         CancellationToken ct)
     {
-        try
-        {
-            var userId = GetCurrentUserId();
-            var result = await _orderService.ConfirmOrderAsync(id, dto ?? new ConfirmOrderRequestDto(), userId, ct);
-            return Ok(result);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
-        }
+        var userId = User.GetUserId();
+        var result = await _orderService.ConfirmOrderAsync(id, dto ?? new ConfirmOrderRequestDto(), userId, ct);
+        return Ok(result);
     }
 
     /// <summary>
@@ -209,26 +157,12 @@ public class OrdersController : ControllerBase
     /// </summary>
     [HttpPost("{id:guid}/process")]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.OrderProcess)]
     public async Task<IActionResult> Process(Guid id, CancellationToken ct)
     {
-        try
-        {
-            var userId = GetCurrentUserId();
-            var result = await _orderService.ProcessOrderAsync(id, userId, ct);
-            return Ok(result);
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return NotFound(new { message = ex.Message });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Conflict(new { message = ex.Message });
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
-        }
+        var userId = User.GetUserId();
+        var result = await _orderService.ProcessOrderAsync(id, userId, ct);
+        return Ok(result);
     }
 
     /// <summary>
@@ -237,21 +171,15 @@ public class OrdersController : ControllerBase
     /// </summary>
     [HttpPost("{id:guid}/complete")]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.Orders)]
     public async Task<IActionResult> CompleteOrder(
         [FromRoute] Guid id,
         [FromBody] CompleteOrderRequestDto? dto,
         CancellationToken ct)
     {
-        try
-        {
-            var userId = GetCurrentUserId();
-            var result = await _orderService.CompleteOrderAsync(id, dto ?? new CompleteOrderRequestDto(), userId, ct);
-            return Ok(result);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
-        }
+        var userId = User.GetUserId();
+        var result = await _orderService.CompleteOrderAsync(id, dto ?? new CompleteOrderRequestDto(), userId, ct);
+        return Ok(result);
     }
 
     /// <summary>
@@ -260,52 +188,14 @@ public class OrdersController : ControllerBase
     /// </summary>
     [HttpPost("{id:guid}/cancel")]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.Orders)]
     public async Task<IActionResult> CancelOrder(
         [FromRoute] Guid id,
         [FromBody] CancelOrderRequestDto? dto,
         CancellationToken ct)
     {
-        try
-        {
-            var userId = GetCurrentUserId();
-            var result = await _orderService.CancelOrderAsync(id, dto ?? new CancelOrderRequestDto(), userId, ct);
-            return Ok(result);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
-        }
+        var userId = User.GetUserId();
+        var result = await _orderService.CancelOrderAsync(id, dto ?? new CancelOrderRequestDto(), userId, ct);
+        return Ok(result);
     }
-
-    private ObjectResult CreateProblemResult(string errorCode, string title, int statusCode, string detail)
-    {
-        var problem = new ProblemDetails
-        {
-            Type = $"https://oisms.local/errors/{errorCode.ToLowerInvariant().Replace('_', '-')}",
-            Title = title,
-            Status = statusCode,
-            Detail = detail,
-            Instance = HttpContext.Request.Path
-        };
-        problem.Extensions["errorCode"] = errorCode;
-        return StatusCode(statusCode, problem);
-    }
-
-    private static string GetTitleForErrorCode(string errorCode) => errorCode switch
-    {
-        "VALIDATION_ERROR" => "Lỗi xác thực dữ liệu",
-        "ORDER_NOT_FOUND" => "Không tìm thấy đơn hàng",
-        "INVALID_STATE_TRANSITION" => "Chuyển đổi trạng thái không hợp lệ",
-        "INSUFFICIENT_STOCK" => "Tồn kho không đủ",
-        "PRICE_MISMATCH" => "Sai lệch đơn giá",
-        "SKU_NOT_FOUND" => "Không tìm thấy mặt hàng",
-        "SKU_INACTIVE" => "Mặt hàng ngừng hoạt động",
-        "BRANCH_NOT_FOUND" => "Không tìm thấy chi nhánh",
-        "BRANCH_INACTIVE" => "Chi nhánh ngừng hoạt động",
-        "NO_ACTIVE_WAREHOUSE" => "Không có kho hàng hoạt động",
-        "CHANNEL_NOT_ALLOWED" => "Kênh bán không được phép",
-        "ORDER_ITEMS_EMPTY" => "Danh sách hàng rỗng",
-        "ORDER_ALREADY_CANCELLED" => "Đơn hàng đã bị hủy",
-        _ => "Lỗi xử lý đơn hàng"
-    };
 }
