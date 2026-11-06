@@ -2,7 +2,7 @@
 
 | Mục | Giá trị |
 | :--- | :--- |
-| **Trạng thái** | 🟡 Đã sửa, chờ kiểm chứng PostgreSQL trên CI |
+| **Trạng thái** | ✅ Đã sửa và kiểm chứng |
 | **Ưu tiên** | P2 |
 | **Khu vực** | Backend / Clean Architecture / WebApi |
 | **Phát hiện** | 06/11/2026, rà soát lại Clean Architecture sau Upgrade 06 (commit `6ad3cf6`) |
@@ -24,6 +24,10 @@
 ## Cách đã sửa
 
 `NotificationHub` gọi `IBranchService.ExistsActiveAsync` với tenant từ claim. Truy vấn giữ query filter của tenant và kiểm tra chi nhánh đang hoạt động. Test SignalR bao phủ chi nhánh hợp lệ, khác tenant, không tồn tại và đã ngưng.
+
+## Kiểm chứng
+
+Các test SignalR qua CI, gồm join chi nhánh đang hoạt động của cùng tenant và từ chối chi nhánh khác tenant, không tồn tại hoặc đã ngưng. [GitHub Actions #134](https://github.com/khoalvd839764-netizen/OISMS/actions/runs/42185858352)
 
 ## Điều kiện đóng
 

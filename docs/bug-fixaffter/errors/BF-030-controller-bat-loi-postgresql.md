@@ -2,7 +2,7 @@
 
 | Mục | Giá trị |
 | :--- | :--- |
-| **Trạng thái** | 🟡 Đã sửa, chờ kiểm chứng PostgreSQL trên CI |
+| **Trạng thái** | ✅ Đã sửa và kiểm chứng |
 | **Ưu tiên** | P2 |
 | **Khu vực** | Backend / Clean Architecture / WebApi |
 | **Phát hiện** | 06/11/2026, rà soát lại Clean Architecture sau Upgrade 06 (commit `6ad3cf6`) |
@@ -23,6 +23,10 @@
 ## Cách đã sửa
 
 `GoodsReceiptService` chuyển cả số phiếu đã có và xung đột trên `uq_goods_receipts_2` thành HTTP 409 `VALIDATION_ERROR` qua lớp ánh xạ chung. Giữ mã hiện hành để tương thích frontend. Test API PostgreSQL kiểm tra trùng số, status và body.
+
+## Kiểm chứng
+
+Test tích hợp phiếu mua và phiếu nhập trên PostgreSQL 16 xác nhận trùng số phiếu trả HTTP 409 với `VALIDATION_ERROR` và ProblemDetails. [GitHub Actions #134](https://github.com/khoalvd839764-netizen/OISMS/actions/runs/42185858352)
 
 ## Điều kiện đóng
 

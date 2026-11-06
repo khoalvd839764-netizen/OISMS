@@ -2,7 +2,7 @@
 
 | Mục | Giá trị |
 | :--- | :--- |
-| **Trạng thái** | 🟡 Đã sửa, chờ kiểm chứng PostgreSQL trên CI |
+| **Trạng thái** | ✅ Đã sửa và kiểm chứng |
 | **Ưu tiên** | P2 |
 | **Khu vực** | Backend / Clean Architecture / WebApi |
 | **Phát hiện** | 06/11/2026, rà soát lại Clean Architecture sau Upgrade 06 (commit `6ad3cf6`) |
@@ -40,6 +40,10 @@ Thống kê cách ánh xạ hiện tại (06/11/2026):
 ## Cách đã sửa
 
 Gom ánh xạ exception vào bộ lọc MVC và dùng chung bộ dựng ProblemDetails với middleware. Giữ các dạng body đã có cho từng endpoint, kể cả `message` và `currentPrices`. Dùng chung extension đọc user ID và bộ kiểm tra ModelState của `[ApiController]`.
+
+## Kiểm chứng
+
+Toàn bộ unit test, integration test và POS qua CI. Test đơn hàng và giá kiểm tra `PRICE_MISMATCH` cùng trường `currentPrices`. [GitHub Actions #134](https://github.com/khoalvd839764-netizen/OISMS/actions/runs/42185858352)
 
 ## Điều kiện đóng
 

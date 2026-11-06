@@ -2,7 +2,7 @@
 
 | Mục | Giá trị |
 | :--- | :--- |
-| **Trạng thái** | 🟡 Đã sửa, chờ kiểm chứng PostgreSQL trên CI |
+| **Trạng thái** | ✅ Đã sửa và kiểm chứng |
 | **Ưu tiên** | P2 |
 | **Khu vực** | Backend / Clean Architecture / WebApi |
 | **Phát hiện** | 06/11/2026, rà soát lại Clean Architecture sau Upgrade 06 (commit `6ad3cf6`) |
@@ -25,6 +25,10 @@
 ## Cách đã sửa
 
 Readiness được đăng ký trong Infrastructure và dùng chung `DatabaseMigrationService.RequiredTables`. Các route `/health/ready` và `/health` tiếp tục trả payload readiness hiện có. WebApi đã bỏ tham chiếu gói Npgsql trực tiếp.
+
+## Kiểm chứng
+
+Readiness kiểm tra đủ 43 bảng và trigger sổ kho bằng tài khoản runtime trên PostgreSQL 16. Bộ integration test cũng xác nhận `GET /health/ready` trả HTTP 200 qua cấu hình PostgreSQL thật. [GitHub Actions #134](https://github.com/khoalvd839764-netizen/OISMS/actions/runs/42185858352)
 
 ## Điều kiện đóng
 

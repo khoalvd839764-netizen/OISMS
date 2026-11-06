@@ -27,6 +27,10 @@
 
 Đã gỡ gói `MediatR` không dùng. Phần kiểu trạng thái, chuyển trạng thái trong entity và tách `OrderService` còn thuộc đợt 4.
 
+## Kiểm chứng
+
+Việc gỡ `MediatR` đã qua build và test backend .NET 8. [GitHub Actions #134](https://github.com/khoalvd839764-netizen/OISMS/actions/runs/42185858352)
+
 ## Điều kiện đóng
 
 - Không còn vi phạm mô tả ở trên trong code (kiểm bằng `grep`/build).

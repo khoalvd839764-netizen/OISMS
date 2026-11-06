@@ -9,7 +9,7 @@ Chi tiết từng lỗi nằm trong thư mục [`errors/`](./errors/), mỗi l�
 
 | Nhóm | Đã xong | Cần kiểm chứng / một phần | Chưa làm |
 | :--- | :---: | :---: | :---: |
-| Lỗi `BF-001..035` | 16 | 10 | 9 |
+| Lỗi `BF-001..035` | 21 | 5 | 9 |
 | Coming Soon `CS-01..08` + Quên mật khẩu | 3 | 3 | 3 |
 | Upgrade (GVHD) | 6 | 0 | 1 |
 
@@ -60,12 +60,12 @@ Chia thành nhiều đợt fix, xem [mục E](#e-kế-hoạch-hoàn-thiện-clea
 
 | | Mã | Ưu tiên | Tầng | Lỗi | Đợt |
 | :---: | :--- | :---: | :--- | :--- | :---: |
-| [~] | [BF-028](./errors/BF-028-hub-signalr-truy-van-thang-dbcontext.md) | P2 | WebApi | `NotificationHub` truy vấn thẳng `IAppDbContext` và `IgnoreQueryFilters` | 2 |
-| [~] | [BF-029](./errors/BF-029-readiness-check-npgsql-nam-trong-webapi.md) | P2 | WebApi | Readiness check Npgsql (~180 dòng) nằm trong `Program.cs`, WebApi tham chiếu `Npgsql` | 2 |
-| [~] | [BF-030](./errors/BF-030-controller-bat-loi-postgresql.md) | P2 | WebApi | `GoodsReceiptsController` bắt `PostgresException` 23505 | 1 |
-| [~] | [BF-031](./errors/BF-031-controller-tu-anh-xa-exception-trung-lap.md) | P2 | WebApi | 19 controller tự ánh xạ exception, body lỗi không đồng nhất; 25 bản sao `GetCurrentUserId`; 14 kiểm tra `ModelState` thừa | 1 |
+| [x] | [BF-028](./errors/BF-028-hub-signalr-truy-van-thang-dbcontext.md) | P2 | WebApi | `NotificationHub` truy vấn thẳng `IAppDbContext` và `IgnoreQueryFilters` | 2 |
+| [x] | [BF-029](./errors/BF-029-readiness-check-npgsql-nam-trong-webapi.md) | P2 | WebApi | Readiness check Npgsql (~180 dòng) nằm trong `Program.cs`, WebApi tham chiếu `Npgsql` | 2 |
+| [x] | [BF-030](./errors/BF-030-controller-bat-loi-postgresql.md) | P2 | WebApi | `GoodsReceiptsController` bắt `PostgresException` 23505 | 1 |
+| [x] | [BF-031](./errors/BF-031-controller-tu-anh-xa-exception-trung-lap.md) | P2 | WebApi | 19 controller tự ánh xạ exception, body lỗi không đồng nhất; 25 bản sao `GetCurrentUserId`; 14 kiểm tra `ModelState` thừa | 1 |
 | [ ] | [BF-032](./errors/BF-032-application-chua-sql-postgresql-tho.md) | P2 | Application | SQL PostgreSQL thô trong 6 service (nợ đã biết) | 3 |
-| [~] | [BF-033](./errors/BF-033-application-bat-postgresexception.md) | P2 | Application | Bắt `PostgresException` ở 8 chỗ, 7 service | 2 |
+| [x] | [BF-033](./errors/BF-033-application-bat-postgresexception.md) | P2 | Application | Bắt `PostgresException` ở 8 chỗ, 7 service | 2 |
 | [ ] | [BF-034](./errors/BF-034-iappdbcontext-lo-chi-tiet-ha-tang.md) | P2 | Application | `IAppDbContext` lộ SQL/transaction EF; 38 nhánh `IsRelationalDatabase` | 3 |
 | [~] | [BF-035](./errors/BF-035-domain-anemic-trang-thai-chuoi.md) | P3 | Domain | Entity anemic, 59 chỗ so trạng thái bằng chuỗi, `MediatR` không dùng | 4 |
 
@@ -126,12 +126,12 @@ Kết quả rà soát lại ngày 06/11/2026: phụ thuộc giữa các project 
 
 | Đợt | Lỗi | Nội dung | Rủi ro | Bằng chứng cần có |
 | :---: | :--- | :--- | :---: | :--- |
-| [~] 1 | BF-030, BF-031 | Dọn tầng WebApi: ánh xạ exception tập trung trong middleware, xóa `try/catch` trong controller theo nhóm, gom `GetCurrentUserId`, bỏ `ModelState` thừa, chuyển bắt lỗi trùng mã phiếu nhập vào service | Thấp | Toàn bộ integration test (so `errorCode`, status), `npm test` POS, đối chiếu danh mục mã lỗi |
-| [~] 2 | BF-028, BF-029, BF-033, gỡ MediatR (BF-035) | Tách hạ tầng khỏi WebApi và Application: Hub gọi service, readiness check sang Infrastructure, `IDbErrorTranslator` | Thấp–TB | Build, unit test, integration test auth/sản phẩm/kho/giá/readiness |
+| [x] 1 | BF-030, BF-031 | Dùng bộ lọc MVC và middleware chung cho phản hồi lỗi, bỏ các `try/catch` trong controller và kiểm tra `ModelState` lặp, dùng chung cách đọc user ID, chuyển bắt lỗi trùng mã phiếu nhập vào service | Thấp | Toàn bộ integration test, `npm test` POS và đối chiếu hợp đồng lỗi |
+| [x] 2 | BF-028, BF-029, BF-033, gỡ MediatR (BF-035) | Hub gọi service, readiness check chuyển sang Infrastructure và dùng chung danh sách bảng với migration, Infrastructure triển khai `IDbErrorTranslator` | Thấp–TB | Build, unit test, integration test auth, sản phẩm, kho, giá và readiness |
 | [ ] 3 | BF-032, BF-034 | Gom SQL khóa vào `ISqlLockService` có ngữ nghĩa, thêm `IUnitOfWork`, bỏ `ExecuteSqlRawAsync` và nhánh `IsRelationalDatabase`. Làm từng service, giữ nguyên thứ tự khóa | **Cao** | Test đồng thời và idempotency trên **PostgreSQL thật** cho từng service |
 | [ ] 4 | BF-035 | Kiểu trạng thái, luật chuyển trạng thái trong entity, tách `OrderService` | TB | Unit test entity, integration test hiện có |
 
-Kiểm chứng đợt 1 và 2: build backend, unit test, nhóm test API/SignalR/health và POS đã chạy cục bộ. Bộ test PostgreSQL thật chờ CI của PR #38.
+Đợt 1 và 2 đã qua build backend .NET 8, toàn bộ `dotnet test src/backend/OISM.sln --no-build -c Release --verbosity normal` với PostgreSQL 16, build Admin/POS và test POS trên commit `c95c21c`. [GitHub Actions #134](https://github.com/khoalvd839764-netizen/OISMS/actions/runs/42185858352)
 
 Nguyên tắc:
 - Đợt 3 chạm transaction, khóa, ledger, reservation, idempotency: cần nhóm đồng ý trước (CLAUDE.md đang ghi đây là nợ đã biết, "không tiện tay refactor"), nên làm sau khi sửa BF-021, BF-022 và sau buổi nghiệm thu.
