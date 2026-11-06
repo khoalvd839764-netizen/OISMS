@@ -2,7 +2,7 @@
 
 | Mục | Giá trị |
 | :--- | :--- |
-| **Trạng thái** | 🟡 Đã triển khai, chờ CI |
+| **Trạng thái** | ✅ Đã sửa và kiểm chứng |
 | **Ưu tiên** | P2 |
 | **Khu vực** | Backend / Clean Architecture / Application |
 | **Phát hiện** | 06/11/2026, rà soát lại Clean Architecture sau Upgrade 06 (commit `6ad3cf6`) |
@@ -28,7 +28,7 @@ Application dùng `IUnitOfWork` cho retry, mở transaction, commit, rollback v�
 
 ## Kiểm chứng
 
-Số điểm bắt đầu, commit và rollback khớp với baseline ở cả sáu service. 223 unit test và 17 test tích hợp chọn lọc trên PostgreSQL 16.15 đã qua, gồm các ca rollback và retry của luồng hết hạn giữ chỗ. [Checklist đợt 3](../CHECKLIST.md#e-kế-hoạch-hoàn-thiện-clean-architecture-bf-028035)
+Số điểm bắt đầu, commit và rollback khớp với baseline ở cả sáu service. 223 unit test và 17 test tích hợp chọn lọc trên PostgreSQL 16.15 đã qua, gồm các ca rollback và retry của luồng hết hạn giữ chỗ. Toàn bộ suite backend và job frontend cũng qua trong CI. [GitHub Actions #136](https://github.com/khoalvd839764-netizen/OISMS/actions/runs/42193764424)
 
 ## Điều kiện đóng
 

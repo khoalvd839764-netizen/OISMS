@@ -2,7 +2,7 @@
 
 | Mục | Giá trị |
 | :--- | :--- |
-| **Trạng thái** | 🟡 Đã triển khai, chờ CI |
+| **Trạng thái** | ✅ Đã sửa và kiểm chứng |
 | **Ưu tiên** | P2 |
 | **Khu vực** | Backend / Clean Architecture / Application |
 | **Phát hiện** | 06/11/2026, rà soát lại Clean Architecture sau Upgrade 06 (commit `6ad3cf6`) |
@@ -39,7 +39,7 @@ Sáu service gọi các thao tác khóa theo nghiệp vụ qua `ISqlLockService`
 
 ## Kiểm chứng
 
-17 test tích hợp chọn lọc trên PostgreSQL 16.15 đã qua, gồm 50 yêu cầu tranh một đơn vị tồn, replay idempotency, duyệt kiểm kê song song, nhập vượt phiếu mua và xuất nhận chuyển kho đồng thời. [Checklist đợt 3](../CHECKLIST.md#e-kế-hoạch-hoàn-thiện-clean-architecture-bf-028035)
+17 test tích hợp chọn lọc trên PostgreSQL 16.15 đã qua, gồm 50 yêu cầu tranh một đơn vị tồn, replay idempotency, duyệt kiểm kê song song, nhập vượt phiếu mua và xuất nhận chuyển kho đồng thời. Toàn bộ suite backend cũng qua trên PostgreSQL 16 trong CI. [GitHub Actions #136](https://github.com/khoalvd839764-netizen/OISMS/actions/runs/42193764424)
 
 ## Điều kiện đóng
 
