@@ -12,5 +12,6 @@
 | [04. Bảng giá theo thời gian hiệu lực](./04-bang-gia-theo-thoi-gian.md) | Phiếu đổi giá, lịch sử giá theo `valid_from` và giá chụp vào đơn |
 | [05. Nhiều đơn vị tính cho hàng hóa](./05-nhieu-don-vi-tinh.md) | Đơn vị gốc, quy đổi theo SKU, giá theo đơn vị và chứng từ |
 | [06. Rà soát Clean Architecture](./06-ra-soat-clean-architecture.md) | Bằng chứng ban đầu, ý nghĩa các loại Context và kế hoạch kiểm tra/sắp xếp lại file |
+| [07. Thanh toán QR bằng VietQR](./07-thanh-toan-qr-vietqr.md) | Kế hoạch của nhóm (không phải đề xuất GVHD) cho CS-05: bật QR ở POS Admin, tài khoản nhận theo tenant, xác nhận tự động tùy chọn. Chưa triển khai |
 
 Hiện trạng triển khai giao diện: [báo cáo nghiệm thu frontend](../report-after-upgrade/frontend-coming-soon-va-upgrade.md).
