@@ -122,14 +122,14 @@ Lưu ý: kỳ kiểm kê chỉ tự sinh khi bật Hangfire (`Hangfire:Enabled=t
 
 ## E. Kế hoạch hoàn thiện Clean Architecture (BF-028..035)
 
-Rà soát ngày 06/11/2026 ghi nhận chiều phụ thuộc giữa các project đã đúng. Các đợt 1, 2 và 3 được thực hiện trên PR #38 theo phạm vi đã chốt.
+Rà soát ngày 06/11/2026 ghi nhận chiều phụ thuộc giữa các project đã đúng. Các đợt 1 đến 4 được thực hiện trên PR #38 theo phạm vi đã chốt.
 
 | Đợt | Lỗi | Nội dung | Rủi ro | Bằng chứng cần có |
 | :---: | :--- | :--- | :---: | :--- |
 | [x] 1 | BF-030, BF-031 | Dùng bộ lọc MVC và middleware chung cho phản hồi lỗi, bỏ các `try/catch` trong controller và kiểm tra `ModelState` lặp, dùng chung cách đọc user ID, chuyển bắt lỗi trùng mã phiếu nhập vào service | Thấp | Toàn bộ integration test, `npm test` POS và đối chiếu hợp đồng lỗi |
 | [x] 2 | BF-028, BF-029, BF-033, gỡ MediatR (BF-035) | Hub gọi service, readiness check chuyển sang Infrastructure và dùng chung danh sách bảng với migration, Infrastructure triển khai `IDbErrorTranslator` | Thấp–TB | Build, unit test, integration test auth, sản phẩm, kho, giá và readiness |
 | [x] 3 | BF-032, BF-034 | SQL khóa nằm trong `ISqlLockService`, transaction và retry qua `IUnitOfWork`. Giữ thứ tự khóa và vị trí commit trong từng service | **Cao** | Test cạnh tranh tồn kho, idempotency, kiểm kê, nhập kho và chuyển kho trên PostgreSQL thật |
-| [ ] 4 | BF-035 | Kiểu trạng thái, luật chuyển trạng thái trong entity, tách `OrderService` | TB | Unit test entity, integration test hiện có |
+| [~] 4 | BF-035 | Hằng số trạng thái theo loại chứng từ, chuyển trạng thái trong entity và tách dịch vụ đơn hàng | TB | Unit test Domain và integration test đơn hàng, POS, webhook, kho và kiểm kê |
 
 Đợt 1 và 2 đã qua build backend .NET 8, toàn bộ `dotnet test src/backend/OISM.sln --no-build -c Release --verbosity normal` với PostgreSQL 16, build Admin/POS và test POS trên commit `c95c21c`. [GitHub Actions #134](https://github.com/khoalvd839764-netizen/OISMS/actions/runs/42185858352)
 

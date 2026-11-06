@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using OISM.Application.Common.Exceptions;
+using OISM.Domain.Common;
 
 namespace OISM.WebApi.Http;
 
@@ -13,6 +14,11 @@ internal static class ApiErrorResponse
         if (exception is OismException business)
         {
             return ForBusinessError(context, profile, business);
+        }
+
+        if (exception is InvalidStateTransitionException)
+        {
+            return null;
         }
 
         return (profile, exception) switch

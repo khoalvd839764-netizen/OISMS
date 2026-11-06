@@ -19,7 +19,7 @@ public class Payment : BaseEntity, IMustHaveTenant
     /// <summary>
     /// Trạng thái thanh toán: 'Pending', 'Succeeded', 'Failed'.
     /// </summary>
-    public string Status { get; set; } = "Pending";
+    public string Status { get; set; } = PaymentStatus.Pending;
 
     public decimal Amount { get; set; }
     public decimal? CashReceived { get; set; }
@@ -28,4 +28,11 @@ public class Payment : BaseEntity, IMustHaveTenant
     // Navigation properties
     public Tenant? Tenant { get; set; }
     public Order? Order { get; set; }
+
+    public void Succeed(DateTimeOffset at)
+    {
+        StateTransition.Ensure(Status == PaymentStatus.Pending, nameof(Payment), Status, PaymentStatus.Succeeded);
+        Status = PaymentStatus.Succeeded;
+        PaidAt = at;
+    }
 }

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
 using OISM.Application.Features.Pricing.Dtos;
+using OISM.Domain.Common;
 using OISM.Domain.Entities;
 
 namespace OISM.Application.Features.Pricing.Services;
@@ -105,7 +106,7 @@ public class PriceChangeService : IPriceChangeService
 
             // 5. Khởi tạo phiếu đổi giá
             var now = DateTimeOffset.UtcNow;
-            var status = actor.IsOwner ? "Approved" : "Pending";
+            var status = actor.IsOwner ? PriceChangeRequestStatus.Approved : PriceChangeRequestStatus.Pending;
 
             var requestEntity = new PriceChangeRequest
             {
@@ -234,7 +235,7 @@ public class PriceChangeService : IPriceChangeService
                 throw new OismException("NOT_FOUND", "Không tìm thấy phiếu đổi giá.", 404);
             }
 
-            if (request.Status != "Pending")
+            if (!request.IsPending)
             {
                 throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu đổi giá đang ở trạng thái '{request.Status}', chỉ cho phép duyệt phiếu 'Pending'.", 409);
             }
@@ -278,9 +279,7 @@ public class PriceChangeService : IPriceChangeService
                 _dbContext.SkuUnitPrices.Add(priceEntity);
             }
 
-            request.Status = "Approved";
-            request.ReviewedBy = reviewerId;
-            request.ReviewedAt = now;
+            request.Approve(reviewerId, now);
 
             try
             {
@@ -332,16 +331,13 @@ public class PriceChangeService : IPriceChangeService
                 throw new OismException("NOT_FOUND", "Không tìm thấy phiếu đổi giá.", 404);
             }
 
-            if (request.Status != "Pending")
+            if (!request.IsPending)
             {
                 throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu đổi giá đang ở trạng thái '{request.Status}', chỉ cho phép từ chối phiếu 'Pending'.", 409);
             }
 
             var now = DateTimeOffset.UtcNow;
-            request.Status = "Rejected";
-            request.ReviewedBy = reviewerId;
-            request.ReviewedAt = now;
-            request.ReviewNote = note.Trim();
+            request.Reject(reviewerId, note.Trim(), now);
 
             await _dbContext.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
@@ -422,7 +418,7 @@ public class PriceChangeService : IPriceChangeService
             TenantId = tenantId,
             RequestKey = Guid.NewGuid(),
             Kind = "Initial",
-            Status = actor.IsOwner ? "Approved" : "Pending",
+            Status = actor.IsOwner ? PriceChangeRequestStatus.Approved : PriceChangeRequestStatus.Pending,
             Reason = "Giá ban đầu",
             RequestedValidFrom = null,
             CreatedBy = actor.UserId,

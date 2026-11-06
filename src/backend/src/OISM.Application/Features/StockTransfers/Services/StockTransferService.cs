@@ -8,6 +8,7 @@ using OISM.Application.Common.Interfaces;
 using OISM.Application.Features.Inventory.Services;
 using OISM.Application.Features.Orders.Dtos;
 using OISM.Application.Features.StockTransfers.Dtos;
+using OISM.Domain.Common;
 using OISM.Domain.Entities;
 
 namespace OISM.Application.Features.StockTransfers.Services;
@@ -255,7 +256,7 @@ public class StockTransferService : IStockTransferService
                     ToBranchId = dto.ToBranchId,
                     FromWarehouseId = dto.FromWarehouseId,
                     ToWarehouseId = dto.ToWarehouseId,
-                    Status = "Draft",
+                    Status = StockTransferStatus.Draft,
                     CreatedBy = createdByUserId,
                     DispatchedAt = null,
                     ReceivedAt = null,
@@ -348,7 +349,7 @@ public class StockTransferService : IStockTransferService
                     throw new OismException("NOT_FOUND", "Không tìm thấy phiếu chuyển kho.", 404);
                 }
 
-                if (transfer.Status != "Draft")
+                if (!transfer.IsDraft)
                 {
                     throw new OismException("INVALID_STATE_TRANSITION", $"Không thể xuất chuyển phiếu ở trạng thái '{transfer.Status}'. Chỉ cho phép xuất chuyển từ 'Draft'.", 409);
                 }
@@ -453,10 +454,7 @@ public class StockTransferService : IStockTransferService
                 }
 
                 // 6. Cập nhật trạng thái phiếu sang InTransit
-                transfer.Status = "InTransit";
-                transfer.DispatchedAt = now;
-                transfer.DispatchedBy = dispatchedByUserId;
-                transfer.UpdatedAt = now;
+                transfer.Dispatch(dispatchedByUserId, now);
 
                 await _context.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);
@@ -544,7 +542,7 @@ public class StockTransferService : IStockTransferService
                     throw new OismException("NOT_FOUND", "Không tìm thấy phiếu chuyển kho.", 404);
                 }
 
-                if (transfer.Status != "InTransit")
+                if (!transfer.CanReceive)
                 {
                     throw new OismException("INVALID_STATE_TRANSITION", $"Không thể tiếp nhận phiếu ở trạng thái '{transfer.Status}'. Chỉ cho phép tiếp nhận từ 'InTransit'.", 409);
                 }
@@ -671,10 +669,7 @@ public class StockTransferService : IStockTransferService
                 }
 
                 // 4. Cập nhật trạng thái phiếu sang Received
-                transfer.Status = "Received";
-                transfer.ReceivedAt = now;
-                transfer.ReceivedBy = receivedByUserId;
-                transfer.UpdatedAt = now;
+                transfer.Receive(receivedByUserId, now);
 
                 await _context.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);
@@ -755,13 +750,13 @@ public class StockTransferService : IStockTransferService
                     throw new OismException("NOT_FOUND", "Không tìm thấy phiếu chuyển kho.", 404);
                 }
 
-                if (transfer.Status != "Draft")
+                if (!transfer.IsDraft)
                 {
                     throw new OismException("INVALID_STATE_TRANSITION", $"Không thể hủy phiếu chuyển kho ở trạng thái '{transfer.Status}'. Chỉ cho phép hủy từ 'Draft'.", 409);
                 }
 
                 var now = DateTimeOffset.UtcNow;
-                transfer.Status = "Cancelled";
+                transfer.Cancel(now);
                 if (!string.IsNullOrWhiteSpace(dto?.Reason))
                 {
                     var cleanReason = dto.Reason.Trim();
@@ -769,8 +764,6 @@ public class StockTransferService : IStockTransferService
                         ? $"Lý do hủy: {cleanReason}"
                         : $"{transfer.Note} (Lý do hủy: {cleanReason})";
                 }
-                transfer.UpdatedAt = now;
-
                 await _context.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);
 

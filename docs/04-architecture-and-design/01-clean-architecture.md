@@ -64,6 +64,9 @@ flowchart TD
 2. Không có middleware tenant riêng. `TenantId` được `CurrentTenantService` đọc từ claim `tenantId` của JWT đã xác thực; không đọc từ header hay body.
 3. Bảng nghiệp vụ mới: entity triển khai `IMustHaveTenant`, có cột `tenant_id` và query filter trong `AppDbContext`.
 4. Sự kiện realtime gửi qua `IRealtimeNotifier` sau khi transaction đã commit.
+5. Entity Domain kiểm tra chuyển trạng thái và cập nhật các trường audit của chứng từ. Application điều phối phân quyền, khóa, ghi sổ và ánh xạ lỗi nghiệp vụ. Hằng số trạng thái dùng cùng giá trị chuỗi của PostgreSQL và DTO.
+
+Checkout đi qua `PosCheckoutService`. `OrderService` điều phối vòng đời đơn và giữ hợp đồng `IOrderService`. `MarketplaceOrderService` dùng chung lõi tạo đơn và giữ chỗ của `OrderIntakeService` với Admin. `OrderQueryService` phụ trách truy vấn và ánh xạ DTO.
 
 ## 4. Nợ Kỹ Thuật Đã Biết
 

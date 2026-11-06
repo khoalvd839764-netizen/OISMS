@@ -1,3 +1,4 @@
+using OISM.Domain.Common;
 using System.ComponentModel.DataAnnotations;
 using OISM.Application.Common.Attributes;
 
@@ -73,6 +74,6 @@ public class WebhookSimulationResultDto
     public Guid? OrderId { get; set; }
     public string? OrderNumber { get; set; }
     public string Channel { get; set; } = string.Empty;
-    public string Status { get; set; } = "Draft"; // 'Draft', 'Reserved'
+    public string Status { get; set; } = OrderStatus.Draft; // 'Draft', 'Reserved'
     public DateTimeOffset ReceivedAt { get; set; } = DateTimeOffset.UtcNow;
 }

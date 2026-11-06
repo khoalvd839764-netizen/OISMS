@@ -1,3 +1,4 @@
+using OISM.Domain.Common;
 using Microsoft.EntityFrameworkCore;
 using OISM.Application.Common.Helpers;
 using OISM.Application.Common.Interfaces;
@@ -134,7 +135,7 @@ public class AiForecastingService : IAiForecastingService
         var orderQuery = _context.Orders
             .AsNoTracking()
             .Include(o => o.Items)
-            .Where(o => o.TenantId == tenantId && (o.Status == "Confirmed" || o.Status == "Completed")
+            .Where(o => o.TenantId == tenantId && (o.Status == OrderStatus.Confirmed || o.Status == OrderStatus.Completed)
                         && o.CreatedAt >= fromBoundary && o.CreatedAt < endBoundary);
 
         if (branchId.HasValue && branchId.Value != Guid.Empty)

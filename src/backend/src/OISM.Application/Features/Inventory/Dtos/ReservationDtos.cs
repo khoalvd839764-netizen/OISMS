@@ -1,3 +1,4 @@
+using OISM.Domain.Common;
 using System.ComponentModel.DataAnnotations;
 
 namespace OISM.Application.Features.Inventory.Dtos;
@@ -48,7 +49,7 @@ public class ReserveStockResponseDto
     public Guid WarehouseId { get; set; }
     public Guid SkuId { get; set; }
     public decimal Quantity { get; set; }
-    public string Status { get; set; } = "Active";
+    public string Status { get; set; } = ReservationStatus.Active;
     public DateTimeOffset ExpiresAt { get; set; }
     public decimal RemainingAvailableStock { get; set; }
 }

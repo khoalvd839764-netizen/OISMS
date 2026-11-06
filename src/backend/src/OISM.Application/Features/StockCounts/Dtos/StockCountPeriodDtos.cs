@@ -1,3 +1,4 @@
+using OISM.Domain.Common;
 namespace OISM.Application.Features.StockCounts.Dtos;
 
 public class StockCountPeriodFilterRequestDto
@@ -31,7 +32,7 @@ public class StockCountPeriodResponseDto
     public DateTimeOffset DueAt { get; set; }
     public Guid AssigneeUserId { get; set; }
     public string? AssigneeName { get; set; }
-    public string Status { get; set; } = "Planned";
+    public string Status { get; set; } = StockCountPeriodStatus.Planned;
     public DateTimeOffset? CompletedAt { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }

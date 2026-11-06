@@ -9,6 +9,7 @@ using OISM.Application.Features.Inventory.Services;
 using OISM.Application.Features.Orders.Dtos;
 using OISM.Application.Features.Realtime;
 using OISM.Application.Features.StockCounts.Dtos;
+using OISM.Domain.Common;
 using OISM.Domain.Entities;
 
 namespace OISM.Application.Features.StockCounts.Services;
@@ -88,7 +89,7 @@ public class StockCountService : IStockCountService
             throw new OismException("NOT_FOUND", "Không tìm thấy kỳ kiểm kê trong phạm vi doanh nghiệp.", 404);
         }
 
-        if (period.Status == "Completed" || period.Status == "Cancelled")
+        if (!period.CanStart)
         {
             throw new OismException("INVALID_STATE_TRANSITION", $"Kỳ kiểm kê ở trạng thái '{period.Status}', không thể bắt đầu đếm.", 409);
         }
@@ -204,7 +205,7 @@ public class StockCountService : IStockCountService
                                     .ThenInclude(s => s!.Product)
                             .Include(c => c.Branch)
                             .Include(c => c.Warehouse)
-                            .FirstOrDefaultAsync(c => c.TenantId == tenantId.Value && c.PeriodId == periodId.Value && c.Status != "Cancelled", ct);
+                            .FirstOrDefaultAsync(c => c.TenantId == tenantId.Value && c.PeriodId == periodId.Value && c.Status != StockCountStatus.Cancelled, ct);
 
                         if (activePeriodCount != null)
                         {
@@ -219,7 +220,7 @@ public class StockCountService : IStockCountService
                         {
                             throw new OismException("NOT_FOUND", "Không tìm thấy kỳ kiểm kê trong phạm vi doanh nghiệp.", 404);
                         }
-                        if (period.Status == "Completed" || period.Status == "Cancelled")
+                        if (!period.CanStart)
                         {
                             throw new OismException("INVALID_STATE_TRANSITION", $"Kỳ kiểm kê ở trạng thái '{period.Status}', không thể bắt đầu đếm.", 409);
                         }
@@ -381,7 +382,7 @@ public class StockCountService : IStockCountService
                         CountType = countType,
                         AdHocReason = adHocReason,
                         PeriodId = periodId,
-                        Status = "Draft",
+                        Status = StockCountStatus.Draft,
                         CreatedBy = createdByUserId,
                         Note = dto.Note?.Trim(),
                         CreatedAt = now,
@@ -394,8 +395,7 @@ public class StockCountService : IStockCountService
                             .FirstOrDefaultAsync(p => p.TenantId == tenantId.Value && p.Id == periodId.Value, ct);
                         if (periodToUpdate != null)
                         {
-                            periodToUpdate.Status = "InProgress";
-                            periodToUpdate.UpdatedAt = now;
+                            periodToUpdate.Start(now);
                         }
                     }
 
@@ -544,7 +544,7 @@ public class StockCountService : IStockCountService
                 throw new OismException("NOT_FOUND", "Không tìm thấy đợt kiểm kê trong phạm vi doanh nghiệp.", 404);
             }
 
-            if (stockCount.Status != "Draft" && stockCount.Status != "Counting")
+            if (!stockCount.CanRecordCounts)
             {
                 throw new OismException("INVALID_STATE_TRANSITION", $"Không thể ghi số đếm cho đợt kiểm kê ở trạng thái '{stockCount.Status}'. Chỉ cho phép ghi số đếm ở trạng thái Draft hoặc Counting.", 409);
             }
@@ -569,11 +569,7 @@ public class StockCountService : IStockCountService
                 existingItem.UpdatedAt = now;
             }
 
-            if (stockCount.Status == "Draft")
-            {
-                stockCount.Status = "Counting";
-            }
-            stockCount.UpdatedAt = now;
+            stockCount.StartCounting(now);
 
             await _context.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
@@ -631,7 +627,7 @@ public class StockCountService : IStockCountService
                 throw new OismException("NOT_FOUND", "Không tìm thấy đợt kiểm kê trong phạm vi doanh nghiệp.", 404);
             }
 
-            if (stockCount.Status != "Counting")
+            if (!stockCount.IsCounting)
             {
                 throw new OismException("INVALID_STATE_TRANSITION", $"Đợt kiểm kê phải ở trạng thái Counting mới được nộp. Trạng thái hiện tại: '{stockCount.Status}'.", 409);
             }
@@ -687,10 +683,7 @@ public class StockCountService : IStockCountService
             };
             _context.StockCountApprovals.Add(approval);
 
-            stockCount.Status = "PendingApproval";
-            stockCount.SubmittedBy = userId;
-            stockCount.SubmittedAt = now;
-            stockCount.UpdatedAt = now;
+            stockCount.Submit(userId, now);
 
             await _context.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
@@ -760,7 +753,7 @@ public class StockCountService : IStockCountService
                 throw new OismException("NOT_FOUND", "Không tìm thấy đợt kiểm kê trong phạm vi doanh nghiệp.", 404);
             }
 
-            if (stockCount.Status != "Counting")
+            if (!stockCount.IsCounting)
             {
                 throw new OismException("INVALID_STATE_TRANSITION", $"Chỉ có thể đếm lại SKU bị lệch khi đợt kiểm kê ở trạng thái Counting. Trạng thái hiện tại: '{stockCount.Status}'.", 409);
             }
@@ -912,7 +905,7 @@ public class StockCountService : IStockCountService
                 throw new OismException("NOT_FOUND", "Không tìm thấy đợt kiểm kê trong phạm vi doanh nghiệp.", 404);
             }
 
-            if (stockCount.Status != "PendingApproval")
+            if (!stockCount.IsPendingApproval)
             {
                 throw new OismException("INVALID_STATE_TRANSITION", $"Chỉ có thể yêu cầu đếm lại khi đợt kiểm kê ở trạng thái PendingApproval. Trạng thái hiện tại: '{stockCount.Status}'.", 409);
             }
@@ -970,10 +963,7 @@ public class StockCountService : IStockCountService
             }
 
             // Chuyển về Counting, xóa submitted_by, submitted_at
-            stockCount.Status = "Counting";
-            stockCount.SubmittedBy = null;
-            stockCount.SubmittedAt = null;
-            stockCount.UpdatedAt = now;
+            stockCount.RequestRecount(now);
 
             await _context.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
@@ -1063,7 +1053,7 @@ public class StockCountService : IStockCountService
             }
 
             // AC-05: Phải PendingApproval. Confirm từ Counting trả 409 và không ghi tồn.
-            if (stockCount.Status != "PendingApproval")
+            if (!stockCount.IsPendingApproval)
             {
                 throw new OismException("INVALID_STATE_TRANSITION", $"Đợt kiểm kê phải ở trạng thái PendingApproval mới được duyệt và chốt kiểm kê. Trạng thái hiện tại: '{stockCount.Status}'.", 409);
             }
@@ -1273,12 +1263,10 @@ public class StockCountService : IStockCountService
                 Reason = !string.IsNullOrWhiteSpace(dto?.Note)
                     ? dto.Note.Trim()
                     : $"Điều chỉnh cân bằng theo đợt kiểm kê {stockCount.Number}",
-                Status = "Confirmed",
                 CreatedBy = confirmedByUserId,
-                ConfirmedBy = confirmedByUserId,
-                ConfirmedAt = now,
                 CreatedAt = now
             };
+            adjustment.Confirm(confirmedByUserId, now);
 
             // 5. Cập nhật tồn kho 2 cấp, WAC và Ledger
             foreach (var (item, delta, unitCost, oldBranchOnHand, oldBranchWac) in itemPlan)
@@ -1407,18 +1395,12 @@ public class StockCountService : IStockCountService
                     .FirstOrDefaultAsync(p => p.TenantId == tenantId.Value && p.Id == stockCount.PeriodId.Value, ct);
                 if (period != null)
                 {
-                    period.Status = "Completed";
-                    period.CompletedAt = now;
-                    period.UpdatedAt = now;
+                    period.Complete(now);
                 }
             }
 
             // 6. Cập nhật trạng thái StockCount
-            stockCount.Status = "Confirmed";
-            stockCount.ConfirmedBy = confirmedByUserId;
-            stockCount.ConfirmedAt = now;
-            stockCount.GeneratedAdjustmentId = adjustment.Id;
-            stockCount.UpdatedAt = now;
+            stockCount.Confirm(confirmedByUserId, adjustment.Id, now);
 
             _context.InventoryAdjustments.Add(adjustment);
             await _context.SaveChangesAsync(ct);
@@ -1493,15 +1475,14 @@ public class StockCountService : IStockCountService
                 throw new OismException("NOT_FOUND", "Không tìm thấy đợt kiểm kê trong phạm vi doanh nghiệp.", 404);
             }
 
-            if (stockCount.Status == "Confirmed" || stockCount.Status == "Cancelled")
+            if (!stockCount.CanCancel)
             {
                 throw new OismException("INVALID_STATE_TRANSITION",
                     $"Không thể hủy đợt kiểm kê ở trạng thái '{stockCount.Status}'. Chỉ cho phép hủy đợt kiểm kê ở trạng thái Draft, Counting hoặc PendingApproval.", 409);
             }
 
             var now = DateTimeOffset.UtcNow;
-            stockCount.Status = "Cancelled";
-            stockCount.UpdatedAt = now;
+            stockCount.Cancel(now);
             if (!string.IsNullOrWhiteSpace(reason))
             {
                 stockCount.Note = string.IsNullOrWhiteSpace(stockCount.Note)
@@ -1535,9 +1516,7 @@ public class StockCountService : IStockCountService
                     .FirstOrDefaultAsync(p => p.TenantId == tenantId.Value && p.Id == stockCount.PeriodId.Value, ct);
                 if (period != null)
                 {
-                    period.Status = "Planned";
-                    period.CompletedAt = null;
-                    period.UpdatedAt = now;
+                    period.Reopen(now);
                 }
             }
 

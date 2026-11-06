@@ -4,6 +4,7 @@ using OISM.Application.Common.Interfaces;
 using OISM.Application.Features.Catalog.Units.Services;
 using OISM.Application.Features.Inventory.Dtos;
 using OISM.Application.Features.PurchaseOrders.Dtos;
+using OISM.Domain.Common;
 using OISM.Domain.Entities;
 
 namespace OISM.Application.Features.PurchaseOrders.Services;
@@ -122,7 +123,7 @@ public class PurchaseOrderService : IPurchaseOrderService
                 RequestKey = requestKey,
                 SupplierId = dto.SupplierId,
                 BranchId = dto.BranchId,
-                Status = "Draft",
+                Status = PurchaseOrderStatus.Draft,
                 Note = string.IsNullOrWhiteSpace(dto.Note) ? null : dto.Note.Trim(),
                 CreatedBy = userId,
                 CreatedAt = now
@@ -220,7 +221,7 @@ public class PurchaseOrderService : IPurchaseOrderService
                 throw new OismException("NOT_FOUND", $"Không tìm thấy phiếu mua hàng với ID '{id}'.", 404);
             }
 
-            if (po.Status != "Draft")
+            if (!po.IsDraft)
             {
                 throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', chỉ được sửa khi ở trạng thái 'Draft'.", 409);
             }
@@ -333,7 +334,7 @@ public class PurchaseOrderService : IPurchaseOrderService
                 throw new OismException("NOT_FOUND", $"Không tìm thấy phiếu mua hàng với ID '{id}'.", 404);
             }
 
-            if (po.Status != "Draft")
+            if (!po.IsDraft)
             {
                 throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', chỉ được duyệt phiếu ở trạng thái 'Draft'.", 409);
             }
@@ -349,10 +350,7 @@ public class PurchaseOrderService : IPurchaseOrderService
             }
 
             var now = DateTimeOffset.UtcNow;
-            po.Status = "Approved";
-            po.ApprovedBy = userId;
-            po.ApprovedAt = now;
-            po.UpdatedAt = now;
+            po.Approve(userId, now);
 
             await _context.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
@@ -396,17 +394,13 @@ public class PurchaseOrderService : IPurchaseOrderService
                 throw new OismException("NOT_FOUND", $"Không tìm thấy phiếu mua hàng với ID '{id}'.", 404);
             }
 
-            if (po.Status != "Approved" && po.Status != "PartiallyReceived")
+            if (!po.CanReceive)
             {
                 throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', chỉ được đóng phiếu ở trạng thái 'Approved' hoặc 'PartiallyReceived'.", 409);
             }
 
             var now = DateTimeOffset.UtcNow;
-            po.Status = "Closed";
-            po.ClosedBy = userId;
-            po.ClosedAt = now;
-            po.CloseReason = trimmedReason;
-            po.UpdatedAt = now;
+            po.Close(userId, trimmedReason, now);
 
             await _context.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
@@ -438,21 +432,18 @@ public class PurchaseOrderService : IPurchaseOrderService
                 throw new OismException("NOT_FOUND", $"Không tìm thấy phiếu mua hàng với ID '{id}'.", 404);
             }
 
-            if (po.Status != "Draft" && po.Status != "Approved")
+            if (!po.IsCancellableStatus)
             {
                 throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', chỉ được hủy khi ở trạng thái 'Draft' hoặc 'Approved' chưa nhận hàng.", 409);
             }
 
-            if (po.Items.Any(i => i.ReceivedBaseQuantity > 0m))
+            if (po.HasReceivedItems)
             {
                 throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu mua '{po.Number}' đã phát sinh hàng nhận, không thể hủy.", 409);
             }
 
             var now = DateTimeOffset.UtcNow;
-            po.Status = "Cancelled";
-            po.CancelledBy = userId;
-            po.CancelledAt = now;
-            po.UpdatedAt = now;
+            po.Cancel(userId, now);
 
             await _context.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);

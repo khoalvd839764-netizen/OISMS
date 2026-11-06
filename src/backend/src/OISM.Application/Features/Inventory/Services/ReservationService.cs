@@ -6,6 +6,7 @@ using OISM.Application.Features.Inventory.Dtos;
 using OISM.Application.Features.Pricing.Dtos;
 using OISM.Application.Features.Pricing.Services;
 using OISM.Application.Features.Realtime;
+using OISM.Domain.Common;
 using OISM.Domain.Entities;
 
 namespace OISM.Application.Features.Inventory.Services;
@@ -153,7 +154,7 @@ public class ReservationService : IReservationService
 
                 if (existingReservation != null)
                 {
-                    if (existingReservation.Status == "Active" &&
+                    if (existingReservation.Status == ReservationStatus.Active &&
                         existingReservation.OrderId == dto.OrderId.Value &&
                         existingReservation.SkuId == dto.SkuId &&
                         existingReservation.BranchId == dto.BranchId &&
@@ -207,7 +208,7 @@ public class ReservationService : IReservationService
 
                         // Payload khớp -> kiểm tra trạng thái
                         var nowUtc = DateTimeOffset.UtcNow;
-                        if (existingResByKey.Status == "Active" && existingResByKey.ExpiresAt > nowUtc)
+                        if (existingResByKey.IsActiveAt(nowUtc))
                         {
                             // Trả về kết quả cũ, KHÔNG tạo Order, KHÔNG tăng Reserved
                             await transaction.CommitAsync(ct);
@@ -279,7 +280,7 @@ public class ReservationService : IReservationService
                     Number = orderNumber,
                     BranchId = dto.BranchId,
                     Channel = "POS",
-                    Status = "Draft",
+                    Status = OrderStatus.Draft,
                     TotalAmount = dto.Quantity * priceInfo.Price,
                     RequestKey = dto.RequestKey ?? Guid.NewGuid(),
                     CreatedBy = userId,
@@ -339,7 +340,7 @@ public class ReservationService : IReservationService
                 WarehouseId = dto.WarehouseId,
                 SkuId = dto.SkuId,
                 Quantity = dto.Quantity,
-                Status = "Active",
+                Status = ReservationStatus.Active,
                 ExpiresAt = expiresAt,
                 CreatedAt = now
             };

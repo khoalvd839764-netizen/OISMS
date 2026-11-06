@@ -5,6 +5,7 @@ using OISM.Application.Common.Interfaces;
 using OISM.Application.Features.Catalog.Units.Services;
 using OISM.Application.Features.Inventory.Dtos;
 using OISM.Application.Features.Realtime;
+using OISM.Domain.Common;
 using OISM.Domain.Entities;
 
 namespace OISM.Application.Features.Inventory.Services;
@@ -76,7 +77,7 @@ public class GoodsReceiptService : IGoodsReceiptService
             throw new KeyNotFoundException($"Không tìm thấy Phiếu mua hàng với ID '{dto.PurchaseOrderId}'.");
         }
 
-        if (po.Status != "Approved" && po.Status != "PartiallyReceived")
+        if (!po.CanReceive)
         {
             throw new PurchaseOrderNotReceivableException(
                 $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', chỉ cho phép lập phiếu nhập khi ở 'Approved' hoặc 'PartiallyReceived'.");
@@ -137,7 +138,7 @@ public class GoodsReceiptService : IGoodsReceiptService
             BranchId = po.BranchId,
             WarehouseId = dto.WarehouseId,
             SupplierId = po.SupplierId,
-            Status = "Draft",
+            Status = GoodsReceiptStatus.Draft,
             Note = dto.Note,
             CreatedBy = userId,
             CreatedAt = now
@@ -293,12 +294,12 @@ public class GoodsReceiptService : IGoodsReceiptService
                     throw new KeyNotFoundException($"Không tìm thấy Phiếu nhập kho với ID '{id}'.");
                 }
 
-                if (receipt.Status == "Confirmed")
+                if (receipt.Status == GoodsReceiptStatus.Confirmed)
                 {
                     throw new InvalidOperationException($"Phiếu nhập '{receipt.Number}' đã được xác nhận trước đó.");
                 }
 
-                if (receipt.Status == "Cancelled")
+                if (receipt.Status == GoodsReceiptStatus.Cancelled)
                 {
                     throw new OismException("INVALID_STATE_TRANSITION", $"Không thể xác nhận phiếu nhập '{receipt.Number}' đã bị hủy.", 409);
                 }
@@ -330,7 +331,7 @@ public class GoodsReceiptService : IGoodsReceiptService
                     throw new PurchaseOrderItemMismatchException("Không tìm thấy phiếu mua hàng tương ứng với phiếu nhập.");
                 }
 
-                if (po.Status != "Approved" && po.Status != "PartiallyReceived" && po.Status != "Received")
+                if (!po.CanReceive && po.Status != PurchaseOrderStatus.Received)
                 {
                     throw new PurchaseOrderNotReceivableException(
                         $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', không thể xác nhận nhập kho.");
@@ -364,7 +365,7 @@ public class GoodsReceiptService : IGoodsReceiptService
                     // 6. Kiểm tra vượt lượng còn được nhận trên từng dòng
                     var itemBaseQuantity = item.Quantity * item.FactorSnapshot;
                     var orderedBaseQuantity = poItem.Quantity * poItem.FactorSnapshot;
-                    if (po.Status == "Received" || poItem.ReceivedBaseQuantity + itemBaseQuantity > orderedBaseQuantity)
+                    if (po.Status == PurchaseOrderStatus.Received || poItem.ReceivedBaseQuantity + itemBaseQuantity > orderedBaseQuantity)
                     {
                         var remainingBase = Math.Max(0m, orderedBaseQuantity - poItem.ReceivedBaseQuantity);
                         throw new PurchaseOrderOverReceiptException(
@@ -466,15 +467,8 @@ public class GoodsReceiptService : IGoodsReceiptService
                 }
 
                 // Cập nhật trạng thái phiếu mua: đủ mọi dòng thì Received, còn lại PartiallyReceived
-                var allFullyReceived = po.Items.All(pi => pi.ReceivedBaseQuantity >= pi.Quantity * pi.FactorSnapshot);
-                po.Status = allFullyReceived ? "Received" : "PartiallyReceived";
-                po.UpdatedAt = now;
-
-                // Cập nhật trạng thái phiếu nhập
-                receipt.Status = "Confirmed";
-                receipt.ConfirmedAt = now;
-                receipt.ConfirmedBy = userId;
-                receipt.UpdatedAt = now;
+                po.UpdateReceivingStatus(now);
+                receipt.Confirm(userId, now);
 
                 // 10. SaveChanges, SET CONSTRAINTS ALL IMMEDIATE, commit
                 await _context.SaveChangesAsync(ct);
@@ -510,7 +504,7 @@ public class GoodsReceiptService : IGoodsReceiptService
             {
                 await transaction.RollbackAsync(ct);
                 _context.UnitOfWork.ResetTracking();
-                var isConfirmed = await _context.GoodsReceipts.AnyAsync(r => r.Id == id && r.Status == "Confirmed", ct);
+                var isConfirmed = await _context.GoodsReceipts.AnyAsync(r => r.Id == id && r.Status == GoodsReceiptStatus.Confirmed, ct);
                 if (isConfirmed)
                 {
                     throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu nhập '{id}' đã được xác nhận trước đó.", 409);
@@ -564,13 +558,12 @@ public class GoodsReceiptService : IGoodsReceiptService
                     throw new KeyNotFoundException($"Không tìm thấy Phiếu nhập kho với ID '{id}'.");
                 }
 
-                if (receipt.Status != "Draft")
+                if (!receipt.IsDraft)
                 {
                     throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu nhập '{receipt.Number}' đang ở trạng thái '{receipt.Status}', chỉ được hủy khi ở trạng thái 'Draft'.", 409);
                 }
 
-                receipt.Status = "Cancelled";
-                receipt.UpdatedAt = DateTimeOffset.UtcNow;
+                receipt.Cancel(DateTimeOffset.UtcNow);
 
                 await _context.SaveChangesAsync(ct);
                 await transaction.CommitAsync(ct);

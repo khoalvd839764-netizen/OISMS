@@ -1,3 +1,4 @@
+using OISM.Domain.Common;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using OISM.Application.Common.Attributes;
@@ -180,7 +181,7 @@ public class PaymentResponseDto
 {
     public Guid Id { get; set; }
     public string Method { get; set; } = "Cash";
-    public string Status { get; set; } = "Pending";
+    public string Status { get; set; } = PaymentStatus.Pending;
     public decimal Amount { get; set; }
     public decimal? CashReceived { get; set; }
     public DateTimeOffset? PaidAt { get; set; }
@@ -199,7 +200,7 @@ public class OrderResponseDto
     public string Channel { get; set; } = "POS";
     public string? ExternalShopId { get; set; }
     public string? ExternalOrderId { get; set; }
-    public string Status { get; set; } = "Draft";
+    public string Status { get; set; } = OrderStatus.Draft;
     public string? CustomerName { get; set; }
     public string? CustomerPhone { get; set; }
     public string? ShippingAddress { get; set; }
@@ -329,7 +330,7 @@ public class OrderSummaryDto
     public string Channel { get; set; } = "POS";
     public string? ExternalShopId { get; set; }
     public string? ExternalOrderId { get; set; }
-    public string Status { get; set; } = "Draft";
+    public string Status { get; set; } = OrderStatus.Draft;
     public string? CustomerName { get; set; }
     public string? CustomerPhone { get; set; }
     public decimal TotalAmount { get; set; }
@@ -388,7 +389,7 @@ public class CreateOrderDto
     /// <summary>
     /// Trạng thái ban đầu: 'Draft' hoặc 'Reserved'. Mặc định 'Draft'.
     /// </summary>
-    public string InitialStatus { get; set; } = "Draft";
+    public string InitialStatus { get; set; } = OrderStatus.Draft;
 
     public Guid? RequestKey { get; set; }
 

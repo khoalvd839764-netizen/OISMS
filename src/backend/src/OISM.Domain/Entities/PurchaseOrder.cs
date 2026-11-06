@@ -17,7 +17,7 @@ public class PurchaseOrder : BaseEntity, IMustHaveTenant
     /// <summary>
     /// Trạng thái phiếu mua: 'Draft', 'Approved', 'PartiallyReceived', 'Received', 'Closed', 'Cancelled'.
     /// </summary>
-    public string Status { get; set; } = "Draft";
+    public string Status { get; set; } = PurchaseOrderStatus.Draft;
 
     public string? Note { get; set; }
 
@@ -40,4 +40,49 @@ public class PurchaseOrder : BaseEntity, IMustHaveTenant
     public User? CancelledByUser { get; set; }
 
     public ICollection<PurchaseOrderItem> Items { get; set; } = new List<PurchaseOrderItem>();
+
+    public bool IsDraft => Status == PurchaseOrderStatus.Draft;
+    public bool CanReceive => Status is PurchaseOrderStatus.Approved or PurchaseOrderStatus.PartiallyReceived;
+    public bool IsCancellableStatus => Status is PurchaseOrderStatus.Draft or PurchaseOrderStatus.Approved;
+    public bool HasReceivedItems => Items.Any(item => item.ReceivedBaseQuantity > 0m);
+
+    public void Approve(Guid userId, DateTimeOffset at)
+    {
+        StateTransition.Ensure(IsDraft, nameof(PurchaseOrder), Status, PurchaseOrderStatus.Approved);
+        Status = PurchaseOrderStatus.Approved;
+        ApprovedBy = userId;
+        ApprovedAt = at;
+        UpdatedAt = at;
+    }
+
+    public void UpdateReceivingStatus(DateTimeOffset at)
+    {
+        var next = Items.All(item => item.ReceivedBaseQuantity >= item.Quantity * item.FactorSnapshot)
+            ? PurchaseOrderStatus.Received
+            : PurchaseOrderStatus.PartiallyReceived;
+        StateTransition.Ensure(CanReceive, nameof(PurchaseOrder), Status, next);
+        Status = next;
+        UpdatedAt = at;
+    }
+
+    public void Close(Guid userId, string reason, DateTimeOffset at)
+    {
+        StateTransition.Ensure(CanReceive && !string.IsNullOrWhiteSpace(reason),
+            nameof(PurchaseOrder), Status, PurchaseOrderStatus.Closed);
+        Status = PurchaseOrderStatus.Closed;
+        ClosedBy = userId;
+        ClosedAt = at;
+        CloseReason = reason;
+        UpdatedAt = at;
+    }
+
+    public void Cancel(Guid userId, DateTimeOffset at)
+    {
+        StateTransition.Ensure(IsCancellableStatus && !HasReceivedItems,
+            nameof(PurchaseOrder), Status, PurchaseOrderStatus.Cancelled);
+        Status = PurchaseOrderStatus.Cancelled;
+        CancelledBy = userId;
+        CancelledAt = at;
+        UpdatedAt = at;
+    }
 }

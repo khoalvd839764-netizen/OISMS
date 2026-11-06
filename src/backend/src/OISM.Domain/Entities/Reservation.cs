@@ -20,7 +20,7 @@ public class Reservation : BaseEntity, IMustHaveTenant
     /// <summary>
     /// Trạng thái giữ chỗ: 'Active', 'Consumed', 'Released', 'Expired'.
     /// </summary>
-    public string Status { get; set; } = "Active";
+    public string Status { get; set; } = ReservationStatus.Active;
 
     public DateTimeOffset ExpiresAt { get; set; }
 
@@ -31,4 +31,25 @@ public class Reservation : BaseEntity, IMustHaveTenant
     public Branch? Branch { get; set; }
     public Warehouse? Warehouse { get; set; }
     public ProductVariant? Sku { get; set; }
+
+    public bool IsActiveAt(DateTimeOffset at) => Status == ReservationStatus.Active && ExpiresAt > at;
+
+    public void Consume(DateTimeOffset at)
+    {
+        StateTransition.Ensure(IsActiveAt(at), nameof(Reservation), Status, ReservationStatus.Consumed);
+        Status = ReservationStatus.Consumed;
+    }
+
+    public void Release()
+    {
+        StateTransition.Ensure(Status == ReservationStatus.Active, nameof(Reservation), Status, ReservationStatus.Released);
+        Status = ReservationStatus.Released;
+    }
+
+    public void Expire(DateTimeOffset cutoff)
+    {
+        StateTransition.Ensure(Status == ReservationStatus.Active && ExpiresAt <= cutoff,
+            nameof(Reservation), Status, ReservationStatus.Expired);
+        Status = ReservationStatus.Expired;
+    }
 }

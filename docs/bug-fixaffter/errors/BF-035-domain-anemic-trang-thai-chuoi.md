@@ -2,7 +2,7 @@
 
 | Mục | Giá trị |
 | :--- | :--- |
-| **Trạng thái** | 🟡 Đã sửa một phần |
+| **Trạng thái** | 🟡 Đã triển khai, chờ CI |
 | **Ưu tiên** | P3 |
 | **Khu vực** | Backend / Clean Architecture / Domain |
 | **Phát hiện** | 06/11/2026, rà soát lại Clean Architecture sau Upgrade 06 (commit `6ad3cf6`) |
@@ -25,11 +25,15 @@
 
 ## Cách đã sửa
 
-Đã gỡ gói `MediatR` không dùng. Phần kiểu trạng thái, chuyển trạng thái trong entity và tách `OrderService` còn thuộc đợt 4.
+Đợt 2 đã gỡ gói `MediatR`. Đợt 4 dùng hằng số trạng thái theo loại chứng từ và đưa các bước chuyển trạng thái cùng trường thời gian, người thực hiện vào entity Domain. Cột PostgreSQL và DTO vẫn lưu trạng thái dạng chuỗi với giá trị hiện hành.
+
+`OrderService` phụ trách vòng đời đơn và giữ giao diện hiện có. Checkout, tiếp nhận đơn sàn, lõi giữ chỗ dùng chung với Admin và truy vấn đơn lần lượt nằm trong `PosCheckoutService`, `MarketplaceOrderService`, `OrderIntakeService` và `OrderQueryService`.
 
 ## Kiểm chứng
 
 Việc gỡ `MediatR` đã qua build và test backend .NET 8. [GitHub Actions #134](https://github.com/khoalvd839764-netizen/OISMS/actions/runs/42185858352)
+
+Đợt 4 đã qua 237 unit test, trong đó có 14 ca kiểm tra chuyển trạng thái Domain, cùng 15 integration test cục bộ và 63 test POS. Suite PostgreSQL 16 chờ CI.
 
 ## Điều kiện đóng
 

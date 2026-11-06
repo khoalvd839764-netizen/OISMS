@@ -1,3 +1,4 @@
+using OISM.Domain.Common;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using OISM.Application.Common.Attributes;
@@ -82,7 +83,7 @@ public class StockTransferResponseDto
     public string? FromWarehouseName { get; set; }
     public Guid ToWarehouseId { get; set; }
     public string? ToWarehouseName { get; set; }
-    public string Status { get; set; } = "Draft"; // 'Draft', 'InTransit', 'Received', 'Cancelled'
+    public string Status { get; set; } = StockTransferStatus.Draft; // 'Draft', 'InTransit', 'Received', 'Cancelled'
     public Guid CreatedBy { get; set; }
     public Guid? DispatchedBy { get; set; }
     public DateTimeOffset? DispatchedAt { get; set; }
