@@ -32,7 +32,7 @@
 | **`FR-SIM (01-03)`** | Trình giả lập Webhook 3 sàn, Đẩy tin SignalR thời gian thực và Tác vụ nền Hangfire | **Đăng Khoa & Nhựt** *(FE nối ở Sprint 3)* | **Sprint 2, 3 & 4** *(Sprint 3: Simulator, SignalR, Hangfire expire; Sprint 4: Hangfire daily report)* | Triển khai trọng tâm ở Sprint 3 & 4 |
 | **`FR-REP (01-03)`** | Báo cáo doanh thu thuần, giá vốn, lãi gộp; Tốc độ luân chuyển kho và Cảnh báo tồn thấp | **Nhựt, Phúc Hữu, Nam Nguyễn & Đăng Khoa** | **Sprint 3 (cơ bản), Sprint 4 (đủ)** | Triển khai ở Sprint 3 & 4 |
 | **`AI` (Gói 5 theo đề)** | Dự báo nhu cầu và gợi ý nhập hàng tự động (`Stock Reorder Recommendations`) | **Đăng Khoa & Nhựt** *(Phúc Hữu & Nam Nguyễn làm UI)* | **Sprint 3 (chốt), Sprint 4 (chạy)** | Chốt ở Sprint 3, chạy thật ở Sprint 4 |
-| **`NFR-PERF, TENANT, SEC, MAINT`** | Thử tải 50 đơn đồng thời Flash Sale, Cô lập đa người thuê, Bảo mật JWT/BCrypt, $\ge 80\%$ coverage | **Đăng Khoa & Cả nhóm cùng kiểm test** | **Sprint 2 – 3 (xây), Sprint 4 – 5 (đo & hồi quy)** | Đã đạt `194/194 Tests Pass`, Coverage `> 92%` |
+| **`NFR-PERF, TENANT, SEC, MAINT`** | Thử tải 50 đơn đồng thời Flash Sale, Cô lập đa người thuê, Bảo mật JWT/BCrypt, $\ge 80\%$ coverage | **Đăng Khoa & Cả nhóm cùng kiểm test** | **Sprint 2 – 3 (xây), Sprint 4 – 5 (đo & hồi quy)** | Đã đạt `194/194 (mốc Sprint 2) Tests Pass`, Coverage `> 92%` |
 
 ---
 

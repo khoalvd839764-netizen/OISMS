@@ -3,10 +3,10 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-API-02` |
-| **Phiên bản (Version)** | `v1.0.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-10-22` |
+| **Phiên bản (Version)** | `v1.1.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-PROD-01..04` (Trang 1, 2, 5) |
-| **Phạm vi áp dụng** | `CategoriesController`, `BrandsController`, `ProductsController` |
+| **Phạm vi áp dụng** | `CategoriesController`, `BrandsController`, `ProductsController`, `UnitsController`, `PricingController` |
 
 ---
 
@@ -15,6 +15,7 @@
 | Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả thay đổi | Mã tham chiếu |
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả danh sách Endpoints quản lý cây danh mục, thương hiệu, sản phẩm, biến thể SKU, barcode và bảng giá. | `INIT-API-02` |
+| `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Đối chiếu quyền thực tế: xóa danh mục/thương hiệu/sản phẩm chỉ `Owner`; thêm `DELETE /api/products/{id}`, `toggle-status` của biến thể và tách API thương hiệu. | `OISMS-46` |
 
 ---
 
@@ -25,8 +26,11 @@
 | `GET` | `/api/categories` | `Owner, Staff, Cashier` | `FR-PROD-01` | Lấy danh sách và cấu trúc cây danh mục phân cấp (`Parent/Children`). |
 | `POST` | `/api/categories` | `Owner, Staff` | `FR-PROD-01` | Tạo danh mục mới, kiểm tra `ParentId` tồn tại trong cùng Tenant. |
 | `PUT` | `/api/categories/{id}` | `Owner, Staff` | `FR-PROD-01` | Cập nhật danh mục; bảo vệ bằng `Advisory Lock` chống tạo chu trình vòng lặp (`400 Bad Request`). |
-| `DELETE` | `/api/categories/{id}` | `Owner, Staff` | `FR-PROD-01` | Xóa/vô hiệu hóa danh mục. |
-| `GET/POST/PUT/DELETE` | `/api/brands` | `Owner, Staff` | `FR-PROD-01` | Quản lý danh mục Thương hiệu (`Brand`) theo từng Tenant. |
+| `DELETE` | `/api/categories/{id}` | `Owner` | `FR-PROD-01` | Xóa/vô hiệu hóa danh mục. |
+| `GET` | `/api/brands` | `Owner, Staff, Cashier` | `FR-PROD-01` | Danh sách thương hiệu của tenant. |
+| `POST` | `/api/brands` | `Owner, Staff` | `FR-PROD-01` | Tạo thương hiệu. |
+| `PUT` | `/api/brands/{id}` | `Owner, Staff` | `FR-PROD-01` | Sửa thương hiệu. |
+| `DELETE` | `/api/brands/{id}` | `Owner` | `FR-PROD-01` | Xóa thương hiệu. |
 
 ---
 
@@ -42,6 +46,8 @@
 | `PUT` | `/api/products/{pId}/variants/{vId}` | `Owner, Staff` | `FR-PROD-02..03` | Cập nhật biến thể SKU, bảo toàn kiểu dữ liệu JSON và `null` lồng nhau. Không đổi được giá, xem [mục 4](#4-bảng-giá-theo-thời-gian--phiếu-đổi-giá-oisms-47-u04). |
 | `PUT` | `/api/products/{pId}/variants/{vId}/prices` | `Owner, Staff` | `FR-PROD-04` | **Đã đóng từ Upgrade 04:** luôn trả `410 DIRECT_PRICE_UPDATE_NOT_ALLOWED`. Đổi giá qua `POST /api/price-change-requests`. |
 | `DELETE` | `/api/products/{pId}/variants/{vId}` | `Owner, Staff` | `FR-PROD-02` | Vô hiệu hóa mềm (`Soft delete: IsActive = false`) biến thể SKU. |
+| `PUT` | `/api/products/{pId}/variants/{vId}/toggle-status` | `Owner, Staff` | `FR-PROD-02` | Bật/tắt biến thể SKU. |
+| `DELETE` | `/api/products/{id}` | `Owner` | `FR-PROD-02` | Xóa sản phẩm. |
 
 > Giá trong response lấy từ bảng giá tại thời điểm gọi: `retailPrice`, `wholesalePrice` là `null` khi chưa có giá hiệu lực. Xem [mục 4](#4-bảng-giá-theo-thời-gian--phiếu-đổi-giá-oisms-47-u04).
 

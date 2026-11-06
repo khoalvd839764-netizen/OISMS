@@ -8,7 +8,7 @@
 | **Nguồn truy vết gốc** | `C:\Users\Jacki Khoa\Documents\De bai CNPM.pdf` (Trang 1 – 6) & Confluence Page ID `5275650` (Version 9) |
 | **Bằng chứng kiểm thử Sprint 2** | **194/194 Tests Pass (100%)** — 103 Unit Tests + 91 Integration Tests trên PostgreSQL 16+ thật; Code Coverage Core Inventory đạt **`92.49% – 94.83%`** |
 | **Nguồn cập nhật Sprint 3** | [Phân công Sprint 3 lưu trong repo, Confluence v11](docs/08-sprints/sprint-3/README.md) và [báo cáo tổng kết Đăng Khoa](docs/09-personal-reports/dang-khoa/sprint-3/SUMMARY.md); không tra cứu/cập nhật Confluence live trong lượt này |
-| **Hiện trạng sản phẩm mới nhất** | [Cập nhật 30/10/2026](docs/bug-fixaffter/CHECKLIST-BUGFIX-AND-UPGRADE.md): **20/20 nhóm lỗi (`BF-001..020`) ĐÃ KHẮC PHỤC & VERIFIED PASS**, **Clean Architecture (`Upgrade 06`) ĐÃ HOÀN TẤT**; còn **8 mục Coming soon (`OISMS-45`)** và **5 mục Upgrade nghiệp vụ (`OISMS-47`)** đang triển khai ở Sprint 4 |
+| **Hiện trạng sản phẩm mới nhất** | [Cập nhật 30/10/2026](docs/bug-fixaffter/CHECKLIST.md): **20/20 nhóm lỗi (`BF-001..020`) ĐÃ KHẮC PHỤC & VERIFIED PASS**, **Clean Architecture (`Upgrade 06`) ĐÃ HOÀN TẤT**; còn **8 mục Coming soon (`OISMS-45`)** và **5 mục Upgrade nghiệp vụ (`OISMS-47`)** đang triển khai ở Sprint 4 |
 | **Frontend Coming Soon và Upgrade** | [Cập nhật 04/11/2026](docs/report-after-upgrade/frontend-coming-soon-va-upgrade.md): đã gộp vào `develop`. Còn CS-01, CS-05 (POS Admin), CS-06, U01-B và phân công chi nhánh của CS-02. |
 
 ---
@@ -50,7 +50,7 @@ Quy ước: mục FR bao gồm nhiều người hoặc nhiều sprint chỉ đư
 
 **Chưa nghiệm thu toàn bộ sản phẩm.** Các dấu `[x]` ở phần Sprint 2 và báo cáo BE1 bên dưới phản ánh baseline/bằng chứng được ghi tại thời điểm đó. Khi đánh giá khả năng sử dụng hiện tại, phải đối chiếu các mục còn mở trong phần này. Trạng thái bàn giao READY_FOR_REVIEW chỉ có nghĩa chờ review.
 
-Baseline rà soát: nhánh `feature/OISMS-43-orders-transfers`, HEAD `f276eeed72782f7272f32a62f4bb61ba761f3e89` cộng working tree chưa commit. Chi tiết tái hiện, ảnh hưởng, vị trí code và điều kiện đóng: [BUG-LIST.md](docs/bug-fixaffter/BUG-LIST.md).
+Baseline rà soát: nhánh `feature/OISMS-43-orders-transfers`, HEAD `f276eeed72782f7272f32a62f4bb61ba761f3e89` cộng working tree chưa commit. Chi tiết tái hiện, ảnh hưởng, vị trí code và điều kiện đóng: [BUG-LIST.md](docs/bug-fixaffter/errors/).
 
 ### 0A.1. Nền tảng và các luồng cơ bản
 
@@ -68,7 +68,7 @@ Baseline rà soát: nhánh `feature/OISMS-43-orders-transfers`, HEAD `f276eeed72
 
 ### 0A.2. Checklist 20 lỗi hệ thống đã khắc phục (`OISMS-46` — VERIFIED PASS 30/10/2026)
 
-Toàn bộ 20 mục dưới đây đã được **KHẮC PHỤC TRIỆT ĐỂ & KIỂM THỬ THÀNH CÔNG (20/20 PASS)**. Xem chi tiết tại [report result affter fix.md](docs/bug-fixaffter/Report%20Bugfix/report%20result%20affter%20fix.md) và [CHECKLIST-BUGFIX-AND-UPGRADE.md](docs/bug-fixaffter/CHECKLIST-BUGFIX-AND-UPGRADE.md).
+Toàn bộ 20 mục dưới đây đã được **KHẮC PHỤC TRIỆT ĐỂ & KIỂM THỬ THÀNH CÔNG (20/20 PASS)**. Xem chi tiết tại [errors/](docs/bug-fixaffter/errors/) và [CHECKLIST.md](docs/bug-fixaffter/CHECKLIST.md).
 
 - [x] **P1 · BF-001:** Chặn refresh/HTTP cũ ghi đè/xóa phiên mới hoặc replay ý định cũ bằng token tài khoản mới.
 - [x] **P1 · BF-002:** Tạo/đóng và reset kết nối SignalR đúng phiên đăng nhập kèm lifecycle guards.
@@ -103,7 +103,7 @@ Toàn bộ 20 mục dưới đây đã được **KHẮC PHỤC TRIỆT ĐỂ & 
 
 ### 0A.3. Chức năng chưa hoàn thiện / Coming soon
 
-Gắn nhãn hoặc khóa nút giúp phản ánh đúng hiện trạng; **không được đánh dấu hoàn thành yêu cầu** chỉ vì đã gắn Coming soon. Phạm vi và điều kiện sử dụng thật: [COMING-SOON.md](docs/bug-fixaffter/COMING-SOON.md).
+Gắn nhãn hoặc khóa nút giúp phản ánh đúng hiện trạng; **không được đánh dấu hoàn thành yêu cầu** chỉ vì đã gắn Coming soon. Phạm vi và điều kiện sử dụng thật: [COMING-SOON.md](docs/bug-fixaffter/CHECKLIST.md#b-chức-năng-coming-soon).
 
 - [ ] **CS-01:** Luồng nhận hàng trả từ khách, liên kết đơn gốc và ghi nhận tồn/lịch sử.
 - [ ] **CS-02:** Danh sách, tạo/sửa nhân viên, phân quyền và phân công chi nhánh. *(Còn thiếu phân công chi nhánh.)*
@@ -123,7 +123,7 @@ Gắn nhãn hoặc khóa nút giúp phản ánh đúng hiện trạng; **không 
 - [ ] Nghiệm thu E2E các luồng cơ bản trên database test riêng, gồm tải lại trang, lỗi mạng/kết quả unknown, đổi tài khoản và đổi chi nhánh.
 - [ ] Review và đóng từng finding sau bản sửa cùng bằng chứng hồi quy; giữ các finding bàn giao cũ ở trạng thái chờ review nếu chưa đủ bằng chứng.
 
-Trước khi đẩy nhánh ngày 29/10, đã chạy lại build Admin và POS riêng: cả hai PASS. 14 kiểm thử ở lượt triển khai trước chỉ được dẫn lại, không nhận là vừa chạy lại trong audit. Xem [TEST-RESULTS.md](docs/bug-fixaffter/TEST-RESULTS.md) để biết lệnh, giới hạn và nguồn bằng chứng.
+Trước khi đẩy nhánh ngày 29/10, đã chạy lại build Admin và POS riêng: cả hai PASS. 14 kiểm thử ở lượt triển khai trước chỉ được dẫn lại, không nhận là vừa chạy lại trong audit. Xem [TEST-RESULTS.md](docs/bug-fixaffter/README.md#lịch-sử-các-đợt) để biết lệnh, giới hạn và nguồn bằng chứng.
 
 ---
 

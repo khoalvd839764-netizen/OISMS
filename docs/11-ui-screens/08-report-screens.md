@@ -59,10 +59,10 @@ Màn hình **Báo Cáo Doanh Thu & Quản Trị Lãi Gộp (P&L Reports)** là p
 
 | Method | Endpoint Backend | Hàm xử lý Controller / Service | Tài liệu Hợp đồng API tham chiếu | Mã lỗi liên quan |
 | :---: | :--- | :--- | :--- | :--- |
-| `GET` | `/api/reports/revenue-profit` | `OrdersController.GetRevenueProfitReport` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#2-danh-mục-endpoints-báo-cáo--dự-báo-ai-fr-rep-0103-fr-ai-01) | `FORBIDDEN_ACCESS` (Chặn nhân viên không phải Owner, xem [`DOC-ERR-02`](../12-error-and-status-codes/02-error-codes-catalog.md)) |
-| `GET` | `/api/reports/inventory-velocity` | `OrdersController.GetInventoryVelocityReport` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#2-danh-mục-endpoints-báo-cáo--dự-báo-ai-fr-rep-0103-fr-ai-01) | `AUTH_UNAUTHORIZED` |
-| `GET` | `/api/reports/stock-alerts` | `InventoryController.GetStockAlerts` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#2-danh-mục-endpoints-báo-cáo--dự-báo-ai-fr-rep-0103-fr-ai-01) | `AUTH_UNAUTHORIZED` |
-| `GET` | `/api/ai/reorder-recommendations` | `OrdersController.GetAiReorderRecommendations` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#2-danh-mục-endpoints-báo-cáo--dự-báo-ai-fr-rep-0103-fr-ai-01) | `AUTH_UNAUTHORIZED` |
+| `GET` | `/api/reports/revenue-profit` | `OrdersController.GetRevenueProfitReport` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#2-danh-mục-endpoints-báo-cáo-tìm-kiếm--dự-báo-ai-fr-rep-0103-fr-ai-01) | `FORBIDDEN_ACCESS` (Chặn nhân viên không phải Owner, xem [`DOC-ERR-02`](../12-error-and-status-codes/02-error-codes-catalog.md)) |
+| `GET` | `/api/reports/inventory-velocity` | `OrdersController.GetInventoryVelocityReport` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#2-danh-mục-endpoints-báo-cáo-tìm-kiếm--dự-báo-ai-fr-rep-0103-fr-ai-01) | `AUTH_UNAUTHORIZED` |
+| `GET` | `/api/reports/stock-alerts` | `InventoryController.GetStockAlerts` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#2-danh-mục-endpoints-báo-cáo-tìm-kiếm--dự-báo-ai-fr-rep-0103-fr-ai-01) | `AUTH_UNAUTHORIZED` |
+| `GET` | `/api/ai/reorder-recommendations` | `OrdersController.GetAiReorderRecommendations` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#2-danh-mục-endpoints-báo-cáo-tìm-kiếm--dự-báo-ai-fr-rep-0103-fr-ai-01) | `AUTH_UNAUTHORIZED` |
 
 ---
 

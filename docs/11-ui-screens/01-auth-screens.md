@@ -66,9 +66,9 @@ Màn đăng nhập không hiển thị tài khoản mẫu và không điền s�
 
 | Method | Endpoint Backend | Hàm xử lý Controller / Service | Tài liệu Hợp đồng API tham chiếu | Mã lỗi liên quan |
 | :---: | :--- | :--- | :--- | :--- |
-| `POST` | `/api/auth/login` | `AuthController.Login` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#2-endpoints-xác-thực-người-dùng-fr-auth-02) | `AUTH_INVALID_CREDENTIALS`, `AUTH_TENANT_LOCKED`, `AUTH_USER_LOCKED` (Chi tiết xem [`DOC-ERR-02`](../12-error-and-status-codes/02-error-codes-catalog.md)) |
-| `POST` | `/api/auth/refresh-token` | `AuthController.RefreshToken` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#2-endpoints-xác-thực-người-dùng-fr-auth-02) | `AUTH_TOKEN_EXPIRED`, `AUTH_UNAUTHORIZED` |
-| `GET` | `/api/auth/me` | `AuthController.GetCurrentUser` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#2-endpoints-xác-thực-người-dùng-fr-auth-02) | `AUTH_UNAUTHORIZED` |
+| `POST` | `/api/auth/login` | `AuthController.Login` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#1-danh-mục-endpoints-xác-thực-apiauth) | `AUTH_INVALID_CREDENTIALS`, `AUTH_TENANT_LOCKED`, `AUTH_USER_LOCKED` (Chi tiết xem [`DOC-ERR-02`](../12-error-and-status-codes/02-error-codes-catalog.md)) |
+| `POST` | `/api/auth/refresh-token` | `AuthController.RefreshToken` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#1-danh-mục-endpoints-xác-thực-apiauth) | `AUTH_TOKEN_EXPIRED`, `AUTH_UNAUTHORIZED` |
+| `GET` | `/api/auth/me` | `AuthController.GetCurrentUser` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#1-danh-mục-endpoints-xác-thực-apiauth) | `AUTH_UNAUTHORIZED` |
 
 ---
 

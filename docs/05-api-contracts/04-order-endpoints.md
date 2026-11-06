@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-API-04` |
-| **Phiên bản (Version)** | `v1.0.2` |
-| **Ngày hiệu lực (Effective Date)** | `2026-10-24` |
+| **Phiên bản (Version)** | `v1.1.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-ORD-01..03`, `FR-SIM-01`, `FR-REP-01..03`, `FR-AI` (Trang 2, 3, 6) |
 | **Hợp đồng chi tiết Sprint 3** | [`../08-sprints/sprint-3/01-api-contracts-sprint-3.md`](../08-sprints/sprint-3/01-api-contracts-sprint-3.md) |
 | **Phạm vi áp dụng** | Trung tâm Đơn hàng (`Orders`), Trình giả lập Webhook (`Simulator`), Báo cáo (`Reports`) & Dự báo AI |
@@ -15,6 +15,7 @@
 
 | Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả thay đổi | Mã tham chiếu |
 | :---: | :---: | :--- | :--- | :--- |
+| `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Đối chiếu controller: thêm `process`, `simulator/batch`, `dashboard-summary`, `/api/search`, `/api/ai/export-history`; sửa quyền báo cáo theo code và ghi lệch RBAC lãi gộp; Hangfire mặc định tắt. | `OISMS-46` |
 | `v1.0.5` | `2026-11-04` | Nhóm dự án OISMS | `GET /api/reports/inventory-velocity` thêm `quantityByUnit` và `baseUnitName`; `currentOnHand` cộng theo SKU trên phạm vi chi nhánh đang lọc. | `OISMS-46` |
 | `v1.0.4` | `2026-10-26` | Đăng Khoa (Backend 1) | **Hoàn thiện Task 6 v1.0:** Tác vụ nền Hangfire tự động hủy đơn giữ chỗ quá hạn 15 phút (`oisms-reservation-expiry`, cadence `*/1 * * * *` UTC). Chuẩn hóa ranh giới hết hạn `ExpiresAt <= cutoffUtc`, giải phóng `Reserved` hai cấp (chi nhánh & kho) nguyên tử theo toàn giỏ, phát sự kiện SignalR `StockLevelChanged` sau khi database transaction commit thành công. | `SYNC-S3-T06-V10` |
 | `v1.0.3` | `2026-10-26` | Đăng Khoa (Backend 1) | **Hoàn thiện Task 5 v1.2:** Chuẩn hóa validation omission scalar `channel` & `unitPrice` (trả 400 `VALIDATION_ERROR` khi omit, chấp nhận explicit `unitPrice: 0` khi `totalAmount: 0`), Fast Replay đơn Admin khi chi nhánh ngừng hoạt động trả `200 OK`, đồng bộ phát sự kiện SignalR (`OrderCreated`, `StockLevelChanged`, `LowStockWarning`) sau khi database transaction commit thành công. | `SYNC-S3-T05-V12` |
@@ -33,10 +34,12 @@
 | `GET` | `/api/orders/{id}/trace` | `Owner, Staff` | `OISMS-47-U02` | Truy vết chuỗi chứng từ xuất kho và các dòng sổ kho tương ứng với đơn hàng (`DocumentTraceDto`). |
 | `POST` | `/api/orders` | `Owner, Staff` | `FR-ORD-01..02` | Tạo đơn hàng thủ công trên Admin và thực hiện giữ chỗ tồn kho (`Draft -> Reserved`). Bắt buộc `RequestKey` hợp lệ do client cung cấp. |
 | `POST` | `/api/orders/{id}/confirm` | `Owner, Staff` | `FR-ORD-02..03`, `FR-RSE-03`, `FR-COST-02` | Duyệt đơn hàng (`Reserved -> Confirmed`): Trừ `on_hand`, giảm `reserved`, ghi Sổ cái `OUT` và chụp `OrderItem.CostPrice`. |
+| `POST` | `/api/orders/{id}/process` | `Owner, Staff` | `FR-ORD-02` | Xử lý đóng gói đơn `Reserved`: gọi lại luồng Confirm; đơn đã `Confirmed` trả nguyên chi tiết; `Cancelled`/`Completed` trả `409 INVALID_STATE_TRANSITION`. |
 | `POST` | `/api/orders/{id}/complete` | `Owner, Staff` | `FR-ORD-02..03` | **Hoàn tất đơn online (`Confirmed -> Completed`):** Ghi nhận khách đã nhận hàng thành công. **Tuyệt đối KHÔNG trừ tồn kho hay ghi ledger OUT lần thứ hai** (vì đã ghi khi Confirm). Gọi lặp lại trên đơn đã `Completed` là idempotent (trả về 200 OK). Đơn chưa Confirmed chuyển sang Completed trả `409 Conflict` (`INVALID_STATE_TRANSITION`). |
 | `POST` | `/api/orders/{id}/cancel` | `Owner, Staff` | `FR-ORD-02..03`, `FR-RSE-03` | Hủy đơn hàng (`Reserved -> Cancelled`): Giải phóng `reserved` về lại quỹ `available`. |
 | `POST` | `/api/orders/checkout`<br/>*(Canonical: `/api/pos/checkout`)* | `Owner, Staff, Cashier` | `FR-POS-03`, `FR-POS-04`, `FR-COST-02` | Endpoint alias tương thích ngược phục vụ Web POS PWA và Admin POS, trỏ vào cùng lõi `IOrderService.CheckoutPosAsync`. Trả về `PosReceiptDto` không lộ giá vốn. |
 | `POST` | `/api/webhooks/simulator/{channel}` | `Owner, Staff / Webhook Key` | `FR-SIM-01`, `FR-ORD-01` | **Tiếp nhận đơn TMĐT (Shopee, TikTok, Lazada):**<br/>- Xác thực kép: Header `X-Webhook-Secret` (production/simulator webhook) hoặc `Bearer JWT` (`Owner`, `Staff`; `Cashier` bị từ chối 403 `FORBIDDEN`). Tuyệt đối không đọc `TenantId` từ request body.<br/>- Tự động ánh xạ chi nhánh fulfillment từ bảng `shop_integrations` theo `(tenant_id, channel, external_shop_id)`.<br/>- Khóa chống trùng: `(tenant_id, channel, external_shop_id, external_order_id)`. Cùng khóa + cùng payload &rarr; 200 OK replay; Cùng khóa + khác payload &rarr; 409 Conflict (`WEBHOOK_PAYLOAD_MISMATCH`).<br/>- Kênh URL khác payload channel &rarr; 400 Bad Request (`CHANNEL_MISMATCH`).<br/>- Áp dụng đơn giá tin cậy từ sàn TMĐT, kiểm tra tổng tiền và làm tròn `AwayFromZero` (lệch trả 400 `TOTAL_AMOUNT_MISMATCH`).<br/>- Giữ chỗ tồn kho bằng lõi chung `CreateReservedOrderCoreAsync`: tạo đơn `Reserved`, sinh `Reservation` `Active` 15 phút, tăng `Reserved` ở kho/chi nhánh, OnHand/WAC không đổi. |
+| `POST` | `/api/webhooks/simulator/batch` | `Owner, Staff` | `NFR-PERF-02` | Chạy mô phỏng nhiều đơn đồng thời cho 1 SKU để kiểm chứng chống bán vượt. |
 | `WS/SSE` | `/hubs/notifications` | `Owner, Staff, Cashier` | `FR-SIM-02` | **SignalR Hub thông báo thời gian thực:**<br/>- Xác thực JWT Bearer qua Query Token (`/hubs/notifications?access_token=...`) dành riêng cho Hub path.<br/>- Tự động join nhóm `tenant_{tenantId}`. Client có thể gọi `JoinBranchGroup(Guid branchId)` và `LeaveBranchGroup(Guid branchId)` sau khi server xác thực chi nhánh hợp lệ.<br/>- Các sự kiện phát ra: `OrderCreated` (đơn Reserved mới), `StockLevelChanged` (khi tồn khả dụng thay đổi), `LowStockWarning` (khi tồn khả dụng &le; `reorder_point`). Payload cam kết không chứa giá vốn / bí mật. |
 
 **Nhiều đơn vị tính (Upgrade 05):**
@@ -65,14 +68,20 @@ Mỗi lần xuất bán (POS Checkout hoặc Online Order Confirm) tạo đúng 
 | `GET` | `/api/sales-invoices/receipt?number=` | `Owner, Staff, Cashier` | Dữ liệu in lại hóa đơn theo số hóa đơn. Thu ngân POS dùng endpoint này để in lại từ số `INV-`. |
 | `GET` | `/api/sales-invoices/{id}/trace` | `Owner, Staff` | Truy vết chuỗi chứng từ xuất kho và các dòng sổ kho từ ID hóa đơn (`DocumentTraceDto`). |
 
-## 2. Danh Mục Endpoints Báo Cáo & Dự Báo AI (`FR-REP-01..03`, `FR-AI-01`)
+## 2. Danh Mục Endpoints Báo Cáo, Tìm Kiếm & Dự Báo AI (`FR-REP-01..03`, `FR-AI-01`)
 
 | Method | Endpoint | Quyền (RBAC) | Mã FR | Mô tả & Quy tắc xử lý |
 | :---: | :--- | :---: | :---: | :--- |
-| `GET` | `/api/reports/revenue-profit` | `Owner` | `FR-REP-01` | Báo cáo Doanh thu thuần, Tổng giá vốn (`COGS`) và Lợi nhuận gộp (`Gross Profit = Revenue - COGS`). |
+| `GET` | `/api/reports/revenue-profit` | Yêu cầu: `Owner`<br/>Code: `Owner, Staff` | `FR-REP-01` | Báo cáo Doanh thu thuần, Tổng giá vốn (`COGS`) và Lợi nhuận gộp (`Gross Profit = Revenue - COGS`), phân rã theo kênh, chi nhánh, ngày. **Lệch hiện trạng:** controller cho `Staff` gọi và service không ẩn `costOfGoodsSold`/`grossProfit`; giao diện chỉ mở trang Báo cáo cho `Owner`. Xem [ma trận RBAC](../01-users-and-rbac/02-rbac-matrix.md). |
+| `GET` | `/api/reports/dashboard-summary` | `Owner, Staff` | `CS-07` | KPI trang Tổng quan: doanh thu, số đơn, top đơn mới. `totalGrossProfit`, `totalInventoryValue` là `null` và giá vốn/lãi theo kênh là `0` khi không phải `Owner`. |
 | `GET` | `/api/reports/inventory-velocity` | `Owner, Staff` | `FR-REP-02` | Báo cáo giá trị tồn kho theo giá vốn, top hàng bán chạy và hàng luân chuyển chậm. |
-| `GET` | `/api/reports/stock-alerts` | `Owner, Staff` | `FR-REP-03` | Danh sách cảnh báo các SKU có `available <= MinStockLevel`. |
+| `GET` | `/api/reports/stock-alerts` | `Owner, Staff` | `FR-REP-03` | Danh sách SKU có `available <= reorder_point`, phân cấp `Warning`, `Critical` (dưới 50%), `OutOfStock`. Lọc theo `branchId`. |
+| `GET` | `/api/ai/export-history` | `Owner, Staff` | `FR-AI-01` | Chuỗi lịch sử xuất kho theo ngày và SKU (đơn vị gốc) làm đầu vào dự báo. Trùng dữ liệu với `/api/inventory/export-history`. |
 | `GET` | `/api/ai/reorder-recommendations` | `Owner, Staff` | `FR-AI-01` | Dự báo nhu cầu tiêu thụ và gợi ý số lượng đặt hàng nhập kho theo từng SKU. |
+
+**Tìm kiếm toàn cục:** `GET /api/search?q=&limit=5` (mọi vai trò đã đăng nhập) tìm sản phẩm/SKU, đơn hàng, hóa đơn... theo từ khóa; kết quả lọc theo vai trò lấy từ JWT.
+
+**Tác vụ nền:** job `oisms-reservation-expiry` (`*/1 * * * *` UTC) chỉ chạy khi `Hangfire:Enabled=true`. `appsettings.json` và Docker Compose hiện để `false`, nên đơn giữ chỗ quá hạn không tự hủy trên bản demo.
 
 > **Tồn theo đơn vị (04/11/2026):** `GET /api/reports/inventory-velocity` trả thêm `quantityByUnit`, mỗi phần tử gồm `unitName`, `onHand`, `reserved`, `available` theo đơn vị gốc, sắp theo `onHand` giảm dần. SKU chưa có đơn vị gốc nằm trong nhóm `Chưa xác định`. Các trường `totalOnHandQuantity`, `totalReservedQuantity`, `totalAvailableQuantity` vẫn trả về để tương thích nhưng cộng gộp khác đơn vị, không dùng để hiển thị. Trong `bestSellers` và `slowMovingItems`, mỗi SKU một dòng; `currentOnHand` là tổng tồn trong phạm vi chi nhánh đang lọc; `baseUnitName` là `null` khi SKU chưa có đơn vị gốc.
 

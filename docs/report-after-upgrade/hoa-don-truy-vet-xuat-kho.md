@@ -54,12 +54,12 @@ Các lỗi trên do người nghiệm thu vừa sửa vừa tự kiểm, chưa q
 - **Số điện thoại chi nhánh:** `Branch.Phone` bị EF bỏ qua nên `BranchPhone` trên dữ liệu in luôn trống.
 - **Bộ lọc thời gian ở API khác:** `InventoryService.cs:233` và `OrderService.cs:2531` truyền mốc thời gian theo cùng cách, nên nhiều khả năng cũng trả 500 với `+07:00`. Có từ trước U02, chưa thử và chưa sửa.
 - **Số hóa đơn:** phần ngày trong `INV-yyyyMMdd-` theo UTC, cùng cách với số đơn POS; từ 00:00 đến 07:00 giờ Việt Nam sẽ mang ngày hôm trước.
-- **Thông báo `/health/ready`:** phần `description` vẫn ghi `(29 tables)` dù đã kiểm tra đủ 40 bảng; số đúng ở trường `tablesCount`.
+- **Thông báo `/health/ready`:** phần `description` vẫn ghi `(29 tables)` dù đã kiểm tra đủ 40 bảng; số đúng ở trường `tablesCount`. *(06/11/2026: đã sửa, `description` dùng `RequiredTables.Length` = 43.)*
 - **Quy tắc chưa có GVHD xác nhận:** các mục "đề xuất của nhóm" trong tài liệu 02, nhất là lập hóa đơn online lúc Confirm.
 
 ## Triển khai
 
-Backend này cần đủ 40 bảng. Database cũ phải backup rồi chạy lần lượt các file trong `docker/postgres/migrations/` theo thứ tự tên file, nếu không `/health/ready` trả 503 và Admin không tải được dữ liệu. Lệnh cho cả nhóm: [Nâng cấp database đã có dữ liệu](../database/README.md#nâng-cấp-database-đã-có-dữ-liệu-cả-nhóm-đọc-khi-kéo-code-mới).
+*(Mốc tại thời điểm báo cáo; sau Upgrade 03 là 43 bảng.)* Backend này cần đủ 40 bảng. Database cũ phải backup rồi chạy lần lượt các file trong `docker/postgres/migrations/` theo thứ tự tên file, nếu không `/health/ready` trả 503 và Admin không tải được dữ liệu. Lệnh cho cả nhóm: [Nâng cấp database đã có dữ liệu](../database/README.md#nâng-cấp-database-đã-có-dữ-liệu-cả-nhóm-đọc-khi-kéo-code-mới).
 
 ## Còn lại
 

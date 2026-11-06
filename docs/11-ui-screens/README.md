@@ -3,8 +3,8 @@
 | Thông tin kiểm soát thư mục | Chi tiết |
 | :--- | :--- |
 | **Mã phân hệ (Module ID)** | `MOD-SCR-11` |
-| **Phiên bản hiện hành** | `v1.0.0` |
-| **Ngày cập nhật gần nhất** | `2026-10-25` |
+| **Phiên bản hiện hành** | `v1.1.0` |
+| **Ngày cập nhật gần nhất** | `2026-11-06` |
 | **Phạm vi mã nguồn ứng dụng** | Web Admin Dashboard (`src/frontend/admin-dashboard`) & Ứng dụng POS độc lập (`src/frontend/pos-app`) |
 | **Tài liệu quy chuẩn đi kèm** | Quy định mã lỗi & màu sắc: [`../12-error-and-status-codes/README.md`](../12-error-and-status-codes/README.md) |
 
@@ -27,13 +27,17 @@ Hệ thống OISMS (Omnichannel Inventory & Sales Management System) được tr
 | **3** | Màn hình Hết hạn phiên làm việc | `/session-expired` | ✅ | ✅ | ✅ | [`01-auth-screens.md`](./01-auth-screens.md) |
 | **4** | Dashboard Tổng quan kinh doanh | `/admin`, `/` | ✅ | ✅ | ❌ | [`02-dashboard-screen.md`](./02-dashboard-screen.md) |
 | **5** | Quản lý Danh mục, Sản phẩm & SKU | `/admin/products` | ✅ | ✅ | ❌ | [`03-product-screens.md`](./03-product-screens.md) |
-| **6** | Quản lý Kho, Sổ cái & Kiểm kê | `/admin/inventory` | ✅ | ✅ | ❌ | [`04-inventory-screens.md`](./04-inventory-screens.md) |
+| **6** | Quản lý Kho, Sổ cái & Kiểm kê | `/admin/inventory`, `/inventory/transfers`, `/inventory/counts` | ✅ | ✅ | ❌ | [`04-inventory-screens.md`](./04-inventory-screens.md) |
 | **7** | Trung tâm Đơn hàng đa kênh | `/admin/orders` | ✅ | ✅ | ❌ | [`05-order-screens.md`](./05-order-screens.md) |
 | **8** | Quầy Bán hàng POS tích hợp | `/pos` | ✅ | ✅ | ✅ | [`06-pos-terminal-screens.md`](./06-pos-terminal-screens.md) |
-| **9** | Quầy Bán hàng POS độc lập (PWA) | `http://localhost:5174` | ✅ | ✅ | ✅ | [`06-pos-terminal-screens.md`](./06-pos-terminal-screens.md) |
+| **9** | Quầy Bán hàng POS độc lập (PWA) | local `http://localhost:5174`, demo `https://pos.oisms.khoadang.site` | ✅ | ✅ | ✅ | [`06-pos-terminal-screens.md`](./06-pos-terminal-screens.md) |
 | **10** | Điều phối & Bàn giao vận chuyển *(đã tạm gỡ 04/11/2026)* | `/admin/handoff` | ✅ | ✅ | ❌ | [`07-handoff-screens.md`](./07-handoff-screens.md) |
 | **11** | Báo cáo Doanh thu & Quản trị Lãi gộp | `/admin/reports` | ✅ | ❌ | ❌ | [`08-report-screens.md`](./08-report-screens.md) |
 | **12** | Quản lý Cơ cấu Tổ chức & Chi nhánh | `/admin/organization` | ✅ | ❌ | ❌ | [`09-organization-screens.md`](./09-organization-screens.md) |
+| **13** | Đơn mua hàng | `/purchase-orders` | ✅ | ✅ | ❌ | [`04-inventory-screens.md`](./04-inventory-screens.md) |
+| **14** | Hóa đơn bán hàng | `/invoices` | ✅ | ✅ | ❌ | [`05-order-screens.md`](./05-order-screens.md) |
+
+Mọi route Admin có hai dạng tương đương: có và không có tiền tố `/admin` (ví dụ `/products` và `/admin/products`), theo `src/frontend/admin-dashboard/src/App.tsx`. Route không khớp chuyển về `/admin`.
 
 ---
 
@@ -52,7 +56,7 @@ Giao diện Web Admin tuân theo chuẩn Master-Detail hiện đại với thanh
 │ 📦 Sản phẩm & Giá         │                                                                    │
 │ 🏬 Tồn kho & Sổ cái       │                      NỘI DUNG MÀN HÌNH CHÍNH                       │
 │ 🛒 Đơn hàng đa kênh       │                 (Tables, Filter Bars, Data Cards)                  │
-│ 🚚 Bàn giao vận chuyển    │                                                                    │
+│ (Bàn giao — đã gỡ)        │                                                                    │
 │ ───────────────           │                                                                    │
 │ 📈 Báo cáo lãi gộp (Owner)│                                                                    │
 │ 🏢 Chi nhánh & Kho (Owner)│                                                                    │

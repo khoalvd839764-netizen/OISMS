@@ -6,7 +6,7 @@
 
 > Bản demo chạy trên một máy EC2 và có thể được tắt khi không demo để tiết kiệm chi phí. Cách deploy và lưu ý khi chạy local: xem [Triển khai lên AWS](#triển-khai-lên-aws-ec2--docker-compose).
 
-> **Yêu cầu từ đề bài:** Xem [docs/DE_BAI_OISM.md](docs/DE_BAI_OISM.md) để tra cứu FR/NFR, sản phẩm bàn giao, các điểm cần làm rõ và checklist nghiệm thu từ PDF đề bài. Đối chiếu tài liệu này khi thiết kế hoặc đánh giá phạm vi dự án.
+> **Yêu cầu từ đề bài:** Xem [docs/00-overview/03-de-bai-cnpm-reference.md](docs/00-overview/03-de-bai-cnpm-reference.md) để tra cứu FR/NFR, sản phẩm bàn giao, các điểm cần làm rõ và checklist nghiệm thu từ PDF đề bài. Đối chiếu tài liệu này khi thiết kế hoặc đánh giá phạm vi dự án.
 
 > **Cập nhật ngày:** 19/10/2026  
 > **Trạng thái:** **HOÀN THÀNH TOÀN BỘ SPRINT 2** — Backend 1 (194/194 tests pass), Backend 2, Frontend Admin (React 19, build sạch 0 lỗi), Idempotency chống giữ chỗ lặp (F2), Nginx SPA Fallback (F7), Docker Compose hoạt động ổn định.
@@ -198,8 +198,9 @@ Toàn bộ stack chạy trên một máy EC2. Chỉ Caddy mở cổng `80`/`443`
 
 ```text
 Internet → Caddy (80/443)
-             ├─ oisms.khoadang.site     → admin-dashboard
-             └─ /api, /hubs, /health    → backend → postgres, redis
+             ├─ oisms.khoadang.site       → admin-dashboard
+             ├─ pos.oisms.khoadang.site   → pos-app
+             └─ /api, /hubs, /health      → backend → postgres (cả hai domain)
 ```
 
 | File | Vai trò |
@@ -207,6 +208,8 @@ Internet → Caddy (80/443)
 | `docker-compose.prod.yml` | Dùng chồng lên `docker-compose.yml`: đóng cổng nội bộ, tắt pgAdmin, bắt buộc có JWT secret, thêm Caddy |
 | `docker/caddy/Caddyfile` | HTTPS và định tuyến theo domain |
 | `.env.production.example` | Mẫu biến môi trường cho máy chủ |
+
+Hướng dẫn đầy đủ (hạ tầng, cập nhật, migration, backup, xử lý sự cố, kiến thức nền): [docs/13-deploy-aws/](docs/13-deploy-aws/README.md).
 
 **Các bước deploy:**
 
