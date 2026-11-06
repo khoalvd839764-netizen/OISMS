@@ -187,6 +187,11 @@ export function mapServerReceiptToReceiptData(
     paymentMethod: dto.paymentMethod || 'Cash',
     amountGiven,
     changeDue,
+    transferReference: safeTrimString(dto.transferReference),
+    receiverBankBin: safeTrimString(dto.receiverBankBin),
+    receiverBankName: safeTrimString(dto.receiverBankName),
+    receiverAccountNumber: safeTrimString(dto.receiverAccountNumber),
+    receiverAccountName: safeTrimString(dto.receiverAccountName),
     isDraft: false,
   };
 }

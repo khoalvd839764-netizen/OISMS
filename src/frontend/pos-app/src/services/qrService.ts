@@ -20,6 +20,8 @@ import type {
   TlvField,
   ScopedBankConfig,
   PosQrIntent,
+  PaymentAccountOption,
+  PaymentAccountEnvelopeV2,
 } from '../types/qr';
 
 /** Giới hạn tiền tệ hệ thống OISMS theo chuẩn QuickLink/NAPAS: tối đa 13 chữ số nguyên (9.999.999.999.999 đ) */
@@ -36,6 +38,30 @@ export const ACCOUNT_NUMBER_REGEX = /^[0-9a-zA-Z]{6,19}$/;
 
 /** Regex kiểm tra nội dung chuyển khoản hợp lệ (tối đa 50 ký tự không có ký tự đặc biệt) */
 export const DESCRIPTION_REGEX = /^[0-9a-zA-Z\s\-_]{1,50}$/;
+
+/**
+ * Sinh UUID v4 chuẩn RFC 4122 cho RequestKey / Idempotency Key.
+ */
+export function generateUuidV4(): string {
+  if (typeof crypto !== 'undefined') {
+    if (typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    if (typeof crypto.getRandomValues === 'function') {
+      const bytes = new Uint8Array(16);
+      crypto.getRandomValues(bytes);
+      bytes[6] = (bytes[6] & 0x0f) | 0x40;
+      bytes[8] = (bytes[8] & 0x3f) | 0x80;
+      const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+      return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+    }
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
 
 /**
  * Đếm độ dài byte UTF-8 của chuỗi ký tự mà không dùng Buffer của Node.js (tương thích 100% browser).
@@ -441,16 +467,36 @@ export function isPosQrIntentFor(intent: PosQrIntent | undefined | null, user: Q
     typeof intent.cartFingerprint === 'string' && validateBankConfig(intent.bankConfig).valid);
 }
 
-export function getOrCreatePosQrIntent(user: QrUser, branchId: string, cartFingerprint: string, amount: number, bank: BankConfig | null, createKey: () => string): PosQrIntent | null {
+export function getOrCreatePosQrIntent(
+  user: QrUser,
+  branchId: string,
+  cartFingerprint: string,
+  amount: number,
+  bank: BankConfig | null,
+  createKey: () => string,
+  paymentAccountId?: string
+): PosQrIntent | null {
   const key = intentKey(user, branchId);
   if (!key) return null;
   let saved: PosQrIntent | null = null;
   try { saved = JSON.parse(sessionStorage.getItem(key) || intentMemory.get(key) || 'null'); } catch { try { saved = JSON.parse(intentMemory.get(key) || 'null'); } catch {} }
-  if (isPosQrIntentFor(saved, user, branchId) && saved.cartFingerprint === cartFingerprint && saved.amount === amount) return saved;
+  if (
+    isPosQrIntentFor(saved, user, branchId) &&
+    saved.cartFingerprint === cartFingerprint &&
+    saved.amount === amount &&
+    (!paymentAccountId || !saved.paymentAccountId || saved.paymentAccountId === paymentAccountId)
+  ) {
+    return saved;
+  }
   if (!bank || !validateBankConfig(bank).valid) return null;
   const intent: PosQrIntent = {
-    version: 1, context: { tenantId: user!.tenantId!, userId: user!.id!, branchId },
-    cartFingerprint, amount, requestKey: createKey(), bankConfig: { ...bank },
+    version: 1,
+    context: { tenantId: user!.tenantId!, userId: user!.id!, branchId },
+    cartFingerprint,
+    amount,
+    requestKey: createKey(),
+    bankConfig: { ...bank },
+    ...(paymentAccountId ? { paymentAccountId } : {}),
   };
   if (!isPosQrIntentFor(intent, user, branchId)) return null;
   const raw = JSON.stringify(intent);
@@ -464,4 +510,97 @@ export function clearPosQrIntent(user: QrUser, branchId: string): void {
   if (!key) return;
   intentMemory.delete(key);
   try { sessionStorage.removeItem(key); } catch {}
+}
+
+export function toBankConfig(account: PaymentAccountOption, template: string = 'compact2'): BankConfig {
+  return {
+    bankBin: account.bankBin,
+    bankName: account.bankShortName || account.bankName,
+    accountNumber: account.accountNumber,
+    accountName: account.accountName,
+    template,
+  };
+}
+
+export function getPaymentAccountsSync(tenantId?: string, branchId?: string): PaymentAccountOption[] {
+  if (!tenantId) return [];
+
+  try {
+    const windowEnv = typeof window !== 'undefined'
+      ? (window as any).__OISMS_POS_PAYMENT_ACCOUNTS__
+      : undefined;
+
+    let candidate: PaymentAccountEnvelopeV2 | undefined = undefined;
+    if (windowEnv && Array.isArray(windowEnv)) {
+      candidate = windowEnv.find((env: PaymentAccountEnvelopeV2) => env?.tenantId === tenantId && env?.version === 2);
+    } else if (typeof localStorage !== 'undefined') {
+      const raw = localStorage.getItem(`pos_payment_accounts_v2:${encodeURIComponent(tenantId)}`);
+      if (raw) candidate = JSON.parse(raw);
+    }
+
+    if (candidate && candidate.version === 2 && candidate.tenantId === tenantId && Array.isArray(candidate.accounts)) {
+      return candidate.accounts;
+    }
+  } catch {}
+
+  if (branchId) {
+    const legacyConfig = getPosBankConfig(branchId, tenantId);
+    if (legacyConfig) {
+      return [
+        {
+          id: `legacy-${legacyConfig.bankBin}-${legacyConfig.accountNumber}`,
+          bankBin: legacyConfig.bankBin,
+          bankName: legacyConfig.bankName,
+          bankShortName: legacyConfig.bankName,
+          accountNumber: legacyConfig.accountNumber,
+          accountName: legacyConfig.accountName,
+          isDefault: true,
+        },
+      ];
+    }
+  }
+
+  return [];
+}
+
+export async function loadPaymentAccounts(
+  tenantId?: string,
+  branchId?: string,
+  fetchFn?: typeof fetch
+): Promise<PaymentAccountOption[]> {
+  if (!tenantId) return [];
+
+  const effectiveFetch = fetchFn || (typeof window !== 'undefined' && typeof window.fetch === 'function' ? window.fetch : (typeof fetch === 'function' ? fetch : undefined));
+
+  try {
+    const token = typeof localStorage !== 'undefined'
+      ? (localStorage.getItem('pos_access_token') || localStorage.getItem('access_token'))
+      : null;
+
+    if (token && typeof effectiveFetch === 'function') {
+      const resp = await effectiveFetch('/api/payment-accounts/active', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+      });
+
+      if (resp.ok) {
+        const data = await resp.json();
+        if (Array.isArray(data) && data.length > 0) {
+          return data.map((item: any) => ({
+            id: String(item.id || ''),
+            bankBin: String(item.bankBin || ''),
+            bankName: String(item.bankName || ''),
+            bankShortName: String(item.bankShortName || item.bankName || ''),
+            accountNumber: String(item.accountNumber || ''),
+            accountName: String(item.accountName || ''),
+            isDefault: Boolean(item.isDefault),
+          }));
+        }
+      }
+    }
+  } catch {}
+
+  return getPaymentAccountsSync(tenantId, branchId);
 }

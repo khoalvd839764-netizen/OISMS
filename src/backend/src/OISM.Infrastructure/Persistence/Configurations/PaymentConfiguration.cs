@@ -51,6 +51,30 @@ public class PaymentConfiguration : IEntityTypeConfiguration<Payment>
             .HasColumnName("paid_at")
             .IsRequired(false);
 
+        builder.Property(p => p.TransferReference)
+            .HasColumnName("transfer_reference")
+            .HasMaxLength(100)
+            .IsRequired(false);
+
+        builder.Property(p => p.ReceiverBankBin)
+            .HasColumnName("receiver_bank_bin")
+            .HasMaxLength(6)
+            .IsRequired(false);
+
+        builder.Property(p => p.ReceiverAccountNumber)
+            .HasColumnName("receiver_account_number")
+            .HasMaxLength(20)
+            .IsRequired(false);
+
+        builder.Property(p => p.ReceiverAccountName)
+            .HasColumnName("receiver_account_name")
+            .HasMaxLength(255)
+            .IsRequired(false);
+
+        builder.Property(p => p.PaymentAccountId)
+            .HasColumnName("payment_account_id")
+            .IsRequired(false);
+
         builder.Property(p => p.CreatedAt)
             .HasColumnName("created_at")
             .HasDefaultValueSql("now()")
@@ -70,5 +94,10 @@ public class PaymentConfiguration : IEntityTypeConfiguration<Payment>
             .WithOne(o => o.Payment)
             .HasForeignKey<Payment>(p => new { p.TenantId, p.OrderId })
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(p => p.PaymentAccount)
+            .WithMany(a => a.Payments)
+            .HasForeignKey(p => new { p.TenantId, p.PaymentAccountId })
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

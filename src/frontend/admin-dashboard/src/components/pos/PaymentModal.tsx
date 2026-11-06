@@ -1,9 +1,21 @@
-import React, { useRef, useState } from 'react';
-import { X, Banknote, QrCode, Printer, AlertCircle, ShieldCheck } from 'lucide-react';
+import React, { useRef, useState, useEffect } from 'react';
+import { X, Banknote, QrCode, Printer, AlertCircle, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import type { CartItem, PosCheckoutRequest, ReceiptData } from '../../types/pos';
+import type { BankConfig, PaymentAccountOption, VietQrResult } from '../../types/qr';
 import type { CurrentPriceItem } from '../../services/posCartUnits';
 import { checkoutPosOrder } from '../../services/posApi';
-import { ComingSoonBadge } from '../ui';
+import {
+  generateVietQrPayload,
+  getPosBankConfig,
+  getPaymentAccountsSync,
+  loadPaymentAccounts,
+  toBankConfig,
+  getOrCreatePosQrIntent,
+  clearPosQrIntent,
+  isPosQrIntentFor,
+  extractShortReference,
+  generateUuidV4,
+} from '../../services/qrService';
 
 interface PaymentModalProps {
   embedded?: boolean;
@@ -18,6 +30,13 @@ interface PaymentModalProps {
   branchPhone?: string;
   tenantName: string;
   cashierName: string;
+  currentUser?: {
+    id?: string;
+    tenantId?: string;
+    fullName?: string;
+    email?: string;
+    tenantName?: string;
+  };
   onSuccessAndPrint: (receipt: ReceiptData) => void;
   onPreviewReceipt: (receipt: ReceiptData) => void;
   onApplyCurrentPrices?: (prices: CurrentPriceItem[]) => void;
@@ -36,47 +55,18 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   branchPhone,
   tenantName,
   cashierName,
+  currentUser,
   onApplyCurrentPrices,
   onSuccessAndPrint,
   onPreviewReceipt,
 }) => {
   const submittingRef = useRef(false);
-  // [BF-003] Request key ổn định gắn với snapshot (chi nhánh + thu ngân + giỏ hàng), lưu qua đóng/mở và reload
-  const cartSignature = JSON.stringify({
-    branchId,
-    cashierName,
-    items: items.map((i) => ({ skuId: i.variantId, unitId: i.unitId || '', qty: i.quantity, price: i.retailPrice })),
-  });
-  const checkoutIntentRef = useRef<{ signature: string; key: string } | null>(null);
-
-  const getOrCreateRequestKey = (): string => {
-    if (checkoutIntentRef.current && checkoutIntentRef.current.signature === cartSignature) {
-      return checkoutIntentRef.current.key;
-    }
-    const storageKey = `oism_pos_intent_${branchId || 'default'}`;
-    try {
-      const savedRaw = sessionStorage.getItem(storageKey);
-      if (savedRaw) {
-        const saved = JSON.parse(savedRaw);
-        if (saved && saved.signature === cartSignature && saved.key) {
-          checkoutIntentRef.current = { signature: cartSignature, key: saved.key };
-          return saved.key;
-        }
-      }
-    } catch {}
-    const freshKey = crypto.randomUUID ? crypto.randomUUID() : `req-${Date.now()}`;
-    checkoutIntentRef.current = { signature: cartSignature, key: freshKey };
-    try {
-      sessionStorage.setItem(storageKey, JSON.stringify({ signature: cartSignature, key: freshKey }));
-    } catch {}
-    return freshKey;
-  };
-
-  const clearRequestKey = () => {
-    checkoutIntentRef.current = null;
-    try {
-      sessionStorage.removeItem(`oism_pos_intent_${branchId || 'default'}`);
-    } catch {}
+  const activeUser = currentUser || {
+    id: undefined,
+    tenantId: undefined,
+    fullName: cashierName,
+    email: undefined,
+    tenantName,
   };
 
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'BANK_TRANSFER_QR'>('CASH');
@@ -87,8 +77,82 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [apiNotice, setApiNotice] = useState<{ type: 'warning' | 'error' | 'success'; text: string; details?: any } | null>(null);
   const [priceUpdates, setPriceUpdates] = useState<CurrentPriceItem[] | null>(null);
 
+  const [asyncAccounts, setAsyncAccounts] = useState<{ tenantId?: string; accounts: PaymentAccountOption[] }>({
+    tenantId: undefined,
+    accounts: [],
+  });
+  const [selectedAccountId, setSelectedAccountId] = useState<string>('');
+
+  const syncAccounts = getPaymentAccountsSync(activeUser?.tenantId, branchId);
+  const activeAccounts = syncAccounts.length > 0
+    ? syncAccounts
+    : (asyncAccounts.tenantId === activeUser?.tenantId ? asyncAccounts.accounts : []);
+
+  const selectedAccount = activeAccounts.find((a) => a.id === selectedAccountId) ||
+    activeAccounts.find((a) => a.isDefault) ||
+    activeAccounts[0] ||
+    null;
+
+  const currentBankConfig: BankConfig | null = selectedAccount
+    ? toBankConfig(selectedAccount)
+    : getPosBankConfig(branchId, activeUser?.tenantId);
+
+  useEffect(() => {
+    if (isOpen && paymentMethod === 'BANK_TRANSFER_QR' && activeUser?.tenantId && syncAccounts.length === 0) {
+      loadPaymentAccounts(activeUser.tenantId, branchId).then((accounts) => {
+        if (accounts.length > 0) {
+          setAsyncAccounts({ tenantId: activeUser.tenantId, accounts });
+          setSelectedAccountId((prev) => (prev && accounts.some((a) => a.id === prev) ? prev : (accounts.find((a) => a.isDefault)?.id || accounts[0].id)));
+        }
+      });
+    }
+  }, [isOpen, paymentMethod, activeUser?.tenantId, branchId, syncAccounts.length]);
+
   const totalAmount = items.reduce((sum, item) => sum + item.retailPrice * item.quantity, 0);
   const amountGiven = userGivenAmount !== null ? userGivenAmount : totalAmount;
+
+  const cartFingerprint = JSON.stringify(items.map((i) => [i.variantId, i.unitId || '', i.sku, i.quantity, i.retailPrice]));
+
+  const intent = paymentMethod === 'BANK_TRANSFER_QR'
+    ? getOrCreatePosQrIntent(activeUser, branchId, cartFingerprint, totalAmount, currentBankConfig, generateUuidV4, selectedAccount?.id)
+    : null;
+
+  const qrIntent = isPosQrIntentFor(intent, activeUser, branchId) ? intent : null;
+  const activeRequestKey = qrIntent?.requestKey || generateUuidV4();
+  const bankConfig: BankConfig | null = qrIntent?.bankConfig || currentBankConfig;
+
+  let qrResult: VietQrResult | null = null;
+  let qrError: string | null = null;
+
+  if (paymentMethod === 'BANK_TRANSFER_QR') {
+    if (!bankConfig) {
+      qrError = 'Chưa cấu hình tài khoản ngân hàng thụ hưởng nhận tiền.';
+    } else {
+      try {
+        qrResult = generateVietQrPayload(bankConfig, {
+          amount: totalAmount,
+          requestKey: activeRequestKey,
+          branchId,
+          orderDescription: `OISMS POS ${extractShortReference(activeRequestKey)}`,
+        });
+      } catch (err: any) {
+        qrError = err.message || 'Lỗi khi tạo mã VietQR.';
+      }
+    }
+  }
+
+  const isBankConfigInvalid = paymentMethod === 'BANK_TRANSFER_QR' && (!bankConfig || Boolean(qrError));
+
+  const handleAccountChange = (newAccountId: string) => {
+    if (newAccountId === selectedAccountId) return;
+    const ok = typeof window !== 'undefined' && typeof window.confirm === 'function'
+      ? window.confirm('Khách hàng đã quét mã QR của tài khoản trước đó chưa? Việc đổi tài khoản sẽ tạo mã QR mới.')
+      : true;
+    if (ok) {
+      setSelectedAccountId(newAccountId);
+      clearPosQrIntent(activeUser, branchId);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -109,12 +173,20 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   ];
 
   const handleCheckout = async (forcePrint = false) => {
-    if (paymentMethod !== 'CASH') return;
     if (submittingRef.current || items.length === 0 || !branchId) return;
+
     if (isShortOfCash && !forcePrint) {
       setApiNotice({
         type: 'error',
         text: 'Tiền khách đưa chưa đủ để thanh toán đơn hàng.',
+      });
+      return;
+    }
+
+    if (paymentMethod === 'BANK_TRANSFER_QR' && isBankConfigInvalid) {
+      setApiNotice({
+        type: 'error',
+        text: qrError || 'Chưa cấu hình tài khoản ngân hàng thụ hưởng hợp lệ để thanh toán QR.',
       });
       return;
     }
@@ -125,7 +197,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     setApiNotice(null);
 
     const orderNumber = `ORD-POS-${Date.now().toString().slice(-6)}`;
-    const currentRequestKey = getOrCreateRequestKey();
+    const requestKey = paymentMethod === 'BANK_TRANSFER_QR' ? activeRequestKey : generateUuidV4();
+
     const checkoutRequest: PosCheckoutRequest = {
       branchId: branchId || '00000000-0000-0000-0000-000000000000',
       channel: 'POS',
@@ -134,7 +207,11 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       paymentMethod,
       amountGiven: paymentMethod === 'CASH' ? amountGiven : totalAmount,
       changeDue: paymentMethod === 'CASH' ? changeDue : 0,
-      requestKey: currentRequestKey,
+      paymentAccountId: paymentMethod === 'BANK_TRANSFER_QR' && selectedAccount && !selectedAccount.id.startsWith('legacy-')
+        ? selectedAccount.id
+        : undefined,
+      transferReference: paymentMethod === 'BANK_TRANSFER_QR' ? (qrResult?.transferContent) : undefined,
+      requestKey,
       items: items.map((i) => ({
         skuId: i.variantId,
         skuCode: i.sku,
@@ -170,6 +247,12 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       paymentMethod,
       amountGiven: paymentMethod === 'CASH' ? amountGiven : totalAmount,
       changeDue: paymentMethod === 'CASH' ? changeDue : 0,
+      paymentAccountId: checkoutRequest.paymentAccountId,
+      transferReference: checkoutRequest.transferReference,
+      receiverBankBin: bankConfig?.bankBin,
+      receiverBankName: bankConfig?.bankName,
+      receiverAccountNumber: bankConfig?.accountNumber,
+      receiverAccountName: bankConfig?.accountName,
       isDraft: false,
     };
 
@@ -178,9 +261,16 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
       // [BF-019] Chỉ xác nhận thành công khi server trả về mã đơn hàng hợp lệ
       if (result.success && result.orderNumber) {
-        clearRequestKey();
+        clearPosQrIntent(activeUser, branchId);
         receiptData.receiptNumber = result.receiptNumber || result.receipt?.receiptNumber || result.orderNumber;
         receiptData.orderNumber = result.orderNumber;
+        if (result.receipt) {
+          if (result.receipt.receiverBankBin) receiptData.receiverBankBin = result.receipt.receiverBankBin;
+          if (result.receipt.receiverBankName) receiptData.receiverBankName = result.receipt.receiverBankName;
+          if (result.receipt.receiverAccountNumber) receiptData.receiverAccountNumber = result.receipt.receiverAccountNumber;
+          if (result.receipt.receiverAccountName) receiptData.receiverAccountName = result.receipt.receiverAccountName;
+          if (result.receipt.transferReference) receiptData.transferReference = result.receipt.transferReference;
+        }
         onSuccessAndPrint(receiptData);
         onClose();
       } else {
@@ -258,23 +348,100 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     </div>
   );
 
-  if (embedded) return <div className="pos-inline-payment">
-    <input className="pos-customer-input" aria-label="Tên khách hàng" value={customerName} onChange={(event)=>setCustomerName(event.target.value)} placeholder="Khách hàng (không bắt buộc)" />
-    <input className="pos-customer-input" type="tel" aria-label="Số điện thoại khách hàng" value={customerPhone} onChange={(event)=>setCustomerPhone(event.target.value)} placeholder="Số điện thoại (không bắt buộc)" />
-    <div className="pos-payment-methods">
-      <button type="button" aria-pressed={paymentMethod==='CASH'} onClick={()=>setPaymentMethod('CASH')}><Banknote size={17} />Tiền mặt</button>
-      <button type="button" disabled title="Thanh toán QR chưa được tích hợp." aria-pressed={false}><QrCode size={17} /><span>Chuyển khoản QR</span><ComingSoonBadge /></button>
+  if (embedded) return (
+    <div className="pos-inline-payment">
+      <input className="pos-customer-input" aria-label="Tên khách hàng" value={customerName} onChange={(event)=>setCustomerName(event.target.value)} placeholder="Khách hàng (không bắt buộc)" />
+      <input className="pos-customer-input" type="tel" aria-label="Số điện thoại khách hàng" value={customerPhone} onChange={(event)=>setCustomerPhone(event.target.value)} placeholder="Số điện thoại (không bắt buộc)" />
+      <div className="pos-payment-methods">
+        <button type="button" aria-pressed={paymentMethod==='CASH'} onClick={()=>setPaymentMethod('CASH')}>
+          <Banknote size={17} />Tiền mặt
+        </button>
+        <button type="button" aria-pressed={paymentMethod==='BANK_TRANSFER_QR'} onClick={()=>setPaymentMethod('BANK_TRANSFER_QR')}>
+          <QrCode size={17} /><span>Chuyển khoản QR</span>
+        </button>
+      </div>
+      {paymentMethod === 'CASH' ? (
+        <div className="pos-cash-row">
+          <label>Tiền khách đưa
+            <input type="number" min="0" aria-label="Tiền khách đưa" value={amountGiven || ''} onChange={(event)=>setUserGivenAmount(Number(event.target.value))} placeholder="Nhập số tiền" />
+          </label>
+          <div className={isShortOfCash ? 'pos-change is-short' : 'pos-change'}>
+            <small>{isShortOfCash ? 'Còn thiếu' : 'Tiền thừa'}</small>
+            <strong>{formatCurrency(isShortOfCash ? totalAmount - amountGiven : changeDue)}</strong>
+          </div>
+        </div>
+      ) : (
+        <div className="pos-qr-embedded-box" style={{ padding: '12px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+          {isBankConfigInvalid || !qrResult ? (
+            <div style={{ padding: '10px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', color: '#991b1b', fontSize: '11px', textAlign: 'left' }}>
+              <strong>Chưa có tài khoản nhận tiền</strong>
+              <p style={{ margin: '4px 0 0 0', fontSize: '10px', color: '#b91c1c' }}>
+                {qrError || 'Cửa hàng chưa cấu hình tài khoản ngân hàng thụ hưởng. Vui lòng chọn Tiền mặt hoặc liên hệ Owner cấu hình trong mục Quản trị.'}
+              </p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+              {activeAccounts.length > 1 && (
+                <div style={{ width: '100%', textAlign: 'left' }}>
+                  <label style={{ fontSize: '10px', fontWeight: 'bold', color: '#475569', display: 'block', marginBottom: '3px' }}>
+                    Tài khoản nhận tiền:
+                  </label>
+                  <select
+                    value={selectedAccountId}
+                    disabled={isSubmitting}
+                    onChange={(e) => handleAccountChange(e.target.value)}
+                    style={{ width: '100%', fontSize: '11px', padding: '5px 8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff' }}
+                  >
+                    {activeAccounts.map((acc) => (
+                      <option key={acc.id} value={acc.id}>
+                        {acc.bankShortName} - •••• {acc.accountNumber.slice(-4)} ({acc.accountName}) {acc.isDefault ? '★ Mặc định' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {bankConfig?.isTestFixture && (
+                <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#b45309', background: '#fef3c7', padding: '3px 8px', borderRadius: '4px', border: '1px solid #fde68a' }}>
+                  DỮ LIỆU KIỂM THỬ — không chuyển tiền thật
+                </div>
+              )}
+              <div style={{ background: '#fff', padding: '8px', borderRadius: '10px', border: '1px solid #e2e8f0', display: 'inline-block', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                <img
+                  src={qrResult.quickLinkUrl}
+                  alt="VietQR Code"
+                  style={{ width: '150px', height: '150px', display: 'block', objectFit: 'contain' }}
+                />
+              </div>
+              <div style={{ fontSize: '11px', color: '#334155', lineHeight: '1.4' }}>
+                <div><strong>{bankConfig?.bankName}</strong> ({bankConfig?.accountNumber})</div>
+                <div>Chủ TK: <strong>{bankConfig?.accountName}</strong></div>
+                <div style={{ fontSize: '10px', color: '#4f46e5', marginTop: '2px', fontWeight: 'bold' }}>
+                  Nội dung CK: <span>{qrResult.transferContent}</span>
+                </div>
+              </div>
+              <div style={{ fontSize: '10px', color: '#1e3a8a', background: '#eff6ff', padding: '6px 8px', borderRadius: '6px', border: '1px solid #dbeafe', textAlign: 'left', width: '100%' }}>
+                Thu ngân đối soát số dư ngân hàng. Sau khi tiền đã vào tài khoản, bấm nút <strong>"Xác nhận đã nhận tiền"</strong> bên dưới để hoàn tất.
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      {priceUpdateNotice}
+      {apiNotice && <p className="pos-error" role="alert">{apiNotice.text} Giỏ hàng được giữ lại để kiểm tra.</p>}
+      <button
+        ref={submitRef}
+        className="pos-checkout-button"
+        type="button"
+        disabled={isSubmitting || (paymentMethod === 'CASH' && isShortOfCash) || (paymentMethod === 'BANK_TRANSFER_QR' && isBankConfigInvalid) || !items.length || !branchId}
+        onClick={()=>handleCheckout(false)}
+      >
+        {isSubmitting ? 'Đang xử lý...' : paymentMethod === 'BANK_TRANSFER_QR' ? `Xác nhận đã nhận tiền · ${formatCurrency(totalAmount)}` : `Thanh toán · ${formatCurrency(totalAmount)}`}
+      </button>
+      <button className="pos-draft-button" type="button" disabled={!items.length || isSubmitting} onClick={handlePrintPreview}>
+        <Printer size={14} />In phiếu tạm tính
+      </button>
     </div>
-    {paymentMethod==='CASH' ? <div className="pos-cash-row"><label>Tiền khách đưa
-      <input type="number" min="0" aria-label="Tiền khách đưa" value={amountGiven || ''} onChange={(event)=>setUserGivenAmount(Number(event.target.value))} placeholder="Nhập số tiền" />
-    </label><div className={isShortOfCash?'pos-change is-short':'pos-change'}><small>{isShortOfCash?'Còn thiếu':'Tiền thừa'}</small><strong>{formatCurrency(isShortOfCash?totalAmount-amountGiven:changeDue)}</strong></div></div> :
-      <p className="pos-qr-notice">QR hiện là chế độ mô phỏng; chưa có xác nhận chuyển tiền tự động. Không chuyển tiền thật qua mã mô phỏng.</p>}
-    {priceUpdateNotice}
-    {apiNotice && <p className="pos-error" role="alert">{apiNotice.text} Giỏ hàng được giữ lại để kiểm tra.</p>}
-    <button ref={submitRef} className="pos-checkout-button" type="button" disabled={isSubmitting || isShortOfCash || !items.length || !branchId}
-      onClick={()=>handleCheckout(false)}>{isSubmitting?'Đang xử lý...':`Thanh toán · ${formatCurrency(totalAmount)}`}</button>
-    <button className="pos-draft-button" type="button" disabled={!items.length || isSubmitting} onClick={handlePrintPreview}><Printer size={14} />In phiếu tạm tính</button>
-  </div>;
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in no-print">
@@ -319,8 +486,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
               <button
                 type="button"
-                disabled
-                title="Thanh toán QR — Coming soon"
+                onClick={() => setPaymentMethod('BANK_TRANSFER_QR')}
                 className={`flex items-center justify-center gap-2.5 p-3.5 rounded-2xl border-2 font-bold text-sm transition-all ${
                   paymentMethod === 'BANK_TRANSFER_QR'
                     ? 'border-indigo-600 bg-indigo-50/50 text-indigo-700 shadow-sm'
@@ -328,7 +494,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 }`}
               >
                 <QrCode className="w-5 h-5" />
-                <span>Chuyển khoản QR</span><ComingSoonBadge />
+                <span>Chuyển khoản QR</span>
               </button>
             </div>
           </div>
@@ -387,86 +553,88 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
           {/* QR CODE SECTION */}
           {paymentMethod === 'BANK_TRANSFER_QR' && (
             <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200/60 flex flex-col items-center text-center">
-              <div className="bg-white p-3 rounded-2xl shadow-md border border-slate-200 mb-3">
-                {/* Simulated VietQR SVG Code */}
-                <svg
-                  className="w-48 h-48"
-                  viewBox="0 0 200 200"
-                  xmlns="http://www.w3.org/2000/svg"
-                >
-                  <rect width="200" height="200" fill="#ffffff" />
-                  {/* Outer QR Border & Pattern simulation */}
-                  <rect x="20" y="20" width="40" height="40" fill="#0f172a" />
-                  <rect x="25" y="25" width="30" height="30" fill="#ffffff" />
-                  <rect x="30" y="30" width="20" height="20" fill="#4f46e5" />
-
-                  <rect x="140" y="20" width="40" height="40" fill="#0f172a" />
-                  <rect x="145" y="25" width="30" height="30" fill="#ffffff" />
-                  <rect x="150" y="30" width="20" height="20" fill="#4f46e5" />
-
-                  <rect x="20" y="140" width="40" height="40" fill="#0f172a" />
-                  <rect x="25" y="145" width="30" height="30" fill="#ffffff" />
-                  <rect x="30" y="150" width="20" height="20" fill="#4f46e5" />
-
-                  {/* QR Dots Matrix */}
-                  <g fill="#1e293b">
-                    <rect x="70" y="25" width="10" height="10" />
-                    <rect x="90" y="25" width="10" height="10" />
-                    <rect x="110" y="25" width="10" height="10" />
-                    <rect x="70" y="45" width="10" height="10" />
-                    <rect x="100" y="45" width="20" height="10" />
-
-                    <rect x="30" y="75" width="20" height="10" />
-                    <rect x="60" y="75" width="30" height="10" />
-                    <rect x="100" y="75" width="10" height="20" />
-                    <rect x="120" y="75" width="20" height="10" />
-                    <rect x="150" y="75" width="20" height="20" />
-
-                    <rect x="25" y="95" width="20" height="10" />
-                    <rect x="60" y="95" width="20" height="20" />
-                    <rect x="90" y="105" width="20" height="10" />
-                    <rect x="130" y="105" width="10" height="20" />
-
-                    <rect x="75" y="125" width="20" height="10" />
-                    <rect x="110" y="125" width="30" height="10" />
-                    <rect x="150" y="125" width="20" height="10" />
-
-                    <rect x="75" y="145" width="10" height="20" />
-                    <rect x="95" y="145" width="30" height="10" />
-                    <rect x="140" y="145" width="20" height="20" />
-                    <rect x="80" y="170" width="30" height="10" />
-                    <rect x="120" y="170" width="40" height="10" />
-                  </g>
-
-                  {/* Center Brand Badge */}
-                  <rect x="85" y="85" width="30" height="30" rx="6" fill="#4f46e5" />
-                  <text
-                    x="100"
-                    y="104"
-                    fill="#ffffff"
-                    fontSize="11"
-                    fontWeight="bold"
-                    textAnchor="middle"
-                  >
-                    POS
-                  </text>
-                </svg>
-              </div>
-
-              <div className="space-y-2 text-xs text-slate-600 max-w-sm">
-                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-left">
-                  <div className="font-bold flex items-center gap-1.5 text-xs text-amber-800 mb-1">
-                    <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
-                    <span>Mã QR mô phỏng (Tính năng đang phát triển)</span>
+              {isBankConfigInvalid || !qrResult ? (
+                <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs text-rose-800 text-left max-w-sm">
+                  <div className="font-bold flex items-center gap-1.5 text-rose-900 mb-1">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                    <span>Chưa cấu hình tài khoản nhận tiền</span>
                   </div>
-                  <p className="text-[11px] leading-relaxed text-amber-700 m-0">
-                    Cổng VietQR động và Webhook đối soát ngân hàng đang được đội Backend hoàn thiện. <strong>Vui lòng KHÔNG chuyển tiền thật</strong> vì hệ thống chưa thể tự động ghi nhận thanh toán.
+                  <p className="m-0 leading-relaxed text-[11px] text-rose-700">
+                    {qrError || 'Cửa hàng chưa có tài khoản ngân hàng nhận tiền hợp lệ. Nút thanh toán QR bị khóa. Vui lòng thanh toán Tiền mặt hoặc liên hệ Owner cấu hình trong Quản trị.'}
                   </p>
                 </div>
-                <div className="pt-1 text-slate-500 text-[11px]">
-                  Số tiền cần thanh toán: <span className="font-bold text-slate-800 text-sm">{formatCurrency(totalAmount)}</span>
-                </div>
-              </div>
+              ) : (
+                <>
+                  {activeAccounts.length > 1 && (
+                    <div className="w-full max-w-sm mb-3 text-left">
+                      <label className="text-[11px] font-bold text-slate-600 mb-1 block">
+                        Tài khoản nhận tiền:
+                      </label>
+                      <select
+                        value={selectedAccountId}
+                        disabled={isSubmitting}
+                        onChange={(e) => handleAccountChange(e.target.value)}
+                        className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-indigo-600"
+                      >
+                        {activeAccounts.map((acc) => (
+                          <option key={acc.id} value={acc.id}>
+                            {acc.bankShortName} - •••• {acc.accountNumber.slice(-4)} ({acc.accountName}) {acc.isDefault ? '★ Mặc định' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {bankConfig?.isTestFixture && (
+                    <p className="text-xs font-bold text-amber-800 bg-amber-100 px-3 py-1 rounded-full border border-amber-300 mb-3">
+                      DỮ LIỆU KIỂM THỬ — không chuyển tiền thật
+                    </p>
+                  )}
+
+                  <div className="bg-white p-3 rounded-2xl shadow-md border border-slate-200 mb-3 relative flex items-center justify-center min-w-[200px] min-h-[200px]">
+                    <img
+                      src={qrResult.quickLinkUrl}
+                      alt="VietQR Code"
+                      className="w-52 h-52 object-contain"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5 text-xs text-slate-600 max-w-sm w-full bg-white p-3.5 rounded-xl border border-slate-200">
+                    <div className="flex justify-between items-center text-slate-700">
+                      <span>Ngân hàng:</span>
+                      <strong className="text-slate-900">{bankConfig?.bankName}</strong>
+                    </div>
+                    <div className="flex justify-between items-center text-slate-700">
+                      <span>Số tài khoản:</span>
+                      <strong className="font-mono text-slate-900">{bankConfig?.accountNumber}</strong>
+                    </div>
+                    <div className="flex justify-between items-center text-slate-700">
+                      <span>Chủ tài khoản:</span>
+                      <strong className="text-slate-900">{bankConfig?.accountName}</strong>
+                    </div>
+                    <div className="flex justify-between items-center text-slate-700 pt-1 border-t border-slate-100">
+                      <span>Số tiền:</span>
+                      <strong className="text-indigo-600 text-sm">{formatCurrency(totalAmount)}</strong>
+                    </div>
+                    <div className="flex justify-between items-center text-slate-700 pt-1 border-t border-slate-100">
+                      <span>Nội dung chuyển khoản:</span>
+                      <span className="font-mono font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded text-xs">
+                        {qrResult.transferContent}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 text-left text-xs max-w-sm w-full">
+                    <div className="font-bold flex items-center gap-1.5 text-blue-800 mb-1">
+                      <CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" />
+                      <span>Xác nhận giao dịch chuyển khoản</span>
+                    </div>
+                    <p className="m-0 text-[11px] text-blue-700 leading-relaxed">
+                      Yêu cầu khách hàng chuyển khoản đúng số tiền và nội dung. Sau khi kiểm tra tiền đã vào tài khoản cửa hàng, thu ngân bấm nút xác nhận bên dưới để hoàn tất.
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -531,26 +699,44 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
         {/* Modal Footer */}
         <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors"
-          >
-            Đóng lại (Esc)
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={onClose}
+              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-xl transition-colors disabled:opacity-50"
+            >
+              Đóng lại (Esc)
+            </button>
+            <button
+              type="button"
+              disabled={isSubmitting}
+              onClick={handlePrintPreview}
+              className="px-3.5 py-2 text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl transition-colors flex items-center gap-1.5 disabled:opacity-50"
+              title="In phiếu tạm tính (chưa thanh toán)"
+            >
+              <Printer className="w-3.5 h-3.5 text-amber-600" />
+              <span>In phiếu tạm tính</span>
+            </button>
+          </div>
 
           <button
             type="button"
-            disabled={isSubmitting || isShortOfCash}
+            disabled={isSubmitting || (paymentMethod === 'CASH' && isShortOfCash) || (paymentMethod === 'BANK_TRANSFER_QR' && isBankConfigInvalid)}
             onClick={() => handleCheckout(false)}
             className={`inline-flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold text-sm shadow-md transition-all ${
-              isSubmitting || isShortOfCash
+              isSubmitting || (paymentMethod === 'CASH' && isShortOfCash) || (paymentMethod === 'BANK_TRANSFER_QR' && isBankConfigInvalid)
                 ? 'bg-slate-300 text-slate-500 cursor-not-allowed shadow-none'
                 : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/30'
             }`}
           >
             {isSubmitting ? (
               <span>Đang gửi Checkout API...</span>
+            ) : paymentMethod === 'BANK_TRANSFER_QR' ? (
+              <>
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Xác nhận đã nhận tiền (F4)</span>
+              </>
             ) : (
               <>
                 <ShieldCheck className="w-4 h-4" />

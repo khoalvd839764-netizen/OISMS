@@ -48,7 +48,7 @@ export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({ receipt, o
   const formatPaymentMethod = (method: string) => {
     const m = (method || '').toUpperCase();
     if (m === 'CASH' || m === 'TIỀN MẶT') return 'Tiền mặt';
-    if (m === 'BANK_TRANSFER_QR' || m === 'VIETQR' || m === 'CHUYỂN KHOẢN QR' || m === 'TRANSFER') return 'Chuyển khoản QR';
+    if (m === 'BANK_TRANSFER_QR' || m === 'BANKTRANSFER' || m === 'VIETQR' || m === 'CHUYỂN KHOẢN QR' || m === 'TRANSFER') return 'Chuyển khoản QR';
     if (m === 'CARD' || m === 'THẺ') return 'Thẻ ngân hàng';
     return method || 'Tiền mặt';
   };
@@ -316,6 +316,22 @@ export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({ receipt, o
                     <span>Tiền thừa trả:</span>
                     <span className="font-mono">{formatCurrency(receipt.changeDue)}</span>
                   </div>
+                </>
+              )}
+              {!isCash && (receipt.receiverAccountNumber || receipt.transferReference) && (
+                <>
+                  {receipt.receiverAccountNumber && (
+                    <div className="flex justify-between text-slate-600">
+                      <span>TK nhận:</span>
+                      <span className="font-mono">{receipt.receiverBankName || ''} •••• {receipt.receiverAccountNumber.slice(-4)}</span>
+                    </div>
+                  )}
+                  {receipt.transferReference && (
+                    <div className="flex justify-between text-slate-600">
+                      <span>Nội dung CK:</span>
+                      <span className="font-mono text-xs font-semibold">{receipt.transferReference}</span>
+                    </div>
+                  )}
                 </>
               )}
             </div>

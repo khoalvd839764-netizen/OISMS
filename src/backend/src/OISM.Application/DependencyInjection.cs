@@ -69,6 +69,9 @@ public static class DependencyInjection
         // Sales Invoice services
         services.AddScoped<ISalesInvoiceService, SalesInvoiceService>();
 
+        // Payment Accounts services (CS-05 VietQR)
+        services.AddScoped<OISM.Application.Features.PaymentAccounts.Services.IPaymentAccountService, OISM.Application.Features.PaymentAccounts.Services.PaymentAccountService>();
+
         return services;
     }
 }

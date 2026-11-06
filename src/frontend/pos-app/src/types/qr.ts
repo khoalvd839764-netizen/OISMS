@@ -26,6 +26,23 @@ export interface ScopedBankConfig {
   bankConfig: BankConfig;
 }
 
+/** Cấu hình tài khoản nhận tiền theo tenant (Giai đoạn b - CS-05) */
+export interface PaymentAccountOption {
+  id: string;
+  bankBin: string;
+  bankName: string;
+  bankShortName: string;
+  accountNumber: string;
+  accountName: string;
+  isDefault: boolean;
+}
+
+export interface PaymentAccountEnvelopeV2 {
+  version: 2;
+  tenantId: string;
+  accounts: PaymentAccountOption[];
+}
+
 /** Browser payment intent; retained before checkout, including close/reload. */
 export interface PosQrIntent {
   version: 1;
@@ -34,6 +51,7 @@ export interface PosQrIntent {
   requestKey: string;
   amount: number;
   bankConfig: BankConfig;
+  paymentAccountId?: string;
 }
 
 export interface QrPaymentPayload {

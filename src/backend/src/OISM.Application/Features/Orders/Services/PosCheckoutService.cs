@@ -208,6 +208,13 @@ internal sealed class PosCheckoutService(
                     throw new IdempotencyPayloadMismatchException("RequestKey đã được sử dụng với phương thức thanh toán khác.");
                 }
 
+                // So sánh PaymentAccountId (nếu cả 2 đều có giá trị, hoặc dto có truyền nhưng khác bản lưu)
+                if (dto.PaymentAccountId.HasValue && existingOrder.Payment.PaymentAccountId.HasValue &&
+                    dto.PaymentAccountId.Value != existingOrder.Payment.PaymentAccountId.Value)
+                {
+                    throw new IdempotencyPayloadMismatchException("RequestKey đã được sử dụng với tài khoản nhận khác.");
+                }
+
                 // So sánh AmountGiven (nếu là Cash)
                 if (normalizedMethod == "Cash")
                 {
@@ -319,6 +326,10 @@ internal sealed class PosCheckoutService(
                     ChangeDue = existingOrder.Payment?.CashReceived.HasValue == true
                         ? existingOrder.Payment.CashReceived.Value - existingOrder.TotalAmount
                         : null,
+                    TransferReference = existingOrder.Payment?.TransferReference,
+                    ReceiverBankBin = existingOrder.Payment?.ReceiverBankBin,
+                    ReceiverAccountNumber = existingOrder.Payment?.ReceiverAccountNumber,
+                    ReceiverAccountName = existingOrder.Payment?.ReceiverAccountName,
                     CreatedAt = existingInvoice?.IssuedAt ?? existingOrder.CreatedAt,
                     Items = existingOrder.Items.Select(i => new PosReceiptItemDto
                     {
@@ -679,7 +690,33 @@ internal sealed class PosCheckoutService(
                 bBal.UpdatedAt = now;
             }
 
-            // 15. Tạo bản ghi thanh toán Payment (Succeeded)
+            // 15. Xác định tài khoản nhận tiền (nếu là BankTransfer) và tạo bản ghi thanh toán Payment (Succeeded)
+            PaymentAccount? selectedAccount = null;
+            if (normalizedMethod == "BankTransfer")
+            {
+                if (dto.PaymentAccountId.HasValue)
+                {
+                    selectedAccount = await _context.PaymentAccounts
+                        .FirstOrDefaultAsync(a => a.TenantId == tenantId.Value && a.Id == dto.PaymentAccountId.Value, ct);
+
+                    if (selectedAccount == null || !selectedAccount.IsActive)
+                    {
+                        throw new OismException("PAYMENT_ACCOUNT_INACTIVE", "Tài khoản nhận tiền đã bị ngừng hoạt động hoặc không tồn tại.", 400);
+                    }
+                }
+                else
+                {
+                    selectedAccount = await _context.PaymentAccounts
+                        .FirstOrDefaultAsync(a => a.TenantId == tenantId.Value && a.IsActive && a.IsDefault, ct);
+
+                    if (selectedAccount == null)
+                    {
+                        selectedAccount = await _context.PaymentAccounts
+                            .FirstOrDefaultAsync(a => a.TenantId == tenantId.Value && a.IsActive, ct);
+                    }
+                }
+            }
+
             var payment = new Payment
             {
                 Id = Guid.NewGuid(),
@@ -688,6 +725,11 @@ internal sealed class PosCheckoutService(
                 Method = normalizedMethod,
                 Amount = totalAmount,
                 CashReceived = cashReceived,
+                TransferReference = normalizedMethod == "BankTransfer" ? (dto.TransferReference?.Trim()) : null,
+                ReceiverBankBin = selectedAccount?.BankBin,
+                ReceiverAccountNumber = selectedAccount?.AccountNumber,
+                ReceiverAccountName = selectedAccount?.AccountName,
+                PaymentAccountId = selectedAccount?.Id,
                 CreatedAt = now
             };
             payment.Succeed(now);
@@ -749,6 +791,11 @@ internal sealed class PosCheckoutService(
                 PaymentMethod = invoice.PaymentMethodSnapshot ?? normalizedMethod,
                 AmountGiven = cashReceived,
                 ChangeDue = changeDue,
+                TransferReference = payment.TransferReference,
+                ReceiverBankBin = payment.ReceiverBankBin,
+                ReceiverBankName = selectedAccount?.BankName ?? selectedAccount?.BankShortName,
+                ReceiverAccountNumber = payment.ReceiverAccountNumber,
+                ReceiverAccountName = payment.ReceiverAccountName,
                 CreatedAt = invoice.IssuedAt,
                 Items = createdOrderItems.Select(i => new PosReceiptItemDto
                 {

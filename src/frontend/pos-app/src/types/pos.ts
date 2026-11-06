@@ -76,6 +76,8 @@ export interface PosCheckoutRequest {
   paymentMethod: "CASH" | "BANK_TRANSFER_QR";
   amountGiven?: number;
   changeDue?: number;
+  paymentAccountId?: string;
+  transferReference?: string;
   requestKey: string;
   items: PosCheckoutItemRequest[];
   totalAmount: number;
@@ -107,6 +109,11 @@ export interface PosReceiptDto {
   paymentMethod: string;
   amountGiven?: number | null;
   changeDue?: number | null;
+  transferReference?: string | null;
+  receiverBankBin?: string | null;
+  receiverBankName?: string | null;
+  receiverAccountNumber?: string | null;
+  receiverAccountName?: string | null;
   createdAt: string;
   items: PosReceiptItemDto[];
 }
@@ -152,6 +159,11 @@ export interface ReceiptData {
   paymentMethod: string;
   amountGiven: number;
   changeDue: number;
+  transferReference?: string;
+  receiverBankBin?: string;
+  receiverBankName?: string;
+  receiverAccountNumber?: string;
+  receiverAccountName?: string;
   isDraft?: boolean;
   paymentStatusTitle?: string;
   paperWidth?: '80mm' | '58mm';

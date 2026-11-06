@@ -73,7 +73,7 @@ Giao diện **Quầy Thu Ngân Bán Lẻ (POS Counter)** được thiết kế c
 │ [ HỦY BỎ (Esc) ]           [ XÁC NHẬN THANH TOÁN (↵) ] │
 └────────────────────────────────────────────────────────┘
 ```
-* **Bảo vệ Idempotency:** Mỗi lần mở Modal thanh toán, hệ thống tạo một `RequestKey` mới dạng GUID duy nhất và gắn vào header `Idempotency-Key` để bảo đảm không trừ tiền hoặc xuất kho hai lần nếu nhân viên bấm nhiều lần.
+* **Bảo vệ Idempotency:** Hệ thống duy trì `RequestKey` dạng UUID v4 ổn định gắn liền với giỏ hàng và ý định thanh toán. Khi đóng/mở lại modal với cùng giỏ hàng hoặc khi gửi lại yêu cầu lúc kết quả chưa rõ (unknown status), `RequestKey` được giữ nguyên để bảo đảm tính bất biến của nội dung chuyển khoản QR và ngăn chặn trừ kho hai lần. Khi thay đổi giỏ hàng, đổi phương thức hoặc đổi tài khoản nhận tiền, hệ thống mới khởi tạo `RequestKey` mới.
 
 ### 3.2. Modal In Hóa Đơn Nhiệt (Receipt Print Modal)
 * Hỗ trợ chuẩn in nhiệt khổ giấy `58mm` (K80 / K58).

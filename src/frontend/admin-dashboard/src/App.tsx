@@ -15,6 +15,7 @@ import { AccessPage } from "./pages/AccessPage";
 import { AuthPage } from "./pages/AuthPage";
 import { OrganizationPage } from "./pages/OrganizationPage";
 import { ShopIntegrationsPage } from "./pages/ShopIntegrationsPage";
+import { PaymentAccountsPage } from "./pages/PaymentAccountsPage";
 import { AuthProvider } from "./context/AuthContext";
 
 export default function App() {
@@ -60,6 +61,8 @@ export default function App() {
                 <Route path="/admin/organization" element={<OrganizationPage />} />
                 <Route path="/shop-integrations" element={<ShopIntegrationsPage />} />
                 <Route path="/admin/shop-integrations" element={<ShopIntegrationsPage />} />
+                <Route path="/settings/payment-accounts" element={<PaymentAccountsPage />} />
+                <Route path="/admin/settings/payment-accounts" element={<PaymentAccountsPage />} />
               </Route>
             </Route>
           </Route>

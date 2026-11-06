@@ -19,6 +19,7 @@ import {
   ArrowLeftRight,
   ClipboardCheck,
   Receipt,
+  CreditCard,
 } from "lucide-react";
 import { Button } from "./ui";
 import { useAuth } from "../context/AuthContext";
@@ -144,6 +145,8 @@ export function AdminShell() {
     "/admin/organization": "Nhân viên & chi nhánh",
     "/shop-integrations": "Kết nối sàn",
     "/admin/shop-integrations": "Kết nối sàn",
+    "/settings/payment-accounts": "Tài khoản nhận tiền VietQR",
+    "/admin/settings/payment-accounts": "Tài khoản nhận tiền VietQR",
   };
 
   const current =
@@ -208,6 +211,9 @@ export function AdminShell() {
               </NavLink>
               <NavLink to="/shop-integrations">
                 <Store size={18} />Kết nối sàn
+              </NavLink>
+              <NavLink to="/settings/payment-accounts">
+                <CreditCard size={18} />Tài khoản nhận tiền
               </NavLink>
             </>
           )}

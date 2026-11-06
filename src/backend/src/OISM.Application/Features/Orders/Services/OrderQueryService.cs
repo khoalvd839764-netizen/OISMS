@@ -80,7 +80,12 @@ internal sealed class OrderQueryService(IAppDbContext context, ICurrentTenantSer
                 Status = order.Payment.Status,
                 Amount = order.Payment.Amount,
                 CashReceived = order.Payment.CashReceived,
-                PaidAt = order.Payment.PaidAt
+                PaidAt = order.Payment.PaidAt,
+                TransferReference = order.Payment.TransferReference,
+                ReceiverBankBin = order.Payment.ReceiverBankBin,
+                ReceiverAccountNumber = order.Payment.ReceiverAccountNumber,
+                ReceiverAccountName = order.Payment.ReceiverAccountName,
+                PaymentAccountId = order.Payment.PaymentAccountId
             } : null
         };
     }

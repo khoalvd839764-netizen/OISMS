@@ -101,7 +101,8 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         "sales_invoices",
         "stock_count_schedules",
         "stock_count_periods",
-        "stock_count_approvals"
+        "stock_count_approvals",
+        "payment_accounts"
     ];
 
     public static readonly ExpectedTrigger[] ExpectedTriggers =
