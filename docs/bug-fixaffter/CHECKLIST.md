@@ -9,7 +9,7 @@ Chi tiết từng lỗi nằm trong thư mục [`errors/`](./errors/), mỗi l�
 
 | Nhóm | Đã xong | Cần kiểm chứng / một phần | Chưa làm |
 | :--- | :---: | :---: | :---: |
-| Lỗi `BF-001..035` | 23 | 5 | 7 |
+| Lỗi `BF-001..035` | 24 | 4 | 7 |
 | Coming Soon `CS-01..08` + Quên mật khẩu | 3 | 3 | 3 |
 | Upgrade (GVHD) | 6 | 0 | 1 |
 
@@ -67,7 +67,7 @@ Chia thành nhiều đợt fix, xem [mục E](#e-kế-hoạch-hoàn-thiện-clea
 | [x] | [BF-032](./errors/BF-032-application-chua-sql-postgresql-tho.md) | P2 | Application | SQL PostgreSQL thô trong 6 service | 3 |
 | [x] | [BF-033](./errors/BF-033-application-bat-postgresexception.md) | P2 | Application | Bắt `PostgresException` ở 8 chỗ, 7 service | 2 |
 | [x] | [BF-034](./errors/BF-034-iappdbcontext-lo-chi-tiet-ha-tang.md) | P2 | Application | `IAppDbContext` lộ SQL/transaction EF; 38 nhánh `IsRelationalDatabase` | 3 |
-| [~] | [BF-035](./errors/BF-035-domain-anemic-trang-thai-chuoi.md) | P3 | Domain | Entity anemic, 59 chỗ so trạng thái bằng chuỗi, `MediatR` không dùng | 4 |
+| [x] | [BF-035](./errors/BF-035-domain-anemic-trang-thai-chuoi.md) | P3 | Domain | Entity anemic, 59 chỗ so trạng thái bằng chuỗi, `MediatR` không dùng | 4 |
 
 ---
 
@@ -129,11 +129,13 @@ Rà soát ngày 06/11/2026 ghi nhận chiều phụ thuộc giữa các project 
 | [x] 1 | BF-030, BF-031 | Dùng bộ lọc MVC và middleware chung cho phản hồi lỗi, bỏ các `try/catch` trong controller và kiểm tra `ModelState` lặp, dùng chung cách đọc user ID, chuyển bắt lỗi trùng mã phiếu nhập vào service | Thấp | Toàn bộ integration test, `npm test` POS và đối chiếu hợp đồng lỗi |
 | [x] 2 | BF-028, BF-029, BF-033, gỡ MediatR (BF-035) | Hub gọi service, readiness check chuyển sang Infrastructure và dùng chung danh sách bảng với migration, Infrastructure triển khai `IDbErrorTranslator` | Thấp–TB | Build, unit test, integration test auth, sản phẩm, kho, giá và readiness |
 | [x] 3 | BF-032, BF-034 | SQL khóa nằm trong `ISqlLockService`, transaction và retry qua `IUnitOfWork`. Giữ thứ tự khóa và vị trí commit trong từng service | **Cao** | Test cạnh tranh tồn kho, idempotency, kiểm kê, nhập kho và chuyển kho trên PostgreSQL thật |
-| [~] 4 | BF-035 | Hằng số trạng thái theo loại chứng từ, chuyển trạng thái trong entity và tách dịch vụ đơn hàng | TB | Unit test Domain và integration test đơn hàng, POS, webhook, kho và kiểm kê |
+| [x] 4 | BF-035 | Hằng số trạng thái theo loại chứng từ, chuyển trạng thái trong entity và tách dịch vụ đơn hàng | TB | Unit test Domain và integration test đơn hàng, POS, webhook, kho và kiểm kê |
 
 Đợt 1 và 2 đã qua build backend .NET 8, toàn bộ `dotnet test src/backend/OISM.sln --no-build -c Release --verbosity normal` với PostgreSQL 16, build Admin/POS và test POS trên commit `c95c21c`. [GitHub Actions #134](https://github.com/khoalvd839764-netizen/OISMS/actions/runs/42185858352)
 
 Đợt 3 đã qua 223 unit test, 17 integration test trên PostgreSQL 16.15 cục bộ và 63 test POS. Bộ test PostgreSQL bao gồm cạnh tranh 50 yêu cầu giữ chỗ và checkout, replay, duyệt kiểm kê song song, nhập vượt phiếu mua, xuất và nhận chuyển kho đồng thời, cùng các luồng hết hạn giữ chỗ. Toàn bộ suite backend trên PostgreSQL 16 và job frontend đều qua trên commit `a73d96b`. [GitHub Actions #136](https://github.com/khoalvd839764-netizen/OISMS/actions/runs/42193764424)
+
+Đợt 4 đã qua 237 unit test, gồm 14 ca chuyển trạng thái Domain, cùng 15 integration test cục bộ và 63 test POS. Toàn bộ suite backend trên PostgreSQL 16 và job frontend đều qua trên commit `df26020`. [GitHub Actions #138](https://github.com/khoalvd839764-netizen/OISMS/actions/runs/42197568799)
 
 Nguyên tắc:
 - Theo kế hoạch, nhóm thống nhất phạm vi thay đổi transaction, khóa, ledger, reservation và idempotency trước khi triển khai. Nghiệm thu đợt 3 dựa trên kết quả kiểm thử PostgreSQL.

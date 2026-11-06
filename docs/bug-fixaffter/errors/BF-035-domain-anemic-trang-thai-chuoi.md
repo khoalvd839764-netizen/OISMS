@@ -2,7 +2,7 @@
 
 | Mục | Giá trị |
 | :--- | :--- |
-| **Trạng thái** | 🟡 Đã triển khai, chờ CI |
+| **Trạng thái** | ✅ Đã sửa và kiểm chứng |
 | **Ưu tiên** | P3 |
 | **Khu vực** | Backend / Clean Architecture / Domain |
 | **Phát hiện** | 06/11/2026, rà soát lại Clean Architecture sau Upgrade 06 (commit `6ad3cf6`) |
@@ -33,7 +33,7 @@
 
 Việc gỡ `MediatR` đã qua build và test backend .NET 8. [GitHub Actions #134](https://github.com/khoalvd839764-netizen/OISMS/actions/runs/42185858352)
 
-Đợt 4 đã qua 237 unit test, trong đó có 14 ca kiểm tra chuyển trạng thái Domain, cùng 15 integration test cục bộ và 63 test POS. Suite PostgreSQL 16 chờ CI.
+Đợt 4 đã qua 237 unit test, trong đó có 14 ca kiểm tra chuyển trạng thái Domain, cùng 15 integration test cục bộ và 63 test POS. Toàn bộ suite backend trên PostgreSQL 16 và job frontend đều qua trên commit `df26020`. [GitHub Actions #138](https://github.com/khoalvd839764-netizen/OISMS/actions/runs/42197568799)
 
 ## Điều kiện đóng
 

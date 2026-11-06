@@ -5,7 +5,7 @@ Nơi theo dõi lỗi của OISMS: lỗi nào đã sửa, lỗi nào chưa, kèm 
 - Xem nhanh: [**CHECKLIST.md**](./CHECKLIST.md)
 - Chi tiết từng lỗi: thư mục [`errors/`](./errors/), mỗi lỗi một file
 
-Cập nhật ngày **06/11/2026**. Trong **35 lỗi**, có 23 lỗi đã sửa, 5 lỗi cần kiểm chứng hoặc mới sửa một phần và 7 lỗi chưa sửa. Các đợt 1, 2 và 3 của Clean Architecture đã qua CI.
+Cập nhật ngày **06/11/2026**. Trong **35 lỗi**, có 24 lỗi đã sửa, 4 lỗi cần kiểm chứng hoặc mới sửa một phần và 7 lỗi chưa sửa. Cả bốn đợt Clean Architecture đã qua CI.
 
 ## Cấu trúc
 
