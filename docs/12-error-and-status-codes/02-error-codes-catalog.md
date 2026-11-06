@@ -151,6 +151,8 @@ Tài liệu này là **từ điển tra cứu danh mục mã lỗi toàn hệ th
 | `SALES_INVOICE_NOT_FOUND` | `404` | Không tìm thấy hóa đơn bán hàng | *Không tìm thấy hóa đơn bán hàng với mã định danh được yêu cầu.* | Mã hóa đơn hoặc số hóa đơn không tồn tại trong Tenant. | Kiểm tra lại số hóa đơn hoặc mã định danh. |
 | `LEDGER_ENTRY_NOT_FOUND` | `404` | Không tìm thấy dòng sổ kho | *Không tìm thấy dòng sổ kho với mã định danh được yêu cầu.* | ID dòng sổ kho không tồn tại trong Tenant. | Kiểm tra lại mã dòng sổ kho cần truy vết. |
 | `BRANCH_INACTIVE_OR_INVALID` | `404` | Chi nhánh không hợp lệ | *Chi nhánh '{branchId}' không tồn tại hoặc đã ngừng hoạt động.* | Chi nhánh bị xóa hoặc bị tắt kích hoạt. | Chọn chi nhánh khác đang hoạt động trên Header. |
+| `SHOP_INTEGRATION_NOT_FOUND` | `404` | Không tìm thấy kết nối gian hàng | *Không tìm thấy kết nối gian hàng.* | ID kết nối không tồn tại trong Tenant hiện tại. | Tải lại danh sách kết nối sàn. |
+| `SHOP_INTEGRATION_DUPLICATE` | `409` | Gian hàng đã được kết nối | *Gian hàng '{externalShopId}' trên kênh {channel} đã được kết nối.* | Trùng `(tenant_id, channel, external_shop_id)` (`uq_shop_integrations_2`). | Sửa kết nối đã có hoặc dùng mã gian hàng khác. |
 | `CONCURRENCY_CONFLICT` | `409` | Xung đột dữ liệu đồng thời | *Dữ liệu đã được cập nhật bởi một người dùng khác trong lúc bạn đang thao tác.* | Lạc quan khóa phiên bản (Optimistic Concurrency Control) phát hiện phiên bản cũ. | Bấm nút "Tải lại trang" để lấy dữ liệu mới nhất rồi thực hiện lại. |
 
 ---

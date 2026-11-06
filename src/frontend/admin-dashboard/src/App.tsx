@@ -14,6 +14,7 @@ import { PosPage } from "./pages/PosPage";
 import { AccessPage } from "./pages/AccessPage";
 import { AuthPage } from "./pages/AuthPage";
 import { OrganizationPage } from "./pages/OrganizationPage";
+import { ShopIntegrationsPage } from "./pages/ShopIntegrationsPage";
 import { AuthProvider } from "./context/AuthContext";
 
 export default function App() {
@@ -51,12 +52,14 @@ export default function App() {
               <Route path="/invoices" element={<SalesInvoicesPage />} />
               <Route path="/admin/invoices" element={<SalesInvoicesPage />} />
 
-              {/* Chỉ Owner được truy cập trang Báo cáo & Quản lý Chi nhánh / Tổ chức */}
+              {/* Chỉ Owner được truy cập Báo cáo, Chi nhánh / Tổ chức và Kết nối sàn */}
               <Route element={<ProtectedRoute allowedRoles={["Owner"]} />}>
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/admin/reports" element={<ReportsPage />} />
                 <Route path="/organization" element={<OrganizationPage />} />
                 <Route path="/admin/organization" element={<OrganizationPage />} />
+                <Route path="/shop-integrations" element={<ShopIntegrationsPage />} />
+                <Route path="/admin/shop-integrations" element={<ShopIntegrationsPage />} />
               </Route>
             </Route>
           </Route>

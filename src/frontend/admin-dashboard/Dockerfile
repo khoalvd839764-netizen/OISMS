@@ -7,6 +7,9 @@ COPY . .
 # Vite nhúng URL API lúc build; không truyền thì code dùng mặc định http://localhost:5000
 ARG VITE_API_BASE_URL
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+# Địa chỉ app giả lập đơn sàn cho nút "Mở app giả lập"; để trống thì ẩn nút
+ARG VITE_SIMULATOR_URL
+ENV VITE_SIMULATOR_URL=$VITE_SIMULATOR_URL
 RUN npm run build
 
 # Production stage with NGINX

@@ -142,6 +142,8 @@ export function AdminShell() {
     "/demo-tools": "Công cụ demo",
     "/organization": "Nhân viên & chi nhánh",
     "/admin/organization": "Nhân viên & chi nhánh",
+    "/shop-integrations": "Kết nối sàn",
+    "/admin/shop-integrations": "Kết nối sàn",
   };
 
   const current =
@@ -200,9 +202,14 @@ export function AdminShell() {
 
         <div className="sidebar-bottom">
           {account.role === "Owner" && (
-            <NavLink to="/organization">
-              <Settings2 size={18} />Nhân viên & chi nhánh
-            </NavLink>
+            <>
+              <NavLink to="/organization">
+                <Settings2 size={18} />Nhân viên & chi nhánh
+              </NavLink>
+              <NavLink to="/shop-integrations">
+                <Store size={18} />Kết nối sàn
+              </NavLink>
+            </>
           )}
         </div>
       </aside>

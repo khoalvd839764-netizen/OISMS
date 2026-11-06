@@ -21,3 +21,17 @@
 		reverse_proxy pos-app:80
 	}
 }
+
+# Giả lập đơn sàn: chỉ mở đường webhook, không mở các API khác trên domain này
+{$SIM_DOMAIN} {
+	encode gzip
+	handle /api/webhooks/* {
+		reverse_proxy backend:8080
+	}
+	handle /api/* {
+		respond 404
+	}
+	handle {
+		reverse_proxy marketplace-simulator:80
+	}
+}

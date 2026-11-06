@@ -22,6 +22,7 @@ nano .env.production
 | :--- | :--- | :--- |
 | `ADMIN_DOMAIN` | `oisms.khoadang.site` | Không có `https://`, không có `/` cuối |
 | `POS_DOMAIN` | `pos.oisms.khoadang.site` | Như trên |
+| `SIM_DOMAIN` | `sim.oisms.khoadang.site` | Giao diện giả lập đơn sàn. Bắt buộc: thiếu thì Compose dừng. Cần thêm bản ghi DNS A trỏ về Elastic IP |
 | `POSTGRES_USER` | `postgres` | Tài khoản quản trị DB, chỉ dùng cho init, migration, backup |
 | `POSTGRES_PASSWORD` | `openssl rand -hex 32` | |
 | `POSTGRES_DB` | `oisms` | |
@@ -46,11 +47,13 @@ File này được nạp **sau** `docker-compose.yml`; Compose gộp hai file, k
 
 | Service | Thay đổi | Tác dụng |
 | :--- | :--- | :--- |
-| `postgres`, `redis`, `backend`, `admin-dashboard`, `pos-app` | `ports: !reset []` | Xóa toàn bộ cổng publish của file gốc; chỉ còn truy cập trong `oism_network` |
+| `postgres`, `redis`, `backend`, `admin-dashboard`, `pos-app`, `marketplace-simulator` | `ports: !reset []` | Xóa toàn bộ cổng publish của file gốc; chỉ còn truy cập trong `oism_network` |
 | `pgadmin` | `profiles: ["tools"]` | Không khởi động trừ khi chạy kèm `--profile tools` |
 | `backend` | `ASPNETCORE_ENVIRONMENT: Production`, `Jwt__Secret: ${JWT_SECRET:?...}` | Tắt Swagger, chặn seed demo, bắt buộc có JWT secret (thiếu thì Compose báo lỗi và dừng) |
 | `admin-dashboard` | build arg `VITE_API_BASE_URL: https://${ADMIN_DOMAIN}` | Bundle gọi API trên chính domain Admin |
 | `pos-app` | build arg `VITE_API_BASE_URL: https://${POS_DOMAIN}` | Bundle gọi API trên chính domain POS |
+| `marketplace-simulator` | build arg `VITE_API_BASE_URL: https://${SIM_DOMAIN}`, `VITE_ADMIN_URL: https://${ADMIN_DOMAIN}` | Bundle chỉ gọi `/api/webhooks/*` trên chính domain giả lập; link sang trang Kết nối sàn của Admin |
+| `admin-dashboard` (thêm) | build arg `VITE_SIMULATOR_URL: https://${SIM_DOMAIN}` | Nút "Mở app giả lập" ở trang Kết nối sàn |
 | `caddy` (mới) | image `caddy:2.10-alpine`, cổng `80:80`, `443:443`, mount `Caddyfile`, volume `caddy_data`, `caddy_config` | Reverse proxy + HTTPS |
 
 Kiểm tra cấu hình gộp trước khi chạy (không in bí mật ra màn hình chung):
@@ -84,10 +87,24 @@ docker compose --env-file .env.production -f docker-compose.yml -f docker-compos
 		reverse_proxy pos-app:80
 	}
 }
+
+{$SIM_DOMAIN} {
+	encode gzip
+	handle /api/webhooks/* {
+		reverse_proxy backend:8080
+	}
+	handle /api/* {
+		respond 404
+	}
+	handle {
+		reverse_proxy marketplace-simulator:80
+	}
+}
 ```
 
 - `{$ADMIN_DOMAIN}`, `{$POS_DOMAIN}` là biến môi trường của container Caddy, được compose truyền vào.
-- `(backend_routes)` là snippet dùng lại cho cả hai site; `handle` loại trừ lẫn nhau nên request API không bao giờ rơi xuống frontend.
+- `{$SIM_DOMAIN}` không dùng `backend_routes`: chỉ mở đường webhook (xác thực bằng `X-Webhook-Secret`), các API khác trả 404 nên domain giả lập không lộ API quản trị.
+- `(backend_routes)` là snippet dùng lại cho Admin và POS; `handle` loại trừ lẫn nhau nên request API không bao giờ rơi xuống frontend.
 - Site có tên miền thật nên Caddy tự bật HTTPS: xin chứng chỉ Let's Encrypt, chuyển HTTP sang HTTPS, gia hạn trước khi hết hạn.
 - `reverse_proxy` tự xử lý WebSocket cho SignalR và tự thêm `X-Forwarded-For`, `X-Forwarded-Proto`.
 

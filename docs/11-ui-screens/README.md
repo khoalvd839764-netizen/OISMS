@@ -5,7 +5,7 @@
 | **Mã phân hệ (Module ID)** | `MOD-SCR-11` |
 | **Phiên bản hiện hành** | `v1.1.0` |
 | **Ngày cập nhật gần nhất** | `2026-11-06` |
-| **Phạm vi mã nguồn ứng dụng** | Web Admin Dashboard (`src/frontend/admin-dashboard`) & Ứng dụng POS độc lập (`src/frontend/pos-app`) |
+| **Phạm vi mã nguồn ứng dụng** | Web Admin Dashboard (`src/frontend/admin-dashboard`), Ứng dụng POS độc lập (`src/frontend/pos-app`) & App giả lập đơn sàn (`src/frontend/marketplace-simulator`) |
 | **Tài liệu quy chuẩn đi kèm** | Quy định mã lỗi & màu sắc: [`../12-error-and-status-codes/README.md`](../12-error-and-status-codes/README.md) |
 
 ---
@@ -36,6 +36,8 @@ Hệ thống OISMS (Omnichannel Inventory & Sales Management System) được tr
 | **12** | Quản lý Cơ cấu Tổ chức & Chi nhánh | `/admin/organization` | ✅ | ❌ | ❌ | [`09-organization-screens.md`](./09-organization-screens.md) |
 | **13** | Đơn mua hàng | `/purchase-orders` | ✅ | ✅ | ❌ | [`04-inventory-screens.md`](./04-inventory-screens.md) |
 | **14** | Hóa đơn bán hàng | `/invoices` | ✅ | ✅ | ❌ | [`05-order-screens.md`](./05-order-screens.md) |
+| **15** | Kết nối sàn (secret webhook) | `/shop-integrations` | ✅ | ❌ | ❌ | [`10-shop-integration-screens.md`](./10-shop-integration-screens.md) |
+| **16** | App giả lập đơn sàn | local `http://localhost:5175`, deploy `https://<SIM_DOMAIN>` | Dùng secret, không đăng nhập | | | [`10-shop-integration-screens.md`](./10-shop-integration-screens.md) |
 
 Mọi route Admin có hai dạng tương đương: có và không có tiền tố `/admin` (ví dụ `/products` và `/admin/products`), theo `src/frontend/admin-dashboard/src/App.tsx`. Route không khớp chuyển về `/admin`.
 
@@ -99,6 +101,7 @@ Giao diện POS được tối ưu hóa cho màn hình cảm ứng, máy POS hai
 7. [`07-handoff-screens.md`](./07-handoff-screens.md) — Đặc tả Màn hình Quét mã vận đơn bàn giao shipper và In phiếu đóng gói (Packing Slip). Màn hình đã tạm gỡ khỏi Admin.
 8. [`08-report-screens.md`](./08-report-screens.md) — Đặc tả Màn hình Báo cáo Doanh thu - Giá vốn - Lãi gộp, Định giá kho theo WAC và Gợi ý tái đặt hàng AI.
 9. [`09-organization-screens.md`](./09-organization-screens.md) — Đặc tả Màn hình Quản lý Chi nhánh, Kho trực thuộc, Danh bạ Nhà cung cấp và Phân quyền nhân sự.
+10. [`10-shop-integration-screens.md`](./10-shop-integration-screens.md) — Đặc tả Màn hình Kết nối sàn (tạo kết nối, hiện secret một lần, đổi secret) và App giả lập đơn sàn.
 
 ## Cập nhật màn hình 04/11/2026
 

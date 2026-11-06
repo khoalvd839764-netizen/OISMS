@@ -77,3 +77,13 @@ public class WebhookSimulationResultDto
     public string Status { get; set; } = OrderStatus.Draft; // 'Draft', 'Reserved'
     public DateTimeOffset ReceivedAt { get; set; } = DateTimeOffset.UtcNow;
 }
+
+public class WebhookIdentityDto
+{
+    public string Channel { get; set; } = string.Empty;
+    public string ExternalShopId { get; set; } = string.Empty;
+    public string BranchName { get; set; } = string.Empty;
+
+    /// <summary>Chi nhánh tắt thì webhook vẫn xác thực được nhưng đơn sẽ bị từ chối.</summary>
+    public bool BranchIsActive { get; set; }
+}

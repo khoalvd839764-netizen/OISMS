@@ -88,6 +88,8 @@ services:
     build:
       context: ./src/frontend/admin-dashboard
       dockerfile: Dockerfile
+      args:
+        VITE_SIMULATOR_URL: "http://localhost:${SIM_PORT:-5175}"
     container_name: oism_admin_dashboard
     restart: always
     ports:
@@ -106,6 +108,22 @@ services:
     restart: always
     ports:
       - "${POS_PORT:-5174}:80"
+    depends_on:
+      - backend
+    networks:
+      - oism_network
+
+  # Giao diện giả lập bắn đơn sàn qua webhook
+  marketplace-simulator:
+    build:
+      context: ./src/frontend/marketplace-simulator
+      dockerfile: Dockerfile
+      args:
+        VITE_ADMIN_URL: "http://localhost:${ADMIN_PORT:-5173}"
+    container_name: oism_marketplace_simulator
+    restart: always
+    ports:
+      - "${SIM_PORT:-5175}:80"
     depends_on:
       - backend
     networks:

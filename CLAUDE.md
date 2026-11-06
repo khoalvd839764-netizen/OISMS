@@ -17,6 +17,7 @@ Trả lời bằng tiếng Việt. Docs là yêu cầu, code và test là hiện
 | `src/backend/tests` | `OISM.UnitTests`, `OISM.IntegrationTests` |
 | `src/frontend/admin-dashboard` | React 19 + Vite, cổng 5173; có cả POS tích hợp tại `/pos` (`PosPage.tsx`) |
 | `src/frontend/pos-app` | POS PWA riêng, cổng 5174 |
+| `src/frontend/marketplace-simulator` | Giao diện giả lập bắn đơn sàn qua webhook, cổng 5175; chỉ gọi `/api/webhooks/*`. Xem `docs/14-webhook-simulator/` |
 | `docs/database/oisms_schema.sql` | Nguồn cấu trúc DB hiện hành |
 | `docker/postgres/migrations/` | Script nâng cấp DB đã có dữ liệu |
 
@@ -37,10 +38,12 @@ npm run build --prefix src/frontend/admin-dashboard
 npm run build --prefix src/frontend/pos-app
 npm test --prefix src/frontend/pos-app
 npm run lint --prefix src/frontend/pos-app
+npm run build --prefix src/frontend/marketplace-simulator
+npm test --prefix src/frontend/marketplace-simulator
 ```
 
 Chạy local: `docker compose up -d`, hoặc `scripts/run-backend.ps1`, `run-admin.ps1`, `run-pos.ps1`. Backend ở cổng 5000, có `/swagger` khi Development và `/health/ready`.
-CI chạy khi push hoặc mở PR vào `main`, `master`, `develop`: build và test backend, build hai frontend, chạy `npm test` của POS.
+CI chạy khi push hoặc mở PR vào `main`, `master`, `develop`: build và test backend, build ba frontend, chạy `npm test` của POS và của app giả lập.
 
 ## Quy tắc không được phá
 
