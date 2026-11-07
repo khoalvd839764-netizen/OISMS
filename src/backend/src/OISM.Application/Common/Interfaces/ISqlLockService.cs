@@ -54,6 +54,11 @@ public interface ISqlLockService
     Task LockUnitCatalogAsync(Guid tenantId, CancellationToken ct = default);
 
     /// <summary>
+    /// Khóa danh sách tài khoản nhận tiền của Tenant bằng advisory lock ({tenant}/payment_accounts) để thêm, đặt mặc định, ngừng dùng tuần tự.
+    /// </summary>
+    Task LockPaymentAccountsAsync(Guid tenantId, CancellationToken ct = default);
+
+    /// <summary>
     /// Khóa bi quan bản ghi Phiếu đổi giá (FOR UPDATE) có lọc tenant để chống duyệt/từ chối đồng thời.
     /// </summary>
     Task LockPriceChangeRequestAsync(Guid tenantId, Guid requestId, CancellationToken ct = default);

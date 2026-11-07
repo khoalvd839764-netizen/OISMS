@@ -19,6 +19,8 @@ export function PosPage() {
   // User State từ AuthContext tập trung
   const currentUser = user
     ? {
+        id: user.id,
+        tenantId: user.tenantId,
         fullName: user.name,
         email: user.email,
         tenantName: user.tenantName,

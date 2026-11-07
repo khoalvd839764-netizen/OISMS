@@ -105,7 +105,7 @@ Các thay đổi sau bảng kết quả trên, cùng nhánh `feature/OISMS-46-fi
 
 ## Chưa làm
 
-- **CS-05:** POS Admin chưa bật QR. POS PWA đã có VietQR, thu ngân xác nhận thủ công; tài khoản nhận lưu trên từng trình duyệt.
+- **CS-05:** POS PWA và POS Admin đều có VietQR, thu ngân chọn tài khoản nhận tiền (mặc định chọn sẵn) và bấm xác nhận thủ công. Tài khoản nhận tiền lấy từ `GET /api/payment-accounts/active`; Owner quản lý ở màn "Tài khoản nhận tiền". Chưa có xác nhận tự động qua webhook ngân hàng. Chi tiết: [review PR 39](./vietqr-cs05-review-pr39.md).
 - **CS-06:** in chứng từ giao hàng và in báo cáo.
 - **CS-01:** nhận hàng trả, cần backend trước.
 - **U01-B:** hóa đơn nhà cung cấp và chênh lệch, cần backend và GVHD chốt cách xử lý.

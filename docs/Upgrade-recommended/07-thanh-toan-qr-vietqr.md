@@ -1,7 +1,7 @@
 # 07. Kế hoạch thanh toán QR bằng VietQR (CS-05)
 
-> **Loại tài liệu:** Kế hoạch và đặc tả kỹ thuật hoàn thiện CS-05. Đã hoàn thành triển khai mã nguồn và kiểm thử 100% cho Giai đoạn (a) và (b) trên cả Backend, POS PWA và Web Admin POS.
-> **Trạng thái:** ĐÃ HOÀN THÀNH (Giai đoạn a + b). Giai đoạn (c) webhook ngân hàng tự động tạm gác theo kế hoạch đã thống nhất.
+> **Loại tài liệu:** kế hoạch và đặc tả CS-05.
+> **Trạng thái:** giai đoạn (a) + (b) đã có code trên nhánh `feature/OISMS-48-shop-integrations-api`, đã sửa theo [review PR 39](../report-after-upgrade/vietqr-cs05-review-pr39.md); chờ CI xanh để nghiệm thu. Giai đoạn (c) tạm gác. Bằng chứng kiểm thử (PASS/FAIL/NOT RUN) ghi trong báo cáo review.
 > **Ngày khảo sát code:** 06/11/2026, nhánh `feature/OISMS-48-shop-integrations-api` (phần QR không phụ thuộc thay đổi chưa commit của nhánh này).
 
 ## 0. Quyết định đã chốt (06/11/2026)

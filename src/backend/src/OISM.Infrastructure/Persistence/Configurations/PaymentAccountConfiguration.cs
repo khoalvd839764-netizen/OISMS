@@ -16,6 +16,12 @@ public class PaymentAccountConfiguration : IEntityTypeConfiguration<PaymentAccou
             .IsUnique()
             .HasDatabaseName("uq_payment_accounts_1");
 
+        // Mỗi tenant chỉ có một tài khoản mặc định đang dùng (khai báo để EF biết ràng buộc của DB).
+        builder.HasIndex(pa => pa.TenantId)
+            .IsUnique()
+            .HasFilter("is_default AND is_active")
+            .HasDatabaseName("uq_payment_accounts_tenant_default_active");
+
         builder.HasIndex(pa => new { pa.TenantId, pa.BankBin, pa.AccountNumber })
             .IsUnique()
             .HasDatabaseName("uq_payment_accounts_2");
@@ -74,11 +80,12 @@ public class PaymentAccountConfiguration : IEntityTypeConfiguration<PaymentAccou
         builder.HasOne(pa => pa.Tenant)
             .WithMany()
             .HasForeignKey(pa => pa.TenantId)
-            .OnDelete(DeleteBehavior.Cascade);
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(pa => pa.UpdatedByUser)
             .WithMany()
             .HasForeignKey(pa => new { pa.TenantId, pa.UpdatedByUserId })
-            .OnDelete(DeleteBehavior.SetNull);
+            // DB tự set NULL riêng cột updated_by_user_id (ON DELETE SET NULL (col)); EF không đụng tới tenant_id.
+            .OnDelete(DeleteBehavior.NoAction);
     }
 }

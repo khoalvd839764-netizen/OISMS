@@ -2,6 +2,11 @@ import type { PosProductSearchResponse, Branch, PosCheckoutRequest } from '../ty
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
+/** Gốc API dùng chung cho POS tích hợp trong Admin (không có đuôi /api). */
+export function getApiBaseUrl(): string {
+  return API_BASE_URL;
+}
+
 export function getAuthToken(): string | null {
   return localStorage.getItem('oism_access_token') || localStorage.getItem('pos_access_token');
 }
@@ -196,6 +201,10 @@ export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{
   receiptNumber?: string;
   receipt?: any;
   isPendingBackend?: boolean;
+  /** Kết quả chưa rõ (mất mạng, 5xx, 408/429, 2xx sai định dạng): phải giữ nguyên RequestKey và payload để thử lại. */
+  isUnknown?: boolean;
+  /** 401: phiên hết hạn, đơn có thể chưa được ghi nhận; giữ RequestKey để thử lại sau khi đăng nhập. */
+  isAuthExpired?: boolean;
   errorCode?: string;
   currentPrices?: Array<{ skuId: string; skuCode?: string; unitId?: string | null; currentPrice: number }>;
 }> {
@@ -214,6 +223,7 @@ export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{
       const detail = (errData.detail || errData.message || 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.') + codeSuffix;
       return {
         success: false,
+        isAuthExpired: true,
         message: detail,
       };
     }
@@ -225,6 +235,7 @@ export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{
       if (!data || !serverOrderNumber || serverOrderNumber === '00000000-0000-0000-0000-000000000000') {
         return {
           success: false,
+          isUnknown: true,
           message: 'Phản hồi thanh toán từ máy chủ không đúng định dạng (thiếu định danh đơn hàng). Giỏ hàng được giữ nguyên để đối soát.',
         };
       }
@@ -252,6 +263,7 @@ export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{
     const codeStr = errorCode ? ` [${errorCode}]` : '';
     return {
       success: false,
+      isUnknown: res.status >= 500 || res.status === 408 || res.status === 429,
       message: (err.detail || err.message || `Thanh toán thất bại (Mã lỗi ${res.status}).`) + codeStr,
       errorCode,
       currentPrices: err.currentPrices || err.extensions?.currentPrices,
@@ -259,6 +271,7 @@ export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{
   } catch (err: any) {
     return {
       success: false,
+      isUnknown: true,
       message: `Không thể kết nối đến máy chủ để thực hiện thanh toán (${err.message || 'Lỗi mạng'}). Giỏ hàng được giữ nguyên.`,
     };
   }

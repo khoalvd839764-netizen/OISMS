@@ -98,6 +98,6 @@ public class PaymentConfiguration : IEntityTypeConfiguration<Payment>
         builder.HasOne(p => p.PaymentAccount)
             .WithMany(a => a.Payments)
             .HasForeignKey(p => new { p.TenantId, p.PaymentAccountId })
-            .OnDelete(DeleteBehavior.SetNull);
+            .OnDelete(DeleteBehavior.Restrict);
     }
 }

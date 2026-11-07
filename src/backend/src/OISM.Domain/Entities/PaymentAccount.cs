@@ -88,14 +88,15 @@ public class PaymentAccount : BaseEntity, IMustHaveTenant
         }
     }
 
-    public void Update(string bankBin, string bankName, string bankShortName, string accountNumber, string accountName, Guid? updatedByUserId)
+    /// <summary>
+    /// Đổi tên hiển thị. BIN và số tài khoản không đổi được sau khi tạo (đổi số thì thêm tài khoản mới).
+    /// </summary>
+    public void Rename(string bankName, string bankShortName, string accountName, Guid? updatedByUserId)
     {
-        ValidateFields(bankBin, bankName, bankShortName, accountNumber, accountName);
+        ValidateFields(BankBin, bankName, bankShortName, AccountNumber, accountName);
 
-        BankBin = bankBin.Trim();
         BankName = bankName.Trim();
         BankShortName = bankShortName.Trim().ToUpperInvariant();
-        AccountNumber = accountNumber.Trim();
         AccountName = accountName.Trim().ToUpperInvariant();
         UpdatedByUserId = updatedByUserId;
         UpdatedAt = DateTimeOffset.UtcNow;

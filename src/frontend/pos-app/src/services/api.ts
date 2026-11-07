@@ -200,6 +200,11 @@ export type { PosReceiptDto, PosReceiptItemDto, ReceiptData, ReceiptItemData } f
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
+/** Gốc API dùng chung cho mọi lời gọi của POS (không có đuôi /api). */
+export function getApiBaseUrl(): string {
+  return API_BASE_URL;
+}
+
 // Storage key cho pending checkout attempt (RFC 4122 v4 UUID, snapshot payload, owner identity)
 const PENDING_STORAGE_KEY = 'pos_pending_checkout_v1';
 

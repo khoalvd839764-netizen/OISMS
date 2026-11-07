@@ -51,7 +51,7 @@ export function PaymentAccountsPage() {
         }
       }
     } catch (err: any) {
-      setError(err?.response?.data?.message || err?.message || 'Không thể tải danh sách tài khoản.');
+      setError(err?.response?.data?.detail || err?.response?.data?.message || err?.message || 'Không thể tải danh sách tài khoản.');
     } finally {
       setLoading(false);
     }
@@ -102,7 +102,7 @@ export function PaymentAccountsPage() {
       setCreateModalOpen(false);
       await loadData();
     } catch (err: any) {
-      setFormError(err?.response?.data?.message || err?.message || 'Không thể tạo tài khoản ngân hàng.');
+      setFormError(err?.response?.data?.detail || err?.response?.data?.message || err?.message || 'Không thể tạo tài khoản ngân hàng.');
     } finally {
       setIsSubmitting(false);
     }
@@ -114,7 +114,7 @@ export function PaymentAccountsPage() {
       await paymentAccountsApi.setDefault(account.id);
       await loadData();
     } catch (err: any) {
-      alert(err?.response?.data?.message || err?.message || 'Không thể đặt tài khoản mặc định.');
+      alert(err?.response?.data?.detail || err?.response?.data?.message || err?.message || 'Không thể đặt tài khoản mặc định.');
     }
   };
 
@@ -126,7 +126,7 @@ export function PaymentAccountsPage() {
       await paymentAccountsApi.deactivate(account.id);
       await loadData();
     } catch (err: any) {
-      alert(err?.response?.data?.message || err?.message || 'Không thể ngừng sử dụng tài khoản.');
+      alert(err?.response?.data?.detail || err?.response?.data?.message || err?.message || 'Không thể ngừng sử dụng tài khoản.');
     }
   };
 

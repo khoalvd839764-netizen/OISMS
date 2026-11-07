@@ -29,7 +29,7 @@ public class PaymentAccountServiceTests
     public async Task CreateAccount_FirstAccount_AutomaticallySetsDefault()
     {
         var (context, tenantService, tenantId) = CreateContext();
-        var service = new PaymentAccountService(context, tenantService);
+        var service = new PaymentAccountService(context, tenantService, new OISM.Infrastructure.Services.SqlLockService(context));
         var userId = Guid.NewGuid();
 
         var result = await service.CreateAccountAsync(new CreatePaymentAccountRequest
@@ -58,7 +58,7 @@ public class PaymentAccountServiceTests
     public async Task CreateAccount_DuplicateBinAndNumber_Throws409()
     {
         var (context, tenantService, _) = CreateContext();
-        var service = new PaymentAccountService(context, tenantService);
+        var service = new PaymentAccountService(context, tenantService, new OISM.Infrastructure.Services.SqlLockService(context));
         var userId = Guid.NewGuid();
 
         await service.CreateAccountAsync(new CreatePaymentAccountRequest
@@ -88,7 +88,7 @@ public class PaymentAccountServiceTests
     public async Task CreateAccount_InvalidBinOrAccountNumber_ThrowsArgumentException()
     {
         var (context, tenantService, _) = CreateContext();
-        var service = new PaymentAccountService(context, tenantService);
+        var service = new PaymentAccountService(context, tenantService, new OISM.Infrastructure.Services.SqlLockService(context));
         var userId = Guid.NewGuid();
 
         // BIN must be 6 digits
@@ -118,7 +118,7 @@ public class PaymentAccountServiceTests
     public async Task SetDefault_SwitchesDefaultAccountAtomically()
     {
         var (context, tenantService, _) = CreateContext();
-        var service = new PaymentAccountService(context, tenantService);
+        var service = new PaymentAccountService(context, tenantService, new OISM.Infrastructure.Services.SqlLockService(context));
         var userId = Guid.NewGuid();
 
         var acc1 = await service.CreateAccountAsync(new CreatePaymentAccountRequest
@@ -156,7 +156,7 @@ public class PaymentAccountServiceTests
     public async Task Deactivate_UnsetsDefault_AndHidesFromActiveList()
     {
         var (context, tenantService, _) = CreateContext();
-        var service = new PaymentAccountService(context, tenantService);
+        var service = new PaymentAccountService(context, tenantService, new OISM.Infrastructure.Services.SqlLockService(context));
         var userId = Guid.NewGuid();
 
         var acc1 = await service.CreateAccountAsync(new CreatePaymentAccountRequest
@@ -214,11 +214,130 @@ public class PaymentAccountServiceTests
 
         context.ChangeTracker.Clear();
 
-        var service = new PaymentAccountService(context, tenantService);
+        var service = new PaymentAccountService(context, tenantService, new OISM.Infrastructure.Services.SqlLockService(context));
         var accounts = await service.GetAccountsAsync();
         accounts.Should().BeEmpty();
 
         var active = await service.GetActiveAccountsAsync();
         active.Should().BeEmpty();
+    }
+
+    private static CreatePaymentAccountRequest MbAccount(bool isDefault = false) => new()
+    {
+        BankBin = "970422",
+        BankName = "MB Bank",
+        BankShortName = "MB",
+        AccountNumber = "0123456789",
+        AccountName = "NGUYEN VAN A",
+        IsDefault = isDefault
+    };
+
+    [Fact]
+    public async Task UpdateAccount_ChangingBinOrAccountNumber_IsRejected_RenameIsAllowed()
+    {
+        var (context, tenantService, _) = CreateContext();
+        var service = new PaymentAccountService(context, tenantService, new OISM.Infrastructure.Services.SqlLockService(context));
+        var userId = Guid.NewGuid();
+        var created = await service.CreateAccountAsync(MbAccount(), userId);
+
+        var changeNumber = () => service.UpdateAccountAsync(created.Id, new UpdatePaymentAccountRequest
+        {
+            BankBin = "970422", BankName = "MB Bank", BankShortName = "MB", AccountNumber = "9999999999", AccountName = "NGUYEN VAN A"
+        }, userId);
+        (await changeNumber.Should().ThrowAsync<OismException>()).Which.ErrorCode.Should().Be("PAYMENT_ACCOUNT_IDENTITY_IMMUTABLE");
+
+        var changeBank = () => service.UpdateAccountAsync(created.Id, new UpdatePaymentAccountRequest
+        {
+            BankBin = "970436", BankName = "Vietcombank", BankShortName = "VCB", AccountNumber = "0123456789", AccountName = "NGUYEN VAN A"
+        }, userId);
+        (await changeBank.Should().ThrowAsync<OismException>()).Which.StatusCode.Should().Be(400);
+
+        var renamed = await service.UpdateAccountAsync(created.Id, new UpdatePaymentAccountRequest
+        {
+            BankBin = "970422", BankName = "Ngân hàng Quân Đội", BankShortName = "mbb", AccountNumber = "0123456789", AccountName = "cua hang a"
+        }, userId);
+        renamed.AccountNumber.Should().Be("0123456789");
+        renamed.BankBin.Should().Be("970422");
+        renamed.BankShortName.Should().Be("MBB");
+        renamed.AccountName.Should().Be("CUA HANG A");
+    }
+
+    [Fact]
+    public async Task Mutations_RequireAuthenticatedUserId()
+    {
+        var (context, tenantService, _) = CreateContext();
+        var service = new PaymentAccountService(context, tenantService, new OISM.Infrastructure.Services.SqlLockService(context));
+
+        var create = () => service.CreateAccountAsync(MbAccount(), Guid.Empty);
+        await create.Should().ThrowAsync<UnauthorizedAccessException>();
+        (await service.GetAccountsAsync()).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task CreateDefault_ReplacesPreviousDefault_AndLeavesExactlyOneDefault()
+    {
+        var (context, tenantService, _) = CreateContext();
+        var service = new PaymentAccountService(context, tenantService, new OISM.Infrastructure.Services.SqlLockService(context));
+        var userId = Guid.NewGuid();
+
+        var first = await service.CreateAccountAsync(MbAccount(), userId);
+        var second = await service.CreateAccountAsync(new CreatePaymentAccountRequest
+        {
+            BankBin = "970436", BankName = "Vietcombank", BankShortName = "VCB", AccountNumber = "9876543210", AccountName = "NGUYEN VAN A", IsDefault = true
+        }, userId);
+
+        var accounts = await service.GetAccountsAsync();
+        accounts.Count(a => a.IsDefault).Should().Be(1);
+        accounts.Single(a => a.IsDefault).Id.Should().Be(second.Id);
+        accounts.Single(a => a.Id == first.Id).IsDefault.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task SetDefault_InactiveAccount_IsRejected_AndDeactivateTwice_IsIdempotent()
+    {
+        var (context, tenantService, _) = CreateContext();
+        var service = new PaymentAccountService(context, tenantService, new OISM.Infrastructure.Services.SqlLockService(context));
+        var userId = Guid.NewGuid();
+        var created = await service.CreateAccountAsync(MbAccount(), userId);
+
+        await service.DeactivateAsync(created.Id, userId);
+        var again = await service.DeactivateAsync(created.Id, userId);
+        again.IsActive.Should().BeFalse();
+
+        var setDefault = () => service.SetDefaultAsync(created.Id, userId);
+        (await setDefault.Should().ThrowAsync<OismException>()).Which.ErrorCode.Should().Be("PAYMENT_ACCOUNT_INACTIVE");
+        (await service.GetActiveAccountsAsync()).Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task OtherTenantAccount_IsNotFound_ForMutations()
+    {
+        var (context, tenantService, _) = CreateContext();
+        var foreignId = Guid.NewGuid();
+        using (context.OpenPrivilegedScope())
+        {
+            context.PaymentAccounts.Add(new PaymentAccount
+            {
+                Id = foreignId, TenantId = Guid.NewGuid(), BankBin = "970415", BankName = "VietinBank", BankShortName = "CTG",
+                AccountNumber = "111222333444", AccountName = "OTHER SHOP", IsActive = true, IsDefault = true
+            });
+            await context.SaveChangesAsync();
+        }
+        context.ChangeTracker.Clear();
+
+        var service = new PaymentAccountService(context, tenantService, new OISM.Infrastructure.Services.SqlLockService(context));
+        var userId = Guid.NewGuid();
+        foreach (var call in new Func<Task>[]
+        {
+            () => service.SetDefaultAsync(foreignId, userId),
+            () => service.DeactivateAsync(foreignId, userId),
+            () => service.UpdateAccountAsync(foreignId, new UpdatePaymentAccountRequest
+            {
+                BankBin = "970415", BankName = "X", BankShortName = "X", AccountNumber = "111222333444", AccountName = "X"
+            }, userId)
+        })
+        {
+            (await call.Should().ThrowAsync<OismException>()).Which.StatusCode.Should().Be(404);
+        }
     }
 }

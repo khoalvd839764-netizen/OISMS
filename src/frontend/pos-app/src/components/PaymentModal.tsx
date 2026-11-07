@@ -14,17 +14,23 @@ import {
   mapServerReceiptToReceiptData,
 } from '../services/api';
 import {
-  getPosBankConfig,
   generateVietQrPayload,
   extractShortReference,
   getOrCreatePosQrIntent,
+  getSavedPosQrIntent,
   isPosQrIntentFor,
   clearPosQrIntent,
-  loadPaymentAccounts,
-  getPaymentAccountsSync,
   toBankConfig,
 } from '../services/qrService';
+import { fetchActivePaymentAccounts } from '../services/paymentAccountSource';
 import type { BankConfig, VietQrResult, PaymentAccountOption } from '../types/qr';
+
+type AccountsState = {
+  tenantId?: string;
+  status: 'idle' | 'loading' | 'ok' | 'empty' | 'error';
+  accounts: PaymentAccountOption[];
+  message?: string;
+};
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -65,10 +71,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiNotice, setApiNotice] = useState<{ type: 'warning' | 'error' | 'success'; text: string; details?: any } | null>(null);
   const [priceUpdates, setPriceUpdates] = useState<CurrentPriceItem[] | null>(null);
-  const [asyncAccounts, setAsyncAccounts] = useState<{ tenantId?: string; accounts: PaymentAccountOption[] }>({
-    tenantId: undefined,
-    accounts: [],
-  });
+  const [accountsState, setAccountsState] = useState<AccountsState>({ status: 'idle', accounts: [] });
+  const [accountsReloadToken, setAccountsReloadToken] = useState(0);
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
 
   const [pendingAttempt, setPendingAttempt] = useState<PendingCheckoutRecord | null>(() => {
@@ -87,10 +91,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const currentPending = getActivePendingRecord();
   const isRetry = Boolean(currentPending && (currentPending.status === 'unknown' || currentPending.status === 'submitting'));
 
-  const syncAccounts = getPaymentAccountsSync(activeUser?.tenantId, branchId);
-  const activeAccounts = syncAccounts.length > 0
-    ? syncAccounts
-    : (asyncAccounts.tenantId === activeUser?.tenantId ? asyncAccounts.accounts : []);
+  // CS-05: tài khoản nhận tiền chỉ lấy từ API của cửa hàng hiện tại.
+  const accountsForTenant = accountsState.tenantId === activeUser?.tenantId ? accountsState : null;
+  const activeAccounts = accountsForTenant?.status === 'ok' ? accountsForTenant.accounts : [];
+  const accountsStatus = accountsForTenant?.status || 'idle';
 
   const selectedAccount = activeAccounts.find((a) => a.id === selectedAccountId) ||
     activeAccounts.find((a) => a.isDefault) ||
@@ -98,21 +102,28 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     null;
 
   useEffect(() => {
-    // Chỉ nạp qua mạng khi:
-    // 1. Modal mở
-    // 2. Phương thức là QR
-    // 3. Không phải Retry (retry dùng lại snapshot cũ)
-    // 4. Có tenantId
-    // 5. Nguồn đồng bộ (localStorage/window) chưa có tài khoản nào
-    if (isOpen && paymentMethod === 'BANK_TRANSFER_QR' && !isRetry && activeUser?.tenantId && syncAccounts.length === 0) {
-      loadPaymentAccounts(activeUser.tenantId, branchId).then((accounts) => {
-        if (accounts.length > 0) {
-          setAsyncAccounts({ tenantId: activeUser?.tenantId, accounts });
-          setSelectedAccountId((prev) => (prev && accounts.some((a) => a.id === prev) ? prev : (accounts.find((a) => a.isDefault)?.id || accounts[0].id)));
-        }
-      });
-    }
-  }, [isOpen, paymentMethod, isRetry, activeUser?.tenantId, branchId, syncAccounts.length]);
+    // Nạp qua API khi modal mở, chọn QR, không phải retry (retry dùng snapshot cũ) và có tenant.
+    if (!isOpen || paymentMethod !== 'BANK_TRANSFER_QR' || isRetry || !activeUser?.tenantId) return;
+    const tenantId = activeUser.tenantId;
+    let cancelled = false;
+    // Không đặt trạng thái 'loading' đồng bộ trong effect: trước lần tải đầu, accountsStatus đã là 'idle' (hiện "Đang tải").
+    fetchActivePaymentAccounts().then((result) => {
+      if (cancelled) return;
+      setAccountsState({ tenantId, status: result.status, accounts: result.accounts, message: result.status === 'error' ? result.message : undefined });
+      if (result.status === 'ok') {
+        // Giữ tài khoản đã chọn; nếu chưa chọn thì khôi phục theo intent đã lưu, cuối cùng là tài khoản mặc định.
+        const savedAccountId = getSavedPosQrIntent(activeUser, branchId)?.paymentAccountId;
+        setSelectedAccountId((prev) => {
+          if (prev && result.accounts.some((a) => a.id === prev)) return prev;
+          if (savedAccountId && result.accounts.some((a) => a.id === savedAccountId)) return savedAccountId;
+          return result.accounts.find((a) => a.isDefault)?.id || result.accounts[0].id;
+        });
+      }
+    });
+    return () => { cancelled = true; };
+    // activeUser là object mới mỗi lần render; chỉ cần theo dõi định danh tenant/user.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, paymentMethod, isRetry, activeUser?.tenantId, activeUser?.id, branchId, accountsReloadToken]);
 
   useEffect(() => {
     if (isOpen) {
@@ -134,9 +145,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const cartFingerprint = JSON.stringify(items.map(i => [i.variantId, i.unitId || '', i.sku, i.quantity, i.retailPrice]));
   const savedQr = currentPending?.qrSnapshot;
 
-  const currentBankConfig: BankConfig | null = selectedAccount
-    ? toBankConfig(selectedAccount)
-    : getPosBankConfig(branchId, activeUser?.tenantId);
+  const currentBankConfig: BankConfig | null = selectedAccount ? toBankConfig(selectedAccount) : null;
 
   const intent = paymentMethod === 'BANK_TRANSFER_QR'
     ? (isRetry ? savedQr : getOrCreatePosQrIntent(activeUser, branchId, cartFingerprint, totalAmount, currentBankConfig, generateUuidV4, selectedAccount?.id))
@@ -150,7 +159,13 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
 
   if (paymentMethod === 'BANK_TRANSFER_QR') {
     if (!bankConfig) {
-      qrError = 'Chưa cấu hình tài khoản ngân hàng thụ hưởng nhận tiền.';
+      qrError = isRetry
+        ? 'Giao dịch cũ chưa có snapshot người nhận hợp lệ.'
+        : accountsStatus === 'loading' || accountsStatus === 'idle'
+          ? 'Đang tải tài khoản nhận tiền...'
+          : accountsStatus === 'error'
+            ? (accountsForTenant?.message || 'Không tải được tài khoản nhận tiền.')
+            : 'Cửa hàng chưa có tài khoản nhận tiền. Vui lòng liên hệ Owner thêm tài khoản trong mục Tài khoản nhận tiền.';
     } else {
       try {
         qrResult = generateVietQrPayload(bankConfig, {
@@ -247,9 +262,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         paymentMethod,
         amountGiven: paymentMethod === 'CASH' ? amountGiven : totalAmount,
         changeDue: paymentMethod === 'CASH' ? changeDue : 0,
-        paymentAccountId: paymentMethod === 'BANK_TRANSFER_QR' && selectedAccount && !selectedAccount.id.startsWith('legacy-')
-          ? selectedAccount.id
-          : undefined,
+        // Gửi đúng tài khoản đã dùng để sinh QR đang hiển thị (theo intent), không lấy lựa chọn hiện tại.
+        paymentAccountId: paymentMethod === 'BANK_TRANSFER_QR' ? qrIntent?.paymentAccountId : undefined,
         transferReference: paymentMethod === 'BANK_TRANSFER_QR' ? (qrResult?.transferContent) : undefined,
         requestKey,
         items: items.map((i) => ({
@@ -551,6 +565,15 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   <p className="text-[11px] text-rose-500 font-medium italic m-0 pt-1">
                     {isRetry ? 'Giao dịch cũ chưa có snapshot người nhận hợp lệ. Chỉ thử lại yêu cầu gốc để đối soát; không quét/chuyển khoản thêm.' : 'Nút thanh toán QR bị khóa cho tới khi có cấu hình hợp lệ. Bạn vẫn có thể chọn Tiền mặt.'}
                   </p>
+                  {!isRetry && accountsStatus === 'error' && (
+                    <button
+                      type="button"
+                      onClick={() => setAccountsReloadToken((value) => value + 1)}
+                      className="mt-1 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white border border-rose-300 text-rose-700 text-xs font-semibold hover:bg-rose-100"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" /> Tải lại tài khoản
+                    </button>
+                  )}
                 </div>
               ) : (
                 <>

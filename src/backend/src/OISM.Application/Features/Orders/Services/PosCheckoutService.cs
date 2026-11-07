@@ -215,6 +215,14 @@ internal sealed class PosCheckoutService(
                     throw new IdempotencyPayloadMismatchException("RequestKey đã được sử dụng với tài khoản nhận khác.");
                 }
 
+                // So sánh nội dung chuyển khoản (chỉ khi cả request và bản đã lưu đều có; request cũ không gửi thì bỏ qua)
+                var requestedReference = dto.TransferReference?.Trim();
+                if (!string.IsNullOrEmpty(requestedReference) && !string.IsNullOrEmpty(existingOrder.Payment.TransferReference) &&
+                    !string.Equals(requestedReference, existingOrder.Payment.TransferReference, StringComparison.Ordinal))
+                {
+                    throw new IdempotencyPayloadMismatchException("RequestKey đã được sử dụng với nội dung chuyển khoản khác.");
+                }
+
                 // So sánh AmountGiven (nếu là Cash)
                 if (normalizedMethod == "Cash")
                 {
@@ -308,6 +316,10 @@ internal sealed class PosCheckoutService(
                     ? await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.TenantId == tenantId.Value && u.Id == cashierUserId.Value, ct)
                     : null;
 
+                var replayAccount = existingOrder.Payment?.PaymentAccountId is Guid replayAccountId
+                    ? await _context.PaymentAccounts.AsNoTracking().FirstOrDefaultAsync(a => a.TenantId == tenantId.Value && a.Id == replayAccountId, ct)
+                    : null;
+
                 var replayReceipt = new PosReceiptDto
                 {
                     OrderId = existingOrder.Id,
@@ -328,6 +340,7 @@ internal sealed class PosCheckoutService(
                         : null,
                     TransferReference = existingOrder.Payment?.TransferReference,
                     ReceiverBankBin = existingOrder.Payment?.ReceiverBankBin,
+                    ReceiverBankName = replayAccount?.BankName ?? replayAccount?.BankShortName,
                     ReceiverAccountNumber = existingOrder.Payment?.ReceiverAccountNumber,
                     ReceiverAccountName = existingOrder.Payment?.ReceiverAccountName,
                     CreatedAt = existingInvoice?.IssuedAt ?? existingOrder.CreatedAt,
@@ -368,6 +381,25 @@ internal sealed class PosCheckoutService(
             if (branch == null || !branch.IsActive)
             {
                 throw new OismException("BRANCH_INACTIVE_OR_INVALID", $"Chi nhánh '{dto.BranchId}' không tồn tại hoặc đã ngừng hoạt động.", 404);
+            }
+
+            // 7b. Tài khoản nhận tiền (CS-05): kiểm tra trước khi trừ kho. Không gửi PaymentAccountId thì để trống bản chụp,
+            // không tự chọn tài khoản khác vì khách có thể đã chuyển vào tài khoản khác.
+            PaymentAccount? selectedAccount = null;
+            if (normalizedMethod == "BankTransfer" && dto.PaymentAccountId.HasValue)
+            {
+                selectedAccount = await _context.PaymentAccounts.AsNoTracking()
+                    .FirstOrDefaultAsync(a => a.TenantId == tenantId.Value && a.Id == dto.PaymentAccountId.Value, ct);
+
+                if (selectedAccount == null)
+                {
+                    throw new OismException("PAYMENT_ACCOUNT_NOT_FOUND", "Không tìm thấy tài khoản nhận tiền của cửa hàng.", 404);
+                }
+
+                if (!selectedAccount.IsActive)
+                {
+                    throw new OismException("PAYMENT_ACCOUNT_INACTIVE", "Tài khoản nhận tiền đã ngừng sử dụng. Vui lòng chọn tài khoản khác và tạo lại mã QR.", 409);
+                }
             }
 
             // 8. Tải và xác thực danh mục SKU trong Catalog
@@ -690,33 +722,7 @@ internal sealed class PosCheckoutService(
                 bBal.UpdatedAt = now;
             }
 
-            // 15. Xác định tài khoản nhận tiền (nếu là BankTransfer) và tạo bản ghi thanh toán Payment (Succeeded)
-            PaymentAccount? selectedAccount = null;
-            if (normalizedMethod == "BankTransfer")
-            {
-                if (dto.PaymentAccountId.HasValue)
-                {
-                    selectedAccount = await _context.PaymentAccounts
-                        .FirstOrDefaultAsync(a => a.TenantId == tenantId.Value && a.Id == dto.PaymentAccountId.Value, ct);
-
-                    if (selectedAccount == null || !selectedAccount.IsActive)
-                    {
-                        throw new OismException("PAYMENT_ACCOUNT_INACTIVE", "Tài khoản nhận tiền đã bị ngừng hoạt động hoặc không tồn tại.", 400);
-                    }
-                }
-                else
-                {
-                    selectedAccount = await _context.PaymentAccounts
-                        .FirstOrDefaultAsync(a => a.TenantId == tenantId.Value && a.IsActive && a.IsDefault, ct);
-
-                    if (selectedAccount == null)
-                    {
-                        selectedAccount = await _context.PaymentAccounts
-                            .FirstOrDefaultAsync(a => a.TenantId == tenantId.Value && a.IsActive, ct);
-                    }
-                }
-            }
-
+            // 15. Tạo bản ghi thanh toán Payment (Succeeded); tài khoản nhận đã kiểm tra ở bước 7b
             var payment = new Payment
             {
                 Id = Guid.NewGuid(),

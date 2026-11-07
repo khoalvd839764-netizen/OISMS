@@ -41,12 +41,13 @@ DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_payment_accounts_tenant_id') THEN
         ALTER TABLE public.payment_accounts ADD CONSTRAINT fk_payment_accounts_tenant_id
-        FOREIGN KEY (tenant_id) REFERENCES public.tenants (id) ON DELETE CASCADE ON UPDATE NO ACTION;
+        FOREIGN KEY (tenant_id) REFERENCES public.tenants (id) ON DELETE RESTRICT ON UPDATE NO ACTION;
     END IF;
 
+    -- Chỉ set NULL cột updated_by_user_id; tenant_id NOT NULL không được đụng tới (PostgreSQL 15+).
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_payment_accounts_updated_by') THEN
         ALTER TABLE public.payment_accounts ADD CONSTRAINT fk_payment_accounts_updated_by
-        FOREIGN KEY (tenant_id, updated_by_user_id) REFERENCES public.users (tenant_id, id) ON DELETE SET NULL ON UPDATE NO ACTION;
+        FOREIGN KEY (tenant_id, updated_by_user_id) REFERENCES public.users (tenant_id, id) ON DELETE SET NULL (updated_by_user_id) ON UPDATE NO ACTION;
     END IF;
 END $$;
 
@@ -61,9 +62,10 @@ ALTER TABLE public.payments ADD COLUMN IF NOT EXISTS payment_account_id uuid NUL
 
 DO $$
 BEGIN
+    -- Tài khoản đã có chứng từ không được xóa cứng (chỉ ngừng dùng), nên RESTRICT.
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_payments_payment_account_id') THEN
         ALTER TABLE public.payments ADD CONSTRAINT fk_payments_payment_account_id
-        FOREIGN KEY (tenant_id, payment_account_id) REFERENCES public.payment_accounts (tenant_id, id) ON DELETE SET NULL ON UPDATE NO ACTION;
+        FOREIGN KEY (tenant_id, payment_account_id) REFERENCES public.payment_accounts (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_payments_bank_transfer_snapshot') THEN
@@ -75,6 +77,28 @@ BEGIN
             receiver_account_name IS NULL AND
             payment_account_id IS NULL
         ));
+    END IF;
+END $$;
+
+-- Sửa bản nháp đầu của file này trên DB local đã lỡ chạy: tạo lại FK có ON DELETE sai.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_payments_payment_account_id' AND confdeltype <> 'r') THEN
+        ALTER TABLE public.payments DROP CONSTRAINT fk_payments_payment_account_id;
+        ALTER TABLE public.payments ADD CONSTRAINT fk_payments_payment_account_id
+        FOREIGN KEY (tenant_id, payment_account_id) REFERENCES public.payment_accounts (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_payment_accounts_updated_by' AND confdelsetcols IS NULL) THEN
+        ALTER TABLE public.payment_accounts DROP CONSTRAINT fk_payment_accounts_updated_by;
+        ALTER TABLE public.payment_accounts ADD CONSTRAINT fk_payment_accounts_updated_by
+        FOREIGN KEY (tenant_id, updated_by_user_id) REFERENCES public.users (tenant_id, id) ON DELETE SET NULL (updated_by_user_id) ON UPDATE NO ACTION;
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_payment_accounts_tenant_id' AND confdeltype <> 'r') THEN
+        ALTER TABLE public.payment_accounts DROP CONSTRAINT fk_payment_accounts_tenant_id;
+        ALTER TABLE public.payment_accounts ADD CONSTRAINT fk_payment_accounts_tenant_id
+        FOREIGN KEY (tenant_id) REFERENCES public.tenants (id) ON DELETE RESTRICT ON UPDATE NO ACTION;
     END IF;
 END $$;
 

@@ -27,6 +27,7 @@ public class PaymentAccountsController : ControllerBase
     /// Lấy danh sách toàn bộ tài khoản ngân hàng của cửa hàng (Dành riêng cho Owner).
     /// </summary>
     [HttpGet]
+    [ApiErrorContract(ApiErrorProfile.PaymentAccounts)]
     [Authorize(Roles = "Owner")]
     public async Task<IActionResult> GetAccounts(CancellationToken ct)
     {
@@ -38,7 +39,8 @@ public class PaymentAccountsController : ControllerBase
     /// Lấy danh sách tài khoản ngân hàng đang hoạt động để thu ngân chọn lúc thanh toán POS.
     /// </summary>
     [HttpGet("active")]
-    [Authorize(Roles = "Owner,Manager,Staff,Cashier")]
+    [ApiErrorContract(ApiErrorProfile.PaymentAccounts)]
+    [Authorize(Roles = "Owner,Staff,Cashier")]
     public async Task<IActionResult> GetActiveAccounts(CancellationToken ct)
     {
         var activeAccounts = await _service.GetActiveAccountsAsync(ct);
@@ -49,10 +51,11 @@ public class PaymentAccountsController : ControllerBase
     /// Thêm tài khoản ngân hàng mới cho cửa hàng (Chỉ Owner).
     /// </summary>
     [HttpPost]
+    [ApiErrorContract(ApiErrorProfile.PaymentAccounts)]
     [Authorize(Roles = "Owner")]
     public async Task<IActionResult> CreateAccount([FromBody] CreatePaymentAccountRequest request, CancellationToken ct)
     {
-        var userId = User.GetUserId() ?? Guid.Empty;
+        if (User.GetUserId() is not Guid userId) return Unauthorized();
         var created = await _service.CreateAccountAsync(request, userId, ct);
         return StatusCode(201, created);
     }
@@ -61,10 +64,11 @@ public class PaymentAccountsController : ControllerBase
     /// Cập nhật thông tin tài khoản ngân hàng (Chỉ Owner).
     /// </summary>
     [HttpPut("{id:guid}")]
+    [ApiErrorContract(ApiErrorProfile.PaymentAccounts)]
     [Authorize(Roles = "Owner")]
     public async Task<IActionResult> UpdateAccount([FromRoute] Guid id, [FromBody] UpdatePaymentAccountRequest request, CancellationToken ct)
     {
-        var userId = User.GetUserId() ?? Guid.Empty;
+        if (User.GetUserId() is not Guid userId) return Unauthorized();
         var updated = await _service.UpdateAccountAsync(id, request, userId, ct);
         return Ok(updated);
     }
@@ -73,10 +77,11 @@ public class PaymentAccountsController : ControllerBase
     /// Đặt tài khoản làm mặc định khi tạo giao dịch QR thanh toán (Chỉ Owner).
     /// </summary>
     [HttpPost("{id:guid}/set-default")]
+    [ApiErrorContract(ApiErrorProfile.PaymentAccounts)]
     [Authorize(Roles = "Owner")]
     public async Task<IActionResult> SetDefault([FromRoute] Guid id, CancellationToken ct)
     {
-        var userId = User.GetUserId() ?? Guid.Empty;
+        if (User.GetUserId() is not Guid userId) return Unauthorized();
         var result = await _service.SetDefaultAsync(id, userId, ct);
         return Ok(result);
     }
@@ -85,10 +90,11 @@ public class PaymentAccountsController : ControllerBase
     /// Ngừng sử dụng tài khoản ngân hàng (Chỉ Owner - Không xóa cứng để bảo vệ chứng từ lịch sử).
     /// </summary>
     [HttpPost("{id:guid}/deactivate")]
+    [ApiErrorContract(ApiErrorProfile.PaymentAccounts)]
     [Authorize(Roles = "Owner")]
     public async Task<IActionResult> Deactivate([FromRoute] Guid id, CancellationToken ct)
     {
-        var userId = User.GetUserId() ?? Guid.Empty;
+        if (User.GetUserId() is not Guid userId) return Unauthorized();
         var result = await _service.DeactivateAsync(id, userId, ct);
         return Ok(result);
     }

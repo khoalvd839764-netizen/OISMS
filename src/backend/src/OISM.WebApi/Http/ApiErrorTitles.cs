@@ -7,6 +7,7 @@ internal static class ApiErrorTitles
         ApiErrorProfile.GoodsReceipts or ApiErrorProfile.GoodsReceiptCreate or ApiErrorProfile.GoodsReceiptRead or ApiErrorProfile.PurchaseOrders => GoodsReceipts(code),
         ApiErrorProfile.Orders or ApiErrorProfile.OrderProcess => Orders(code),
         ApiErrorProfile.PosCheckout => PosCheckout(code),
+        ApiErrorProfile.PaymentAccounts => PaymentAccounts(code),
         ApiErrorProfile.Pricing => Pricing(code),
         ApiErrorProfile.SalesInvoices => SalesInvoices(code),
         ApiErrorProfile.StockCountPeriods => StockCountPeriods(code),
@@ -69,6 +70,19 @@ internal static class ApiErrorTitles
         "ORDER_NOT_FOUND" => "Không tìm thấy đơn hàng",
         "INVALID_STATE_TRANSITION" => "Chuyển trạng thái không hợp lệ",
         "RESERVATION_EXPIRED" => "Phiếu giữ chỗ đã hết hạn",
+        "PAYMENT_ACCOUNT_NOT_FOUND" => "Không tìm thấy tài khoản nhận tiền",
+        "PAYMENT_ACCOUNT_INACTIVE" => "Tài khoản nhận tiền đã ngừng sử dụng",
+        _ => "Lỗi xử lý nghiệp vụ"
+    };
+
+    private static string PaymentAccounts(string code) => code switch
+    {
+        "VALIDATION_ERROR" => "Lỗi xác thực dữ liệu",
+        "PAYMENT_ACCOUNT_NOT_FOUND" => "Không tìm thấy tài khoản nhận tiền",
+        "PAYMENT_ACCOUNT_DUPLICATE" => "Tài khoản nhận tiền đã tồn tại",
+        "PAYMENT_ACCOUNT_INACTIVE" => "Tài khoản nhận tiền đã ngừng sử dụng",
+        "PAYMENT_ACCOUNT_IDENTITY_IMMUTABLE" => "Không được đổi ngân hàng hoặc số tài khoản",
+        "PAYMENT_ACCOUNT_CONFLICT" => "Xung đột cập nhật tài khoản mặc định",
         _ => "Lỗi xử lý nghiệp vụ"
     };
 

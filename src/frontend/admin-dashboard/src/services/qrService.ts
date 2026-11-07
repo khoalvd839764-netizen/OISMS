@@ -9,6 +9,7 @@
  * 5. Thiết lập Guard chống suy diễn thanh toán thành công từ hiển thị, quét mã hoặc hết thời gian.
  *
  * Tương thích 100% môi trường Browser, không phụ thuộc Node.js Buffer (B03-F01).
+ * Bản giống hệt tại admin-dashboard/src/services/qrService.ts; sửa thì sửa cả hai (test-qr-parity.mjs kiểm tra).
  */
 
 import type {
@@ -18,10 +19,9 @@ import type {
   QrValidationResult,
   QrSnapshotData,
   TlvField,
-  ScopedBankConfig,
   PosQrIntent,
   PaymentAccountOption,
-  PaymentAccountEnvelopeV2,
+  PaymentAccountsLoadResult,
 } from '../types/qr';
 
 /** Giới hạn tiền tệ hệ thống OISMS theo chuẩn QuickLink/NAPAS: tối đa 13 chữ số nguyên (9.999.999.999.999 đ) */
@@ -425,34 +425,6 @@ export function isPaymentConfirmedByScanOrTimeout(): boolean {
   return false;
 }
 
-/**
- * Lấy cấu hình tài khoản ngân hàng thụ hưởng cho POS.
- * 
- * Nguồn ưu tiên:
- * 1. window.__OISMS_POS_BANK_CONFIGS__: danh sách envelope gắn tenant + chi nhánh.
- * 2. Nếu không inject danh sách, đọc localStorage theo getPosBankConfigKey.
- * Chỉ nhận envelope version 1 khớp cả hai ID. Thiếu/sai cấu hình trả về null;
- * không dùng cấu hình global cũ, biến môi trường hay tài khoản mẫu làm fallback.
- */
-export function getPosBankConfig(branchId?: string, tenantId?: string): BankConfig | null {
-  if (!branchId || !tenantId) return null;
-  try {
-    // A deployment-provided array is authoritative; no cross-context fallback.
-    const configured = typeof window !== 'undefined' ? (window as any).__OISMS_POS_BANK_CONFIGS__ : undefined;
-    const candidate: ScopedBankConfig | undefined = configured !== undefined
-      ? (Array.isArray(configured) ? configured.find((item: ScopedBankConfig) => item?.tenantId === tenantId && item?.branchId === branchId) : undefined)
-      : JSON.parse(localStorage.getItem(getPosBankConfigKey(tenantId, branchId)) || 'null');
-    if (candidate?.version !== 1 || candidate.tenantId !== tenantId || candidate.branchId !== branchId || !validateBankConfig(candidate.bankConfig).valid) return null;
-    return { ...candidate.bankConfig };
-  } catch {
-    return null;
-  }
-}
-
-export function getPosBankConfigKey(tenantId: string, branchId: string): string {
-  return `pos_bank_config_v1:${encodeURIComponent(tenantId)}:${encodeURIComponent(branchId)}`;
-}
-
 type QrUser = { id?: string; tenantId?: string } | null | undefined;
 const intentMemory = new Map<string, string>();
 function intentKey(user: QrUser, branchId: string): string | null {
@@ -484,7 +456,7 @@ export function getOrCreatePosQrIntent(
     isPosQrIntentFor(saved, user, branchId) &&
     saved.cartFingerprint === cartFingerprint &&
     saved.amount === amount &&
-    (!paymentAccountId || !saved.paymentAccountId || saved.paymentAccountId === paymentAccountId)
+    (saved.paymentAccountId || undefined) === (paymentAccountId || undefined)
   ) {
     return saved;
   }
@@ -505,6 +477,17 @@ export function getOrCreatePosQrIntent(
   return intent;
 }
 
+/**
+ * Đọc intent QR đã lưu (không tạo mới) để khôi phục tài khoản thu ngân đã chọn sau khi đóng/mở hoặc reload.
+ */
+export function getSavedPosQrIntent(user: QrUser, branchId: string): PosQrIntent | null {
+  const key = intentKey(user, branchId);
+  if (!key) return null;
+  let saved: PosQrIntent | null = null;
+  try { saved = JSON.parse(sessionStorage.getItem(key) || intentMemory.get(key) || 'null'); } catch { try { saved = JSON.parse(intentMemory.get(key) || 'null'); } catch {} }
+  return isPosQrIntentFor(saved, user, branchId) ? saved : null;
+}
+
 export function clearPosQrIntent(user: QrUser, branchId: string): void {
   const key = intentKey(user, branchId);
   if (!key) return;
@@ -522,85 +505,94 @@ export function toBankConfig(account: PaymentAccountOption, template: string = '
   };
 }
 
-export function getPaymentAccountsSync(tenantId?: string, branchId?: string): PaymentAccountOption[] {
-  if (!tenantId) return [];
+const GUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-  try {
-    const windowEnv = typeof window !== 'undefined'
-      ? (window as any).__OISMS_POS_PAYMENT_ACCOUNTS__
-      : undefined;
-
-    let candidate: PaymentAccountEnvelopeV2 | undefined = undefined;
-    if (windowEnv && Array.isArray(windowEnv)) {
-      candidate = windowEnv.find((env: PaymentAccountEnvelopeV2) => env?.tenantId === tenantId && env?.version === 2);
-    } else if (typeof localStorage !== 'undefined') {
-      const raw = localStorage.getItem(`pos_payment_accounts_v2:${encodeURIComponent(tenantId)}`);
-      if (raw) candidate = JSON.parse(raw);
-    }
-
-    if (candidate && candidate.version === 2 && candidate.tenantId === tenantId && Array.isArray(candidate.accounts)) {
-      return candidate.accounts;
-    }
-  } catch {}
-
-  if (branchId) {
-    const legacyConfig = getPosBankConfig(branchId, tenantId);
-    if (legacyConfig) {
-      return [
-        {
-          id: `legacy-${legacyConfig.bankBin}-${legacyConfig.accountNumber}`,
-          bankBin: legacyConfig.bankBin,
-          bankName: legacyConfig.bankName,
-          bankShortName: legacyConfig.bankName,
-          accountNumber: legacyConfig.accountNumber,
-          accountName: legacyConfig.accountName,
-          isDefault: true,
-        },
-      ];
-    }
-  }
-
-  return [];
+function asTrimmedString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
 }
 
-export async function loadPaymentAccounts(
-  tenantId?: string,
-  branchId?: string,
-  fetchFn?: typeof fetch
-): Promise<PaymentAccountOption[]> {
-  if (!tenantId) return [];
+/**
+ * Chuẩn hóa danh sách tài khoản từ API: bỏ phần tử sai định dạng, trùng id hoặc không sinh được VietQR;
+ * chỉ giữ tối đa một tài khoản mặc định.
+ */
+export function normalizePaymentAccounts(data: unknown): PaymentAccountOption[] {
+  if (!Array.isArray(data)) return [];
+  const seen = new Set<string>();
+  const accounts: PaymentAccountOption[] = [];
+  let hasDefault = false;
+  for (const item of data) {
+    if (!item || typeof item !== 'object') continue;
+    const raw = item as Record<string, unknown>;
+    const id = asTrimmedString(raw.id);
+    if (!GUID_REGEX.test(id) || seen.has(id)) continue;
+    const bankName = asTrimmedString(raw.bankName);
+    const account: PaymentAccountOption = {
+      id,
+      bankBin: asTrimmedString(raw.bankBin),
+      bankName,
+      bankShortName: asTrimmedString(raw.bankShortName) || bankName,
+      accountNumber: asTrimmedString(raw.accountNumber),
+      accountName: asTrimmedString(raw.accountName),
+      isDefault: raw.isDefault === true && !hasDefault,
+    };
+    if (!validateBankConfig(toBankConfig(account)).valid) continue;
+    if (account.isDefault) hasDefault = true;
+    seen.add(id);
+    accounts.push(account);
+  }
+  return accounts;
+}
 
-  const effectiveFetch = fetchFn || (typeof window !== 'undefined' && typeof window.fetch === 'function' ? window.fetch : (typeof fetch === 'function' ? fetch : undefined));
+export interface LoadPaymentAccountsOptions {
+  /** Gốc API (VITE_API_BASE_URL), không có đuôi /api. */
+  baseUrl: string;
+  /** Access token của phiên đăng nhập hiện tại. */
+  token: string | null | undefined;
+  /** Hàm fetch thay thế (dùng cho test). */
+  fetchFn?: (input: string, init?: RequestInit) => Promise<Response>;
+}
 
+/**
+ * Tải danh sách tài khoản nhận tiền đang dùng của cửa hàng từ `GET /api/payment-accounts/active`.
+ * Đây là nguồn duy nhất: không đọc localStorage, sessionStorage hay biến window.
+ * Có bản ở cả pos-app và admin-dashboard, sửa thì sửa cả hai bản.
+ */
+export async function loadPaymentAccounts(options: LoadPaymentAccountsOptions): Promise<PaymentAccountsLoadResult> {
+  const fail = (message: string, httpStatus?: number): PaymentAccountsLoadResult => ({ status: 'error', accounts: [], message, httpStatus });
+  if (!options.token) {
+    return fail('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để tải tài khoản nhận tiền.', 401);
+  }
+  const url = `${(options.baseUrl || '').replace(/\/+$/, '')}/api/payment-accounts/active`;
+  const init: RequestInit = {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${options.token}`, Accept: 'application/json' },
+  };
+
+  let resp: Response;
   try {
-    const token = typeof localStorage !== 'undefined'
-      ? (localStorage.getItem('pos_access_token') || localStorage.getItem('access_token'))
-      : null;
-
-    if (token && typeof effectiveFetch === 'function') {
-      const resp = await effectiveFetch('/api/payment-accounts/active', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: 'application/json',
-        },
-      });
-
-      if (resp.ok) {
-        const data = await resp.json();
-        if (Array.isArray(data) && data.length > 0) {
-          return data.map((item: any) => ({
-            id: String(item.id || ''),
-            bankBin: String(item.bankBin || ''),
-            bankName: String(item.bankName || ''),
-            bankShortName: String(item.bankShortName || item.bankName || ''),
-            accountNumber: String(item.accountNumber || ''),
-            accountName: String(item.accountName || ''),
-            isDefault: Boolean(item.isDefault),
-          }));
-        }
-      }
+    if (options.fetchFn) {
+      resp = await options.fetchFn(url, init);
+    } else if (typeof fetch === 'function') {
+      resp = await fetch(url, init);
+    } else {
+      return fail('Trình duyệt không hỗ trợ tải tài khoản nhận tiền.');
     }
-  } catch {}
+  } catch {
+    return fail('Không kết nối được máy chủ để tải tài khoản nhận tiền.');
+  }
 
-  return getPaymentAccountsSync(tenantId, branchId);
+  if (resp.status === 401) return fail('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để tải tài khoản nhận tiền.', 401);
+  if (resp.status === 403) return fail('Tài khoản đăng nhập không có quyền xem tài khoản nhận tiền.', 403);
+  if (!resp.ok) return fail(`Không tải được tài khoản nhận tiền (HTTP ${resp.status}).`, resp.status);
+
+  let data: unknown;
+  try {
+    data = await resp.json();
+  } catch {
+    return fail('Phản hồi danh sách tài khoản nhận tiền không hợp lệ.', resp.status);
+  }
+  if (!Array.isArray(data)) return fail('Phản hồi danh sách tài khoản nhận tiền không hợp lệ.', resp.status);
+
+  const accounts = normalizePaymentAccounts(data);
+  return accounts.length > 0 ? { status: 'ok', accounts } : { status: 'empty', accounts: [] };
 }

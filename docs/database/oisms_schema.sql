@@ -1024,9 +1024,9 @@ ALTER TABLE "reservations" ADD CONSTRAINT "fk_reservations_order_item" FOREIGN K
 ALTER TABLE "reservations" ADD CONSTRAINT "fk_reservations_order_branch" FOREIGN KEY ("tenant_id", "order_id", "branch_id") REFERENCES "orders" ("tenant_id", "id", "branch_id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 ALTER TABLE "payments" ADD CONSTRAINT "fk_payments_tenant_id" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 ALTER TABLE "payments" ADD CONSTRAINT "fk_payments_order_id" FOREIGN KEY ("tenant_id", "order_id") REFERENCES "orders" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
-ALTER TABLE "payments" ADD CONSTRAINT "fk_payments_payment_account_id" FOREIGN KEY ("tenant_id", "payment_account_id") REFERENCES "payment_accounts" ("tenant_id", "id") ON DELETE SET NULL ON UPDATE NO ACTION;
-ALTER TABLE "payment_accounts" ADD CONSTRAINT "fk_payment_accounts_tenant_id" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
-ALTER TABLE "payment_accounts" ADD CONSTRAINT "fk_payment_accounts_updated_by" FOREIGN KEY ("tenant_id", "updated_by_user_id") REFERENCES "users" ("tenant_id", "id") ON DELETE SET NULL ON UPDATE NO ACTION;
+ALTER TABLE "payments" ADD CONSTRAINT "fk_payments_payment_account_id" FOREIGN KEY ("tenant_id", "payment_account_id") REFERENCES "payment_accounts" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "payment_accounts" ADD CONSTRAINT "fk_payment_accounts_tenant_id" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "payment_accounts" ADD CONSTRAINT "fk_payment_accounts_updated_by" FOREIGN KEY ("tenant_id", "updated_by_user_id") REFERENCES "users" ("tenant_id", "id") ON DELETE SET NULL ("updated_by_user_id") ON UPDATE NO ACTION;
 ALTER TABLE "sales_returns" ADD CONSTRAINT "fk_sales_returns_tenant_id" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 ALTER TABLE "sales_returns" ADD CONSTRAINT "fk_sales_returns_order_id" FOREIGN KEY ("tenant_id", "order_id") REFERENCES "orders" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 ALTER TABLE "sales_returns" ADD CONSTRAINT "fk_sales_returns_branch_id" FOREIGN KEY ("tenant_id", "branch_id") REFERENCES "branches" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;

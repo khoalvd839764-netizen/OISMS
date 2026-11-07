@@ -77,6 +77,10 @@ const targets = [
   },
 ];
 
+const ACC_1 = '11111111-aaaa-4bbb-8ccc-000000000001';
+const ACC_2 = '22222222-aaaa-4bbb-8ccc-000000000002';
+const ACC_3 = '33333333-aaaa-4bbb-8ccc-000000000003';
+
 const bankFixtureA = {
   bankBin: '970422',
   bankName: 'MB Bank',
@@ -154,88 +158,82 @@ for (const target of targets) {
     assert.equal(intentB.requestKey, 'c8b7e289-4a0b-46fb-9762-23c893012802');
   });
 
-  test(`${target.name}: thiếu cấu hình trả về null hoặc empty, không dùng fake`, () => {
+  test(`${target.name}: thiếu tài khoản thì không tạo intent, không dùng tài khoản mẫu`, () => {
     const { exports: qr } = loadModuleWithContext(target.qrServicePath);
-    assert.equal(qr.getPosBankConfig('br-none', 'ten-none'), null);
-    assert.equal(qr.getPaymentAccountsSync('ten-none', 'br-none').length, 0);
-
+    assert.equal(typeof qr.getPosBankConfig, 'undefined');
+    assert.equal(typeof qr.getPaymentAccountsSync, 'undefined');
     const user = { id: 'usr-1', tenantId: 'ten-1' };
-    const cart = '[]';
-    const intent = qr.getOrCreatePosQrIntent(user, 'br-none', cart, 50000, null, () => 'key');
+    const intent = qr.getOrCreatePosQrIntent(user, 'br-none', '[]', 50000, null, () => 'key');
     assert.equal(intent, null);
   });
 
-  test(`${target.name}: sai tenant không đọc được tài khoản của tenant khác`, () => {
-    const { exports: qr, localStorage } = loadModuleWithContext(target.qrServicePath);
-    const tenantA = 'tenant-a-1111';
-    const tenantB = 'tenant-b-2222';
-
-    // Lưu envelope v2 cho tenant A
-    localStorage.setItem(
-      `pos_payment_accounts_v2:${encodeURIComponent(tenantA)}`,
-      JSON.stringify({
-        version: 2,
-        tenantId: tenantA,
-        accounts: [
-          {
-            id: 'acc-1',
-            bankBin: '970422',
-            bankName: 'MB',
-            bankShortName: 'MB',
-            accountNumber: '1111222233',
-            accountName: 'SHOP A',
-            isDefault: true,
-          },
-        ],
-      })
-    );
-
-    // Tenant A lấy được
-    const accountsA = qr.getPaymentAccountsSync(tenantA);
-    assert.equal(accountsA.length, 1);
-    assert.equal(accountsA[0].accountNumber, '1111222233');
-
-    // Tenant B truy vấn không lấy được tài khoản của tenant A
-    const accountsB = qr.getPaymentAccountsSync(tenantB);
-    assert.equal(accountsB.length, 0);
+  test(`${target.name}: intent không có paymentAccountId không bị dùng lại cho tài khoản từ API`, () => {
+    const { exports: qr } = loadModuleWithContext(target.qrServicePath);
+    const user = { id: 'usr-1', tenantId: 'ten-1' };
+    let n = 0; const createKey = () => `c8b7e289-4a0b-46fb-9762-23c8930128${String(++n).padStart(2, '0')}`;
+    const legacy = qr.getOrCreatePosQrIntent(user, 'br-1', '[]', 1000, bankFixtureA, createKey);
+    const fromApi = qr.getOrCreatePosQrIntent(user, 'br-1', '[]', 1000, bankFixtureB, createKey, ACC_1);
+    assert.notEqual(fromApi.requestKey, legacy.requestKey);
+    assert.equal(fromApi.paymentAccountId, ACC_1);
+    assert.equal(qr.getSavedPosQrIntent(user, 'br-1').requestKey, fromApi.requestKey);
+    assert.equal(qr.getSavedPosQrIntent({ id: 'usr-2', tenantId: 'ten-1' }, 'br-1'), null);
   });
 
-  test(`${target.name}: envelope v1 cũ bị bỏ qua khi đọc theo tenant`, () => {
-    const { exports: qr, localStorage } = loadModuleWithContext(target.qrServicePath);
-    const tenant = 'tenant-test-v1';
-
-    // Giả lập dữ liệu format v1 không đúng chuẩn v2
-    localStorage.setItem(
-      `pos_payment_accounts_v2:${encodeURIComponent(tenant)}`,
-      JSON.stringify({
-        version: 1, // Sai version
-        tenantId: tenant,
-        accounts: [{ id: 'old-acc' }],
-      })
-    );
-
-    const accounts = qr.getPaymentAccountsSync(tenant);
-    assert.equal(accounts.length, 0);
+  test(`${target.name}: loadPaymentAccounts gọi đúng URL, gửi token, chuẩn hóa dữ liệu`, async () => {
+    const { exports: qr } = loadModuleWithContext(target.qrServicePath);
+    const calls = [];
+    const fetchFn = async (url, init) => { calls.push({ url, init }); return { ok: true, status: 200, json: async () => [
+      { id: ACC_1, bankBin: '970422', bankName: 'MB Bank', bankShortName: 'MB', accountNumber: '0123456789', accountName: 'SHOP A', isDefault: true },
+      { id: ACC_2, bankBin: '970415', bankName: 'VietinBank', bankShortName: '', accountNumber: '987654321', accountName: 'SHOP B', isDefault: true },
+      { id: ACC_1, bankBin: '970422', bankName: 'Trùng id', accountNumber: '0123456789', accountName: 'X' },
+      { id: 'legacy-970422-1', bankBin: '970422', bankName: 'MB', accountNumber: '0123456789', accountName: 'X' },
+      { id: ACC_3, bankBin: '97', bankName: 'Sai BIN', accountNumber: '0123456789', accountName: 'X' },
+    ] }; };
+    const result = await qr.loadPaymentAccounts({ baseUrl: 'https://api.example.test/', token: 'tok', fetchFn });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, 'https://api.example.test/api/payment-accounts/active');
+    assert.equal(calls[0].init.headers.Authorization, 'Bearer tok');
+    assert.equal(result.status, 'ok');
+    assert.equal(result.accounts.map((a) => a.id).join(','), [ACC_1, ACC_2].join(','));
+    assert.equal(result.accounts.map((a) => a.isDefault).join(','), 'true,false');
+    assert.equal(result.accounts[1].bankShortName, 'VietinBank');
   });
 
-  test(`${target.name}: paymentAccountSource xuất đủ các hàm đồng bộ`, () => {
-    const { exports: src } = loadModuleWithContext(target.sourcePath);
-    assert.equal(typeof src.loadPaymentAccounts, 'function');
-    assert.equal(typeof src.getPaymentAccountsSync, 'function');
-    assert.equal(typeof src.toBankConfig, 'function');
+  test(`${target.name}: loadPaymentAccounts báo lỗi rõ khi thiếu token, 401, 403, 5xx, mất mạng, JSON sai`, async () => {
+    const { exports: qr } = loadModuleWithContext(target.qrServicePath);
+    let called = 0;
+    const noToken = await qr.loadPaymentAccounts({ baseUrl: 'x', token: null, fetchFn: async () => { called++; } });
+    assert.equal(noToken.status, 'error'); assert.equal(noToken.httpStatus, 401); assert.equal(called, 0);
+    for (const status of [401, 403, 500]) {
+      const r = await qr.loadPaymentAccounts({ baseUrl: 'x', token: 't', fetchFn: async () => ({ ok: false, status, json: async () => ({}) }) });
+      assert.equal(r.status, 'error'); assert.equal(r.httpStatus, status); assert.ok(r.message.length > 0);
+    }
+    const offline = await qr.loadPaymentAccounts({ baseUrl: 'x', token: 't', fetchFn: async () => { throw new TypeError('Failed to fetch'); } });
+    assert.equal(offline.status, 'error');
+    const badJson = await qr.loadPaymentAccounts({ baseUrl: 'x', token: 't', fetchFn: async () => ({ ok: true, status: 200, json: async () => ({ items: [] }) }) });
+    assert.equal(badJson.status, 'error');
+    const empty = await qr.loadPaymentAccounts({ baseUrl: 'x', token: 't', fetchFn: async () => ({ ok: true, status: 200, json: async () => [] }) });
+    assert.equal(empty.status, 'empty');
+  });
 
-    const bankConfig = src.toBankConfig({
-      id: 'acc-1',
-      bankBin: '970422',
-      bankName: 'MB Bank',
-      bankShortName: 'MB',
-      accountNumber: '0123456789',
-      accountName: 'NGUYEN VAN A',
-      isDefault: true,
-    });
-    assert.equal(bankConfig.bankBin, '970422');
-    assert.equal(bankConfig.accountNumber, '0123456789');
-    assert.equal(bankConfig.accountName, 'NGUYEN VAN A');
-    assert.equal(bankConfig.bankName, 'MB');
+  test(`${target.name}: không đọc localStorage hay window làm nguồn tài khoản`, async () => {
+    const legacy = [{ version: 2, tenantId: 'ten-1', accounts: [{ id: ACC_1, bankBin: '970422', bankName: 'MB', bankShortName: 'MB', accountNumber: '0123456789', accountName: 'A', isDefault: true }] }];
+    const { exports: qr, localStorage } = loadModuleWithContext(target.qrServicePath, { window: { __OISMS_POS_PAYMENT_ACCOUNTS__: legacy } });
+    localStorage.setItem('pos_payment_accounts_v2:ten-1', JSON.stringify(legacy[0]));
+    const result = await qr.loadPaymentAccounts({ baseUrl: 'x', token: 't', fetchFn: async () => ({ ok: true, status: 200, json: async () => [] }) });
+    assert.equal(result.status, 'empty');
+  });
+
+  test(`${target.name}: paymentAccountSource chỉ xuất hàm tải từ API`, () => {
+    const source = fs.readFileSync(path.resolve(dir, target.sourcePath), 'utf8');
+    assert.match(source, /export function fetchActivePaymentAccounts\(/);
+    assert.doesNotMatch(source, /localStorage|__OISMS_|getPaymentAccountsSync/);
   });
 }
+
+test('qrService.ts và types/qr.ts của hai app phải giống nhau', () => {
+  const read = (p) => fs.readFileSync(path.resolve(dir, p), 'utf8').replace(/\r\n/g, '\n');
+  assert.equal(read('src/services/qrService.ts'), read('../admin-dashboard/src/services/qrService.ts'));
+  const note = /^ \* NOTE: Có bản tương đương tại pos-app\/src\/types\/qr\.ts.*\n/m;
+  assert.equal(read('src/types/qr.ts'), read('../admin-dashboard/src/types/qr.ts').replace(note, ''));
+});

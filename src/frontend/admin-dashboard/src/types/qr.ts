@@ -19,14 +19,6 @@ export interface BankConfig {
   isTestFixture?: boolean;
 }
 
-/** Account settings are provisioned for one explicit tenant and branch. */
-export interface ScopedBankConfig {
-  version: 1;
-  tenantId: string;
-  branchId: string;
-  bankConfig: BankConfig;
-}
-
 /** Cấu hình tài khoản nhận tiền theo tenant (Giai đoạn b - CS-05) */
 export interface PaymentAccountOption {
   id: string;
@@ -38,11 +30,14 @@ export interface PaymentAccountOption {
   isDefault: boolean;
 }
 
-export interface PaymentAccountEnvelopeV2 {
-  version: 2;
-  tenantId: string;
-  accounts: PaymentAccountOption[];
-}
+/**
+ * Kết quả tải danh sách tài khoản nhận tiền từ `GET /api/payment-accounts/active`.
+ * POS chỉ lấy tài khoản từ API (không đọc localStorage hay biến window).
+ */
+export type PaymentAccountsLoadResult =
+  | { status: 'ok'; accounts: PaymentAccountOption[] }
+  | { status: 'empty'; accounts: PaymentAccountOption[] }
+  | { status: 'error'; accounts: PaymentAccountOption[]; message: string; httpStatus?: number };
 
 /** Browser payment intent; retained before checkout, including close/reload. */
 export interface PosQrIntent {
@@ -52,6 +47,7 @@ export interface PosQrIntent {
   requestKey: string;
   amount: number;
   bankConfig: BankConfig;
+  /** Id tài khoản nhận tiền (payment_accounts.id) đã dùng để sinh QR; gửi kèm khi checkout. */
   paymentAccountId?: string;
 }
 
