@@ -81,7 +81,7 @@ Không phải lỗi: đây là chức năng chưa làm xong, đang có nhãn Com
 | [~] | CS-02 | Nhân viên, phân quyền, phân công chi nhánh | Có danh sách, tạo, sửa, khóa nhân viên (`/api/users`) | Phân công chi nhánh: chưa có trường ở backend, cần quyết định làm hay bỏ khỏi yêu cầu |
 | [x] | CS-03 | Ngưỡng cảnh báo tồn (`ReorderPoint`) | Đã có API và UI | Chưa kiểm tra thông báo tồn thấp qua realtime |
 | [x] | CS-04 | Tìm kiếm toàn hệ thống | Đã có `GET /api/search` và ô tìm kiếm | Lỗi mở phiếu nhập: [BF-024](./errors/BF-024-tim-kiem-phieu-nhap-khong-mo-dung-phieu.md) |
-| [~] | CS-05 | Thanh toán QR | VietQR ở POS PWA và POS Admin, tài khoản nhận tiền theo cửa hàng (Owner quản lý), lưu bản chụp người nhận vào `payments`; đã sửa theo [review PR 39](../report-after-upgrade/vietqr-cs05-review-pr39.md) | Chờ CI xanh trên nhánh PR 39 rồi mới `[x]`; giai đoạn (c) webhook ngân hàng tạm gác |
+| [x] | CS-05 | Thanh toán QR | VietQR ở POS PWA và POS Admin, tài khoản nhận tiền theo cửa hàng (Owner quản lý), lưu bản chụp người nhận vào `payments`. Nghiệm thu 07/11/2026: integration 372/372 trên PostgreSQL, kiểm tay toàn luồng ([review PR 39](../report-after-upgrade/vietqr-cs05-review-pr39.md)) | Giai đoạn (c) webhook ngân hàng tạm gác; `test-b03-live.mjs` cần viết lại theo API |
 | [ ] | CS-06 | In chứng từ giao hàng, in báo cáo | Chưa làm | Bố cục A4/80mm, cô lập vùng in, ẩn giá vốn theo vai trò |
 | [x] | CS-07 | KPI, biểu đồ, đơn gần đây ở Tổng quan | Đã có dữ liệu thật | Số liệu lũy kế, API chưa lọc theo thời gian |
 | [~] | CS-08 | Dự báo, gợi ý nhập hàng (`FR-AI-01`) | Có API `GET /api/ai/reorder-recommendations`; **tab đang tạm ẩn** trong `InventoryPage.tsx` | Bằng chứng đánh giá dự báo; chốt thời điểm mở lại tab |

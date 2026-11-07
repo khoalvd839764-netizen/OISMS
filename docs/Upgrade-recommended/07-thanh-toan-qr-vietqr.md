@@ -1,7 +1,7 @@
 # 07. Kế hoạch thanh toán QR bằng VietQR (CS-05)
 
 > **Loại tài liệu:** kế hoạch và đặc tả CS-05.
-> **Trạng thái:** giai đoạn (a) + (b) đã có code trên nhánh `feature/OISMS-48-shop-integrations-api`, đã sửa theo [review PR 39](../report-after-upgrade/vietqr-cs05-review-pr39.md); chờ CI xanh để nghiệm thu. Giai đoạn (c) tạm gác. Bằng chứng kiểm thử (PASS/FAIL/NOT RUN) ghi trong báo cáo review.
+> **Trạng thái (07/11/2026):** giai đoạn (a) + (b) đã xong trên nhánh `feature/OISMS-48-shop-integrations-api` (commit `89e6172`, sửa theo review ở `2f85bb8`). Bằng chứng kiểm thử (PASS/FAIL/NOT RUN) ghi trong [review PR 39](../report-after-upgrade/vietqr-cs05-review-pr39.md). Giai đoạn (c) tạm gác.
 > **Ngày khảo sát code:** 06/11/2026, nhánh `feature/OISMS-48-shop-integrations-api` (phần QR không phụ thuộc thay đổi chưa commit của nhánh này).
 
 ## 0. Quyết định đã chốt (06/11/2026)

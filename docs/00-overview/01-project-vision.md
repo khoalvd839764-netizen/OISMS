@@ -113,5 +113,5 @@ flowchart LR
 ## 6. Hiện Trạng Triển Khai (06/11/2026)
 
 - Bản demo chạy trên một máy AWS EC2 bằng Docker Compose, Caddy làm reverse proxy và cấp HTTPS: Admin tại [oisms.khoadang.site](https://oisms.khoadang.site), POS tại [pos.oisms.khoadang.site](https://pos.oisms.khoadang.site). Chi tiết: [`13-deploy-aws/`](../13-deploy-aws/README.md).
-- Đã có: 5 gói Upgrade (01-A, 02, 03, 04, 05) và phần lớn màn Coming Soon. Còn thiếu CS-01 (trả hàng), CS-05 ở POS Admin, CS-06, U01-B và phân công chi nhánh của CS-02. Xem [báo cáo nghiệm thu frontend](../report-after-upgrade/frontend-coming-soon-va-upgrade.md).
+- Đã có: 5 gói Upgrade (01-A, 02, 03, 04, 05) và phần lớn màn Coming Soon. Còn thiếu CS-01 (trả hàng), CS-06, U01-B và phân công chi nhánh của CS-02. Xem [báo cáo nghiệm thu frontend](../report-after-upgrade/frontend-coming-soon-va-upgrade.md).
 - Redis có container nhưng chưa dùng; Hangfire mặc định tắt (`Hangfire:Enabled=false`).

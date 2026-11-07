@@ -48,4 +48,4 @@ Các file `fr-*.md` là **yêu cầu**. Bảng dưới tóm tắt mức hiện t
 | `FR-REP-01..03` | Đã có | Báo cáo theo ngày nghiệp vụ `UTC+07:00`, lọc nửa mở. |
 | `FR-AI-01` | Đã có API | Tab Gợi ý nhập hàng đang tạm ẩn trong `InventoryPage.tsx`, API vẫn chạy. |
 
-Còn thiếu theo danh sách Coming Soon: CS-01 (trả hàng), CS-05 ở POS Admin, CS-06, U01-B. Chi tiết: [báo cáo frontend](../report-after-upgrade/frontend-coming-soon-va-upgrade.md).
+Còn thiếu theo danh sách Coming Soon: CS-01 (trả hàng), CS-06, U01-B. CS-05 (VietQR) đã xong, chưa có xác nhận tự động qua webhook ngân hàng. Chi tiết: [báo cáo frontend](../report-after-upgrade/frontend-coming-soon-va-upgrade.md).

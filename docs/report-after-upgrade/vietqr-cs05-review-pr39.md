@@ -6,7 +6,9 @@
 
 ## 1. Kết luận
 
-**Chưa nghiệm thu được.** Chức năng chính đã có ở cả hai POS và màn cấu hình cho Owner, nhưng còn **4 lỗi chặn** (CI backend đỏ, Admin mất khóa idempotency khi thanh toán, POS không gọi được API tài khoản ở môi trường thật, DB nâng cấp tự động thiếu bảng mới) và chưa có test nào trên PostgreSQL thật cho phần chạm transaction, idempotency, ràng buộc DB. `CHECKLIST.md` và `07-thanh-toan-qr-vietqr.md` đang ghi "ĐÃ HOÀN THÀNH" và CS-05 `[x]`. Cần đưa về `[~]` cho tới khi xong các mục chặn dưới đây.
+**Cập nhật 07/11/2026: đã sửa xong F1–F3 (commit `2f85bb8`), CS-05 chuyển `[x]`.** Bằng chứng ở §2.2–§2.4 và kết quả từng đợt ở §4. Đoạn dưới là kết luận lúc review `89e6172`.
+
+**Chưa nghiệm thu được (lúc review).** Chức năng chính đã có ở cả hai POS và màn cấu hình cho Owner, nhưng còn **4 lỗi chặn** (CI backend đỏ, Admin mất khóa idempotency khi thanh toán, POS không gọi được API tài khoản ở môi trường thật, DB nâng cấp tự động thiếu bảng mới) và chưa có test nào trên PostgreSQL thật cho phần chạm transaction, idempotency, ràng buộc DB. `CHECKLIST.md` và `07-thanh-toan-qr-vietqr.md` đang ghi "ĐÃ HOÀN THÀNH" và CS-05 `[x]`. Cần đưa về `[~]` cho tới khi xong các mục chặn dưới đây.
 
 ## 2. Bằng chứng đã chạy (máy local, 07/11/2026)
 
@@ -140,7 +142,7 @@ Chạy trên container `postgres:16-alpine` tạm (cổng 55432, biến `OISM_TE
 | --- | --- |
 | `dotnet test src/backend/tests/OISM.IntegrationTests/OISM.IntegrationTests.csproj --filter "FullyQualifiedName~PaymentAccountIntegrationTests\|FullyQualifiedName~PostgresTenantIsolationTests"` | PASS 40/40 (3 phút 36 giây) |
 | `dotnet test src/backend/tests/OISM.IntegrationTests/OISM.IntegrationTests.csproj` | PASS 372/372 (27 phút 38 giây) |
-| CI GitHub trên nhánh PR 39 | NOT RUN: chưa commit, chưa push |
+| CI GitHub trên `2f85bb8` | Frontend PASS; backend đang chạy lúc cập nhật tài liệu này. Nếu đỏ thì đưa CS-05 về `[~]` |
 
 ### 2.4. Kiểm tay toàn luồng (F3.2)
 
