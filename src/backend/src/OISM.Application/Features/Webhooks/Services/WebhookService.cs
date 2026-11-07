@@ -68,29 +68,7 @@ public class WebhookService : IWebhookService
         if (hasSecret)
         {
             // Secret Mode: Định danh integration từ secret header trước khi đối soát body shop
-            List<ShopIntegration> allIntegrations;
-            using (_dbContext.OpenPrivilegedScope())
-            {
-                allIntegrations = await _dbContext.ShopIntegrations
-                    .IgnoreQueryFilters()
-                    .ToListAsync(ct);
-            }
-
-            var matchingIntegrations = allIntegrations
-                .Where(si => WebhookSecretHasher.VerifySecret(secretHeader!, si.SecretHash))
-                .ToList();
-
-            if (matchingIntegrations.Count == 0)
-            {
-                throw new OismException("UNAUTHORIZED", "Webhook Secret không hợp lệ.", 401);
-            }
-
-            if (matchingIntegrations.Count > 1)
-            {
-                throw new OismException("UNAUTHORIZED", "Thông tin chứng thực xung đột giữa các cấu hình tích hợp.", 401);
-            }
-
-            var integration = matchingIntegrations[0];
+            var integration = await FindIntegrationBySecretAsync(secretHeader!, ct);
 
             // Đối soát channel và shopId với integration đã định danh từ credential
             if (!string.Equals(integration.Channel, normalizedPathChannel, StringComparison.OrdinalIgnoreCase) ||
@@ -293,5 +271,80 @@ public class WebhookService : IWebhookService
             Status = createdOrder.Status,
             ReceivedAt = createdOrder.CreatedAt
         };
+    }
+
+    public async Task<WebhookIdentityDto> GetIdentityAsync(string? secretHeader, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(secretHeader))
+        {
+            throw new OismException("UNAUTHORIZED", "Thiếu header X-Webhook-Secret.", 401);
+        }
+
+        var integration = await FindIntegrationBySecretAsync(secretHeader, ct);
+
+        // Cùng điều kiện như luồng nhận đơn: kết nối tắt hoặc doanh nghiệp ngừng hoạt động thì không dùng được secret.
+        if (!integration.IsActive)
+        {
+            throw new OismException("UNAUTHORIZED", "Kênh tích hợp gian hàng này đã bị vô hiệu hóa.", 401);
+        }
+
+        Tenant? tenant;
+        Branch? branch;
+        using (_dbContext.OpenPrivilegedScope())
+        {
+            tenant = await _dbContext.Tenants
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Id == integration.TenantId, ct);
+            branch = await _dbContext.Branches
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(b => b.TenantId == integration.TenantId && b.Id == integration.BranchId, ct);
+        }
+
+        if (tenant == null || !tenant.IsActive)
+        {
+            throw new OismException("UNAUTHORIZED", "Doanh nghiệp đã ngừng hoạt động.", 401);
+        }
+
+        // Không trả TenantId, BranchId hay tên doanh nghiệp: người giữ secret chỉ cần biết đang bắn vào gian hàng nào.
+        return new WebhookIdentityDto
+        {
+            Channel = integration.Channel,
+            ExternalShopId = integration.ExternalShopId,
+            BranchName = branch?.Name ?? string.Empty,
+            BranchIsActive = branch?.IsActive == true
+        };
+    }
+
+    /// <summary>
+    /// secret_hash là SHA-256 tất định và có ràng buộc UNIQUE, nên tra thẳng theo hash
+    /// thay vì tải toàn bộ kết nối của mọi tenant.
+    /// </summary>
+    private async Task<ShopIntegration> FindIntegrationBySecretAsync(string secret, CancellationToken ct)
+    {
+        var secretHash = WebhookSecretHasher.HashSecret(secret);
+        List<ShopIntegration> matchingIntegrations;
+        using (_dbContext.OpenPrivilegedScope())
+        {
+            matchingIntegrations = await _dbContext.ShopIntegrations
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(si => si.SecretHash == secretHash)
+                .Take(2)
+                .ToListAsync(ct);
+        }
+
+        if (matchingIntegrations.Count == 0)
+        {
+            throw new OismException("UNAUTHORIZED", "Webhook Secret không hợp lệ.", 401);
+        }
+
+        if (matchingIntegrations.Count > 1)
+        {
+            throw new OismException("UNAUTHORIZED", "Thông tin chứng thực xung đột giữa các cấu hình tích hợp.", 401);
+        }
+
+        return matchingIntegrations[0];
     }
 }

@@ -1171,6 +1171,8 @@ Một khoản thanh toán/đơn; retry cập nhật cùng bản ghi, không tạ
 - `(status = 'Succeeded') = (paid_at IS NOT NULL)`.
 - `(method = 'Cash' AND (status <> 'Succeeded' OR cash_received IS NOT NULL) AND (cash_received IS NULL OR cash_received >= amount)) OR (method = 'BankTransfer' AND cash_received IS NULL)`.
 
+**Cột CS-05 (migration `20261106_payment_accounts.sql`):** `transfer_reference varchar(100)`, `receiver_bank_bin varchar(6)`, `receiver_account_number varchar(20)`, `receiver_account_name varchar(255)`, `payment_account_id uuid`, đều NULL được. Là bản chụp người nhận lúc checkout chuyển khoản. CHECK `ck_payments_bank_transfer_snapshot`: chỉ đơn `BankTransfer` mới có giá trị. FK `(tenant_id, payment_account_id)` → `payment_accounts(tenant_id, id)` `ON DELETE RESTRICT`.
+
 ### 25. `sales_returns`
 
 Nguồn giao dịch trả hàng cho ledger theo FR-INV-01; chi tiết quy trình hoàn tiền là thiết kế hỗ trợ, không phải yêu cầu nguyên văn.
@@ -1562,6 +1564,31 @@ Nhật ký xét duyệt đợt kiểm kê, bảng chỉ thêm (append-only, OISM
 **INDEX:** `ix_stock_count_approvals_count (tenant_id, stock_count_id, created_at)`.
 **CHECK:** `ck_stock_count_approvals_action`.
 **Quan hệ FK:** `(tenant_id)` → `tenants(id)`; `(tenant_id, stock_count_id)` → `stock_counts(tenant_id, id)`; `(tenant_id, actor_user_id)` → `users(tenant_id, id)`.
+
+### 44. `payment_accounts`
+
+Tài khoản ngân hàng nhận tiền VietQR của cửa hàng (CS-05), dùng chung cho mọi chi nhánh; một cửa hàng có thể có nhiều tài khoản, tối đa một tài khoản mặc định đang dùng. Không xóa cứng, chỉ ngừng dùng.
+
+| Cột | Kiểu PostgreSQL | Bắt buộc | Mặc định / cách ghi |
+|---|---|---|---|
+| `id` (PK) | `uuid` | Có | `gen_random_uuid()` |
+| `tenant_id` | `uuid` | Có | Lấy từ JWT |
+| `bank_bin` | `varchar(6)` | Có | BIN NAPAS, không đổi sau khi tạo |
+| `bank_name` | `varchar(255)` | Có | Tên ngân hàng (lấy từ `api.vietqr.io/v2/banks` lúc Owner thêm) |
+| `bank_short_name` | `varchar(50)` | Có | Tên viết tắt, viết hoa |
+| `account_number` | `varchar(20)` | Có | Không đổi sau khi tạo |
+| `account_name` | `varchar(255)` | Có | Tên chủ tài khoản, viết hoa |
+| `is_default` | `boolean` | Có | `false` |
+| `is_active` | `boolean` | Có | `true` |
+| `created_at` | `timestamptz` | Có | `now()` |
+| `updated_at` | `timestamptz` | Không | Backend ghi khi sửa |
+| `updated_by_user_id` | `uuid` | Không | Owner thao tác gần nhất |
+
+**UNIQUE:** `(tenant_id, id)`; `(tenant_id, bank_bin, account_number)`; index lọc `uq_payment_accounts_tenant_default_active (tenant_id) WHERE is_default AND is_active`.
+
+**Quan hệ FK:** `(tenant_id)` → `tenants(id)` `RESTRICT`; `(tenant_id, updated_by_user_id)` → `users(tenant_id, id)` `ON DELETE SET NULL (updated_by_user_id)`.
+
+**CHECK:** `bank_bin ~ '^[0-9]{6}$'`; `account_number ~ '^[A-Za-z0-9]{6,19}$'`.
 
 ### Cột Upgrade 03 trên bảng có sẵn
 - `stock_counts.count_type varchar(20) NOT NULL DEFAULT 'AdHoc'`

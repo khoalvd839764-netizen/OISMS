@@ -179,6 +179,17 @@ public class SqlLockService : ISqlLockService
         }
     }
 
+    public async Task LockPaymentAccountsAsync(Guid tenantId, CancellationToken ct = default)
+    {
+        if (_context.Database.IsNpgsql())
+        {
+            var tenantStr = tenantId.ToString();
+            await _context.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_xact_lock(hashtextextended({tenantStr} || '/payment_accounts', 0));",
+                ct);
+        }
+    }
+
     public async Task LockPriceChangeRequestAsync(Guid tenantId, Guid requestId, CancellationToken ct = default)
     {
         if (_context.Database.IsNpgsql())

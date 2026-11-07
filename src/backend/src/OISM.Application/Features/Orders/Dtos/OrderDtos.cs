@@ -60,6 +60,17 @@ public class PosCheckoutRequestDto
     public decimal? ChangeDue { get; set; }
 
     /// <summary>
+    /// ID tài khoản ngân hàng thụ hưởng (áp dụng khi thanh toán BankTransfer / VietQR).
+    /// </summary>
+    public Guid? PaymentAccountId { get; set; }
+
+    /// <summary>
+    /// Nội dung chuyển khoản hoặc mã tham chiếu giao dịch QR.
+    /// </summary>
+    [MaxLength(100, ErrorMessage = "Nội dung chuyển khoản không được vượt quá 100 ký tự.")]
+    public string? TransferReference { get; set; }
+
+    /// <summary>
     /// Khóa Idempotency chống trừ kho kép và chống thanh toán trùng lặp khi mạng chập chờn hoặc nhân viên nhấn đúp F4.
     /// Bắt buộc client phải cung cấp ổn định, từ chối Guid.Empty.
     /// </summary>
@@ -185,6 +196,11 @@ public class PaymentResponseDto
     public decimal Amount { get; set; }
     public decimal? CashReceived { get; set; }
     public DateTimeOffset? PaidAt { get; set; }
+    public string? TransferReference { get; set; }
+    public string? ReceiverBankBin { get; set; }
+    public string? ReceiverAccountNumber { get; set; }
+    public string? ReceiverAccountName { get; set; }
+    public Guid? PaymentAccountId { get; set; }
 }
 
 /// <summary>
@@ -264,6 +280,11 @@ public class PosReceiptDto
     public string PaymentMethod { get; set; } = "Cash";
     public decimal? AmountGiven { get; set; }
     public decimal? ChangeDue { get; set; }
+    public string? TransferReference { get; set; }
+    public string? ReceiverBankBin { get; set; }
+    public string? ReceiverBankName { get; set; }
+    public string? ReceiverAccountNumber { get; set; }
+    public string? ReceiverAccountName { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 
     public List<PosReceiptItemDto> Items { get; set; } = new();

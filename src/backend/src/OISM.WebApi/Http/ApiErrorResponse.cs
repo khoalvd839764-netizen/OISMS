@@ -34,6 +34,7 @@ internal static class ApiErrorResponse
             (ApiErrorProfile.Reserve or ApiErrorProfile.OrderProcess, KeyNotFoundException) => Message(404, exception.Message),
             (ApiErrorProfile.Reserve or ApiErrorProfile.OrderProcess, InvalidOperationException) => Message(409, exception.Message),
             (ApiErrorProfile.Reserve, ArgumentException) => Message(400, exception.Message),
+            (ApiErrorProfile.PaymentAccounts, ArgumentException) => Problem(context, profile, ValidationCode, ValidationTitle, 400, exception.Message),
             (ApiErrorProfile.Register, _) => RegistrationFailure(context, exception),
             (ApiErrorProfile.Simulator, _) => Message(400, exception.Message),
             (ApiErrorProfile.Webhooks, _) => WebhookFailure(context, exception),

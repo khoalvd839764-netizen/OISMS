@@ -37,6 +37,7 @@
 | **11** | [`11-ui-screens/`](./11-ui-screens/README.md) | `MOD-SCR-11` | Yêu cầu | Đặc tả màn hình Admin, POS và ma trận quyền theo route. |
 | **12** | [`12-error-and-status-codes/`](./12-error-and-status-codes/README.md) | `MOD-ERR-12` | Yêu cầu | Chuẩn lỗi RFC 7807, từ điển mã lỗi (kèm đối chiếu code), màu và phản hồi UI. |
 | **13** | [`13-deploy-aws/`](./13-deploy-aws/README.md) | `MOD-AWS-13` | Vận hành | Cách deploy hiện tại lên AWS EC2 (Docker Compose + Caddy + Let's Encrypt), quy trình cập nhật, backup, xử lý sự cố, kiến thức deploy nền tảng. |
+| **14** | [`14-webhook-simulator/`](./14-webhook-simulator/README.md) | `MOD-SIM-14` | Công cụ | Giả lập đơn sàn qua webhook: API kết nối sàn, `whoami`, app `marketplace-simulator`, kịch bản kiểm thử, deploy trên domain riêng. |
 | **DB** | [`database/`](./database/README.md) | `MOD-DB-00` | Thiết kế | `oisms_schema.sql` (43 bảng), từ điển dữ liệu, quy trình nâng cấp DB có dữ liệu, SQL cấp quyền Hangfire. |
 | **UP** | [`Upgrade-recommended/`](./Upgrade-recommended/README.md) | — | Yêu cầu | 6 gói nâng cấp nghiệp vụ của GVHD (mua hàng, truy vết, kiểm kê, bảng giá, đa đơn vị, rà soát kiến trúc). |
 | **RP** | [`report-after-upgrade/`](./report-after-upgrade/frontend-coming-soon-va-upgrade.md) | — | Báo cáo | Báo cáo sau nâng cấp và nghiệm thu frontend (hiện trạng Coming Soon). |
@@ -54,4 +55,5 @@
 | Quyền của từng vai trò | [`01/02-rbac-matrix.md`](./01-users-and-rbac/02-rbac-matrix.md) |
 | Lỗi nào đã sửa, chưa sửa | [`bug-fixaffter/CHECKLIST.md`](./bug-fixaffter/CHECKLIST.md) |
 | Chức năng nào còn thiếu | [`02-functional-requirements/README.md`](./02-functional-requirements/README.md#hiện-trạng-triển-khai-theo-yêu-cầu-đối-chiếu-code-06112026), [báo cáo frontend](./report-after-upgrade/frontend-coming-soon-va-upgrade.md) |
+| Bắn đơn sàn giả lập qua webhook | [`14-webhook-simulator/README.md`](./14-webhook-simulator/README.md) |
 | Mã lỗi API | [`12/02-error-codes-catalog.md`](./12-error-and-status-codes/02-error-codes-catalog.md) |

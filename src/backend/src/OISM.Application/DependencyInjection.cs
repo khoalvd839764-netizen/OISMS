@@ -42,6 +42,7 @@ public static class DependencyInjection
         services.AddScoped<IStockCountService, StockCountService>();
         services.AddScoped<IStockCountScheduleService, StockCountScheduleService>();
         services.AddScoped<IWebhookService, WebhookService>();
+        services.AddScoped<OISM.Application.Features.ShopIntegrations.Services.IShopIntegrationService, OISM.Application.Features.ShopIntegrations.Services.ShopIntegrationService>();
 
         // Catalog & Management services
         services.AddScoped<IAuthService, AuthService>();
@@ -67,6 +68,9 @@ public static class DependencyInjection
 
         // Sales Invoice services
         services.AddScoped<ISalesInvoiceService, SalesInvoiceService>();
+
+        // Payment Accounts services (CS-05 VietQR)
+        services.AddScoped<OISM.Application.Features.PaymentAccounts.Services.IPaymentAccountService, OISM.Application.Features.PaymentAccounts.Services.PaymentAccountService>();
 
         return services;
     }

@@ -19,6 +19,8 @@ export function PosPage() {
   // User State từ AuthContext tập trung
   const currentUser = user
     ? {
+        id: user.id,
+        tenantId: user.tenantId,
         fullName: user.name,
         email: user.email,
         tenantName: user.tenantName,
@@ -393,6 +395,7 @@ export function PosPage() {
               onClose={() => {}} items={cart} onApplyCurrentPrices={(prices: CurrentPriceItem[]) => setCart((prev) => applyCurrentPrices(prev, prices))} branchId={selectedBranchId} branchName={selectedBranch?.name || ''}
               branchAddress={selectedBranch?.address} branchPhone={selectedBranch?.phone}
               tenantName={currentUser?.tenantName || 'CỬA HÀNG OISMS'} cashierName={currentUser?.fullName || 'Thu ngân'}
+              currentUser={currentUser}
               onBusyChange={setCheckoutBusy} submitRef={paymentButtonRef}
               onSuccessAndPrint={(receipt) => {setPrintedReceipt(receipt);setCart([]);setCatalogRefresh((value)=>value+1);}}
               onPreviewReceipt={setPrintedReceipt} />

@@ -147,9 +147,10 @@ public class DatabaseBaselineValidatorTests
             "sales_invoices",
             "stock_count_schedules",
             "stock_count_periods",
-            "stock_count_approvals"
+            "stock_count_approvals",
+            "payment_accounts"
         ]);
-        DatabaseMigrationService.RequiredTables.Length.Should().Be(43);
+        DatabaseMigrationService.RequiredTables.Length.Should().Be(44);
     }
 
     [Fact]

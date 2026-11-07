@@ -17,6 +17,7 @@ Trả lời bằng tiếng Việt. Docs là yêu cầu, code và test là hiện
 | `src/backend/tests` | `OISM.UnitTests`, `OISM.IntegrationTests` |
 | `src/frontend/admin-dashboard` | React 19 + Vite, cổng 5173; có cả POS tích hợp tại `/pos` (`PosPage.tsx`) |
 | `src/frontend/pos-app` | POS PWA riêng, cổng 5174 |
+| `src/frontend/marketplace-simulator` | Giao diện giả lập bắn đơn sàn qua webhook, cổng 5175; chỉ gọi `/api/webhooks/*`. Xem `docs/14-webhook-simulator/` |
 | `docs/database/oisms_schema.sql` | Nguồn cấu trúc DB hiện hành |
 | `docker/postgres/migrations/` | Script nâng cấp DB đã có dữ liệu |
 
@@ -37,10 +38,12 @@ npm run build --prefix src/frontend/admin-dashboard
 npm run build --prefix src/frontend/pos-app
 npm test --prefix src/frontend/pos-app
 npm run lint --prefix src/frontend/pos-app
+npm run build --prefix src/frontend/marketplace-simulator
+npm test --prefix src/frontend/marketplace-simulator
 ```
 
 Chạy local: `docker compose up -d`, hoặc `scripts/run-backend.ps1`, `run-admin.ps1`, `run-pos.ps1`. Backend ở cổng 5000, có `/swagger` khi Development và `/health/ready`.
-CI chạy khi push hoặc mở PR vào `main`, `master`, `develop`: build và test backend, build hai frontend, chạy `npm test` của POS.
+CI chạy khi push hoặc mở PR vào `main`, `master`, `develop`: build và test backend, build ba frontend, chạy `npm test` của POS và của app giả lập.
 
 ## Quy tắc không được phá
 
@@ -68,8 +71,8 @@ CI chạy khi push hoặc mở PR vào `main`, `master`, `develop`: build và te
 
 ## Điểm cần biết
 
-- **Docs cũ:** tài liệu lịch sử (sprint, báo cáo cá nhân) còn ghi 29 bảng; hiện là **43 bảng** (`oisms_schema.sql`, `init-oisms.sh`, `RequiredTables`). Docs kiến trúc còn ghi `ApplicationDbContext`, `OISM.WebAPI` thay vì `AppDbContext`, `OISM.WebApi`.
-- **Tiến độ:** hiện trạng frontend xem `docs/report-after-upgrade/frontend-coming-soon-va-upgrade.md`. Còn thiếu CS-01, CS-05 ở POS Admin, CS-06, U01-B và phân công chi nhánh của CS-02. Vẫn phải kiểm tra code trước khi kết luận chức năng còn thiếu. Dấu `[x]` Sprint 2 chỉ là baseline lịch sử, không phải nghiệm thu toàn sản phẩm.
+- **Docs cũ:** tài liệu lịch sử (sprint, báo cáo cá nhân) còn ghi 29 bảng; hiện là **44 bảng** (`oisms_schema.sql`, `init-oisms.sh`, `RequiredTables`, bao gồm `payment_accounts` của CS-05). Docs kiến trúc còn ghi `ApplicationDbContext`, `OISM.WebAPI` thay vì `AppDbContext`, `OISM.WebApi`.
+- **Tiến độ:** hiện trạng frontend xem `docs/report-after-upgrade/frontend-coming-soon-va-upgrade.md`. CS-05 đã hoàn thành (VietQR trên cả POS Admin và POS PWA, quản lý tài khoản thụ hưởng); còn thiếu CS-01, CS-06, U01-B và phân công chi nhánh của CS-02. Vẫn phải kiểm tra code trước khi kết luận chức năng còn thiếu. Dấu `[x]` Sprint 2 chỉ là baseline lịch sử, không phải nghiệm thu toàn sản phẩm.
 - **Tạm ẩn:** tab Gợi ý nhập hàng được comment trong `InventoryPage.tsx`, API vẫn chạy. Màn Handoff đã gỡ nhưng đặc tả `docs/11-ui-screens/07-handoff-screens.md` còn giữ. Quên mật khẩu mới là nút tắt có nhãn Coming soon.
 - **Hangfire:** `Hangfire:Enabled` mặc định `false` và compose không bật, nên job hết hạn giữ chỗ và lịch kiểm kê không tự chạy trừ khi cấu hình.
 - **Redis:** có container nhưng code backend chưa dùng.

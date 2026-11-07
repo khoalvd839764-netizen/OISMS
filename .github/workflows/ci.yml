@@ -52,7 +52,7 @@ jobs:
       run: dotnet test src/backend/OISM.sln --no-build -c Release --verbosity normal
 
   build-frontend:
-    name: Build Frontend (Admin & POS)
+    name: Build Frontend (Admin, POS & Simulator)
     runs-on: ubuntu-latest
 
     steps:
@@ -78,3 +78,11 @@ jobs:
     - name: POS regression tests (source, component and guard fixtures)
       working-directory: src/frontend/pos-app
       run: npm test
+
+    - name: Build and test Marketplace Simulator
+      working-directory: src/frontend/marketplace-simulator
+      run: |
+        npm ci
+        npm run build
+        npm run lint
+        npm test

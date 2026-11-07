@@ -159,7 +159,7 @@ export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({ receipt, o
                   {receipt.paymentMethod === 'CASH' ? 'Tiền mặt' : 'Chuyển khoản QR'}
                 </span>
               </div>
-              {receipt.paymentMethod === 'CASH' && (
+              {receipt.paymentMethod === 'CASH' ? (
                 <>
                   <div className="flex justify-between text-slate-600">
                     <span>Tiền khách đưa:</span>
@@ -169,6 +169,21 @@ export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({ receipt, o
                     <span>Tiền thừa trả:</span>
                     <span className="font-mono">{formatCurrency(receipt.changeDue)}</span>
                   </div>
+                </>
+              ) : (
+                <>
+                  {receipt.receiverAccountNumber && (
+                    <div className="flex justify-between text-slate-600">
+                      <span>TK nhận:</span>
+                      <span className="font-mono">{receipt.receiverBankName || ''} •••• {receipt.receiverAccountNumber.slice(-4)}</span>
+                    </div>
+                  )}
+                  {receipt.transferReference && (
+                    <div className="flex justify-between text-slate-600">
+                      <span>Nội dung CK:</span>
+                      <span className="font-mono text-xs font-semibold">{receipt.transferReference}</span>
+                    </div>
+                  )}
                 </>
               )}
             </div>
