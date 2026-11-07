@@ -1,6 +1,6 @@
 # Checklist lỗi, Coming Soon và Upgrade
 
-Cập nhật: **06/11/2026**. Nhánh đối chiếu: `feature/OISMS-46-fix-loi-ton-dong-nghiem-thu-va-deploy`.
+Cập nhật: **07/11/2026**. Nhánh đối chiếu: `feature/OISMS-48-shop-integrations-api`.
 
 Ký hiệu: `[x]` đã xong · `[~]` đã sửa nhưng cần kiểm chứng lại hoặc mới xong một phần · `[ ]` chưa làm.
 Chi tiết từng lỗi nằm trong thư mục [`errors/`](./errors/), mỗi lỗi một file.
@@ -9,7 +9,7 @@ Chi tiết từng lỗi nằm trong thư mục [`errors/`](./errors/), mỗi l�
 
 | Nhóm | Đã xong | Cần kiểm chứng / một phần | Chưa làm |
 | :--- | :---: | :---: | :---: |
-| Lỗi `BF-001..035` | 24 | 4 | 7 |
+| Lỗi `BF-001..036` | 25 | 4 | 7 |
 | Coming Soon `CS-01..08` + Quên mật khẩu | 3 | 3 | 3 |
 | Upgrade (GVHD) | 6 | 0 | 1 |
 
@@ -68,6 +68,12 @@ Chia thành nhiều đợt fix, xem [mục E](#e-kế-hoạch-hoàn-thiện-clea
 | [x] | [BF-033](./errors/BF-033-application-bat-postgresexception.md) | P2 | Application | Bắt `PostgresException` ở 8 chỗ, 7 service | 2 |
 | [x] | [BF-034](./errors/BF-034-iappdbcontext-lo-chi-tiet-ha-tang.md) | P2 | Application | `IAppDbContext` lộ SQL/transaction EF; 38 nhánh `IsRelationalDatabase` | 3 |
 | [x] | [BF-035](./errors/BF-035-domain-anemic-trang-thai-chuoi.md) | P3 | Domain | Entity anemic, 59 chỗ so trạng thái bằng chuỗi, `MediatR` không dùng | 4 |
+
+### A4. Phát hiện khi chạy local, 07/11/2026 (BF-036)
+
+| | Mã | Ưu tiên | Khu vực | Lỗi | Trạng thái |
+| :---: | :--- | :---: | :--- | :--- | :--- |
+| [x] | [BF-036](./errors/BF-036-dang-nhap-loi-khi-con-token-tenant-khac.md) | P1 | Backend/Auth, Admin | Đăng nhập, refresh trả 500 khi request còn mang token của tenant khác | Đã sửa, có integration test PostgreSQL |
 
 ---
 

@@ -14,6 +14,8 @@ export const authAdapter = {
     }
 
     try {
+      // [BF-036] Xóa token phiên cũ trước khi đăng nhập để request không mang token của tenant khác
+      clearAuthSession();
       const res = await httpClient.post("/api/auth/login", {
         email: email,
         password: credentials.password,

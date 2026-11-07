@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
+using OISM.Application.Common.Attributes;
 using OISM.Application.Common.Interfaces;
 
 namespace OISM.Infrastructure.Services;
@@ -30,6 +31,13 @@ public class CurrentTenantService : ICurrentTenantService
 
             var httpContext = _httpContextAccessor.HttpContext;
             if (httpContext == null)
+            {
+                return null;
+            }
+
+            // Endpoint đăng ký/đăng nhập/làm mới token không dùng tenant của access token gửi kèm:
+            // token đó có thể thuộc tenant khác (phiên cũ còn hạn) và làm guard chéo tenant chặn sai.
+            if (httpContext.GetEndpoint()?.Metadata.GetMetadata<IgnoreTenantClaimAttribute>() != null)
             {
                 return null;
             }
