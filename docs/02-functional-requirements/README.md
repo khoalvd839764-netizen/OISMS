@@ -42,8 +42,8 @@ Các file `fr-*.md` là **yêu cầu**. Bảng dưới tóm tắt mức hiện t
 | `FR-COST-01..02` | Đã có | WAC theo đơn vị gốc, chụp `CostPrice` khi Confirm/POS. |
 | `FR-RSE-01..03` | Đã có | Khóa `pg_advisory_xact_lock` + `FOR UPDATE`. |
 | `FR-ORD-01..03` | Đã có | Hóa đơn bán và truy vết chứng từ (Upgrade 02). |
-| `FR-POS-01..04` | Đã có | Hai giao diện POS: `pos-app` và `/pos` trong Admin. |
-| `FR-SIM-01..02` | Đã có | Webhook giả lập có chữ ký, SignalR `/hubs/notifications`. |
+| `FR-POS-01..04` | Đã có | Một giao diện POS trong `pos-app` (5174), chuyển từ Admin; `/pos` Admin chỉ chuyển hướng. |
+| `FR-SIM-01..02` | Đã có; POS realtime tồn đạt 08/11/2026 | Webhook có chữ ký; POS nhận `StockLevelChanged`, đổi nhóm chi nhánh, lọc phiên cũ và refetch khi reconnect. Đã kiểm chứng backend/PostgreSQL thật và hai tab. Popup/âm thanh đơn mới trên POS nằm ngoài pha này; chưa đánh dấu toàn bộ FR-09 hoàn tất. |
 | `FR-SIM-03` | Có code, mặc định tắt | Xem [fr-10](./fr-10-background-hangfire.md). |
 | `FR-REP-01..03` | Đã có | Báo cáo theo ngày nghiệp vụ `UTC+07:00`, lọc nửa mở. |
 | `FR-AI-01` | Đã có API | Tab Gợi ý nhập hàng đang tạm ẩn trong `InventoryPage.tsx`, API vẫn chạy. |

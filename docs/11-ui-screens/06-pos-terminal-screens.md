@@ -5,12 +5,14 @@
 | **Mã tài liệu (Document ID)** | `DOC-SCR-06` |
 | **Phiên bản (Version)** | `v1.0.0` |
 | **Ngày hiệu lực** | `2026-10-25` |
-| **Đường dẫn URL Routes** | `http://localhost:5174/` (`pos-app`), `/pos` (`admin-dashboard`) |
+| **Đường dẫn URL Routes** | `http://localhost:5174/` (`pos-app`); `/pos` trong Admin chỉ chuyển hướng |
 | **Quyền truy cập (RBAC)** | `Owner`, `Staff`, `Cashier` |
-| **Source code Frontend** | [`App.tsx`](file:///d:/OISMS/src/frontend/pos-app/src/App.tsx), [`CartTable.tsx`](file:///d:/OISMS/src/frontend/pos-app/src/components/CartTable.tsx), [`ProductSearch.tsx`](file:///d:/OISMS/src/frontend/pos-app/src/components/ProductSearch.tsx), [`PaymentModal.tsx`](file:///d:/OISMS/src/frontend/pos-app/src/components/PaymentModal.tsx), [`ReceiptPrintModal.tsx`](file:///d:/OISMS/src/frontend/pos-app/src/components/ReceiptPrintModal.tsx) |
+| **Source code Frontend** | [`PosPage.tsx`](../../src/frontend/pos-app/src/pages/PosPage.tsx), [`ProductCatalog.tsx`](../../src/frontend/pos-app/src/components/pos/ProductCatalog.tsx), [`PaymentModal.tsx`](../../src/frontend/pos-app/src/components/pos/PaymentModal.tsx), [`ReceiptPrintModal.tsx`](../../src/frontend/pos-app/src/components/pos/ReceiptPrintModal.tsx) |
 | **Controllers Backend** | [`PosCatalogController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/PosCatalogController.cs), [`PosCheckoutActionHelper.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/PosCheckoutActionHelper.cs), [`OrdersController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/OrdersController.cs) |
 
 ---
+
+> Hiện trạng 08/11/2026: quầy chỉ còn trong `pos-app`, dùng layout danh mục + giỏ + thanh toán chuyển từ Admin. Xác thực POS riêng, refresh token và khóa storage `oisms_pos_v2_*`; realtime tồn theo chi nhánh. Các wireframe/đặc tả dưới đây giữ mô tả nghiệp vụ; xem [báo cáo tách POS](../report-after-upgrade/tach-pos-khoi-admin-2026-11-08.md) để biết kiểm chứng.
 
 ## 1. Mục Tiêu & Luồng Nghiệp Vụ
 

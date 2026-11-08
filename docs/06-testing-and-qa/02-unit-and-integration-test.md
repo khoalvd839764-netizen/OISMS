@@ -51,3 +51,7 @@ dotnet test src/backend/OISM.sln --collect:"XPlat Code Coverage"
 
 - **Chỉ tiêu đề bài:** Tối thiểu `80%` cho `Inventory Ledger`, `Anti-Oversell Reserve`, `COGS`.
 - **Kết quả đo tại Sprint 2 (mốc lịch sử, chưa đo lại sau các gói Upgrade):** **`92.49%` Line Coverage** trong Integration Tests và **`94.83%`** khi kết hợp Unit Tests.
+
+## POS sau khi tách — 08/11/2026
+
+Các số test ở bảng trước là mốc lịch sử. POS chỉ còn một implementation tại `src/frontend/pos-app`; xem [báo cáo kiểm chứng mới](../report-after-upgrade/tach-pos-khoi-admin-2026-11-08.md). Chạy `npm test --prefix src/frontend/pos-app`; test live riêng: `docker compose -f docker/pos-tests/compose.yml up -d --build`, rồi `npm run test:live --prefix src/frontend/pos-app`. Guard kiểm chứng đúng container/database test trước bất kỳ POST nào. Không chạy giao dịch fixture trên cổng demo 5000.

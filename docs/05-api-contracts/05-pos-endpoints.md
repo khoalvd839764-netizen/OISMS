@@ -1,5 +1,7 @@
 # 05. Đặc Tả Hợp Đồng API Bán Hàng Tại Quầy POS (POS Counter Endpoints)
 
+> Frontend 08/11/2026: quầy hiện tại ở `src/frontend/pos-app/src/pages/PosPage.tsx`, service `posApi.ts`; Admin `/pos` chỉ chuyển hướng. Contract backend và alias checkout giữ nguyên.
+
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-API-05` |

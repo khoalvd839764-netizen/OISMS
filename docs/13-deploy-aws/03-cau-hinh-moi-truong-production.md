@@ -136,3 +136,7 @@ docker compose --env-file .env.production -f docker-compose.yml -f docker-compos
 - `Program.cs` còn secret JWT fallback viết cứng; production không được dựa vào nó, vì vậy compose production bắt buộc `JWT_SECRET`.
 
 Bước tiếp theo: [deploy và cập nhật](./04-quy-trinh-deploy-va-cap-nhat.md).
+
+## Liên kết Admin và POS sau khi tách 08/11/2026
+
+Compose nhúng `VITE_POS_URL=https://<POS_DOMAIN>` vào Admin và `VITE_ADMIN_URL=https://<ADMIN_DOMAIN>` vào POS lúc build. Giữ `POS_DOMAIN`/service `pos-app`. Hai origin có phiên riêng; không truyền JWT qua URL. Sau đổi domain phải rebuild frontend.

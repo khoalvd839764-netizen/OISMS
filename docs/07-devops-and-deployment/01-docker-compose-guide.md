@@ -23,12 +23,12 @@
 
 | Service | Container | Image / Build | Cổng host → container | Vai trò |
 | :--- | :--- | :--- | :---: | :--- |
-| `postgres` | `oism_postgres` | `postgres:16-alpine` | `${POSTGRES_PORT:-5432}` → `5432` | Database. Volume `postgres_data`. Lần đầu volume trống chạy `docker/postgres/init-oisms.sh` để nạp `docs/database/oisms_schema.sql` (43 bảng) và tạo tài khoản runtime. Có `healthcheck` bằng `pg_isready`. |
+| `postgres` | `oism_postgres` | `postgres:16-alpine` | `${POSTGRES_PORT:-5432}` → `5432` | Database. Volume `postgres_data`. Lần đầu volume trống chạy `docker/postgres/init-oisms.sh` để nạp `docs/database/oisms_schema.sql` (44 bảng) và tạo tài khoản runtime. Có `healthcheck` bằng `pg_isready`. |
 | `redis` | `oism_redis` | `redis:7-alpine` | `${REDIS_PORT:-6379}` → `6379` | Có sẵn nhưng code backend chưa dùng. |
 | `pgadmin` | `oism_pgadmin` | `dpage/pgadmin4:latest` | `${PGADMIN_PORT:-5050}` → `80` | Giao diện quản trị DB, chỉ dùng local. |
 | `backend` | `oism_backend` | `src/backend/Dockerfile` (SDK 8.0 → ASP.NET 8.0) | `${BACKEND_PORT:-5000}` → `8080` | Web API, SignalR hub `/hubs/notifications`, health check. Chờ `postgres` healthy. |
-| `admin-dashboard` | `oism_admin_dashboard` | Node 22 build → `nginx:alpine` | `${ADMIN_PORT:-5173}` → `80` | Web Admin + POS tích hợp tại `/pos`. |
-| `pos-app` | `oism_pos_app` | Node 22 build → `nginx:alpine` | `${POS_PORT:-5174}` → `80` | POS PWA riêng cho thu ngân. |
+| `admin-dashboard` | `oism_admin_dashboard` | Node 22 build → `nginx:alpine` | `${ADMIN_PORT:-5173}` → `80` | Web Admin; `/pos` chuyển sang POS 5174. |
+| `pos-app` | `oism_pos_app` | Node 22 build → `nginx:alpine` | `${POS_PORT:-5174}` → `80` | POS hiện tại chuyển từ Admin, một implementation quầy. |
 
 Mọi service nằm trong network `oism_network`. Bên trong network, backend gọi DB bằng host `postgres`, cổng `5432`.
 

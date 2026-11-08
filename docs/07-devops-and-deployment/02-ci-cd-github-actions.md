@@ -42,7 +42,7 @@
 
 - `actions/setup-node` với Node `22`.
 - `src/frontend/admin-dashboard`: `npm install` rồi `npm run build` (`tsc -b && vite build`).
-- `src/frontend/pos-app`: `npm install`, `npm run build`, rồi `npm test` (chạy `test-pos-e2e.mjs`, `test-cart-units.mjs`, `test-b03-qr.mjs`, `test-b03-environment.mjs` bằng `node --test`).
+- `src/frontend/pos-app`: `npm ci`, `npm run build`, rồi `npm test` (checkout, đơn vị, QR, auth/điều hướng, realtime, receipt và worker; danh sách trong `package.json`). `npm run test:live` chạy riêng với backend/PostgreSQL cô lập theo `docker/pos-tests/compose.yml`.
 
 ## 3. Chạy Lại Ở Máy Local
 
