@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-FR-10` |
-| **Phiên bản (Version)** | `v1.2.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
+| **Phiên bản (Version)** | `v1.3.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-08` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-SIM-03`, `FR-RSE-03` (Trang 3, 6) |
 | **Gói công việc (Task Package)** | Task Package 3 — Centralized Order Hub & Anti-Oversell Engine |
 
@@ -17,6 +17,7 @@
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả các tác vụ nền bất đồng bộ sử dụng Hangfire: tự động hủy đơn giữ chỗ quá hạn và tổng hợp báo cáo hằng ngày. | `INIT-FR-10` |
 | `v1.1.0` | `2026-10-26` | Đăng Khoa (BE1) | Đính chính boundary auto-expiry thành `ExpiresAt <= cutoffUtc` (đồng bộ Confirm guard), phạm vi Task 6 chuyên biệt cho auto-cancel/release. | `S3-BE1-T06` |
 | `v1.2.0` | `2026-11-06` | Nhóm dự án OISMS | Ghi hiện trạng: Hangfire mặc định tắt; có job hết hạn giữ chỗ và job sinh kỳ kiểm kê; chưa có job tổng hợp báo cáo ngày. | `OISMS-46` |
+| `v1.3.0` | `2026-11-08` | Nhóm dự án OISMS | Bật được qua `HANGFIRE_ENABLED`; Hangfire dùng chung kết nối `Database:*`; schema `hangfire` qua migration; ghi kết quả kiểm chứng hết hạn giữ chỗ trên Docker. | `OISMS-46` |
 
 ---
 
@@ -28,6 +29,8 @@
 
 > **Hiện trạng (06/11/2026):**
 > - Job đã có: `oisms-reservation-expiry` (`ReservationExpiryJob`, `*/1 * * * *` UTC) và job sinh kỳ kiểm kê (`StockCountPeriodJob`, `5 * * * *` UTC). Storage là PostgreSQL schema `hangfire`.
-> - `Hangfire:Enabled` mặc định `false` trong `appsettings.json`; Docker Compose (local và bản demo AWS) không bật. Khi tắt, không có Hangfire server và không đăng ký job, nên đơn giữ chỗ quá hạn không tự hủy.
+> - `Hangfire:Enabled` mặc định `false` trong `appsettings.json` và Docker Compose (`HANGFIRE_ENABLED`, mặc định `false`). Khi tắt, không có Hangfire server và không đăng ký job, nên đơn giữ chỗ quá hạn không tự hủy. Bản demo AWS chưa bật.
 > - Chưa có job tổng hợp báo cáo hằng ngày; bảng `daily_sales_summaries` chưa dùng, báo cáo tính trực tiếp từ đơn hàng.
-> - Cách bật: [cấu hình môi trường](../07-devops-and-deployment/03-environment-configuration.md#2-khóa-cấu-hình-backend-net).
+> - Cách bật: [cấu hình môi trường](../07-devops-and-deployment/03-environment-configuration.md#2-khóa-cấu-hình-backend-net); trên AWS xem [cấu hình production](../13-deploy-aws/03-cau-hinh-moi-truong-production.md#4-cấu-hình-backend-trên-production).
+>
+> **Kiểm chứng khi bật (08/11/2026, Docker):** chỉ cấu hình `Database__*`, Hangfire kết nối đúng DB và tạo bảng trong schema `hangfire`. Đơn Admin giữ chỗ 2 sản phẩm tạo qua API, để hết hạn tự nhiên: 23 giây sau hạn đơn chuyển `Cancelled`, phiếu giữ chỗ `Expired`, `Reserved` về 0, `OnHand` giữ nguyên và sổ cái không có dòng `IN` bù. Chưa kiểm chứng trên bản demo AWS.

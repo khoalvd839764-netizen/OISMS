@@ -118,9 +118,26 @@ Muốn thêm header bảo mật hoặc chặn `/health/ready` khỏi Internet th
 | `Database__Host/Port/Database/Username/Password` | `docker-compose.yml` | `postgres`, `5432`, `${POSTGRES_DB}`, `${OISMS_APP_USER}`, `${OISMS_APP_PASSWORD}` |
 | `Jwt__Secret` | `docker-compose.prod.yml` | `${JWT_SECRET}` |
 | `Jwt:Issuer`, `Jwt:Audience`, `Jwt:ExpiryMinutes` | `appsettings.json` | `OISM_WebAPI`, `OISM_Client`, `60` |
-| `Hangfire:Enabled` | `appsettings.json` | `false` |
+| `Hangfire__Enabled` | `docker-compose.yml` | `${HANGFIRE_ENABLED:-false}` |
+| `Hangfire__WorkerCount` | `docker-compose.yml` | `${HANGFIRE_WORKER_COUNT:-2}` |
 
-Muốn bật Hangfire trên production phải thêm vào `environment` của service `backend` (không chỉ thêm vào `.env`): `Hangfire__Enabled: "true"` và `ConnectionStrings__HangfireConnection` trỏ tới `postgres`, đồng thời cấp quyền schema `hangfire` theo [`hangfire_schema_provisioning.sql`](../database/hangfire_schema_provisioning.sql). Nếu không đặt `HangfireConnection`, backend dùng `ConnectionStrings:DefaultConnection` trong `appsettings.json` (đang trỏ `localhost`) và sẽ lỗi kết nối.
+Bản demo hiện chưa bật Hangfire. Hangfire dùng chung kết nối `Database__*` với backend nên không cần `HangfireConnection`. Các bước bật:
+
+1. Backup DB theo [sao lưu database](./05-van-hanh-giam-sat-backup.md#3-sao-lưu-database).
+2. Đếm đơn giữ chỗ đã quá hạn, vì lần chạy đầu job sẽ hủy hết:
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.production exec postgres \
+     psql -U postgres -d oisms -c "SELECT count(*) FROM reservations WHERE status = 'Active' AND expires_at <= now();"
+   ```
+3. Tạo schema `hangfire` bằng tài khoản `postgres` (chạy lại nhiều lần vẫn an toàn):
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.production exec -T postgres \
+     psql -U postgres -d oisms -v ON_ERROR_STOP=1 < docker/postgres/migrations/20261108_hangfire_schema.sql
+   ```
+4. Đặt `HANGFIRE_ENABLED=true` trong `.env.production`, rồi build lại và khởi động lại `backend`.
+5. Kiểm tra log backend có `Starting Hangfire Server ... Schema: hangfire`, `/health/ready` trả 200, và `SELECT statename, count(*) FROM hangfire.job GROUP BY 1;` chỉ có `Succeeded` sau 1–2 phút.
+
+Tắt lại: đặt `HANGFIRE_ENABLED=false` rồi khởi động lại `backend`; schema `hangfire` để nguyên không ảnh hưởng.
 
 ## 5. Bí Mật Và Quyền
 

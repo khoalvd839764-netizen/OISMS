@@ -440,7 +440,7 @@ Test cần `@electric-sql/pglite`; đặt `OISMS_TEST_MODULES` trỏ đến thư
 - Entity, DTO, Swagger và frontend phải thống nhất kiểu, nullable, enum và phạm vi tenant/branch/warehouse.
 - Danh mục có is_active; chứng từ đã ghi ledger phải bảo toàn lịch sử. Các điều kiện nguồn chứng từ đúng SKU/kho/lượng, trả không vượt bán và chống sửa chứng từ đã ghi kho vẫn phải được kiểm tra trong service.
 - Không tự chọn chính sách hủy sau Confirmed/Completed, nhận chuyển thiếu/từng phần hoặc split payment. Hiện một payment/đơn, chuyển hai bước cơ bản.
-- Không thêm bảng dự phòng; thay đổi dựa trên yêu cầu rõ ràng. Hangfire tạo bảng kỹ thuật riêng trong schema `hangfire` khi bật, ngoài 43 bảng nghiệp vụ.
+- Không thêm bảng dự phòng; thay đổi dựa trên yêu cầu rõ ràng. Hangfire tạo bảng kỹ thuật riêng trong schema `hangfire` khi bật, ngoài 44 bảng nghiệp vụ. Schema này do `init-oisms.sh` (volume mới) hoặc migration `20261108_hangfire_schema.sql` (DB đã có dữ liệu) tạo, thuộc `postgres`; `oisms_runtime` chỉ có `USAGE, CREATE` trên schema đó.
 
 ## Index và bằng chứng kiểm thử
 
