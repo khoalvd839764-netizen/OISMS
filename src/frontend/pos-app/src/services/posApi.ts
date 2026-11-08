@@ -1,4 +1,5 @@
 import { authenticatedFetch, getPosAccessToken, clearPosSession } from './posSession';
+import { mapServerReceipt } from './receiptMapper';
 import type { PosProductSearchResponse, Branch, PosCheckoutRequest } from '../types/pos';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
@@ -228,7 +229,9 @@ export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{
           message: 'Phản hồi thanh toán từ máy chủ không đúng định dạng (thiếu định danh đơn hàng). Giỏ hàng được giữ nguyên để đối soát.',
         };
       }
-      const receiptNumber = data?.receipt?.receiptNumber || data?.receiptNumber || serverOrderNumber;
+      try { mapServerReceipt(data.receipt, ''); }
+      catch { return { success: false, isUnknown: true, message: 'Snapshot hóa đơn từ máy chủ không hợp lệ. Giữ nguyên yêu cầu để đối soát/thử lại.' }; }
+      const receiptNumber = data.receipt.receiptNumber;
       return {
         success: true,
         message: 'Thanh toán đơn hàng thành công!',

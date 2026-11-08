@@ -74,13 +74,16 @@ button { color: inherit; }
 
   /* Hide everything except the receipt paper */
   .no-print,
-  .no-print-bg,
   header,
   nav,
   footer,
   button {
     display: none !important;
   }
+
+  /* The receipt's modal ancestors must remain visible; hiding them prints a blank page. */
+  .no-print-bg { display: block !important; position: static !important; background: none !important; backdrop-filter: none !important; padding: 0 !important; }
+  .no-print-bg > div { display: block !important; overflow: visible !important; max-height: none !important; border: 0 !important; box-shadow: none !important; }
 
   /* Make modal container transparent and top-level */
   .print-container {
@@ -110,7 +113,7 @@ button { color: inherit; }
   }
 
   @page {
-    size: 80mm auto;
+    size: 80mm 200mm;
     margin: 0;
   }
 }

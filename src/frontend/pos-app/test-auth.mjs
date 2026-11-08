@@ -93,3 +93,7 @@ test('auth: tab khác đã refresh cùng user thì không xóa token mới', asy
   const pending=f.api.refreshPosToken();f.local.set('oisms_pos_v2_access','rotated');f.local.set('oisms_pos_v2_refresh','r2');
   gate.resolve(response(401));assert.equal(await pending,'rotated');assert.equal(f.api.getPosAccessToken(),'rotated');
 });
+test('auth: khôi phục phiên v2 sẵn có bổ sung định danh từ me đã xác thực',async()=>{
+  const f=fixture(async()=>response(200,user));f.local.set('oisms_pos_v2_access','existing');
+  assert.equal((await f.api.getPosMe()).id,user.id);assert.equal(f.local.get('oisms_pos_v2_identity'),'tenant-a:a');
+});

@@ -113,9 +113,15 @@ export async function logoutPos() {
 }
 
 export async function getPosMe() {
+  const expected = getPosGeneration();
   const response = await authenticatedFetch(`${API_BASE_URL}/api/auth/me`);
   if (!response.ok) throw new Error('Không thể xác thực phiên POS.');
   const user = await response.json();
+  if (expected !== getPosGeneration()) throw new Error('Phiên đăng nhập đã thay đổi.');
   if (!user?.id || !user?.tenantId || !user.roles?.some((r: string) => ['Owner', 'Staff', 'Cashier'].includes(r))) throw new Error('Không có quyền sử dụng POS.');
+  if (!localStorage.getItem(POS_IDENTITY_KEY)) {
+    observedIdentity = `${user.tenantId}:${user.id}`;
+    localStorage.setItem(POS_IDENTITY_KEY, observedIdentity);
+  }
   return user;
 }

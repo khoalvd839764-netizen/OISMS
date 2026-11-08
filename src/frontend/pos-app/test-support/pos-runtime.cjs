@@ -1,5 +1,5 @@
 /**
- * Môi trường chạy PaymentModal của POS tích hợp trong Admin (admin-dashboard) không cần trình duyệt.
+ * Môi trường chạy PaymentModal của POS độc lập (pos-app) không cần trình duyệt.
  * Dùng để kiểm tra khóa idempotency (BF-003) và nguồn tài khoản nhận tiền chỉ từ API (CS-05).
  */
 const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm');
@@ -41,7 +41,8 @@ function world(options = {}) {
     return mod.exports;
   }
   const auth = load('services/posSession.ts');
-  const posApi = load('services/posApi.ts', { './posSession': auth }), qr = load('services/qrService.ts'), store = load('services/pendingCheckoutStore.ts');
+  const receiptMapper = load('services/receiptMapper.ts');
+  const posApi = load('services/posApi.ts', { './posSession': auth, './receiptMapper': receiptMapper }), qr = load('services/qrService.ts'), store = load('services/pendingCheckoutStore.ts');
   const accountSource = load('services/paymentAccountSource.ts', { './posApi': posApi, './qrService': qr, './posSession': auth });
   let cursor = 0, dirty = false; const state = [], effects = [], cleanups = [];
   const react = {
@@ -52,7 +53,7 @@ function world(options = {}) {
   const jsx = (type, props) => ({ type, props });
   const component = load('components/pos/PaymentModal.tsx', {
     react, 'react/jsx-runtime': { jsx, jsxs: jsx }, 'lucide-react': {},
-    '../../services/posApi': posApi, '../../services/qrService': qr, '../../services/paymentAccountSource': accountSource, '../../services/pendingCheckoutStore': store,
+    '../../services/posApi': posApi, '../../services/qrService': qr, '../../services/paymentAccountSource': accountSource, '../../services/pendingCheckoutStore': store, '../../services/receiptMapper': receiptMapper,
   }).PaymentModal;
   const successes = [];
   const props = { isOpen: true, embedded: false, onClose() { props.isOpen = false; }, branchId: 'branch-a', branchName: 'Branch A', tenantName: 'Tenant A', cashierName: 'Owner A', currentUser: user,

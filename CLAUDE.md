@@ -15,8 +15,8 @@ Trả lời bằng tiếng Việt. Docs là yêu cầu, code và test là hiện
 | `src/backend/src/OISM.Infrastructure` | `AppDbContext`, JWT, BCrypt, `SqlLockService`, job Hangfire |
 | `src/backend/src/OISM.WebApi` | Controller, `NotificationHub`, middleware lỗi, `Program.cs` |
 | `src/backend/tests` | `OISM.UnitTests`, `OISM.IntegrationTests` |
-| `src/frontend/admin-dashboard` | React 19 + Vite, cổng 5173; có cả POS tích hợp tại `/pos` (`PosPage.tsx`) |
-| `src/frontend/pos-app` | POS PWA riêng, cổng 5174 |
+| `src/frontend/admin-dashboard` | React 19 + Vite, cổng 5173; quản trị, `/pos` chỉ chuyển sang ứng dụng POS riêng |
+| `src/frontend/pos-app` | POS hiện tại chuyển từ Admin, cổng 5174; `src/pages/PosPage.tsx`, một implementation quầy |
 | `src/frontend/marketplace-simulator` | Giao diện giả lập bắn đơn sàn qua webhook, cổng 5175; chỉ gọi `/api/webhooks/*`. Xem `docs/14-webhook-simulator/` |
 | `docs/database/oisms_schema.sql` | Nguồn cấu trúc DB hiện hành |
 | `docker/postgres/migrations/` | Script nâng cấp DB đã có dữ liệu |
@@ -38,6 +38,8 @@ npm run build --prefix src/frontend/admin-dashboard
 npm run build --prefix src/frontend/pos-app
 npm test --prefix src/frontend/pos-app
 npm run lint --prefix src/frontend/pos-app
+# Live: docker compose -f docker/pos-tests/compose.yml up -d --build
+npm run test:live --prefix src/frontend/pos-app
 npm run build --prefix src/frontend/marketplace-simulator
 npm test --prefix src/frontend/marketplace-simulator
 ```
@@ -72,11 +74,11 @@ CI chạy khi push hoặc mở PR vào `main`, `master`, `develop`: build và te
 ## Điểm cần biết
 
 - **Docs cũ:** tài liệu lịch sử (sprint, báo cáo cá nhân) còn ghi 29 bảng; hiện là **44 bảng** (`oisms_schema.sql`, `init-oisms.sh`, `RequiredTables`, bao gồm `payment_accounts` của CS-05). Docs kiến trúc còn ghi `ApplicationDbContext`, `OISM.WebAPI` thay vì `AppDbContext`, `OISM.WebApi`.
-- **Tiến độ:** hiện trạng frontend xem `docs/report-after-upgrade/frontend-coming-soon-va-upgrade.md`. CS-05 đã hoàn thành (VietQR trên cả POS Admin và POS PWA, quản lý tài khoản thụ hưởng); còn thiếu CS-01, CS-06, U01-B và phân công chi nhánh của CS-02. Vẫn phải kiểm tra code trước khi kết luận chức năng còn thiếu. Dấu `[x]` Sprint 2 chỉ là baseline lịch sử, không phải nghiệm thu toàn sản phẩm.
+- **Tiến độ:** hiện trạng frontend xem `docs/report-after-upgrade/frontend-coming-soon-va-upgrade.md`. CS-05 đã hoàn thành (VietQR trên POS độc lập trong `pos-app`, quản lý tài khoản thụ hưởng); còn thiếu CS-01, CS-06, U01-B và phân công chi nhánh của CS-02. Vẫn phải kiểm tra code trước khi kết luận chức năng còn thiếu. Dấu `[x]` Sprint 2 chỉ là baseline lịch sử, không phải nghiệm thu toàn sản phẩm.
 - **Tạm ẩn:** tab Gợi ý nhập hàng được comment trong `InventoryPage.tsx`, API vẫn chạy. Màn Handoff đã gỡ nhưng đặc tả `docs/11-ui-screens/07-handoff-screens.md` còn giữ. Quên mật khẩu mới là nút tắt có nhãn Coming soon.
 - **Hangfire:** `Hangfire:Enabled` mặc định `false` và compose không bật, nên job hết hạn giữ chỗ và lịch kiểm kê không tự chạy trừ khi cấu hình.
 - **Redis:** có container nhưng code backend chưa dùng.
-- **POS đa đơn vị:** `posCartUnits.ts` có một bản trong mỗi app, sửa thì sửa cả hai; `pos-app/test-cart-units.mjs` chạy cả hai bản. Giá theo đơn vị phải lấy từ `/api/pos/search` hoặc `/api/sku-unit-prices/effective`, vì `salePrice` trong `/api/products` có thể rỗng; không tự tính giá theo hệ số.
+- **POS đa đơn vị:** `posCartUnits.ts` chỉ còn tại `pos-app`; `test-cart-units.mjs` chạy implementation này. Giá theo đơn vị phải lấy từ `/api/pos/search` hoặc `/api/sku-unit-prices/effective`, vì `salePrice` trong `/api/products` có thể rỗng; không tự tính giá theo hệ số.
 - **Quyền xem:** Staff được xem giá vốn ở truy vết và doanh thu ở Tổng quan theo `docs/01-users-and-rbac/02-rbac-matrix.md`; chỉ lãi gộp là Owner.
 - **JWT:** `Program.cs` có secret fallback viết cứng. Môi trường thật phải đặt `Jwt:Secret`; không dựa vào fallback.
 - **Deploy:** frontend nhúng URL API lúc build. `VITE_API_BASE_URL` không thêm đuôi `/api`. Production không có Swagger và không seed demo.

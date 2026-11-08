@@ -4,6 +4,7 @@ import type { CartItem, PendingCheckoutRecord, PosCheckoutRequest, ReceiptData }
 import type { BankConfig, PaymentAccountOption, VietQrResult } from '../../types/qr';
 import type { CurrentPriceItem } from '../../services/posCartUnits';
 import { checkoutPosOrder } from '../../services/posApi';
+import { mapServerReceipt } from '../../services/receiptMapper';
 import {
   generateVietQrPayload,
   toBankConfig,
@@ -251,12 +252,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     setApiNotice(null);
 
     let checkoutRequest: PosCheckoutRequest;
-    let receiverForReceipt: BankConfig | null = bankConfig;
 
     if (isRetryActive && activePending) {
       // [BF-003] Giữ nguyên RequestKey và toàn bộ payload của lần gửi trước.
       checkoutRequest = activePending.requestPayload;
-      receiverForReceipt = activePending.qrSnapshot?.bankConfig || null;
       updatePendingCheckoutStatus('submitting', undefined, undefined, activeUser, branchId);
     } else {
       const requestKey = paymentMethod === 'BANK_TRANSFER_QR' ? activeRequestKey : generateUuidV4();
@@ -306,40 +305,6 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       setPendingAttempt(newRecord);
     }
 
-    const receiptData: ReceiptData = {
-      receiptNumber: `ORD-POS-${checkoutRequest.requestKey.slice(0, 8).toUpperCase()}`,
-      createdAt: new Date().toLocaleString('vi-VN'),
-      tenantName: tenantName || 'CỬA HÀNG OISMS',
-      branchName: branchName || 'Chi nhánh mặc định',
-      branchAddress: branchAddress || 'Chi nhánh bán lẻ POS',
-      branchPhone: branchPhone || '1900 6868',
-      cashierName: cashierName || 'Thu ngân',
-      customerName: checkoutRequest.customerName,
-      customerPhone: checkoutRequest.customerPhone,
-      items: checkoutRequest.items.map((i) => {
-        const lineUnitId = (i as { unitId?: string }).unitId;
-        const cartLine = items.find((c) => c.variantId === i.skuId && (c.unitId || undefined) === lineUnitId);
-        return {
-          name: (i.productName || cartLine?.productName || i.skuCode || '') + (i.variantName ? ` - ${i.variantName}` : ''),
-          sku: i.skuCode || cartLine?.sku || '',
-          unitName: cartLine?.unitName,
-          quantity: i.quantity,
-          unitPrice: i.unitPrice,
-          subtotal: i.unitPrice * i.quantity,
-        };
-      }),
-      totalAmount: checkoutRequest.totalAmount,
-      paymentMethod: checkoutRequest.paymentMethod,
-      amountGiven: checkoutRequest.amountGiven ?? checkoutRequest.totalAmount,
-      changeDue: checkoutRequest.changeDue ?? 0,
-      paymentAccountId: checkoutRequest.paymentAccountId,
-      transferReference: checkoutRequest.transferReference,
-      receiverBankBin: receiverForReceipt?.bankBin,
-      receiverBankName: receiverForReceipt?.bankName,
-      receiverAccountNumber: receiverForReceipt?.accountNumber,
-      receiverAccountName: receiverForReceipt?.accountName,
-      isDraft: false,
-    };
 
     try {
       const result = await checkoutPosOrder(checkoutRequest);
@@ -349,16 +314,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         clearPendingCheckout(activeUser, branchId);
         clearPosQrIntent(activeUser, branchId);
         setPendingAttempt(null);
-        receiptData.receiptNumber = result.receiptNumber || result.receipt?.receiptNumber || result.orderNumber;
-        receiptData.orderNumber = result.orderNumber;
-        if (result.receipt) {
-          if (result.receipt.receiverBankBin) receiptData.receiverBankBin = result.receipt.receiverBankBin;
-          if (result.receipt.receiverBankName) receiptData.receiverBankName = result.receipt.receiverBankName;
-          if (result.receipt.receiverAccountNumber) receiptData.receiverAccountNumber = result.receipt.receiverAccountNumber;
-          if (result.receipt.receiverAccountName) receiptData.receiverAccountName = result.receipt.receiverAccountName;
-          if (result.receipt.transferReference) receiptData.transferReference = result.receipt.transferReference;
-        }
-        onSuccessAndPrint(receiptData);
+        onSuccessAndPrint(mapServerReceipt(result.receipt, tenantName || 'CỬA HÀNG OISMS'));
         onClose();
       } else if (result.isAuthExpired || result.isUnknown || isRetryActive) {
         // Kết quả chưa rõ: giữ nguyên RequestKey và payload để thử lại, không sinh khóa mới.
@@ -420,8 +376,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
       createdAt: new Date().toLocaleString('vi-VN'),
       tenantName: tenantName || 'CỬA HÀNG OISMS',
       branchName: branchName || 'Chi nhánh mặc định',
-      branchAddress: branchAddress || 'Chi nhánh bán lẻ POS',
-      branchPhone: branchPhone || '1900 6868',
+      branchAddress: branchAddress || '',
+      branchPhone: branchPhone || '',
       cashierName: cashierName || 'Thu ngân',
       customerName: customerName.trim() || undefined,
       customerPhone: customerPhone.trim() || undefined,

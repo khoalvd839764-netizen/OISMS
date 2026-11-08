@@ -1,7 +1,7 @@
 // Service Worker for OISMS Web POS (PWA)
 // Namespace: 'oisms-pos-' ensures isolation from other applications on the same origin
 const CACHE_NAMESPACE = 'oisms-pos-';
-const CACHE_VERSION = 'v2.0';
+const CACHE_VERSION = 'v2.1';
 const CACHE_NAME = `${CACHE_NAMESPACE}${CACHE_VERSION}`;
 
 // Essential shell assets to precache on install
@@ -32,9 +32,8 @@ self.addEventListener('activate', (event) => {
           }
         })
       );
-    })
+    }).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
@@ -61,7 +60,13 @@ self.addEventListener('fetch', (event) => {
   // 3. Với navigation request (load trang HTML):
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(() => {
+      fetch(request).then((response) => {
+        if (response.ok) {
+          const copy = response.clone();
+          event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.put('/index.html', copy)));
+        }
+        return response;
+      }).catch(() => {
         return caches.match('/index.html');
       })
     );

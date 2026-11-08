@@ -11,7 +11,7 @@ POS hiện tại được chuyển từ Admin. Test chỉ nạp implementation q
 | `test-b03-environment.mjs` | Giữ guard môi trường cô lập. |
 | `test-pos-e2e.mjs` ca 1–13 | Bỏ assertion cấu trúc/source JSX/state của UI tím; thay bằng build, test hành vi giỏ/checkout và nghiệm thu trình duyệt giao diện hiện tại. |
 | `test-pos-e2e.mjs` ca 14–25 | Các quy tắc retry/định danh/đổi phiên giữ qua checkout, QR, auth và pending tests; phép dò state index của App tím bị gỡ cùng App. |
-| `test-pos-e2e.mjs` ca 26–34 | Harness của receipt/print UI tím không dùng được với UI hiện tại; không chép lại component cũ chỉ để giữ test. Nghiệm thu invoice/receipt hiện tại được ghi trong báo cáo di chuyển; các khác biệt so với tính năng của app tím phải ghi riêng, không coi như đã pass. |
+| `test-pos-e2e.mjs` ca 26–34 | Harness của receipt/print UI tím không dùng được với UI hiện tại; không chép lại component cũ chỉ để giữ test. Các ca snapshot server, dữ liệu lỗi, không lộ COGS, giữ pending, selector print và khổ 58/80 được chuyển sang `test-receipt.mjs`; cache/PWA có `test-worker.mjs`. Không coi bằng chứng PDF cũ là kết quả PDF mới. |
 | B02 preflight/transport/live-stock và helper browser/probe v14–v16 | Các runner cũ nạp App/ProductSearch/cache tồn tím và đường dẫn evidence snapshot, được thay bằng test realtime mới nạp service/màn hiện tại. Test live chỉ chạy riêng trên backend/PostgreSQL cô lập; test reconnect phải ngắt transport thật. |
 | B03 browser/live, generate-print-evidence, measure-pos-latency | Runner phụ thuộc modal/table/login tím và đường dẫn evidence cũ được ngừng dùng; không giữ lệnh script dẫn tới source đã xóa. Không sửa evidence lịch sử. |
 

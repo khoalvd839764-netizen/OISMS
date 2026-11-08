@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Printer, X, CheckCircle2 } from 'lucide-react';
 import type { ReceiptData } from '../../types/pos';
 
@@ -8,6 +8,7 @@ interface ReceiptPrintModalProps {
 }
 
 export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({ receipt, onClose }) => {
+  const [paper, setPaper] = useState<'58' | '80'>(() => localStorage.getItem('oisms_pos_v2_paper') === '58' ? '58' : '80');
   if (!receipt) return null;
 
   const handlePrint = () => {
@@ -20,13 +21,15 @@ export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({ receipt, o
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in no-print-bg">
+      <style>{'.receipt-paper[data-paper="58"] table { font-size: 9px; table-layout: fixed; width: 100%; } .receipt-paper[data-paper="58"] th:first-child { width: 38%; } .receipt-paper[data-paper="58"] th:nth-child(2) { width: 12%; } .receipt-paper[data-paper="58"] th:nth-child(3), .receipt-paper[data-paper="58"] th:nth-child(4) { width: 25%; } .receipt-paper[data-paper="58"] td { white-space: normal !important; overflow-wrap: anywhere; padding-right: 2px; } .receipt-paper[data-paper="58"] td div { font-size: 9px; }'}</style>
+      <style>{`@media print { html, body { width: ${paper}mm !important; } .print-container, .receipt-paper { width: ${paper}mm !important; max-width: ${paper}mm !important; } .receipt-paper { font-size: ${paper === '58' ? '9' : '11'}px !important; } .receipt-paper table { font-size: ${paper === '58' ? '9' : '11'}px !important; table-layout: fixed; } .receipt-paper td { overflow-wrap: anywhere; white-space: normal !important; } } @page { size: ${paper}mm 200mm; margin: 0; }`}</style>
       <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden flex flex-col max-h-[95vh] no-print-border">
         {/* Header Modal Bar (hidden on print) */}
         <div className={`px-5 py-3.5 text-white flex items-center justify-between no-print ${receipt.isDraft ? 'bg-amber-900' : 'bg-slate-900'}`}>
           <div className="flex items-center gap-2">
             <CheckCircle2 className={`w-5 h-5 ${receipt.isDraft ? 'text-amber-400' : 'text-emerald-400'}`} />
             <span className="font-bold text-sm">
-              {receipt.isDraft ? 'Phiếu Tạm Tính (Chưa thanh toán)' : 'Hóa Đơn Bán Lẻ Khổ 80mm'}
+              {receipt.isDraft ? 'Phiếu Tạm Tính (Chưa thanh toán)' : `Hóa Đơn Bán Lẻ Khổ ${paper}mm`}
             </span>
           </div>
           <button
@@ -40,6 +43,7 @@ export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({ receipt, o
 
         {/* Action Button Strip (hidden on print) */}
         <div className={`p-3 border-b flex items-center justify-between no-print ${receipt.isDraft ? 'bg-amber-50 border-amber-200' : 'bg-indigo-50 border-indigo-100'}`}>
+          <label>Khổ giấy <select aria-label="Khổ giấy hóa đơn" value={paper} onChange={event => { const next = event.target.value === '58' ? '58' : '80'; setPaper(next); localStorage.setItem('oisms_pos_v2_paper', next); }}><option value="80">80 mm</option><option value="58">58 mm</option></select></label>
           <span className={`text-xs font-semibold ${receipt.isDraft ? 'text-amber-900' : 'text-indigo-900'}`}>
             {receipt.isDraft ? 'Bản in tạm tính - Đơn hàng chưa ghi nhận thanh toán' : 'Bản in hóa đơn chính thức'}
           </span>
@@ -55,7 +59,7 @@ export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({ receipt, o
 
         {/* Printable Receipt Paper Container */}
         <div className="p-6 overflow-y-auto bg-slate-100/50 flex justify-center print-container">
-          <div className="receipt-paper bg-white w-full max-w-[320px] p-4 border border-dashed border-slate-300 text-slate-900 font-sans text-xs shadow-sm relative">
+          <div data-paper={paper} style={{ width: `${paper}mm`, maxWidth: '100%' }} className="receipt-paper bg-white w-full max-w-[320px] p-4 border border-dashed border-slate-300 text-slate-900 font-sans text-xs shadow-sm relative">
             {/* Draft Watermark banner if draft */}
             {receipt.isDraft && (
               <div className="mb-2 p-1.5 text-center bg-amber-100 border border-amber-300 text-amber-900 font-black tracking-wider text-[11px] uppercase rounded">
@@ -71,12 +75,8 @@ export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({ receipt, o
               <div className="text-[11px] text-slate-600 font-medium mt-0.5">
                 {receipt.branchName || 'Chi nhánh POS'}
               </div>
-              <div className="text-[10px] text-slate-500 mt-0.5">
-                Đ/c: {receipt.branchAddress || 'Địa chỉ chi nhánh đang cập nhật'}
-              </div>
-              <div className="text-[10px] text-slate-500">
-                Hotline: {receipt.branchPhone || 'Đang cập nhật'}
-              </div>
+              {receipt.branchAddress && <div className="text-[10px] text-slate-500 mt-0.5">Đ/c: {receipt.branchAddress}</div>}
+              {receipt.branchPhone && <div className="text-[10px] text-slate-500">Hotline: {receipt.branchPhone}</div>}
             </div>
 
             {/* Receipt Title & Meta */}

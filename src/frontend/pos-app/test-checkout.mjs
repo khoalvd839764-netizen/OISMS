@@ -6,7 +6,7 @@ import runtime from './test-support/pos-runtime.cjs';
 const { world } = runtime;
 const ACC_A = '0000000a-aaaa-4bbb-8ccc-000000000001';
 const accountA = { id: ACC_A, bankBin: '970415', bankName: 'Test bank', bankShortName: 'TB', accountNumber: '123456789', accountName: 'FIXTURE A', isDefault: true };
-const ok = (requestKey) => ({ ok: true, status: 200, json: async () => ({ orderNumber: 'ORD-1', receipt: { receiptNumber: 'HD-1' }, requestKey }) });
+const ok = (requestKey) => ({ ok: true, status: 200, json: async () => ({ orderNumber: 'ORD-1', receipt: { receiptNumber: 'HD-1', orderNumber: 'ORD-1', createdAt: '2026-11-08T05:00:00Z', paymentMethod: 'Cash', totalAmount: 100000, items: [{ skuCode: 'A', productName: 'A', quantity: 1, unitPrice: 100000, subtotal: 100000 }] }, requestKey }) });
 
 test('BF-003 POS: tiền mặt, mất mạng rồi bấm lại gửi cùng RequestKey và payload', async () => {
   const w = world(); await w.settle();
