@@ -16,6 +16,30 @@ export const httpClient = axios.create({
 
 type RetriableRequest = InternalAxiosRequestConfig & { _retry?: boolean };
 
+// [BF-036] Các endpoint xác thực chưa có phiên hợp lệ: không được gửi kèm access token cũ.
+// Token cũ còn hạn của tenant khác làm backend xác định sai tenant và từ chối đăng nhập.
+const ANONYMOUS_AUTH_PATHS = [
+  '/api/auth/login',
+  '/api/auth/refresh-token',
+  '/api/auth/register-tenant',
+  '/api/auth/logout',
+];
+
+export function isAnonymousAuthUrl(url?: string): boolean {
+  if (!url) return false;
+  return ANONYMOUS_AUTH_PATHS.some((path) => url.includes(path));
+}
+
+function removeAuthHeader(config: InternalAxiosRequestConfig) {
+  if (!config.headers) return;
+  if (typeof (config.headers as any).delete === 'function') {
+    (config.headers as any).delete('Authorization');
+  } else {
+    delete (config.headers as any).Authorization;
+    delete (config.headers as any).authorization;
+  }
+}
+
 // [A06] Quản lý khóa đồng bộ Refresh Token (chống Race Condition khi nhiều request cùng gặp 401)
 // - isRefreshing: chỉ cho phép đúng 1 lời gọi POST /api/auth/refresh-token tại một thời điểm.
 // - failedQueue: các request 401 đến sau sẽ xếp hàng chờ newAccessToken rồi tự động gửi lại.
@@ -187,9 +211,13 @@ export function refreshAccessToken(): Promise<string> {
   })();
 }
 
-// 1. Tự động đính kèm JWT Bearer Token vào mọi Request
+// 1. Tự động đính kèm JWT Bearer Token vào mọi Request, trừ endpoint đăng nhập/đăng ký/làm mới token
 httpClient.interceptors.request.use(
   (config) => {
+    if (isAnonymousAuthUrl(config.url)) {
+      removeAuthHeader(config);
+      return config;
+    }
     const token = localStorage.getItem(ACCESS_TOKEN_KEY);
     if (token) {
       setAuthHeader(config, token);
@@ -224,13 +252,7 @@ httpClient.interceptors.response.use(
     }
 
     // Bỏ qua can thiệp 401 đối với các endpoint xác thực (để trả đúng lỗi mật khẩu/token sai về form)
-    const requestUrl = originalRequest?.url || '';
-    if (
-      requestUrl.includes('/api/auth/login') ||
-      requestUrl.includes('/api/auth/refresh-token') ||
-      requestUrl.includes('/api/auth/register-tenant') ||
-      requestUrl.includes('/api/auth/logout')
-    ) {
+    if (isAnonymousAuthUrl(originalRequest?.url)) {
       return Promise.reject(error);
     }
 

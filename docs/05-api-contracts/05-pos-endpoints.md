@@ -30,6 +30,27 @@
 | `GET` | `/api/pos/barcode/{barcode}` | `Owner, Staff, Cashier` | `FR-POS-01`, `FR-POS-02` | Tra cứu chính xác SKU theo mã vạch `EAN-13`/`Code128` kèm tồn khả dụng tại chi nhánh. Độ trễ `p95 < 200ms`. |
 | `POST` | `/api/pos/checkout`<br/>*(Alias: `/api/orders/checkout`)* | `Owner, Staff, Cashier` | `FR-POS-03`, `FR-POS-04`, `FR-COST-02` | **Thanh toán nhanh tại quầy POS:** Khóa tồn, trừ `OnHand` trực tiếp (không tạo `reservations`), ghi Sổ cái `OUT`, lưu đơn `Completed` + `payments` + `sales_invoices` + Chụp `OrderItem.CostPrice` (WAC snapshot) trong **1 giao dịch CSDL nguyên tử duy nhất**. Hỗ trợ cả 2 đường dẫn tương thích 100%. Phản hồi trả về `PosReceiptDto` chuẩn bán lẻ, **tuyệt đối không để lộ giá vốn (CostPrice/COGS)**. Chi tiết xem [`DOC-CTR-S3-01`](../08-sprints/sprint-3/01-api-contracts-sprint-3.md). |
 
+**Chuyển khoản VietQR (CS-05):**
+
+- `paymentMethod`: `Cash`/`CASH` hoặc `BankTransfer`/`BANK_TRANSFER_QR`/`QR`. QR do thu ngân bấm "Đã nhận tiền" mới gọi checkout; hiển thị hay quét QR không được coi là đã trả tiền.
+- Trường tùy chọn `paymentAccountId` (tài khoản đã dùng để sinh QR) và `transferReference` (nội dung chuyển khoản, tối đa 100 ký tự). Server tra tài khoản theo `paymentAccountId` trong tenant của JWT và lưu bản chụp BIN, số tài khoản, tên chủ tài khoản vào `payments`; không lấy số tài khoản do client gửi. Không gửi `paymentAccountId` thì bản chụp để trống, server không tự chọn tài khoản.
+- Tài khoản không thuộc tenant: `404 PAYMENT_ACCOUNT_NOT_FOUND`; đã ngừng dùng: `409 PAYMENT_ACCOUNT_INACTIVE`. Kiểm tra trước khi trừ kho; replay cùng `RequestKey` đã thành công vẫn trả kết quả cũ.
+- Idempotency: cùng `RequestKey` mà khác `paymentAccountId` hoặc khác `transferReference` (khi cả hai bên đều có) trả `409 IDEMPOTENCY_PAYLOAD_MISMATCH`.
+- `receipt` có thêm `transferReference`, `receiverBankBin`, `receiverBankName`, `receiverAccountNumber`, `receiverAccountName`.
+
+## 1a. Tài khoản nhận tiền (`/api/payment-accounts`, CS-05)
+
+| Method | Endpoint | Quyền | Mô tả |
+| :---: | :--- | :---: | :--- |
+| `GET` | `/api/payment-accounts` | `Owner` | Toàn bộ tài khoản của cửa hàng, kể cả đã ngừng dùng. |
+| `GET` | `/api/payment-accounts/active` | `Owner, Staff, Cashier` | Tài khoản đang dùng (mặc định đứng đầu). POS chỉ lấy tài khoản từ endpoint này. |
+| `POST` | `/api/payment-accounts` | `Owner` | Thêm tài khoản (`bankBin` 6 số, `bankName`, `bankShortName`, `accountNumber` 6–19 ký tự chữ/số, `accountName`, `isDefault`). Tài khoản đầu tiên tự thành mặc định. Trùng BIN + số TK: `409 PAYMENT_ACCOUNT_DUPLICATE`. Trả `201`. |
+| `PUT` | `/api/payment-accounts/{id}` | `Owner` | Chỉ đổi tên ngân hàng, tên viết tắt, tên chủ tài khoản. Gửi BIN hoặc số TK khác: `400 PAYMENT_ACCOUNT_IDENTITY_IMMUTABLE`. |
+| `POST` | `/api/payment-accounts/{id}/set-default` | `Owner` | Đặt mặc định; tài khoản đã ngừng: `400 PAYMENT_ACCOUNT_INACTIVE`. Chạy trong transaction có khóa theo tenant; mỗi cửa hàng luôn có tối đa một mặc định. |
+| `POST` | `/api/payment-accounts/{id}/deactivate` | `Owner` | Ngừng dùng (không xóa cứng). Nếu là mặc định thì chuyển mặc định sang tài khoản đang dùng mới nhất. |
+
+Tài khoản của tenant khác luôn trả `404 PAYMENT_ACCOUNT_NOT_FOUND`. Thiếu claim user trả `401`.
+
 **Nhiều đơn vị tính (Upgrade 05):**
 
 - Mỗi dòng giỏ có thêm `unitId` tùy chọn; để trống là đơn vị gốc. Hệ số và lượng gốc do backend quyết định, client không gửi được.

@@ -187,6 +187,11 @@ export function mapServerReceiptToReceiptData(
     paymentMethod: dto.paymentMethod || 'Cash',
     amountGiven,
     changeDue,
+    transferReference: safeTrimString(dto.transferReference),
+    receiverBankBin: safeTrimString(dto.receiverBankBin),
+    receiverBankName: safeTrimString(dto.receiverBankName),
+    receiverAccountNumber: safeTrimString(dto.receiverAccountNumber),
+    receiverAccountName: safeTrimString(dto.receiverAccountName),
     isDraft: false,
   };
 }
@@ -194,6 +199,11 @@ export function mapServerReceiptToReceiptData(
 export type { PosReceiptDto, PosReceiptItemDto, ReceiptData, ReceiptItemData } from '../types/pos';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
+/** Gốc API dùng chung cho mọi lời gọi của POS (không có đuôi /api). */
+export function getApiBaseUrl(): string {
+  return API_BASE_URL;
+}
 
 // Storage key cho pending checkout attempt (RFC 4122 v4 UUID, snapshot payload, owner identity)
 const PENDING_STORAGE_KEY = 'pos_pending_checkout_v1';

@@ -9,7 +9,7 @@
 | **Bằng chứng kiểm thử Sprint 2** | **194/194 Tests Pass (100%)** — 103 Unit Tests + 91 Integration Tests trên PostgreSQL 16+ thật; Code Coverage Core Inventory đạt **`92.49% – 94.83%`** |
 | **Nguồn cập nhật Sprint 3** | [Phân công Sprint 3 lưu trong repo, Confluence v11](docs/08-sprints/sprint-3/README.md) và [báo cáo tổng kết Đăng Khoa](docs/09-personal-reports/dang-khoa/sprint-3/SUMMARY.md); không tra cứu/cập nhật Confluence live trong lượt này |
 | **Hiện trạng sản phẩm mới nhất** | [Cập nhật 30/10/2026](docs/bug-fixaffter/CHECKLIST.md): **20/20 nhóm lỗi (`BF-001..020`) ĐÃ KHẮC PHỤC & VERIFIED PASS**, **Clean Architecture (`Upgrade 06`) ĐÃ HOÀN TẤT**; còn **8 mục Coming soon (`OISMS-45`)** và **5 mục Upgrade nghiệp vụ (`OISMS-47`)** đang triển khai ở Sprint 4 |
-| **Frontend Coming Soon và Upgrade** | [Cập nhật 04/11/2026](docs/report-after-upgrade/frontend-coming-soon-va-upgrade.md): đã gộp vào `develop`. Còn CS-01, CS-05 (POS Admin), CS-06, U01-B và phân công chi nhánh của CS-02. |
+| **Frontend Coming Soon và Upgrade** | [Cập nhật 04/11/2026](docs/report-after-upgrade/frontend-coming-soon-va-upgrade.md): đã gộp vào `develop`. Còn CS-01, CS-06, U01-B và phân công chi nhánh của CS-02. CS-05 đã xong ngày 07/11/2026 ([review PR 39](docs/report-after-upgrade/vietqr-cs05-review-pr39.md)). |
 
 ---
 
@@ -60,7 +60,7 @@ Baseline rà soát: nhánh `feature/OISMS-43-orders-transfers`, HEAD `f276eeed72
 - [ ] **Chuyển kho:** đã có UI gọi backend; còn retry tạo phiếu, khóa thao tác và tồn theo kho nguồn (`BF-004`, `BF-008`, `BF-012`); cần nghiệm thu tạo → dispatch → receive → tồn hai kho → lịch sử.
 - [ ] **Kiểm kê:** đã có UI và cập nhật phân loại lịch sử ở lượt trước; còn retry, ô đếm trống và khóa thao tác (`BF-005..008`); cần nghiệm thu lưu số đếm → xác nhận → tồn/điều chỉnh/lịch sử → tải lại.
 - [ ] **Giữ chỗ và đơn hàng:** bảo toàn ý định khi kết quả chưa xác định (`BF-013`), nghiệm thu tạo/giữ → xác nhận hoặc hủy/hết hạn → tồn/sổ kho. In chứng từ Admin còn Coming soon (`CS-06`).
-- [ ] **POS tích hợp `/pos`:** đã có giao diện catalog/giỏ và thanh toán tiền mặt; còn retry, hết phiên và kiểm tra response thành công (`BF-003`, `BF-015`, `BF-019`); QR chưa hoạt động thật (`CS-05`).
+- [ ] **POS tích hợp `/pos`:** đã có giao diện catalog/giỏ và thanh toán tiền mặt; còn retry, hết phiên và kiểm tra response thành công (`BF-003`, `BF-015`, `BF-019`). QR VietQR đã hoạt động (`CS-05`); khóa idempotency khi thử lại thanh toán đã có test tự động `test-admin-pos-checkout.mjs`.
 - [ ] **POS riêng:** ngoài các lỗi checkout chung, phải khóa/tách đúng giỏ và chi nhánh khi giao dịch đang chạy (`BF-020`); chưa coi hai POS có mức hoàn thiện tương đương.
 - [ ] **Đồng bộ realtime:** hoàn thiện nhóm chi nhánh, sự kiện tồn và refetch sau reconnect (`BF-002`, `BF-016`); kiểm chứng nhiều phiên và chi nhánh trên môi trường test.
 - [ ] **Báo cáo/cảnh báo:** sửa phản hồi cũ, dữ liệu cũ khi lỗi, ngày/múi giờ, link cảnh báo và kênh Admin (`BF-009..011`, `BF-017`, `BF-018`); các finding BE2-F03/F04 bên dưới vẫn cần xử lý/đối chiếu riêng.
@@ -109,7 +109,7 @@ Gắn nhãn hoặc khóa nút giúp phản ánh đúng hiện trạng; **không 
 - [ ] **CS-02:** Danh sách, tạo/sửa nhân viên, phân quyền và phân công chi nhánh. *(Còn thiếu phân công chi nhánh.)*
 - [x] **CS-03:** Lưu ngưỡng cảnh báo trên server và đồng bộ Kho/Báo cáo.
 - [x] **CS-04:** Tìm kiếm toàn hệ thống ở thanh đầu trang.
-- [ ] **CS-05:** Thanh toán QR thật và xác nhận/đối soát theo phương án nghiệp vụ được chốt. *(POS PWA đã có VietQR, thu ngân xác nhận thủ công; POS Admin chưa bật.)*
+- [x] **CS-05:** Thanh toán QR VietQR ở POS PWA và POS Admin, thu ngân chọn tài khoản nhận và xác nhận thủ công; Owner quản lý tài khoản nhận tiền theo cửa hàng; `payments` lưu bản chụp người nhận. *(Xác nhận tự động qua webhook ngân hàng tạm gác. Bằng chứng: [review PR 39](docs/report-after-upgrade/vietqr-cs05-review-pr39.md).)*
 - [ ] **CS-06:** In chứng từ giao hàng và báo cáo Admin; in hóa đơn POS cần nghiệm thu riêng.
 - [x] **CS-07:** KPI bán hàng, đơn gần đây và biểu đồ Tổng quan từ dữ liệu server đầy đủ.
 - [ ] **CS-08:** Dự báo và gợi ý nhập hàng AI có API/model/UI và bằng chứng đánh giá. *(Đã có API và giao diện; còn thiếu bằng chứng đánh giá.)*

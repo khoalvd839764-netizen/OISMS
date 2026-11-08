@@ -31,6 +31,7 @@ public interface IAppDbContext
     DbSet<OrderItem> OrderItems { get; }
     DbSet<Reservation> Reservations { get; }
     DbSet<Payment> Payments { get; }
+    DbSet<PaymentAccount> PaymentAccounts { get; }
     DbSet<StockTransfer> StockTransfers { get; }
     DbSet<StockTransferItem> StockTransferItems { get; }
     DbSet<StockCount> StockCounts { get; }

@@ -43,6 +43,7 @@ internal enum ApiErrorProfile
     InventoryTrace,
     Orders,
     OrderProcess,
+    PaymentAccounts,
     PosCheckout,
     Pricing,
     SalesInvoices,

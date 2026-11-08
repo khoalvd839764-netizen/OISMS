@@ -624,6 +624,10 @@ function mountPaymentModal(env, props, apiModule) {
   };
 
   const qrServiceModule = compileAndLoadModule(qrServiceSourceCode, 'qrService.ts', env, {});
+  // CS-05: nguồn tài khoản nhận tiền thật (chỉ gọi API), nối với api.ts và qrService của test.
+  const paymentAccountSourceModule = compileAndLoadModule(
+    fs.readFileSync(path.resolve(__dirname, 'src/services/paymentAccountSource.ts'), 'utf8'),
+    'paymentAccountSource.ts', env, { './api': apiModule, './qrService': qrServiceModule });
 
   const { PaymentModal } = compileAndLoadModule(modalSourceCode, 'PaymentModal.tsx', env, {
     react,
@@ -631,6 +635,7 @@ function mountPaymentModal(env, props, apiModule) {
     'lucide-react': {},
     '../services/api': apiModule,
     '../services/qrService': qrServiceModule,
+    '../services/paymentAccountSource': paymentAccountSourceModule,
   });
 
   return {

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using OISM.Application.Common.Attributes;
 using OISM.Application.Features.Auth.CurrentUser;
 using OISM.Application.Features.Auth.Login;
 using OISM.Application.Features.Auth.RefreshToken;
@@ -24,6 +25,7 @@ public class AuthController : ControllerBase
     /// Đăng ký Cửa hàng (Tenant) mới kèm tài khoản Chủ shop (Owner) ban đầu (FR-AUTH-01).
     /// </summary>
     [HttpPost("register-tenant")]
+    [IgnoreTenantClaim]
     [ApiErrorContract(ApiErrorProfile.Register)]
     public async Task<IActionResult> RegisterTenant([FromBody] RegisterTenantRequest request, CancellationToken ct)
     {
@@ -43,6 +45,7 @@ public class AuthController : ControllerBase
     /// Trả về JWT Access Token (hạn 60p) và Refresh Token (hạn 7 ngày).
     /// </summary>
     [HttpPost("login")]
+    [IgnoreTenantClaim]
     [ApiErrorContract(ApiErrorProfile.Login)]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken ct)
     {
@@ -61,6 +64,7 @@ public class AuthController : ControllerBase
     /// Làm mới Access Token bằng Refresh Token (Token Rotation nguyên tử, chống race condition trên PostgreSQL).
     /// </summary>
     [HttpPost("refresh-token")]
+    [IgnoreTenantClaim]
     [ApiErrorContract(ApiErrorProfile.RefreshToken)]
     public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request, CancellationToken ct)
     {
@@ -77,6 +81,7 @@ public class AuthController : ControllerBase
     /// Đăng xuất tài khoản (Thu hồi Refresh Token).
     /// </summary>
     [HttpPost("logout")]
+    [IgnoreTenantClaim]
     public async Task<IActionResult> Logout([FromBody] RefreshTokenRequest request, CancellationToken ct)
     {
         await _authService.RevokeTokenAsync(request, ct);

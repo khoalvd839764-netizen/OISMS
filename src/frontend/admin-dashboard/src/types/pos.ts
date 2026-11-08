@@ -78,6 +78,8 @@ export interface PosCheckoutRequest {
   paymentMethod: "CASH" | "BANK_TRANSFER_QR";
   amountGiven?: number;
   changeDue?: number;
+  paymentAccountId?: string;
+  transferReference?: string;
   requestKey: string;
   items: PosCheckoutItemRequest[];
   totalAmount: number;
@@ -108,4 +110,44 @@ export interface ReceiptData {
   changeDue: number;
   isDraft?: boolean;
   paymentStatusTitle?: string;
+  receiverBankBin?: string;
+  receiverBankName?: string;
+  receiverAccountNumber?: string;
+  receiverAccountName?: string;
+  transferReference?: string;
+  paymentAccountId?: string;
+}
+
+export interface PosUser {
+  id?: string;
+  tenantId?: string;
+  tenantCode?: string;
+  fullName: string;
+  email: string;
+  tenantName?: string;
+}
+
+export interface CheckoutOwner {
+  tenantId?: string;
+  tenantCode?: string;
+  tenantName?: string;
+  userId?: string;
+  email?: string;
+  cashierName?: string;
+  branchId: string;
+}
+
+export type PendingCheckoutStatus = 'submitting' | 'unknown';
+
+export interface PendingCheckoutRecord {
+  version: 1;
+  requestKey: string;
+  owner: CheckoutOwner;
+  createdAt: number;
+  updatedAt: number;
+  status: PendingCheckoutStatus;
+  requestPayload: PosCheckoutRequest;
+  qrSnapshot?: import('./qr').PosQrIntent;
+  lastErrorMessage?: string;
+  lastErrorCode?: string;
 }

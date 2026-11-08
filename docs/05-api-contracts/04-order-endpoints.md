@@ -15,6 +15,7 @@
 
 | Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả thay đổi | Mã tham chiếu |
 | :---: | :---: | :--- | :--- | :--- |
+| `v1.2.0` | `2026-11-06` | Nhóm dự án OISMS | Thêm API quản lý kết nối gian hàng sàn `/api/shop-integrations` (Owner): tạo, sửa, đổi secret webhook. Thêm `GET /api/webhooks/simulator/whoami`. Webhook tra secret theo hash. | `OISMS-48` |
 | `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Đối chiếu controller: thêm `process`, `simulator/batch`, `dashboard-summary`, `/api/search`, `/api/ai/export-history`; sửa quyền báo cáo theo code và ghi lệch RBAC lãi gộp; Hangfire mặc định tắt. | `OISMS-46` |
 | `v1.0.5` | `2026-11-04` | Nhóm dự án OISMS | `GET /api/reports/inventory-velocity` thêm `quantityByUnit` và `baseUnitName`; `currentOnHand` cộng theo SKU trên phạm vi chi nhánh đang lọc. | `OISMS-46` |
 | `v1.0.4` | `2026-10-26` | Đăng Khoa (Backend 1) | **Hoàn thiện Task 6 v1.0:** Tác vụ nền Hangfire tự động hủy đơn giữ chỗ quá hạn 15 phút (`oisms-reservation-expiry`, cadence `*/1 * * * *` UTC). Chuẩn hóa ranh giới hết hạn `ExpiresAt <= cutoffUtc`, giải phóng `Reserved` hai cấp (chi nhánh & kho) nguyên tử theo toàn giỏ, phát sự kiện SignalR `StockLevelChanged` sau khi database transaction commit thành công. | `SYNC-S3-T06-V10` |
@@ -39,6 +40,7 @@
 | `POST` | `/api/orders/{id}/cancel` | `Owner, Staff` | `FR-ORD-02..03`, `FR-RSE-03` | Hủy đơn hàng (`Reserved -> Cancelled`): Giải phóng `reserved` về lại quỹ `available`. |
 | `POST` | `/api/orders/checkout`<br/>*(Canonical: `/api/pos/checkout`)* | `Owner, Staff, Cashier` | `FR-POS-03`, `FR-POS-04`, `FR-COST-02` | Endpoint alias tương thích ngược phục vụ Web POS PWA và Admin POS, trỏ vào cùng lõi `IOrderService.CheckoutPosAsync`. Trả về `PosReceiptDto` không lộ giá vốn. |
 | `POST` | `/api/webhooks/simulator/{channel}` | `Owner, Staff / Webhook Key` | `FR-SIM-01`, `FR-ORD-01` | **Tiếp nhận đơn TMĐT (Shopee, TikTok, Lazada):**<br/>- Xác thực kép: Header `X-Webhook-Secret` (production/simulator webhook) hoặc `Bearer JWT` (`Owner`, `Staff`; `Cashier` bị từ chối 403 `FORBIDDEN`). Tuyệt đối không đọc `TenantId` từ request body.<br/>- Tự động ánh xạ chi nhánh fulfillment từ bảng `shop_integrations` theo `(tenant_id, channel, external_shop_id)`.<br/>- Khóa chống trùng: `(tenant_id, channel, external_shop_id, external_order_id)`. Cùng khóa + cùng payload &rarr; 200 OK replay; Cùng khóa + khác payload &rarr; 409 Conflict (`WEBHOOK_PAYLOAD_MISMATCH`).<br/>- Kênh URL khác payload channel &rarr; 400 Bad Request (`CHANNEL_MISMATCH`).<br/>- Áp dụng đơn giá tin cậy từ sàn TMĐT, kiểm tra tổng tiền và làm tròn `AwayFromZero` (lệch trả 400 `TOTAL_AMOUNT_MISMATCH`).<br/>- Giữ chỗ tồn kho bằng lõi chung `CreateReservedOrderCoreAsync`: tạo đơn `Reserved`, sinh `Reservation` `Active` 15 phút, tăng `Reserved` ở kho/chi nhánh, OnHand/WAC không đổi. |
+| `GET` | `/api/webhooks/simulator/whoami` | `Webhook Key` | `FR-SIM-01` | Header `X-Webhook-Secret` bắt buộc, không cần JWT. Trả 200 `{ channel, externalShopId, branchName, branchIsActive }` để công cụ giả lập tự điền. Không trả `tenantId`, `branchId`. Thiếu hoặc sai secret, kết nối tắt, doanh nghiệp ngừng hoạt động: 401 `UNAUTHORIZED`. Chi nhánh tắt vẫn trả 200 với `branchIsActive: false`. Xem [`DOC-SIM-14`](../14-webhook-simulator/README.md). |
 | `POST` | `/api/webhooks/simulator/batch` | `Owner, Staff` | `NFR-PERF-02` | Chạy mô phỏng nhiều đơn đồng thời cho 1 SKU để kiểm chứng chống bán vượt. |
 | `WS/SSE` | `/hubs/notifications` | `Owner, Staff, Cashier` | `FR-SIM-02` | **SignalR Hub thông báo thời gian thực:**<br/>- Xác thực JWT Bearer qua Query Token (`/hubs/notifications?access_token=...`) dành riêng cho Hub path.<br/>- Tự động join nhóm `tenant_{tenantId}`. Client có thể gọi `JoinBranchGroup(Guid branchId)` và `LeaveBranchGroup(Guid branchId)` sau khi server xác thực chi nhánh hợp lệ.<br/>- Các sự kiện phát ra: `OrderCreated` (đơn Reserved mới), `StockLevelChanged` (khi tồn khả dụng thay đổi), `LowStockWarning` (khi tồn khả dụng &le; `reorder_point`). Payload cam kết không chứa giá vốn / bí mật. |
 
@@ -55,6 +57,18 @@
 
 ---
 
+
+## 1.0a. Kết Nối Gian Hàng Sàn (`FR-SIM-01`, `OISMS-48`)
+
+Mỗi kết nối ánh xạ `(channel, externalShopId)` của Tenant về một chi nhánh xử lý đơn và giữ secret cho header `X-Webhook-Secret`. Chỉ `Owner` được gọi; `Staff`, `Cashier` nhận 403. `TenantId` lấy từ JWT.
+
+| Method | Endpoint | Mô tả |
+| :---: | :--- | :--- |
+| `GET` | `/api/shop-integrations` | Danh sách kết nối của Tenant: `id`, `channel`, `externalShopId`, `branchId`, `branchName`, `isActive`, `createdAt`, `updatedAt`. Không trả secret hay hash. |
+| `GET` | `/api/shop-integrations/{id}` | Chi tiết một kết nối. Không thuộc Tenant hiện tại trả 404 `SHOP_INTEGRATION_NOT_FOUND`. |
+| `POST` | `/api/shop-integrations` | Body `{ channel, externalShopId, branchId }`. `channel` nhận `Shopee`, `TikTok`, `Lazada` không phân biệt hoa thường. Trả 201 `{ integration, webhookSecret }`; `webhookSecret` (`whsec_` + 64 ký tự hex) chỉ hiện một lần. Trùng gian hàng trên cùng kênh: 409 `SHOP_INTEGRATION_DUPLICATE`. Chi nhánh không tồn tại, đã tắt hoặc thuộc Tenant khác: 404 `BRANCH_INACTIVE_OR_INVALID`. |
+| `PUT` | `/api/shop-integrations/{id}` | Body `{ branchId, isActive }`. Không đổi được `channel`, `externalShopId`. Đặt `isActive = false` thì webhook với secret đó trả 401. |
+| `POST` | `/api/shop-integrations/{id}/rotate-secret` | Sinh secret mới, trả 200 `{ integration, webhookSecret }`. Secret cũ mất hiệu lực ngay. |
 
 ## 1.1. Hóa Đơn Bán Hàng & Truy Vết Chứng Từ Xuất Kho (`OISMS-47-U02`)
 

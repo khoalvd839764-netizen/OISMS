@@ -29,16 +29,17 @@ dcp ps
 
 Chuyện gì xảy ra:
 
-1. Build 3 image: backend (.NET SDK → ASP.NET runtime), admin và POS (Node 22 → nginx). Lần đầu mất vài phút.
+1. Build 4 image: backend (.NET SDK → ASP.NET runtime), admin, POS và giả lập đơn sàn (Node 22 → nginx). Lần đầu mất vài phút.
 2. `postgres` khởi động với volume trống, chạy `init-oisms.sh`: nạp `oisms_schema.sql` (43 bảng, trigger `ledger_append_only`), tạo nhóm `oisms_runtime` và login `oisms_app`, kiểm tra đủ 43 bảng. Lỗi ở bước này thì container dừng; xem `dcp logs postgres`.
 3. `backend` chờ `postgres` healthy rồi chạy. Production không seed demo.
-4. `caddy` xin chứng chỉ cho `ADMIN_DOMAIN` và `POS_DOMAIN`. Xem tiến trình: `dcp logs -f caddy`.
+4. `caddy` xin chứng chỉ cho `ADMIN_DOMAIN`, `POS_DOMAIN` và `SIM_DOMAIN`. Xem tiến trình: `dcp logs -f caddy`.
 
 Kiểm tra:
 
 ```bash
 curl -s https://<ADMIN_DOMAIN>/health/ready
 curl -sI https://<POS_DOMAIN>/ | head -1
+curl -sI https://<SIM_DOMAIN>/ | head -1
 ```
 
 `/health/ready` phải trả HTTP 200, `status: "Healthy"`, `tablesCount: 43`, `triggerVerified: true`.

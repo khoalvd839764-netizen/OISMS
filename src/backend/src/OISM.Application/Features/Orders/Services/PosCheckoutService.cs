@@ -208,6 +208,21 @@ internal sealed class PosCheckoutService(
                     throw new IdempotencyPayloadMismatchException("RequestKey đã được sử dụng với phương thức thanh toán khác.");
                 }
 
+                // So sánh PaymentAccountId (nếu cả 2 đều có giá trị, hoặc dto có truyền nhưng khác bản lưu)
+                if (dto.PaymentAccountId.HasValue && existingOrder.Payment.PaymentAccountId.HasValue &&
+                    dto.PaymentAccountId.Value != existingOrder.Payment.PaymentAccountId.Value)
+                {
+                    throw new IdempotencyPayloadMismatchException("RequestKey đã được sử dụng với tài khoản nhận khác.");
+                }
+
+                // So sánh nội dung chuyển khoản (chỉ khi cả request và bản đã lưu đều có; request cũ không gửi thì bỏ qua)
+                var requestedReference = dto.TransferReference?.Trim();
+                if (!string.IsNullOrEmpty(requestedReference) && !string.IsNullOrEmpty(existingOrder.Payment.TransferReference) &&
+                    !string.Equals(requestedReference, existingOrder.Payment.TransferReference, StringComparison.Ordinal))
+                {
+                    throw new IdempotencyPayloadMismatchException("RequestKey đã được sử dụng với nội dung chuyển khoản khác.");
+                }
+
                 // So sánh AmountGiven (nếu là Cash)
                 if (normalizedMethod == "Cash")
                 {
@@ -301,6 +316,10 @@ internal sealed class PosCheckoutService(
                     ? await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.TenantId == tenantId.Value && u.Id == cashierUserId.Value, ct)
                     : null;
 
+                var replayAccount = existingOrder.Payment?.PaymentAccountId is Guid replayAccountId
+                    ? await _context.PaymentAccounts.AsNoTracking().FirstOrDefaultAsync(a => a.TenantId == tenantId.Value && a.Id == replayAccountId, ct)
+                    : null;
+
                 var replayReceipt = new PosReceiptDto
                 {
                     OrderId = existingOrder.Id,
@@ -319,6 +338,11 @@ internal sealed class PosCheckoutService(
                     ChangeDue = existingOrder.Payment?.CashReceived.HasValue == true
                         ? existingOrder.Payment.CashReceived.Value - existingOrder.TotalAmount
                         : null,
+                    TransferReference = existingOrder.Payment?.TransferReference,
+                    ReceiverBankBin = existingOrder.Payment?.ReceiverBankBin,
+                    ReceiverBankName = replayAccount?.BankName ?? replayAccount?.BankShortName,
+                    ReceiverAccountNumber = existingOrder.Payment?.ReceiverAccountNumber,
+                    ReceiverAccountName = existingOrder.Payment?.ReceiverAccountName,
                     CreatedAt = existingInvoice?.IssuedAt ?? existingOrder.CreatedAt,
                     Items = existingOrder.Items.Select(i => new PosReceiptItemDto
                     {
@@ -357,6 +381,25 @@ internal sealed class PosCheckoutService(
             if (branch == null || !branch.IsActive)
             {
                 throw new OismException("BRANCH_INACTIVE_OR_INVALID", $"Chi nhánh '{dto.BranchId}' không tồn tại hoặc đã ngừng hoạt động.", 404);
+            }
+
+            // 7b. Tài khoản nhận tiền (CS-05): kiểm tra trước khi trừ kho. Không gửi PaymentAccountId thì để trống bản chụp,
+            // không tự chọn tài khoản khác vì khách có thể đã chuyển vào tài khoản khác.
+            PaymentAccount? selectedAccount = null;
+            if (normalizedMethod == "BankTransfer" && dto.PaymentAccountId.HasValue)
+            {
+                selectedAccount = await _context.PaymentAccounts.AsNoTracking()
+                    .FirstOrDefaultAsync(a => a.TenantId == tenantId.Value && a.Id == dto.PaymentAccountId.Value, ct);
+
+                if (selectedAccount == null)
+                {
+                    throw new OismException("PAYMENT_ACCOUNT_NOT_FOUND", "Không tìm thấy tài khoản nhận tiền của cửa hàng.", 404);
+                }
+
+                if (!selectedAccount.IsActive)
+                {
+                    throw new OismException("PAYMENT_ACCOUNT_INACTIVE", "Tài khoản nhận tiền đã ngừng sử dụng. Vui lòng chọn tài khoản khác và tạo lại mã QR.", 409);
+                }
             }
 
             // 8. Tải và xác thực danh mục SKU trong Catalog
@@ -679,7 +722,7 @@ internal sealed class PosCheckoutService(
                 bBal.UpdatedAt = now;
             }
 
-            // 15. Tạo bản ghi thanh toán Payment (Succeeded)
+            // 15. Tạo bản ghi thanh toán Payment (Succeeded); tài khoản nhận đã kiểm tra ở bước 7b
             var payment = new Payment
             {
                 Id = Guid.NewGuid(),
@@ -688,6 +731,11 @@ internal sealed class PosCheckoutService(
                 Method = normalizedMethod,
                 Amount = totalAmount,
                 CashReceived = cashReceived,
+                TransferReference = normalizedMethod == "BankTransfer" ? (dto.TransferReference?.Trim()) : null,
+                ReceiverBankBin = selectedAccount?.BankBin,
+                ReceiverAccountNumber = selectedAccount?.AccountNumber,
+                ReceiverAccountName = selectedAccount?.AccountName,
+                PaymentAccountId = selectedAccount?.Id,
                 CreatedAt = now
             };
             payment.Succeed(now);
@@ -749,6 +797,11 @@ internal sealed class PosCheckoutService(
                 PaymentMethod = invoice.PaymentMethodSnapshot ?? normalizedMethod,
                 AmountGiven = cashReceived,
                 ChangeDue = changeDue,
+                TransferReference = payment.TransferReference,
+                ReceiverBankBin = payment.ReceiverBankBin,
+                ReceiverBankName = selectedAccount?.BankName ?? selectedAccount?.BankShortName,
+                ReceiverAccountNumber = payment.ReceiverAccountNumber,
+                ReceiverAccountName = payment.ReceiverAccountName,
                 CreatedAt = invoice.IssuedAt,
                 Items = createdOrderItems.Select(i => new PosReceiptItemDto
                 {

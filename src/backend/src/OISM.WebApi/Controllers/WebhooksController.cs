@@ -53,4 +53,18 @@ public class WebhooksController : ControllerBase
 
         return StatusCode(StatusCodes.Status201Created, result);
     }
+
+    /// <summary>
+    /// Cho biết X-Webhook-Secret thuộc gian hàng nào để công cụ giả lập tự điền sàn và mã shop.
+    /// Không tạo dữ liệu. Secret sai, kết nối tắt hoặc doanh nghiệp ngừng hoạt động trả 401.
+    /// </summary>
+    [HttpGet("whoami")]
+    [AllowAnonymous]
+    [ApiErrorContract(ApiErrorProfile.Webhooks)]
+    public async Task<IActionResult> WhoAmI(
+        [FromHeader(Name = "X-Webhook-Secret")] string? secretHeader,
+        CancellationToken ct)
+    {
+        return Ok(await _webhookService.GetIdentityAsync(secretHeader, ct));
+    }
 }

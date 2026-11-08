@@ -101,7 +101,8 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         "sales_invoices",
         "stock_count_schedules",
         "stock_count_periods",
-        "stock_count_approvals"
+        "stock_count_approvals",
+        "payment_accounts"
     ];
 
     public static readonly ExpectedTrigger[] ExpectedTriggers =
@@ -279,7 +280,12 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         new("fk_stock_count_approvals_actor", "stock_count_approvals", ["tenant_id", "actor_user_id"], "users", ["tenant_id", "id"]),
         new("fk_stock_counts_period", "stock_counts", ["tenant_id", "period_id"], "stock_count_periods", ["tenant_id", "id"]),
         new("fk_stock_counts_submitted_by", "stock_counts", ["tenant_id", "submitted_by"], "users", ["tenant_id", "id"]),
-        new("fk_stock_count_items_counted_by", "stock_count_items", ["tenant_id", "counted_by"], "users", ["tenant_id", "id"])
+        new("fk_stock_count_items_counted_by", "stock_count_items", ["tenant_id", "counted_by"], "users", ["tenant_id", "id"]),
+
+        // CS-05: tài khoản nhận tiền VietQR
+        new("fk_payment_accounts_tenant_id", "payment_accounts", ["tenant_id"], "tenants", ["id"]),
+        new("fk_payment_accounts_updated_by", "payment_accounts", ["tenant_id", "updated_by_user_id"], "users", ["tenant_id", "id"], OnDelete: 'n'),
+        new("fk_payments_payment_account_id", "payments", ["tenant_id", "payment_account_id"], "payment_accounts", ["tenant_id", "id"])
     ];
 
     public static readonly ExpectedConstraint[] ExpectedCriticalConstraints =
@@ -434,7 +440,13 @@ public class DatabaseMigrationService : IDatabaseMigrationService
 
         new("ck_stock_counts_status_values", 'c', "stock_counts", ExpectedNormalizedExpression: "((status)::text = ANY ((ARRAY['Draft'::character varying, 'Counting'::character varying, 'PendingApproval'::character varying, 'Confirmed'::character varying, 'Cancelled'::character varying])::text[]))"),
         new("ck_stock_counts_count_type", 'c', "stock_counts", ExpectedNormalizedExpression: "((count_type)::text = ANY ((ARRAY['MidMonth'::character varying, 'EndOfMonth'::character varying, 'AdHoc'::character varying])::text[]))"),
-        new("ck_stock_counts_type_period", 'c', "stock_counts", ExpectedNormalizedExpression: "(((count_type)::text = 'AdHoc'::text) = (period_id IS NULL))")
+        new("ck_stock_counts_type_period", 'c', "stock_counts", ExpectedNormalizedExpression: "(((count_type)::text = 'AdHoc'::text) = (period_id IS NULL))"),
+
+        // CS-05: tài khoản nhận tiền VietQR và bản chụp chuyển khoản trên payments
+        new("uq_payment_accounts_2", 'u', "payment_accounts", Columns: ["tenant_id", "bank_bin", "account_number"]),
+        new("ck_payment_accounts_bank_bin", 'c', "payment_accounts"),
+        new("ck_payment_accounts_account_number", 'c', "payment_accounts"),
+        new("ck_payments_bank_transfer_snapshot", 'c', "payments")
     ];
 
 
@@ -2069,13 +2081,125 @@ END $$;
                 await stockCountScheduleCmd.ExecuteNonQueryAsync(cancellationToken);
             }
 
+            // CS-05: tài khoản nhận tiền VietQR và bản chụp chuyển khoản trên payments.
+            // Giữ đồng bộ với docker/postgres/migrations/20261106_payment_accounts.sql.
+            const string paymentAccountsUpgradeSql = @"
+-- =========================================================================
+-- 1. Bảng payment_accounts (Bảng thứ 44 - Cấu hình tài khoản nhận tiền theo tenant)
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS public.payment_accounts (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    bank_bin varchar(6) NOT NULL,
+    bank_name varchar(255) NOT NULL,
+    bank_short_name varchar(50) NOT NULL,
+    account_number varchar(20) NOT NULL,
+    account_name varchar(255) NOT NULL,
+    is_default boolean NOT NULL DEFAULT false,
+    is_active boolean NOT NULL DEFAULT true,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NULL,
+    updated_by_user_id uuid NULL,
+    CONSTRAINT uq_payment_accounts_1 UNIQUE (tenant_id, id),
+    CONSTRAINT uq_payment_accounts_2 UNIQUE (tenant_id, bank_bin, account_number),
+    CONSTRAINT ck_payment_accounts_bank_bin CHECK (bank_bin ~ '^[0-9]{6}$'),
+    CONSTRAINT ck_payment_accounts_account_number CHECK (account_number ~ '^[A-Za-z0-9]{6,19}$')
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_payment_accounts_tenant_default_active
+ON public.payment_accounts (tenant_id)
+WHERE is_default AND is_active;
+
+CREATE INDEX IF NOT EXISTS ix_payment_accounts_tenant_active
+ON public.payment_accounts (tenant_id, is_active);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_payment_accounts_tenant_id') THEN
+        ALTER TABLE public.payment_accounts ADD CONSTRAINT fk_payment_accounts_tenant_id
+        FOREIGN KEY (tenant_id) REFERENCES public.tenants (id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    -- Chỉ set NULL cột updated_by_user_id; tenant_id NOT NULL không được đụng tới (PostgreSQL 15+).
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_payment_accounts_updated_by') THEN
+        ALTER TABLE public.payment_accounts ADD CONSTRAINT fk_payment_accounts_updated_by
+        FOREIGN KEY (tenant_id, updated_by_user_id) REFERENCES public.users (tenant_id, id) ON DELETE SET NULL (updated_by_user_id) ON UPDATE NO ACTION;
+    END IF;
+END $$;
+
+-- =========================================================================
+-- 2. Thêm các cột snapshot tài khoản nhận và nội dung CK vào bảng payments
+-- =========================================================================
+ALTER TABLE public.payments ADD COLUMN IF NOT EXISTS transfer_reference varchar(100) NULL;
+ALTER TABLE public.payments ADD COLUMN IF NOT EXISTS receiver_bank_bin varchar(6) NULL;
+ALTER TABLE public.payments ADD COLUMN IF NOT EXISTS receiver_account_number varchar(20) NULL;
+ALTER TABLE public.payments ADD COLUMN IF NOT EXISTS receiver_account_name varchar(255) NULL;
+ALTER TABLE public.payments ADD COLUMN IF NOT EXISTS payment_account_id uuid NULL;
+
+DO $$
+BEGIN
+    -- Tài khoản đã có chứng từ không được xóa cứng (chỉ ngừng dùng), nên RESTRICT.
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_payments_payment_account_id') THEN
+        ALTER TABLE public.payments ADD CONSTRAINT fk_payments_payment_account_id
+        FOREIGN KEY (tenant_id, payment_account_id) REFERENCES public.payment_accounts (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_payments_bank_transfer_snapshot') THEN
+        ALTER TABLE public.payments ADD CONSTRAINT ck_payments_bank_transfer_snapshot
+        CHECK (method = 'BankTransfer' OR (
+            transfer_reference IS NULL AND
+            receiver_bank_bin IS NULL AND
+            receiver_account_number IS NULL AND
+            receiver_account_name IS NULL AND
+            payment_account_id IS NULL
+        ));
+    END IF;
+END $$;
+
+-- Sửa bản nháp đầu của file này trên DB local đã lỡ chạy: tạo lại FK có ON DELETE sai.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_payments_payment_account_id' AND confdeltype <> 'r') THEN
+        ALTER TABLE public.payments DROP CONSTRAINT fk_payments_payment_account_id;
+        ALTER TABLE public.payments ADD CONSTRAINT fk_payments_payment_account_id
+        FOREIGN KEY (tenant_id, payment_account_id) REFERENCES public.payment_accounts (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_payment_accounts_updated_by' AND confdelsetcols IS NULL) THEN
+        ALTER TABLE public.payment_accounts DROP CONSTRAINT fk_payment_accounts_updated_by;
+        ALTER TABLE public.payment_accounts ADD CONSTRAINT fk_payment_accounts_updated_by
+        FOREIGN KEY (tenant_id, updated_by_user_id) REFERENCES public.users (tenant_id, id) ON DELETE SET NULL (updated_by_user_id) ON UPDATE NO ACTION;
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_payment_accounts_tenant_id' AND confdeltype <> 'r') THEN
+        ALTER TABLE public.payment_accounts DROP CONSTRAINT fk_payment_accounts_tenant_id;
+        ALTER TABLE public.payment_accounts ADD CONSTRAINT fk_payment_accounts_tenant_id
+        FOREIGN KEY (tenant_id) REFERENCES public.tenants (id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+END $$;
+
+-- =========================================================================
+-- 3. Phân quyền truy cập runtime role
+-- =========================================================================
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'oisms_runtime') THEN
+        GRANT SELECT, INSERT, UPDATE, DELETE ON public.payment_accounts TO oisms_runtime;
+    END IF;
+END $$;
+";
+            await using (var paymentAccountsCmd = new NpgsqlCommand(paymentAccountsUpgradeSql, connection, tx))
+            {
+                await paymentAccountsCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
             await tx.CommitAsync(cancellationToken);
             return new MigrationExecutionResult(
                 Success: true,
                 IsFreshInstall: false,
                 IsBaselineAdopted: false,
                 TableCount: RequiredTables.Length,
-                Message: "Nâng cấp schema v0.5 stock_transfers, shop_integrations, multi_unit, price_lists, purchase_orders, sales_invoices và stock_count_schedules thành công.");
+                Message: "Nâng cấp schema v0.5 stock_transfers, shop_integrations, multi_unit, price_lists, purchase_orders, sales_invoices, stock_count_schedules và payment_accounts thành công.");
         }
         catch (Exception ex)
         {
