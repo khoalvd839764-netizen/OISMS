@@ -46,6 +46,8 @@ Theo yêu cầu cuối, đã xóa 4 container fixture/test, network test và 2 i
 
 Bước dọn bổ sung bốn image chính cũ bị auto-review từ chối vì ngoài phạm vi xóa Docker test và ảnh hưởng rollback. Không xóa các image chính đó; việc xóa fixture/test và rebuild vẫn hoàn thành.
 
+Sau khi người dùng phản hồi Docker còn chiếm khoảng 6 GB, kiểm tra lại ghi nhận WSL giữ 5,61 GB RAM dù 7 container chỉ dùng khoảng 535 MB. Đã dọn thêm cache sau build, giải phóng 2,018 GB ổ đĩa; `docker system df` không còn build cache có thể thu hồi (1,243 GB còn lại đang được dùng/chia sẻ). Đã chạy `sync` và giải phóng page cache trong WSL, RAM trả dần về Windows. Các container vẫn chạy; không xóa volume không rõ nguồn hoặc dữ liệu `cnpmworkbase`.
+
 README, tài liệu chạy local/deploy/CI và các tham chiếu POS hiện hành được sửa theo kiến trúc mới; ghi chú lịch sử giữ mốc thời gian. Danh sách chuyển test nằm trong `src/frontend/pos-app/TEST-MIGRATION.md`.
 
 Confluence hiện dùng trang chính 983053. Hai trang con cũ đã được người dùng hợp nhất và xóa. Ảnh `3.5.1-pos-current.png` đã được đính kèm trang chính; văn bản mới được cung cấp tại [nội dung để copy](./noi-dung-confluence-pos-2026-11-08.md), chờ người dùng dán. Connector từ chối cập nhật body vì trang vượt 100000 JSON node; không tạo thêm trang con.
