@@ -36,6 +36,19 @@ Nhánh thực hiện: `codex/extract-current-pos`. Không push hoặc triển kh
 
 Bằng chứng nằm trong `tmp/pos-migration-2026-11-08/`: `live-report.json`, `unit-tests.log`, `realtime-two-tabs-cart-warning.png`, `upgraded-pwa-offline.png`, `receipt-58-preview.png`. Đây là bằng chứng local, không thay cho benchmark NFR hoặc triển khai production. Checkout kiểm thử dùng DB cô lập; ảnh tài liệu chính dùng giỏ tạm và không gửi checkout.
 
+## Bổ sung: tránh thu ngân đăng nhập hai lần
+
+Sau nghiệm thu, người dùng ghi nhận thu ngân nhập tài khoản ở Admin thì bị chuyển sang POS và phải đăng nhập lại. Đây là hệ quả của thiết kế phiên riêng: Admin thu hồi phiên Cashier, còn POS khác origin nên không đọc được token của Admin.
+
+Đã chọn cách chỉ sửa frontend, không đổi backend và không chia sẻ token:
+
+- Trang đăng nhập Admin có nút "Bạn là thu ngân? Đăng nhập tại quầy POS", mở thẳng `<POS_URL>/login`.
+- Cashier vẫn đăng nhập ở Admin thì được chuyển sang `<POS_URL>/login#from=admin-login`; POS hiện dòng nhắc dùng nút trên ở lần sau rồi xóa `#from` khỏi URL.
+
+Trường hợp Cashier bỏ qua nút vẫn phải đăng nhập lại tại POS. Muốn bỏ hẳn cần thêm cơ chế mã chuyển phiên dùng một lần ở backend; chưa làm trong đợt này.
+
+Kiểm chứng: build Admin và POS đạt; POS lint 0 error, 5 warning cũ; `npm test` POS 89/89 đạt (thêm test đường chuyển `#from=admin-login`). Đã xem trên trình duyệt bằng bản dev: nút hiển thị ở màn rộng và màn hẹp, mở đúng màn đăng nhập POS; dòng nhắc hiện và URL được làm sạch. Chưa chạy luồng Cashier đăng nhập thật qua Admin với backend.
+
 ## Docker và tài liệu
 
 Theo yêu cầu cuối, đã xóa 4 container fixture/test, network test và 2 image test riêng. Build cache đã dọn 4.336 GB. Volume chính `oisms_postgres_data`, `oisms_redis_data` được giữ nguyên (ngày tạo vẫn là 07/11/2026).

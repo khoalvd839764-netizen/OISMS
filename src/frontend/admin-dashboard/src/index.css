@@ -455,6 +455,7 @@ kbd { border: 1px solid #d7dce4; background: #f7f8fa; border-radius: 4px; paddin
 .auth-input > svg:last-child:not(:first-child) { position: absolute; right: 12px; color: var(--subtle); }
 .auth-input .input { padding-inline: 38px; }
 .auth-submit { width: 100%; min-height: 44px; margin-top: 5px; }
+.auth-pos-link { width: 100%; min-height: 40px; margin-top: 10px; text-decoration: none; }
 .auth-switch { display: flex; align-items: center; justify-content: center; color: var(--muted); margin-top: 14px; font-size: 10px; }
 .auth-switch .button { color: var(--brand); }
 .auth-forgot { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }

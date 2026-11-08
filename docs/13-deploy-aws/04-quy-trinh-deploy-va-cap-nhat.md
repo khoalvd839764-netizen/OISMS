@@ -51,7 +51,7 @@ Database production trống, không có tài khoản mẫu.
 1. Mở `https://<ADMIN_DOMAIN>/login`, chọn **Đăng ký doanh nghiệp** (gọi `POST /api/auth/register-tenant`). Một transaction tạo tenant và tài khoản `Owner`; chưa có chi nhánh hay kho.
 2. Đăng nhập bằng Owner, tạo chi nhánh, kho, nhân viên (`Staff`, `Cashier`) ở màn Tổ chức.
 3. Khai báo nhà cung cấp, sản phẩm, đơn vị tính, giá; nhập kho qua Phiếu mua → Phiếu nhập để có tồn và giá vốn.
-4. Thu ngân đăng nhập POS tại `https://<POS_DOMAIN>`. `https://<ADMIN_DOMAIN>/pos` chỉ chuyển hướng, không chia sẻ token qua URL; Cashier đăng nhập tại Admin sẽ được kết thúc phiên Admin trước khi chuyển sang POS.
+4. Thu ngân đăng nhập POS tại `https://<POS_DOMAIN>`. `https://<ADMIN_DOMAIN>/pos` chỉ chuyển hướng, không chia sẻ token qua URL; Cashier đăng nhập tại Admin sẽ được kết thúc phiên Admin trước khi chuyển sang màn đăng nhập POS (kèm dòng nhắc). Trang đăng nhập Admin có nút "Bạn là thu ngân?" mở thẳng `https://<POS_DOMAIN>/login`; máy quầy nên bookmark hoặc cài PWA từ `https://<POS_DOMAIN>`.
 
 ## 3. Cập Nhật Phiên Bản Mới
 

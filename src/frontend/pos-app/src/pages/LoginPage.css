@@ -9,3 +9,4 @@
 .pos-login button:disabled { opacity: .5; cursor: wait; }
 .pos-login a { display: block; margin-top: 20px; color: #1769e0; text-align: center; }
 .pos-login [role=alert] { color: #b42318; }
+.pos-login .pos-login-notice { margin: 16px 0 0; padding: 10px 12px; border: 1px solid #b2ccff; border-radius: 8px; background: #eff4ff; color: #1849a9; font-size: 14px; }

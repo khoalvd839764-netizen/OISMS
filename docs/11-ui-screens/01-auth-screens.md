@@ -16,7 +16,7 @@
 
 ### 1.1. Mục Tiêu & Luồng Nghiệp Vụ
 Màn hình xác thực tập trung hỗ trợ mô hình Multi-tenant SaaS cho toàn bộ các đối tượng người dùng (`Owner`, `Staff`, `Cashier`). Cho phép đăng nhập linh hoạt bằng **Email** hoặc **Số điện thoại** kết hợp Mật khẩu, đồng thời tự động phân luồng điều hướng:
-* Nếu người dùng là `Cashier` $\rightarrow$ Tự động chuyển hướng sang Quầy bán hàng `/pos`.
+* Nếu người dùng là `Cashier` $\rightarrow$ Phiên Admin bị thu hồi, chuyển sang màn đăng nhập của ứng dụng POS riêng (`<POS_URL>/login#from=admin-login`). POS hiện dòng nhắc thu ngân đăng nhập tại đây và lần sau dùng nút thu ngân ở trang Admin.
 * Nếu người dùng là `Owner` hoặc `Staff` $\rightarrow$ Chuyển hướng vào Bàn làm việc quản trị `/admin`.
 
 ### 1.2. Bố Cục Giao Diện Wireframe (ASCII Wireframe)
@@ -59,6 +59,7 @@ Màn hình xác thực tập trung hỗ trợ mô hình Multi-tenant SaaS cho to
 | `RememberMe` | `Checkbox` | Mặc định `true` (lưu Refresh Token trong 30 ngày). | N/A |
 | Nút `Quên mật khẩu?` | `Button` (`disabled`) + nhãn `Coming soon` | Có ở đăng nhập Admin và POS PWA. Chưa có API và luồng đặt lại mật khẩu. | N/A |
 | Nút `Đăng nhập` | `Button (Primary)` | Hiển thị spinner xoay và vô hiệu hóa (`disabled`) khi đang gửi request. | Chống bấm lặp (Debounce) |
+| Nút `Bạn là thu ngân? Đăng nhập tại quầy POS` | Link dạng `Button (Secondary)` | Chỉ ở chế độ đăng nhập Admin, nằm dưới nút `Đăng nhập`. Mở thẳng `<POS_URL>/login` để thu ngân chỉ đăng nhập một lần tại POS. Không gửi thông tin đăng nhập hay token. | N/A |
 
 Màn đăng nhập không hiển thị tài khoản mẫu và không điền sẵn thông tin đăng nhập.
 

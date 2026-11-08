@@ -13,4 +13,5 @@ function navigation(url) {
 test('navigation: URL local mặc định mở POS riêng ở 5174',async()=>{const n=navigation();await n.openStandalonePos();assert.deepEqual(n.calls,['http://localhost:5174']);});
 test('navigation: Cashier phải kết thúc phiên Admin trước khi chuyển',async()=>{const n=navigation('https://pos.fixture.test/');let loggedOut=false;await n.openStandalonePos('Cashier',async()=>{assert.equal(n.calls.length,0);loggedOut=true;});assert.ok(loggedOut);assert.deepEqual(n.calls,['https://pos.fixture.test']);});
 test('navigation: Owner giữ phiên quản trị khi mở POS',async()=>{const n=navigation();await n.openStandalonePos('Owner',()=>{throw Error('Must not log out Owner');});assert.equal(n.calls.length,1);});
+test('navigation: Cashier đăng nhập ở form Admin được mở thẳng màn đăng nhập POS kèm dòng nhắc',()=>{const n=navigation('https://pos.fixture.test/');n.openPosLoginFromAdmin();assert.equal(n.POS_LOGIN_URL,'https://pos.fixture.test/login');assert.deepEqual(n.calls,['https://pos.fixture.test/login#from=admin-login']);});
 test('navigation: không chấp nhận URL script',()=>assert.throws(()=>navigation('javascript:alert(1)')));

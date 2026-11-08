@@ -21,7 +21,7 @@ Ngày 08/11/2026. Thay mục 3.5.1 bằng nội dung dưới đây. Ảnh `3.5.1
 **Quy tắc nghiệp vụ và giới hạn hiện tại:**
 
 - Chỉ có một giao diện POS hiện hành trong `src/frontend/pos-app`; Admin tại cổng 5173 phục vụ quản trị và mở POS. Giao diện POS tím cũ đã được loại bỏ.
-- Phiên đăng nhập Admin và POS độc lập. Cashier đăng nhập qua Admin được chuyển sang POS và phiên Admin được thu hồi; người dùng đăng nhập POS nếu chưa có phiên tại ứng dụng này.
+- Phiên đăng nhập Admin và POS độc lập. Trang đăng nhập Admin có nút "Bạn là thu ngân? Đăng nhập tại quầy POS" để thu ngân đăng nhập thẳng tại POS. Cashier vẫn đăng nhập qua Admin thì phiên Admin được thu hồi, rồi được chuyển sang màn đăng nhập POS kèm dòng nhắc dùng nút này ở lần sau.
 - Thêm hàng vào giỏ chưa xuất kho. Checkout thành công tạo một đơn Completed, payment, invoice và bút toán OUT trong cùng giao dịch; backend chụp giá, giá vốn và hệ số quy đổi của đơn vị bán.
 - Khi tồn giảm dưới lượng đang có trong giỏ, POS cảnh báo và giữ giỏ để thu ngân điều chỉnh. Backend kiểm tra tồn lần cuối khi checkout.
 - Khi mất phản hồi checkout, gửi lại phải giữ nguyên RequestKey và snapshot của lần gửi đó để tránh tạo trùng đơn, thanh toán, hóa đơn hoặc bút toán kho.
@@ -37,7 +37,7 @@ Ngày 08/11/2026. Thay mục 3.5.1 bằng nội dung dưới đây. Ảnh `3.5.1
 
 Các chỗ liên quan cần sửa trên trang chính:
 
-- Mục **3.2, đăng nhập/phân quyền**: bổ sung “Admin và POS dùng phiên riêng. Owner/Staff quản trị tại cổng 5173; Owner/Staff/Cashier bán hàng tại cổng 5174. Cashier không giữ phiên quản trị khi được chuyển từ Admin sang POS.”
+- Mục **3.2, đăng nhập/phân quyền**: bổ sung “Admin và POS dùng phiên riêng. Owner/Staff quản trị tại cổng 5173; Owner/Staff/Cashier bán hàng tại cổng 5174. Cashier không giữ phiên quản trị khi được chuyển từ Admin sang POS; trang đăng nhập Admin có nút dành cho thu ngân mở thẳng màn đăng nhập POS.”
 - Mục **3.5.6, thanh toán VietQR**: đổi “hai POS” thành “ứng dụng POS hiện tại”; đổi chú thích ảnh “POS Admin” thành “POS hiện tại tại cổng 5174”. Luồng xác nhận tiền vào vẫn do thu ngân thực hiện thủ công.
 - Xóa hình và chú thích **3.5.1c Modal thanh toán tiền mặt của POS PWA tím cũ** nếu còn trong trang.
 
