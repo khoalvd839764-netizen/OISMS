@@ -2,6 +2,7 @@ import { ArrowRight, Check, Eye, EyeOff, LockKeyhole, Mail, Phone, ShieldCheck, 
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, ComingSoonBadge, Input } from "../components/ui";
+import { openStandalonePos } from "../services/posNavigation";
 import { useAuth } from "../context/AuthContext";
 
 export function AuthPage() {
@@ -38,7 +39,8 @@ export function AuthPage() {
     setLoading(false);
 
     if (result.success) {
-      navigate(result.user?.landingPath || (result.user?.role === "Cashier" ? "/pos" : "/admin"));
+      if (result.user?.role === "Cashier") { await openStandalonePos(); return; }
+      navigate(result.user?.landingPath || "/admin");
     } else {
       setErrorMessage(result.error || "Đăng nhập thất bại.");
     }

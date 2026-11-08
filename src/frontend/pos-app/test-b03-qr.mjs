@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import runtime from './test-support/qr-runtime.cjs';
+import runtime from './test-support/pos-runtime.cjs';
 const { world } = runtime;
 const bankA = { bankBin: '970415', accountNumber: '123456789', accountName: 'FIXTURE A', bankName: 'Test bank' };
 const bankB = { ...bankA, accountNumber: '987654321', accountName: 'FIXTURE B' };

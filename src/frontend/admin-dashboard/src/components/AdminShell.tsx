@@ -24,6 +24,7 @@ import {
 import { Button } from "./ui";
 import { useAuth } from "../context/AuthContext";
 import { NotificationCenter } from "./NotificationCenter";
+import { POS_URL } from "../services/posNavigation";
 import { apiAdapter } from "../services/apiAdapter";
 
 const nav = [
@@ -464,7 +465,7 @@ export function AdminShell() {
           </div>
 
           <div className="topbar-right">
-            <Button variant="secondary" className="pos-btn" onClick={() => navigate("/pos")}>
+            <Button variant="secondary" className="pos-btn" onClick={() => window.location.assign(POS_URL)}>
               <Store size={18} />
               <span>Mở Web POS</span>
             </Button>

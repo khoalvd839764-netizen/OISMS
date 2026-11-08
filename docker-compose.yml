@@ -90,6 +90,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_SIMULATOR_URL: "http://localhost:${SIM_PORT:-5175}"
+        VITE_POS_URL: "http://localhost:${POS_PORT:-5174}"
     container_name: oism_admin_dashboard
     restart: always
     ports:
@@ -104,6 +105,8 @@ services:
     build:
       context: ./src/frontend/pos-app
       dockerfile: Dockerfile
+      args:
+        VITE_ADMIN_URL: "http://localhost:${ADMIN_PORT:-5173}"
     container_name: oism_pos_app
     restart: always
     ports:

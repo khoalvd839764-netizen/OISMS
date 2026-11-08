@@ -10,7 +10,7 @@ import { StockCountsPage } from "./pages/StockCountsPage";
 import { OrdersPage } from "./pages/OrdersPage";
 import { SalesInvoicesPage } from "./pages/SalesInvoicesPage";
 import { ReportsPage } from "./pages/ReportsPage";
-import { PosPage } from "./pages/PosPage";
+import { PosRedirectPage } from "./pages/PosRedirectPage";
 import { AccessPage } from "./pages/AccessPage";
 import { AuthPage } from "./pages/AuthPage";
 import { OrganizationPage } from "./pages/OrganizationPage";
@@ -28,10 +28,8 @@ export default function App() {
           <Route path="/403" element={<AccessPage type="forbidden" />} />
           <Route path="/session-expired" element={<AccessPage type="expired" />} />
 
-          {/* POS Route (http://localhost:5173/pos) - Cho phép Owner, Staff và Cashier đã xác thực */}
-          <Route element={<ProtectedRoute allowedRoles={["Owner", "Staff", "Cashier"]} />}>
-            <Route path="/pos" element={<PosPage />} />
-          </Route>
+          {/* Compatibility link: the workstation lives only in pos-app. */}
+          <Route path="/pos" element={<PosRedirectPage />} />
 
           {/* Protected Admin Routes (Hỗ trợ cả http://localhost:5173/admin và /) */}
           <Route element={<ProtectedRoute />}>

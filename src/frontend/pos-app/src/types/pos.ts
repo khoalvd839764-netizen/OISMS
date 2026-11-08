@@ -26,6 +26,8 @@ export interface PosProductSearchResponse {
   onHand: number | null;
   reserved: number | null;
   available: number | null;
+  categoryId?: string | null;
+  categoryName?: string | null;
   units?: PosSkuUnitResponse[];
   matchedUnitId?: string | null;
 }
@@ -83,90 +85,37 @@ export interface PosCheckoutRequest {
   totalAmount: number;
 }
 
-export interface PosReceiptItemDto {
-  skuId: string;
-  skuCode: string;
-  productName: string;
-  variantName?: string | null;
-  unitName?: string | null;
-  quantity: number;
-  unitPrice: number;
-  subtotal?: number;
-}
-
-export interface PosReceiptDto {
-  orderId: string;
-  receiptNumber: string;
-  orderNumber: string;
-  branchId: string;
-  branchName?: string | null;
-  branchAddress?: string | null;
-  branchPhone?: string | null;
-  cashierName?: string | null;
-  customerName?: string | null;
-  customerPhone?: string | null;
-  totalAmount: number;
-  paymentMethod: string;
-  amountGiven?: number | null;
-  changeDue?: number | null;
-  transferReference?: string | null;
-  receiverBankBin?: string | null;
-  receiverBankName?: string | null;
-  receiverAccountNumber?: string | null;
-  receiverAccountName?: string | null;
-  createdAt: string;
-  items: PosReceiptItemDto[];
-}
-
-export interface PosCheckoutResponseDto {
-  success: boolean;
-  message: string;
-  orderId: string;
-  orderNumber: string;
-  totalAmount: number;
-  amountGiven?: number | null;
-  changeDue?: number | null;
-  paymentMethod: string;
-  checkoutAt: string;
-  receipt: PosReceiptDto;
-}
-
-export interface ReceiptItemData {
-  name: string;
-  sku: string;
-  skuId?: string;
-  unitName?: string;
-  barcode?: string;
-  quantity: number;
-  unitPrice: number;
-  subtotal: number;
-}
-
 export interface ReceiptData {
   receiptNumber: string;
   orderNumber?: string;
-  orderId?: string;
   createdAt: string;
   tenantName: string;
   branchName: string;
-  branchAddress?: string;
-  branchPhone?: string;
+  branchAddress: string;
+  branchPhone: string;
   cashierName: string;
   customerName?: string;
   customerPhone?: string;
-  items: ReceiptItemData[];
+  items: Array<{
+    name: string;
+    sku: string;
+    unitName?: string;
+    quantity: number;
+    unitPrice: number;
+    subtotal: number;
+  }>;
   totalAmount: number;
-  paymentMethod: string;
+  paymentMethod: "CASH" | "BANK_TRANSFER_QR";
   amountGiven: number;
   changeDue: number;
-  transferReference?: string;
+  isDraft?: boolean;
+  paymentStatusTitle?: string;
   receiverBankBin?: string;
   receiverBankName?: string;
   receiverAccountNumber?: string;
   receiverAccountName?: string;
-  isDraft?: boolean;
-  paymentStatusTitle?: string;
-  paperWidth?: '80mm' | '58mm';
+  transferReference?: string;
+  paymentAccountId?: string;
 }
 
 export interface PosUser {
@@ -198,54 +147,7 @@ export interface PendingCheckoutRecord {
   updatedAt: number;
   status: PendingCheckoutStatus;
   requestPayload: PosCheckoutRequest;
-  /** Receiver and QR identity actually shown for this attempt, if available. */
   qrSnapshot?: import('./qr').PosQrIntent;
   lastErrorMessage?: string;
   lastErrorCode?: string;
 }
-
-export interface CheckoutResult {
-  success: boolean;
-  message: string;
-  orderNumber?: string;
-  receipt?: PosReceiptDto | null;
-  isPendingBackend?: boolean;
-  statusCode?: number;
-  errorCode?: string;
-  detail?: string;
-  isUnknown?: boolean;
-  isAuthExpired?: boolean;
-  isDefinitiveError?: boolean;
-  currentPrices?: Array<{ skuId: string; skuCode?: string; unitId?: string | null; currentPrice: number }>;
-}
-
-export interface OrderSummaryRealtimeDto {
-  orderId: string;
-  orderNumber: string;
-  branchId: string;
-  branchName?: string | null;
-  channel: string;
-  status: string;
-  totalAmount: number;
-  totalItems: number;
-  customerName?: string | null;
-  createdAt: string;
-}
-
-export interface StockChangedRealtimeDto {
-  branchId: string;
-  skuId: string;
-  newAvailableStock: number;
-  timestamp: string;
-}
-
-export interface LowStockAlertRealtimeDto {
-  branchId: string;
-  skuId: string;
-  skuCode: string;
-  currentAvailable: number;
-  threshold: number;
-  alertedAt: string;
-}
-
-export type RealtimeConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';

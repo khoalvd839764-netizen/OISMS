@@ -555,7 +555,6 @@ export interface LoadPaymentAccountsOptions {
 /**
  * Tải danh sách tài khoản nhận tiền đang dùng của cửa hàng từ `GET /api/payment-accounts/active`.
  * Đây là nguồn duy nhất: không đọc localStorage, sessionStorage hay biến window.
- * Có bản ở cả pos-app và admin-dashboard, sửa thì sửa cả hai bản.
  */
 export async function loadPaymentAccounts(options: LoadPaymentAccountsOptions): Promise<PaymentAccountsLoadResult> {
   const fail = (message: string, httpStatus?: number): PaymentAccountsLoadResult => ({ status: 'error', accounts: [], message, httpStatus });

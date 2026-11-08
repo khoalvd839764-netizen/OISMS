@@ -1,7 +1,7 @@
 // Service Worker for OISMS Web POS (PWA)
 // Namespace: 'oisms-pos-' ensures isolation from other applications on the same origin
 const CACHE_NAMESPACE = 'oisms-pos-';
-const CACHE_VERSION = 'v1.0';
+const CACHE_VERSION = 'v2.0';
 const CACHE_NAME = `${CACHE_NAMESPACE}${CACHE_VERSION}`;
 
 // Essential shell assets to precache on install

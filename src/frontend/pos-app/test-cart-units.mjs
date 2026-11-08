@@ -22,7 +22,6 @@ function loadHelper(relativePath) {
 
 const helpers = [
   ['pos-app', loadHelper('src/services/posCartUnits.ts')],
-  ['admin-dashboard', loadHelper('../admin-dashboard/src/services/posCartUnits.ts')],
 ];
 
 const base = { unitId: 'hop', unitName: 'hộp', unitCode: 'hop', factor: 1, decimalPlaces: 0, salePrice: 20000, isBase: true, isDefaultSale: true };
