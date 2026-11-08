@@ -222,6 +222,16 @@ END
 $do$;
 EOSQL
 
+# 5. Schema riêng cho storage Hangfire (cùng nội dung migrations/20261108_hangfire_schema.sql).
+# Hangfire tự tạo bảng khi backend bật Hangfire:Enabled=true; không tính vào 44 bảng public.
+echo ">> Provisioning schema 'hangfire' for background jobs..."
+psql -v ON_ERROR_STOP=1 --username "$SUPERUSER" --dbname "$TARGET_DB" <<-'EOSQL'
+CREATE SCHEMA IF NOT EXISTS hangfire;
+GRANT USAGE, CREATE ON SCHEMA hangfire TO oisms_runtime;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA hangfire TO oisms_runtime;
+GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA hangfire TO oisms_runtime;
+EOSQL
+
 FINAL_TABLES=$(psql -v ON_ERROR_STOP=1 --username "$SUPERUSER" --dbname "$TARGET_DB" -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'")
 TRIGGER_COUNT=$(psql -v ON_ERROR_STOP=1 --username "$SUPERUSER" --dbname "$TARGET_DB" -tAc "
     SELECT count(*) FROM pg_trigger tg
