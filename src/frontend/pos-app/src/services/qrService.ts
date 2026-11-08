@@ -9,7 +9,7 @@
  * 5. Thiết lập Guard chống suy diễn thanh toán thành công từ hiển thị, quét mã hoặc hết thời gian.
  *
  * Tương thích 100% môi trường Browser, không phụ thuộc Node.js Buffer (B03-F01).
- * Bản giống hệt tại admin-dashboard/src/services/qrService.ts; sửa thì sửa cả hai (test-qr-parity.mjs kiểm tra).
+ * Bản duy nhất của quầy POS (pos-app); hành vi được kiểm bởi test-qr.mjs và test-b03-qr.mjs.
  */
 
 import type {

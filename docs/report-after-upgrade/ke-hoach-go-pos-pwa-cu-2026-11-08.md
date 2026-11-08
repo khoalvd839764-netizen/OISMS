@@ -61,6 +61,7 @@ Không import xuyên trực tiếp từ `pos-app` sang source `admin-dashboard`.
 2. Thay entry `pos-app/src/App.tsx` bằng router/provider cho POS hiện tại; route chính `/`, login `/login`, có thể nhận `/pos` làm alias tương thích.
 3. Giữ nguyên các luồng: chọn chi nhánh, tìm tên/SKU/barcode, quy cách, lượng lẻ, giá server, kiểm tra tồn, tiền mặt/VietQR, pending checkout, retry, hóa đơn và in.
 4. Không ghép lại UI tím, không thêm realtime/offline trong bước này. Realtime làm ở Bước 2b, sau khi bản chuyển đạt mốc giữ nguyên hành vi. Helper cũ chỉ được giữ nếu còn cần cho hành vi đích, có test bảo vệ và không kéo lại implementation giao diện cũ.
+5. **Chưa xóa source POS khỏi Admin ở bước này.** `test-admin-pos-checkout.mjs`, `test-cart-units.mjs`, `test-qr-parity.mjs` đang nạp source từ `admin-dashboard`; xóa trước khi chuyển test sẽ làm test và CI đỏ giữa chừng. Việc xóa chuyển sang Bước 5, sau khi Bước 4 đạt.
 
 ### Bước 2b — Realtime tồn kho cho POS mới (FR-09)
 
@@ -83,7 +84,6 @@ Phạm vi tối thiểu (4 điểm nối với màn mới):
 Ngoài phạm vi tối thiểu (tùy chọn, làm sau nếu còn thời gian): âm thanh/popup `OrderCreated`, `LowStockWarning`, chế độ offline.
 
 Không đổi backend, hub, tên sự kiện hay contract. Sự kiện vẫn phát sau commit như hiện tại. Nâng `@microsoft/signalr` của `pos-app` (đang `^8.0.29`, Admin dùng `^10`) chỉ khi cần và phải chạy lại test hub.
-5. **Chưa xóa source POS khỏi Admin ở bước này.** `test-admin-pos-checkout.mjs`, `test-cart-units.mjs`, `test-qr-parity.mjs` đang nạp source từ `admin-dashboard`; xóa trước khi chuyển test sẽ làm test và CI đỏ giữa chừng. Việc xóa chuyển sang Bước 5, sau khi Bước 4 đạt.
 
 ### Bước 3 — Tách phiên đăng nhập và điều hướng
 

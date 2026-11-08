@@ -4,7 +4,7 @@ namespace OISM.Application.Features.Realtime;
 
 /// <summary>
 /// Giao diện phát thông báo thời gian thực qua SignalR Hub (FR-SIM-02).
-/// Phục vụ Web Admin Dashboard và Web POS PWA cập nhật tức thời không cần polling F5.
+/// Phục vụ Admin Dashboard và ứng dụng POS (pos-app) cập nhật tức thời không cần polling F5.
 /// Bảo đảm phát sau khi DB transaction commit thành công và không rò rỉ dữ liệu nhạy cảm (CostPrice/COGS).
 /// </summary>
 public interface IRealtimeNotifier

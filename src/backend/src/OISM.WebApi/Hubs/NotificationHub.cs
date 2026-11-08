@@ -8,7 +8,7 @@ namespace OISM.WebApi.Hubs;
 
 /// <summary>
 /// SignalR Hub phục vụ thông báo thời gian thực (/hubs/notifications).
-/// Hỗ trợ Web Admin Portal và Web POS PWA.
+/// Hỗ trợ Admin Dashboard và ứng dụng POS (pos-app).
 /// 
 /// Nguyên tắc bảo mật & phân quyền:
 /// 1. Yêu cầu xác thực JWT Bearer (hỗ trợ query parameter 'access_token' khi kết nối WebSocket/SSE).
