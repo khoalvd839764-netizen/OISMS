@@ -73,6 +73,10 @@ services:
       Database__Database: ${POSTGRES_DB:-oisms}
       Database__Username: ${OISMS_APP_USER:-oisms_app}
       Database__Password: "${OISMS_APP_PASSWORD:?Error: OISMS_APP_PASSWORD must be set in .env}"
+      # Job nền (hết hạn giữ chỗ, sinh kỳ kiểm kê). Trước khi bật trên DB đã có dữ liệu phải chạy
+      # docker/postgres/migrations/20261108_hangfire_schema.sql; Hangfire dùng chung kết nối Database__*.
+      Hangfire__Enabled: ${HANGFIRE_ENABLED:-false}
+      Hangfire__WorkerCount: ${HANGFIRE_WORKER_COUNT:-2}
     ports:
       - "${BACKEND_PORT:-5000}:8080"
     depends_on:
