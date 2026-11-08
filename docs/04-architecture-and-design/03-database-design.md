@@ -3,10 +3,10 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-ARC-03` |
-| **Phiên bản (Version)** | `v1.1.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
+| **Phiên bản (Version)** | `v1.1.1` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-08` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-INV-01`, `NFR-TENANT-02`, `NFR-SEC-03`, `3.2.e` (Trang 2, 4, 5) |
-| **Phạm vi áp dụng** | PostgreSQL 16+ Schema (`docs/database/oisms_schema.sql` — 43 bảng) |
+| **Phạm vi áp dụng** | PostgreSQL 16+ Schema (`docs/database/oisms_schema.sql` — 44 bảng) |
 
 ---
 
@@ -16,6 +16,7 @@
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả sơ đồ ERD cốt lõi, quy tắc Sổ cái Append-Only và chiến lược đánh chỉ mục hiệu năng cao. | `INIT-ARC-03` |
 | `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Đồng bộ ERD và chỉ mục với `oisms_schema.sql` hiện hành (43 bảng): tên cột thật, kiểu `numeric(18,3)` cho số lượng, giá vốn nằm ở `inventory_balances.average_cost`. | `OISMS-46` |
+| `v1.1.1` | `2026-11-08` | Nhóm dự án OISMS | Cập nhật số bảng hiện hành lên 44 sau khi bổ sung `payment_accounts`; giữ mốc 43 bảng trong lịch sử v1.1.0. | `CS-05` |
 
 ---
 
@@ -39,7 +40,7 @@ erDiagram
     GOODS_RECEIPTS ||--o{ GOODS_RECEIPT_ITEMS : "chi tiết nhập"
     ORDERS ||--o{ ORDER_ITEMS : "chi tiết đơn"
     ORDER_ITEMS ||--o{ RESERVATIONS : "giữ chỗ"
-    ORDERS ||--o| SALES_INVOICES : "hóa đơn bán xuất kho (1-1)"
+    ORDERS ||--o| SALES_INVOICES : "tối đa một hóa đơn bán"
 
     TENANTS {
         uuid id PK
@@ -125,7 +126,7 @@ erDiagram
 | `sales_invoices` | `uq_sales_invoices_3` | `(tenant_id, order_id)` | Mỗi đơn có tối đa một hóa đơn bán. |
 | `sales_invoices` | `ix_sales_invoices_time` | `(tenant_id, issued_at, id)` | Phân trang hóa đơn theo thời gian xuất. |
 
-> **Tham chiếu chi tiết DDL:** Xem toàn bộ 43 bảng và trigger bảo vệ Sổ cái tại [`docs/database/oisms_schema.sql`](../database/oisms_schema.sql) và [`docs/database/README.md`](../database/README.md).
+> **Tham chiếu chi tiết DDL:** Xem toàn bộ 44 bảng và trigger bảo vệ Sổ cái tại [`docs/database/oisms_schema.sql`](../database/oisms_schema.sql) và [`docs/database/README.md`](../database/README.md).
 
 ## 3. Quy Tắc Thay Đổi Schema
 

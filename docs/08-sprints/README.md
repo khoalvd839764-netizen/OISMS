@@ -1,6 +1,6 @@
 # 08. QUẢN LÝ KẾ HOẠCH & TÀI LIỆU CHUNG THEO SPRINT (SPRINT DOCUMENTATION)
 
-> **Tài liệu lịch sử.** Nội dung trong thư mục này phản ánh thời điểm viết (kế hoạch, báo cáo, bằng chứng nghiệm thu) và không được sửa lại theo code mới. Các số liệu như 29/33/40 bảng, `ApplicationDbContext`, `OISM.WebAPI`, "194 tests", route `/api/inventory/transfers` là mốc cũ. Hiện trạng (06/11/2026): 43 bảng, `AppDbContext`, `OISM.WebApi`, route `/api/stock-transfers`; xem [`docs/README.md`](../README.md), [`04-architecture-and-design/`](../04-architecture-and-design/README.md), [`05-api-contracts/`](../05-api-contracts/README.md), [`13-deploy-aws/`](../13-deploy-aws/README.md).
+> **Tài liệu lịch sử.** Nội dung trong thư mục này phản ánh thời điểm viết (kế hoạch, báo cáo, bằng chứng nghiệm thu) và không được sửa lại theo code mới. Các số liệu như 29/33/40 bảng, `ApplicationDbContext`, `OISM.WebAPI`, "194 tests", route `/api/inventory/transfers` là mốc cũ. Hiện trạng (08/11/2026): 44 bảng, `AppDbContext`, `OISM.WebApi`, route `/api/stock-transfers`; xem [`docs/README.md`](../README.md), [`04-architecture-and-design/`](../04-architecture-and-design/README.md), [`05-api-contracts/`](../05-api-contracts/README.md), [`13-deploy-aws/`](../13-deploy-aws/README.md).
 
 | Thông tin kiểm soát thư mục | Chi tiết |
 | :--- | :--- |

@@ -95,7 +95,7 @@ flowchart TD
 #### 4. `postgresql`
 - **Đường dẫn vật lý:** `D:\OISMS\skills\postgresql\`
 - **File kích hoạt:** `SKILL.md`
-- **Công dụng đối với OISMS:** Thiết kế và tối ưu 43 bảng dữ liệu PostgreSQL theo chuẩn schema `oisms_schema.sql`. Đảm bảo các kiểu dữ liệu khắt khe như `NUMERIC(18,2)` cho tiền tệ/giá vốn, `TIMESTAMP WITH TIME ZONE`, ràng buộc khóa ngoại kép và kiểm tra toàn vẹn dữ liệu đa chi nhánh.
+- **Công dụng đối với OISMS:** Thiết kế và tối ưu 44 bảng dữ liệu PostgreSQL theo chuẩn schema `oisms_schema.sql`. Đảm bảo các kiểu dữ liệu khắt khe như `NUMERIC(18,2)` cho tiền tệ/giá vốn, `TIMESTAMP WITH TIME ZONE`, ràng buộc khóa ngoại kép và kiểm tra toàn vẹn dữ liệu đa chi nhánh.
 - **Phạm vi tác động:** `docs/database/oisms_schema.sql` và cấu hình Fluent API trong `OISM.Infrastructure`.
 
 #### 5. `sql-optimization-patterns`

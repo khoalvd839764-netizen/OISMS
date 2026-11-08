@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-OPS-01` |
-| **Phiên bản (Version)** | `v1.1.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
+| **Phiên bản (Version)** | `v1.1.1` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-08` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `3.2.e`, `3.2.f`, `3.2.g` (Trang 5, 6) |
 | **Phạm vi áp dụng** | `docker-compose.yml`, `docker-compose.prod.yml`, `docker/`, `src/backend/Dockerfile`, Dockerfile của 2 frontend |
 
@@ -16,6 +16,7 @@
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả kiến trúc đóng gói Docker Compose trọn bộ và hướng dẫn khởi chạy hệ thống tức thì. | `INIT-OPS-01` |
 | `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Đồng bộ với compose hiện tại: 6 service (thêm `redis`, `pgadmin`), schema 43 bảng do `init-oisms.sh` tạo, backend không tự chạy migration, seed demo chỉ ở Development. | `OISMS-46` |
+| `v1.1.1` | `2026-11-08` | Nhóm dự án OISMS | Đồng bộ hướng dẫn readiness với schema hiện hành 44 bảng sau CS-05. | `CS-05` |
 
 ---
 
@@ -48,7 +49,7 @@ Hoặc dùng `scripts/start-docker.ps1`.
 | :--- | :--- |
 | `http://localhost:5000/swagger` | Swagger (chỉ khi `ASPNETCORE_ENVIRONMENT=Development`, mặc định của compose) |
 | `http://localhost:5000/health/live` | Tiến trình còn chạy |
-| `http://localhost:5000/health/ready` | Kết nối bằng tài khoản runtime, đủ 43 bảng, trigger `ledger_append_only` bật, tài khoản không có quyền quản trị. Lỗi trả `503`. `/health` là bí danh. |
+| `http://localhost:5000/health/ready` | Kết nối bằng tài khoản runtime, đủ 44 bảng, trigger `ledger_append_only` bật, tài khoản không có quyền quản trị. Lỗi trả `503`. `/health` là bí danh. |
 | `http://localhost:5173` | Admin Dashboard, đăng nhập tại `/login` |
 | `http://localhost:5174` | POS PWA |
 | `http://localhost:5050` | pgAdmin |
