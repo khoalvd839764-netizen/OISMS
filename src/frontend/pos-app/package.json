@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "test": "node --test test-checkout.mjs test-cart-units.mjs test-qr.mjs test-b03-qr.mjs test-b03-environment.mjs test-auth.mjs test-navigation.mjs",
+    "test": "node --test test-checkout.mjs test-cart-units.mjs test-qr.mjs test-b03-qr.mjs test-b03-environment.mjs test-auth.mjs test-navigation.mjs test-realtime.mjs",
+    "test:live": "node test-live.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

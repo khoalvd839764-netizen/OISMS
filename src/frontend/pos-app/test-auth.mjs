@@ -83,3 +83,13 @@ test('auth: login A trả muộn không ghi đè login B', async () => {
   const a=f.api.loginPos('A','pw'); await f.api.loginPos('B','pw');
   gate.resolve(response(200,{accessToken:'A',user})); await assert.rejects(a); assert.equal(f.api.getPosAccessToken(),'B');
 });
+test('auth: đổi định danh ở tab khác tăng generation và loại response cũ', async () => {
+  const gate=deferred(),f=fixture(async()=>gate.promise);f.api.savePosSession({accessToken:'A',user},0);
+  const pending=f.api.authenticatedFetch('/api/branches');f.local.set('oisms_pos_v2_identity','tenant-b:user-b');f.local.set('oisms_pos_v2_access','B');
+  gate.resolve(response(200,{private:'A'}));await assert.rejects(pending);assert.equal(f.api.getPosAccessToken(),'B');
+});
+test('auth: tab khác đã refresh cùng user thì không xóa token mới', async () => {
+  const gate=deferred(),f=fixture(async()=>gate.promise);f.api.savePosSession({accessToken:'old',refreshToken:'r1',user},0);
+  const pending=f.api.refreshPosToken();f.local.set('oisms_pos_v2_access','rotated');f.local.set('oisms_pos_v2_refresh','r2');
+  gate.resolve(response(401));assert.equal(await pending,'rotated');assert.equal(f.api.getPosAccessToken(),'rotated');
+});

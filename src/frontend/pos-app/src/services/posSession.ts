@@ -2,16 +2,25 @@
 export const POS_ACCESS_KEY = 'oisms_pos_v2_access';
 export const POS_REFRESH_KEY = 'oisms_pos_v2_refresh';
 export const POS_TENANT_KEY = 'oisms_pos_v2_tenant';
+export const POS_IDENTITY_KEY = 'oisms_pos_v2_identity';
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').replace(/\/$/, '');
 let generation = 0;
 let refreshFlight: { generation: number; promise: Promise<string> } | null = null;
-export const getPosGeneration = () => generation;
+let observedIdentity = localStorage.getItem(POS_IDENTITY_KEY);
+export function invalidatePosSession(): number {
+  generation++; refreshFlight = null; observedIdentity = localStorage.getItem(POS_IDENTITY_KEY); return generation;
+}
+export function getPosGeneration() {
+  if (localStorage.getItem(POS_IDENTITY_KEY) !== observedIdentity) invalidatePosSession();
+  return generation;
+}
 export const getPosAccessToken = () => localStorage.getItem(POS_ACCESS_KEY);
 
 export function clearPosSession(): number {
   generation++;
   refreshFlight = null;
-  for (const key of [POS_ACCESS_KEY, POS_REFRESH_KEY, POS_TENANT_KEY]) localStorage.removeItem(key);
+  for (const key of [POS_ACCESS_KEY, POS_REFRESH_KEY, POS_TENANT_KEY, POS_IDENTITY_KEY]) localStorage.removeItem(key);
+  observedIdentity = null;
   // Pending/QR snapshots intentionally survive logout; readers enforce tenant/user/branch ownership.
   return generation;
 }
@@ -22,12 +31,16 @@ function expire(expected: number) {
   window.dispatchEvent(new CustomEvent('pos-auth-expired'));
 }
 
-export function savePosSession(data: { accessToken: string; refreshToken?: string; user?: { tenantId?: string } }, expected: number) {
-  if (expected !== generation) throw new Error('Phiên đăng nhập đã thay đổi.');
+export function savePosSession(data: { accessToken: string; refreshToken?: string; user?: { id?: string; tenantId?: string } }, expected: number) {
+  if (expected !== getPosGeneration()) throw new Error('Phiên đăng nhập đã thay đổi.');
   if (!data.accessToken) throw new Error('Máy chủ không trả về access token.');
   localStorage.setItem(POS_ACCESS_KEY, data.accessToken);
   if (data.refreshToken) localStorage.setItem(POS_REFRESH_KEY, data.refreshToken);
   if (data.user?.tenantId) localStorage.setItem(POS_TENANT_KEY, data.user.tenantId);
+  if (data.user?.id && data.user.tenantId) {
+    observedIdentity = `${data.user.tenantId}:${data.user.id}`;
+    localStorage.setItem(POS_IDENTITY_KEY, observedIdentity);
+  }
 }
 
 export async function loginPos(email: string, password: string) {
@@ -46,7 +59,7 @@ export async function loginPos(email: string, password: string) {
 }
 
 export async function refreshPosToken(): Promise<string> {
-  const expected = generation;
+  const expected = getPosGeneration();
   if (refreshFlight?.generation === expected) return refreshFlight.promise;
   const refreshToken = localStorage.getItem(POS_REFRESH_KEY);
   if (!refreshToken) { expire(expected); throw new Error('Phiên đăng nhập đã hết hạn.'); }
@@ -56,11 +69,16 @@ export async function refreshPosToken(): Promise<string> {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken }),
       });
       const data = await response.json();
-      if (expected !== generation || localStorage.getItem(POS_REFRESH_KEY) !== refreshToken) throw new Error('Phiên đăng nhập đã thay đổi.');
+      if (expected !== getPosGeneration()) throw new Error('Phiên đăng nhập đã thay đổi.');
+      if (localStorage.getItem(POS_REFRESH_KEY) !== refreshToken) {
+        const rotated = getPosAccessToken();
+        if (rotated) return rotated; // another POS tab already refreshed this same identity
+        throw new Error('Phiên đăng nhập đã thay đổi.');
+      }
       if (!response.ok || !data.accessToken) throw new Error('Không thể làm mới phiên đăng nhập.');
       savePosSession(data, expected);
       return data.accessToken as string;
-    } catch (error) { expire(expected); throw error; }
+    } catch (error) { if (expected === getPosGeneration() && localStorage.getItem(POS_REFRESH_KEY) === refreshToken) expire(expected); throw error; }
     finally { if (refreshFlight?.generation === expected) refreshFlight = null; }
   })();
   refreshFlight = { generation: expected, promise };
@@ -69,17 +87,17 @@ export async function refreshPosToken(): Promise<string> {
 
 /** Single-flight refresh; retries preserve the exact checkout body/RequestKey. */
 export async function authenticatedFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
-  const expected = generation;
+  const expected = getPosGeneration();
   const token = getPosAccessToken();
   const send = (access: string | null) => fetch(input, { ...init, headers: { ...init.headers, ...(access ? { Authorization: `Bearer ${access}` } : {}) } });
   let response = await send(token);
-  if (expected !== generation) throw new Error('Phiên đăng nhập đã thay đổi.');
+  if (expected !== getPosGeneration()) throw new Error('Phiên đăng nhập đã thay đổi.');
   if (response.status === 401) {
     const current = getPosAccessToken();
     const renewed = current && current !== token ? current : await refreshPosToken();
-    if (expected !== generation) throw new Error('Phiên đăng nhập đã thay đổi.');
+    if (expected !== getPosGeneration()) throw new Error('Phiên đăng nhập đã thay đổi.');
     response = await send(renewed);
-    if (expected !== generation) throw new Error('Phiên đăng nhập đã thay đổi.');
+    if (expected !== getPosGeneration()) throw new Error('Phiên đăng nhập đã thay đổi.');
     if (response.status === 401) expire(expected);
   }
   return response;

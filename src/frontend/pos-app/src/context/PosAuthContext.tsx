@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
-import { clearPosSession, getPosAccessToken, getPosGeneration, getPosMe, loginPos, logoutPos } from '../services/posSession';
+import { clearPosSession, getPosAccessToken, getPosGeneration, getPosMe, invalidatePosSession, loginPos, logoutPos, POS_IDENTITY_KEY } from '../services/posSession';
 
 interface User { id: string; tenantId: string; name: string; email: string; tenantName: string; role: string; }
 const normalize = (u: { id: string; tenantId: string; fullName?: string; email: string; tenantName?: string; roles: string[] }): User => ({
@@ -24,9 +24,15 @@ export function PosAuthProvider({ children }: { children: ReactNode }) {
   }, [attempt]);
   useEffect(() => {
     const ended = () => { setUser(null); setError(null); setLoading(false); };
+    const changed = (event: StorageEvent) => {
+      if (event.key !== POS_IDENTITY_KEY && event.key !== null) return;
+      invalidatePosSession(); setUser(null); setError(null); setLoading(true); setAttempt(n => n + 1);
+      window.dispatchEvent(new CustomEvent('pos-session-ended'));
+    };
     window.addEventListener('pos-auth-expired', ended);
     window.addEventListener('pos-session-ended', ended);
-    return () => { window.removeEventListener('pos-auth-expired', ended); window.removeEventListener('pos-session-ended', ended); };
+    window.addEventListener('storage', changed);
+    return () => { window.removeEventListener('pos-auth-expired', ended); window.removeEventListener('pos-session-ended', ended); window.removeEventListener('storage', changed); };
   }, []);
   const login = useCallback(async (email: string, password: string) => { setUser(null); setError(null); const u = await loginPos(email, password); setUser(normalize(u)); }, []);
   const logout = useCallback(async () => { setUser(null); setError(null); await logoutPos(); }, []);

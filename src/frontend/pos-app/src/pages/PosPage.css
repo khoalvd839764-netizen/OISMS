@@ -1,4 +1,5 @@
 @media screen {
+  .pos-realtime-state { display: block; background: #f7faff; color: #526c88; padding: 3px 22px; font-size: 10px; }
   .pos-workstation { height: 100dvh; display: flex; flex-direction: column; background: #eef2f7; color: #1c2b42; font-family: "Be Vietnam Pro", sans-serif; }
   .pos-workstation button, .pos-workstation input, .pos-workstation select { font: inherit; }
   .pos-workstation button { cursor: pointer; }

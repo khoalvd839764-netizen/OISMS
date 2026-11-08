@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Trash2, ShoppingBag, Minus, Plus, Package } from 'lucide-react';
 import type { CartItem, Branch, PosProductSearchResponse, ReceiptData } from '../types/pos';
@@ -11,6 +11,8 @@ import './PosPage.css';
 import { PaymentModal } from '../components/pos/PaymentModal';
 import { ReceiptPrintModal } from '../components/pos/ReceiptPrintModal';
 import { useAuth } from '../context/PosAuthContext';
+import { useBranchStock } from '../context/useBranchStock';
+import { updateCartStock } from '../services/branchStock';
 
 export function PosPage() {
   const { user, logout } = useAuth();
@@ -40,6 +42,13 @@ export function PosPage() {
   const [catalogRefresh, setCatalogRefresh] = useState(0);
   const paymentButtonRef = useRef<HTMLButtonElement>(null);
   const [printedReceipt, setPrintedReceipt] = useState<ReceiptData | null>(null);
+  const stock = useBranchStock(user, selectedBranchId, catalogRefresh, (products) => {
+    setCart(previous => updateCartStock(previous, products));
+  });
+  const stockWarning = cart.some(item => baseQuantityInCart(cart, item.variantId) > item.available);
+  const scope = `${user?.tenantId}:${user?.id}:${selectedBranchId}`;
+  const scopeRef = useRef(scope);
+  useLayoutEffect(() => { scopeRef.current = scope; }, [scope]);
 
   // Search input ref for F2 keyboard shortcut
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -180,6 +189,7 @@ export function PosPage() {
 
   // Danh mục không có giá theo đơn vị, nên lấy đơn vị và giá hiện hành từ API tìm kiếm của POS trước khi thêm vào giỏ
   const handleCatalogAdd = async (product: PosProductSearchResponse) => {
+    const expectedScope = scopeRef.current;
     // Kết quả từ API tìm kiếm hoặc quét mã đã có đơn vị và giá, kể cả đơn vị khớp mã vạch
     if (product.units) {
       handleAddToCart(product);
@@ -187,6 +197,7 @@ export function PosPage() {
     }
     try {
       const results = await searchPosProducts(product.sku, selectedBranchId);
+      if (scopeRef.current !== expectedScope) return;
       const match = results.find((item) => item.variantId === product.variantId);
       if (!match) {
         alert(`Không tải được giá hiện hành của "${product.productName}". Vui lòng thử lại.`);
@@ -342,17 +353,20 @@ export function PosPage() {
         onToggleFullscreen={toggleFullscreen}
       />
 
+      <span className="pos-realtime-state" role="status" aria-label="Trạng thái realtime">{stock.status === 'connected' ? 'Tồn kho trực tiếp' : stock.status === 'connecting' || stock.status === 'reconnecting' ? 'Đang kết nối tồn kho…' : 'Realtime ngắt kết nối · tải lại tồn khi kết nối lại'}</span>
+
       </div>
       <main className="pos-workspace no-print">
         <fieldset className="pos-catalog-fieldset" disabled={checkoutBusy}>
           <ProductCatalog key={`${user?.tenantId}:${user?.id}:${selectedBranchId}`} branchId={selectedBranchId}
-            cart={cart} onAdd={handleCatalogAdd} searchRef={searchInputRef} refresh={catalogRefresh} />
+            cart={cart} onAdd={handleCatalogAdd} searchRef={searchInputRef} data={stock.items} loading={stock.loading} error={stock.error} onReload={stock.reload} />
         </fieldset>
         <aside className="pos-order-panel" aria-label="Giỏ hàng và thanh toán">
           <div className="pos-order-heading"><h2><ShoppingBag size={19} /> Đơn hiện tại <span>{totalQuantity}</span></h2>
             <button type="button" onClick={handleClearCart} disabled={!cart.length || checkoutBusy}>Xóa tất cả</button>
           </div>
           <fieldset className="pos-cart-lines" disabled={checkoutBusy}>
+            {stockWarning && <p className="pos-error" role="alert">Tồn kho vừa thay đổi. Giỏ đang vượt tồn khả dụng; vui lòng giảm số lượng hoặc bỏ mặt hàng trước khi thanh toán.</p>}
             {cart.length === 0 ? <div className="pos-empty"><Package size={38} strokeWidth={1.3} /><strong>Giỏ hàng trống</strong><p>Quét barcode hoặc chọn sản phẩm</p></div> :
               cart.map((item) => <article className="pos-cart-line" key={item.lineKey || item.variantId}>
                 <div className="pos-cart-product">
