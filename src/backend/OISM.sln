@@ -15,9 +15,9 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OISM.WebApi", "src\OISM.Web
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{97369AE2-46C9-4AC6-98F0-AEF0DB4CBFBD}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OISM.UnitTests", "tests\OISM.UnitTests\OISM.UnitTests.csproj", "{7E7C0664-1FE3-4EE9-9F99-C34B90B9391F}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OISM.UnitTests", "..\..\test-oisms\backend\OISM.UnitTests\OISM.UnitTests.csproj", "{7E7C0664-1FE3-4EE9-9F99-C34B90B9391F}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OISM.IntegrationTests", "tests\OISM.IntegrationTests\OISM.IntegrationTests.csproj", "{A3EFB2F6-6847-4827-BBC4-D8F2BBC27D61}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OISM.IntegrationTests", "..\..\test-oisms\backend\OISM.IntegrationTests\OISM.IntegrationTests.csproj", "{A3EFB2F6-6847-4827-BBC4-D8F2BBC27D61}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

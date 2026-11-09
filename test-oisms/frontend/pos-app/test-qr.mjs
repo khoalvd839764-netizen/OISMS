@@ -3,12 +3,11 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
-import { fileURLToPath } from 'node:url';
-import { createRequire } from 'node:module';
+import { APP_DIR, appRequire } from './test-support/app-path.mjs';
 
-const require = createRequire(import.meta.url);
+const require = appRequire;
 const ts = require('typescript');
-const dir = path.dirname(fileURLToPath(import.meta.url));
+const dir = APP_DIR;
 
 function loadModuleWithContext(relativePath, mockContext = {}) {
   const fullPath = path.resolve(dir, relativePath);

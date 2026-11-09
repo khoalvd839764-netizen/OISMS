@@ -3,8 +3,9 @@
  * Dùng để kiểm tra khóa idempotency (BF-003) và nguồn tài khoản nhận tiền chỉ từ API (CS-05).
  */
 const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm');
-const ts = require('typescript');
+// test-oisms/frontend/pos-app/test-support -> gốc repo; typescript lấy từ node_modules của pos-app.
 const root = path.resolve(__dirname, '../../../..');
+const ts = require('node:module').createRequire(path.join(root, 'src/frontend/pos-app/package.json'))('typescript');
 const walk = (n, pred) => Array.isArray(n) ? n.flatMap(x => walk(x, pred)) : !n || typeof n !== 'object' ? [] : [...(pred(n) ? [n] : []), ...walk(n.props?.children, pred)];
 const ACCOUNTS_PATH = '/api/payment-accounts/active';
 const tick = () => new Promise(resolve => setImmediate(resolve));

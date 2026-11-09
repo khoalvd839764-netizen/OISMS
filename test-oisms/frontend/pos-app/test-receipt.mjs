@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import ts from 'typescript';
+import { ts, APP_URL } from './test-support/app-path.mjs';
 import runtime from './test-support/pos-runtime.cjs';
 const mod={exports:{}};
-const source=fs.readFileSync(new URL('./src/services/receiptMapper.ts',import.meta.url),'utf8');
+const source=fs.readFileSync(new URL('./src/services/receiptMapper.ts',APP_URL),'utf8');
 vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{module:mod,exports:mod.exports,Date,Math,Number});
 const map=mod.exports.mapServerReceipt;
 const receipt=()=>({receiptNumber:'INV-1',orderNumber:'POS-1',createdAt:'2026-11-08T06:00:00Z',paymentMethod:'Cash',totalAmount:200,amountGiven:250,changeDue:50,items:[{skuCode:'A',productName:'Server product',unitName:'Cái',quantity:2,unitPrice:100,subtotal:200}]});
@@ -22,8 +22,8 @@ test('receipt: HTTP 200 nhưng snapshot lỗi giữ pending để đối soát',
   const key=w.requests[0].payload.requestKey;await w.submit();assert.equal(w.requests[1].payload.requestKey,key);
 });
 test('print: modal ancestor không nằm trong selector display:none; page size hợp lệ',()=>{
-  const css=fs.readFileSync(new URL('./src/index.css',import.meta.url),'utf8');const print=css.slice(css.indexOf('@media print'));
+  const css=fs.readFileSync(new URL('./src/index.css',APP_URL),'utf8');const print=css.slice(css.indexOf('@media print'));
   assert.doesNotMatch(print,/[^{}]*\.no-print-bg[^{}]*\{[^}]*display:\s*none/);
   assert.match(print,/\.no-print-bg\s*\{[^}]*display:\s*block/);assert.doesNotMatch(print,/size:\s*80mm auto/);
-  const component=fs.readFileSync(new URL('./src/components/pos/ReceiptPrintModal.tsx',import.meta.url),'utf8');assert.match(component,/<option value="58">/);assert.match(component,/<option value="80">/);
+  const component=fs.readFileSync(new URL('./src/components/pos/ReceiptPrintModal.tsx',APP_URL),'utf8');assert.match(component,/<option value="58">/);assert.match(component,/<option value="80">/);
 });

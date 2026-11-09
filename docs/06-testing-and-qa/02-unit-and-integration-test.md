@@ -6,7 +6,7 @@
 | **Phiên bản (Version)** | `v1.1.0` |
 | **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `NFR-MAINT-02`, `3.2.e` (Trang 4, 5) |
-| **Phạm vi áp dụng** | `src/backend/tests/OISM.UnitTests` & `src/backend/tests/OISM.IntegrationTests` |
+| **Phạm vi áp dụng** | `test-oisms/backend/OISM.UnitTests` & `test-oisms/backend/OISM.IntegrationTests` |
 
 ---
 
@@ -37,10 +37,10 @@ Integration test cần các biến `OISM_TEST_HOST`, `OISM_TEST_PORT`, `OISM_TES
 
 ```powershell
 # Unit test
-dotnet test src/backend/tests/OISM.UnitTests/OISM.UnitTests.csproj
+dotnet test test-oisms/backend/OISM.UnitTests/OISM.UnitTests.csproj
 
 # Integration test một nhóm
-dotnet test src/backend/tests/OISM.IntegrationTests/OISM.IntegrationTests.csproj --filter "FullyQualifiedName~<TenTest>"
+dotnet test test-oisms/backend/OISM.IntegrationTests/OISM.IntegrationTests.csproj --filter "FullyQualifiedName~<TenTest>"
 
 # Toàn bộ (như CI)
 dotnet test src/backend/OISM.sln --configuration Release

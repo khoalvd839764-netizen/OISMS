@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-const source=fs.readFileSync(new URL('./public/sw.js',import.meta.url),'utf8');
+import { APP_URL } from './test-support/app-path.mjs';
+const source=fs.readFileSync(new URL('./public/sw.js',APP_URL),'utf8');
 function worker(fetchImpl=async()=>({ok:true,clone(){return this;}})) {
   const handlers={},deleted=[],puts=[],waits=[];let claimed=false;
   vm.runInNewContext(source,{URL,Promise,fetch:fetchImpl,self:{location:{origin:'http://pos.test'},clients:{claim:async()=>{claimed=true;}},addEventListener:(name,cb)=>handlers[name]=cb},caches:{keys:async()=>['oisms-pos-v1.0','oisms-pos-v2.0','other-app'],delete:async key=>deleted.push(key),match:async()=>({offlineShell:true}),open:async()=>({addAll:async()=>{},put:async(key,value)=>puts.push({key,value})})}});

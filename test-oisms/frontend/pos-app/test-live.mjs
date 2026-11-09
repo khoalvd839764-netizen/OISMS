@@ -2,13 +2,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
-import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
-import ts from 'typescript';
+import { ts, APP_URL, appRequire } from './test-support/app-path.mjs';
 import { verifyLiveEnvironment, LIVE_URL } from './test-support/live-environment.mjs';
 import { createNetworkProxy } from './test-support/network-proxy.mjs';
 
-const require=createRequire(import.meta.url);
+const require=appRequire;
 const proof=await verifyLiveEnvironment(); // Must pass before any POST.
 const report={date:'2026-11-08',database:proof.database,checks:[],status:'RUNNING'};
 const record=(name,data={})=>{report.checks.push({name,status:'PASS',...data});console.log('PASS '+name);};
@@ -26,7 +25,7 @@ function runtime() {
     CustomEvent:class {constructor(type){this.type=type;}},window:{dispatchEvent:e=>{for(const cb of listeners.get(e.type)||[])cb(e);},addEventListener:(type,cb)=>{if(!listeners.has(type))listeners.set(type,new Set());listeners.get(type).add(cb);}},__importMeta:{env:{VITE_API_BASE_URL:proxy.url}}};
   function load(name) {
     if(modules[name])return modules[name];
-    const source=fs.readFileSync(new URL('./src/services/'+name+'.ts',import.meta.url),'utf8').replace(/import\.meta/g,'__importMeta');
+    const source=fs.readFileSync(new URL('./src/services/'+name+'.ts',APP_URL),'utf8').replace(/import\.meta/g,'__importMeta');
     const mod={exports:{}};
     vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,
       {...context,module:mod,exports:mod.exports,require:n=>n.startsWith('./')?load(n.slice(2)):require(n)});

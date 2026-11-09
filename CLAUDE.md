@@ -14,7 +14,7 @@ Trả lời bằng tiếng Việt. Docs là yêu cầu, code và test là hiện
 | `src/backend/src/OISM.Application` | `Features/<Module>/` chứa service, DTO, interface nghiệp vụ |
 | `src/backend/src/OISM.Infrastructure` | `AppDbContext`, JWT, BCrypt, `SqlLockService`, job Hangfire |
 | `src/backend/src/OISM.WebApi` | Controller, `NotificationHub`, middleware lỗi, `Program.cs` |
-| `src/backend/tests` | `OISM.UnitTests`, `OISM.IntegrationTests` |
+| `test-oisms/backend` | `OISM.UnitTests`, `OISM.IntegrationTests` |
 | `src/frontend/admin-dashboard` | React 19 + Vite, cổng 5173; quản trị, `/pos` chỉ chuyển sang ứng dụng POS riêng |
 | `src/frontend/pos-app` | POS hiện tại chuyển từ Admin, cổng 5174; `src/pages/PosPage.tsx`, một implementation quầy |
 | `src/frontend/marketplace-simulator` | Giao diện giả lập bắn đơn sàn qua webhook, cổng 5175; chỉ gọi `/api/webhooks/*`. Xem `docs/14-webhook-simulator/` |
@@ -27,8 +27,8 @@ Không sửa và không tìm code trong `backend/` (chỉ còn thư mục build,
 
 ```bash
 dotnet build src/backend/OISM.sln
-dotnet test src/backend/tests/OISM.UnitTests/OISM.UnitTests.csproj
-dotnet test src/backend/tests/OISM.IntegrationTests/OISM.IntegrationTests.csproj --filter "FullyQualifiedName~<TenTest>"
+dotnet test test-oisms/backend/OISM.UnitTests/OISM.UnitTests.csproj
+dotnet test test-oisms/backend/OISM.IntegrationTests/OISM.IntegrationTests.csproj --filter "FullyQualifiedName~<TenTest>"
 ```
 
 Một phần integration test cần PostgreSQL thật và các biến `OISM_TEST_HOST`, `OISM_TEST_PORT`, `OISM_TEST_ADMIN_USER`, `OISM_TEST_ADMIN_PASSWORD`, `OISM_TEST_APP_USER`, `OISM_TEST_APP_PASSWORD`. Xem cách đặt trong `.github/workflows/ci.yml`.

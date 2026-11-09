@@ -2,12 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import ts from 'typescript';
+import { ts, APP_URL } from './test-support/app-path.mjs';
 
 const response = (status, value = {}) => ({ status, ok: status >= 200 && status < 300, json: async () => value });
 function fixture(fetchImpl = async () => response(200)) {
   const local = new Map(), events = [], calls = [];
-  const source = fs.readFileSync(new URL('./src/services/posSession.ts', import.meta.url), 'utf8').replace(/import\.meta/g, '__importMeta');
+  const source = fs.readFileSync(new URL('./src/services/posSession.ts', APP_URL), 'utf8').replace(/import\.meta/g, '__importMeta');
   const mod = { exports: {} };
   const context = { module: mod, exports: mod.exports, __importMeta: { env: { VITE_API_BASE_URL: 'https://api.fixture.test' } },
     localStorage: { getItem: k => local.get(k) ?? null, setItem: (k,v) => local.set(k,String(v)), removeItem: k => local.delete(k) },

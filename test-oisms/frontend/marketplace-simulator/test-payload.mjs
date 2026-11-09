@@ -6,9 +6,11 @@ import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 
-const require = createRequire(import.meta.url);
+// Source và typescript lấy từ src/frontend/marketplace-simulator.
+const APP_URL = new URL('../../../src/frontend/marketplace-simulator/', import.meta.url);
+const require = createRequire(new URL('package.json', APP_URL));
 const ts = require('typescript');
-const dir = path.dirname(fileURLToPath(import.meta.url));
+const dir = fileURLToPath(APP_URL);
 
 function loadModule(relativePath) {
   const source = fs.readFileSync(path.resolve(dir, relativePath), 'utf8');

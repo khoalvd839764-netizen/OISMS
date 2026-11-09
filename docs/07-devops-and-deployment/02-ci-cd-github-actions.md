@@ -48,13 +48,13 @@
 
 ```bash
 dotnet build src/backend/OISM.sln
-dotnet test src/backend/tests/OISM.UnitTests/OISM.UnitTests.csproj
+dotnet test test-oisms/backend/OISM.UnitTests/OISM.UnitTests.csproj
 npm run build --prefix src/frontend/admin-dashboard
 npm run build --prefix src/frontend/pos-app
 npm test --prefix src/frontend/pos-app
 ```
 
-Integration test cần PostgreSQL thật: đặt các biến `OISM_TEST_*` như bảng trên rồi chạy `dotnet test src/backend/tests/OISM.IntegrationTests/OISM.IntegrationTests.csproj`. Không có biến thì nhóm test cần DB không chạy được. `scripts/build-all.ps1` gộp build backend, test, build hai frontend.
+Integration test cần PostgreSQL thật: đặt các biến `OISM_TEST_*` như bảng trên rồi chạy `dotnet test test-oisms/backend/OISM.IntegrationTests/OISM.IntegrationTests.csproj`. Không có biến thì nhóm test cần DB không chạy được. `scripts/build-all.ps1` gộp build backend, test, build hai frontend.
 
 ## 4. Quy Ước Nhánh Và Commit
 

@@ -28,4 +28,4 @@ Từ gốc repo, chạy `docker compose -f docker/pos-tests/compose.yml up -d --
 
 Guard kiểm chứng container/port/database `oisms_pos_migration_test` trước POST. Backend 55001, PostgreSQL 55433, UI test `http://localhost:55174`; không trỏ runner vào demo 5000. Fixture credentials chỉ dành cho test.
 
-Xem [ma trận chuyển test](TEST-MIGRATION.md) và [báo cáo kiểm chứng](../../../docs/report-after-upgrade/tach-pos-khoi-admin-2026-11-08.md).
+Xem [ma trận chuyển test](../../../test-oisms/frontend/pos-app/TEST-MIGRATION.md) và [báo cáo kiểm chứng](../../../docs/report-after-upgrade/tach-pos-khoi-admin-2026-11-08.md).

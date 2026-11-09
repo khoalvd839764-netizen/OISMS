@@ -2,10 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import ts from 'typescript';
+import { ts, APP_URL } from './test-support/app-path.mjs';
 
 function load(file, imports = {}) {
-  const source=fs.readFileSync(new URL('./src/services/'+file,import.meta.url),'utf8').replace(/import\.meta/g,'__importMeta');
+  const source=fs.readFileSync(new URL('./src/services/'+file,APP_URL),'utf8').replace(/import\.meta/g,'__importMeta');
   const mod={exports:{}};
   vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,
     {module:mod,exports:mod.exports,require:n=>imports[n],__importMeta:{env:{VITE_API_BASE_URL:'https://api.fixture.test'}},atob,Date,Promise,Map,Set,console});

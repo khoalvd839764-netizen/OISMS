@@ -7,8 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "test": "node --test test-checkout.mjs test-cart-units.mjs test-qr.mjs test-b03-qr.mjs test-b03-environment.mjs test-auth.mjs test-navigation.mjs test-realtime.mjs test-receipt.mjs test-worker.mjs",
-    "test:live": "node test-live.mjs",
+    "test": "node --test ../../../test-oisms/frontend/pos-app/test-checkout.mjs ../../../test-oisms/frontend/pos-app/test-cart-units.mjs ../../../test-oisms/frontend/pos-app/test-qr.mjs ../../../test-oisms/frontend/pos-app/test-b03-qr.mjs ../../../test-oisms/frontend/pos-app/test-b03-environment.mjs ../../../test-oisms/frontend/pos-app/test-auth.mjs ../../../test-oisms/frontend/pos-app/test-navigation.mjs ../../../test-oisms/frontend/pos-app/test-realtime.mjs ../../../test-oisms/frontend/pos-app/test-receipt.mjs ../../../test-oisms/frontend/pos-app/test-worker.mjs",
+    "test:live": "node ../../../test-oisms/frontend/pos-app/test-live.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

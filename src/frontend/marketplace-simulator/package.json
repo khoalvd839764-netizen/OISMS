@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "test": "node --test test-payload.mjs",
+    "test": "node --test ../../../test-oisms/frontend/marketplace-simulator/test-payload.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

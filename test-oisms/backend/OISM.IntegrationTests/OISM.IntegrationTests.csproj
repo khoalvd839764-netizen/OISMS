@@ -25,8 +25,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\OISM.WebApi\OISM.WebApi.csproj" />
-    <ProjectReference Include="..\..\src\OISM.Infrastructure\OISM.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\..\src\backend\src\OISM.WebApi\OISM.WebApi.csproj" />
+    <ProjectReference Include="..\..\..\src\backend\src\OISM.Infrastructure\OISM.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

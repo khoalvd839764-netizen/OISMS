@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import ts from 'typescript';
+import { ts, APP_URL } from './test-support/app-path.mjs';
 function navigation(url) {
-  const source=fs.readFileSync(new URL('../admin-dashboard/src/services/posNavigation.ts',import.meta.url),'utf8').replace(/import\.meta/g,'__importMeta');
+  const source=fs.readFileSync(new URL('../admin-dashboard/src/services/posNavigation.ts',APP_URL),'utf8').replace(/import\.meta/g,'__importMeta');
   const mod={exports:{}},calls=[];
   vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,
     {module:mod,exports:mod.exports,URL,__importMeta:{env:{VITE_POS_URL:url}},window:{location:{replace:u=>calls.push(u)}}});

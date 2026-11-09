@@ -150,7 +150,7 @@ flowchart TD
 - **Đường dẫn vật lý:** `D:\OISMS\skills\unit-testing-test-generate\`
 - **File kích hoạt:** `SKILL.md`
 - **Công dụng đối với OISMS:** Tự động sinh mã Unit Test và Integration Test với xUnit, FluentAssertions và Moq/NSubstitute. Tập trung kiểm thử logic nghiệp vụ then chốt: tính giá vốn xuất kho WAC, cơ chế khóa giữ chỗ kho (Reservation), và xác nhận đơn thanh toán POS, cam kết duy trì độ phủ kiểm thử $\ge 80\%$.
-- **Phạm vi tác động:** `src/backend/tests/` và [`docs/06-testing-and-qa/`](../06-testing-and-qa/README.md).
+- **Phạm vi tác động:** `test-oisms/backend/` và [`docs/06-testing-and-qa/`](../06-testing-and-qa/README.md).
 
 #### 12. `github-actions-templates`
 - **Đường dẫn vật lý:** `D:\OISMS\skills\github-actions-templates\`
