@@ -34,7 +34,7 @@ public class OrderItemRequestDto
 
 /// <summary>
 /// Hợp đồng DTO thanh toán nhanh tại quầy POS (Hỗ trợ cả POST /api/pos/checkout và alias POST /api/orders/checkout).
-/// Tương thích 100% với Frontend Web POS PWA (src/frontend/pos-app/src/types/pos.ts) và Admin Dashboard.
+/// Tương thích với ứng dụng POS (src/frontend/pos-app/src/types/pos.ts).
 /// </summary>
 public class PosCheckoutRequestDto
 {

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Role } from "../types/domain";
 import { clearAuthSession, clearSessionOrdersStorage, httpClient } from "../services/httpClient";
+import { openStandalonePos } from "../services/posNavigation";
 import { realtimeAdapter } from "../services/realtimeAdapter";
 
 export interface UserAccount {
@@ -109,6 +110,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           branchName: "Chi nhánh chính",
           landingPath: role === "Cashier" ? "/pos" : "/admin",
         };
+        if (role === 'Cashier') {
+          await openStandalonePos(role, async () => {
+            const refresh = localStorage.getItem('oism_refresh_token');
+            clearAuthSession();
+            if (refresh) await httpClient.post('/api/auth/logout', { refreshToken: refresh }).catch(() => {});
+          });
+          return;
+        }
         setUser(accountData);
       } catch (err: any) {
         console.warn("Không thể tải thông tin phiên người dùng:", err?.message);
@@ -163,7 +172,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         landingPath: role === "Cashier" ? "/pos" : "/admin",
       };
 
-      setUser(accountData);
+      if (role === 'Cashier') {
+        clearAuthSession();
+        if (refreshToken) await httpClient.post('/api/auth/logout', { refreshToken }).catch(() => {});
+      } else { setUser(accountData); }
       return { success: true, user: accountData };
     } catch (err: any) {
       if (!err?.response) {

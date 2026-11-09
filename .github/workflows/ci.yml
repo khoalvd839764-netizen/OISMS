@@ -65,12 +65,16 @@ jobs:
 
     - name: Build Admin Dashboard
       working-directory: src/frontend/admin-dashboard
+      env:
+        VITE_POS_URL: http://localhost:5174
       run: |
         npm ci
         npm run build
 
     - name: Build POS App
       working-directory: src/frontend/pos-app
+      env:
+        VITE_ADMIN_URL: http://localhost:5173
       run: |
         npm ci
         npm run build

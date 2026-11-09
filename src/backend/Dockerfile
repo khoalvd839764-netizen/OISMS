@@ -8,8 +8,8 @@ COPY ["src/backend/src/OISM.Domain/OISM.Domain.csproj", "src/backend/src/OISM.Do
 COPY ["src/backend/src/OISM.Application/OISM.Application.csproj", "src/backend/src/OISM.Application/"]
 COPY ["src/backend/src/OISM.Infrastructure/OISM.Infrastructure.csproj", "src/backend/src/OISM.Infrastructure/"]
 COPY ["src/backend/src/OISM.WebApi/OISM.WebApi.csproj", "src/backend/src/OISM.WebApi/"]
-COPY ["src/backend/tests/OISM.UnitTests/OISM.UnitTests.csproj", "src/backend/tests/OISM.UnitTests/"]
-COPY ["src/backend/tests/OISM.IntegrationTests/OISM.IntegrationTests.csproj", "src/backend/tests/OISM.IntegrationTests/"]
+COPY ["test-oisms/backend/OISM.UnitTests/OISM.UnitTests.csproj", "test-oisms/backend/OISM.UnitTests/"]
+COPY ["test-oisms/backend/OISM.IntegrationTests/OISM.IntegrationTests.csproj", "test-oisms/backend/OISM.IntegrationTests/"]
 
 RUN dotnet restore "src/backend/OISM.sln"
 

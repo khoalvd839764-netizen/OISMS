@@ -14,7 +14,7 @@
 
 Phân hệ **10-ai-skills** tài liệu hóa toàn diện hệ thống kỹ năng AI (AI Skills) được tích hợp trong dự án **OISMS (Omnichannel Inventory and Sales Management System)** nhằm hỗ trợ đội ngũ kỹ sư và Agent AI (Antigravity) trong suốt vòng đời phát triển phần mềm:
 - **Chuẩn hóa kiến trúc:** Giữ vững ranh giới 4 tầng Clean Architecture của Backend `.NET 8` và mô hình ứng dụng kép `React 19` (Admin & POS PWA).
-- **Đảm bảo chất lượng dữ liệu & hiệu năng:** Tối ưu hóa lược đồ 43 bảng PostgreSQL, duy trì tính bất biến của sổ cái kho (Append-Only Ledger) và công thức tính giá vốn bình quân gia quyền (WAC).
+- **Đảm bảo chất lượng dữ liệu & hiệu năng:** Tối ưu hóa lược đồ 44 bảng PostgreSQL, duy trì tính bất biến của sổ cái kho (Append-Only Ledger) và công thức tính giá vốn bình quân gia quyền (WAC).
 - **An toàn bảo mật đa tổ chức (Multi-Tenant):** Kiểm soát truy cập chặt chẽ thông qua JWT/RBAC và bộ lọc toàn cục `tenant_id` của EF Core.
 - **Tự động hóa QA & DevOps:** Tạo bộ kiểm thử tự động xUnit đạt độ phủ $\ge 80\%$, đồng thời tự động hóa quy trình CI/CD qua GitHub Actions.
 
@@ -39,7 +39,7 @@ Ngoài 12 skill kỹ thuật bên dưới, repo có [skill điều phối Codex�
 | **Backend** | [`csharp-pro`](../../skills/csharp-pro/SKILL.md) | `skills/csharp-pro/` | Code C# .NET 8 hiện đại, record types, async/await, LINQ, pattern matching |
 | **Backend** | [`architecture-patterns`](../../skills/architecture-patterns/SKILL.md) | `skills/architecture-patterns/` | Clean Architecture 4 tầng, DDD, CQRS, phân định Domain/Application/Infra/WebAPI |
 | **Backend** | [`api-design-principles`](../../skills/api-design-principles/SKILL.md) | `skills/api-design-principles/` | Chuẩn hóa RESTful WebAPI, DTO Request/Response, HTTP status, OpenAPI/Swagger |
-| **Database** | [`postgresql`](../../skills/postgresql/SKILL.md) | `skills/postgresql/` | Thiết kế schema 43 bảng, foreign keys kép, kiểu NUMERIC(18,2), partition |
+| **Database** | [`postgresql`](../../skills/postgresql/SKILL.md) | `skills/postgresql/` | Thiết kế schema 44 bảng, foreign keys kép, kiểu NUMERIC(18,2), partition |
 | **Database** | [`sql-optimization-patterns`](../../skills/sql-optimization-patterns/SKILL.md) | `skills/sql-optimization-patterns/` | Phân tích EXPLAIN, composite indexes `(tenant_id, ...)`, chịu tải Flash Sale |
 | **Frontend** | [`typescript-pro`](../../skills/typescript-pro/SKILL.md) | `skills/typescript-pro/` | Strict Type checking cho React 19, đồng bộ interfaces giữa WebAPI và Frontend |
 | **Frontend** | [`react-state-management`](../../skills/react-state-management/SKILL.md) | `skills/react-state-management/` | State cart, barcode scanning thời gian thực cho POS PWA; cache server state cho Admin |

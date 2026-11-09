@@ -42,19 +42,19 @@
 
 - `actions/setup-node` với Node `22`.
 - `src/frontend/admin-dashboard`: `npm install` rồi `npm run build` (`tsc -b && vite build`).
-- `src/frontend/pos-app`: `npm install`, `npm run build`, rồi `npm test` (chạy `test-pos-e2e.mjs`, `test-cart-units.mjs`, `test-b03-qr.mjs`, `test-b03-environment.mjs` bằng `node --test`).
+- `src/frontend/pos-app`: `npm ci`, `npm run build`, rồi `npm test` (checkout, đơn vị, QR, auth/điều hướng, realtime, receipt và worker; danh sách trong `package.json`). `npm run test:live` chạy riêng với backend/PostgreSQL cô lập theo `docker/pos-tests/compose.yml`.
 
 ## 3. Chạy Lại Ở Máy Local
 
 ```bash
 dotnet build src/backend/OISM.sln
-dotnet test src/backend/tests/OISM.UnitTests/OISM.UnitTests.csproj
+dotnet test test-oisms/backend/OISM.UnitTests/OISM.UnitTests.csproj
 npm run build --prefix src/frontend/admin-dashboard
 npm run build --prefix src/frontend/pos-app
 npm test --prefix src/frontend/pos-app
 ```
 
-Integration test cần PostgreSQL thật: đặt các biến `OISM_TEST_*` như bảng trên rồi chạy `dotnet test src/backend/tests/OISM.IntegrationTests/OISM.IntegrationTests.csproj`. Không có biến thì nhóm test cần DB không chạy được. `scripts/build-all.ps1` gộp build backend, test, build hai frontend.
+Integration test cần PostgreSQL thật: đặt các biến `OISM_TEST_*` như bảng trên rồi chạy `dotnet test test-oisms/backend/OISM.IntegrationTests/OISM.IntegrationTests.csproj`. Không có biến thì nhóm test cần DB không chạy được. `scripts/build-all.ps1` gộp build backend, test, build hai frontend.
 
 ## 4. Quy Ước Nhánh Và Commit
 

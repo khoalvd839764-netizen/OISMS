@@ -3,12 +3,12 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu** | `DOC-ERD-FULL` |
-| **Phiên bản** | `v2.1.0` |
-| **Ngày hiệu lực** | `2026-11-06` |
-| **Nguồn** | Sinh từ `docs/database/oisms_schema.sql` (cột, kiểu, khóa ngoại) và `OISM.Infrastructure/Persistence/Configurations/*.cs` (ánh xạ entity) |
+| **Phiên bản** | `v2.1.1` |
+| **Ngày hiệu lực** | `2026-11-08` |
+| **Nguồn** | Đối chiếu với `docs/database/oisms_schema.sql` (cột, kiểu, khóa ngoại) và `OISM.Infrastructure/Persistence/Configurations/*.cs` (ánh xạ entity) |
 | **Liên quan** | [`04-architecture-and-design/03-database-design.md`](./04-architecture-and-design/03-database-design.md) (ERD rút gọn, chỉ mục), [`database/README.md`](./database/README.md) (từ điển dữ liệu, ràng buộc CHECK) |
 
-> Bảng cột ở mục 4 được sinh tự động từ file schema. Khi đổi schema, sinh lại mục này thay vì sửa tay. `oisms_schema.sql` luôn là nguồn đúng nếu có chỗ lệch.
+> Bảng cột ở mục 4 được đối chiếu với file schema. Khi đổi schema, cập nhật mục này theo DDL; `oisms_schema.sql` luôn là nguồn đúng nếu có chỗ lệch.
 
 ---
 
@@ -61,6 +61,7 @@ erDiagram
     ORDER_ITEMS ||--o{ RESERVATIONS : "order_item_id"
     ORDERS ||--o{ RESERVATIONS : "order_id"
     ORDERS ||--o{ PAYMENTS : "order_id"
+    PAYMENT_ACCOUNTS o|--o{ PAYMENTS : "payment_account_id"
     ORDERS ||--o{ SALES_RETURNS : "order_id"
     BRANCHES ||--o{ SALES_RETURNS : "branch_id"
     WAREHOUSES ||--o{ SALES_RETURNS : "warehouse_id"
@@ -100,7 +101,7 @@ erDiagram
     UNITS ||--o{ PURCHASE_ORDER_ITEMS : "unit_id"
     PURCHASE_ORDERS ||--o{ GOODS_RECEIPTS : "purchase_order_id"
     PURCHASE_ORDER_ITEMS ||--o{ GOODS_RECEIPT_ITEMS : "purchase_order_item_id"
-    ORDERS ||--o{ SALES_INVOICES : "order_id"
+    ORDERS ||--o| SALES_INVOICES : "order_id"
     BRANCHES ||--o{ SALES_INVOICES : "branch_id"
     STOCK_COUNT_PERIODS ||--o{ STOCK_COUNTS : "period_id"
     WAREHOUSES ||--o{ STOCK_COUNT_SCHEDULES : "warehouse_id"
@@ -109,7 +110,7 @@ erDiagram
     STOCK_COUNTS ||--o{ STOCK_COUNT_APPROVALS : "stock_count_id"
 ```
 
-## 3. Danh Mục 43 Bảng
+## 3. Danh Mục 44 Bảng
 
 | STT | Bảng | Entity (Domain) | Nhóm |
 | :---: | :--- | :--- | :--- |
@@ -156,6 +157,7 @@ erDiagram
 | 41 | `daily_sales_summaries` | — *(chưa có entity, backend chưa dùng)* | Báo cáo, AI, tích hợp sàn |
 | 42 | `replenishment_suggestions` | — *(chưa có entity, backend chưa dùng)* | Báo cáo, AI, tích hợp sàn |
 | 43 | `shop_integrations` | `ShopIntegration` | Báo cáo, AI, tích hợp sàn |
+| 44 | `payment_accounts` | `PaymentAccount` | Bán hàng, POS, thanh toán VietQR (CS-05) |
 
 Ghi chú:
 - `skus` ánh xạ tới entity `ProductVariant`.
@@ -771,8 +773,30 @@ Ký hiệu: **PK** khóa chính, **NN** NOT NULL, **GEN** cột sinh tự độn
 | `amount` | `numeric(20,2)` | NN |
 | `cash_received` | `numeric(20,2)` |  |
 | `paid_at` | `timestamptz` |  |
+| `transfer_reference` | `varchar(100)` |  |
+| `receiver_bank_bin` | `varchar(6)` |  |
+| `receiver_account_number` | `varchar(20)` |  |
+| `receiver_account_name` | `varchar(255)` |  |
+| `payment_account_id` | `uuid` | FK → `payment_accounts` |
 | `created_at` | `timestamptz` | NN, mặc định `now()` |
 | `updated_at` | `timestamptz` |  |
+
+#### `payment_accounts` — `PaymentAccount`
+
+| Cột | Kiểu | Ràng buộc |
+| :--- | :--- | :--- |
+| `id` | `uuid` | PK, mặc định `gen_random_uuid()` |
+| `tenant_id` | `uuid` | NN, FK → `tenants` |
+| `bank_bin` | `varchar(6)` | NN |
+| `bank_name` | `varchar(255)` | NN |
+| `bank_short_name` | `varchar(50)` | NN |
+| `account_number` | `varchar(20)` | NN |
+| `account_name` | `varchar(255)` | NN |
+| `is_default` | `boolean` | NN, mặc định `false` |
+| `is_active` | `boolean` | NN, mặc định `true` |
+| `created_at` | `timestamptz` | NN, mặc định `now()` |
+| `updated_at` | `timestamptz` |  |
+| `updated_by_user_id` | `uuid` | FK → `users` |
 
 #### `sales_invoices` — `SalesInvoice`
 
@@ -913,7 +937,7 @@ Ký hiệu: **PK** khóa chính, **NN** NOT NULL, **GEN** cột sinh tự độn
 - **Giữ chỗ:** `reservations.status` ∈ `Active`, `Consumed`, `Released`, `Expired`; duy nhất theo `(tenant_id, order_item_id, warehouse_id)`.
 - **Đơn hàng:** `orders.status` ∈ `Draft`, `Reserved`, `Confirmed`, `Completed`, `Cancelled`. `order_items` lưu `unit_id`, `factor_snapshot`, `base_quantity`, `cost_price` (WAC chụp khi xuất), `sku_unit_price_id`, `price_source`.
 - **Phiếu mua:** `purchase_orders.status` ∈ `Draft`, `Approved`, `PartiallyReceived`, `Received`, `Closed`, `Cancelled`. Phiếu nhập phải gắn phiếu mua đã duyệt và không nhập vượt `received_base_quantity`.
-- **Hóa đơn bán:** `sales_invoices` 1–1 với `orders` (`uq_sales_invoices_3`), số hóa đơn duy nhất trong tenant, lập cùng transaction với dòng `OUT`.
+- **Hóa đơn bán:** Mỗi đơn có tối đa một `sales_invoices` (`uq_sales_invoices_3`); mỗi hóa đơn thuộc đúng một đơn. Số hóa đơn duy nhất trong tenant, lập cùng transaction với dòng `OUT`.
 - **Kiểm kê:** `stock_counts.status` ∈ `Draft`, `Counting`, `PendingApproval`, `Confirmed`, `Cancelled`; `stock_count_periods.status` ∈ `Planned`, `InProgress`, `Completed`, `Cancelled`.
 - **Giá:** `price_change_requests.status` ∈ `Pending`, `Approved`, `Rejected`; giá hiệu lực lưu ở `sku_unit_prices` theo `(bảng giá, SKU, đơn vị, valid_from)`. Cột `skus.retail_price`, `wholesale_price` là dữ liệu cũ, không dùng khi bán.
 

@@ -96,7 +96,7 @@ Bảng trên là **yêu cầu**. Đối chiếu `[Authorize(Roles = ...)]` và d
 
 1. **Tầng Giao diện (Frontend Route Guard & Unified Login):**
    - Sau khi xác thực JWT, hệ thống đọc trường `Role`:
-     - `Cashier`: Tự động điều hướng thẳng về giao diện quầy bán hàng (`/pos` của Admin hoặc POS PWA riêng). Nếu cố tình truy cập đường dẫn `/admin/*`, ứng dụng chuyển hướng sang `/403`.
+     - `Cashier`: Bán hàng tại ứng dụng POS riêng (`VITE_POS_URL`, local cổng 5174). Trang đăng nhập Admin có nút "Bạn là thu ngân? Đăng nhập tại quầy POS" mở thẳng màn đăng nhập POS. Nếu Cashier vẫn đăng nhập ở Admin, phiên Admin bị thu hồi và ứng dụng chuyển sang màn đăng nhập POS kèm dòng nhắc; hai ứng dụng không chia sẻ token. Nếu cố tình truy cập đường dẫn `/admin/*`, ứng dụng chuyển hướng sang `/403`.
      - `Staff` & `Owner`: Điều hướng vào `/admin`. Trang Báo cáo (`/reports`) và Tổ chức (`/organization`) chỉ mở cho `Owner` (`ProtectedRoute allowedRoles={["Owner"]}`); các nút vượt quyền của `Staff` bị ẩn.
 2. **Tầng Backend API (Server-side Policy):**
    - Mọi Controller/Action đều gắn thuộc tính `[Authorize(Roles = "...")]`.

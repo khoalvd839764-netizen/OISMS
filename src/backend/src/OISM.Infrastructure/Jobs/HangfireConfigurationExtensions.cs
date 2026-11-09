@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using OISM.Application.Common.Interfaces;
+using OISM.Infrastructure.Persistence;
 
 namespace OISM.Infrastructure.Jobs;
 
@@ -32,15 +33,7 @@ public static class HangfireConfigurationExtensions
             return services;
         }
 
-        var connectionString = configuration.GetConnectionString("HangfireConnection")
-            ?? configuration.GetConnectionString("DefaultConnection")
-            ?? configuration["ConnectionStrings:DefaultConnection"];
-
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            throw new InvalidOperationException(
-                "Cấu hình 'Hangfire:Enabled' = true nhưng không tìm thấy chuỗi kết nối hợp lệ ('HangfireConnection' hoặc 'DefaultConnection'). Không fallback sang In-Memory.");
-        }
+        var connectionString = ResolveConnectionString(configuration);
 
         services.AddHangfire((sp, config) =>
         {
@@ -68,6 +61,25 @@ public static class HangfireConfigurationExtensions
         });
 
         return services;
+    }
+
+    /// <summary>
+    /// Chọn chuỗi kết nối cho storage Hangfire:
+    /// 1. ConnectionStrings:HangfireConnection nếu được đặt riêng.
+    /// 2. Cùng nguồn với AppDbContext (Database:* rồi mới tới DefaultConnection) qua DatabaseConnectionHelper,
+    ///    để container chỉ cấu hình Database__* vẫn kết nối đúng DB thay vì DefaultConnection mẫu trong appsettings.json.
+    /// Thiếu cả hai thì ném InvalidOperationException, không fallback sang In-Memory.
+    /// </summary>
+    public static string ResolveConnectionString(IConfiguration configuration)
+    {
+        var dedicated = configuration.GetConnectionString("HangfireConnection");
+        if (!string.IsNullOrWhiteSpace(dedicated))
+        {
+            return dedicated;
+        }
+
+        // Helper tự ném InvalidOperationException khi thiếu cấu hình hoặc trỏ tài khoản quản trị.
+        return DatabaseConnectionHelper.BuildConnectionStringBuilder(configuration).ConnectionString;
     }
 
     public static IApplicationBuilder UseOismHangfire(this IApplicationBuilder app, IConfiguration? configuration = null)

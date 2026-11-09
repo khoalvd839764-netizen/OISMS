@@ -10,6 +10,8 @@
 | **Kiểm chứng** | `scratch/test_bugfix_after_verification.cjs` (30/10/2026, PASS) |
 
 > **Hiện trạng 06/11/2026:** Bản sửa có trong POS Admin (chặn thiếu mã đơn hoặc GUID rỗng). POS riêng chưa kiểm chứng lại.
+>
+> **Cập nhật 08/11/2026 (tách POS khỏi Admin):** bản sửa của POS Admin đã chuyển sang `pos-app/src/services/posApi.ts` (`checkoutPosOrder` từ chối thiếu mã đơn hoặc GUID rỗng) và là POS duy nhất. Các đường dẫn `admin-dashboard/.../posApi.ts`, `pos-app/services/api.ts` và hai `PaymentModal.tsx` nêu bên dưới là hiện trạng lúc sửa, đã bị xóa hoặc gộp còn `pos-app/src/components/pos/PaymentModal.tsx`. Test: `test-checkout.mjs`.
 
 ## Mô tả lỗi (lúc phát hiện)
 

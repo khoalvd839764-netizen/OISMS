@@ -1,5 +1,7 @@
 # 05. Nhiều đơn vị tính cho hàng hóa vật lý
 
+> Cập nhật kiến trúc 08/11/2026: một POS tại `src/frontend/pos-app`, dùng giao diện chuyển từ Admin. Các mô tả hai bản POS và đường dẫn Admin dưới đây là bối cảnh của kế hoạch cũ, không còn là chỉ dẫn triển khai. Logic quầy tại `pages/PosPage.tsx`, `components/pos/PaymentModal.tsx`; giỏ/QR chỉ duy trì một bản. Xem [báo cáo tách POS](../report-after-upgrade/tach-pos-khoi-admin-2026-11-08.md).
+
 > **Quyết định đã chốt trong trao đổi:** chọn **phương án B — một SKU có một đơn vị tồn kho gốc và nhiều đơn vị mua/bán quy đổi về đơn vị gốc**. Tài liệu này là kế hoạch triển khai đề xuất; nhóm dự án vẫn cần duyệt chi tiết hợp đồng API, độ chính xác và lịch phát hành trước khi viết mã.
 >
 > Phạm vi chỉ gồm hàng hóa vật lý. Dịch vụ, bản quyền theo thời gian, bao cân biến thiên và tồn độc lập cho bao nguyên không nằm trong đợt triển khai này.

@@ -3,7 +3,7 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-OPS-03` |
-| **Phiên bản (Version)** | `v1.1.0` |
+| **Phiên bản (Version)** | `v1.2.0` |
 | **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `NFR-SEC-01`, `3.2.e`, `3.2.f` (Trang 4, 5) |
 | **Phạm vi áp dụng** | `.env.example`, `.env.production.example`, `docker-compose*.yml`, `appsettings*.json`, `nginx.conf` của 2 frontend |
@@ -16,6 +16,7 @@
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả các biến môi trường trọng yếu và cấu hình Nginx SPA Fallback chống lỗi 404 khi F5 trang con. | `INIT-OPS-03` |
 | `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Sửa tên khóa cấu hình theo code (`Jwt:*`, `Database:*`, `Hangfire:*`), `VITE_API_BASE_URL` không có đuôi `/api`, thêm biến production. | `OISMS-46` |
+| `v1.2.0` | `2026-11-08` | Nhóm dự án OISMS | Bật Hangfire qua `HANGFIRE_ENABLED`/`HANGFIRE_WORKER_COUNT`; Hangfire dùng chung kết nối `Database:*`; schema `hangfire` qua migration `20261108_hangfire_schema.sql`. | `OISMS-46` |
 
 ---
 
@@ -43,8 +44,9 @@
 | `Jwt:Secret` | fallback viết cứng trong `Program.cs` | Khóa ký HMAC-SHA256, tối thiểu 32 ký tự. **Môi trường thật phải đặt**; production compose truyền `Jwt__Secret` từ `JWT_SECRET`. |
 | `Jwt:Issuer`, `Jwt:Audience` | `OISM_WebAPI`, `OISM_Client` | Kiểm tra issuer/audience của token |
 | `Jwt:ExpiryMinutes` | `60` | Thời hạn access token (`NFR-SEC-01`) |
-| `Hangfire:Enabled` | `false` | Bật job hết hạn giữ chỗ và sinh kỳ kiểm kê. Khi bật cần `ConnectionStrings:HangfireConnection` (hoặc `DefaultConnection`) và schema `hangfire` ([SQL cấp quyền](../database/hangfire_schema_provisioning.sql)). |
-| `Hangfire:WorkerCount` | `min(4, max(2, số CPU))` | Số worker Hangfire |
+| `Hangfire:Enabled` | `false` | Bật job hết hạn giữ chỗ và sinh kỳ kiểm kê. Compose truyền từ `HANGFIRE_ENABLED` trong `.env` (mặc định `false`). Khi bật cần schema `hangfire`: volume mới đã có qua `init-oisms.sh`; DB đã có dữ liệu phải chạy `docker/postgres/migrations/20261108_hangfire_schema.sql` bằng tài khoản `postgres` trước. |
+| `Hangfire:WorkerCount` | `min(4, max(2, số CPU))`; Compose: `2` | Số worker Hangfire. Compose truyền từ `HANGFIRE_WORKER_COUNT`. |
+| `ConnectionStrings:HangfireConnection` | — | Không bắt buộc. Không đặt thì Hangfire dùng cùng kết nối với `AppDbContext` (`Database:*` trước, rồi `DefaultConnection`). |
 
 CORS chỉ cho phép `http(s)://localhost:5173` và `http(s)://localhost:5174`. Trên production mỗi frontend gọi API qua chính domain của nó (Caddy định tuyến `/api`, `/hubs`, `/health`) nên không cần thêm origin.
 

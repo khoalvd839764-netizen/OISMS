@@ -30,7 +30,7 @@ dcp ps
 Chuyện gì xảy ra:
 
 1. Build 4 image: backend (.NET SDK → ASP.NET runtime), admin, POS và giả lập đơn sàn (Node 22 → nginx). Lần đầu mất vài phút.
-2. `postgres` khởi động với volume trống, chạy `init-oisms.sh`: nạp `oisms_schema.sql` (43 bảng, trigger `ledger_append_only`), tạo nhóm `oisms_runtime` và login `oisms_app`, kiểm tra đủ 43 bảng. Lỗi ở bước này thì container dừng; xem `dcp logs postgres`.
+2. `postgres` khởi động với volume trống, chạy `init-oisms.sh`: nạp `oisms_schema.sql` (44 bảng, trigger `ledger_append_only`), tạo nhóm `oisms_runtime` và login `oisms_app`, kiểm tra đủ 44 bảng. Lỗi ở bước này thì container dừng; xem `dcp logs postgres`.
 3. `backend` chờ `postgres` healthy rồi chạy. Production không seed demo.
 4. `caddy` xin chứng chỉ cho `ADMIN_DOMAIN`, `POS_DOMAIN` và `SIM_DOMAIN`. Xem tiến trình: `dcp logs -f caddy`.
 
@@ -42,7 +42,7 @@ curl -sI https://<POS_DOMAIN>/ | head -1
 curl -sI https://<SIM_DOMAIN>/ | head -1
 ```
 
-`/health/ready` phải trả HTTP 200, `status: "Healthy"`, `tablesCount: 43`, `triggerVerified: true`.
+`/health/ready` phải trả HTTP 200, `status: "Healthy"`, `tablesCount: 44`, `triggerVerified: true`.
 
 ## 2. Tạo Dữ Liệu Ban Đầu
 
@@ -51,7 +51,7 @@ Database production trống, không có tài khoản mẫu.
 1. Mở `https://<ADMIN_DOMAIN>/login`, chọn **Đăng ký doanh nghiệp** (gọi `POST /api/auth/register-tenant`). Một transaction tạo tenant và tài khoản `Owner`; chưa có chi nhánh hay kho.
 2. Đăng nhập bằng Owner, tạo chi nhánh, kho, nhân viên (`Staff`, `Cashier`) ở màn Tổ chức.
 3. Khai báo nhà cung cấp, sản phẩm, đơn vị tính, giá; nhập kho qua Phiếu mua → Phiếu nhập để có tồn và giá vốn.
-4. Thu ngân đăng nhập POS tại `https://<POS_DOMAIN>` hoặc `https://<ADMIN_DOMAIN>/pos`.
+4. Thu ngân đăng nhập POS tại `https://<POS_DOMAIN>`. `https://<ADMIN_DOMAIN>/pos` chỉ chuyển hướng, không chia sẻ token qua URL; Cashier đăng nhập tại Admin sẽ được kết thúc phiên Admin trước khi chuyển sang màn đăng nhập POS (kèm dòng nhắc). Trang đăng nhập Admin có nút "Bạn là thu ngân?" mở thẳng `https://<POS_DOMAIN>/login`; máy quầy nên bookmark hoặc cài PWA từ `https://<POS_DOMAIN>`.
 
 ## 3. Cập Nhật Phiên Bản Mới
 
@@ -146,7 +146,7 @@ dcp up -d --build
 
 | Kiểm tra | Kỳ vọng |
 | :--- | :--- |
-| `https://<ADMIN_DOMAIN>/health/ready` | 200, `Healthy`, 43 bảng |
+| `https://<ADMIN_DOMAIN>/health/ready` | 200, `Healthy`, 44 bảng |
 | `https://<ADMIN_DOMAIN>/swagger` | Không mở được (production không có Swagger; SPA trả trang chuyển về `/admin`) |
 | `http://<ADMIN_DOMAIN>` | Chuyển hướng sang `https://` |
 | Đăng nhập Admin, mở Sản phẩm, Tồn kho | Có dữ liệu, không lỗi mạng |

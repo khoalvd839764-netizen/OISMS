@@ -10,6 +10,8 @@
 | **Kiểm chứng** | `scratch/test_bugfix_after_verification.cjs` (30/10/2026, PASS) |
 
 > **Hiện trạng 06/11/2026:** Bản sửa có trong `admin-dashboard/src/services/posApi.ts`. `pos-app/src/services/api.ts` có xử lý 401 và phát `pos-auth-expired`, nhưng chưa chạy lại kịch bản trên code mới.
+>
+> **Cập nhật 08/11/2026 (tách POS khỏi Admin):** chỉ còn một POS tại `src/frontend/pos-app`. Bản sửa nằm ở `pos-app/src/services/posApi.ts` (mọi nhánh 401 phát `pos-auth-expired`) cùng `posSession.ts` (refresh token, generation guard). `admin-dashboard/src/services/posApi.ts` và `pos-app/src/services/api.ts` nêu bên dưới đã bị xóa; phần "Cách đã sửa" giữ theo thời điểm sửa. Test: `test-auth.mjs`, `test-checkout.mjs`.
 
 ## Mô tả lỗi (lúc phát hiện)
 

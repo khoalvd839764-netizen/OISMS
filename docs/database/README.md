@@ -3,13 +3,13 @@
 ## Bàn giao kết nối Docker–database — 16/10/2026
 
 - PostgreSQL đã chạy healthy trong Docker; backend kết nối thành công bằng tài khoản runtime `oisms_app` qua `postgres:5432`.
-- Endpoint `http://localhost:5000/health/ready` trả **200 Healthy**, xác nhận đủ **43 bảng**, không thiếu bảng trong danh sách kiểm tra và trigger bảo vệ ledger đang bật.
+- Endpoint `http://localhost:5000/health/ready` trả **200 Healthy**, xác nhận đủ **44 bảng**, không thiếu bảng trong danh sách kiểm tra và trigger bảo vệ ledger đang bật.
 - Khi phát triển local, công cụ quản lý database kết nối `localhost:5432` (hoặc cổng host đã cấu hình); thông tin đăng nhập lấy từ `.env`, không đưa mật khẩu vào Git. Không copy đè `.env.example` lên `.env` mỗi lần khởi động.
 - Có thể bàn giao nền tảng kết nối để Khoa/TV2 triển khai Entity/DbContext, tenant filter và API. Kết quả readiness không thay kiểm thử nghiệp vụ WAC/nhập/xuất/giữ chỗ; việc giữ dữ liệu sau restart vẫn cần xác minh bằng bản ghi thử.
 
 Kiểm tra lại kết nối: `Invoke-RestMethod http://localhost:5000/health/ready`.
 
-Tài liệu chuẩn chung cho Khoa (Backend 1), TV2 (Backend 2) và các thành viên tích hợp. PostgreSQL 16+, **43 bảng nghiệp vụ** (bản bàn giao gốc v0.5 có 29 bảng, 94 khóa ngoại, 86 CHECK; Sprint 3 thêm `shop_integrations`, Upgrade 05 thêm `units`, `sku_units`, `sku_unit_factor_history`, Upgrade 04 thêm `price_lists`, `price_change_requests`, `price_change_request_items`, `sku_unit_prices`, Upgrade 01-A thêm `purchase_orders`, `purchase_order_items`, Upgrade 02 thêm `sales_invoices`, Upgrade 03 thêm `stock_count_schedules`, `stock_count_periods`, `stock_count_approvals`), cùng UNIQUE/index và trigger. Việc gom file không thay đổi mô hình nghiệp vụ v0.5.
+Tài liệu chuẩn chung cho Khoa (Backend 1), TV2 (Backend 2) và các thành viên tích hợp. PostgreSQL 16+, **44 bảng nghiệp vụ** (bản bàn giao gốc v0.5 có 29 bảng, 94 khóa ngoại, 86 CHECK; Sprint 3 thêm `shop_integrations`, Upgrade 05 thêm `units`, `sku_units`, `sku_unit_factor_history`, Upgrade 04 thêm `price_lists`, `price_change_requests`, `price_change_request_items`, `sku_unit_prices`, Upgrade 01-A thêm `purchase_orders`, `purchase_order_items`, Upgrade 02 thêm `sales_invoices`, Upgrade 03 thêm `stock_count_schedules`, `stock_count_periods`, `stock_count_approvals`, CS-05 thêm `payment_accounts`), cùng UNIQUE/index và trigger. Việc gom file không thay đổi mô hình nghiệp vụ v0.5.
 
 ## Bộ file bàn giao
 
@@ -64,7 +64,7 @@ foreach ($f in Get-ChildItem docker/postgres/migrations/*.sql | Sort-Object Name
 docker compose up -d --build
 ```
 
-File `oisms_backup.dump` chứa dữ liệu thật, không commit lên Git. Nâng cấp xong, `/health/ready` phải trả 200 với `tablesCount: 43`. Gặp lỗi thì dừng lại và báo nhóm; mỗi file chạy trong một giao dịch nên file lỗi tự hoàn tác phần của nó, các file đã chạy xong trước đó vẫn giữ nguyên.
+File `oisms_backup.dump` chứa dữ liệu thật, không commit lên Git. Nâng cấp xong, `/health/ready` phải trả 200 với `tablesCount: 44`. Gặp lỗi thì dừng lại và báo nhóm; mỗi file chạy trong một giao dịch nên file lỗi tự hoàn tác phần của nó, các file đã chạy xong trước đó vẫn giữ nguyên.
 
 Khôi phục từ backup khi cần (xóa dữ liệu hiện tại của database `oisms`):
 
@@ -150,7 +150,7 @@ Cơ chế khởi tạo tự động hoạt động dựa trên cơ chế entrypo
 1. Khi volume `postgres_data` còn trống, PostgreSQL chạy script initdb.
 2. Script phát hiện database `oisms` đã được tạo sẵn qua biến `POSTGRES_DB=oisms`.
 3. Script xử lý việc file `oisms_schema.sql` có chứa `CREATE DATABASE oisms` và `\connect oisms` bằng cách bóc tách an toàn phần cài đặt DDL từ `-- OISMS_SCHEMA_BEGIN`, rồi thực thi trực tiếp vào database `oisms`.
-4. Nếu bảng nghiệp vụ đã tồn tại (≥43 bảng), script bỏ qua DDL để bảo toàn dữ liệu. Nếu phát hiện số bảng thấp hơn (1-42 bảng, tức database cũ chưa nâng cấp), script báo lỗi, yêu cầu chạy migration và không tự ý ghi đè hay xóa bảng. Cuối script kiểm tra đủ 43 bảng có tên trong danh sách và đúng 1 trigger `ledger_append_only` đang bật.
+4. Nếu bảng nghiệp vụ đã tồn tại (≥44 bảng), script bỏ qua DDL để bảo toàn dữ liệu. Nếu phát hiện số bảng thấp hơn (1-43 bảng, tức database cũ chưa nâng cấp), script báo lỗi, yêu cầu chạy migration và không tự ý ghi đè hay xóa bảng. Cuối script kiểm tra đủ 44 bảng có tên trong danh sách và đúng 1 trigger `ledger_append_only` đang bật.
 5. Tạo nhóm quyền `oisms_runtime` (NOLOGIN), sau đó cấu hình tài khoản runtime backend `oisms_app`:
    - Sử dụng cơ chế truyền biến `\getenv` của psql và hàm `format('%I', ...)` / `format('%L', ...)` trong khối PL/pgSQL; tuyệt đối **không nội suy chuỗi SQL**.
    - Hỗ trợ mật khẩu có dấu nháy và ký tự đặc biệt, không bao giờ in mật khẩu ra log.
@@ -215,7 +215,7 @@ Kiểm tra trạng thái sẵn sàng của Backend qua Readiness Endpoint:
 ```powershell
 curl http://localhost:5000/health/ready
 ```
-Endpoint `/health/ready` thực hiện mở kết nối PostgreSQL bằng tài khoản runtime `oisms_app`, kiểm tra đủ 43 bảng (`DatabaseMigrationService.RequiredTables` trong Infrastructure), trigger bất biến sổ cái và quyền hạn trước khi trả về HTTP 200 `Healthy` (trả về HTTP 503 `Unhealthy` nếu thất bại, không để lộ connection string hoặc mật khẩu).
+Endpoint `/health/ready` thực hiện mở kết nối PostgreSQL bằng tài khoản runtime `oisms_app`, kiểm tra đủ 44 bảng (`DatabaseMigrationService.RequiredTables` trong Infrastructure), trigger bất biến sổ cái và quyền hạn trước khi trả về HTTP 200 `Healthy` (trả về HTTP 503 `Unhealthy` nếu thất bại, không để lộ connection string hoặc mật khẩu).
 
 ### Xem log cơ sở dữ liệu
 
@@ -248,7 +248,7 @@ Hệ thống đã trải qua quy trình kiểm chứng tự động toàn diện
 Endpoint `GET /health/ready` thực hiện kiểm tra sâu thực tế:
 - Mở kết nối thật tới CSDL bằng tài khoản runtime `oisms_app` (timeout 5s).
 - Kiểm tra tài khoản kết nối không có đặc quyền quản trị trực tiếp hoặc thừa hưởng, không sở hữu schema/bảng (trả về HTTP 503 `Degraded` nếu vi phạm).
-- Xác minh đầy đủ 43/43 bảng nghiệp vụ trong schema `public` (trả về HTTP 503 `Unhealthy` nếu thiếu bảng).
+- Xác minh đầy đủ 44/44 bảng nghiệp vụ trong schema `public` (trả về HTTP 503 `Unhealthy` nếu thiếu bảng).
 - Xác minh trigger `ledger_append_only` đang kích hoạt (`tgenabled IN ('O', 'A')`) trên `public.inventory_transactions`.
 - Bảo mật: Tuyệt đối không để lộ chuỗi kết nối hoặc mật khẩu ra HTTP response khi xảy ra lỗi.
 
@@ -440,7 +440,7 @@ Test cần `@electric-sql/pglite`; đặt `OISMS_TEST_MODULES` trỏ đến thư
 - Entity, DTO, Swagger và frontend phải thống nhất kiểu, nullable, enum và phạm vi tenant/branch/warehouse.
 - Danh mục có is_active; chứng từ đã ghi ledger phải bảo toàn lịch sử. Các điều kiện nguồn chứng từ đúng SKU/kho/lượng, trả không vượt bán và chống sửa chứng từ đã ghi kho vẫn phải được kiểm tra trong service.
 - Không tự chọn chính sách hủy sau Confirmed/Completed, nhận chuyển thiếu/từng phần hoặc split payment. Hiện một payment/đơn, chuyển hai bước cơ bản.
-- Không thêm bảng dự phòng; thay đổi dựa trên yêu cầu rõ ràng. Hangfire tạo bảng kỹ thuật riêng trong schema `hangfire` khi bật, ngoài 43 bảng nghiệp vụ.
+- Không thêm bảng dự phòng; thay đổi dựa trên yêu cầu rõ ràng. Hangfire tạo bảng kỹ thuật riêng trong schema `hangfire` khi bật, ngoài 44 bảng nghiệp vụ. Schema này do `init-oisms.sh` (volume mới) hoặc migration `20261108_hangfire_schema.sql` (DB đã có dữ liệu) tạo, thuộc `postgres`; `oisms_runtime` chỉ có `USAGE, CREATE` trên schema đó.
 
 ## Index và bằng chứng kiểm thử
 

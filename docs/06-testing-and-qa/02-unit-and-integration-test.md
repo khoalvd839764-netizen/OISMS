@@ -6,7 +6,7 @@
 | **Phiên bản (Version)** | `v1.1.0` |
 | **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `NFR-MAINT-02`, `3.2.e` (Trang 4, 5) |
-| **Phạm vi áp dụng** | `src/backend/tests/OISM.UnitTests` & `src/backend/tests/OISM.IntegrationTests` |
+| **Phạm vi áp dụng** | `test-oisms/backend/OISM.UnitTests` & `test-oisms/backend/OISM.IntegrationTests` |
 
 ---
 
@@ -37,10 +37,10 @@ Integration test cần các biến `OISM_TEST_HOST`, `OISM_TEST_PORT`, `OISM_TES
 
 ```powershell
 # Unit test
-dotnet test src/backend/tests/OISM.UnitTests/OISM.UnitTests.csproj
+dotnet test test-oisms/backend/OISM.UnitTests/OISM.UnitTests.csproj
 
 # Integration test một nhóm
-dotnet test src/backend/tests/OISM.IntegrationTests/OISM.IntegrationTests.csproj --filter "FullyQualifiedName~<TenTest>"
+dotnet test test-oisms/backend/OISM.IntegrationTests/OISM.IntegrationTests.csproj --filter "FullyQualifiedName~<TenTest>"
 
 # Toàn bộ (như CI)
 dotnet test src/backend/OISM.sln --configuration Release
@@ -51,3 +51,7 @@ dotnet test src/backend/OISM.sln --collect:"XPlat Code Coverage"
 
 - **Chỉ tiêu đề bài:** Tối thiểu `80%` cho `Inventory Ledger`, `Anti-Oversell Reserve`, `COGS`.
 - **Kết quả đo tại Sprint 2 (mốc lịch sử, chưa đo lại sau các gói Upgrade):** **`92.49%` Line Coverage** trong Integration Tests và **`94.83%`** khi kết hợp Unit Tests.
+
+## POS sau khi tách — 08/11/2026
+
+Các số test ở bảng trước là mốc lịch sử. POS chỉ còn một implementation tại `src/frontend/pos-app`; xem [báo cáo kiểm chứng mới](../report-after-upgrade/tach-pos-khoi-admin-2026-11-08.md). Chạy `npm test --prefix src/frontend/pos-app`; test live riêng: `docker compose -f docker/pos-tests/compose.yml up -d --build`, rồi `npm run test:live --prefix src/frontend/pos-app`. Guard kiểm chứng đúng container/database test trước bất kỳ POST nào. Không chạy giao dịch fixture trên cổng demo 5000.

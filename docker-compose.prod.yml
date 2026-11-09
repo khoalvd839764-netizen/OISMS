@@ -25,12 +25,14 @@ services:
       args:
         VITE_API_BASE_URL: "https://${ADMIN_DOMAIN:?Error: ADMIN_DOMAIN must be set in .env.production}"
         VITE_SIMULATOR_URL: "https://${SIM_DOMAIN:?Error: SIM_DOMAIN must be set in .env.production}"
+        VITE_POS_URL: "https://${POS_DOMAIN:?Error: POS_DOMAIN must be set in .env.production}"
     ports: !reset []
 
   pos-app:
     build:
       args:
         VITE_API_BASE_URL: "https://${POS_DOMAIN:?Error: POS_DOMAIN must be set in .env.production}"
+        VITE_ADMIN_URL: "https://${ADMIN_DOMAIN}"
     ports: !reset []
 
   marketplace-simulator:

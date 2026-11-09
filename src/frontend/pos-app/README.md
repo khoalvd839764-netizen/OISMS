@@ -1,32 +1,31 @@
-# React + TypeScript + Vite
+# OISMS POS
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Quầy hiện tại chuyển từ Admin vào `src/pages/PosPage.tsx`, thay thế giao diện tím cũ. Admin chỉ quản trị và mở POS qua liên kết; chỉ duy trì một implementation quầy.
 
-Currently, two official plugins are available:
+## Chạy và kiểm tra
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+`npm ci`, `npm run dev`: cổng 5174 cố định. Chạy `npm run build`, `npm test`, `npm run lint` để kiểm tra. Từ gốc repo: `docker compose up -d --build admin-dashboard pos-app`.
 
-## React Compiler
+## URL và phiên đăng nhập
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- `VITE_API_BASE_URL`: mặc định `http://localhost:5000`, không có đuôi `/api`.
+- `VITE_ADMIN_URL`: mặc định `http://localhost:5173`; Admin dùng `VITE_POS_URL=http://localhost:5174`.
+- Vite nhúng URL lúc build; Dockerfile/Compose truyền qua build args. Production dùng domain tương ứng.
+- POS có login/me/refresh/logout riêng, khóa `oisms_pos_v2_access`, `oisms_pos_v2_refresh`, `oisms_pos_v2_tenant`, `oisms_pos_v2_identity`. Không đọc token app tím hay chuyển JWT qua URL từ Admin.
+- Pending `pos_pending_checkout_v1` giữ snapshot theo tenant/user/branch trong sessionStorage. Retry dùng nguyên RequestKey/payload. Các tab đồng bộ thay đổi định danh; bỏ response/event của phiên cũ.
 
-## Expanding the Oxlint configuration
+## Realtime, hóa đơn và PWA
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+`realtimeService.ts` nối hub notifications và quản lý nhóm chi nhánh; `branchStock.ts` đọc số tồn từ API, loại GET cũ. Reconnect tải lại tồn, không tự xóa dòng giỏ vượt tồn. Popup/âm thanh đơn mới nằm ngoài pha này.
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
+Hóa đơn chính thức dùng snapshot server; response lỗi giữ pending. Hỗ trợ chọn giấy 58/80 mm. VietQR xác nhận tay, chưa có webhook ngân hàng.
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Worker v2.1 dọn cache POS cũ, không cache API/hub/checkout. Cache hỗ trợ shell offline; không hỗ trợ bán/ghi giao dịch offline.
+
+## Kiểm thử live cô lập
+
+Từ gốc repo, chạy `docker compose -f docker/pos-tests/compose.yml up -d --build`, rồi `npm run test:live --prefix src/frontend/pos-app`.
+
+Guard kiểm chứng container/port/database `oisms_pos_migration_test` trước POST. Backend 55001, PostgreSQL 55433, UI test `http://localhost:55174`; không trỏ runner vào demo 5000. Fixture credentials chỉ dành cho test.
+
+Xem [ma trận chuyển test](../../../test-oisms/frontend/pos-app/TEST-MIGRATION.md) và [báo cáo kiểm chứng](../../../docs/report-after-upgrade/tach-pos-khoi-admin-2026-11-08.md).

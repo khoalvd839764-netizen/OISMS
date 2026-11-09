@@ -9,7 +9,7 @@
  * 5. Thiết lập Guard chống suy diễn thanh toán thành công từ hiển thị, quét mã hoặc hết thời gian.
  *
  * Tương thích 100% môi trường Browser, không phụ thuộc Node.js Buffer (B03-F01).
- * Bản giống hệt tại admin-dashboard/src/services/qrService.ts; sửa thì sửa cả hai (test-qr-parity.mjs kiểm tra).
+ * Bản duy nhất của quầy POS (pos-app); hành vi được kiểm bởi test-qr.mjs và test-b03-qr.mjs.
  */
 
 import type {
@@ -555,7 +555,6 @@ export interface LoadPaymentAccountsOptions {
 /**
  * Tải danh sách tài khoản nhận tiền đang dùng của cửa hàng từ `GET /api/payment-accounts/active`.
  * Đây là nguồn duy nhất: không đọc localStorage, sessionStorage hay biến window.
- * Có bản ở cả pos-app và admin-dashboard, sửa thì sửa cả hai bản.
  */
 export async function loadPaymentAccounts(options: LoadPaymentAccountsOptions): Promise<PaymentAccountsLoadResult> {
   const fail = (message: string, httpStatus?: number): PaymentAccountsLoadResult => ({ status: 'error', accounts: [], message, httpStatus });

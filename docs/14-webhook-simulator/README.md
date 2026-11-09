@@ -177,11 +177,11 @@ Test tự động:
 | `OISM.UnitTests/ShopIntegrationServiceTests.cs` | Tạo, trùng, chi nhánh sai, đổi secret, sửa, cô lập tenant, validator |
 | `OISM.UnitTests/WebhookIdentityTests.cs` | `whoami`: secret đúng, sai, thiếu; kết nối tắt; doanh nghiệp ngừng; chi nhánh tắt |
 | `OISM.IntegrationTests/ShopIntegrationApiIntegrationTests.cs` | Trên PostgreSQL: tạo kết nối, `whoami`, bắn webhook, đổi secret, tắt kết nối, chặn Staff/Cashier/tenant khác |
-| `marketplace-simulator/test-payload.mjs` | Tính tổng tiền, dựng payload, kiểm tra nhập liệu, đọc body lỗi |
+| `test-oisms/frontend/marketplace-simulator/test-payload.mjs` | Tính tổng tiền, dựng payload, kiểm tra nhập liệu, đọc body lỗi |
 
 ```bash
-dotnet test src/backend/tests/OISM.UnitTests/OISM.UnitTests.csproj --filter "FullyQualifiedName~ShopIntegration|FullyQualifiedName~WebhookIdentity"
-dotnet test src/backend/tests/OISM.IntegrationTests/OISM.IntegrationTests.csproj --filter "FullyQualifiedName~ShopIntegrationApi|FullyQualifiedName~Webhook"
+dotnet test test-oisms/backend/OISM.UnitTests/OISM.UnitTests.csproj --filter "FullyQualifiedName~ShopIntegration|FullyQualifiedName~WebhookIdentity"
+dotnet test test-oisms/backend/OISM.IntegrationTests/OISM.IntegrationTests.csproj --filter "FullyQualifiedName~ShopIntegrationApi|FullyQualifiedName~Webhook"
 npm test --prefix src/frontend/marketplace-simulator
 ```
 

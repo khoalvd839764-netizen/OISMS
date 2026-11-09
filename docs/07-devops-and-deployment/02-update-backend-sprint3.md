@@ -105,7 +105,7 @@ Ca này chỉ chứng minh route/validation hoạt động, không chứng minh 
 
 ## Hangfire
 
-Cấu hình hiện tại mặc định `Hangfire:Enabled=false`. Các lệnh trên không bật tự động hết hạn giữ chỗ. Muốn bật phải bổ sung cấu hình vào service backend của Compose, cung cấp kết nối storage và quyền cho schema `hangfire` theo [SQL provisioning](../database/hangfire_schema_provisioning.sql); backend runtime vẫn dùng tài khoản ít quyền. Chỉ thêm biến vào `.env` chưa đủ nếu Compose không chuyển biến đó vào container.
+Cấu hình mặc định `Hangfire:Enabled=false`; các lệnh trên không bật tự động hết hạn giữ chỗ. Từ 08/11/2026 Compose truyền `HANGFIRE_ENABLED` và `HANGFIRE_WORKER_COUNT` từ `.env` vào service backend, và Hangfire dùng chung kết nối `Database__*`. Muốn bật trên DB đã có dữ liệu: backup, chạy `docker/postgres/migrations/20261108_hangfire_schema.sql` bằng tài khoản `postgres` để tạo schema `hangfire`, đặt `HANGFIRE_ENABLED=true` trong `.env` rồi build lại backend. Backend runtime vẫn dùng tài khoản ít quyền; nó chỉ có quyền tạo bảng trong schema `hangfire`.
 
 ## Giới hạn kiểm chứng
 

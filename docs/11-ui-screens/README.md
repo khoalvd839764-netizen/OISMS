@@ -113,7 +113,7 @@ Giao diện POS được tối ưu hóa cho màn hình cảm ứng, máy POS hai
 | `/inventory` | Owner, Staff | Tab Gợi ý nhập hàng đang tạm ẩn; phiếu nhập bắt buộc chọn đơn mua đã duyệt; SKU chưa có tồn hiện nhãn "Chưa nhập kho" |
 | `/products` | Owner, Staff | Cấu hình đơn vị, tạo phiếu đổi giá theo bảng đơn vị và bảng giá, quản lý bảng giá và lịch sử giá |
 | `/reports` | Theo báo cáo | Tab vận tốc kho hiện tồn theo từng đơn vị gốc |
-| `/login` và đăng nhập POS PWA | Công khai | Bỏ tài khoản mẫu; có nút Quên mật khẩu đang tắt, nhãn Coming soon |
+| `/login` và đăng nhập POS PWA | Công khai | Bỏ tài khoản mẫu; có nút Quên mật khẩu đang tắt, nhãn Coming soon. `/login` Admin có nút "Bạn là thu ngân?" mở màn đăng nhập POS; POS hiện dòng nhắc khi Cashier bị chuyển từ Admin sang |
 | `/orders` | Owner, Staff | Chọn đơn vị và bảng giá; giá lấy từ server, đơn vị chưa có giá bị chặn |
 | `/pos` và POS PWA | Owner, Staff, Cashier | Chọn đơn vị trên từng dòng, quét mã quy cách, nhập số lẻ theo đơn vị, xác nhận giá mới khi `PRICE_MISMATCH` |
 
