@@ -25,6 +25,14 @@ internal sealed class OrderQueryService(IAppDbContext context, ICurrentTenantSer
             .Select(s => new { s.Id, s.Number })
             .FirstOrDefaultAsync(ct);
 
+        var returnedQuantities = await context.SalesReturns
+            .AsNoTracking()
+            .Where(r => r.TenantId == order.TenantId && r.OrderId == order.Id && r.Status == SalesReturnStatus.Confirmed)
+            .SelectMany(r => r.Items)
+            .GroupBy(i => i.OrderItemId)
+            .Select(g => new { OrderItemId = g.Key, TotalReturned = g.Sum(i => i.Quantity) })
+            .ToDictionaryAsync(x => x.OrderItemId, x => x.TotalReturned, ct);
+
         decimal? totalCogs = null;
         if (order.Items != null && order.Items.Count > 0 && order.Items.All(i => i.CostPrice.HasValue))
         {
@@ -70,6 +78,7 @@ internal sealed class OrderQueryService(IAppDbContext context, ICurrentTenantSer
                 FactorSnapshot = i.FactorSnapshot,
                 BaseQuantity = i.BaseQuantity,
                 Quantity = i.Quantity,
+                ReturnedQuantity = returnedQuantities.GetValueOrDefault(i.Id, 0m),
                 UnitPrice = i.UnitPrice,
                 CostPrice = i.CostPrice
             }).ToList() ?? new List<OrderItemResponseDto>(),

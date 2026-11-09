@@ -17,6 +17,7 @@
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Thiết lập ma trận phân quyền chi tiết cấp API và Màn hình cho 3 vai trò `Owner`, `Staff`, `Cashier`. | `INIT-USR-02` |
 | `v1.1.0` | `2026-11-03` | Nhóm dự án OISMS | Cập nhật phân quyền lịch kiểm kê, kỳ kiểm kê, nộp duyệt, đếm lại và chốt kiểm kê (OISMS-47-U03). | `OISMS-47-U03` |
 | `v1.2.0` | `2026-11-06` | Nhóm dự án OISMS | Sửa tên claim JWT theo `JwtTokenService`; thêm dòng Quản lý người dùng; thêm mục Lệch giữa yêu cầu và code (báo cáo lãi gộp, giá vốn trong tồn kho cho Cashier, quyền kho của Staff, quyền xóa danh mục). | `OISMS-46` |
+| `v1.3.0` | `2026-11-09` | Nhóm dự án OISMS | Bổ sung phân quyền Trả hàng từ khách (CS-01); chuẩn hóa bảo mật báo cáo: Staff bị ẩn toàn bộ giá vốn và lãi gộp (`null`) theo ma trận. | `OISMS-58-CS01-P2` |
 
 ---
 
@@ -71,7 +72,8 @@ Các trường định danh bắt buộc bên trong Payload của JWT:
 | **Hóa đơn & Truy vết** | Tra cứu danh sách và chi tiết hóa đơn bán hàng (`Sales Invoices`) | `OISMS-47-U02` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |
 | **Hóa đơn & Truy vết** | In lại hóa đơn bán lẻ theo ID hoặc số hóa đơn (dữ liệu che giấu giá vốn) | `OISMS-47-U02` | ✅ Cho phép | ✅ Cho phép | ✅ Cho phép (in lại tại POS) |
 | **Hóa đơn & Truy vết** | Truy vết chuỗi chứng từ xuất kho theo Hóa đơn, Đơn hàng, hoặc Dòng sổ kho | `OISMS-47-U02` | ✅ Toàn quyền | ✅ Toàn quyền (xem giá vốn dòng) | ❌ Cấm (`403 Forbidden`) |
-| **Báo cáo & AI** | Báo cáo Doanh thu thuần, Tổng giá vốn (`COGS`), Lợi nhuận gộp | `FR-REP-01` | ✅ Toàn quyền | ❌ Cấm xem lãi gộp | ❌ Cấm (`403 Forbidden`) |
+| **Trả hàng từ khách** | Lập phiếu trả, tra cứu dòng trả được, xác nhận và hủy phiếu trả (`/api/sales-returns`, `/api/orders/{id}/returnable-items`) | `CS-01` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |
+| **Báo cáo & AI** | Báo cáo Doanh thu thuần, Tổng giá vốn (`COGS`), Lợi nhuận gộp | `FR-REP-01` | ✅ Toàn quyền | 👁️ Chỉ xem doanh thu/hàng trả (ẩn lãi gộp & giá vốn) | ❌ Cấm (`403 Forbidden`) |
 | **Báo cáo & AI** | Báo cáo Giá trị tồn kho, Hàng bán chạy/chậm & Cảnh báo tồn tối thiểu | `FR-REP-02..03` | ✅ Toàn quyền | ✅ Xem cảnh báo kho | ❌ Cấm (`403 Forbidden`) |
 | **Báo cáo & AI** | Xem dự báo nhu cầu AI & Gợi ý nhập lại hàng | `FR-AI-01` | ✅ Toàn quyền | ✅ Xem gợi ý nhập | ❌ Cấm (`403 Forbidden`) |
 | **Cấu hình & Thanh toán** | Quản lý tài khoản ngân hàng thụ hưởng (`/api/payment-accounts`): thêm, sửa, đặt mặc định, ngừng dùng | `CS-05` | ✅ Toàn quyền | 👁️ Chỉ xem tài khoản active | 👁️ Chỉ xem tài khoản active |
@@ -86,7 +88,7 @@ Bảng trên là **yêu cầu**. Đối chiếu `[Authorize(Roles = ...)]` và d
 
 | Chức năng | Yêu cầu | Code hiện tại | Mức độ |
 | :--- | :--- | :--- | :--- |
-| `GET /api/reports/revenue-profit` | Chỉ `Owner` xem lãi gộp | Controller cho `Owner, Staff`; service trả đủ `costOfGoodsSold`, `grossProfit` cho `Staff`. Giao diện chỉ mở trang Báo cáo cho `Owner`, nên lệch chỉ lộ khi gọi API trực tiếp. | Cao (lộ dữ liệu tài chính) |
+| `GET /api/reports/revenue-profit` | Chỉ `Owner` xem lãi gộp | **Đã sửa tại CS-01 P2 (09/11/2026):** Service kiểm tra vai trò `Owner`, `Staff` chỉ nhận doanh thu và hàng trả; các trường giá vốn (`costOfGoodsSold`, `returnCogs`, `netCogs`) và lãi gộp (`grossProfit`, `grossMarginPercentage`) đều trả `null`. | Đã xử lý |
 | `GET /api/inventory/balances` | `Cashier` không xem sổ cái/số dư chi tiết, không thấy giá vốn | Cho `Cashier` gọi và trả cả `averageCost` (WAC). | Cao (lộ giá vốn) |
 | Kho (`POST/PUT /api/warehouses`, `toggle-status`) | `Staff` chỉ xem | `Staff` được tạo, sửa, bật/tắt kho. Chi nhánh thì đúng (chỉ `Owner`). | Trung bình |
 | Xóa danh mục, thương hiệu, sản phẩm | `Staff` toàn quyền | Chỉ `Owner` (`DELETE` gắn `Roles = "Owner"`) | Thấp (code chặt hơn) |

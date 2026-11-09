@@ -15,6 +15,7 @@
 
 | Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả thay đổi | Mã tham chiếu |
 | :---: | :---: | :--- | :--- | :--- |
+| `v1.3.0` | `2026-11-09` | Nhóm dự án OISMS | OISMS-58 (CS-01): Bổ sung endpoints Phiếu trả hàng `/api/sales-returns` (lập draft, xác nhận nhập kho, hủy, lấy dòng có thể trả); chi tiết đơn có `returnedQuantity`; truy vết chứng từ có `salesReturns` và dòng sổ `IN`; báo cáo doanh thu/lợi nhuận và dashboard summary phản ánh số thuần (`returnAmount`, `netRevenue`, `returnCogs`, `netCogs`) và ẩn thông tin lãi gộp/giá vốn (`null`) với Staff. | `OISMS-58-CS01-P2` |
 | `v1.2.0` | `2026-11-06` | Nhóm dự án OISMS | Thêm API quản lý kết nối gian hàng sàn `/api/shop-integrations` (Owner): tạo, sửa, đổi secret webhook. Thêm `GET /api/webhooks/simulator/whoami`. Webhook tra secret theo hash. | `OISMS-48` |
 | `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Đối chiếu controller: thêm `process`, `simulator/batch`, `dashboard-summary`, `/api/search`, `/api/ai/export-history`; sửa quyền báo cáo theo code và ghi lệch RBAC lãi gộp; Hangfire mặc định tắt. | `OISMS-46` |
 | `v1.0.5` | `2026-11-04` | Nhóm dự án OISMS | `GET /api/reports/inventory-velocity` thêm `quantityByUnit` và `baseUnitName`; `currentOnHand` cộng theo SKU trên phạm vi chi nhánh đang lọc. | `OISMS-46` |
@@ -31,8 +32,8 @@
 | Method | Endpoint | Quyền (RBAC) | Mã FR | Mô tả & Quy tắc xử lý |
 | :---: | :--- | :---: | :---: | :--- |
 | `GET` | `/api/orders` | `Owner, Staff` | `FR-ORD-03` | Lấy danh sách đơn hàng hợp nhất (`Canonical Orders`), lọc theo Trạng thái, Kênh bán, Chi nhánh và Thời gian. |
-| `GET` | `/api/orders/{id}` | `Owner, Staff` | `FR-ORD-03` | Lấy chi tiết đơn hàng kèm danh sách mặt hàng, giá vốn WAC snapshot, người xác nhận (`confirmedBy`), thông tin hóa đơn (`salesInvoiceId`, `salesInvoiceNumber`) và thanh toán. |
-| `GET` | `/api/orders/{id}/trace` | `Owner, Staff` | `OISMS-47-U02` | Truy vết chuỗi chứng từ xuất kho và các dòng sổ kho tương ứng với đơn hàng (`DocumentTraceDto`). |
+| `GET` | `/api/orders/{id}` | `Owner, Staff` | `FR-ORD-03` | Lấy chi tiết đơn hàng kèm danh sách mặt hàng, giá vốn WAC snapshot, người xác nhận (`confirmedBy`), thông tin hóa đơn (`salesInvoiceId`, `salesInvoiceNumber`), thanh toán và số lượng đã trả từng dòng (`returnedQuantity` tính từ các phiếu trả `Confirmed`). |
+| `GET` | `/api/orders/{id}/trace` | `Owner, Staff` | `OISMS-47-U02, CS-01` | Truy vết chuỗi chứng từ: đơn hàng, hóa đơn xuất kho, dòng sổ kho `OUT` và danh sách phiếu trả hàng (`salesReturns`) kèm các dòng sổ kho `IN` (`DocumentTraceDto`). |
 | `POST` | `/api/orders` | `Owner, Staff` | `FR-ORD-01..02` | Tạo đơn hàng thủ công trên Admin và thực hiện giữ chỗ tồn kho (`Draft -> Reserved`). Bắt buộc `RequestKey` hợp lệ do client cung cấp. |
 | `POST` | `/api/orders/{id}/confirm` | `Owner, Staff` | `FR-ORD-02..03`, `FR-RSE-03`, `FR-COST-02` | Duyệt đơn hàng (`Reserved -> Confirmed`): Trừ `on_hand`, giảm `reserved`, ghi Sổ cái `OUT` và chụp `OrderItem.CostPrice`. |
 | `POST` | `/api/orders/{id}/process` | `Owner, Staff` | `FR-ORD-02` | Xử lý đóng gói đơn `Reserved`: gọi lại luồng Confirm; đơn đã `Confirmed` trả nguyên chi tiết; `Cancelled`/`Completed` trả `409 INVALID_STATE_TRANSITION`. |
@@ -80,14 +81,27 @@ Mỗi lần xuất bán (POS Checkout hoặc Online Order Confirm) tạo đúng 
 | `GET` | `/api/sales-invoices/{id}` | `Owner, Staff` | Chi tiết tóm tắt một hóa đơn bán hàng theo ID. |
 | `GET` | `/api/sales-invoices/{id}/receipt` | `Owner, Staff, Cashier` | Dữ liệu in lại hóa đơn theo ID (`SalesInvoiceReceiptDto`). Tuyệt đối không chứa các trường giá vốn (`costPrice`, `unitCost`, `totalCogs`). |
 | `GET` | `/api/sales-invoices/receipt?number=` | `Owner, Staff, Cashier` | Dữ liệu in lại hóa đơn theo số hóa đơn. Thu ngân POS dùng endpoint này để in lại từ số `INV-`. |
-| `GET` | `/api/sales-invoices/{id}/trace` | `Owner, Staff` | Truy vết chuỗi chứng từ xuất kho và các dòng sổ kho từ ID hóa đơn (`DocumentTraceDto`). |
+| `GET` | `/api/sales-invoices/{id}/trace` | `Owner, Staff` | Truy vết chuỗi chứng từ: hóa đơn, đơn hàng, dòng sổ kho `OUT` và các phiếu trả hàng (`salesReturns`) kèm dòng sổ kho `IN` (`DocumentTraceDto`). |
+
+## 1.2. Phiếu Trả Hàng & Hoàn Tiền (`CS-01`, `OISMS-58`)
+
+Quản lý chu trình khách đổi trả hàng bán từ đơn `Confirmed`/`Completed`. Khi xác nhận phiếu trả, hệ thống tự động sinh dòng sổ kho `IN`, hoàn lại tồn khả dụng/thực tế, tính lại giá vốn bình quân gia quyền (WAC) và khấu trừ doanh thu/giá vốn thuần trong báo cáo.
+
+| Method | Endpoint | Quyền (RBAC) | Mã FR | Mô tả & Quy tắc xử lý |
+| :---: | :--- | :---: | :---: | :--- |
+| `GET` | `/api/orders/{id}/returnable-items` | `Owner, Staff` | `CS-01` | Lấy danh sách mặt hàng có thể trả từ đơn hàng: số lượng đã bán (`soldQuantity`), đã trả (`returnedQuantity`), còn được trả (`returnableQuantity`), đơn giá và giá vốn gốc snapshot. |
+| `POST` | `/api/sales-returns` | `Owner, Staff` | `CS-01` | Lập phiếu trả hàng ở trạng thái `Draft`. Bắt buộc `Idempotency-Key` hoặc `X-Request-Key` (header hoặc body). Hỗ trợ trả từng phần hoặc toàn bộ; kiểm tra không vượt quá số lượng và số tiền đã thanh toán của đơn. Replay cùng key & payload trả 200 OK. |
+| `GET` | `/api/sales-returns` | `Owner, Staff` | `CS-01` | Danh sách phiếu trả hàng phân trang, lọc theo `orderId`, `branchId`, `warehouseId`, `status` (`Draft`, `Confirmed`, `Cancelled`), `searchTerm` (số phiếu hoặc số đơn), `fromDate`, `toDate` (theo ngày tạo phiếu, nửa mở), `pageIndex`, `pageSize` (tối đa 100). |
+| `GET` | `/api/sales-returns/{id}` | `Owner, Staff` | `CS-01` | Chi tiết một phiếu trả hàng kèm danh sách dòng hàng trả (`items`), số tiền hoàn, phương thức hoàn tiền (`Cash` hoặc `BankTransfer`; đơn sàn để `null`), người lập và người xác nhận. |
+| `POST` | `/api/sales-returns/{id}/confirm` | `Owner, Staff` | `CS-01` | **Xác nhận trả hàng (`Draft -> Confirmed`):** Khóa kho bằng advisory lock, tăng `on_hand`, tính lại WAC theo công thức chuẩn, sinh dòng sổ kho `IN` gắn `sales_return_item_id`. Cập nhật `confirmed_at` và `confirmed_by`. Ghi nhận ngày doanh thu/giá vốn hoàn lại vào báo cáo theo ngày xác nhận (UTC+7). |
+| `POST` | `/api/sales-returns/{id}/cancel` | `Owner, Staff` | `CS-01` | Hủy phiếu trả hàng (`Draft -> Cancelled`): Chỉ áp dụng cho phiếu đang `Draft`. Không tác động tới tồn kho và sổ cái. Phiếu đã `Confirmed` không được phép hủy (trả `409 INVALID_STATE_TRANSITION`). |
 
 ## 2. Danh Mục Endpoints Báo Cáo, Tìm Kiếm & Dự Báo AI (`FR-REP-01..03`, `FR-AI-01`)
 
 | Method | Endpoint | Quyền (RBAC) | Mã FR | Mô tả & Quy tắc xử lý |
 | :---: | :--- | :---: | :---: | :--- |
-| `GET` | `/api/reports/revenue-profit` | Yêu cầu: `Owner`<br/>Code: `Owner, Staff` | `FR-REP-01` | Báo cáo Doanh thu thuần, Tổng giá vốn (`COGS`) và Lợi nhuận gộp (`Gross Profit = Revenue - COGS`), phân rã theo kênh, chi nhánh, ngày. **Lệch hiện trạng:** controller cho `Staff` gọi và service không ẩn `costOfGoodsSold`/`grossProfit`; giao diện chỉ mở trang Báo cáo cho `Owner`. Xem [ma trận RBAC](../01-users-and-rbac/02-rbac-matrix.md). |
-| `GET` | `/api/reports/dashboard-summary` | `Owner, Staff` | `CS-07` | KPI trang Tổng quan: doanh thu, số đơn, top đơn mới. `totalGrossProfit`, `totalInventoryValue` là `null` và giá vốn/lãi theo kênh là `0` khi không phải `Owner`. |
+| `GET` | `/api/reports/revenue-profit` | `Owner, Staff` | `FR-REP-01`, `CS-01` | Báo cáo Doanh thu gộp, Tiền trả hàng (`returnAmount`: đơn POS/Admin là số tiền thực hoàn; đơn sàn là SL trả × đơn giá snapshot vì phiếu không ghi hoàn tiền), Doanh thu thuần (`netRevenue = totalRevenue - returnAmount`), Giá vốn gộp, Giá vốn trả lại (`returnCogs`), Giá vốn thuần (`netCogs = cogs - returnCogs`) và Lợi nhuận gộp (`grossProfit = netRevenue - netCogs`). Khấu trừ phiếu trả `Confirmed` theo `confirmed_at` (UTC+7, lọc nửa mở `[StartDate, EndDate)`). Phân rã theo kênh, chi nhánh, ngày. Trường cũ `totalNetRevenue`, `totalCostOfGoodsSold`, `totalGrossProfit` là **số thuần** (bằng `netRevenue`, `netCogs`, `grossProfit`); `revenue`, `costOfGoodsSold` là số gộp trước khi trừ hàng trả. Trong breakdown, `revenue` và `costOfGoodsSold` là số gộp, `grossProfit` tính trên số thuần.<br/>**Bảo mật dữ liệu (RBAC):** Chỉ `Owner` thấy các trường giá vốn và lãi gộp (`costOfGoodsSold`, `returnCogs`, `netCogs`, `grossProfit`, `grossMarginPercentage`). Với `Staff`, các trường này trả về `null` (cả ở cấp tổng lẫn trong các breakdown). |
+| `GET` | `/api/reports/dashboard-summary` | `Owner, Staff` | `CS-07`, `CS-01` | KPI trang Tổng quan: doanh thu gộp, tiền trả (`returnAmount`), doanh thu thuần (`netRevenue`), giá vốn thuần (`netCogs`), số đơn, xu hướng 7 ngày gần nhất.<br/>**Bảo mật dữ liệu (RBAC):** `totalGrossProfit`, `grossMarginPercentage`, `totalInventoryValue` và giá vốn/lợi nhuận theo kênh trả về `null`/`0` khi caller là `Staff`. |
 | `GET` | `/api/reports/inventory-velocity` | `Owner, Staff` | `FR-REP-02` | Báo cáo giá trị tồn kho theo giá vốn, top hàng bán chạy và hàng luân chuyển chậm. |
 | `GET` | `/api/reports/stock-alerts` | `Owner, Staff` | `FR-REP-03` | Danh sách SKU có `available <= reorder_point`, phân cấp `Warning`, `Critical` (dưới 50%), `OutOfStock`. Lọc theo `branchId`. |
 | `GET` | `/api/ai/export-history` | `Owner, Staff` | `FR-AI-01` | Chuỗi lịch sử xuất kho theo ngày và SKU (đơn vị gốc) làm đầu vào dự báo. Trùng dữ liệu với `/api/inventory/export-history`. |

@@ -221,4 +221,14 @@ public class SqlLockService : ISqlLockService
                 ct);
         }
     }
+
+    public Task LockSalesReturnAsync(Guid tenantId, Guid returnId, CancellationToken ct = default) =>
+        ExecutePostgresCommandAsync(
+            "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/sales_return/' || {1}::text, 0));",
+            ct, tenantId.ToString(), returnId.ToString());
+
+    public Task LockSalesReturnNumberAsync(Guid tenantId, CancellationToken ct = default) =>
+        ExecutePostgresCommandAsync(
+            "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/sales_return_number', 0));",
+            ct, tenantId.ToString());
 }

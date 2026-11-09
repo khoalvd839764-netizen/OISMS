@@ -10,6 +10,7 @@ internal static class ApiErrorTitles
         ApiErrorProfile.PaymentAccounts => PaymentAccounts(code),
         ApiErrorProfile.Pricing => Pricing(code),
         ApiErrorProfile.SalesInvoices => SalesInvoices(code),
+        ApiErrorProfile.SalesReturns => SalesReturns(code),
         ApiErrorProfile.StockCountPeriods => StockCountPeriods(code),
         ApiErrorProfile.StockCountSchedules => StockCountSchedules(code),
         ApiErrorProfile.StockCounts => StockCounts(code),
@@ -109,6 +110,22 @@ internal static class ApiErrorTitles
         "ORDER_NOT_FOUND" => "Không tìm thấy đơn hàng",
         "LEDGER_ENTRY_NOT_FOUND" => "Không tìm thấy dòng sổ kho",
         "VALIDATION_ERROR" => "Lỗi xác thực dữ liệu",
+        "UNAUTHORIZED" => "Chưa xác thực",
+        _ => "Lỗi xử lý nghiệp vụ"
+    };
+
+    private static string SalesReturns(string code) => code switch
+    {
+        "SALES_RETURN_NOT_FOUND" => "Không tìm thấy phiếu trả hàng",
+        "ORDER_NOT_RETURNABLE" => "Đơn hàng không thể trả",
+        "RETURN_QUANTITY_EXCEEDED" => "Vượt số lượng được trả",
+        "REFUND_AMOUNT_EXCEEDED" => "Tiền hoàn vượt mức cho phép",
+        "RETURN_WAREHOUSE_MISMATCH" => "Kho nhận không thuộc chi nhánh đơn hàng",
+        "INVALID_STATE_TRANSITION" => "Chuyển trạng thái không hợp lệ",
+        "IDEMPOTENCY_PAYLOAD_MISMATCH" => "Xung đột khóa Idempotency",
+        "VALIDATION_ERROR" => "Lỗi xác thực dữ liệu",
+        "ORDER_NOT_FOUND" => "Không tìm thấy đơn hàng",
+        "NOT_FOUND" => "Không tìm thấy dữ liệu",
         "UNAUTHORIZED" => "Chưa xác thực",
         _ => "Lỗi xử lý nghiệp vụ"
     };

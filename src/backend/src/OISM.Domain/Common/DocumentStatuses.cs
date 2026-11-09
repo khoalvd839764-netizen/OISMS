@@ -66,6 +66,13 @@ public static class InventoryAdjustmentStatus
     public const string Cancelled = "Cancelled";
 }
 
+public static class SalesReturnStatus
+{
+    public const string Draft = "Draft";
+    public const string Confirmed = "Confirmed";
+    public const string Cancelled = "Cancelled";
+}
+
 public static class PaymentStatus
 {
     public const string Pending = "Pending";

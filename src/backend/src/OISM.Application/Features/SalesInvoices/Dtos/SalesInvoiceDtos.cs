@@ -55,6 +55,23 @@ public class DocumentTraceDto
     public DocumentTraceInvoiceDto? SalesInvoice { get; set; }
     public DocumentTraceSourceDto Source { get; set; } = new();
     public List<DocumentTraceLineDto> Lines { get; set; } = new();
+    public List<DocumentTraceSalesReturnDto> SalesReturns { get; set; } = new();
+}
+
+public class DocumentTraceSalesReturnDto
+{
+    public Guid Id { get; set; }
+    public string Number { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public string Reason { get; set; } = string.Empty;
+    public string? Note { get; set; }
+    public decimal TotalRefundAmount { get; set; }
+    public string? RefundMethod { get; set; }
+    public Guid? ConfirmedBy { get; set; }
+    public string? ConfirmedByName { get; set; }
+    public DateTimeOffset? ConfirmedAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public List<DocumentTraceLineDto> Lines { get; set; } = new();
 }
 
 public class DocumentTraceInvoiceDto
@@ -91,6 +108,7 @@ public class DocumentTraceLineDto
     public long SequenceNo { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public Guid? OrderItemId { get; set; }
+    public Guid? SalesReturnItemId { get; set; }
     public string? UnitName { get; set; }
     public decimal? OrderItemQuantity { get; set; }
 }

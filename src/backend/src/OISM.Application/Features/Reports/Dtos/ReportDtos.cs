@@ -13,9 +13,13 @@ public class ChannelRevenueBreakdownDto
 {
     public string Channel { get; set; } = string.Empty;
     public decimal Revenue { get; set; }
-    public decimal CostOfGoodsSold { get; set; }
-    public decimal GrossProfit { get; set; }
-    public decimal GrossMarginPercentage { get; set; }
+    public decimal ReturnAmount { get; set; }
+    public decimal NetRevenue { get; set; }
+    public decimal? CostOfGoodsSold { get; set; }
+    public decimal? ReturnCogs { get; set; }
+    public decimal? NetCogs { get; set; }
+    public decimal? GrossProfit { get; set; }
+    public decimal? GrossMarginPercentage { get; set; }
     public int OrderCount { get; set; }
 }
 
@@ -24,8 +28,12 @@ public class BranchRevenueBreakdownDto
     public Guid BranchId { get; set; }
     public string BranchName { get; set; } = string.Empty;
     public decimal Revenue { get; set; }
-    public decimal CostOfGoodsSold { get; set; }
-    public decimal GrossProfit { get; set; }
+    public decimal ReturnAmount { get; set; }
+    public decimal NetRevenue { get; set; }
+    public decimal? CostOfGoodsSold { get; set; }
+    public decimal? ReturnCogs { get; set; }
+    public decimal? NetCogs { get; set; }
+    public decimal? GrossProfit { get; set; }
     public int OrderCount { get; set; }
 }
 
@@ -33,17 +41,29 @@ public class DailyRevenueBreakdownDto
 {
     public string Date { get; set; } = string.Empty;
     public decimal Revenue { get; set; }
-    public decimal CostOfGoodsSold { get; set; }
-    public decimal GrossProfit { get; set; }
+    public decimal ReturnAmount { get; set; }
+    public decimal NetRevenue { get; set; }
+    public decimal? CostOfGoodsSold { get; set; }
+    public decimal? ReturnCogs { get; set; }
+    public decimal? NetCogs { get; set; }
+    public decimal? GrossProfit { get; set; }
     public int OrderCount { get; set; }
 }
 
 public class RevenueProfitReportDto
 {
+    public decimal Revenue { get; set; }
+    public decimal TotalRevenue { get; set; }
+    public decimal ReturnAmount { get; set; }
+    public decimal NetRevenue { get; set; }
     public decimal TotalNetRevenue { get; set; }
-    public decimal TotalCostOfGoodsSold { get; set; }
-    public decimal TotalGrossProfit { get; set; }
-    public decimal GrossMarginPercentage { get; set; }
+    public decimal? CostOfGoodsSold { get; set; }
+    public decimal? TotalCostOfGoodsSold { get; set; }
+    public decimal? ReturnCogs { get; set; }
+    public decimal? NetCogs { get; set; }
+    public decimal? GrossProfit { get; set; }
+    public decimal? TotalGrossProfit { get; set; }
+    public decimal? GrossMarginPercentage { get; set; }
     public int TotalOrders { get; set; }
     public decimal TotalItemsSold { get; set; }
 
@@ -119,6 +139,10 @@ public class RecentOrderDto
 public class DashboardSummaryDto
 {
     public decimal TotalRevenue { get; set; }
+    public decimal ReturnAmount { get; set; }
+    public decimal NetRevenue { get; set; }
+    public decimal? ReturnCogs { get; set; }
+    public decimal? NetCogs { get; set; }
     public int TotalOrders { get; set; }
     public decimal? TotalGrossProfit { get; set; }
     public decimal GrossMarginPercentage { get; set; }

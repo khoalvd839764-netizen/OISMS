@@ -72,4 +72,14 @@ public interface ISqlLockService
     /// Khóa Phiếu mua hàng bằng advisory lock ({tenant}/purchase_order/{id}) để tuần tự hóa duyệt, đóng, hủy và xác nhận nhập kho.
     /// </summary>
     Task LockPurchaseOrderAsync(Guid tenantId, Guid purchaseOrderId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Khóa bi quan Phiếu trả hàng bằng advisory lock ({tenant}/sales_return/{id}) để tuần tự hóa xác nhận, hủy phiếu.
+    /// </summary>
+    Task LockSalesReturnAsync(Guid tenantId, Guid returnId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Khóa số phiếu trả hàng bằng advisory lock ({tenant}/sales_return_number) để sinh số phiếu RT-yyyyMMdd-xxxx tuần tự không trùng.
+    /// </summary>
+    Task LockSalesReturnNumberAsync(Guid tenantId, CancellationToken ct = default);
 }

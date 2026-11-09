@@ -95,3 +95,142 @@ Khi bấm nút **`[+ Tạo Đơn Admin]`**, nhân viên có thể lập đơn b�
 * `Completed` (Hoàn tất thành công): Nền `--success-soft: #e8f7f0`, Viền `--success: #16845b`, Chữ `#0d543a`.
 * `Cancelled` (Đã hủy / Hoàn tồn): Nền `--danger-soft: #fff0f1`, Viền `--danger: #c93c48`, Chữ `#8d3540`.
 *(Chi tiết định nghĩa Design Tokens xem tại [`DOC-ERR-03`](../12-error-and-status-codes/03-color-system-tokens.md)).*
+
+---
+
+## 6. Đặc Tả Giao Diện Quản Lý Trả Hàng & Hoàn Tiền (Sales Returns - OISMS-58-CS01)
+
+| Thông tin màn hình | Chi tiết |
+| :--- | :--- |
+| **Mã màn hình** | `SCR-RET-01` (Danh sách), `SCR-RET-02` (Modal lập phiếu 3 bước), `SCR-RET-03` (Drawer chi tiết) |
+| **Đường dẫn URL Routes** | `/returns`, `/admin/returns` |
+| **Quyền truy cập (RBAC)** | `Owner`, `Staff` (Nhân viên thu ngân `Cashier` bị ẩn mục menu và trả về `403 Forbidden` khi truy cập) |
+| **Source code Frontend** | [`SalesReturnsPage.tsx`](file:///d:/OISMS/src/frontend/admin-dashboard/src/pages/SalesReturnsPage.tsx), [`CreateSalesReturnModal.tsx`](file:///d:/OISMS/src/frontend/admin-dashboard/src/components/salesReturns/CreateSalesReturnModal.tsx), [`SalesReturnDetailDrawer.tsx`](file:///d:/OISMS/src/frontend/admin-dashboard/src/components/salesReturns/SalesReturnDetailDrawer.tsx), [`ConfirmSalesReturnDialog.tsx`](file:///d:/OISMS/src/frontend/admin-dashboard/src/components/salesReturns/ConfirmSalesReturnDialog.tsx) |
+| **Services & Idempotency** | [`salesReturnService.ts`](file:///d:/OISMS/src/frontend/admin-dashboard/src/services/salesReturnService.ts) (Idempotency pattern BF-004) |
+| **Controllers Backend** | [`SalesReturnsController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/SalesReturnsController.cs) |
+
+### 6.1 Bố Cục Giao Diện Wireframe (ASCII Wireframe)
+
+#### A. Trang Danh Sách Phiếu Trả Hàng (`/returns`)
+```text
+┌────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ BREADCRUMB: Quản trị bán hàng & đơn hàng / Phiếu trả hàng                                      │
+│ Quản Lý Trả Hàng & Hoàn Tiền                                               [ + Tạo phiếu trả ] │
+│ Ghi nhận hàng khách trả, nhập lại kho theo giá vốn gốc và hoàn tiền                            │
+├────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ THANH TÌM KIẾM & BỘ LỌC KHOẢNG NGÀY NỬA MỞ [StartDate, EndDate):                              │
+│ [ 🔍 Tìm mã phiếu RT-..., mã đơn ORD-... ] [ Chi nhánh: Tất cả ▼ ] [ Trạng thái: Tất cả ▼ ]     │
+│ [ Từ ngày: 2026-11-01 ] [ Đến ngày: 2026-11-10 ]                                   [ Lọc / Reset ]│
+├────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ BẢNG DANH SÁCH PHIẾU TRẢ HÀNG:                                                                 │
+│ Mã phiếu      | Mã đơn gốc  | Kho nhận         | Tiền hoàn      | Trạng thái | Ngày tạo / Thao tác │
+│ ──────────────┼─────────────┼──────────────────┼────────────────┼────────────┼──────────────────── │
+│ RT-20261109-01| ORD-20261109| Kho Tổng Quận 1  | 598,000 đ (Tiền| 🟢 Đã xác  | 09/11/2026 14:10    │
+│               |             |                  | mặt tại quầy)  | nhận       | [ Chi tiết / Sổ IN] │
+│ RT-20261109-02| SHOPEE-9901 | Kho Tổng Quận 1  | 0 đ (Ví sàn)   | 🟢 Đã xác  | 09/11/2026 14:35    │
+│               |             |                  |                | nhận       | [ Chi tiết / Sổ IN] │
+│ RT-20261109-03| ORD-20261108| Kho Tổng Quận 1  | 299,000 đ      | ⚪ Phiếu    | 09/11/2026 15:00    │
+│               |             |                  |                | nháp       | [Xác nhận] [Hủy bỏ] │
+├────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ Phân trang: Hiển thị 1 - 3 của 3 phiếu trả hàng               [ < Trước ] [ 1 ] [ Sau > ]      │
+└────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### B. Modal Tạo Phiếu Trả Hàng 3 Bước (`CreateSalesReturnModal`)
+```text
+┌────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ TẠO PHIẾU TRẢ HÀNG & HOÀN TIỀN                                                      [ X ]      │
+│ Bước 1: Chọn đơn hàng ──► [Bước 2: Chi tiết hàng trả & Hoàn tiền] ──► Bước 3: Xác nhận tóm tắt │
+├────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ ĐƠN GỐC: #ORD-20261109-01 (Kênh: POS - Khách lẻ)                       Trạng thái: 🟢 Completed│
+│ KHO NHẬP HÀNG TRẢ VỀ: [ Kho Tổng Quận 1 ▼ ]                                                    │
+├────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ DANH SÁCH SẢN PHẨM CÓ THỂ TRẢ:                                                                 │
+│ Sản phẩm / SKU               | Đã bán | Đã trả | Còn được trả | SL Trả       | Tiền hoàn dòng   │
+│ ─────────────────────────────┼────────┼────────┼──────────────┼──────────────┼───────────────── │
+│ Áo Polo Nam - Đen/M          | 5 cái  | 2 cái  | 3 cái        | [ 3 ] [Hết]  | 897,000 đ        │
+│ POLO-NAM-DEN-M               |        |        |              | (max: 3)     |                  │
+├────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ TIỀN HOÀN & LÝ DO TRẢ HÀNG:                                                                    │
+│ Tiền hoàn trả khách (tối đa: 897,000 đ):  [ 897,000 ] đ   (Có thể giảm nếu trừ phí trả hàng)   │
+│ (*) Lý do trả hàng (bắt buộc):                                                                 │
+│ [ Lỗi sản phẩm ]  [ Sai hàng / màu / size ]  [ Khách đổi ý ]  [ Khác ]                         │
+│ Ghi chú nội bộ: [ Khách trả hàng nguyên tem mác, không rách ................................ ] │
+├────────────────────────────────────────────────────────────────────────────────────────────────┤
+│ [ Hủy bỏ ]                                        [ < Quay lại ]  [ Lưu nháp ] [ Tiếp tục > ]  │
+└────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 6.2 Các Điểm Nối Tích Hợp Đa Phân Hệ (G5)
+
+1. **Trang Kho & Sổ kho (`InventoryPage`)**:
+   - Nút **"Ghi nhận trả hàng"** được kích hoạt chính thức (đã gỡ bỏ `ComingSoonBadge`).
+   - Nhấp chuột trực tiếp mở `CreateSalesReturnModal` (Bước 1). Sau khi hoàn tất phiếu trả hàng thành công, tự động gọi `loadData()` để cập nhật số dư tồn kho tức thì.
+2. **Drawer Chi Tiết Đơn Hàng (`OrderDetailDrawer`)**:
+   - Bổ sung nút **"Trả hàng"** (màu đỏ cam `RotateCcw`) trên thanh hành động khi đơn hàng ở trạng thái `Confirmed` hoặc `Completed` và còn mặt hàng có `returnableQuantity > 0`. Bấm nút mở ngay Modal tạo phiếu trả ở Bước 2 với thông tin đơn gốc được điền sẵn.
+   - Bảng sản phẩm bổ sung cột **"Đã trả"** cạnh cột "Số lượng".
+   - Bổ sung khối **"Lịch sử phiếu trả hàng của đơn"** hiển thị mã phiếu, trạng thái, số lượng và tổng tiền hoàn.
+3. **Modal Truy Vết Chứng Từ (`SalesInvoiceTraceModal`)**:
+   - Bổ sung khối **"Phiếu Trả Hàng & Dòng Sổ Kho Nhập Lại (IN)"**: Hiển thị danh sách các phiếu trả hàng thuộc hóa đơn/đơn hàng, người xác nhận, ngày giờ xác nhận và chi tiết từng dòng sổ kho `IN` (mã SKU, số lượng nhập lại, giá vốn hoàn lại theo snapshot WAC gốc).
+4. **Báo Cáo Doanh Thu & Lợi Nhuận (`ReportsPage`)**:
+   - Thêm thẻ KPI **"Hàng trả lại"** (`returnAmount`) và **"Doanh thu thuần (Net)"** (`netRevenue = totalRevenue - returnAmount`).
+   - Cập nhật 3 bảng phân rã (Theo kênh bán, Theo chi nhánh, Biểu đồ xu hướng theo ngày) hiển thị đầy đủ Doanh thu gộp, Tiền trả hàng và Doanh thu thuần.
+5. **Trang Tổng Quan (`DashboardPage`)**:
+   - Thẻ doanh thu tổng quan chuyển sang hiển thị **Doanh thu thuần (Net)** kèm ghi chú rõ ràng đã trừ hàng trả lại.
+
+### 6.3 Cơ Chế An Toàn Idempotency & Chống Bấm Kép (BF-004)
+
+- **Chữ ký định danh Payload (`RequestKey`)**:
+  - Khóa sinh ngẫu nhiên UUID v4 khi người dùng bắt đầu lập phiếu trả.
+  - Được lưu trữ tạm thời trong `sessionStorage` theo tiền tố `oism_sales_return_intent_${tenantId}` gắn liền với payload (`orderId`, `warehouseId`, `reason`, danh sách mặt hàng).
+  - Khi người dùng gửi yêu cầu, `requestKey` được truyền qua cả 2 header: `Idempotency-Key` và `X-Request-Key`.
+  - Nếu kết quả mạng chưa rõ ràng hoặc người dùng gửi lại đúng payload, hệ thống backend trả về kết quả replay `200 OK` mà không sinh ra phiếu thứ hai.
+  - Sau khi nhận phản hồi thành công (`201 Created` hoặc `200 OK`), intent trong `sessionStorage` được dọn dẹp sạch sẽ.
+- **Khóa nút Thao Tác (`busyRef` / `busyIdsRef`)**:
+  - Toàn bộ các nút submit ("Lưu nháp", "Lưu và xác nhận", "Xác nhận phiếu", "Hủy phiếu") đều được bảo vệ bằng `useRef` chống click kép. Khi đang xử lý, nút hiển thị spinner `Loader2` và bị `disabled`.
+- **Phục hồi Lỗi Khi "Lưu và xác nhận"**:
+  - Nếu bước tạo phiếu Draft thành công nhưng bước xác nhận gặp sự cố, hệ thống **không xóa phiếu** mà giữ nguyên phiếu ở trạng thái `Draft` và mở ngay Drawer chi tiết để người dùng kiểm tra hoặc xác nhận lại thủ công.
+- **Tự Động Làm Mới Khi Vượt Số Lượng (`RETURN_QUANTITY_EXCEEDED`)**:
+  - Khi backend từ chối do mặt hàng đã bị đơn khác hoặc nhân viên khác trả trước, giao diện tự động gọi lại API `getReturnableItems` để đồng bộ lại số lượng còn được trả hiện thời mà không bắt người dùng nhập lại từ đầu.
+
+### 6.4 Bảng Mã Lỗi Giao Diện Tiếng Việt Chuẩn Hóa
+
+| Mã lỗi Backend (`errorCode`) | HTTP Status | Thông báo hiển thị giao diện tiếng Việt |
+| :--- | :---: | :--- |
+| `RETURN_QUANTITY_EXCEEDED` | `409 Conflict` | Số lượng trả vượt quá số lượng còn được phép trả của đơn hàng. Hệ thống đã làm mới lại số lượng tồn có thể trả. |
+| `REFUND_AMOUNT_EXCEEDED` | `400 Bad Request` | Số tiền hoàn lại không được vượt quá giá trị thực thu của các mặt hàng được trả. |
+| `ORDER_NOT_RETURNABLE` | `400 Bad Request` | Đơn hàng chưa xuất kho hoặc ở trạng thái không cho phép trả lại (chỉ áp dụng cho đơn Đã duyệt hoặc Hoàn tất). |
+| `RETURN_WAREHOUSE_MISMATCH` | `400 Bad Request` | Kho nhập hàng trả phải thuộc cùng chi nhánh thực hiện đơn hàng gốc. |
+| `INVALID_STATE_TRANSITION` | `409 Conflict` | Trạng thái phiếu trả hàng không hợp lệ cho thao tác này (Phiếu đã xác nhận hoặc đã bị hủy). |
+| `IDEMPOTENCY_PAYLOAD_MISMATCH`| `409 Conflict` | Yêu cầu trùng khóa Idempotency-Key nhưng nội dung mặt hàng hoặc kho nhận bị thay đổi. |
+| `FORBIDDEN` | `403 Forbidden` | Bạn không có quyền thực hiện thao tác trả hàng. Chỉ Chủ shop (Owner) và Quản lý kho (Staff) được cấp quyền. |
+
+---
+
+### 6.5 Kết Quả Kiểm Thử Giao Diện & Bộ Ảnh Nghiệm Thu Thực Tế (AC-08)
+
+Toàn bộ 9 kịch bản kiểm thử nghiệp vụ giao diện đã được thực thi và kiểm chứng trên môi trường thực tế (Local Backend API + PostgreSQL + React Admin Dashboard). Kết quả kiểm thử đạt **100% PASS**:
+
+| STT | Kịch bản kiểm thử | Mô tả chi tiết & Kết quả thực tế | Trạng thái |
+| :---: | :--- | :--- | :---: |
+| **KB-01** | Bán POS đơn vị gốc $\rightarrow$ Trả hàng $\rightarrow$ Xác nhận | Bán đơn POS 5 áo Polo, lập phiếu trả 2 áo Draft, xác nhận hoàn tiền mặt. Sổ kho ghi nhận bút toán `IN` 2 áo đúng giá vốn gốc 50,000đ. | **PASS** |
+| **KB-02** | Bán theo đơn vị quy đổi | Quy đổi chính xác theo `factorSnapshot` về đơn vị chuẩn `baseQuantity`. | **PASS** |
+| **KB-03** | Đơn kênh Sàn TMĐT (`Shopee`) | Đơn hàng từ sàn TMĐT ẩn phần hoàn tiền tại quầy, lập phiếu trả với `refundAmount = 0` (sàn tự hoàn ví). | **PASS** |
+| **KB-04** | Trả một phần rồi trả tiếp phần còn lại | Đơn bán 5 áo: lần 1 trả 2 áo (còn 3 áo); lần 2 trả nốt 3 áo (còn 0 áo). | **PASS** |
+| **KB-05** | Chặn nhập vượt số lượng được trả | Nhập trả thêm khi số còn được trả $= 0 \rightarrow$ Backend trả về lỗi `RETURN_QUANTITY_EXCEEDED` (409), giao diện hiện thông báo tiếng Việt chuẩn. | **PASS** |
+| **KB-06** | BF-004 Replay cùng `Idempotency-Key` | Gửi 2 lần cùng payload và `Idempotency-Key` $\rightarrow$ Lần 1 trả về 201 Created, lần 2 trả về 200 OK replay, trùng ID và số phiếu `RT-...`. | **PASS** |
+| **KB-07** | Chặn chuyển trạng thái sai | Hủy phiếu đã `Confirmed` hoặc Xác nhận phiếu đã `Cancelled` $\rightarrow$ Chặn với mã lỗi `INVALID_STATE_TRANSITION` (409). | **PASS** |
+| **KB-08** | Phân quyền RBAC Nhân viên thu ngân (`Cashier`) | Tài khoản `cashier@shopa.local` bị ẩn menu "Trả hàng" và bị trả về `403 Forbidden` khi truy cập trực tiếp. | **PASS** |
+| **KB-09** | Cập nhật Báo cáo & Tổng quan số thuần | Báo cáo Doanh thu & Lợi nhuận và Tổng quan phản ánh chính xác `returnAmount`, `netRevenue` và `returnCogs`. | **PASS** |
+
+#### Danh Mục Ảnh Chụp Màn Hình Nghiệm Thu Thực Tế (Screenshots)
+
+| Mã ảnh | Tên file | Mô tả nội dung giao diện | Đường dẫn file ảnh |
+| :---: | :--- | :--- | :--- |
+| **SCR-01** | `01-sales-returns-list.png` | **Trang danh sách phiếu trả hàng (`/returns`)**: Thanh tìm kiếm, lọc chi nhánh, lọc trạng thái, lọc ngày nửa mở, nút "+ Tạo phiếu trả", bảng phiếu trả với badge màu sắc và phân trang. | [01-sales-returns-list.png](file:///home/jackie-khoa/Downloads/OISMS/docs/11-ui-screens/screenshots/sales-returns/01-sales-returns-list.png) |
+| **SCR-02** | `02-create-return-modal.png` | **Modal tạo phiếu trả hàng 3 bước (`CreateSalesReturnModal`)**: Bước 2 hiển thị thông tin đơn gốc, bảng mặt hàng có thể trả (Bán / Đã trả / Còn được trả / Ô SL trả / Nút "Trả hết"), tiền hoàn tự tính, chọn kho nhận, quick buttons lý do trả hàng. | [02-create-return-modal.png](file:///home/jackie-khoa/Downloads/OISMS/docs/11-ui-screens/screenshots/sales-returns/02-create-return-modal.png) |
+| **SCR-03** | `03-sales-return-detail.png` | **Drawer chi tiết phiếu trả hàng (`SalesReturnDetailDrawer`)**: Header hiển thị badge trạng thái `Confirmed`, chi nhánh & kho nhận, người xác nhận, bảng danh sách sản phẩm nhập lại kèm cột giá vốn WAC (chỉ hiện cho Owner/Staff), liên kết sang sổ kho và truy vết. | [03-sales-return-detail.png](file:///home/jackie-khoa/Downloads/OISMS/docs/11-ui-screens/screenshots/sales-returns/03-sales-return-detail.png) |
+| **SCR-04** | `04-order-detail-with-return.png` | **Drawer chi tiết đơn hàng (`OrderDetailDrawer`)**: Nút hành động "Trả hàng" (màu đỏ cam `RotateCcw`), cột "Đã trả" trong bảng sản phẩm, và khối "Lịch sử phiếu trả hàng của đơn" liệt kê các phiếu trả liên quan. | [04-order-detail-with-return.png](file:///home/jackie-khoa/Downloads/OISMS/docs/11-ui-screens/screenshots/sales-returns/04-order-detail-with-return.png) |
+| **SCR-05** | `05-invoice-trace-with-return.png` | **Modal truy vết chứng từ (`SalesInvoiceTraceModal`)**: Khối "Phiếu Trả Hàng & Dòng Sổ Kho Nhập Lại (IN)" hiển thị chi tiết số phiếu trả, ngày xác nhận và các dòng bút toán sổ kho `IN` hoàn trả giá vốn. | [05-invoice-trace-with-return.png](file:///home/jackie-khoa/Downloads/OISMS/docs/11-ui-screens/screenshots/sales-returns/05-invoice-trace-with-return.png) |
+| **SCR-06** | `06-reports-net-revenue.png` | **Trang Báo cáo Doanh thu & Lợi nhuận (`/reports`)**: Thẻ KPI "Hàng trả lại" (`returnAmount`) và "Doanh thu thuần (Net)" (`netRevenue`), cùng các bảng phân rã kênh bán và xu hướng theo ngày có trừ hàng trả. | [06-reports-net-revenue.png](file:///home/jackie-khoa/Downloads/OISMS/docs/11-ui-screens/screenshots/sales-returns/06-reports-net-revenue.png) |
+

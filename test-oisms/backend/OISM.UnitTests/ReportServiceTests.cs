@@ -551,4 +551,560 @@ public class ReportServiceTests
         report.DailyTrend.Should().ContainSingle();
         report.DailyTrend[0].Date.Should().Be("2026-10-28");
     }
+
+    [Fact]
+    public async Task GetRevenueProfitReport_WithConfirmedReturns_CalculatesNetNumbersAndBreakdowns()
+    {
+        // Arrange
+        var (context, mockTenant, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var reportService = new ReportService(context, mockTenant.Object);
+
+        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh Quận 1" };
+        var sku1 = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, SKU = "SKU-01" };
+        context.Branches.Add(branch);
+        context.Skus.Add(sku1);
+
+        var order = new Order
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Number = "ORD-01",
+            BranchId = branch.Id,
+            Channel = "Shopee",
+            Status = "Confirmed",
+            TotalAmount = 1_000_000m,
+            CreatedAt = new DateTimeOffset(2026, 11, 1, 10, 0, 0, TimeSpan.FromHours(7))
+        };
+        var orderItem = new OrderItem
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            OrderId = order.Id,
+            SkuId = sku1.Id,
+            Quantity = 2,
+            FactorSnapshot = 1m,
+            UnitPrice = 500_000m,
+            CostPrice = 300_000m // 2 * 300k = 600k COGS
+        };
+        order.Items.Add(orderItem);
+        context.Orders.Add(order);
+
+        // Phiếu trả confirmed
+        var salesReturn = new SalesReturn
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Number = "RT-01",
+            OrderId = order.Id,
+            Order = order,
+            BranchId = branch.Id,
+            Branch = branch,
+            Status = "Confirmed",
+            // Đơn sàn: phiếu không ghi hoàn tiền, báo cáo vẫn trừ doanh thu theo giá trị dòng trả (1 × 500k)
+            TotalRefundAmount = 0m,
+            ConfirmedAt = new DateTimeOffset(2026, 11, 2, 14, 0, 0, TimeSpan.FromHours(7))
+        };
+        salesReturn.Items.Add(new SalesReturnItem
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            SalesReturnId = salesReturn.Id,
+            OrderId = order.Id,
+            OrderItemId = orderItem.Id,
+            OrderItem = orderItem,
+            SkuId = sku1.Id,
+            Quantity = 1,
+            RefundAmount = 0m,
+            OriginalUnitCost = 300_000m
+        });
+        context.SalesReturns.Add(salesReturn);
+
+        await context.SaveChangesAsync();
+
+        // Act
+        var report = await reportService.GetRevenueProfitReportAsync(new ReportFilterDto());
+
+        // Assert
+        report.Revenue.Should().Be(1_000_000m);
+        report.ReturnAmount.Should().Be(500_000m);
+        report.NetRevenue.Should().Be(500_000m);
+        report.TotalNetRevenue.Should().Be(500_000m);
+        report.CostOfGoodsSold.Should().Be(600_000m);
+        report.ReturnCogs.Should().Be(300_000m);
+        report.NetCogs.Should().Be(300_000m);
+        report.TotalCostOfGoodsSold.Should().Be(300_000m, "Total* là số thuần: TotalNetRevenue - TotalCostOfGoodsSold = TotalGrossProfit");
+        report.GrossProfit.Should().Be(200_000m);
+        report.TotalGrossProfit.Should().Be(200_000m);
+        report.GrossMarginPercentage.Should().Be(40m);
+
+        report.ByChannel.Should().ContainSingle(c => c.Channel == "Shopee");
+        var ch = report.ByChannel.Single(c => c.Channel == "Shopee");
+        ch.Revenue.Should().Be(1_000_000m);
+        ch.ReturnAmount.Should().Be(500_000m);
+        ch.NetRevenue.Should().Be(500_000m);
+        ch.CostOfGoodsSold.Should().Be(600_000m);
+        ch.ReturnCogs.Should().Be(300_000m);
+        ch.NetCogs.Should().Be(300_000m);
+        ch.GrossProfit.Should().Be(200_000m);
+        ch.GrossMarginPercentage.Should().Be(40m);
+
+        report.ByBranch.Should().ContainSingle(b => b.BranchId == branch.Id);
+        var br = report.ByBranch.Single(b => b.BranchId == branch.Id);
+        br.Revenue.Should().Be(1_000_000m);
+        br.ReturnAmount.Should().Be(500_000m);
+        br.NetRevenue.Should().Be(500_000m);
+        br.CostOfGoodsSold.Should().Be(600_000m);
+        br.ReturnCogs.Should().Be(300_000m);
+        br.NetCogs.Should().Be(300_000m);
+        br.GrossProfit.Should().Be(200_000m);
+    }
+
+    [Fact]
+    public async Task GetRevenueProfitReport_WithReturnsInDifferentDate_SeparatesPeriodsAccurately()
+    {
+        // Arrange
+        var (context, mockTenant, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var reportService = new ReportService(context, mockTenant.Object);
+
+        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh Quận 1" };
+        var sku1 = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, SKU = "SKU-01" };
+        context.Branches.Add(branch);
+        context.Skus.Add(sku1);
+
+        // Bán ngày 2026-10-25 (+07:00)
+        var order = new Order
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Number = "ORD-D1",
+            BranchId = branch.Id,
+            Channel = "POS",
+            Status = "Completed",
+            TotalAmount = 800_000m,
+            CreatedAt = new DateTimeOffset(2026, 10, 25, 10, 0, 0, TimeSpan.FromHours(7))
+        };
+        var orderItem = new OrderItem
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            OrderId = order.Id,
+            SkuId = sku1.Id,
+            Quantity = 2,
+            FactorSnapshot = 1m,
+            UnitPrice = 400_000m,
+            CostPrice = 250_000m // 2 * 250k = 500k COGS
+        };
+        order.Items.Add(orderItem);
+        context.Orders.Add(order);
+
+        // Trả ngày 2026-10-28 (+07:00)
+        var salesReturn = new SalesReturn
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Number = "RT-D2",
+            OrderId = order.Id,
+            Order = order,
+            BranchId = branch.Id,
+            Branch = branch,
+            Status = "Confirmed",
+            TotalRefundAmount = 300_000m,
+            ConfirmedAt = new DateTimeOffset(2026, 10, 28, 15, 0, 0, TimeSpan.FromHours(7))
+        };
+        salesReturn.Items.Add(new SalesReturnItem
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            SalesReturnId = salesReturn.Id,
+            OrderId = order.Id,
+            OrderItemId = orderItem.Id,
+            OrderItem = orderItem,
+            SkuId = sku1.Id,
+            Quantity = 1,
+            RefundAmount = 300_000m,
+            OriginalUnitCost = 250_000m
+        });
+        context.SalesReturns.Add(salesReturn);
+        await context.SaveChangesAsync();
+
+        // 1. Kỳ 1: Chỉ ngày 2026-10-25 (Bán)
+        var filterDay1 = new ReportFilterDto
+        {
+            StartDate = new DateTimeOffset(2026, 10, 25, 0, 0, 0, TimeSpan.FromHours(7)),
+            EndDate = new DateTimeOffset(2026, 10, 25, 23, 59, 59, 999, TimeSpan.FromHours(7))
+        };
+        var reportD1 = await reportService.GetRevenueProfitReportAsync(filterDay1);
+        reportD1.Revenue.Should().Be(800_000m);
+        reportD1.ReturnAmount.Should().Be(0m);
+        reportD1.NetRevenue.Should().Be(800_000m);
+        reportD1.CostOfGoodsSold.Should().Be(500_000m);
+        reportD1.ReturnCogs.Should().Be(0m);
+        reportD1.NetCogs.Should().Be(500_000m);
+        reportD1.GrossProfit.Should().Be(300_000m);
+        reportD1.DailyTrend.Should().ContainSingle(d => d.Date == "2026-10-25");
+
+        // 2. Kỳ 2: Chỉ ngày 2026-10-28 (Trả)
+        var filterDay2 = new ReportFilterDto
+        {
+            StartDate = new DateTimeOffset(2026, 10, 28, 0, 0, 0, TimeSpan.FromHours(7)),
+            EndDate = new DateTimeOffset(2026, 10, 28, 23, 59, 59, 999, TimeSpan.FromHours(7))
+        };
+        var reportD2 = await reportService.GetRevenueProfitReportAsync(filterDay2);
+        reportD2.Revenue.Should().Be(0m);
+        reportD2.ReturnAmount.Should().Be(300_000m);
+        reportD2.NetRevenue.Should().Be(-300_000m);
+        reportD2.CostOfGoodsSold.Should().Be(0m);
+        reportD2.ReturnCogs.Should().Be(250_000m);
+        reportD2.NetCogs.Should().Be(-250_000m);
+        reportD2.GrossProfit.Should().Be(-50_000m); // -300k - (-250k) = -50k
+        reportD2.DailyTrend.Should().ContainSingle(d => d.Date == "2026-10-28");
+
+        // 3. Toàn kỳ bao gồm cả 2 ngày
+        var filterAll = new ReportFilterDto
+        {
+            StartDate = new DateTimeOffset(2026, 10, 24, 0, 0, 0, TimeSpan.FromHours(7)),
+            EndDate = new DateTimeOffset(2026, 10, 29, 0, 0, 0, TimeSpan.FromHours(7))
+        };
+        var reportAll = await reportService.GetRevenueProfitReportAsync(filterAll);
+        reportAll.Revenue.Should().Be(800_000m);
+        reportAll.ReturnAmount.Should().Be(300_000m);
+        reportAll.NetRevenue.Should().Be(500_000m);
+        reportAll.CostOfGoodsSold.Should().Be(500_000m);
+        reportAll.ReturnCogs.Should().Be(250_000m);
+        reportAll.NetCogs.Should().Be(250_000m);
+        reportAll.GrossProfit.Should().Be(250_000m);
+        reportAll.DailyTrend.Should().HaveCount(2);
+        reportAll.DailyTrend.Select(d => d.Date).Should().BeEquivalentTo(new[] { "2026-10-25", "2026-10-28" });
+    }
+
+    [Fact]
+    public async Task GetRevenueProfitReport_IgnoresDraftAndCancelledReturns()
+    {
+        // Arrange
+        var (context, mockTenant, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var reportService = new ReportService(context, mockTenant.Object);
+
+        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh Quận 1" };
+        var sku1 = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, SKU = "SKU-01" };
+        context.Branches.Add(branch);
+        context.Skus.Add(sku1);
+
+        var order = new Order
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Number = "ORD-01",
+            BranchId = branch.Id,
+            Channel = "POS",
+            Status = "Confirmed",
+            TotalAmount = 500_000m,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        var orderItem = new OrderItem
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            OrderId = order.Id,
+            SkuId = sku1.Id,
+            Quantity = 5,
+            FactorSnapshot = 1m,
+            UnitPrice = 100_000m,
+            CostPrice = 60_000m // 5 * 60k = 300k
+        };
+        order.Items.Add(orderItem);
+        context.Orders.Add(order);
+
+        // Return 1: Draft
+        var returnDraft = new SalesReturn
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Number = "RT-DRAFT",
+            OrderId = order.Id,
+            Order = order,
+            BranchId = branch.Id,
+            Status = "Draft",
+            TotalRefundAmount = 100_000m
+        };
+        returnDraft.Items.Add(new SalesReturnItem
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            SalesReturnId = returnDraft.Id,
+            OrderId = order.Id,
+            OrderItemId = orderItem.Id,
+            OrderItem = orderItem,
+            SkuId = sku1.Id,
+            Quantity = 1,
+            RefundAmount = 100_000m,
+            OriginalUnitCost = 60_000m
+        });
+
+        // Return 2: Cancelled
+        var returnCancelled = new SalesReturn
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Number = "RT-CANCEL",
+            OrderId = order.Id,
+            Order = order,
+            BranchId = branch.Id,
+            Status = "Cancelled",
+            TotalRefundAmount = 150_000m
+        };
+        returnCancelled.Items.Add(new SalesReturnItem
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            SalesReturnId = returnCancelled.Id,
+            OrderId = order.Id,
+            OrderItemId = orderItem.Id,
+            OrderItem = orderItem,
+            SkuId = sku1.Id,
+            Quantity = 1,
+            RefundAmount = 150_000m,
+            OriginalUnitCost = 60_000m
+        });
+
+        // Return 3: Confirmed
+        var returnConfirmed = new SalesReturn
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Number = "RT-CONFIRM",
+            OrderId = order.Id,
+            Order = order,
+            BranchId = branch.Id,
+            Status = "Confirmed",
+            TotalRefundAmount = 200_000m,
+            ConfirmedAt = DateTimeOffset.UtcNow
+        };
+        returnConfirmed.Items.Add(new SalesReturnItem
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            SalesReturnId = returnConfirmed.Id,
+            OrderId = order.Id,
+            OrderItemId = orderItem.Id,
+            OrderItem = orderItem,
+            SkuId = sku1.Id,
+            Quantity = 2,
+            RefundAmount = 200_000m,
+            OriginalUnitCost = 60_000m
+        });
+
+        context.SalesReturns.AddRange(returnDraft, returnCancelled, returnConfirmed);
+        await context.SaveChangesAsync();
+
+        // Act
+        var report = await reportService.GetRevenueProfitReportAsync(new ReportFilterDto());
+
+        // Assert: Chỉ tính phiếu Confirmed (200k tiền hoàn, 120k giá vốn trả)
+        report.Revenue.Should().Be(500_000m);
+        report.ReturnAmount.Should().Be(200_000m);
+        report.NetRevenue.Should().Be(300_000m);
+        report.CostOfGoodsSold.Should().Be(300_000m);
+        report.ReturnCogs.Should().Be(120_000m);
+        report.NetCogs.Should().Be(180_000m);
+        report.GrossProfit.Should().Be(120_000m);
+    }
+
+    [Fact]
+    public async Task GetRevenueProfitReport_StaffRole_HidesGrossProfitAndCogs()
+    {
+        // Arrange
+        var (context, mockTenant, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var reportService = new ReportService(context, mockTenant.Object);
+
+        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh Quận 1" };
+        var sku1 = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, SKU = "SKU-01" };
+        context.Branches.Add(branch);
+        context.Skus.Add(sku1);
+
+        var order = new Order
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Number = "ORD-STAFF",
+            BranchId = branch.Id,
+            Channel = "POS",
+            Status = "Confirmed",
+            TotalAmount = 500_000m,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        order.Items.Add(new OrderItem
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            OrderId = order.Id,
+            SkuId = sku1.Id,
+            Quantity = 2,
+            FactorSnapshot = 1m,
+            UnitPrice = 250_000m,
+            CostPrice = 150_000m
+        });
+        context.Orders.Add(order);
+
+        var salesReturn = new SalesReturn
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Number = "RT-STAFF",
+            OrderId = order.Id,
+            Order = order,
+            BranchId = branch.Id,
+            Branch = branch,
+            Status = "Confirmed",
+            TotalRefundAmount = 250_000m,
+            ConfirmedAt = DateTimeOffset.UtcNow
+        };
+        salesReturn.Items.Add(new SalesReturnItem
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            SalesReturnId = salesReturn.Id,
+            OrderId = order.Id,
+            OrderItemId = order.Items.First().Id,
+            OrderItem = order.Items.First(),
+            SkuId = sku1.Id,
+            Quantity = 1,
+            RefundAmount = 250_000m,
+            OriginalUnitCost = 150_000m
+        });
+        context.SalesReturns.Add(salesReturn);
+        await context.SaveChangesAsync();
+
+        // Act: Gọi với isOwner = false (Staff)
+        var report = await reportService.GetRevenueProfitReportAsync(new ReportFilterDto(), isOwner: false);
+
+        // Assert: Staff thấy doanh thu và hàng trả, nhưng không thấy giá vốn và lãi gộp
+        report.Revenue.Should().Be(500_000m);
+        report.ReturnAmount.Should().Be(250_000m);
+        report.NetRevenue.Should().Be(250_000m);
+
+        report.CostOfGoodsSold.Should().BeNull();
+        report.TotalCostOfGoodsSold.Should().BeNull();
+        report.ReturnCogs.Should().BeNull();
+        report.NetCogs.Should().BeNull();
+        report.GrossProfit.Should().BeNull();
+        report.TotalGrossProfit.Should().BeNull();
+        report.GrossMarginPercentage.Should().BeNull();
+
+        // Breakdowns cũng bị ẩn
+        report.ByChannel.Should().NotBeEmpty();
+        foreach (var ch in report.ByChannel)
+        {
+            ch.CostOfGoodsSold.Should().BeNull();
+            ch.ReturnCogs.Should().BeNull();
+            ch.NetCogs.Should().BeNull();
+            ch.GrossProfit.Should().BeNull();
+            ch.GrossMarginPercentage.Should().BeNull();
+            ch.Revenue.Should().BeGreaterThan(0);
+        }
+
+        report.ByBranch.Should().NotBeEmpty();
+        foreach (var br in report.ByBranch)
+        {
+            br.CostOfGoodsSold.Should().BeNull();
+            br.ReturnCogs.Should().BeNull();
+            br.NetCogs.Should().BeNull();
+            br.GrossProfit.Should().BeNull();
+            br.Revenue.Should().BeGreaterThan(0);
+        }
+
+        report.DailyTrend.Should().NotBeEmpty();
+        foreach (var d in report.DailyTrend)
+        {
+            d.CostOfGoodsSold.Should().BeNull();
+            d.ReturnCogs.Should().BeNull();
+            d.NetCogs.Should().BeNull();
+            d.GrossProfit.Should().BeNull();
+        }
+    }
+
+    [Fact]
+    public async Task GetDashboardSummaryAsync_WithReturns_CalculatesNetNumbersAndProtectsStaff()
+    {
+        // Arrange
+        var (context, mockTenant, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var reportService = new ReportService(context, mockTenant.Object);
+
+        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh Tân Bình" };
+        var sku = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, SKU = "SKU-DASH-RET", IsActive = true };
+        context.Branches.Add(branch);
+        context.Skus.Add(sku);
+
+        var order = new Order
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Number = "ORD-DASH-RET",
+            BranchId = branch.Id,
+            Channel = "POS",
+            Status = "Completed",
+            TotalAmount = 600_000m,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        var orderItem = new OrderItem
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            OrderId = order.Id,
+            SkuId = sku.Id,
+            Quantity = 3,
+            FactorSnapshot = 1m,
+            UnitPrice = 200_000m,
+            CostPrice = 120_000m // 3 * 120k = 360k COGS
+        };
+        order.Items.Add(orderItem);
+        context.Orders.Add(order);
+
+        var salesReturn = new SalesReturn
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Number = "RT-DASH-RET",
+            OrderId = order.Id,
+            BranchId = branch.Id,
+            Status = "Confirmed",
+            TotalRefundAmount = 200_000m,
+            ConfirmedAt = DateTimeOffset.UtcNow
+        };
+        salesReturn.Items.Add(new SalesReturnItem
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            SalesReturnId = salesReturn.Id,
+            OrderId = order.Id,
+            OrderItemId = orderItem.Id,
+            OrderItem = orderItem,
+            SkuId = sku.Id,
+            Quantity = 1,
+            RefundAmount = 200_000m,
+            OriginalUnitCost = 120_000m
+        });
+        context.SalesReturns.Add(salesReturn);
+
+        await context.SaveChangesAsync();
+
+        // Act 1: Owner
+        var ownerSummary = await reportService.GetDashboardSummaryAsync(isOwner: true);
+        ownerSummary.TotalRevenue.Should().Be(600_000m);
+        ownerSummary.ReturnAmount.Should().Be(200_000m);
+        ownerSummary.NetRevenue.Should().Be(400_000m);
+        ownerSummary.ReturnCogs.Should().Be(120_000m);
+        ownerSummary.NetCogs.Should().Be(240_000m); // 360k - 120k
+        ownerSummary.TotalGrossProfit.Should().Be(160_000m); // 400k - 240k
+        ownerSummary.GrossMarginPercentage.Should().Be(40m); // 160k / 400k * 100
+
+        // Act 2: Staff
+        var staffSummary = await reportService.GetDashboardSummaryAsync(isOwner: false);
+        staffSummary.TotalRevenue.Should().Be(600_000m);
+        staffSummary.ReturnAmount.Should().Be(200_000m);
+        staffSummary.NetRevenue.Should().Be(400_000m);
+        staffSummary.ReturnCogs.Should().BeNull();
+        staffSummary.NetCogs.Should().BeNull();
+        staffSummary.TotalGrossProfit.Should().BeNull();
+        staffSummary.GrossMarginPercentage.Should().Be(0m);
+    }
 }

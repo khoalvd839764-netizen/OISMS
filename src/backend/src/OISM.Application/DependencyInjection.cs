@@ -72,6 +72,9 @@ public static class DependencyInjection
         // Payment Accounts services (CS-05 VietQR)
         services.AddScoped<OISM.Application.Features.PaymentAccounts.Services.IPaymentAccountService, OISM.Application.Features.PaymentAccounts.Services.PaymentAccountService>();
 
+        // Sales Returns services (CS-01)
+        services.AddScoped<OISM.Application.Features.SalesReturns.Services.ISalesReturnService, OISM.Application.Features.SalesReturns.Services.SalesReturnService>();
+
         return services;
     }
 }

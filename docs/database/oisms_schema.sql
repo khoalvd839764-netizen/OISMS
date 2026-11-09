@@ -813,12 +813,15 @@ CREATE INDEX "ix_payment_accounts_tenant_active" ON "payment_accounts" ("tenant_
 CREATE TABLE "sales_returns" (
   "id" uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
   "tenant_id" uuid NOT NULL,
+  "request_key" uuid NOT NULL,
   "number" varchar(50) NOT NULL,
   "order_id" uuid NOT NULL,
   "branch_id" uuid NOT NULL,
   "warehouse_id" uuid NOT NULL,
   "status" varchar(20) DEFAULT 'Draft' NOT NULL,
   "reason" text NOT NULL,
+  "note" text,
+  "total_refund_amount" numeric(20,2) DEFAULT 0 NOT NULL,
   "created_by" uuid NOT NULL,
   "confirmed_by" uuid,
   "confirmed_at" timestamptz,
@@ -829,10 +832,12 @@ CREATE TABLE "sales_returns" (
   CONSTRAINT "uq_sales_returns_1" UNIQUE ("tenant_id", "id"),
   CONSTRAINT "uq_sales_returns_2" UNIQUE ("tenant_id", "number"),
   CONSTRAINT "uq_sales_returns_3" UNIQUE ("tenant_id", "id", "order_id"),
+  CONSTRAINT "uq_sales_returns_4" UNIQUE ("tenant_id", "request_key"),
   CONSTRAINT "ck_sales_returns_status_values" CHECK (status IN ('Draft', 'Confirmed', 'Cancelled')),
   CONSTRAINT "ck_sales_returns_refund_method_values" CHECK (refund_method IN ('Cash', 'BankTransfer')),
   CONSTRAINT "ck_sales_returns_confirmed" CHECK ((status = 'Confirmed') = (confirmed_at IS NOT NULL) AND (confirmed_at IS NULL) = (confirmed_by IS NULL)),
-  CONSTRAINT "ck_sales_returns_refund" CHECK ((refund_method IS NULL) = (refunded_at IS NULL) AND (refunded_at IS NULL OR status = 'Confirmed'))
+  CONSTRAINT "ck_sales_returns_refund" CHECK ((refund_method IS NULL) = (refunded_at IS NULL) AND (refunded_at IS NULL OR status = 'Confirmed')),
+  CONSTRAINT "ck_sales_returns_total_refund_amount_nonnegative" CHECK (total_refund_amount >= 0)
 );
 
 -- Dòng trả phải thuộc đúng đơn/SKU. Giữ giá vốn gốc và số tiền hoàn để tính doanh thu thuần.

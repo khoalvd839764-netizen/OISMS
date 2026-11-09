@@ -465,47 +465,69 @@ export const ReportsPage: React.FC = () => {
       ) : activeTab === 'pnl' ? (
         /* TAB 1: DOANH THU & LỢI NHUẬN */
         <div className="space-y-6">
-          {/* 4 Stat Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Net Revenue */}
-            <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-              <div className="text-xs font-semibold text-gray-500 uppercase">Doanh thu thuần (Net)</div>
-              <div className="text-2xl font-bold text-gray-900 mt-2">
-                {(pnlData?.totalNetRevenue ?? 0).toLocaleString('vi-VN')} đ
+          {/* 6 Stat Cards (Doanh thu gộp, Hàng trả, Doanh thu thuần, Giá vốn thuần, Lãi gộp, Tỷ suất) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+            {/* Total Revenue */}
+            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-xs">
+              <div className="text-xs font-semibold text-gray-500 uppercase">Doanh thu gộp</div>
+              <div className="text-xl font-bold text-gray-900 mt-2">
+                {((pnlData?.totalRevenue ?? pnlData?.totalNetRevenue) ?? 0).toLocaleString('vi-VN')} đ
               </div>
-              <div className="text-xs text-gray-500 mt-1">
-                {pnlData?.totalOrders ?? 0} đơn hàng · {pnlData?.totalItemsSold ?? 0} sản phẩm
+              <div className="text-[11px] text-gray-500 mt-1">
+                {pnlData?.totalOrders ?? 0} đơn · {pnlData?.totalItemsSold ?? 0} sp
               </div>
             </div>
 
-            {/* COGS */}
-            <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
-              <div className="text-xs font-semibold text-gray-500 uppercase">Tổng giá vốn (COGS)</div>
-              <div className="text-2xl font-bold text-gray-900 mt-2">
-                {(pnlData?.totalCostOfGoodsSold ?? 0).toLocaleString('vi-VN')} đ
+            {/* Return Amount */}
+            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-xs">
+              <div className="text-xs font-semibold text-rose-600 uppercase">Hàng trả lại</div>
+              <div className="text-xl font-bold text-rose-600 mt-2">
+                -{(pnlData?.returnAmount ?? 0).toLocaleString('vi-VN')} đ
               </div>
-              <div className="text-xs text-gray-500 mt-1">Snapshot WAC tại thời điểm xuất bán</div>
+              <div className="text-[11px] text-rose-600/80 mt-1">
+                Phiếu trả Confirmed
+              </div>
+            </div>
+
+            {/* Net Revenue */}
+            <div className="bg-white p-4 rounded-xl border border-indigo-100 bg-indigo-50/20 shadow-xs">
+              <div className="text-xs font-semibold text-indigo-700 uppercase">Doanh thu thuần (Net)</div>
+              <div className="text-xl font-bold text-indigo-900 mt-2">
+                {(pnlData?.netRevenue ?? pnlData?.totalNetRevenue ?? 0).toLocaleString('vi-VN')} đ
+              </div>
+              <div className="text-[11px] text-indigo-600 mt-1">
+                Doanh thu − Trả hàng
+              </div>
+            </div>
+
+            {/* Net COGS */}
+            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-xs">
+              <div className="text-xs font-semibold text-gray-500 uppercase">Giá vốn thuần (COGS)</div>
+              <div className="text-xl font-bold text-gray-900 mt-2">
+                {(pnlData?.netCogs ?? pnlData?.totalCostOfGoodsSold ?? 0).toLocaleString('vi-VN')} đ
+              </div>
+              <div className="text-[11px] text-gray-500 mt-1">Đã khấu trừ COGS trả</div>
             </div>
 
             {/* Gross Profit */}
-            <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-xs">
               <div className="text-xs font-semibold text-gray-500 uppercase">Lợi nhuận gộp</div>
-              <div className="text-2xl font-bold text-emerald-600 mt-2">
-                {(pnlData?.totalGrossProfit ?? 0).toLocaleString('vi-VN')} đ
+              <div className="text-xl font-bold text-emerald-600 mt-2">
+                {(pnlData?.grossProfit ?? pnlData?.totalGrossProfit ?? 0).toLocaleString('vi-VN')} đ
               </div>
-              <div className="text-xs text-emerald-700 font-medium mt-1 flex items-center gap-1">
-                <ArrowUpRight className="w-3.5 h-3.5" />
-                Revenue − COGS
+              <div className="text-[11px] text-emerald-700 font-medium mt-1 flex items-center gap-0.5">
+                <ArrowUpRight className="w-3 h-3" />
+                Net Revenue − Net COGS
               </div>
             </div>
 
             {/* Gross Margin % */}
-            <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-xs">
               <div className="text-xs font-semibold text-gray-500 uppercase">Tỷ suất lãi gộp</div>
-              <div className="text-2xl font-bold text-indigo-600 mt-2">
+              <div className="text-xl font-bold text-indigo-600 mt-2">
                 {(pnlData?.grossMarginPercentage ?? 0).toFixed(1)}%
               </div>
-              <div className="text-xs text-gray-500 mt-1">Gross Profit / Revenue</div>
+              <div className="text-[11px] text-gray-500 mt-1">Profit / Net Revenue</div>
             </div>
           </div>
 
@@ -521,35 +543,43 @@ export const ReportsPage: React.FC = () => {
                 <table className="w-full text-xs text-left border-collapse">
                   <thead>
                     <tr className="bg-gray-50/70 border-b border-gray-200 text-gray-500 font-semibold">
-                      <th className="py-2.5 px-3">Kênh</th>
-                      <th className="py-2.5 px-3 text-right">Doanh thu</th>
-                      <th className="py-2.5 px-3 text-right">Giá vốn</th>
-                      <th className="py-2.5 px-3 text-right">Lãi gộp</th>
-                      <th className="py-2.5 px-3 text-right">Biên lãi</th>
+                      <th className="py-2.5 px-2">Kênh</th>
+                      <th className="py-2.5 px-2 text-right">Doanh thu</th>
+                      <th className="py-2.5 px-2 text-right text-rose-600">Trả hàng</th>
+                      <th className="py-2.5 px-2 text-right text-indigo-700">DT thuần</th>
+                      <th className="py-2.5 px-2 text-right">Giá vốn</th>
+                      <th className="py-2.5 px-2 text-right">Lãi gộp</th>
+                      <th className="py-2.5 px-2 text-right">Biên lãi</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {(pnlData?.byChannel || []).length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="py-6 text-center text-gray-400">
+                        <td colSpan={7} className="py-6 text-center text-gray-400">
                           Chưa có đơn hàng trong kỳ
                         </td>
                       </tr>
                     ) : (
                       pnlData?.byChannel.map((ch) => (
                         <tr key={ch.channel} className="hover:bg-gray-50">
-                          <td className="py-2.5 px-3 font-semibold text-gray-900">{ch.channel}</td>
-                          <td className="py-2.5 px-3 text-right font-medium">
+                          <td className="py-2.5 px-2 font-semibold text-gray-900">{ch.channel}</td>
+                          <td className="py-2.5 px-2 text-right font-medium">
                             {ch.revenue.toLocaleString('vi-VN')} đ
                           </td>
-                          <td className="py-2.5 px-3 text-right text-gray-600">
-                            {ch.costOfGoodsSold.toLocaleString('vi-VN')} đ
+                          <td className="py-2.5 px-2 text-right text-rose-600 font-medium">
+                            {(ch.returnAmount ?? 0) > 0 ? `-${(ch.returnAmount).toLocaleString('vi-VN')} đ` : '0 đ'}
                           </td>
-                          <td className="py-2.5 px-3 text-right font-bold text-emerald-600">
-                            {ch.grossProfit.toLocaleString('vi-VN')} đ
+                          <td className="py-2.5 px-2 text-right font-bold text-indigo-700">
+                            {(ch.netRevenue ?? ch.revenue).toLocaleString('vi-VN')} đ
                           </td>
-                          <td className="py-2.5 px-3 text-right font-semibold text-indigo-600">
-                            {ch.grossMarginPercentage.toFixed(1)}%
+                          <td className="py-2.5 px-2 text-right text-gray-600">
+                            {(ch.netCogs ?? ch.costOfGoodsSold)?.toLocaleString('vi-VN')} đ
+                          </td>
+                          <td className="py-2.5 px-2 text-right font-bold text-emerald-600">
+                            {ch.grossProfit?.toLocaleString('vi-VN')} đ
+                          </td>
+                          <td className="py-2.5 px-2 text-right font-semibold text-indigo-600">
+                            {ch.grossMarginPercentage?.toFixed(1)}%
                           </td>
                         </tr>
                       ))
@@ -569,34 +599,42 @@ export const ReportsPage: React.FC = () => {
                 <table className="w-full text-xs text-left border-collapse">
                   <thead>
                     <tr className="bg-gray-50/70 border-b border-gray-200 text-gray-500 font-semibold">
-                      <th className="py-2.5 px-3">Chi nhánh</th>
-                      <th className="py-2.5 px-3 text-right">Doanh thu</th>
-                      <th className="py-2.5 px-3 text-right">Giá vốn</th>
-                      <th className="py-2.5 px-3 text-right">Lãi gộp</th>
-                      <th className="py-2.5 px-3 text-right">Số đơn</th>
+                      <th className="py-2.5 px-2">Chi nhánh</th>
+                      <th className="py-2.5 px-2 text-right">Doanh thu</th>
+                      <th className="py-2.5 px-2 text-right text-rose-600">Trả hàng</th>
+                      <th className="py-2.5 px-2 text-right text-indigo-700">DT thuần</th>
+                      <th className="py-2.5 px-2 text-right">Giá vốn</th>
+                      <th className="py-2.5 px-2 text-right">Lãi gộp</th>
+                      <th className="py-2.5 px-2 text-right">Số đơn</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {(pnlData?.byBranch || []).length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="py-6 text-center text-gray-400">
+                        <td colSpan={7} className="py-6 text-center text-gray-400">
                           Chưa có đơn hàng trong kỳ
                         </td>
                       </tr>
                     ) : (
                       pnlData?.byBranch.map((br) => (
                         <tr key={br.branchId} className="hover:bg-gray-50">
-                          <td className="py-2.5 px-3 font-semibold text-gray-900">{br.branchName}</td>
-                          <td className="py-2.5 px-3 text-right font-medium">
+                          <td className="py-2.5 px-2 font-semibold text-gray-900">{br.branchName}</td>
+                          <td className="py-2.5 px-2 text-right font-medium">
                             {br.revenue.toLocaleString('vi-VN')} đ
                           </td>
-                          <td className="py-2.5 px-3 text-right text-gray-600">
-                            {br.costOfGoodsSold.toLocaleString('vi-VN')} đ
+                          <td className="py-2.5 px-2 text-right text-rose-600 font-medium">
+                            {(br.returnAmount ?? 0) > 0 ? `-${(br.returnAmount).toLocaleString('vi-VN')} đ` : '0 đ'}
                           </td>
-                          <td className="py-2.5 px-3 text-right font-bold text-emerald-600">
-                            {br.grossProfit.toLocaleString('vi-VN')} đ
+                          <td className="py-2.5 px-2 text-right font-bold text-indigo-700">
+                            {(br.netRevenue ?? br.revenue).toLocaleString('vi-VN')} đ
                           </td>
-                          <td className="py-2.5 px-3 text-right text-gray-600">{br.orderCount}</td>
+                          <td className="py-2.5 px-2 text-right text-gray-600">
+                            {(br.netCogs ?? br.costOfGoodsSold)?.toLocaleString('vi-VN')} đ
+                          </td>
+                          <td className="py-2.5 px-2 text-right font-bold text-emerald-600">
+                            {br.grossProfit?.toLocaleString('vi-VN')} đ
+                          </td>
+                          <td className="py-2.5 px-2 text-right text-gray-600">{br.orderCount}</td>
                         </tr>
                       ))
                     )}
@@ -610,40 +648,48 @@ export const ReportsPage: React.FC = () => {
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
             <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 font-semibold text-xs text-gray-700 uppercase flex items-center gap-2">
               <Calendar className="w-4 h-4 text-indigo-600" />
-              Biến động doanh thu & lãi gộp theo ngày
+              Biến động doanh thu &amp; lãi gộp theo ngày
             </div>
             <div className="overflow-x-auto max-h-72">
               <table className="w-full text-xs text-left border-collapse">
                 <thead>
                   <tr className="bg-gray-50/70 border-b border-gray-200 text-gray-500 font-semibold">
-                    <th className="py-2.5 px-4">Ngày</th>
-                    <th className="py-2.5 px-4 text-right">Doanh thu</th>
-                    <th className="py-2.5 px-4 text-right">Giá vốn (COGS)</th>
-                    <th className="py-2.5 px-4 text-right">Lợi nhuận gộp</th>
-                    <th className="py-2.5 px-4 text-right">Số đơn hàng</th>
+                    <th className="py-2.5 px-3">Ngày</th>
+                    <th className="py-2.5 px-3 text-right">Doanh thu</th>
+                    <th className="py-2.5 px-3 text-right text-rose-600">Trả hàng</th>
+                    <th className="py-2.5 px-3 text-right text-indigo-700">DT thuần</th>
+                    <th className="py-2.5 px-3 text-right">Giá vốn thuần</th>
+                    <th className="py-2.5 px-3 text-right">Lợi nhuận gộp</th>
+                    <th className="py-2.5 px-3 text-right">Số đơn</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {(pnlData?.dailyTrend || []).length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-6 text-center text-gray-400">
+                      <td colSpan={7} className="py-6 text-center text-gray-400">
                         Không có dữ liệu theo ngày
                       </td>
                     </tr>
                   ) : (
                     pnlData?.dailyTrend.map((d) => (
                       <tr key={d.date} className="hover:bg-gray-50">
-                        <td className="py-2.5 px-4 font-mono font-medium text-gray-800">{d.date}</td>
-                        <td className="py-2.5 px-4 text-right font-medium">
+                        <td className="py-2.5 px-3 font-mono font-medium text-gray-800">{d.date}</td>
+                        <td className="py-2.5 px-3 text-right font-medium">
                           {d.revenue.toLocaleString('vi-VN')} đ
                         </td>
-                        <td className="py-2.5 px-4 text-right text-gray-600">
-                          {d.costOfGoodsSold.toLocaleString('vi-VN')} đ
+                        <td className="py-2.5 px-3 text-right text-rose-600 font-medium">
+                          {(d.returnAmount ?? 0) > 0 ? `-${(d.returnAmount).toLocaleString('vi-VN')} đ` : '0 đ'}
                         </td>
-                        <td className="py-2.5 px-4 text-right font-bold text-emerald-600">
-                          {d.grossProfit.toLocaleString('vi-VN')} đ
+                        <td className="py-2.5 px-3 text-right font-bold text-indigo-700">
+                          {(d.netRevenue ?? d.revenue).toLocaleString('vi-VN')} đ
                         </td>
-                        <td className="py-2.5 px-4 text-right text-gray-700">{d.orderCount}</td>
+                        <td className="py-2.5 px-3 text-right text-gray-600">
+                          {(d.netCogs ?? d.costOfGoodsSold)?.toLocaleString('vi-VN')} đ
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-bold text-emerald-600">
+                          {d.grossProfit?.toLocaleString('vi-VN')} đ
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-gray-700">{d.orderCount}</td>
                       </tr>
                     ))
                   )}

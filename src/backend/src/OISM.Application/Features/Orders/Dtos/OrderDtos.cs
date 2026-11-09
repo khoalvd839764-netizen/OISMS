@@ -179,6 +179,7 @@ public class OrderItemResponseDto
     public decimal FactorSnapshot { get; set; } = 1m;
     public decimal BaseQuantity { get; set; }
     public decimal Quantity { get; set; }
+    public decimal ReturnedQuantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal? CostPrice { get; set; } // WAC snapshot theo đơn vị gốc tại thời điểm Confirm/Checkout
     public decimal Subtotal => Quantity * UnitPrice;
@@ -337,6 +338,7 @@ public class OrderItemDto
     public decimal FactorSnapshot { get; set; } = 1m;
     public decimal BaseQuantity { get; set; }
     public decimal Quantity { get; set; }
+    public decimal ReturnedQuantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal? CostPrice { get; set; }
     public decimal TotalLineAmount => Quantity * UnitPrice;
