@@ -15,5 +15,6 @@
 | [07. Thanh toán QR bằng VietQR](./07-thanh-toan-qr-vietqr.md) | Kế hoạch của nhóm (không phải đề xuất GVHD) cho CS-05: bật QR ở POS Admin, tài khoản nhận theo tenant, xác nhận tự động tùy chọn. Chưa triển khai |
 | [08. Trả hàng từ khách (CS-01)](./08-tra-hang-cs01.md) | Kế hoạch của nhóm theo mô hình KiotViet/Odoo: phiếu trả gắn đơn gốc, nhập `IN` theo giá vốn lúc bán, tính lại WAC, trừ doanh thu theo ngày trả. Đã triển khai backend và giao diện Admin (09/11/2026) |
 | [09. Chatbot AI hỗ trợ cơ bản](./09-chatbot-ai-co-ban.md) | Trợ lý OISMS cho Owner và Staff: chỉ đọc, tóm tắt nhập/xuất kho, doanh thu, hàng sắp hết, gợi ý nhập và hướng dẫn sử dụng; chọn model Groq hoặc Gemini; không thêm bảng. Đã triển khai trên nhánh `feature/OISMS-58-chatbot-ai`. **Không có kinh phí nên API AI chỉ dùng gói miễn phí, hạn mức rất thấp.** |
+| [10. Quên mật khẩu và đăng nhập bằng SĐT](./10-quen-mat-khau-dang-nhap-sdt.md) | Kế hoạch của nhóm: đăng nhập bằng email hoặc SĐT, đặt lại mật khẩu qua link email (thêm bảng `password_reset_tokens`), Owner đặt lại hộ, OTP SMS để giai đoạn sau. Chưa triển khai |
 
 Hiện trạng triển khai giao diện: [báo cáo nghiệm thu frontend](../report-after-upgrade/frontend-coming-soon-va-upgrade.md).
