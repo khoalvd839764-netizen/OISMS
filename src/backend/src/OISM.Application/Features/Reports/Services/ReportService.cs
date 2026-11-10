@@ -489,7 +489,10 @@ public class ReportService : IReportService
             .Include(b => b.Branch)
             .Include(b => b.Sku)
                 .ThenInclude(s => s!.Product)
-            .Where(b => b.TenantId == tenantId && b.Sku != null && b.Sku.IsActive && b.ReorderPoint > 0 && (b.OnHand - b.Reserved) <= b.ReorderPoint);
+            .Where(b => b.TenantId == tenantId && b.Sku != null && b.Sku.IsActive
+                        // FR-REP-03: hết hàng (khả dụng <= 0) luôn cảnh báo, kể cả SKU chưa đặt ngưỡng (ReorderPoint = 0).
+                        // Còn hàng thì chỉ cảnh báo khi đã đặt ngưỡng và khả dụng chạm hoặc dưới ngưỡng.
+                        && ((b.OnHand - b.Reserved) <= 0 || (b.ReorderPoint > 0 && (b.OnHand - b.Reserved) <= b.ReorderPoint)));
 
         if (branchId.HasValue && branchId.Value != Guid.Empty)
         {
@@ -601,7 +604,9 @@ public class ReportService : IReportService
             .Select(s => s.Id)
             .ToListAsync(ct);
         var activeSkuIdSet = activeSkuIds.ToHashSet();
-        int lowStockCount = balances.Count(b => activeSkuIdSet.Contains(b.SkuId) && b.ReorderPoint > 0 && (b.OnHand - b.Reserved) <= b.ReorderPoint);
+        // Cùng quy tắc với GetStockAlertsAsync: hết hàng luôn tính, còn hàng chỉ tính khi đã đặt ngưỡng.
+        int lowStockCount = balances.Count(b => activeSkuIdSet.Contains(b.SkuId)
+            && ((b.OnHand - b.Reserved) <= 0 || (b.ReorderPoint > 0 && (b.OnHand - b.Reserved) <= b.ReorderPoint)));
 
         // 4. Lấy 5 đơn hàng mới phát sinh gần đây nhất
         var recentOrders = await _context.Orders

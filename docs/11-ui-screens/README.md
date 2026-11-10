@@ -67,6 +67,15 @@ Giao diện Web Admin tuân theo chuẩn Master-Detail hiện đại với thanh
 └───────────────────────────┴────────────────────────────────────────────────────────────────────┘
 ```
 
+#### Trợ lý OISMS (`FR-AI-02`)
+
+Owner và Staff mở trợ lý bằng nút hình Bot cạnh chuông thông báo. Panel rộng 380 px ở cạnh phải trên desktop và chiếm toàn màn hình trên mobile. Người dùng chọn chi nhánh hoặc giữ mặc định **Tất cả chi nhánh**.
+
+- Nút **Cuộc trò chuyện mới** xóa lịch sử trong panel. Đóng panel hủy yêu cầu đang chờ. Đăng xuất, đổi tenant hoặc đổi tài khoản xóa lịch sử phiên.
+- Nút **Tóm tắt hôm nay** hỏi về doanh thu, nhập/xuất, tồn thấp và gợi ý nhập. Khi chưa có tin nhắn, panel có bốn câu hỏi mẫu.
+- Ô nhập tối đa 1.000 ký tự, Enter gửi và Shift+Enter xuống dòng. Câu trả lời hiển thị dạng văn bản thuần. Câu có số liệu hiển thị nguồn và khoảng ngày khi API cung cấp.
+- Lỗi hiển thị trong panel. Khi trợ lý tắt, panel báo trạng thái và nút mở biến mất đến hết phiên.
+
 ### 3.2. Bố Cục Quầy Thu Ngân Bán Lẻ POS (`PosApp`)
 Giao diện POS được tối ưu hóa cho màn hình cảm ứng, máy POS hai màn hình và phím bấm vật lý siêu tốc:
 

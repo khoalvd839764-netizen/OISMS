@@ -3,7 +3,9 @@ using OISM.Infrastructure;
 using OISM.Infrastructure.Health;
 using OISM.WebApi.Http;
 using System.Text;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
@@ -67,6 +69,26 @@ builder.Services.AddAuthentication(options =>
 });
 
 builder.Services.AddAuthorization();
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy("AiChat", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.User.GetUserId().GetValueOrDefault(),
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        }));
+    options.OnRejected = async (rejection, ct) =>
+    {
+        const string code = "AI_RATE_LIMITED";
+        var context = rejection.HttpContext;
+        var problem = ApiErrorResponse.CreateProblemDetails(context, code, ApiErrorTitles.Get(ApiErrorProfile.Ai, code),
+            StatusCodes.Status429TooManyRequests, "Bạn hỏi hơi nhanh, thử lại sau ít phút.");
+        context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        await context.Response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json", cancellationToken: ct);
+    };
+});
 
 // 4. Cấu hình CORS cho Frontend Admin (5173) và Frontend POS (5174)
 builder.Services.AddCors(options =>
@@ -85,6 +107,14 @@ builder.Services.AddControllers()
     {
         options.InvalidModelStateResponseFactory = context =>
         {
+            if (context.HttpContext.GetEndpoint()?.Metadata.GetMetadata<ApiErrorContractAttribute>()?.Profile == ApiErrorProfile.Ai)
+            {
+                const string code = "AI_INVALID_REQUEST";
+                return ApiErrorResponse.Problem(context.HttpContext, ApiErrorProfile.Ai, code,
+                    ApiErrorTitles.Get(ApiErrorProfile.Ai, code), StatusCodes.Status400BadRequest,
+                    "Dữ liệu yêu cầu trợ lý AI không hợp lệ.");
+            }
+
             var errors = context.ModelState
                 .Where(e => e.Value?.Errors.Count > 0)
                 .ToDictionary(
@@ -217,6 +247,7 @@ if (!app.Environment.IsDevelopment() && builder.Configuration.GetValue<bool>("Us
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 app.UseOismHangfire(builder.Configuration);
 
 // Controllers API (Auth, Products, Categories, Brands, POS, Branches, Suppliers)

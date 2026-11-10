@@ -186,6 +186,20 @@ Tài liệu này là **từ điển tra cứu danh mục mã lỗi toàn hệ th
 
 ---
 
+### 2.8. Trợ Lý OISMS (`AI`)
+
+Các lỗi nghiệp vụ từ `POST /api/ai/chat` trả `application/problem+json` với trường `errorCode`.
+
+| Mã lỗi | HTTP | Tiêu đề | Xử lý trên giao diện |
+| :--- | :---: | :--- | :--- |
+| `AI_INVALID_REQUEST` | 400 | Yêu cầu trợ lý AI không hợp lệ | Hiển thị chi tiết về lịch sử, chi nhánh hoặc khoảng ngày cần sửa. |
+| `AI_RATE_LIMITED` | 429 | Vượt giới hạn yêu cầu trợ lý AI | Giới hạn của OISMS: 10 câu/phút mỗi người dùng. Hiển thị thông báo và khóa gửi 30 giây. |
+| `AI_MODEL_QUOTA` | 429 | Model AI đã hết lượt | Nhà cung cấp của model đã chọn báo hết lượt (theo phút hoặc ngày) sau khi backend đã tự chờ và thử lại một lần nếu chỉ cần chờ ≤ 10 giây. Hiển thị `detail` và nút hỏi lại bằng model khác; không khóa gửi. |
+| `AI_DISABLED` | 503 | Trợ lý AI chưa được bật | Hiển thị lý do trong panel và ẩn nút mở đến hết phiên. |
+| `AI_UPSTREAM_ERROR` | 502 | Lỗi nhà cung cấp AI | Hiển thị lỗi tạm thời và cho phép gửi lại tin cuối. |
+
+---
+
 ## 3. Đối Chiếu Với Code (06/11/2026)
 
 Quét mọi `new OismException("<MÃ>", ..., <HTTP>)`, `CreateProblemResult("<MÃ>", ...)` trong `src/backend/src` và `ExceptionHandlingMiddleware`.

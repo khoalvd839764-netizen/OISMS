@@ -96,7 +96,7 @@ Quản lý chu trình khách đổi trả hàng bán từ đơn `Confirmed`/`Com
 | `POST` | `/api/sales-returns/{id}/confirm` | `Owner, Staff` | `CS-01` | **Xác nhận trả hàng (`Draft -> Confirmed`):** Khóa kho bằng advisory lock, tăng `on_hand`, tính lại WAC theo công thức chuẩn, sinh dòng sổ kho `IN` gắn `sales_return_item_id`. Cập nhật `confirmed_at` và `confirmed_by`. Ghi nhận ngày doanh thu/giá vốn hoàn lại vào báo cáo theo ngày xác nhận (UTC+7). |
 | `POST` | `/api/sales-returns/{id}/cancel` | `Owner, Staff` | `CS-01` | Hủy phiếu trả hàng (`Draft -> Cancelled`): Chỉ áp dụng cho phiếu đang `Draft`. Không tác động tới tồn kho và sổ cái. Phiếu đã `Confirmed` không được phép hủy (trả `409 INVALID_STATE_TRANSITION`). |
 
-## 2. Danh Mục Endpoints Báo Cáo, Tìm Kiếm & Dự Báo AI (`FR-REP-01..03`, `FR-AI-01`)
+## 2. Danh Mục Endpoints Báo Cáo, Tìm Kiếm & AI (`FR-REP-01..03`, `FR-AI-01..02`)
 
 | Method | Endpoint | Quyền (RBAC) | Mã FR | Mô tả & Quy tắc xử lý |
 | :---: | :--- | :---: | :---: | :--- |
@@ -106,6 +106,8 @@ Quản lý chu trình khách đổi trả hàng bán từ đơn `Confirmed`/`Com
 | `GET` | `/api/reports/stock-alerts` | `Owner, Staff` | `FR-REP-03` | Danh sách SKU có `available <= reorder_point`, phân cấp `Warning`, `Critical` (dưới 50%), `OutOfStock`. Lọc theo `branchId`. |
 | `GET` | `/api/ai/export-history` | `Owner, Staff` | `FR-AI-01` | Chuỗi lịch sử xuất kho theo ngày và SKU (đơn vị gốc) làm đầu vào dự báo. Trùng dữ liệu với `/api/inventory/export-history`. |
 | `GET` | `/api/ai/reorder-recommendations` | `Owner, Staff` | `FR-AI-01` | Dự báo nhu cầu tiêu thụ và gợi ý số lượng đặt hàng nhập kho theo từng SKU. |
+| `POST` | `/api/ai/chat` | `Owner, Staff` | `FR-AI-02` | Hướng dẫn sử dụng và tóm tắt số liệu đã lọc theo vai trò và tenant. Body nhận thêm `model` (tùy chọn, mã model từ `GET /api/ai/models`); response trả `model` đã dùng. Model không có trong danh sách trả 400 `AI_INVALID_REQUEST`. |
+| `GET` | `/api/ai/models` | `Owner, Staff` | `FR-AI-02` | Danh sách model đang có key: `[{ id, label, isDefault }]` (ví dụ `groq`, `gemini`). AI tắt hoặc chưa có key thì trả mảng rỗng. Không trả key hay địa chỉ nhà cung cấp. |
 
 **Tìm kiếm toàn cục:** `GET /api/search?q=&limit=5` (mọi vai trò đã đăng nhập) tìm sản phẩm/SKU, đơn hàng, hóa đơn... theo từ khóa; kết quả lọc theo vai trò lấy từ JWT.
 
@@ -114,3 +116,34 @@ Quản lý chu trình khách đổi trả hàng bán từ đơn `Confirmed`/`Com
 > **Tồn theo đơn vị (04/11/2026):** `GET /api/reports/inventory-velocity` trả thêm `quantityByUnit`, mỗi phần tử gồm `unitName`, `onHand`, `reserved`, `available` theo đơn vị gốc, sắp theo `onHand` giảm dần. SKU chưa có đơn vị gốc nằm trong nhóm `Chưa xác định`. Các trường `totalOnHandQuantity`, `totalReservedQuantity`, `totalAvailableQuantity` vẫn trả về để tương thích nhưng cộng gộp khác đơn vị, không dùng để hiển thị. Trong `bestSellers` và `slowMovingItems`, mỗi SKU một dòng; `currentOnHand` là tổng tồn trong phạm vi chi nhánh đang lọc; `baseUnitName` là `null` khi SKU chưa có đơn vị gốc.
 
 > **Ghi chú 04/11/2026:** `GET /api/ai/reorder-recommendations`, `lowStockCount` của `GET /api/reports/dashboard-summary` và báo cáo cảnh báo tồn chỉ tính SKU còn kinh doanh (`IsActive = true`). `daysUntilStockout = 999` nghĩa là chưa có dữ liệu bán để ước tính.
+
+### 2.1. Trợ lý OISMS (FR-AI-02)
+
+`POST /api/ai/chat` yêu cầu JWT của Owner hoặc Staff. Cashier nhận 403, thiếu JWT nhận 401. Vai trò và tenant lấy từ JWT.
+
+```json
+{
+  "messages": [
+    { "role": "user", "content": "Doanh thu 7 ngày qua?" }
+  ],
+  "branchId": "11111111-0000-0000-0001-000000000001"
+}
+```
+
+Gửi 1–10 tin theo thứ tự, mỗi tin 1–1.000 ký tự với role `user` hoặc `assistant`. Tin cuối phải là `user`. Phạm vi mặc định lấy từ `branchId` của panel hoặc là tất cả chi nhánh khi trường này vắng mặt. Nếu câu hỏi nhắc tên chi nhánh, backend ưu tiên tra tên trong các chi nhánh đang hoạt động của tenant. Ngày do công cụ nhận ở dạng `yyyy-MM-dd` theo UTC+07, mặc định hôm nay và tối đa 92 ngày tính cả hai đầu.
+
+```json
+{
+  "reply": "Doanh thu thuần tại chi nhánh trong kỳ là 1.200.000 đồng.",
+  "usedTools": ["get_revenue"],
+  "dateRange": { "from": "2026-11-04", "to": "2026-11-10" },
+  "scope": "Quận 1",
+  "branchChoices": []
+}
+```
+
+`usedTools` liệt kê công cụ cung cấp dữ liệu cho câu trả lời. `dateRange` là `null` khi các công cụ đã dùng không truy vấn khoảng ngày. Khi có nhiều khoảng, trường này bao từ ngày đầu sớm nhất đến ngày cuối muộn nhất. Câu trả lời hướng dẫn có thể trả `usedTools: []`.
+
+`scope` là phạm vi của công cụ số liệu chạy cuối cùng hoặc `null` nếu chưa có công cụ nào trả số liệu. Khi tên chi nhánh không khớp duy nhất, `branchChoices` trả tối đa 10 lựa chọn `{ "id": "...", "name": "Quận 1" }`. Panel gửi lại câu hỏi gần nhất với `branchId` đã chọn và `confirmBranchChoice: true`. Backend kiểm tra ID thuộc tenant và dùng chi nhánh đã xác nhận cho lần gửi lại. Các request khác có thể bỏ cờ này.
+
+Giới hạn 10 request mỗi phút theo user. Lỗi nghiệp vụ trả ProblemDetails với `errorCode` gồm `AI_INVALID_REQUEST` (400), `AI_RATE_LIMITED` (429), `AI_UPSTREAM_ERROR` (502) và `AI_DISABLED` (503).

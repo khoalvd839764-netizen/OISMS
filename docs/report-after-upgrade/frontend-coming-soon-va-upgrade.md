@@ -16,7 +16,7 @@
 | CS-03 | Ngưỡng cảnh báo lưu trên server | Kho, Sản phẩm, báo cáo cảnh báo và Tổng quan cùng số |
 | CS-04 | Tìm kiếm toàn hệ thống | Đơn mở đúng chi tiết, sản phẩm lọc đúng; phiếu nhập mới về trang Kho |
 | CS-07 | KPI, biểu đồ 7 ngày, đơn gần đây | Số liệu là lũy kế; API chưa lọc theo thời gian |
-| CS-08 | Gợi ý nhập hàng | Dựa trên quy tắc; chưa có bằng chứng đánh giá độ chính xác dự báo. **Tab đang tạm ẩn**, xem phần Cập nhật sau nghiệm thu |
+| CS-08 | Gợi ý nhập hàng | Dựa trên quy tắc. Tab mở lại cho Owner và Staff ngày 10/11/2026 trên nhánh `feature/OISMS-58-chatbot-ai`. |
 | U05 | Đơn vị gốc, quy đổi, chọn đơn vị trên chứng từ và hai POS | Tồn và WAC vẫn theo đơn vị gốc |
 | U04 | Phiếu đổi giá, duyệt, lịch và lịch sử giá | Giá lấy từ server theo đơn vị và bảng giá |
 | U01-A | Đơn mua, lập phiếu nhập từ đơn mua đã duyệt | Khóa giá, chặn nhập vượt |
@@ -118,7 +118,7 @@ Các thay đổi sau bảng kết quả trên, cùng nhánh `feature/OISMS-46-fi
 - **Giá vốn ở truy vết:** Staff được xem theo [ma trận phân quyền](../01-users-and-rbac/02-rbac-matrix.md) và [quyết định U02](../Upgrade-recommended/02-truy-vet-chung-tu-xuat-kho.md). Mô tả "chỉ Owner" trong PR #33 không đúng; code giữ nguyên.
 - **Doanh thu ở Tổng quan:** ma trận chỉ cấm Staff xem lãi gộp, nên Staff vẫn thấy doanh thu.
 - **Số lẻ:** POS dùng `decimalPlaces` server trả về. Đơn vị mặc định đang cho phép 3 chữ số thập phân, nên POS nhận cả số lẻ với "Cái". Cần chốt nếu muốn cấm.
-- **Gợi ý nhập hàng:** `FR-AI-01` vẫn là yêu cầu trong docs, chỉ giao diện đang tạm ẩn. Cần chốt thời điểm mở lại trước khi nghiệm thu.
+- **Gợi ý nhập hàng:** Tab `FR-AI-01` hiện trong **Kho & sổ kho** cho Owner và Staff. Bảng giữ API dự báo hiện có và hiển thị SKU, tồn thực tế, tốc độ bán trung bình/ngày, số ngày dự kiến hết hàng và số lượng đề xuất nhập.
 - **Handoff:** [DOC-SCR-07](../11-ui-screens/07-handoff-screens.md) vẫn mô tả màn hình này. Cần chốt bỏ đặc tả hay làm lại.
 - **Tổng số lượng trong API báo cáo:** các trường `total*Quantity` vẫn trả về để tương thích nhưng cộng gộp khác đơn vị; giao diện dùng `quantityByUnit`.
 - **Tổng quan:** lấy `recentRevenueTrend` theo ngày có đơn; ngày không có đơn hiển thị 0 theo UTC+07:00.

@@ -600,7 +600,7 @@ export function InventoryPage() {
         const available = sku.onHand - sku.reserved;
         const thresh = sku.reorderPoint !== undefined ? sku.reorderPoint : (thresholds[sku.id] ?? sku.threshold ?? 0);
         const matchesStatus =
-          stockStatusFilter === "all" || (stockStatusFilter === "low" && thresh > 0 && available <= thresh);
+          stockStatusFilter === "all" || (stockStatusFilter === "low" && (available <= 0 || (thresh > 0 && available <= thresh)));
         return matchesSearch && matchesBranch && matchesStatus;
       }),
     [activeBalanceSource, searchQuery, branchFilter, stockStatusFilter, thresholds]
@@ -624,7 +624,9 @@ export function InventoryPage() {
   const lowStock = skus.filter(
     (sku) => {
       const thresh = sku.reorderPoint !== undefined ? sku.reorderPoint : (thresholds[sku.id] ?? sku.threshold ?? 0);
-      return sku.isActive !== false && thresh > 0 && (sku.onHand - sku.reserved) <= thresh;
+      const available = sku.onHand - sku.reserved;
+      // FR-REP-03, khớp ReportService: hết hàng luôn cảnh báo kể cả khi chưa đặt ngưỡng; còn hàng chỉ cảnh báo khi đã đặt ngưỡng.
+      return sku.isActive !== false && (available <= 0 || (thresh > 0 && available <= thresh));
     }
   );
 
@@ -1282,7 +1284,7 @@ export function InventoryPage() {
         <div>
           <span><TriangleAlert size={18} /></span>
           <strong>Cảnh báo tồn</strong>
-          <small>{lowStock.length} SKU dưới ngưỡng</small>
+          <small>{lowStock.length} SKU hết hàng hoặc dưới ngưỡng</small>
         </div>
       </div>
 
@@ -1322,7 +1324,6 @@ export function InventoryPage() {
           <button className={tab === "ledger" ? "active" : ""} onClick={() => { setTab("ledger"); void loadLedger(); }}>
             Sổ kho bất biến — Append-Only ({filteredLedger.length})
           </button>
-          {/* Tạm ẩn tab Gợi ý nhập hàng; bỏ comment để mở lại, phần xử lý và panel bên dưới vẫn giữ nguyên.
           {account?.role !== "Cashier" && (
             <button
               className={tab === "ai-reorder" ? "active" : ""}
@@ -1335,7 +1336,6 @@ export function InventoryPage() {
               <Sparkles size={16} /> Gợi ý nhập hàng
             </button>
           )}
-          */}
           <button
             type="button"
             onClick={tab === "ai-reorder" ? () => void loadAiRecommendations() : loadData}
@@ -1402,7 +1402,7 @@ export function InventoryPage() {
                 }}
               >
                 <option value="all">Tất cả trạng thái</option>
-                <option value="low">Chỉ hiển thị dưới ngưỡng ({lowStock.length})</option>
+                <option value="low">Chỉ hiển thị hết hàng hoặc dưới ngưỡng ({lowStock.length})</option>
               </Select>
             </div>
 
@@ -1490,7 +1490,7 @@ export function InventoryPage() {
                     pagedSkus.map((sku) => {
                       const available = sku.onHand - sku.reserved;
                       const thresh = sku.reorderPoint !== undefined ? sku.reorderPoint : (thresholds[sku.id] ?? sku.threshold ?? 0);
-                      const isUnder = thresh > 0 && available <= thresh;
+                      const isUnder = available <= 0 || (thresh > 0 && available <= thresh);
                       const isInactive = sku.isActive === false;
                       return (
                         <tr key={`${sku.id}-${sku.branchId || "br"}-${sku.warehouseId || "wh"}`}>

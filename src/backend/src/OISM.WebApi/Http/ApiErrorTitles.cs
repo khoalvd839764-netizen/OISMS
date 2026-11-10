@@ -11,6 +11,7 @@ internal static class ApiErrorTitles
         ApiErrorProfile.Pricing => Pricing(code),
         ApiErrorProfile.SalesInvoices => SalesInvoices(code),
         ApiErrorProfile.SalesReturns => SalesReturns(code),
+        ApiErrorProfile.Ai => Ai(code),
         ApiErrorProfile.StockCountPeriods => StockCountPeriods(code),
         ApiErrorProfile.StockCountSchedules => StockCountSchedules(code),
         ApiErrorProfile.StockCounts => StockCounts(code),
@@ -19,6 +20,16 @@ internal static class ApiErrorTitles
         ApiErrorProfile.InventoryTrace => "Lỗi truy vết",
         ApiErrorProfile.Units or ApiErrorProfile.Simulator => code,
         _ => "Lỗi xử lý nghiệp vụ"
+    };
+
+    private static string Ai(string code) => code switch
+    {
+        "AI_INVALID_REQUEST" => "Yêu cầu trợ lý AI không hợp lệ",
+        "AI_RATE_LIMITED" => "Vượt giới hạn yêu cầu trợ lý AI",
+        "AI_MODEL_QUOTA" => "Model AI đã hết lượt",
+        "AI_DISABLED" => "Trợ lý AI chưa được bật",
+        "AI_UPSTREAM_ERROR" => "Lỗi nhà cung cấp AI",
+        _ => "Lỗi trợ lý AI"
     };
 
     private static string GoodsReceipts(string code) => code switch

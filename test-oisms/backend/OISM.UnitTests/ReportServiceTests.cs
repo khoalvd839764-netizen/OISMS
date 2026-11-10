@@ -398,6 +398,36 @@ public class ReportServiceTests
     }
 
     [Fact]
+    public async Task GetStockAlerts_OutOfStockWithoutThreshold_IsAlertedButStockedWithoutThresholdIsNot()
+    {
+        // Lỗi người dùng báo 10/11/2026: POLO-NAM-DEN-M tồn 0, ngưỡng 0 nhưng không có cảnh báo.
+        var (context, mockTenant, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh Quận 1" };
+        var product = new Product { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Áo Polo Nam" };
+        var empty = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, ProductId = product.Id, SKU = "POLO-NAM-DEN-M", Product = product };
+        var reservedOut = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, ProductId = product.Id, SKU = "POLO-GIU-CHO", Product = product };
+        var stocked = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, ProductId = product.Id, SKU = "POLO-CON-HANG", Product = product };
+        var inactive = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, ProductId = product.Id, SKU = "POLO-NGUNG", Product = product, IsActive = false };
+        context.Branches.Add(branch);
+        context.Products.Add(product);
+        context.Skus.AddRange(empty, reservedOut, stocked, inactive);
+        context.InventoryBalances.AddRange(
+            new InventoryBalance { Id = Guid.NewGuid(), TenantId = tenantId, BranchId = branch.Id, SkuId = empty.Id, OnHand = 0, Reserved = 0, ReorderPoint = 0 },
+            new InventoryBalance { Id = Guid.NewGuid(), TenantId = tenantId, BranchId = branch.Id, SkuId = reservedOut.Id, OnHand = 3, Reserved = 3, ReorderPoint = 0 },
+            new InventoryBalance { Id = Guid.NewGuid(), TenantId = tenantId, BranchId = branch.Id, SkuId = stocked.Id, OnHand = 7, Reserved = 0, ReorderPoint = 0 },
+            new InventoryBalance { Id = Guid.NewGuid(), TenantId = tenantId, BranchId = branch.Id, SkuId = inactive.Id, OnHand = 0, Reserved = 0, ReorderPoint = 0 });
+        await context.SaveChangesAsync();
+        var service = new ReportService(context, mockTenant.Object);
+
+        var alerts = await service.GetStockAlertsAsync(null);
+        var summary = await service.GetDashboardSummaryAsync(isOwner: false);
+
+        alerts.Select(a => a.SkuCode).Should().BeEquivalentTo(new[] { "POLO-NAM-DEN-M", "POLO-GIU-CHO" });
+        alerts.Should().OnlyContain(a => a.AlertLevel == "OutOfStock" && a.Available == 0 && a.ReorderPoint == 0);
+        summary.LowStockCount.Should().Be(2);
+    }
+
+    [Fact]
     public async Task GetDashboardSummaryAsync_LowStockCount_ExcludesInactiveSku()
     {
         var (context, tenantMock, tenantId) = TestDbContextFactory.CreateInMemoryContext();

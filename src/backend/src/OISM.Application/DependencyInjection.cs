@@ -1,4 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
+using OISM.Application.Features.Ai.Services;
+using OISM.Application.Features.Ai.Services.Tools;
 using OISM.Application.Features.Auth.Services;
 using OISM.Application.Features.Branches.Services;
 using OISM.Application.Features.Catalog.Brands.Services;
@@ -37,6 +39,15 @@ public static class DependencyInjection
         services.AddScoped<IPosCheckoutService, PosCheckoutService>();
         services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<IReportService, ReportService>();
+        services.AddScoped<IAiChatService, AiChatService>();
+        services.AddScoped<AiChatToolRunner>();
+        services.AddScoped<IAiChatTool, LowStockChatTool>();
+        services.AddScoped<IAiChatTool, ReorderSuggestionsChatTool>();
+        services.AddScoped<IAiChatTool, StockMovementChatTool>();
+        services.AddScoped<IAiChatTool, RevenueChatTool>();
+        services.AddScoped<IStockMovementQuery, StockMovementQuery>();
+        services.AddMemoryCache();
+        services.AddSingleton(TimeProvider.System);
         services.AddScoped<ISimulatorService, SimulatorService>();
         services.AddScoped<IStockTransferService, StockTransferService>();
         services.AddScoped<IStockCountService, StockCountService>();

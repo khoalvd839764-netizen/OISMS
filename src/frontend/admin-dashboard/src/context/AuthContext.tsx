@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Role } from "../types/domain";
+import { AI_CHAT_SESSION_END } from "../types/aiChat";
 import { clearAuthSession, clearSessionOrdersStorage, httpClient } from "../services/httpClient";
 import { openStandalonePos } from "../services/posNavigation";
 import { realtimeAdapter } from "../services/realtimeAdapter";
@@ -193,6 +194,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
+    window.dispatchEvent(new Event(AI_CHAT_SESSION_END));
     try {
       await realtimeAdapter.stop().catch(() => {});
       const refreshToken = localStorage.getItem("oism_refresh_token");

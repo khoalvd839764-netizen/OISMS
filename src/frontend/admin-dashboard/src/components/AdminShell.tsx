@@ -25,6 +25,7 @@ import {
 import { Button } from "./ui";
 import { useAuth } from "../context/AuthContext";
 import { NotificationCenter } from "./NotificationCenter";
+import { AiAssistant } from "./AiAssistant/AiAssistant";
 import { POS_URL } from "../services/posNavigation";
 import { apiAdapter } from "../services/apiAdapter";
 
@@ -477,6 +478,9 @@ export function AdminShell() {
               <span>Mở Web POS</span>
             </Button>
             <NotificationCenter />
+            {user && (user.role === "Owner" || user.role === "Staff") && (
+              <AiAssistant key={`${user.tenantId}:${user.id}:${user.role}`} />
+            )}
             <div className="profile-chip">
               <span className="avatar">{account.initials}</span>
               <div className="profile-chip-text">
