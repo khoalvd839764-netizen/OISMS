@@ -7,8 +7,8 @@
 | **Ngày hiệu lực** | `2026-10-25` |
 | **Đường dẫn URL Routes** | `/admin/products`, `/products` |
 | **Quyền truy cập (RBAC)** | `Owner`, `Staff` |
-| **Source code Frontend** | [`ProductsPage.tsx`](file:///d:/OISMS/src/frontend/admin-dashboard/src/pages/ProductsPage.tsx) |
-| **Controllers Backend** | [`ProductsController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/ProductsController.cs), [`CategoriesController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/CategoriesController.cs), [`BrandsController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/BrandsController.cs) |
+| **Source code Frontend** | [`ProductsPage.tsx`](../../src/frontend/admin-dashboard/src/pages/ProductsPage.tsx) |
+| **Controllers Backend** | [`ProductsController.cs`](../../src/backend/src/OISM.WebApi/Controllers/ProductsController.cs), [`CategoriesController.cs`](../../src/backend/src/OISM.WebApi/Controllers/CategoriesController.cs), [`BrandsController.cs`](../../src/backend/src/OISM.WebApi/Controllers/BrandsController.cs) |
 
 ---
 

@@ -60,7 +60,7 @@ Các thay đổi sau bảng kết quả trên, cùng nhánh `feature/OISMS-46-fi
 | Báo cáo vận tốc kho tách tồn thực tế, giữ chỗ, khả dụng theo đơn vị gốc | PASS trên PostgreSQL local: tổng 74 tách thành 48 Cái và 26 hộp; thẻ báo cáo hiện đúng |
 | Cột Tồn hiện tại cộng theo SKU trên mọi chi nhánh, mỗi SKU một dòng | PASS trên PostgreSQL local: SKU có 18 và 3 ở hai chi nhánh hiện 21 |
 | Form đổi giá nhập nhiều đơn vị và bảng giá một lần | PASS trên giao diện: Owner lưu 2 giá, `POST /api/price-change-requests` trả 201, giá hiệu lực đọc lại đúng 160.000 ₫ |
-| Tab Gợi ý nhập hàng tạm ẩn bằng comment trong `InventoryPage.tsx` | PASS: tab không còn trên giao diện. API và phần xử lý giữ nguyên |
+| Tab Gợi ý nhập hàng tạm ẩn bằng comment trong `InventoryPage.tsx` | PASS: tab không còn trên giao diện. API và phần xử lý giữ nguyên. **Đã mở lại 10/11/2026** (PR #42) |
 | Bỏ tài khoản mẫu ở đăng nhập Admin và POS PWA | PASS: không còn email và mật khẩu mẫu trong màn hình và source |
 | Nút Quên mật khẩu ở Admin và POS PWA | PASS: nút bị tắt, có nhãn Coming soon; chưa có luồng đặt lại mật khẩu |
 | Gỡ màn Handoff kỹ thuật và mục menu | Build PASS; đặc tả vẫn giữ tại [07-handoff-screens.md](../11-ui-screens/07-handoff-screens.md) |
@@ -107,7 +107,6 @@ Các thay đổi sau bảng kết quả trên, cùng nhánh `feature/OISMS-46-fi
 
 - **CS-05:** POS PWA và POS Admin đều có VietQR, thu ngân chọn tài khoản nhận tiền (mặc định chọn sẵn) và bấm xác nhận thủ công. Tài khoản nhận tiền lấy từ `GET /api/payment-accounts/active`; Owner quản lý ở màn "Tài khoản nhận tiền". Chưa có xác nhận tự động qua webhook ngân hàng. Chi tiết: [review PR 39](./vietqr-cs05-review-pr39.md).
 - **CS-06:** in chứng từ giao hàng và in báo cáo.
-- **CS-01:** nhận hàng trả, cần backend trước.
 - **U01-B:** hóa đơn nhà cung cấp và chênh lệch, cần backend và GVHD chốt cách xử lý.
 - **CS-02:** phân công chi nhánh, cần quyết định làm thêm backend hay bỏ khỏi yêu cầu.
 - **Tìm kiếm:** kết quả phiếu nhập chưa mở đúng phiếu.

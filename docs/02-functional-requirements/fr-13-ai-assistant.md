@@ -10,7 +10,7 @@ Owner và Staff hỏi bằng tiếng Việt trong Admin để tìm hướng dẫ
 | :--- | :--- |
 | Nhập/xuất kho | Tổng theo ngày nghiệp vụ, chi nhánh và đơn vị gốc, tách chuyển kho và trả hàng. |
 | Doanh thu | Doanh thu thuần sau trả hàng, số đơn, phân theo ngày và kênh. Owner có thêm lãi gộp. |
-| Tồn thấp | SKU chạm hoặc dưới ngưỡng đặt lại, tồn khả dụng và mức cảnh báo. |
+| Tồn thấp | SKU hết hàng (kể cả chưa đặt ngưỡng) hoặc chạm/dưới ngưỡng đặt lại, tồn khả dụng và mức cảnh báo (theo FR-REP-03). |
 | Gợi ý nhập | Tối đa 20 gợi ý ưu tiên theo ngày cạn hàng dự kiến, dùng dữ liệu FR-AI-01. |
 | Hướng dẫn | Các thao tác trên Admin theo vai trò được xác thực. |
 

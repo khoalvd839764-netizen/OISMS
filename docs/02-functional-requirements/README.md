@@ -48,6 +48,6 @@ Các file `fr-*.md` là **yêu cầu**. Bảng dưới tóm tắt mức hiện t
 | `FR-SIM-03` | Có code, mặc định tắt | Xem [fr-10](./fr-10-background-hangfire.md). |
 | `FR-REP-01..03` | Đã có | Báo cáo theo ngày nghiệp vụ `UTC+07:00`, lọc nửa mở; khấu trừ hàng trả (`returnAmount`, `returnCogs`) ra số thuần; bảo mật giá vốn và lãi gộp chỉ Owner xem được. |
 | `FR-AI-01` | Đã có API và bảng Admin | Mở lại tab Gợi ý nhập hàng cho Owner và Staff ngày 10/11/2026 trên nhánh `feature/OISMS-58-chatbot-ai`. |
-| `FR-AI-02` | Đã có API và panel Admin, mặc định tắt | Chờ nghiệm thu OISMS-58-AI. |
+| `FR-AI-02` | Đã có API và panel Admin, mặc định tắt | Claude nghiệm thu 10/11/2026, PR #42 vào `develop`. Không có kinh phí nên API AI chỉ dùng gói miễn phí, hạn mức rất thấp (xem [fr-13](./fr-13-ai-assistant.md)). |
 
-Còn thiếu theo danh sách Coming Soon: CS-01 (trả hàng), CS-06, U01-B. CS-05 (VietQR) đã xong, chưa có xác nhận tự động qua webhook ngân hàng. Chi tiết: [báo cáo frontend](../report-after-upgrade/frontend-coming-soon-va-upgrade.md).
+Còn thiếu theo danh sách Coming Soon: CS-06, U01-B. CS-01 (trả hàng) đã xong (PR #41). CS-05 (VietQR) đã xong, chưa có xác nhận tự động qua webhook ngân hàng. Chi tiết: [báo cáo frontend](../report-after-upgrade/frontend-coming-soon-va-upgrade.md).

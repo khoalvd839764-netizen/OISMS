@@ -163,7 +163,8 @@ Ghi chú:
 - `skus` ánh xạ tới entity `ProductVariant`.
 - `Role`, `UserRole` có trong `OISM.Domain/Entities` nhưng không có bảng; vai trò lưu ở cột `users.role` (`Owner`, `Staff`, `Cashier`).
 - `Tenant.Code` là thuộc tính bỏ qua khi ánh xạ (`Ignore`), không có cột trong `tenants`.
-- 4 bảng chưa có entity: `sales_returns`, `sales_return_items` (trả hàng CS-01 chưa làm), `daily_sales_summaries` (báo cáo tính trực tiếp từ đơn), `replenishment_suggestions` (gợi ý nhập tính trực tiếp từ sổ cái, đơn và tồn).
+- `sales_returns`, `sales_return_items` đã có entity và API từ CS-01 trả hàng (PR #41).
+- 2 bảng chưa có entity: `daily_sales_summaries` (báo cáo tính trực tiếp từ đơn), `replenishment_suggestions` (gợi ý nhập tính trực tiếp từ sổ cái, đơn và tồn; Trợ lý OISMS cũng không lưu bảng).
 
 ## 4. Cột Và Khóa Ngoại Từng Bảng
 

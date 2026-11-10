@@ -6,7 +6,7 @@
 | **Phiên bản (Version)** | `v1.0.0` |
 | **Ngày hiệu lực** | `2026-10-25` |
 | **Tiêu chuẩn tuân thủ** | `IETF RFC 7807: Problem Details for HTTP APIs` |
-| **Mã tham chiếu backend** | [`OismException.cs`](file:///d:/OISMS/src/backend/src/OISM.Application/Common/Exceptions/OismException.cs), [`PosCheckoutActionHelper.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/PosCheckoutActionHelper.cs), [`Program.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Program.cs#L86-L122) |
+| **Mã tham chiếu backend** | [`OismException.cs`](../../src/backend/src/OISM.Application/Common/Exceptions/OismException.cs), [`PosCheckoutActionHelper.cs`](../../src/backend/src/OISM.WebApi/Controllers/PosCheckoutActionHelper.cs), [`Program.cs`](../../src/backend/src/OISM.WebApi/Program.cs#L86-L122) |
 
 ---
 

@@ -83,14 +83,14 @@ Không phải lỗi: đây là chức năng chưa làm xong, đang có nhãn Com
 
 | | Mã | Chức năng | Hiện trạng | Còn thiếu |
 | :---: | :--- | :--- | :--- | :--- |
-| [ ] | CS-01 | Nhận hàng trả từ khách | Chưa làm. Schema có `sales_returns`, `sales_return_items`, chưa có API/UI | Chọn đơn gốc, kiểm lượng đã bán/đã trả, ghi `IN` bù theo `BaseQuantity`, `FactorSnapshot` của đơn gốc; chốt chính sách hoàn tiền |
+| [x] | CS-01 | Nhận hàng trả từ khách | Đã làm (PR #41, 09/11/2026): phiếu trả gắn đơn gốc, nhập `IN` theo giá vốn lúc bán, tính lại WAC, trừ doanh thu theo ngày trả; màn Trả hàng trên Admin. Xem [plan 08](../Upgrade-recommended/08-tra-hang-cs01.md) | Chọn đơn gốc, kiểm lượng đã bán/đã trả, ghi `IN` bù theo `BaseQuantity`, `FactorSnapshot` của đơn gốc; chốt chính sách hoàn tiền |
 | [~] | CS-02 | Nhân viên, phân quyền, phân công chi nhánh | Có danh sách, tạo, sửa, khóa nhân viên (`/api/users`) | Phân công chi nhánh: chưa có trường ở backend, cần quyết định làm hay bỏ khỏi yêu cầu |
 | [x] | CS-03 | Ngưỡng cảnh báo tồn (`ReorderPoint`) | Đã có API và UI | Chưa kiểm tra thông báo tồn thấp qua realtime |
 | [x] | CS-04 | Tìm kiếm toàn hệ thống | Đã có `GET /api/search` và ô tìm kiếm | Lỗi mở phiếu nhập: [BF-024](./errors/BF-024-tim-kiem-phieu-nhap-khong-mo-dung-phieu.md) |
 | [x] | CS-05 | Thanh toán QR | VietQR ở POS PWA và POS Admin, tài khoản nhận tiền theo cửa hàng (Owner quản lý), lưu bản chụp người nhận vào `payments`. Nghiệm thu 07/11/2026: integration 372/372 trên PostgreSQL, kiểm tay toàn luồng ([review PR 39](../report-after-upgrade/vietqr-cs05-review-pr39.md)) | Giai đoạn (c) webhook ngân hàng tạm gác; `test-b03-live.mjs` cần viết lại theo API |
 | [ ] | CS-06 | In chứng từ giao hàng, in báo cáo | Chưa làm | Bố cục A4/80mm, cô lập vùng in, ẩn giá vốn theo vai trò |
 | [x] | CS-07 | KPI, biểu đồ, đơn gần đây ở Tổng quan | Đã có dữ liệu thật | Số liệu lũy kế, API chưa lọc theo thời gian |
-| [~] | CS-08 | Dự báo, gợi ý nhập hàng (`FR-AI-01`) | Có API `GET /api/ai/reorder-recommendations`; **tab đang tạm ẩn** trong `InventoryPage.tsx` | Bằng chứng đánh giá dự báo; chốt thời điểm mở lại tab |
+| [~] | CS-08 | Dự báo, gợi ý nhập hàng (`FR-AI-01`) | Có API `GET /api/ai/reorder-recommendations`; tab Gợi ý nhập hàng đã mở lại (10/11/2026); Trợ lý OISMS trả lời "nên nhập gì" từ cùng dữ liệu | Bằng chứng đánh giá độ chính xác dự báo (đang tính bằng công thức) |
 | [ ] | — | Quên mật khẩu | Nút tắt có nhãn Coming soon ở Admin và POS PWA | API và luồng đặt lại mật khẩu |
 
 ---

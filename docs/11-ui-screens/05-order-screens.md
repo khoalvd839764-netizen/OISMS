@@ -7,8 +7,8 @@
 | **Ngày hiệu lực** | `2026-10-25` |
 | **Đường dẫn URL Routes** | `/admin/orders`, `/orders` |
 | **Quyền truy cập (RBAC)** | `Owner`, `Staff` |
-| **Source code Frontend** | [`OrdersPage.tsx`](file:///d:/OISMS/src/frontend/admin-dashboard/src/pages/OrdersPage.tsx) |
-| **Controllers Backend** | [`OrdersController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/OrdersController.cs) |
+| **Source code Frontend** | [`OrdersPage.tsx`](../../src/frontend/admin-dashboard/src/pages/OrdersPage.tsx) |
+| **Controllers Backend** | [`OrdersController.cs`](../../src/backend/src/OISM.WebApi/Controllers/OrdersController.cs) |
 | **Đặc tả Máy trạng thái** | [`../04-architecture-and-design/04-state-machines.md`](../04-architecture-and-design/04-state-machines.md) |
 
 ---
@@ -105,9 +105,9 @@ Khi bấm nút **`[+ Tạo Đơn Admin]`**, nhân viên có thể lập đơn b�
 | **Mã màn hình** | `SCR-RET-01` (Danh sách), `SCR-RET-02` (Modal lập phiếu 3 bước), `SCR-RET-03` (Drawer chi tiết) |
 | **Đường dẫn URL Routes** | `/returns`, `/admin/returns` |
 | **Quyền truy cập (RBAC)** | `Owner`, `Staff` (Nhân viên thu ngân `Cashier` bị ẩn mục menu và trả về `403 Forbidden` khi truy cập) |
-| **Source code Frontend** | [`SalesReturnsPage.tsx`](file:///d:/OISMS/src/frontend/admin-dashboard/src/pages/SalesReturnsPage.tsx), [`CreateSalesReturnModal.tsx`](file:///d:/OISMS/src/frontend/admin-dashboard/src/components/salesReturns/CreateSalesReturnModal.tsx), [`SalesReturnDetailDrawer.tsx`](file:///d:/OISMS/src/frontend/admin-dashboard/src/components/salesReturns/SalesReturnDetailDrawer.tsx), [`ConfirmSalesReturnDialog.tsx`](file:///d:/OISMS/src/frontend/admin-dashboard/src/components/salesReturns/ConfirmSalesReturnDialog.tsx) |
-| **Services & Idempotency** | [`salesReturnService.ts`](file:///d:/OISMS/src/frontend/admin-dashboard/src/services/salesReturnService.ts) (Idempotency pattern BF-004) |
-| **Controllers Backend** | [`SalesReturnsController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/SalesReturnsController.cs) |
+| **Source code Frontend** | [`SalesReturnsPage.tsx`](../../src/frontend/admin-dashboard/src/pages/SalesReturnsPage.tsx), [`CreateSalesReturnModal.tsx`](../../src/frontend/admin-dashboard/src/components/salesReturns/CreateSalesReturnModal.tsx), [`SalesReturnDetailDrawer.tsx`](../../src/frontend/admin-dashboard/src/components/salesReturns/SalesReturnDetailDrawer.tsx), [`ConfirmSalesReturnDialog.tsx`](../../src/frontend/admin-dashboard/src/components/salesReturns/ConfirmSalesReturnDialog.tsx) |
+| **Services & Idempotency** | [`salesReturnService.ts`](../../src/frontend/admin-dashboard/src/services/salesReturnService.ts) (Idempotency pattern BF-004) |
+| **Controllers Backend** | [`SalesReturnsController.cs`](../../src/backend/src/OISM.WebApi/Controllers/SalesReturnsController.cs) |
 
 ### 6.1 Bố Cục Giao Diện Wireframe (ASCII Wireframe)
 
@@ -227,10 +227,10 @@ Toàn bộ 9 kịch bản kiểm thử nghiệp vụ giao diện đã được t
 
 | Mã ảnh | Tên file | Mô tả nội dung giao diện | Đường dẫn file ảnh |
 | :---: | :--- | :--- | :--- |
-| **SCR-01** | `01-sales-returns-list.png` | **Trang danh sách phiếu trả hàng (`/returns`)**: Thanh tìm kiếm, lọc chi nhánh, lọc trạng thái, lọc ngày nửa mở, nút "+ Tạo phiếu trả", bảng phiếu trả với badge màu sắc và phân trang. | [01-sales-returns-list.png](file:///home/jackie-khoa/Downloads/OISMS/docs/11-ui-screens/screenshots/sales-returns/01-sales-returns-list.png) |
-| **SCR-02** | `02-create-return-modal.png` | **Modal tạo phiếu trả hàng 3 bước (`CreateSalesReturnModal`)**: Bước 2 hiển thị thông tin đơn gốc, bảng mặt hàng có thể trả (Bán / Đã trả / Còn được trả / Ô SL trả / Nút "Trả hết"), tiền hoàn tự tính, chọn kho nhận, quick buttons lý do trả hàng. | [02-create-return-modal.png](file:///home/jackie-khoa/Downloads/OISMS/docs/11-ui-screens/screenshots/sales-returns/02-create-return-modal.png) |
-| **SCR-03** | `03-sales-return-detail.png` | **Drawer chi tiết phiếu trả hàng (`SalesReturnDetailDrawer`)**: Header hiển thị badge trạng thái `Confirmed`, chi nhánh & kho nhận, người xác nhận, bảng danh sách sản phẩm nhập lại kèm cột giá vốn WAC (chỉ hiện cho Owner/Staff), liên kết sang sổ kho và truy vết. | [03-sales-return-detail.png](file:///home/jackie-khoa/Downloads/OISMS/docs/11-ui-screens/screenshots/sales-returns/03-sales-return-detail.png) |
-| **SCR-04** | `04-order-detail-with-return.png` | **Drawer chi tiết đơn hàng (`OrderDetailDrawer`)**: Nút hành động "Trả hàng" (màu đỏ cam `RotateCcw`), cột "Đã trả" trong bảng sản phẩm, và khối "Lịch sử phiếu trả hàng của đơn" liệt kê các phiếu trả liên quan. | [04-order-detail-with-return.png](file:///home/jackie-khoa/Downloads/OISMS/docs/11-ui-screens/screenshots/sales-returns/04-order-detail-with-return.png) |
-| **SCR-05** | `05-invoice-trace-with-return.png` | **Modal truy vết chứng từ (`SalesInvoiceTraceModal`)**: Khối "Phiếu Trả Hàng & Dòng Sổ Kho Nhập Lại (IN)" hiển thị chi tiết số phiếu trả, ngày xác nhận và các dòng bút toán sổ kho `IN` hoàn trả giá vốn. | [05-invoice-trace-with-return.png](file:///home/jackie-khoa/Downloads/OISMS/docs/11-ui-screens/screenshots/sales-returns/05-invoice-trace-with-return.png) |
-| **SCR-06** | `06-reports-net-revenue.png` | **Trang Báo cáo Doanh thu & Lợi nhuận (`/reports`)**: Thẻ KPI "Hàng trả lại" (`returnAmount`) và "Doanh thu thuần (Net)" (`netRevenue`), cùng các bảng phân rã kênh bán và xu hướng theo ngày có trừ hàng trả. | [06-reports-net-revenue.png](file:///home/jackie-khoa/Downloads/OISMS/docs/11-ui-screens/screenshots/sales-returns/06-reports-net-revenue.png) |
+| **SCR-01** | `01-sales-returns-list.png` | **Trang danh sách phiếu trả hàng (`/returns`)**: Thanh tìm kiếm, lọc chi nhánh, lọc trạng thái, lọc ngày nửa mở, nút "+ Tạo phiếu trả", bảng phiếu trả với badge màu sắc và phân trang. | [01-sales-returns-list.png](./screenshots/sales-returns/01-sales-returns-list.png) |
+| **SCR-02** | `02-create-return-modal.png` | **Modal tạo phiếu trả hàng 3 bước (`CreateSalesReturnModal`)**: Bước 2 hiển thị thông tin đơn gốc, bảng mặt hàng có thể trả (Bán / Đã trả / Còn được trả / Ô SL trả / Nút "Trả hết"), tiền hoàn tự tính, chọn kho nhận, quick buttons lý do trả hàng. | [02-create-return-modal.png](./screenshots/sales-returns/02-create-return-modal.png) |
+| **SCR-03** | `03-sales-return-detail.png` | **Drawer chi tiết phiếu trả hàng (`SalesReturnDetailDrawer`)**: Header hiển thị badge trạng thái `Confirmed`, chi nhánh & kho nhận, người xác nhận, bảng danh sách sản phẩm nhập lại kèm cột giá vốn WAC (chỉ hiện cho Owner/Staff), liên kết sang sổ kho và truy vết. | [03-sales-return-detail.png](./screenshots/sales-returns/03-sales-return-detail.png) |
+| **SCR-04** | `04-order-detail-with-return.png` | **Drawer chi tiết đơn hàng (`OrderDetailDrawer`)**: Nút hành động "Trả hàng" (màu đỏ cam `RotateCcw`), cột "Đã trả" trong bảng sản phẩm, và khối "Lịch sử phiếu trả hàng của đơn" liệt kê các phiếu trả liên quan. | [04-order-detail-with-return.png](./screenshots/sales-returns/04-order-detail-with-return.png) |
+| **SCR-05** | `05-invoice-trace-with-return.png` | **Modal truy vết chứng từ (`SalesInvoiceTraceModal`)**: Khối "Phiếu Trả Hàng & Dòng Sổ Kho Nhập Lại (IN)" hiển thị chi tiết số phiếu trả, ngày xác nhận và các dòng bút toán sổ kho `IN` hoàn trả giá vốn. | [05-invoice-trace-with-return.png](./screenshots/sales-returns/05-invoice-trace-with-return.png) |
+| **SCR-06** | `06-reports-net-revenue.png` | **Trang Báo cáo Doanh thu & Lợi nhuận (`/reports`)**: Thẻ KPI "Hàng trả lại" (`returnAmount`) và "Doanh thu thuần (Net)" (`netRevenue`), cùng các bảng phân rã kênh bán và xu hướng theo ngày có trừ hàng trả. | [06-reports-net-revenue.png](./screenshots/sales-returns/06-reports-net-revenue.png) |
 

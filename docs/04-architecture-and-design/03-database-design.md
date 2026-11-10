@@ -132,4 +132,4 @@ erDiagram
 
 - Không dùng EF Core migrations. Mỗi thay đổi gồm: một file mới trong `docker/postgres/migrations/` (không sửa file cũ), cập nhật `docs/database/oisms_schema.sql`, thêm bảng vào `RequiredTables` trong `Program.cs` và sửa số bảng kiểm tra trong `docker/postgres/init-oisms.sh`.
 - `inventory_transactions` chỉ được `INSERT`; trigger `ledger_append_only` chặn `UPDATE`/`DELETE`. Sửa sai bằng bút toán bù.
-- Các bảng `sales_returns`, `sales_return_items`, `daily_sales_summaries`, `replenishment_suggestions` đã có trong schema nhưng backend chưa có entity/API tương ứng (trả hàng CS-01 chưa làm; gợi ý nhập hàng được tính trực tiếp từ `inventory_transactions`, `orders` và `inventory_balances`).
+- `sales_returns`, `sales_return_items` đã có entity và API (trả hàng CS-01, PR #41). Hai bảng `daily_sales_summaries`, `replenishment_suggestions` có trong schema nhưng backend chưa dùng: báo cáo và gợi ý nhập hàng tính trực tiếp từ `inventory_transactions`, `orders` và `inventory_balances`. Trợ lý OISMS (FR-AI-02) không thêm bảng.

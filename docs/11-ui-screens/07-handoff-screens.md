@@ -8,7 +8,7 @@
 | **Đường dẫn URL Routes** | `/admin/handoff`, `/handoff` |
 | **Quyền truy cập (RBAC)** | `Owner`, `Staff` |
 | **Source code Frontend** | Không còn; `HandoffPage.tsx` đã gỡ ngày 04/11/2026 |
-| **Controllers Backend** | [`OrdersController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/OrdersController.cs) |
+| **Controllers Backend** | [`OrdersController.cs`](../../src/backend/src/OISM.WebApi/Controllers/OrdersController.cs) |
 
 ---
 

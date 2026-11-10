@@ -7,8 +7,8 @@
 | **Ngày hiệu lực** | `2026-11-06` |
 | **Đường dẫn URL Routes** | `/admin/inventory`, `/inventory` |
 | **Quyền truy cập (RBAC)** | `Owner`, `Staff` |
-| **Source code Frontend** | [`InventoryPage.tsx`](file:///d:/OISMS/src/frontend/admin-dashboard/src/pages/InventoryPage.tsx) |
-| **Controllers Backend** | [`InventoryController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/InventoryController.cs), [`GoodsReceiptsController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/GoodsReceiptsController.cs), [`StockTransfersController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/StockTransfersController.cs), [`StockCountsController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/StockCountsController.cs) |
+| **Source code Frontend** | [`InventoryPage.tsx`](../../src/frontend/admin-dashboard/src/pages/InventoryPage.tsx) |
+| **Controllers Backend** | [`InventoryController.cs`](../../src/backend/src/OISM.WebApi/Controllers/InventoryController.cs), [`GoodsReceiptsController.cs`](../../src/backend/src/OISM.WebApi/Controllers/GoodsReceiptsController.cs), [`StockTransfersController.cs`](../../src/backend/src/OISM.WebApi/Controllers/StockTransfersController.cs), [`StockCountsController.cs`](../../src/backend/src/OISM.WebApi/Controllers/StockCountsController.cs) |
 
 ---
 
