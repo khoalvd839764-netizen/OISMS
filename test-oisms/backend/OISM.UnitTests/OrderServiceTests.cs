@@ -351,4 +351,118 @@ public class OrderServiceTests
         completed.Status.Should().Be("Completed");
         completed.CompletedAt.Should().NotBeNull();
     }
+
+    [Fact]
+    public async Task GetOrderById_ShouldIncludeReturnedQuantityPerLine_OnlyFromConfirmedReturns()
+    {
+        // Arrange
+        var (context, mockTenant, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var orderService = new OrderService(context, mockTenant.Object);
+
+        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Chi nhánh Quận 1", IsActive = true };
+        var sku1 = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, SKU = "SKU-01", IsActive = true };
+        var sku2 = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, SKU = "SKU-02", IsActive = true };
+        context.Branches.Add(branch);
+        context.Skus.AddRange(sku1, sku2);
+
+        var order = new Order
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Number = "ORD-RET-QTY",
+            BranchId = branch.Id,
+            Channel = "POS",
+            Status = "Confirmed",
+            TotalAmount = 500_000m,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        var item1 = new OrderItem
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            OrderId = order.Id,
+            SkuId = sku1.Id,
+            Quantity = 10,
+            UnitPrice = 30_000m
+        };
+        var item2 = new OrderItem
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            OrderId = order.Id,
+            SkuId = sku2.Id,
+            Quantity = 4,
+            UnitPrice = 50_000m
+        };
+        order.Items.Add(item1);
+        order.Items.Add(item2);
+        context.Orders.Add(order);
+
+        // Phiếu trả 1: Confirmed (trả 3 item1)
+        var return1 = new SalesReturn
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Number = "RT-01",
+            OrderId = order.Id,
+            BranchId = branch.Id,
+            Status = "Confirmed",
+            TotalRefundAmount = 90_000m,
+            ConfirmedAt = DateTimeOffset.UtcNow
+        };
+        return1.Items.Add(new SalesReturnItem
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            SalesReturnId = return1.Id,
+            OrderId = order.Id,
+            OrderItemId = item1.Id,
+            SkuId = sku1.Id,
+            Quantity = 3,
+            RefundAmount = 90_000m,
+            OriginalUnitCost = 20_000m
+        });
+
+        // Phiếu trả 2: Draft (trả 2 item1, không được tính)
+        var return2 = new SalesReturn
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Number = "RT-02",
+            OrderId = order.Id,
+            BranchId = branch.Id,
+            Status = "Draft",
+            TotalRefundAmount = 60_000m
+        };
+        return2.Items.Add(new SalesReturnItem
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            SalesReturnId = return2.Id,
+            OrderId = order.Id,
+            OrderItemId = item1.Id,
+            SkuId = sku1.Id,
+            Quantity = 2,
+            RefundAmount = 60_000m,
+            OriginalUnitCost = 20_000m
+        });
+
+        context.SalesReturns.AddRange(return1, return2);
+        await context.SaveChangesAsync();
+
+        // Act
+        var detail = await orderService.GetOrderByIdAsync(order.Id);
+
+        // Assert
+        detail.Should().NotBeNull();
+        detail!.Items.Should().HaveCount(2);
+
+        var item1Dto = detail.Items.Single(i => i.Id == item1.Id);
+        item1Dto.Quantity.Should().Be(10);
+        item1Dto.ReturnedQuantity.Should().Be(3);
+
+        var item2Dto = detail.Items.Single(i => i.Id == item2.Id);
+        item2Dto.Quantity.Should().Be(4);
+        item2Dto.ReturnedQuantity.Should().Be(0);
+    }
 }

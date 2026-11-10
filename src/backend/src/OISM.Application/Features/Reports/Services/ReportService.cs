@@ -1,4 +1,5 @@
 using OISM.Domain.Common;
+using OISM.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using OISM.Application.Common.Helpers;
 using OISM.Application.Common.Interfaces;
@@ -29,7 +30,29 @@ public class ReportService : IReportService
         return tenantId.Value;
     }
 
-    public async Task<RevenueProfitReportDto> GetRevenueProfitReportAsync(ReportFilterDto filter, CancellationToken ct = default)
+    private static readonly HashSet<string> MarketplaceChannels = new(StringComparer.OrdinalIgnoreCase) { "Shopee", "TikTok", "Lazada" };
+
+    /// <summary>
+    /// Doanh thu bị giảm do một phiếu trả hàng đã xác nhận.
+    /// Đơn POS/Admin: bằng số tiền thực hoàn cho khách (TotalRefundAmount, đã trừ phí trả hàng).
+    /// Đơn sàn: phiếu không ghi hoàn tiền (sàn hoàn cho khách) nhưng doanh thu của shop vẫn giảm,
+    /// nên trừ theo giá trị dòng trả = SL trả × đơn giá snapshot (quyết định người dùng 09/11/2026).
+    /// Cần Include(Order) và Items.OrderItem.
+    /// </summary>
+    private static decimal ReturnRevenueAmount(SalesReturn r)
+    {
+        if (r.Order != null && MarketplaceChannels.Contains(r.Order.Channel))
+        {
+            return r.Items.Sum(i => i.Quantity * (i.OrderItem?.UnitPrice ?? 0m));
+        }
+
+        return r.TotalRefundAmount;
+    }
+
+    public Task<RevenueProfitReportDto> GetRevenueProfitReportAsync(ReportFilterDto filter, CancellationToken ct = default)
+        => GetRevenueProfitReportAsync(filter, isOwner: true, ct);
+
+    public async Task<RevenueProfitReportDto> GetRevenueProfitReportAsync(ReportFilterDto filter, bool isOwner, CancellationToken ct = default)
     {
         var tenantId = RequireTenantId();
 
@@ -50,33 +73,72 @@ public class ReportService : IReportService
             ordersQuery = ordersQuery.Where(o => o.Channel == channelTrim);
         }
 
+        DateTimeOffset? endBoundary = null;
+        if (filter.EndDate.HasValue)
+        {
+            var boundary = filter.EndDate.Value;
+            // [BF-011] Khoảng nửa mở [StartDate, EndDate) chống bỏ sót giao dịch có phần lẻ giây 23:59:59.xxx
+            if (boundary.Second == 59)
+            {
+                boundary = new DateTimeOffset(
+                    boundary.Year,
+                    boundary.Month,
+                    boundary.Day,
+                    boundary.Hour,
+                    boundary.Minute,
+                    59,
+                    boundary.Offset).AddSeconds(1);
+            }
+            endBoundary = boundary;
+            ordersQuery = ordersQuery.Where(o => o.CreatedAt < boundary);
+        }
+
         if (filter.StartDate.HasValue)
         {
             ordersQuery = ordersQuery.Where(o => o.CreatedAt >= filter.StartDate.Value);
         }
 
-        if (filter.EndDate.HasValue)
-        {
-            var endBoundary = filter.EndDate.Value;
-            // [BF-011] Khoảng nửa mở [StartDate, EndDate) chống bỏ sót giao dịch có phần lẻ giây 23:59:59.xxx
-            if (endBoundary.Second == 59)
-            {
-                endBoundary = new DateTimeOffset(
-                    endBoundary.Year,
-                    endBoundary.Month,
-                    endBoundary.Day,
-                    endBoundary.Hour,
-                    endBoundary.Minute,
-                    59,
-                    endBoundary.Offset).AddSeconds(1);
-            }
-            ordersQuery = ordersQuery.Where(o => o.CreatedAt < endBoundary);
-        }
-
         var orders = await ordersQuery.ToListAsync(ct);
 
+        // Phiếu trả hàng đã xác nhận (Confirmed) theo ngày confirmed_at
+        var returnsQuery = _context.SalesReturns
+            .AsNoTracking()
+            .Include(r => r.Order)
+            .Include(r => r.Branch)
+            .Include(r => r.Items)
+                .ThenInclude(i => i.OrderItem)
+            .Where(r => r.TenantId == tenantId && r.Status == SalesReturnStatus.Confirmed && r.ConfirmedAt != null);
+
+        if (filter.BranchId.HasValue && filter.BranchId.Value != Guid.Empty)
+        {
+            returnsQuery = returnsQuery.Where(r => r.BranchId == filter.BranchId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(filter.Channel))
+        {
+            var channelTrim = filter.Channel.Trim();
+            returnsQuery = returnsQuery.Where(r => r.Order != null && r.Order.Channel == channelTrim);
+        }
+
+        if (filter.StartDate.HasValue)
+        {
+            returnsQuery = returnsQuery.Where(r => r.ConfirmedAt >= filter.StartDate.Value);
+        }
+
+        if (endBoundary.HasValue)
+        {
+            returnsQuery = returnsQuery.Where(r => r.ConfirmedAt < endBoundary.Value);
+        }
+
+        var returns = await returnsQuery.ToListAsync(ct);
+
+        decimal CalculateReturnCogs(SalesReturn r)
+        {
+            return r.Items.Sum(i => i.Quantity * (i.OrderItem != null ? i.OrderItem.FactorSnapshot : 1m) * i.OriginalUnitCost);
+        }
+
         decimal totalRevenue = 0;
-        decimal totalCogs = 0;
+        decimal totalOrderCogs = 0;
         decimal totalItemsSold = 0;
 
         foreach (var order in orders)
@@ -86,73 +148,149 @@ public class ReportService : IReportService
             {
                 totalItemsSold += item.BaseQuantity;
                 var cost = (item.CostPrice ?? 0) * item.BaseQuantity;
-                totalCogs += cost;
+                totalOrderCogs += cost;
             }
         }
 
-        var grossProfit = totalRevenue - totalCogs;
-        var margin = totalRevenue > 0 ? Math.Round((grossProfit / totalRevenue) * 100, 2) : 0;
+        decimal totalReturnAmount = returns.Sum(r => ReturnRevenueAmount(r));
+        decimal totalReturnCogs = returns.Sum(r => CalculateReturnCogs(r));
+
+        decimal netRevenue = totalRevenue - totalReturnAmount;
+        decimal netCogs = totalOrderCogs - totalReturnCogs;
+
+        decimal? grossProfit = isOwner ? (netRevenue - netCogs) : null;
+        decimal? margin = (isOwner && netRevenue > 0 && grossProfit.HasValue)
+            ? Math.Round((grossProfit.Value / netRevenue) * 100, 2)
+            : (decimal?)null;
 
         // Phân rã theo Kênh bán (Channel)
-        var byChannel = orders
-            .GroupBy(o => o.Channel)
-            .Select(g =>
+        var allChannels = orders.Select(o => o.Channel)
+            .Concat(returns.Select(r => r.Order != null ? r.Order.Channel : "N/A"))
+            .Where(c => !string.IsNullOrEmpty(c))
+            .Distinct()
+            .ToList();
+
+        var byChannel = allChannels
+            .Select(ch =>
             {
-                var chRevenue = g.Sum(o => o.TotalAmount);
-                var chCogs = g.SelectMany(o => o.Items).Sum(i => (i.CostPrice ?? 0) * i.BaseQuantity);
-                var chProfit = chRevenue - chCogs;
-                var chMargin = chRevenue > 0 ? Math.Round((chProfit / chRevenue) * 100, 2) : 0;
+                var chOrders = orders.Where(o => o.Channel == ch).ToList();
+                var chReturns = returns.Where(r => (r.Order != null ? r.Order.Channel : "N/A") == ch).ToList();
+
+                var chRevenue = chOrders.Sum(o => o.TotalAmount);
+                var chReturnAmount = chReturns.Sum(r => ReturnRevenueAmount(r));
+                var chNetRevenue = chRevenue - chReturnAmount;
+
+                var chCogs = chOrders.SelectMany(o => o.Items).Sum(i => (i.CostPrice ?? 0) * i.BaseQuantity);
+                var chReturnCogs = chReturns.Sum(r => CalculateReturnCogs(r));
+                var chNetCogs = chCogs - chReturnCogs;
+
+                var chProfit = isOwner ? (chNetRevenue - chNetCogs) : (decimal?)null;
+                var chMargin = (isOwner && chNetRevenue > 0 && chProfit.HasValue)
+                    ? Math.Round((chProfit.Value / chNetRevenue) * 100, 2)
+                    : (decimal?)null;
 
                 return new ChannelRevenueBreakdownDto
                 {
-                    Channel = g.Key,
+                    Channel = ch,
                     Revenue = chRevenue,
-                    CostOfGoodsSold = chCogs,
+                    ReturnAmount = chReturnAmount,
+                    NetRevenue = chNetRevenue,
+                    CostOfGoodsSold = isOwner ? chCogs : null,
+                    ReturnCogs = isOwner ? chReturnCogs : null,
+                    NetCogs = isOwner ? chNetCogs : null,
                     GrossProfit = chProfit,
                     GrossMarginPercentage = chMargin,
-                    OrderCount = g.Count()
+                    OrderCount = chOrders.Count
                 };
             })
-            .OrderByDescending(c => c.Revenue)
+            .OrderByDescending(c => c.NetRevenue)
             .ToList();
 
         // Phân rã theo Chi nhánh (Branch)
-        var byBranch = orders
-            .GroupBy(o => new { o.BranchId, BranchName = o.Branch != null ? o.Branch.Name : "N/A" })
-            .Select(g =>
+        var branchMap = new Dictionary<Guid, string>();
+        foreach (var o in orders)
+        {
+            branchMap.TryAdd(o.BranchId, o.Branch != null ? o.Branch.Name : "N/A");
+        }
+        foreach (var r in returns)
+        {
+            branchMap.TryAdd(r.BranchId, r.Branch != null ? r.Branch.Name : "N/A");
+        }
+
+        var byBranch = branchMap
+            .Select(kv =>
             {
-                var brRevenue = g.Sum(o => o.TotalAmount);
-                var brCogs = g.SelectMany(o => o.Items).Sum(i => (i.CostPrice ?? 0) * i.BaseQuantity);
-                var brProfit = brRevenue - brCogs;
+                var brId = kv.Key;
+                var brName = kv.Value;
+                var brOrders = orders.Where(o => o.BranchId == brId).ToList();
+                var brReturns = returns.Where(r => r.BranchId == brId).ToList();
+
+                var brRevenue = brOrders.Sum(o => o.TotalAmount);
+                var brReturnAmount = brReturns.Sum(r => ReturnRevenueAmount(r));
+                var brNetRevenue = brRevenue - brReturnAmount;
+
+                var brCogs = brOrders.SelectMany(o => o.Items).Sum(i => (i.CostPrice ?? 0) * i.BaseQuantity);
+                var brReturnCogs = brReturns.Sum(r => CalculateReturnCogs(r));
+                var brNetCogs = brCogs - brReturnCogs;
+
+                var brProfit = isOwner ? (brNetRevenue - brNetCogs) : (decimal?)null;
 
                 return new BranchRevenueBreakdownDto
                 {
-                    BranchId = g.Key.BranchId,
-                    BranchName = g.Key.BranchName,
+                    BranchId = brId,
+                    BranchName = brName,
                     Revenue = brRevenue,
-                    CostOfGoodsSold = brCogs,
+                    ReturnAmount = brReturnAmount,
+                    NetRevenue = brNetRevenue,
+                    CostOfGoodsSold = isOwner ? brCogs : null,
+                    ReturnCogs = isOwner ? brReturnCogs : null,
+                    NetCogs = isOwner ? brNetCogs : null,
                     GrossProfit = brProfit,
-                    OrderCount = g.Count()
+                    OrderCount = brOrders.Count
                 };
             })
-            .OrderByDescending(b => b.Revenue)
+            .OrderByDescending(b => b.NetRevenue)
             .ToList();
 
         // Xu hướng theo ngày (Daily trend theo múi giờ Việt Nam +07:00 - BF-011)
         var vnOffset = TimeSpan.FromHours(7);
-        var dailyTrend = orders
+        var orderGroups = orders
             .GroupBy(o => o.CreatedAt.ToOffset(vnOffset).ToString("yyyy-MM-dd"))
-            .Select(g =>
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var returnGroups = returns
+            .GroupBy(r => r.ConfirmedAt!.Value.ToOffset(vnOffset).ToString("yyyy-MM-dd"))
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var allDates = orderGroups.Keys.Union(returnGroups.Keys).OrderBy(d => d).ToList();
+
+        var dailyTrend = allDates
+            .Select(d =>
             {
-                var dRevenue = g.Sum(o => o.TotalAmount);
-                var dCogs = g.SelectMany(o => o.Items).Sum(i => (i.CostPrice ?? 0) * i.BaseQuantity);
+                var dOrders = orderGroups.GetValueOrDefault(d) ?? new List<Order>();
+                var dReturns = returnGroups.GetValueOrDefault(d) ?? new List<SalesReturn>();
+
+                var dRevenue = dOrders.Sum(o => o.TotalAmount);
+                var dReturnAmount = dReturns.Sum(r => ReturnRevenueAmount(r));
+                var dNetRevenue = dRevenue - dReturnAmount;
+
+                var dCogs = dOrders.SelectMany(o => o.Items).Sum(i => (i.CostPrice ?? 0) * i.BaseQuantity);
+                var dReturnCogs = dReturns.Sum(r => CalculateReturnCogs(r));
+                var dNetCogs = dCogs - dReturnCogs;
+
+                var dProfit = isOwner ? (dNetRevenue - dNetCogs) : (decimal?)null;
+
                 return new DailyRevenueBreakdownDto
                 {
-                    Date = g.Key,
+                    Date = d,
                     Revenue = dRevenue,
-                    CostOfGoodsSold = dCogs,
-                    GrossProfit = dRevenue - dCogs,
-                    OrderCount = g.Count()
+                    ReturnAmount = dReturnAmount,
+                    NetRevenue = dNetRevenue,
+                    CostOfGoodsSold = isOwner ? dCogs : null,
+                    ReturnCogs = isOwner ? dReturnCogs : null,
+                    NetCogs = isOwner ? dNetCogs : null,
+                    GrossProfit = dProfit,
+                    OrderCount = dOrders.Count
                 };
             })
             .OrderBy(d => d.Date)
@@ -160,8 +298,17 @@ public class ReportService : IReportService
 
         return new RevenueProfitReportDto
         {
-            TotalNetRevenue = totalRevenue,
-            TotalCostOfGoodsSold = totalCogs,
+            Revenue = totalRevenue,
+            TotalRevenue = totalRevenue,
+            ReturnAmount = totalReturnAmount,
+            NetRevenue = netRevenue,
+            TotalNetRevenue = netRevenue,
+            CostOfGoodsSold = isOwner ? totalOrderCogs : null,
+            // Bộ ba trường cũ Total* là số thuần để TotalNetRevenue - TotalCostOfGoodsSold = TotalGrossProfit (trang Báo cáo đang đọc bộ này)
+            TotalCostOfGoodsSold = isOwner ? netCogs : null,
+            ReturnCogs = isOwner ? totalReturnCogs : null,
+            NetCogs = isOwner ? netCogs : null,
+            GrossProfit = grossProfit,
             TotalGrossProfit = grossProfit,
             GrossMarginPercentage = margin,
             TotalOrders = orders.Count,
@@ -408,11 +555,31 @@ public class ReportService : IReportService
             .Where(o => o.TenantId == tenantId && (o.Status == OrderStatus.Confirmed || o.Status == OrderStatus.Completed))
             .ToListAsync(ct);
 
+        var returns = await _context.SalesReturns
+            .AsNoTracking()
+            .Include(r => r.Order)
+            .Include(r => r.Items)
+                .ThenInclude(i => i.OrderItem)
+            .Where(r => r.TenantId == tenantId && r.Status == SalesReturnStatus.Confirmed && r.ConfirmedAt != null)
+            .ToListAsync(ct);
+
+        decimal CalculateReturnCogs(SalesReturn r)
+        {
+            return r.Items.Sum(i => i.Quantity * (i.OrderItem != null ? i.OrderItem.FactorSnapshot : 1m) * i.OriginalUnitCost);
+        }
+
         decimal totalRevenue = revenueOrders.Sum(o => o.TotalAmount);
         int totalOrders = revenueOrders.Count;
-        decimal totalCogs = revenueOrders.SelectMany(o => o.Items).Sum(i => (i.CostPrice ?? 0) * i.BaseQuantity);
-        decimal? totalGrossProfit = isOwner ? (totalRevenue - totalCogs) : null;
-        decimal grossMargin = (isOwner && totalRevenue > 0) ? Math.Round(((totalRevenue - totalCogs) / totalRevenue) * 100, 2) : 0;
+        decimal totalOrderCogs = revenueOrders.SelectMany(o => o.Items).Sum(i => (i.CostPrice ?? 0) * i.BaseQuantity);
+
+        decimal returnAmount = returns.Sum(r => ReturnRevenueAmount(r));
+        decimal returnCogs = returns.Sum(r => CalculateReturnCogs(r));
+
+        decimal netRevenue = totalRevenue - returnAmount;
+        decimal netCogs = totalOrderCogs - returnCogs;
+
+        decimal? totalGrossProfit = isOwner ? (netRevenue - netCogs) : null;
+        decimal grossMargin = (isOwner && netRevenue > 0) ? Math.Round(((netRevenue - netCogs) / netRevenue) * 100, 2) : 0;
 
         // 2. Thống kê số lượng SKU đang quản lý
         var skuCount = await _context.Skus
@@ -456,21 +623,44 @@ public class ReportService : IReportService
 
         // 5. Xu hướng doanh thu 7 ngày gần nhất phục vụ vẽ biểu đồ Dashboard
         var trendStart = ReportTimeHelper.StartOfDayUtc(ReportTimeHelper.Today().AddDays(-6));
-        var recentTrend = revenueOrders
+
+        var recentOrderGroups = revenueOrders
             .Where(o => o.CreatedAt >= trendStart)
             .GroupBy(o => ReportTimeHelper.ToLocalDate(o.CreatedAt).ToString("yyyy-MM-dd"))
-            .OrderBy(g => g.Key)
-            .Select(g =>
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var recentReturnGroups = returns
+            .Where(r => r.ConfirmedAt >= trendStart)
+            .GroupBy(r => ReportTimeHelper.ToLocalDate(r.ConfirmedAt!.Value).ToString("yyyy-MM-dd"))
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var recentDates = recentOrderGroups.Keys.Union(recentReturnGroups.Keys).OrderBy(d => d).ToList();
+
+        var recentTrend = recentDates
+            .Select(date =>
             {
-                var rev = g.Sum(o => o.TotalAmount);
-                var cogs = g.SelectMany(o => o.Items).Sum(i => (i.CostPrice ?? 0) * i.BaseQuantity);
+                var dOrders = recentOrderGroups.GetValueOrDefault(date) ?? new List<Order>();
+                var dReturns = recentReturnGroups.GetValueOrDefault(date) ?? new List<SalesReturn>();
+
+                var rev = dOrders.Sum(o => o.TotalAmount);
+                var retAmt = dReturns.Sum(r => ReturnRevenueAmount(r));
+                var netRev = rev - retAmt;
+
+                var cogs = dOrders.SelectMany(o => o.Items).Sum(i => (i.CostPrice ?? 0) * i.BaseQuantity);
+                var retCogs = dReturns.Sum(r => CalculateReturnCogs(r));
+                var netDayCogs = cogs - retCogs;
+
                 return new DailyRevenueBreakdownDto
                 {
-                    Date = g.Key,
+                    Date = date,
                     Revenue = rev,
-                    CostOfGoodsSold = isOwner ? cogs : 0,
-                    GrossProfit = isOwner ? (rev - cogs) : 0,
-                    OrderCount = g.Count()
+                    ReturnAmount = retAmt,
+                    NetRevenue = netRev,
+                    CostOfGoodsSold = isOwner ? cogs : null,
+                    ReturnCogs = isOwner ? retCogs : null,
+                    NetCogs = isOwner ? netDayCogs : null,
+                    GrossProfit = isOwner ? (netRev - netDayCogs) : null,
+                    OrderCount = dOrders.Count
                 };
             })
             .ToList();
@@ -478,6 +668,10 @@ public class ReportService : IReportService
         return new DashboardSummaryDto
         {
             TotalRevenue = totalRevenue,
+            ReturnAmount = returnAmount,
+            NetRevenue = netRevenue,
+            ReturnCogs = isOwner ? returnCogs : null,
+            NetCogs = isOwner ? netCogs : null,
             TotalOrders = totalOrders,
             TotalGrossProfit = totalGrossProfit,
             GrossMarginPercentage = grossMargin,

@@ -8,6 +8,7 @@ import { InventoryPage } from "./pages/InventoryPage";
 import { InventoryTransfersPage } from "./pages/InventoryTransfersPage";
 import { StockCountsPage } from "./pages/StockCountsPage";
 import { OrdersPage } from "./pages/OrdersPage";
+import { SalesReturnsPage } from "./pages/SalesReturnsPage";
 import { SalesInvoicesPage } from "./pages/SalesInvoicesPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { PosRedirectPage } from "./pages/PosRedirectPage";
@@ -50,6 +51,12 @@ export default function App() {
               <Route path="/admin/orders" element={<OrdersPage />} />
               <Route path="/invoices" element={<SalesInvoicesPage />} />
               <Route path="/admin/invoices" element={<SalesInvoicesPage />} />
+
+              {/* Phân hệ Quản lý Trả hàng (CS-01): Chỉ Owner và Staff */}
+              <Route element={<ProtectedRoute allowedRoles={["Owner", "Staff"]} />}>
+                <Route path="/returns" element={<SalesReturnsPage />} />
+                <Route path="/admin/returns" element={<SalesReturnsPage />} />
+              </Route>
 
               {/* Chỉ Owner được truy cập Báo cáo, Chi nhánh / Tổ chức và Kết nối sàn */}
               <Route element={<ProtectedRoute allowedRoles={["Owner"]} />}>

@@ -32,6 +32,8 @@ public interface IAppDbContext
     DbSet<Reservation> Reservations { get; }
     DbSet<Payment> Payments { get; }
     DbSet<PaymentAccount> PaymentAccounts { get; }
+    DbSet<SalesReturn> SalesReturns { get; }
+    DbSet<SalesReturnItem> SalesReturnItems { get; }
     DbSet<StockTransfer> StockTransfers { get; }
     DbSet<StockTransferItem> StockTransferItems { get; }
     DbSet<StockCount> StockCounts { get; }

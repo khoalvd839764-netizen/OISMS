@@ -2,9 +2,13 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { OrderDetail } from '../../types/ordersCenter';
 import { ORDER_STATUS_LABEL, ORDER_ACTIONS } from '../../types/ordersCenter';
 import { orderService } from '../../services/orderService';
-import { Printer } from 'lucide-react';
+import { Printer, RotateCcw } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { ComingSoonBadge } from '../ui';
+import { salesReturnService } from '../../services/salesReturnService';
+import type { ReturnableItem, SalesReturn } from '../../types/salesReturns';
+import { CreateSalesReturnModal } from '../salesReturns/CreateSalesReturnModal';
+import { SalesReturnDetailDrawer } from '../salesReturns/SalesReturnDetailDrawer';
 
 interface OrderDetailDrawerProps {
   orderId: string | null;
@@ -27,6 +31,12 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
   const [error, setError] = useState<string | null>(null);
   const activeReqRef = useRef(0);
 
+  // Trạng thái trả hàng (CS-01)
+  const [returnableItems, setReturnableItems] = useState<ReturnableItem[]>([]);
+  const [orderReturns, setOrderReturns] = useState<SalesReturn[]>([]);
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [selectedReturnId, setSelectedReturnId] = useState<string | null>(null);
+
   const fetchDetail = useCallback(async (targetOrderId: string) => {
     const reqSeq = ++activeReqRef.current;
     setDetail(null);
@@ -37,6 +47,19 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
       const data = await orderService.getOrderById(targetOrderId);
       if (reqSeq !== activeReqRef.current || orderId !== targetOrderId) return;
       setDetail(data);
+
+      if (data.status === 'Confirmed' || data.status === 'Completed') {
+        const [retItems, returnsRes] = await Promise.all([
+          salesReturnService.getReturnableItems(targetOrderId).catch(() => []),
+          salesReturnService.list({ orderId: targetOrderId }).catch(() => ({ items: [] })),
+        ]);
+        if (reqSeq !== activeReqRef.current || orderId !== targetOrderId) return;
+        setReturnableItems(retItems);
+        setOrderReturns(returnsRes.items || []);
+      } else {
+        setReturnableItems([]);
+        setOrderReturns([]);
+      }
     } catch (err: any) {
       if (reqSeq !== activeReqRef.current || orderId !== targetOrderId) return;
       const msg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || 'Không thể tải chi tiết đơn hàng.';
@@ -56,6 +79,8 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
     setCancelReason('');
     setError(null);
     setDetail(null);
+    setReturnableItems([]);
+    setOrderReturns([]);
     setLoading(false);
     setActionLoading(false);
 
@@ -65,12 +90,22 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
 
     setLoading(true);
     orderService.getOrderById(orderId)
-      .then((data) => {
-        if (currentSeq !== activeReqRef.current || orderId !== orderId) return;
+      .then(async (data) => {
+        if (currentSeq !== activeReqRef.current) return;
         setDetail(data);
+
+        if (data.status === 'Confirmed' || data.status === 'Completed') {
+          const [retItems, returnsRes] = await Promise.all([
+            salesReturnService.getReturnableItems(orderId).catch(() => []),
+            salesReturnService.list({ orderId }).catch(() => ({ items: [] })),
+          ]);
+          if (currentSeq !== activeReqRef.current) return;
+          setReturnableItems(retItems);
+          setOrderReturns(returnsRes.items || []);
+        }
       })
       .catch((err) => {
-        if (currentSeq !== activeReqRef.current || orderId !== orderId) return;
+        if (currentSeq !== activeReqRef.current) return;
         const msg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || 'Không thể tải chi tiết đơn hàng.';
         setError(msg);
       })
@@ -80,6 +115,22 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
         }
       });
   }, [orderId]);
+
+
+  const returnableMap = React.useMemo(() => {
+    const map: Record<string, ReturnableItem> = {};
+    returnableItems.forEach((it) => {
+      map[it.orderItemId] = it;
+    });
+    return map;
+  }, [returnableItems]);
+
+  const canReturn =
+    detail !== null &&
+    (detail.status === 'Confirmed' || detail.status === 'Completed') &&
+    returnableItems.some((i) => i.returnableQuantity > 0);
+
+  const actions = detail ? ORDER_ACTIONS[detail.status] || [] : [];
 
   if (!orderId) return null;
 
@@ -161,7 +212,6 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
     }
   };
 
-  const actions = detail ? ORDER_ACTIONS[detail.status] || [] : [];
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-black/40 flex justify-end print:static print:bg-transparent print:p-0">
@@ -180,6 +230,15 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
             )}
           </div>
           <div className="flex items-center gap-2 print:hidden">
+            {canReturn && (
+              <button
+                onClick={() => setShowReturnModal(true)}
+                className="px-2.5 py-1 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded hover:bg-indigo-100 flex items-center gap-1 shadow-xs"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Trả hàng
+              </button>
+            )}
             <button
               disabled
               className="px-2.5 py-1 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-100 flex items-center gap-1 shadow-sm"
@@ -244,7 +303,8 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
                     <thead className="bg-gray-100 text-gray-600 font-semibold border-b border-gray-200">
                       <tr>
                         <th className="p-2">Sản phẩm</th>
-                        <th className="p-2 text-center">SL</th>
+                        <th className="p-2 text-center">SL mua</th>
+                        <th className="p-2 text-center text-rose-600">Đã trả</th>
                         <th className="p-2 text-right">Giá niêm yết</th>
                         {isOwner && <th className="p-2 text-right print:hidden">Giá vốn (WAC)</th>}
                         <th className="p-2 text-right">Tổng tiền</th>
@@ -258,6 +318,9 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
                             <div className="text-gray-500">{item.skuName}</div>
                           </td>
                           <td className="p-2 text-center font-medium">{item.quantity}</td>
+                          <td className="p-2 text-center font-semibold text-rose-600">
+                            {returnableMap[item.id]?.returnedQuantity ?? (item as any).returnedQuantity ?? 0}
+                          </td>
                           <td className="p-2 text-right">
                             {item.unitPrice.toLocaleString('vi-VN')} ₫
                           </td>
@@ -297,13 +360,86 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
                   </div>
                 )}
               </div>
+
+              {/* Danh sách phiếu trả hàng của đơn (CS-01) */}
+              {orderReturns.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-gray-700 text-sm">
+                    Lịch sử phiếu trả hàng ({orderReturns.length})
+                  </h3>
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-gray-100 text-gray-600 font-semibold border-b border-gray-200">
+                        <tr>
+                          <th className="p-2">Số phiếu</th>
+                          <th className="p-2 text-center">Trạng thái</th>
+                          <th className="p-2 text-right">Tiền hoàn</th>
+                          <th className="p-2 text-right">Thời gian</th>
+                          <th className="p-2 text-right">Chi tiết</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {orderReturns.map((ret) => (
+                          <tr key={ret.id} className="hover:bg-gray-50">
+                            <td className="p-2 font-bold text-indigo-600">{ret.number}</td>
+                            <td className="p-2 text-center">
+                              <span
+                                className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  ret.status === 'Confirmed'
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : ret.status === 'Cancelled'
+                                    ? 'bg-rose-100 text-rose-800'
+                                    : 'bg-gray-100 text-gray-700'
+                                }`}
+                              >
+                                {ret.status === 'Confirmed'
+                                  ? 'Đã xác nhận'
+                                  : ret.status === 'Cancelled'
+                                  ? 'Đã hủy'
+                                  : 'Nháp'}
+                              </span>
+                            </td>
+                            <td className="p-2 text-right font-semibold text-indigo-700">
+                              {(ret.totalRefundAmount || 0).toLocaleString('vi-VN')} ₫
+                            </td>
+                            <td className="p-2 text-right text-gray-500">
+                              {ret.confirmedAt
+                                ? new Date(ret.confirmedAt).toLocaleDateString('vi-VN')
+                                : new Date(ret.createdAt).toLocaleDateString('vi-VN')}
+                            </td>
+                            <td className="p-2 text-right">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedReturnId(ret.id)}
+                                className="text-xs text-indigo-600 hover:underline font-semibold"
+                              >
+                                Xem
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </>
           ) : null}
         </div>
 
         {/* Footer chứa các Nút Thao Tác Nghiệp Vụ */}
-        {detail && actions.length > 0 && (
+        {detail && (actions.length > 0 || canReturn) && (
           <div className="p-4 border-t border-gray-200 bg-gray-50 flex gap-2 justify-end print:hidden">
+            {canReturn && (
+              <button
+                disabled={actionLoading}
+                onClick={() => setShowReturnModal(true)}
+                className="px-4 py-2 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100 flex items-center gap-1"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Trả hàng
+              </button>
+            )}
             {actions.includes('cancel') && (
               <button
                 disabled={actionLoading}
@@ -374,6 +510,27 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal lập phiếu trả hàng từ đơn (G2) */}
+      <CreateSalesReturnModal
+        isOpen={showReturnModal}
+        preselectedOrder={detail}
+        onClose={() => setShowReturnModal(false)}
+        onSuccess={() => {
+          if (orderId) fetchDetail(orderId);
+          onRefresh();
+        }}
+      />
+
+      {/* Drawer xem chi tiết phiếu trả hàng (G3) */}
+      <SalesReturnDetailDrawer
+        returnId={selectedReturnId}
+        onClose={() => setSelectedReturnId(null)}
+        onRefresh={() => {
+          if (orderId) fetchDetail(orderId);
+          onRefresh();
+        }}
+      />
     </div>
   );
 };

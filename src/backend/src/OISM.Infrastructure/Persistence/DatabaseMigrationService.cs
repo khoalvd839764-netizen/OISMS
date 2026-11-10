@@ -446,7 +446,11 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         new("uq_payment_accounts_2", 'u', "payment_accounts", Columns: ["tenant_id", "bank_bin", "account_number"]),
         new("ck_payment_accounts_bank_bin", 'c', "payment_accounts"),
         new("ck_payment_accounts_account_number", 'c', "payment_accounts"),
-        new("ck_payments_bank_transfer_snapshot", 'c', "payments")
+        new("ck_payments_bank_transfer_snapshot", 'c', "payments"),
+
+        // CS-01: sales_returns request_key và total_refund_amount
+        new("uq_sales_returns_4", 'u', "sales_returns", Columns: ["tenant_id", "request_key"]),
+        new("ck_sales_returns_total_refund_amount_nonnegative", 'c', "sales_returns", ExpectedNormalizedExpression: "(total_refund_amount >= (0)::numeric)")
     ];
 
 
@@ -2193,13 +2197,55 @@ END $$;
                 await paymentAccountsCmd.ExecuteNonQueryAsync(cancellationToken);
             }
 
+            // CS-01: Thêm request_key, total_refund_amount, note vào bảng sales_returns.
+            // Giữ đồng bộ với docker/postgres/migrations/20261110_sales_returns_request_key.sql.
+            const string salesReturnsUpgradeSql = @"
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'sales_returns' AND column_name = 'request_key'
+    ) THEN
+        ALTER TABLE public.sales_returns ADD COLUMN request_key uuid NULL;
+        UPDATE public.sales_returns SET request_key = gen_random_uuid() WHERE request_key IS NULL;
+        ALTER TABLE public.sales_returns ALTER COLUMN request_key SET NOT NULL;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'sales_returns' AND column_name = 'total_refund_amount'
+    ) THEN
+        ALTER TABLE public.sales_returns ADD COLUMN total_refund_amount numeric(20,2) NOT NULL DEFAULT 0;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'sales_returns' AND column_name = 'note'
+    ) THEN
+        ALTER TABLE public.sales_returns ADD COLUMN note text NULL;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_sales_returns_4') THEN
+        ALTER TABLE public.sales_returns ADD CONSTRAINT uq_sales_returns_4 UNIQUE (tenant_id, request_key);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_sales_returns_total_refund_amount_nonnegative') THEN
+        ALTER TABLE public.sales_returns ADD CONSTRAINT ck_sales_returns_total_refund_amount_nonnegative CHECK (total_refund_amount >= 0);
+    END IF;
+END $$;
+";
+            await using (var salesReturnsCmd = new NpgsqlCommand(salesReturnsUpgradeSql, connection, tx))
+            {
+                await salesReturnsCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
             await tx.CommitAsync(cancellationToken);
             return new MigrationExecutionResult(
                 Success: true,
                 IsFreshInstall: false,
                 IsBaselineAdopted: false,
                 TableCount: RequiredTables.Length,
-                Message: "Nâng cấp schema v0.5 stock_transfers, shop_integrations, multi_unit, price_lists, purchase_orders, sales_invoices, stock_count_schedules và payment_accounts thành công.");
+                Message: "Nâng cấp schema v0.5 stock_transfers, shop_integrations, multi_unit, price_lists, purchase_orders, sales_invoices, stock_count_schedules, payment_accounts và sales_returns thành công.");
         }
         catch (Exception ex)
         {
@@ -2747,7 +2793,8 @@ WHERE table_schema = 'public';";
             "stock_count_periods.period_key", "stock_count_periods.scheduled_at", "stock_count_periods.due_at", "stock_count_periods.status",
             "stock_count_approvals.stock_count_id", "stock_count_approvals.action", "stock_count_approvals.differences",
             "stock_counts.count_type", "stock_counts.period_id", "stock_counts.submitted_by", "stock_counts.submitted_at",
-            "stock_count_items.counted_by", "stock_count_items.counted_at", "stock_count_items.snapshot_at"
+            "stock_count_items.counted_by", "stock_count_items.counted_at", "stock_count_items.snapshot_at",
+            "sales_returns.request_key", "sales_returns.total_refund_amount", "sales_returns.note"
         ];
         foreach (var col in crucialColumns)
         {
@@ -2878,6 +2925,30 @@ WHERE table_schema = 'public';";
             if (siTenantCol.IsNullable)
             {
                 errors.Add($"Cột 'shop_integrations.tenant_id' sai nullability (thực tế='NULL', kỳ vọng='NOT NULL').");
+            }
+        }
+
+        if (columnMap.TryGetValue("sales_returns.request_key", out var srReqKeyCol))
+        {
+            if (!string.Equals(srReqKeyCol.DataType, "uuid", StringComparison.OrdinalIgnoreCase))
+            {
+                errors.Add($"Cột 'sales_returns.request_key' sai kiểu dữ liệu (thực tế='{srReqKeyCol.DataType}', kỳ vọng='uuid').");
+            }
+            if (srReqKeyCol.IsNullable)
+            {
+                errors.Add($"Cột 'sales_returns.request_key' sai nullability (thực tế='NULL', kỳ vọng='NOT NULL').");
+            }
+        }
+
+        if (columnMap.TryGetValue("sales_returns.total_refund_amount", out var srRefundCol))
+        {
+            if (!string.Equals(srRefundCol.DataType, "numeric", StringComparison.OrdinalIgnoreCase))
+            {
+                errors.Add($"Cột 'sales_returns.total_refund_amount' sai kiểu dữ liệu (thực tế='{srRefundCol.DataType}', kỳ vọng='numeric').");
+            }
+            if (srRefundCol.IsNullable)
+            {
+                errors.Add($"Cột 'sales_returns.total_refund_amount' sai nullability (thực tế='NULL', kỳ vọng='NOT NULL').");
             }
         }
 

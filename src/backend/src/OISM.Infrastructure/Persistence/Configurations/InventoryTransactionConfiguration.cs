@@ -24,6 +24,10 @@ public class InventoryTransactionConfiguration : IEntityTypeConfiguration<Invent
             .IsUnique()
             .HasDatabaseName("uq_inventory_transactions_3");
 
+        builder.HasIndex(t => new { t.TenantId, t.SalesReturnItemId })
+            .IsUnique()
+            .HasDatabaseName("uq_inventory_transactions_7");
+
         builder.Property(t => t.TenantId).IsRequired();
 
         builder.Property(t => t.BranchId)
@@ -128,6 +132,13 @@ public class InventoryTransactionConfiguration : IEntityTypeConfiguration<Invent
         builder.HasOne(t => t.OrderItem)
             .WithMany()
             .HasForeignKey(t => new { t.TenantId, t.OrderItemId })
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(t => t.SalesReturnItem)
+            .WithMany()
+            .HasForeignKey(t => new { t.TenantId, t.SalesReturnItemId })
+            .HasConstraintName("fk_inventory_transactions_sales_return_item_id")
+            .IsRequired(false)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne<InventoryAdjustmentItem>()

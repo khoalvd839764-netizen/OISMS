@@ -20,6 +20,7 @@ import {
   ClipboardCheck,
   Receipt,
   CreditCard,
+  RotateCcw,
 } from "lucide-react";
 import { Button } from "./ui";
 import { useAuth } from "../context/AuthContext";
@@ -35,6 +36,7 @@ const nav = [
   { to: "/inventory/transfers", label: "Chuyển kho", icon: ArrowLeftRight },
   { to: "/inventory/counts", label: "Kiểm kê kho", icon: ClipboardCheck },
   { to: "/orders", label: "Đơn đa kênh", icon: ShoppingBag },
+  { to: "/returns", label: "Trả hàng", icon: RotateCcw },
   { to: "/invoices", label: "Hóa đơn & Truy vết", icon: Receipt },
   { to: "/reports", label: "Báo cáo", icon: ChartNoAxesCombined },
 ];
@@ -118,9 +120,12 @@ export function AdminShell() {
     landingPath: "/admin",
   };
 
-  const visibleNav = nav.filter(
-    (item) => account.role === "Owner" || !["/reports"].includes(item.to)
-  );
+  const visibleNav = nav.filter((item) => {
+    if (item.to === "/returns") {
+      return account.role === "Owner" || account.role === "Staff";
+    }
+    return account.role === "Owner" || !["/reports"].includes(item.to);
+  });
 
   const secondaryTitles: Record<string, string> = {
     "/": "Tổng quan",
@@ -131,6 +136,8 @@ export function AdminShell() {
     "/admin/purchase-orders": "Đơn mua hàng từ NCC",
     "/invoices": "Hóa đơn & Truy vết",
     "/admin/invoices": "Hóa đơn & Truy vết",
+    "/returns": "Phiếu trả hàng & hoàn tiền",
+    "/admin/returns": "Phiếu trả hàng & hoàn tiền",
     "/inventory": "Kho & sổ kho",
     "/admin/inventory": "Kho & sổ kho",
     "/inventory/transfers": "Chuyển kho nội bộ (2 Bước)",

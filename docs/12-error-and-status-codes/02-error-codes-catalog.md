@@ -162,6 +162,20 @@ Tài liệu này là **từ điển tra cứu danh mục mã lỗi toàn hệ th
 
 ---
 
+### 2.6a. Phân Hệ Trả Hàng Từ Khách (`SALES_RETURNS`, `CS-01`)
+*Liên kết hợp đồng API:* [`../05-api-contracts/04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md)  
+*Liên kết đặc tả nghiệp vụ:* [`../Upgrade-recommended/08-tra-hang-cs01.md`](../Upgrade-recommended/08-tra-hang-cs01.md)
+
+| Mã lỗi (`ErrorCode`) | HTTP Status | Tiêu đề lỗi | Thông báo chi tiết mẫu | Nguyên nhân phát sinh | Hướng dẫn khắc phục trên UI |
+| :--- | :---: | :--- | :--- | :--- | :--- |
+| `SALES_RETURN_NOT_FOUND` | `404` | Không tìm thấy phiếu trả hàng | *Không tìm thấy phiếu trả hàng.* | Phiếu trả hàng không tồn tại hoặc thuộc tenant khác. | Kiểm tra lại số phiếu trả hàng. |
+| `ORDER_NOT_RETURNABLE` | `409` | Đơn hàng không thể trả | *Đơn hàng chưa xuất kho hoặc đã bị hủy.* | Đơn hàng không ở trạng thái Confirmed hoặc Completed. | Chỉ lập phiếu trả cho đơn hàng đã xuất kho thành công. |
+| `RETURN_QUANTITY_EXCEEDED` | `422` | Vượt số lượng được trả | *Số lượng trả vượt quá số lượng còn được phép trả.* | Tổng số lượng trả trên dòng đơn vượt quá (Quantity - đã trả trước đó). | Giảm số lượng trả xuống mức cho phép. |
+| `REFUND_AMOUNT_EXCEEDED` | `422` | Tiền hoàn vượt mức cho phép | *Tiền hoàn vượt quá giá trị dòng sản phẩm hoặc tổng đơn hàng.* | Tiền hoàn nhập cao hơn đơn giá × số lượng trả hoặc vượt tổng tiền đơn. | Giảm số tiền hoàn lại cho khách. |
+| `RETURN_WAREHOUSE_MISMATCH` | `422` | Kho nhận không thuộc chi nhánh đơn hàng | *Kho nhận hàng trả không thuộc chi nhánh của đơn hàng gốc.* | Chọn kho không thuộc chi nhánh đã xuất bán đơn hàng. | Chọn kho hàng thuộc đúng chi nhánh của đơn. |
+
+---
+
 ### 2.7. Phân Hệ Hệ Thống & Hạ Tầng (`SYSTEM`)
 
 | Mã lỗi (`ErrorCode`) | HTTP Status | Tiêu đề lỗi | Thông báo chi tiết mẫu | Nguyên nhân phát sinh | Hướng dẫn khắc phục trên UI |

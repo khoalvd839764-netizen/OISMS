@@ -38,14 +38,14 @@ Các file `fr-*.md` là **yêu cầu**. Bảng dưới tóm tắt mức hiện t
 | `FR-AUTH-03` | Đã có, còn lệch | Xem [lệch RBAC](../01-users-and-rbac/02-rbac-matrix.md#21-lệch-giữa-yêu-cầu-và-code-hiện-tại-đối-chiếu-06112026). |
 | `FR-AUTH-04` | Đã có | Phân công người dùng vào chi nhánh (phần của CS-02) chưa có. |
 | `FR-PROD-01..04` | Đã có | Giá theo bảng giá thời gian + phiếu đổi giá (Upgrade 04), nhiều đơn vị tính (Upgrade 05). |
-| `FR-INV-01..04` | Đã có | Phiếu mua → phiếu nhập (Upgrade 01-A), lịch/kỳ kiểm kê, duyệt chênh lệch (Upgrade 03). Trả hàng (`Return`) chưa có API. |
+| `FR-INV-01..04` | Đã có | Phiếu mua → phiếu nhập (Upgrade 01-A), lịch/kỳ kiểm kê, duyệt chênh lệch (Upgrade 03). Trả hàng (`Return`, CS-01): backend đã hoàn thành API, ghi sổ cái IN, tính lại WAC, khấu trừ doanh thu/giá vốn thuần và truy vết chuỗi chứng từ (09/11/2026). |
 | `FR-COST-01..02` | Đã có | WAC theo đơn vị gốc, chụp `CostPrice` khi Confirm/POS. |
 | `FR-RSE-01..03` | Đã có | Khóa `pg_advisory_xact_lock` + `FOR UPDATE`. |
 | `FR-ORD-01..03` | Đã có | Hóa đơn bán và truy vết chứng từ (Upgrade 02). |
 | `FR-POS-01..04` | Đã có | Một giao diện POS trong `pos-app` (5174), chuyển từ Admin; `/pos` Admin chỉ chuyển hướng. |
 | `FR-SIM-01..02` | Đã có; POS realtime tồn đạt 08/11/2026 | Webhook có chữ ký; POS nhận `StockLevelChanged`, đổi nhóm chi nhánh, lọc phiên cũ và refetch khi reconnect. Đã kiểm chứng backend/PostgreSQL thật và hai tab. Popup/âm thanh đơn mới trên POS nằm ngoài pha này; chưa đánh dấu toàn bộ FR-09 hoàn tất. |
 | `FR-SIM-03` | Có code, mặc định tắt | Xem [fr-10](./fr-10-background-hangfire.md). |
-| `FR-REP-01..03` | Đã có | Báo cáo theo ngày nghiệp vụ `UTC+07:00`, lọc nửa mở. |
+| `FR-REP-01..03` | Đã có | Báo cáo theo ngày nghiệp vụ `UTC+07:00`, lọc nửa mở; khấu trừ hàng trả (`returnAmount`, `returnCogs`) ra số thuần; bảo mật giá vốn và lãi gộp chỉ Owner xem được. |
 | `FR-AI-01` | Đã có API | Tab Gợi ý nhập hàng đang tạm ẩn trong `InventoryPage.tsx`, API vẫn chạy. |
 
 Còn thiếu theo danh sách Coming Soon: CS-01 (trả hàng), CS-06, U01-B. CS-05 (VietQR) đã xong, chưa có xác nhận tự động qua webhook ngân hàng. Chi tiết: [báo cáo frontend](../report-after-upgrade/frontend-coming-soon-va-upgrade.md).

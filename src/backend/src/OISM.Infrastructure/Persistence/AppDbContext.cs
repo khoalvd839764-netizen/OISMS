@@ -50,6 +50,8 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<Reservation> Reservations { get; set; } = null!;
     public DbSet<Payment> Payments { get; set; } = null!;
     public DbSet<PaymentAccount> PaymentAccounts { get; set; } = null!;
+    public DbSet<SalesReturn> SalesReturns { get; set; } = null!;
+    public DbSet<SalesReturnItem> SalesReturnItems { get; set; } = null!;
     public DbSet<StockTransfer> StockTransfers { get; set; } = null!;
     public DbSet<StockTransferItem> StockTransferItems { get; set; } = null!;
     public DbSet<StockCount> StockCounts { get; set; } = null!;
@@ -138,6 +140,12 @@ public class AppDbContext : DbContext, IAppDbContext
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
 
         modelBuilder.Entity<PaymentAccount>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<SalesReturn>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<SalesReturnItem>()
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
 
         modelBuilder.Entity<StockTransfer>()

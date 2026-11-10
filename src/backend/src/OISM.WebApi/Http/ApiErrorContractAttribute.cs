@@ -47,6 +47,7 @@ internal enum ApiErrorProfile
     PosCheckout,
     Pricing,
     SalesInvoices,
+    SalesReturns,
     Simulator,
     StockCountPeriods,
     StockCountSchedules,

@@ -35,6 +35,12 @@ internal static class ApiErrorResponse
             (ApiErrorProfile.Reserve or ApiErrorProfile.OrderProcess, InvalidOperationException) => Message(409, exception.Message),
             (ApiErrorProfile.Reserve, ArgumentException) => Message(400, exception.Message),
             (ApiErrorProfile.PaymentAccounts, ArgumentException) => Problem(context, profile, ValidationCode, ValidationTitle, 400, exception.Message),
+            (ApiErrorProfile.SalesReturns, KeyNotFoundException) =>
+                Problem(context, profile, "SALES_RETURN_NOT_FOUND", "Không tìm thấy phiếu trả hàng", 404, exception.Message),
+            (ApiErrorProfile.SalesReturns, ArgumentException) =>
+                Problem(context, profile, ValidationCode, ValidationTitle, 400, exception.Message),
+            (ApiErrorProfile.SalesReturns, InvalidOperationException) =>
+                Problem(context, profile, "INVALID_STATE_TRANSITION", "Chuyển trạng thái không hợp lệ", 409, exception.Message),
             (ApiErrorProfile.Register, _) => RegistrationFailure(context, exception),
             (ApiErrorProfile.Simulator, _) => Message(400, exception.Message),
             (ApiErrorProfile.Webhooks, _) => WebhookFailure(context, exception),

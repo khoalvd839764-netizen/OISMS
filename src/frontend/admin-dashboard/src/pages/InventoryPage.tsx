@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Badge, Button, ComingSoonBadge, EmptyState, Input, Modal, PageTitle, Select } from "../components/ui";
+import { Badge, Button, EmptyState, Input, Modal, PageTitle, Select } from "../components/ui";
 import { NumberField } from "../components/NumberField";
 import { apiAdapter, generateUuid } from "../services/apiAdapter";
 import { realtimeAdapter } from "../services/realtimeAdapter";
@@ -28,6 +28,7 @@ import { useAuth } from "../context/AuthContext";
 import type { LedgerEntry, Sku } from "../types/domain";
 import type { ReorderRecommendationSummary } from "../types/ai";
 import { GoodsReceiptList } from "../components/GoodsReceiptList";
+import { CreateSalesReturnModal } from "../components/salesReturns/CreateSalesReturnModal";
 import { purchaseOrderService } from "../services/purchaseOrderService";
 import type { PurchaseOrderResponse } from "../types/purchaseOrder";
 
@@ -236,6 +237,7 @@ export function InventoryPage() {
 
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const [showSalesReturnModal, setShowSalesReturnModal] = useState(false);
 
   // Form Phiếu nhập kho nhiều dòng
   const [selectedSupplier, setSelectedSupplier] = useState("");
@@ -1211,8 +1213,12 @@ export function InventoryPage() {
         description="Theo dõi tồn thực tế, tồn giữ chỗ, thực bán khả dụng theo từng Chi nhánh / Kho và bút toán sổ cái bất biến."
         actions={
           <>
-            <Button variant="secondary" disabled title="Chưa có luồng nhận trả hàng và ghi sổ kho.">
-              <RotateCcw size={17} />Ghi nhận trả hàng <ComingSoonBadge />
+            <Button
+              variant="secondary"
+              onClick={() => setShowSalesReturnModal(true)}
+              title="Ghi nhận khách trả hàng và nhập kho (CS-01)"
+            >
+              <RotateCcw size={17} />Ghi nhận trả hàng
             </Button>
             <Button variant="secondary" onClick={() => navigate("/purchase-orders")}>
               <ClipboardList size={17} />Đơn mua hàng
@@ -2943,6 +2949,14 @@ export function InventoryPage() {
         </Modal>
       )}
 
+      {/* MODAL GHI NHẬN TRẢ HÀNG (CS-01) */}
+      <CreateSalesReturnModal
+        isOpen={showSalesReturnModal}
+        onClose={() => setShowSalesReturnModal(false)}
+        onSuccess={() => {
+          loadData();
+        }}
+      />
     </>
   );
 }
