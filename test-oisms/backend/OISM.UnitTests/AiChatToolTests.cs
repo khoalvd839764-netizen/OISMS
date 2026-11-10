@@ -219,7 +219,8 @@ public sealed class AiChatToolTests
         Assert.Equal(expected.Name, response.Scope);
         Assert.Equal(LowStock, Assert.Single(response.UsedTools));
         Assert.Empty(response.BranchChoices);
-        Assert.Equal(4, fixture.Payloads[0].Tools.Count);
+        Assert.Equal(3, fixture.Payloads[0].Tools.Count);
+        Assert.DoesNotContain(fixture.Payloads[0].Tools, tool => tool.Name == "get_revenue");
         Assert.All(fixture.Payloads[0].Tools, tool =>
         {
             var properties = tool.Parameters.GetProperty("properties");
@@ -319,7 +320,7 @@ public sealed class AiChatToolTests
     }
 
     [Fact]
-    public async Task Chat_SeparatesCachedRevenueByRoleAndRemovesStaffCostFields()
+    public async Task Chat_OwnerGetsRevenueWithProfit_StaffCannotRunRevenueTool()
     {
         await using var fixture = new Fixture(includeRevenue: true);
         var expectedStart = new DateTimeOffset(2026, 11, 3, 17, 0, 0, TimeSpan.Zero);
@@ -341,23 +342,24 @@ public sealed class AiChatToolTests
         using var owner = JsonDocument.Parse(ownerPayload);
         Assert.Equal(500, owner.RootElement.GetProperty("data").GetProperty("grossProfit").GetInt32());
 
+        Assert.Equal(800, owner.RootElement.GetProperty("data").GetProperty("netRevenue").GetInt32());
+        Assert.Contains(fixture.Payloads.Last().Tools, tool => tool.Name == "get_revenue");
+
+        // Người dùng chốt 10/11/2026: Staff không được hỏi doanh thu qua trợ lý.
         fixture.CallThenReply("get_revenue", arguments);
         var response = await fixture.Service.ChatAsync(ChatRequest, "Staff");
-        var staffPayload = fixture.Payloads.Last().Messages[^1].Content!;
-        Assert.DoesNotContain("grossProfit", staffPayload, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("cogs", staffPayload, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("costOfGoodsSold", staffPayload, StringComparison.OrdinalIgnoreCase);
-        using var staff = JsonDocument.Parse(staffPayload);
-        var data = staff.RootElement.GetProperty("data");
-        Assert.Equal(800, data.GetProperty("netRevenue").GetInt32());
-        Assert.Equal(7, data.GetProperty("orderCount").GetInt32());
-        Assert.Equal(800, data.GetProperty("byChannel")[0].GetProperty("netRevenue").GetInt32());
-        Assert.Equal(800, data.GetProperty("byDay")[0].GetProperty("netRevenue").GetInt32());
-        Assert.Equal(new AiChatDateRange(new DateOnly(2026, 11, 4), new DateOnly(2026, 11, 10)), response.DateRange);
+        var staffRequest = fixture.Payloads.Last();
+        var staffPayload = staffRequest.Messages[^1].Content!;
+        Assert.DoesNotContain(staffRequest.Tools, tool => tool.Name == "get_revenue");
+        Assert.Contains("không có sẵn", staffPayload);
+        Assert.DoesNotContain("netRevenue", staffPayload, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("800", staffPayload);
+        Assert.Empty(response.UsedTools);
+        Assert.Null(response.DateRange);
         fixture.Reports.Verify(service => service.GetRevenueProfitReportAsync(
             It.IsAny<ReportFilterDto>(), true, It.IsAny<CancellationToken>()), Times.Once);
         fixture.Reports.Verify(service => service.GetRevenueProfitReportAsync(
-            It.IsAny<ReportFilterDto>(), false, It.IsAny<CancellationToken>()), Times.Once);
+            It.IsAny<ReportFilterDto>(), false, It.IsAny<CancellationToken>()), Times.Never);
     }
 
     private static LlmResponse ToolCall(string name, string arguments = "{}") =>

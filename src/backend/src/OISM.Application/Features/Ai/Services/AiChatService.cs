@@ -38,6 +38,11 @@ public sealed class AiChatService(
         và get_reorder_suggestions trong cùng một lượt nếu hỗ trợ gọi nhiều công cụ cùng lúc.
         """;
 
+    private const string StaffTodaySummaryRule = """
+        Với câu "tóm tắt hôm nay", gọi get_stock_movement, get_low_stock và get_reorder_suggestions
+        trong cùng một lượt nếu hỗ trợ gọi nhiều công cụ cùng lúc. Không tóm tắt doanh thu vì vai trò Staff không có quyền xem.
+        """;
+
     public async Task<AiChatResponse> ChatAsync(AiChatRequest? request, string role, CancellationToken ct = default)
     {
         var maxMessages = Math.Clamp(options.Value.MaxHistoryMessages, 1, 10);
@@ -78,12 +83,14 @@ public sealed class AiChatService(
         var localDate = today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         var revenueRule = role == "Owner"
             ? "Khi tóm tắt doanh thu, nêu lãi gộp nếu công cụ cung cấp."
-            : "Khi tóm tắt doanh thu, chỉ trình bày doanh thu thuần và số đơn. Không cung cấp lãi gộp hoặc giá vốn.";
+            : "Vai trò Staff không được xem doanh thu, lãi gộp hay giá vốn qua trợ lý. Nếu được hỏi các số này, "
+              + "trả lời ngắn rằng tài khoản Staff không có quyền xem doanh thu và đề nghị hỏi chủ cửa hàng; "
+              + "không đoán hay ước tính số tiền.";
         var panelScope = branchName?.ReplaceLineEndings(" ") ?? AiChatToolRunner.AllBranches;
         var scopeLine = $"Phạm vi đang chọn trong khung chat: {panelScope}.";
         var confirmationLine = request.ConfirmBranchChoice ? "\nNgười dùng vừa xác nhận chi nhánh bằng nút chọn." : "";
         var summaryLine = messages[^1].Content!.Contains("tóm tắt hôm nay", StringComparison.OrdinalIgnoreCase)
-            ? $"\n{TodaySummaryRule}"
+            ? "\n" + (role == "Owner" ? TodaySummaryRule : StaffTodaySummaryRule)
             : "";
         var prompt = $"{SystemRules}\n{revenueRule}\n{scopeLine}{confirmationLine}{summaryLine}\nNgày hiện tại ở Việt Nam: {localDate}.\n\nHướng dẫn sử dụng OISMS:\n{guide}";
         var tools = toolRunner.GetDefinitions(role);

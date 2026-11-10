@@ -19,7 +19,7 @@ public sealed class AiChatToolRunner(
     private readonly Dictionary<string, IAiChatTool> _tools = tools.ToDictionary(tool => tool.Definition.Name, StringComparer.Ordinal);
 
     public IReadOnlyList<LlmTool> GetDefinitions(string role) =>
-        CanUseTools(role) ? _tools.Values.Select(tool => tool.Definition).ToArray() : [];
+        _tools.Values.Where(tool => CanUseTool(role, tool.Definition.Name)).Select(tool => tool.Definition).ToArray();
 
     public async Task<string?> ValidateBranchAsync(Guid? branchId, CancellationToken ct)
     {
@@ -40,7 +40,7 @@ public sealed class AiChatToolRunner(
         LlmToolCall call, string role, Guid? selectedBranchId, string? selectedBranchName,
         bool confirmBranchChoice, DateOnly today, CancellationToken ct)
     {
-        if (!CanUseTools(role) || !_tools.TryGetValue(call.Name, out var tool))
+        if (!CanUseTool(role, call.Name) || !_tools.TryGetValue(call.Name, out var tool))
         {
             return ("""{"error":"Công cụ không có sẵn cho yêu cầu này."}""", null, null, null);
         }
@@ -107,7 +107,18 @@ public sealed class AiChatToolRunner(
         ? tenantId
         : throw AiChatToolInput.Invalid("Không xác định được cửa hàng hiện tại.");
 
-    private static bool CanUseTools(string role) => role is "Owner" or "Staff";
+    public const string RevenueTool = "get_revenue";
+
+    /// <summary>
+    /// Owner dùng mọi tool. Staff không được hỏi doanh thu qua trợ lý (người dùng chốt 10/11/2026), nên tool
+    /// doanh thu không được gửi cho model và không chạy kể cả khi model tự gọi.
+    /// </summary>
+    public static bool CanUseTool(string role, string toolName) => role switch
+    {
+        "Owner" => true,
+        "Staff" => toolName != RevenueTool,
+        _ => false
+    };
 
     private sealed record ToolCacheKey(Guid TenantId, string Role, string Tool, AiChatToolArguments Arguments);
 }

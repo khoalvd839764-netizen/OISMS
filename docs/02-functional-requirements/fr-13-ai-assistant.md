@@ -9,12 +9,12 @@ Owner và Staff hỏi bằng tiếng Việt trong Admin để tìm hướng dẫ
 | Phạm vi | Dữ liệu và quyền |
 | :--- | :--- |
 | Nhập/xuất kho | Tổng theo ngày nghiệp vụ, chi nhánh và đơn vị gốc, tách chuyển kho và trả hàng. |
-| Doanh thu | Doanh thu thuần sau trả hàng, số đơn, phân theo ngày và kênh. Owner có thêm lãi gộp. |
+| Doanh thu | **Chỉ Owner.** Doanh thu thuần sau trả hàng, số đơn, phân theo ngày và kênh, lãi gộp. Staff không có tool doanh thu; hỏi doanh thu thì trợ lý trả lời không có quyền (chốt 10/11/2026). |
 | Tồn thấp | SKU hết hàng (kể cả chưa đặt ngưỡng) hoặc chạm/dưới ngưỡng đặt lại, tồn khả dụng và mức cảnh báo (theo FR-REP-03). |
 | Gợi ý nhập | Tối đa 20 gợi ý ưu tiên theo ngày cạn hàng dự kiến, dùng dữ liệu FR-AI-01. |
 | Hướng dẫn | Các thao tác trên Admin theo vai trò được xác thực. |
 
-Vai trò và tenant lấy từ JWT. Chi nhánh được kiểm tra thuộc tenant trước khi đọc số liệu. Payload doanh thu cho Staff chỉ gồm các trường doanh thu thuần và số đơn. Cashier nhận HTTP 403.
+Vai trò và tenant lấy từ JWT. Chi nhánh được kiểm tra thuộc tenant trước khi đọc số liệu. Tool `get_revenue` không được gửi cho model khi người hỏi là Staff và không chạy kể cả khi model tự gọi. Cashier nhận HTTP 403.
 
 Panel mặc định dùng tất cả chi nhánh và ô chọn chỉ liệt kê chi nhánh đang hoạt động. Tên chi nhánh được nhắc trong câu hỏi ưu tiên hơn lựa chọn hiện tại. Backend so tên của các chi nhánh đang hoạt động trong tenant, bỏ dấu và không phân biệt hoa thường. Khi không khớp duy nhất, trợ lý hiển thị tối đa 10 nút chọn. Bấm một nút sẽ gửi lại câu hỏi gần nhất theo chi nhánh đã xác nhận, giữ một bản của tin người dùng trong lịch sử.
 

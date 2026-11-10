@@ -76,7 +76,7 @@ Các trường định danh bắt buộc bên trong Payload của JWT:
 | **Báo cáo & AI** | Báo cáo Doanh thu thuần, Tổng giá vốn (`COGS`), Lợi nhuận gộp | `FR-REP-01` | ✅ Toàn quyền | 👁️ Chỉ xem doanh thu/hàng trả (ẩn lãi gộp & giá vốn) | ❌ Cấm (`403 Forbidden`) |
 | **Báo cáo & AI** | Báo cáo Giá trị tồn kho, Hàng bán chạy/chậm & Cảnh báo tồn tối thiểu | `FR-REP-02..03` | ✅ Toàn quyền | ✅ Xem cảnh báo kho | ❌ Cấm (`403 Forbidden`) |
 | **Báo cáo & AI** | Xem dự báo nhu cầu AI & Gợi ý nhập lại hàng | `FR-AI-01` | ✅ Toàn quyền | ✅ Xem gợi ý nhập | ❌ Cấm (`403 Forbidden`) |
-| **Báo cáo & AI** | Hỏi Trợ lý OISMS (`POST /api/ai/chat`) | `FR-AI-02` | ✅ Số liệu và lãi gộp | ✅ Số liệu trong quyền, ẩn lãi gộp và giá vốn | ❌ Cấm (`403 Forbidden`) |
+| **Báo cáo & AI** | Hỏi Trợ lý OISMS (`POST /api/ai/chat`) | `FR-AI-02` | ✅ Mọi số liệu, kể cả doanh thu và lãi gộp | ✅ Nhập/xuất kho, tồn, gợi ý nhập, hướng dẫn. **Không hỏi được doanh thu, lãi gộp, giá vốn** (chốt 10/11/2026) | ❌ Cấm (`403 Forbidden`) |
 | **Cấu hình & Thanh toán** | Quản lý tài khoản ngân hàng thụ hưởng (`/api/payment-accounts`): thêm, sửa, đặt mặc định, ngừng dùng | `CS-05` | ✅ Toàn quyền | 👁️ Chỉ xem tài khoản active | 👁️ Chỉ xem tài khoản active |
 
 > **Từ Upgrade 04:** không còn đường sửa giá trực tiếp, kể cả với `Owner`. Giá ban đầu trên form tạo SKU hoặc đơn vị cũng đi qua phiếu: của `Owner` có hiệu lực ngay, của `Staff` chờ duyệt. Vai trò lấy từ JWT, client không tự khai được. Xem [tài liệu 04](../Upgrade-recommended/04-bang-gia-theo-thoi-gian.md#phân-quyền).

@@ -72,7 +72,7 @@ Giao diện Web Admin tuân theo chuẩn Master-Detail hiện đại với thanh
 Owner và Staff mở trợ lý bằng nút hình Bot cạnh chuông thông báo. Panel rộng 380 px ở cạnh phải trên desktop và chiếm toàn màn hình trên mobile. Người dùng chọn chi nhánh (chỉ chi nhánh đang hoạt động) hoặc giữ mặc định **Tất cả chi nhánh**, và chọn **Model AI** (Groq hoặc Gemini, chỉ hiện model có key; lựa chọn nhớ trên trình duyệt).
 
 - Nút **Cuộc trò chuyện mới** xóa lịch sử trong panel. Đóng panel hủy yêu cầu đang chờ. Đăng xuất, đổi tenant hoặc đổi tài khoản xóa lịch sử phiên.
-- Nút **Tóm tắt hôm nay** hỏi về doanh thu, nhập/xuất, tồn thấp và gợi ý nhập. Khi chưa có tin nhắn, panel có bốn câu hỏi mẫu.
+- Nút **Tóm tắt hôm nay** hỏi về doanh thu (chỉ Owner), nhập/xuất, tồn thấp và gợi ý nhập. Khi chưa có tin nhắn, panel có bốn câu hỏi mẫu; Staff không thấy câu hỏi doanh thu.
 - Ô nhập tối đa 1.000 ký tự, Enter gửi và Shift+Enter xuống dòng. Câu trả lời hiển thị Markdown tối giản an toàn (đoạn, **đậm**, danh sách), không dùng HTML thô. Dòng nguồn ghi công cụ, phạm vi chi nhánh, khoảng ngày và model đã dùng.
 - Khi tên chi nhánh trong câu hỏi không khớp hoặc khớp nhiều chi nhánh, panel hiện nút chọn chi nhánh; bấm nút thì hỏi lại câu cũ. Người dùng không bao giờ phải nhập mã chi nhánh.
 - Lỗi hiển thị trong panel. Model hết lượt (`AI_MODEL_QUOTA`) có nút **Hỏi lại bằng** model còn lại. Khi trợ lý tắt, panel báo trạng thái và nút mở biến mất đến hết phiên.

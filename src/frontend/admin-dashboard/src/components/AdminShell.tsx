@@ -479,7 +479,7 @@ export function AdminShell() {
             </Button>
             <NotificationCenter />
             {user && (user.role === "Owner" || user.role === "Staff") && (
-              <AiAssistant key={`${user.tenantId}:${user.id}:${user.role}`} />
+              <AiAssistant key={`${user.tenantId}:${user.id}:${user.role}`} role={user.role} />
             )}
             <div className="profile-chip">
               <span className="avatar">{account.initials}</span>

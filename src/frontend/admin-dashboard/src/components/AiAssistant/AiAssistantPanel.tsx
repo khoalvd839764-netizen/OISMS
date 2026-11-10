@@ -6,14 +6,23 @@ import type { ChatEntry, useAiChat } from "./useAiChat";
 import type { AiChatBranchChoice, AiModelOption } from "../../types/aiChat";
 import { ChatMessageBody } from "./ChatMessageBody";
 
-const QUESTIONS = [
+const OWNER_QUESTIONS = [
   "Hôm nay nhập xuất bao nhiêu?",
   "Doanh thu 7 ngày qua?",
   "Nên nhập thêm gì tuần này?",
   "Cách tạo phiếu nhập hàng?",
 ];
 
-const TODAY_SUMMARY = "Tóm tắt hôm nay về doanh thu, nhập/xuất kho, hàng sắp hết và gợi ý nhập hàng.";
+// Staff không được hỏi doanh thu qua trợ lý (backend cũng chặn tool doanh thu).
+const STAFF_QUESTIONS = [
+  "Hôm nay nhập xuất bao nhiêu?",
+  "Hàng nào đang hết hoặc sắp hết?",
+  "Nên nhập thêm gì tuần này?",
+  "Cách tạo phiếu nhập hàng?",
+];
+
+const OWNER_TODAY_SUMMARY = "Tóm tắt hôm nay về doanh thu, nhập/xuất kho, hàng sắp hết và gợi ý nhập hàng.";
+const STAFF_TODAY_SUMMARY = "Tóm tắt hôm nay về nhập/xuất kho, hàng sắp hết và gợi ý nhập hàng.";
 
 const SOURCE_LABELS: Record<string, string> = {
   get_stock_movement: "Nhập/xuất kho",
@@ -58,12 +67,16 @@ function sourceLabel(source: ChatEntry["source"] | undefined, models: AiModelOpt
 
 type PanelProps = {
   chat: ReturnType<typeof useAiChat>;
+  role: string;
   branchId: string;
   onBranchChange: (branchId: string) => void;
   onClose: () => void;
 };
 
-export function AiAssistantPanel({ chat, branchId, onBranchChange, onClose }: PanelProps) {
+export function AiAssistantPanel({ chat, role, branchId, onBranchChange, onClose }: PanelProps) {
+  const isOwner = role === "Owner";
+  const questions = isOwner ? OWNER_QUESTIONS : STAFF_QUESTIONS;
+  const todaySummary = isOwner ? OWNER_TODAY_SUMMARY : STAFF_TODAY_SUMMARY;
   const [branches, setBranches] = useState<AiChatBranch[]>([]);
   const [branchError, setBranchError] = useState(false);
   const [draft, setDraft] = useState("");
@@ -182,7 +195,7 @@ export function AiAssistantPanel({ chat, branchId, onBranchChange, onClose }: Pa
         {chat.messages.length === 0 && (
           <div className="ai-assistant__suggestions">
             <p>Bạn muốn xem số liệu hay tìm hướng dẫn sử dụng?</p>
-            {QUESTIONS.map((question) => (
+            {questions.map((question) => (
               <Button key={question} variant="secondary" disabled={chat.blocked} onClick={() => submit(question)}>
                 {question}
               </Button>
@@ -242,7 +255,7 @@ export function AiAssistantPanel({ chat, branchId, onBranchChange, onClose }: Pa
       )}
 
       <form className="ai-assistant__composer" onSubmit={(event) => { event.preventDefault(); submit(draft); }}>
-        <Button type="button" variant="secondary" disabled={chat.blocked} onClick={() => submit(TODAY_SUMMARY)}>
+        <Button type="button" variant="secondary" disabled={chat.blocked} onClick={() => submit(todaySummary)}>
           Tóm tắt hôm nay
         </Button>
         <textarea

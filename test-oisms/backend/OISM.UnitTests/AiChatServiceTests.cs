@@ -101,10 +101,14 @@ public sealed class AiChatServiceTests
         Assert.Contains("Không nhắc lại câu hỏi", prompt);
         Assert.Contains("Không hỏi lại khi đã đủ dữ liệu", prompt);
         Assert.Contains("trong cùng một lượt", prompt);
-        foreach (var tool in new[] { "get_revenue", "get_stock_movement", "get_low_stock", "get_reorder_suggestions" })
+        foreach (var tool in new[] { "get_stock_movement", "get_low_stock", "get_reorder_suggestions" })
         {
             Assert.Contains(tool, prompt);
         }
+        // Staff không được hỏi doanh thu: tóm tắt hôm nay không gọi get_revenue và prompt yêu cầu từ chối số tiền.
+        Assert.DoesNotContain("get_revenue", prompt);
+        Assert.Contains("Staff không được xem doanh thu", prompt);
+        Assert.Contains("không có quyền xem doanh thu", prompt);
         if (branch is not null)
         {
             Assert.DoesNotContain(branch.Id.ToString(), prompt);

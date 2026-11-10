@@ -5,7 +5,7 @@ import { AiAssistantButton } from "./AiAssistantButton";
 import { AiAssistantPanel } from "./AiAssistantPanel";
 import { useAiChat } from "./useAiChat";
 
-export function AiAssistant() {
+export function AiAssistant({ role }: { role: string }) {
   const [open, setOpen] = useState(false);
   const [branchId, setBranchId] = useState("");
   const [sessionEnded, setSessionEnded] = useState(false);
@@ -35,7 +35,7 @@ export function AiAssistant() {
         <AiAssistantButton open={open} onClick={() => open ? close() : setOpen(true)} />
       )}
       {open && createPortal(
-        <AiAssistantPanel chat={chat} branchId={branchId} onBranchChange={setBranchId} onClose={close} />,
+        <AiAssistantPanel chat={chat} role={role} branchId={branchId} onBranchChange={setBranchId} onClose={close} />,
         document.body,
       )}
     </>

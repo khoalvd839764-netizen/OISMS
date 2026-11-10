@@ -63,7 +63,7 @@ Chủ cửa hàng và nhân viên muốn hỏi nhanh bằng tiếng Việt như 
 | Tool | Dữ liệu | Owner | Staff |
 | :--- | :--- | :-: | :-: |
 | `get_stock_movement(from, to, branchId?)` | Tổng `IN`/`OUT` theo ngày, tách dòng chuyển kho và trả hàng, top SKU | ✓ | ✓ |
-| `get_revenue(from, to, branchId?)` | Doanh thu, số đơn, theo kênh, theo ngày | ✓ có lãi gộp | ✓ chỉ doanh thu |
+| `get_revenue(from, to, branchName?)` | Doanh thu, số đơn, theo kênh, theo ngày | ✓ có lãi gộp | ✗ (chốt 10/11/2026: Staff không hỏi doanh thu qua trợ lý) |
 | `get_low_stock(branchId?)` | SKU chạm hoặc dưới `ReorderPoint`, số khả dụng | ✓ | ✓ |
 | `get_reorder_suggestions(branchId?, leadTimeDays?)` | Từ `AiForecastingService`: tốc độ bán/ngày, số ngày dự kiến hết hàng, số lượng đề xuất nhập, độ tin cậy (`FR-AI-01`) | ✓ | ✓ |
 | Hướng dẫn sử dụng | Nằm trong system prompt, lọc theo vai trò | ✓ | ✓ |
