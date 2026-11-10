@@ -67,4 +67,18 @@ public class WebhooksController : ControllerBase
     {
         return Ok(await _webhookService.GetIdentityAsync(secretHeader, ct));
     }
+
+    /// <summary>
+    /// SKU đang bán của doanh nghiệp sở hữu secret (mã, tên, giá bán lẻ, tồn có thể bán tại chi nhánh kết nối)
+    /// để công cụ giả lập cho chọn sản phẩm. Không trả giá vốn. Secret không dùng được trả 401.
+    /// </summary>
+    [HttpGet("catalog")]
+    [AllowAnonymous]
+    [ApiErrorContract(ApiErrorProfile.Webhooks)]
+    public async Task<IActionResult> Catalog(
+        [FromHeader(Name = "X-Webhook-Secret")] string? secretHeader,
+        CancellationToken ct)
+    {
+        return Ok(await _webhookService.GetCatalogAsync(secretHeader, ct));
+    }
 }

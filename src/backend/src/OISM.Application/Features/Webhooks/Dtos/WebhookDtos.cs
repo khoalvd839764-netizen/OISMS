@@ -87,3 +87,20 @@ public class WebhookIdentityDto
     /// <summary>Chi nhánh tắt thì webhook vẫn xác thực được nhưng đơn sẽ bị từ chối.</summary>
     public bool BranchIsActive { get; set; }
 }
+
+/// <summary>
+/// Một SKU cho app giả lập chọn khi bắn đơn. Số lượng và tồn theo đơn vị gốc vì webhook không gửi đơn vị.
+/// </summary>
+public class WebhookCatalogItemDto
+{
+    public string SkuCode { get; set; } = string.Empty;
+    public string ProductName { get; set; } = string.Empty;
+    public string? VariantName { get; set; }
+    public string UnitName { get; set; } = string.Empty;
+
+    /// <summary>Giá bán lẻ hiện hành theo đơn vị gốc; null khi SKU chưa có giá.</summary>
+    public decimal? UnitPrice { get; set; }
+
+    /// <summary>OnHand - Reserved tại chi nhánh của kết nối, không âm.</summary>
+    public decimal Available { get; set; }
+}

@@ -14,7 +14,7 @@ Backend khác cổng thì đặt `VITE_DEV_API_TARGET`. Khi chạy bằng `docke
 
 ## Lấy secret
 
-Owner vào Admin > **Kết nối sàn** > **Tạo kết nối** và copy secret trong hộp thoại (chỉ hiện một lần; mất thì bấm **Đổi secret**). Dán secret vào app, app gọi `GET /api/webhooks/simulator/whoami` để tự điền sàn và mã gian hàng. Có thể dán nhiều secret và chọn qua lại; danh sách chỉ giữ trong bộ nhớ tab.
+Owner vào Admin > **Kết nối sàn** > **Tạo kết nối** và copy secret trong hộp thoại (chỉ hiện một lần; mất thì bấm **Đổi secret**). Dán secret vào app, app gọi `GET /api/webhooks/simulator/whoami` để tự điền sàn và mã gian hàng, rồi `GET /api/webhooks/simulator/catalog` để cho chọn sản phẩm của shop (tự điền mã SKU và giá bán lẻ) thay vì gõ mã. Có thể dán nhiều secret và chọn qua lại; danh sách chỉ giữ trong bộ nhớ tab.
 
 Tài liệu đầy đủ: [`docs/14-webhook-simulator`](../../../docs/14-webhook-simulator/README.md).
 

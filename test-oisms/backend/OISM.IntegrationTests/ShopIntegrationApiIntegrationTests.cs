@@ -141,6 +141,29 @@ public class ShopIntegrationApiIntegrationTests : IAsyncLifetime, IClassFixture<
         (await GetWhoAmIAsync("whsec_khong_ton_tai")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         (await _client.GetAsync("/api/webhooks/simulator/whoami")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
 
+        // catalog: secret thấy SKU đang bán của chính tenant để app giả lập cho chọn, không có giá vốn hay id nội bộ
+        var catalogRes = await GetWithSecretAsync("/api/webhooks/simulator/catalog", created.WebhookSecret);
+        catalogRes.StatusCode.Should().Be(HttpStatusCode.OK, await catalogRes.Content.ReadAsStringAsync());
+        var catalogJson = await catalogRes.Content.ReadAsStringAsync();
+        var catalog = JsonSerializer.Deserialize<List<WebhookCatalogItemDto>>(catalogJson, _json)!;
+        catalog.Should().NotBeEmpty();
+        catalog.Should().Contain(c => c.SkuCode == skuCode);
+        catalog.Should().OnlyContain(c => c.Available >= 0 && !string.IsNullOrWhiteSpace(c.ProductName));
+        catalogJson.Should().NotContainEquivalentOf("cost").And.NotContainEquivalentOf("tenantId").And.NotContain(branchId.ToString());
+        (await GetWithSecretAsync("/api/webhooks/simulator/catalog", "whsec_khong_ton_tai")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        (await _client.GetAsync("/api/webhooks/simulator/catalog")).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        catalog.Single(c => c.SkuCode == skuCode).Available.Should().Be(20m, "vừa nhập 20 vào chi nhánh của kết nối, chưa giữ chỗ");
+
+        // Không lẫn SKU của tenant khác
+        var tenantBContext = PostgresTestEnvironment.CreateRuntimeDbContext(new TestTenantService { TenantId = OismsDatabaseSeeder.TenantBId });
+        await using (tenantBContext)
+        {
+            var tenantBSkuCodes = await tenantBContext.ProductVariants.Select(v => v.SKU).ToListAsync();
+            tenantBSkuCodes.Should().NotBeEmpty();
+            catalog.Select(c => c.SkuCode).Should().NotIntersectWith(tenantBSkuCodes);
+        }
+
         // Secret vừa tạo dùng được cho webhook
         var hook1 = await PostWebhookAsync(created.WebhookSecret, shopId, skuCode);
         hook1.StatusCode.Should().Be(HttpStatusCode.Created, await hook1.Content.ReadAsStringAsync());
@@ -164,9 +187,11 @@ public class ShopIntegrationApiIntegrationTests : IAsyncLifetime, IClassFixture<
         (await GetWhoAmIAsync(rotated.WebhookSecret)).StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
-    private async Task<HttpResponseMessage> GetWhoAmIAsync(string secret)
+    private Task<HttpResponseMessage> GetWhoAmIAsync(string secret) => GetWithSecretAsync("/api/webhooks/simulator/whoami", secret);
+
+    private async Task<HttpResponseMessage> GetWithSecretAsync(string url, string secret)
     {
-        using var req = new HttpRequestMessage(HttpMethod.Get, "/api/webhooks/simulator/whoami");
+        using var req = new HttpRequestMessage(HttpMethod.Get, url);
         req.Headers.Add("X-Webhook-Secret", secret);
         return await _client.SendAsync(req);
     }

@@ -9,6 +9,18 @@ export interface ItemInput {
   skuCode: string;
   quantity: string;
   unitPrice: string;
+  /** Gõ mã tay thay vì chọn từ danh sách sản phẩm của shop, dùng để thử SKU_NOT_FOUND. Không gửi lên backend. */
+  manual?: boolean;
+}
+
+/** Một SKU đang bán của shop, lấy từ GET /api/webhooks/simulator/catalog. Số lượng theo đơn vị gốc. */
+export interface CatalogItem {
+  skuCode: string;
+  productName: string;
+  variantName?: string | null;
+  unitName: string;
+  unitPrice?: number | null;
+  available: number;
 }
 
 export interface OrderInput {
@@ -64,7 +76,7 @@ export function validateOrder(input: OrderInput): string[] {
   input.items.forEach((item, index) => {
     const row = `Dòng ${index + 1}`;
     const sku = item.skuCode.trim();
-    if (!sku) errors.push(`${row}: chưa nhập mã SKU.`);
+    if (!sku) errors.push(`${row}: ${item.manual ? 'chưa nhập mã SKU' : 'chưa chọn sản phẩm'}.`);
     if (!QTY_PATTERN.test(item.quantity.trim()) || Number(item.quantity) <= 0) {
       errors.push(`${row}: số lượng phải lớn hơn 0, tối đa 3 chữ số lẻ.`);
     }
@@ -144,4 +156,65 @@ export function parseResponse(status: number, body: unknown): ParsedResult {
     return { ok: false, errorCode, summary: `Không kết nối được backend (HTTP ${status}).` };
   }
   return { ok: false, errorCode, summary: message || `HTTP ${status}` };
+}
+
+export const MANUAL_SKU = '__manual__';
+
+export function catalogOptionLabel(item: CatalogItem): string {
+  const name = item.variantName ? `${item.productName} · ${item.variantName}` : item.productName;
+  return `${name} (${item.skuCode})`;
+}
+
+export function findCatalogItem(catalog: readonly CatalogItem[], skuCode: string): CatalogItem | undefined {
+  const key = skuCode.trim().toUpperCase();
+  return key ? catalog.find((c) => c.skuCode.toUpperCase() === key) : undefined;
+}
+
+/**
+ * Giá trị ô chọn sản phẩm của một dòng: mã SKU nếu có trong shop, MANUAL_SKU nếu đang gõ tay
+ * hoặc mã cũ không thuộc shop đang chọn (ví dụ vừa đổi kết nối), chuỗi rỗng nếu chưa chọn.
+ */
+export function selectValueFor(item: ItemInput, catalog: readonly CatalogItem[]): string {
+  const found = findCatalogItem(catalog, item.skuCode);
+  if (item.manual || (item.skuCode.trim() && !found)) return MANUAL_SKU;
+  return found ? found.skuCode : '';
+}
+
+/** Chọn sản phẩm: điền mã SKU và giá bán lẻ hiện hành (shop chưa đặt giá thì giữ giá đang nhập). */
+export function applyCatalogChoice(item: ItemInput, choice: string, catalog: readonly CatalogItem[]): ItemInput {
+  if (choice === MANUAL_SKU) {
+    return { ...item, manual: true };
+  }
+  const found = findCatalogItem(catalog, choice);
+  if (!found) {
+    return { ...item, skuCode: '', manual: false };
+  }
+  const price = found.unitPrice;
+  return {
+    ...item,
+    skuCode: found.skuCode,
+    unitPrice: price !== null && price !== undefined && price >= 0 ? String(price) : item.unitPrice,
+    manual: false,
+  };
+}
+
+/**
+ * Cảnh báo theo từng dòng khi tổng số lượng của một SKU trong đơn vượt tồn có thể bán.
+ * Chỉ là cảnh báo: bắn vượt tồn là kịch bản kiểm thử hợp lệ, backend sẽ từ chối.
+ */
+export function stockWarnings(items: readonly ItemInput[], catalog: readonly CatalogItem[]): (string | null)[] {
+  const totals = new Map<string, number>();
+  for (const item of items) {
+    const found = findCatalogItem(catalog, item.skuCode);
+    const qty = Number(item.quantity.trim());
+    if (found && Number.isFinite(qty) && qty > 0) {
+      totals.set(found.skuCode, (totals.get(found.skuCode) ?? 0) + qty);
+    }
+  }
+  return items.map((item) => {
+    const found = findCatalogItem(catalog, item.skuCode);
+    if (!found) return null;
+    const total = totals.get(found.skuCode) ?? 0;
+    return total > found.available ? `Đặt ${total} nhưng chỉ còn ${found.available} ${found.unitName} có thể bán.` : null;
+  });
 }

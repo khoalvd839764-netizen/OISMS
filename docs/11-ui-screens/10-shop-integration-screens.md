@@ -9,7 +9,7 @@
 | **App giả lập** | Local `http://localhost:5175`, deploy `https://<SIM_DOMAIN>` |
 | **Quyền truy cập** | Màn Admin: chỉ `Owner`. App giả lập: không đăng nhập, xác thực bằng secret |
 | **Source code** | `src/frontend/admin-dashboard/src/pages/ShopIntegrationsPage.tsx`, `src/frontend/admin-dashboard/src/services/shopIntegrationService.ts`, `src/frontend/marketplace-simulator/src/App.tsx` |
-| **API** | `/api/shop-integrations`, `GET /api/webhooks/simulator/whoami`, `POST /api/webhooks/simulator/{channel}` |
+| **API** | `/api/shop-integrations`, `GET /api/webhooks/simulator/whoami`, `GET /api/webhooks/simulator/catalog`, `POST /api/webhooks/simulator/{channel}` |
 | **Tài liệu chức năng** | [`DOC-SIM-14`](../14-webhook-simulator/README.md) |
 
 ---
@@ -71,7 +71,7 @@ App riêng `marketplace-simulator`, không đăng nhập, chỉ gọi `/api/webh
 ### 2.1. Kết nối gian hàng
 
 - Ô **Dán webhook secret** (ẩn ký tự, có nút hiện/ẩn) và nút **Thêm** (hoặc Enter).
-- Bấm Thêm thì app gọi `whoami`. Thành công: thêm vào danh sách và chọn luôn. Thất bại: hiện thông báo của backend, ví dụ "Webhook Secret không hợp lệ.".
+- Bấm Thêm thì app gọi `whoami` rồi `catalog`. Thành công: thêm vào danh sách, chọn luôn và tải sản phẩm của shop. Thất bại: hiện thông báo của backend, ví dụ "Webhook Secret không hợp lệ.".
 - Mỗi kết nối hiện "Sàn · Mã gian hàng" và tên chi nhánh. Chi nhánh đã tắt thì hiện chữ vàng "chi nhánh đã tắt, đơn sẽ bị từ chối".
 - Nút X bỏ kết nối khỏi danh sách. Danh sách chỉ trong bộ nhớ tab.
 - Khi chưa có kết nối: khung hướng dẫn 3 bước lấy secret trong Admin, kèm link "mở trang đó" tới `/shop-integrations` của Admin (dùng `VITE_ADMIN_URL`; dev mặc định `http://localhost:5173`).
