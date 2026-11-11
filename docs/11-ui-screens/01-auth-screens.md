@@ -7,8 +7,8 @@
 | **Ngày hiệu lực** | `2026-10-25` |
 | **Đường dẫn URL Routes** | `/login`, `/403`, `/session-expired` |
 | **Quyền truy cập (RBAC)** | Mọi người dùng (Public & Authenticated) |
-| **Source code Frontend** | [`AuthPage.tsx`](file:///d:/OISMS/src/frontend/admin-dashboard/src/pages/AuthPage.tsx), [`AccessPage.tsx`](file:///d:/OISMS/src/frontend/admin-dashboard/src/pages/AccessPage.tsx), [`AuthContext.tsx`](file:///d:/OISMS/src/frontend/admin-dashboard/src/context/AuthContext.tsx) |
-| **Controller Backend** | [`AuthController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/AuthController.cs) |
+| **Source code Frontend** | [`AuthPage.tsx`](../../src/frontend/admin-dashboard/src/pages/AuthPage.tsx), [`AccessPage.tsx`](../../src/frontend/admin-dashboard/src/pages/AccessPage.tsx), [`AuthContext.tsx`](../../src/frontend/admin-dashboard/src/context/AuthContext.tsx) |
+| **Controller Backend** | [`AuthController.cs`](../../src/backend/src/OISM.WebApi/Controllers/AuthController.cs) |
 
 ---
 

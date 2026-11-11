@@ -7,8 +7,8 @@
 | **Ngày hiệu lực** | `2026-10-25` |
 | **Đường dẫn URL Routes** | `/admin`, `/` |
 | **Quyền truy cập (RBAC)** | `Owner`, `Staff` (Chặn `Cashier`) |
-| **Source code Frontend** | [`DashboardPage.tsx`](file:///d:/OISMS/src/frontend/admin-dashboard/src/pages/DashboardPage.tsx), [`StatCard`](file:///d:/OISMS/src/frontend/admin-dashboard/src/components/ui.tsx#L29-L31) |
-| **Controllers Backend** | [`OrdersController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/OrdersController.cs), [`InventoryController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/InventoryController.cs) |
+| **Source code Frontend** | [`DashboardPage.tsx`](../../src/frontend/admin-dashboard/src/pages/DashboardPage.tsx), [`StatCard`](../../src/frontend/admin-dashboard/src/components/ui.tsx#L29-L31) |
+| **Controllers Backend** | [`OrdersController.cs`](../../src/backend/src/OISM.WebApi/Controllers/OrdersController.cs), [`InventoryController.cs`](../../src/backend/src/OISM.WebApi/Controllers/InventoryController.cs) |
 
 ---
 

@@ -1,0 +1,30 @@
+{
+  "referenceDate": "2026-11-10",
+  "activeBranchNames": ["Quận 1", "Quận 2", "Tân Bình"],
+  "questions": [
+    { "id": 1, "question": "Hôm nay nhập xuất bao nhiêu?", "expectedTool": "get_stock_movement", "from": "2026-11-10", "to": "2026-11-10" },
+    { "id": 2, "question": "Hôm qua kho nhập và xuất bao nhiêu?", "expectedTool": "get_stock_movement", "from": "2026-11-09", "to": "2026-11-09" },
+    { "id": 3, "question": "Tổng hợp chuyển kho và hàng trả từ 01/11/2026 tới 07/11/2026.", "expectedTool": "get_stock_movement", "from": "2026-11-01", "to": "2026-11-07" },
+    { "id": 4, "question": "SKU nào xuất nhiều nhất trong 7 ngày qua, tính cả hôm nay?", "expectedTool": "get_stock_movement", "from": "2026-11-04", "to": "2026-11-10" },
+    { "id": 5, "question": "Cho tôi biết tổng hàng nhập từ đầu tháng này đến hôm nay.", "expectedTool": "get_stock_movement", "from": "2026-11-01", "to": "2026-11-10" },
+    { "id": 6, "question": "Doanh thu thuần hôm nay bao nhiêu?", "expectedTool": "get_revenue", "from": "2026-11-10", "to": "2026-11-10" },
+    { "id": 7, "question": "Doanh thu 7 ngày qua, tính cả hôm nay, theo từng kênh?", "expectedTool": "get_revenue", "from": "2026-11-04", "to": "2026-11-10" },
+    { "id": 8, "question": "Hôm qua bán được bao nhiêu tiền và có bao nhiêu đơn?", "expectedTool": "get_revenue", "from": "2026-11-09", "to": "2026-11-09" },
+    { "id": 9, "question": "Doanh thu thuần và lãi gộp từ 1 đến 7 tháng 11 năm 2026 là bao nhiêu?", "expectedTool": "get_revenue", "from": "2026-11-01", "to": "2026-11-07" },
+    { "id": 10, "question": "Doanh thu tuần này từ thứ Hai đến hôm nay thế nào?", "expectedTool": "get_revenue", "from": "2026-11-09", "to": "2026-11-10" },
+    { "id": 11, "question": "SKU nào đang sắp hết hàng?", "expectedTool": "get_low_stock", "from": null, "to": null },
+    { "id": 12, "question": "Liệt kê hàng đã hết tồn khả dụng.", "expectedTool": "get_low_stock", "from": null, "to": null },
+    { "id": 13, "question": "Mặt hàng nào đã chạm ngưỡng cảnh báo tồn?", "expectedTool": "get_low_stock", "from": null, "to": null },
+    { "id": 14, "question": "Xem tồn khả dụng và ngưỡng đặt lại của các SKU đang bị cảnh báo.", "expectedTool": "get_low_stock", "from": null, "to": null },
+    { "id": 15, "question": "Nên nhập thêm gì tuần này?", "expectedTool": "get_reorder_suggestions", "from": null, "to": null },
+    { "id": 16, "question": "Gợi ý các SKU nên đặt, số lượng và lý do.", "expectedTool": "get_reorder_suggestions", "from": null, "to": null },
+    { "id": 17, "question": "Nếu nhà cung cấp giao trong 5 ngày thì nên đặt thêm những SKU nào?", "expectedTool": "get_reorder_suggestions", "from": null, "to": null },
+    { "id": 18, "question": "Dự báo SKU nào hết trước và đề xuất nhập bao nhiêu.", "expectedTool": "get_reorder_suggestions", "from": null, "to": null },
+    { "id": 19, "question": "Cách tạo phiếu nhập hàng?", "expectedTool": null, "from": null, "to": null },
+    { "id": 20, "question": "Tôi bấm ở đâu để tạo phiếu trả hàng cho đơn gốc?", "expectedTool": null, "from": null, "to": null },
+    { "id": 21, "question": "SKU nào sắp hết ở chi nhánh Quận 1?", "expectedTool": "get_low_stock", "from": null, "to": null, "branchName": "Quận 1", "expectedScope": "Quận 1" },
+    { "id": 22, "question": "Doanh thu hôm nay o chi nhanh quan 1?", "expectedTool": "get_revenue", "from": "2026-11-10", "to": "2026-11-10", "branchName": "quan 1", "expectedScope": "Quận 1" },
+    { "id": 23, "question": "SKU nào sắp hết ở chi nhánh Q.1?", "expectedTool": "get_low_stock", "from": null, "to": null, "needBranchChoice": true, "expectedChoices": ["Quận 1", "Quận 2", "Tân Bình"] },
+    { "id": 24, "question": "Nên nhập thêm gì ở chi nhánh quận?", "expectedTool": "get_reorder_suggestions", "from": null, "to": null, "needBranchChoice": true, "expectedChoices": ["Quận 1", "Quận 2"] }
+  ]
+}

@@ -1,7 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using OISM.Application.Common.Interfaces;
 using OISM.Application.Features.Ai.Dtos;
 using OISM.Application.Features.Ai.Services;
+using OISM.WebApi.Http;
 
 namespace OISM.WebApi.Controllers;
 
@@ -19,6 +22,26 @@ public class AiController : ControllerBase
     {
         _aiService = aiService;
     }
+
+    [HttpPost("chat")]
+    [Authorize(Roles = "Owner,Staff")]
+    [EnableRateLimiting("AiChat")]
+    [ApiErrorContract(ApiErrorProfile.Ai)]
+    [ProducesResponseType(typeof(AiChatResponse), StatusCodes.Status200OK)]
+    public async Task<IActionResult> Chat(
+        [FromBody] AiChatRequest? request, [FromServices] IAiChatService chatService, CancellationToken ct)
+    {
+        var role = User.IsInRole("Owner") ? "Owner" : "Staff";
+        return Ok(await chatService.ChatAsync(request, role, ct));
+    }
+
+    /// <summary>
+    /// Danh sách model AI đang có key để chọn trong khung chat. AI tắt thì trả danh sách rỗng.
+    /// </summary>
+    [HttpGet("models")]
+    [Authorize(Roles = "Owner,Staff")]
+    [ProducesResponseType(typeof(IReadOnlyList<AiModelOption>), StatusCodes.Status200OK)]
+    public IActionResult GetModels([FromServices] ILlmModelCatalog catalog) => Ok(catalog.GetAvailableModels());
 
     /// <summary>
     /// Lấy chuỗi dữ liệu lịch sử xuất kho theo ngày và SKU phục vụ thuật toán AI dự báo.

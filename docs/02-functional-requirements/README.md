@@ -9,7 +9,7 @@
 
 ---
 
-## Danh mục 12 Module Yêu Cầu Chức Năng
+## Danh mục Yêu Cầu Chức Năng
 
 | STT | Mã tài liệu | Tên file | Mã FR bao phủ | Phiên bản | Nội dung chính |
 | :---: | :---: | :--- | :---: | :---: | :--- |
@@ -25,6 +25,7 @@
 | **10** | `DOC-FR-10` | [`fr-10-background-hangfire.md`](./fr-10-background-hangfire.md) | `FR-SIM-03` | `v1.0.0` | Xử lý tác vụ nền Hangfire: tự động hủy đơn giữ chỗ quá hạn và tổng hợp báo cáo hằng ngày (hiện mặc định tắt). |
 | **11** | `DOC-FR-11` | [`fr-11-reports-analytics.md`](./fr-11-reports-analytics.md) | `FR-REP-01..03` | `v1.0.0` | Báo cáo Doanh thu, COGS, Lợi nhuận gộp, Giá trị tồn kho và Cảnh báo tồn kho tối thiểu. |
 | **12** | `DOC-FR-12` | [`fr-12-ai-forecasting.md`](./fr-12-ai-forecasting.md) | `FR-AI-01` | `v1.0.0` | Dự báo nhu cầu tiêu thụ bằng AI và Gợi ý kế hoạch nhập lại hàng hóa. |
+| **13** | `DOC-FR-13` | [`fr-13-ai-assistant.md`](./fr-13-ai-assistant.md) | `FR-AI-02` | `v1.0.0` | Trợ lý Admin hỏi đáp tiếng Việt và tóm tắt số liệu trong phạm vi quyền. |
 
 ---
 
@@ -46,6 +47,7 @@ Các file `fr-*.md` là **yêu cầu**. Bảng dưới tóm tắt mức hiện t
 | `FR-SIM-01..02` | Đã có; POS realtime tồn đạt 08/11/2026 | Webhook có chữ ký; POS nhận `StockLevelChanged`, đổi nhóm chi nhánh, lọc phiên cũ và refetch khi reconnect. Đã kiểm chứng backend/PostgreSQL thật và hai tab. Popup/âm thanh đơn mới trên POS nằm ngoài pha này; chưa đánh dấu toàn bộ FR-09 hoàn tất. |
 | `FR-SIM-03` | Có code, mặc định tắt | Xem [fr-10](./fr-10-background-hangfire.md). |
 | `FR-REP-01..03` | Đã có | Báo cáo theo ngày nghiệp vụ `UTC+07:00`, lọc nửa mở; khấu trừ hàng trả (`returnAmount`, `returnCogs`) ra số thuần; bảo mật giá vốn và lãi gộp chỉ Owner xem được. |
-| `FR-AI-01` | Đã có API | Tab Gợi ý nhập hàng đang tạm ẩn trong `InventoryPage.tsx`, API vẫn chạy. |
+| `FR-AI-01` | Đã có API và bảng Admin | Mở lại tab Gợi ý nhập hàng cho Owner và Staff ngày 10/11/2026 trên nhánh `feature/OISMS-58-chatbot-ai`. |
+| `FR-AI-02` | Đã có API và panel Admin, mặc định tắt | Claude nghiệm thu 10/11/2026, PR #42 vào `develop`. Không có kinh phí nên API AI chỉ dùng gói miễn phí, hạn mức rất thấp (xem [fr-13](./fr-13-ai-assistant.md)). |
 
-Còn thiếu theo danh sách Coming Soon: CS-01 (trả hàng), CS-06, U01-B. CS-05 (VietQR) đã xong, chưa có xác nhận tự động qua webhook ngân hàng. Chi tiết: [báo cáo frontend](../report-after-upgrade/frontend-coming-soon-va-upgrade.md).
+Còn thiếu theo danh sách Coming Soon: CS-06, U01-B. CS-01 (trả hàng) đã xong (PR #41). CS-05 (VietQR) đã xong, chưa có xác nhận tự động qua webhook ngân hàng. Chi tiết: [báo cáo frontend](../report-after-upgrade/frontend-coming-soon-va-upgrade.md).

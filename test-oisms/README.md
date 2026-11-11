@@ -9,6 +9,7 @@ Mọi test tự động của dự án nằm trong thư mục này. Source ứng
 | `frontend/pos-app` | Test POS: checkout, giỏ đa đơn vị, QR, auth, realtime, hóa đơn, service worker; `test-live.mjs` chạy riêng trên backend cô lập | `node --test` |
 | `frontend/pos-app/test-support` | Harness dùng chung: `app-path.mjs` (đường dẫn tới source POS), `pos-runtime.cjs`, proxy mạng, guard môi trường | |
 | `frontend/marketplace-simulator` | Test dựng payload webhook của app giả lập sàn | `node --test` |
+| `api-python` | Script kiểm thử hộp đen API trả hàng CS-01 (`test_sales_return_api.py`) trên backend đang chạy, tự bán đơn POS rồi trả hàng. `seed_revenue_perf.py` + `.sql` bắn 5000 đơn POS/sàn vào tenant demo local qua API, rải 90 ngày và kiểm tra kho để đo tốc độ báo cáo doanh thu (chỉ chạy local, dữ liệu không gỡ được). Cần `OISMS_PASSWORD` | Python 3 + `requests` |
 | `test-data` | Chỗ để dữ liệu mẫu/fixture dùng chung (JSON, SQL). Hiện dữ liệu test vẫn được tạo trong code | |
 
 ## Cách chạy

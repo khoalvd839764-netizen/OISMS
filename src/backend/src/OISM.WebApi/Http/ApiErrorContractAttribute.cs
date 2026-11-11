@@ -7,6 +7,8 @@ namespace OISM.WebApi.Http;
 [AttributeUsage(AttributeTargets.Method)]
 internal sealed class ApiErrorContractAttribute(ApiErrorProfile profile) : ExceptionFilterAttribute
 {
+    public ApiErrorProfile Profile { get; } = profile;
+
     public override void OnException(ExceptionContext context)
     {
         if (context.HttpContext.Response.HasStarted ||
@@ -16,7 +18,7 @@ internal sealed class ApiErrorContractAttribute(ApiErrorProfile profile) : Excep
             return;
         }
 
-        var result = ApiErrorResponse.ForAction(context.HttpContext, profile, context.Exception);
+        var result = ApiErrorResponse.ForAction(context.HttpContext, Profile, context.Exception);
         if (result is not null)
         {
             context.Result = result;
@@ -54,5 +56,6 @@ internal enum ApiErrorProfile
     StockCounts,
     StockTransfers,
     Units,
-    Webhooks
+    Webhooks,
+    Ai
 }

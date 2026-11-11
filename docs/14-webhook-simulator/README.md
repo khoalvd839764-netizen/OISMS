@@ -27,6 +27,7 @@ Công cụ gồm ba phần:
 | Màn **Kết nối sàn** trong Admin (`/shop-integrations`) | Owner tạo kết nối, copy secret, đổi secret, bật/tắt. Đặc tả: [`10-shop-integration-screens.md`](../11-ui-screens/10-shop-integration-screens.md) |
 | API kết nối sàn `/api/shop-integrations` | Backend của màn trên; gọi trực tiếp được bằng JWT Owner |
 | API `GET /api/webhooks/simulator/whoami` | Cho biết secret thuộc gian hàng nào, để app giả lập tự điền |
+| API `GET /api/webhooks/simulator/catalog` | Liệt kê sản phẩm đang bán của shop sở hữu secret, để app cho chọn thay vì gõ mã SKU |
 | App `marketplace-simulator` | Giao diện bắn đơn, chạy trên domain riêng, chỉ gọi `/api/webhooks/*` |
 
 Database không đổi. Mọi dữ liệu nằm trong bảng `shop_integrations` đã có từ Sprint 3.
@@ -49,7 +50,9 @@ sequenceDiagram
     Tester->>Sim: Dán secret
     Sim->>API: GET /api/webhooks/simulator/whoami (X-Webhook-Secret)
     API-->>Sim: 200 {channel, externalShopId, branchName, branchIsActive}
-    Tester->>Sim: Nhập dòng hàng, bấm Gửi đơn mới
+    Sim->>API: GET /api/webhooks/simulator/catalog (X-Webhook-Secret)
+    API-->>Sim: 200 [{skuCode, productName, unitPrice, available, ...}]
+    Tester->>Sim: Chọn sản phẩm, nhập số lượng, bấm Gửi đơn mới
     Sim->>API: POST /api/webhooks/simulator/{channel} (X-Webhook-Secret)
     API-->>Sim: 201 {orderNumber, status: Reserved}
     API-->>Admin: OrderCreated, StockLevelChanged (sau commit)
@@ -58,7 +61,7 @@ sequenceDiagram
 1. Owner đăng nhập Admin, vào **Kết nối sàn** (cuối thanh menu), bấm **Tạo kết nối**, chọn sàn, nhập mã gian hàng, chọn chi nhánh. Hộp thoại hiện secret kèm nút **Copy**; phải copy hoặc đánh dấu "Tôi đã lưu secret" mới đóng được. Mỗi kết nối có một secret riêng.
 2. Người kiểm thử mở app giả lập và dán secret. App gọi `whoami` rồi tự chọn sàn và điền mã gian hàng. Không cần đăng nhập.
 3. Dán nhiều secret để có nhiều kết nối, chọn qua lại trong danh sách. Danh sách chỉ nằm trong bộ nhớ tab, đóng tab là mất.
-4. Nhập mã SKU, số lượng, đơn giá rồi gửi. Kết quả hiện trong nhật ký; bấm một dòng để xem JSON request và response.
+4. Chọn sản phẩm của shop trong danh sách (app tự điền mã SKU và giá bán lẻ hiện hành), nhập số lượng rồi gửi. Muốn thử SKU không tồn tại thì chọn **Gõ mã SKU khác…**. Kết quả hiện trong nhật ký; bấm một dòng để xem JSON request và response.
 
 ## 2a. Lấy secret
 
@@ -114,7 +117,28 @@ X-Webhook-Secret: whsec_...
 - Chi nhánh đã tắt vẫn trả 200 với `branchIsActive: false`; app báo trước rằng đơn sẽ bị từ chối.
 - Không trả `tenantId`, `branchId` hay tên doanh nghiệp.
 
-### 3.3. Nhận đơn
+### 3.3. `catalog`
+
+```http
+GET /api/webhooks/simulator/catalog
+X-Webhook-Secret: whsec_...
+```
+
+```json
+[
+  { "skuCode": "AO-DO-M", "productName": "Áo thun", "variantName": "Đỏ / M", "unitName": "Cái", "unitPrice": 150000, "available": 7 },
+  { "skuCode": "COC-SU-1", "productName": "Cốc sứ", "variantName": null, "unitName": "cái", "unitPrice": null, "available": 0 }
+]
+```
+
+- Không cần JWT. Không tạo dữ liệu. Cùng điều kiện 401 như `whoami`.
+- Chỉ SKU đang bán (SKU và sản phẩm đều `IsActive`) của doanh nghiệp sở hữu secret, sắp theo tên sản phẩm rồi mã SKU, tối đa 500 dòng.
+- `unitPrice`: giá bán lẻ hiện hành của đơn vị gốc trong bảng giá `retail`; chưa có bảng giá thì lấy `RetailPrice` trên SKU; không có thì `null`.
+- `available` = `OnHand − Reserved` tại chi nhánh của kết nối, không âm. `unitName` là đơn vị gốc, vì webhook không gửi đơn vị.
+- Không trả giá vốn, `tenantId`, `skuId`, `branchId`.
+- Tenant lấy từ kết nối đã xác thực bằng secret; truy vấn lọc `TenantId` tường minh.
+
+### 3.4. Nhận đơn
 
 `POST /api/webhooks/simulator/{channel}` giữ nguyên hợp đồng cũ. App gửi payload đúng `CanonicalWebhookPayloadDto`:
 
@@ -145,7 +169,7 @@ Thay đổi đi kèm: `WebhookService` tìm kết nối thẳng theo `secret_has
 | Khu vực | Chức năng |
 | :--- | :--- |
 | Kết nối gian hàng | Dán secret, bấm **Thêm**. App gọi `whoami`, thêm vào danh sách và chọn luôn. Secret sai hiện lỗi ngay. Kết nối có chi nhánh tắt được đánh dấu màu vàng |
-| Đơn hàng | Khách hàng, điện thoại, địa chỉ (không bắt buộc), nhiều dòng hàng theo mã SKU. App kiểm tra số lượng tối đa 3 chữ số lẻ, đơn giá tối đa 2 chữ số lẻ, cùng SKU không được hai đơn giá |
+| Đơn hàng | Khách hàng, điện thoại, địa chỉ (không bắt buộc), nhiều dòng hàng. Mỗi dòng chọn sản phẩm của shop đang chọn (tên, biến thể, mã SKU, tồn có thể bán), app tự điền giá bán lẻ; nút **Tải lại** lấy lại giá và tồn. Đặt vượt tồn chỉ cảnh báo, vẫn gửi được để thử chống bán vượt. **Gõ mã SKU khác…** cho nhập mã tay; mã cũ không thuộc shop vừa chuyển sang cũng hiện ở ô gõ tay. App kiểm tra số lượng tối đa 3 chữ số lẻ, đơn giá tối đa 2 chữ số lẻ, cùng SKU không được hai đơn giá |
 | Gửi | **Gửi đơn mới**, **Gửi lại**, **Đổi nội dung**, **Bắn N đơn cùng lúc** (1–200), tùy chọn dùng chung một mã đơn |
 | Nhật ký | Giờ, loại, gian hàng, mã đơn sàn, HTTP status, mã lỗi, thời gian phản hồi. Bấm một dòng để xem JSON |
 
@@ -176,11 +200,12 @@ Test tự động:
 | :--- | :--- |
 | `OISM.UnitTests/ShopIntegrationServiceTests.cs` | Tạo, trùng, chi nhánh sai, đổi secret, sửa, cô lập tenant, validator |
 | `OISM.UnitTests/WebhookIdentityTests.cs` | `whoami`: secret đúng, sai, thiếu; kết nối tắt; doanh nghiệp ngừng; chi nhánh tắt |
-| `OISM.IntegrationTests/ShopIntegrationApiIntegrationTests.cs` | Trên PostgreSQL: tạo kết nối, `whoami`, bắn webhook, đổi secret, tắt kết nối, chặn Staff/Cashier/tenant khác |
-| `test-oisms/frontend/marketplace-simulator/test-payload.mjs` | Tính tổng tiền, dựng payload, kiểm tra nhập liệu, đọc body lỗi |
+| `OISM.UnitTests/WebhookCatalogTests.cs` | `catalog`: chỉ SKU đang bán của tenant, tồn tại chi nhánh kết nối, giá hiện hành, không lộ giá vốn; 401 như `whoami` |
+| `OISM.IntegrationTests/ShopIntegrationApiIntegrationTests.cs` | Trên PostgreSQL: tạo kết nối, `whoami`, `catalog` (không lẫn SKU tenant khác), bắn webhook, đổi secret, tắt kết nối, chặn Staff/Cashier/tenant khác |
+| `test-oisms/frontend/marketplace-simulator/test-payload.mjs` | Tính tổng tiền, dựng payload, kiểm tra nhập liệu, đọc body lỗi, chọn sản phẩm, gõ mã tay, cảnh báo vượt tồn |
 
 ```bash
-dotnet test test-oisms/backend/OISM.UnitTests/OISM.UnitTests.csproj --filter "FullyQualifiedName~ShopIntegration|FullyQualifiedName~WebhookIdentity"
+dotnet test test-oisms/backend/OISM.UnitTests/OISM.UnitTests.csproj --filter "FullyQualifiedName~ShopIntegration|FullyQualifiedName~WebhookIdentity|FullyQualifiedName~WebhookCatalog"
 dotnet test test-oisms/backend/OISM.IntegrationTests/OISM.IntegrationTests.csproj --filter "FullyQualifiedName~ShopIntegrationApi|FullyQualifiedName~Webhook"
 npm test --prefix src/frontend/marketplace-simulator
 ```

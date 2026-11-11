@@ -16,7 +16,7 @@
 | CS-03 | Ngưỡng cảnh báo lưu trên server | Kho, Sản phẩm, báo cáo cảnh báo và Tổng quan cùng số |
 | CS-04 | Tìm kiếm toàn hệ thống | Đơn mở đúng chi tiết, sản phẩm lọc đúng; phiếu nhập mới về trang Kho |
 | CS-07 | KPI, biểu đồ 7 ngày, đơn gần đây | Số liệu là lũy kế; API chưa lọc theo thời gian |
-| CS-08 | Gợi ý nhập hàng | Dựa trên quy tắc; chưa có bằng chứng đánh giá độ chính xác dự báo. **Tab đang tạm ẩn**, xem phần Cập nhật sau nghiệm thu |
+| CS-08 | Gợi ý nhập hàng | Dựa trên quy tắc. Tab mở lại cho Owner và Staff ngày 10/11/2026 trên nhánh `feature/OISMS-58-chatbot-ai`. |
 | U05 | Đơn vị gốc, quy đổi, chọn đơn vị trên chứng từ và hai POS | Tồn và WAC vẫn theo đơn vị gốc |
 | U04 | Phiếu đổi giá, duyệt, lịch và lịch sử giá | Giá lấy từ server theo đơn vị và bảng giá |
 | U01-A | Đơn mua, lập phiếu nhập từ đơn mua đã duyệt | Khóa giá, chặn nhập vượt |
@@ -60,7 +60,7 @@ Các thay đổi sau bảng kết quả trên, cùng nhánh `feature/OISMS-46-fi
 | Báo cáo vận tốc kho tách tồn thực tế, giữ chỗ, khả dụng theo đơn vị gốc | PASS trên PostgreSQL local: tổng 74 tách thành 48 Cái và 26 hộp; thẻ báo cáo hiện đúng |
 | Cột Tồn hiện tại cộng theo SKU trên mọi chi nhánh, mỗi SKU một dòng | PASS trên PostgreSQL local: SKU có 18 và 3 ở hai chi nhánh hiện 21 |
 | Form đổi giá nhập nhiều đơn vị và bảng giá một lần | PASS trên giao diện: Owner lưu 2 giá, `POST /api/price-change-requests` trả 201, giá hiệu lực đọc lại đúng 160.000 ₫ |
-| Tab Gợi ý nhập hàng tạm ẩn bằng comment trong `InventoryPage.tsx` | PASS: tab không còn trên giao diện. API và phần xử lý giữ nguyên |
+| Tab Gợi ý nhập hàng tạm ẩn bằng comment trong `InventoryPage.tsx` | PASS: tab không còn trên giao diện. API và phần xử lý giữ nguyên. **Đã mở lại 10/11/2026** (PR #42) |
 | Bỏ tài khoản mẫu ở đăng nhập Admin và POS PWA | PASS: không còn email và mật khẩu mẫu trong màn hình và source |
 | Nút Quên mật khẩu ở Admin và POS PWA | PASS: nút bị tắt, có nhãn Coming soon; chưa có luồng đặt lại mật khẩu |
 | Gỡ màn Handoff kỹ thuật và mục menu | Build PASS; đặc tả vẫn giữ tại [07-handoff-screens.md](../11-ui-screens/07-handoff-screens.md) |
@@ -107,7 +107,6 @@ Các thay đổi sau bảng kết quả trên, cùng nhánh `feature/OISMS-46-fi
 
 - **CS-05:** POS PWA và POS Admin đều có VietQR, thu ngân chọn tài khoản nhận tiền (mặc định chọn sẵn) và bấm xác nhận thủ công. Tài khoản nhận tiền lấy từ `GET /api/payment-accounts/active`; Owner quản lý ở màn "Tài khoản nhận tiền". Chưa có xác nhận tự động qua webhook ngân hàng. Chi tiết: [review PR 39](./vietqr-cs05-review-pr39.md).
 - **CS-06:** in chứng từ giao hàng và in báo cáo.
-- **CS-01:** nhận hàng trả, cần backend trước.
 - **U01-B:** hóa đơn nhà cung cấp và chênh lệch, cần backend và GVHD chốt cách xử lý.
 - **CS-02:** phân công chi nhánh, cần quyết định làm thêm backend hay bỏ khỏi yêu cầu.
 - **Tìm kiếm:** kết quả phiếu nhập chưa mở đúng phiếu.
@@ -118,7 +117,7 @@ Các thay đổi sau bảng kết quả trên, cùng nhánh `feature/OISMS-46-fi
 - **Giá vốn ở truy vết:** Staff được xem theo [ma trận phân quyền](../01-users-and-rbac/02-rbac-matrix.md) và [quyết định U02](../Upgrade-recommended/02-truy-vet-chung-tu-xuat-kho.md). Mô tả "chỉ Owner" trong PR #33 không đúng; code giữ nguyên.
 - **Doanh thu ở Tổng quan:** ma trận chỉ cấm Staff xem lãi gộp, nên Staff vẫn thấy doanh thu.
 - **Số lẻ:** POS dùng `decimalPlaces` server trả về. Đơn vị mặc định đang cho phép 3 chữ số thập phân, nên POS nhận cả số lẻ với "Cái". Cần chốt nếu muốn cấm.
-- **Gợi ý nhập hàng:** `FR-AI-01` vẫn là yêu cầu trong docs, chỉ giao diện đang tạm ẩn. Cần chốt thời điểm mở lại trước khi nghiệm thu.
+- **Gợi ý nhập hàng:** Tab `FR-AI-01` hiện trong **Kho & sổ kho** cho Owner và Staff. Bảng giữ API dự báo hiện có và hiển thị SKU, tồn thực tế, tốc độ bán trung bình/ngày, số ngày dự kiến hết hàng và số lượng đề xuất nhập.
 - **Handoff:** [DOC-SCR-07](../11-ui-screens/07-handoff-screens.md) vẫn mô tả màn hình này. Cần chốt bỏ đặc tả hay làm lại.
 - **Tổng số lượng trong API báo cáo:** các trường `total*Quantity` vẫn trả về để tương thích nhưng cộng gộp khác đơn vị; giao diện dùng `quantityByUnit`.
 - **Tổng quan:** lấy `recentRevenueTrend` theo ngày có đơn; ngày không có đơn hiển thị 0 theo UTC+07:00.

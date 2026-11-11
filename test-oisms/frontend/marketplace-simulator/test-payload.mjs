@@ -90,3 +90,58 @@ test('đọc mọi dạng body', () => {
   assert.equal(m.parseResponse(502, null).summary, 'Không kết nối được backend (HTTP 502).');
   assert.equal(m.parseResponse(500, null).summary, 'HTTP 500');
 });
+
+const catalog = [
+  { skuCode: 'AO-DO', productName: 'Áo thun', variantName: 'Đỏ', unitName: 'Cái', unitPrice: 150000, available: 7 },
+  { skuCode: 'COC-1', productName: 'Cốc sứ', variantName: null, unitName: 'cái', unitPrice: null, available: 0 },
+];
+
+test('chọn sản phẩm của shop điền mã và giá bán lẻ', () => {
+  const row = { skuCode: '', quantity: '2', unitPrice: '' };
+  assert.equal(m.catalogOptionLabel(catalog[0]), 'Áo thun · Đỏ (AO-DO)');
+  assert.equal(m.catalogOptionLabel(catalog[1]), 'Cốc sứ (COC-1)');
+
+  const picked = m.applyCatalogChoice(row, 'AO-DO', catalog);
+  assert.deepEqual(plain(picked), { skuCode: 'AO-DO', quantity: '2', unitPrice: '150000', manual: false });
+  assert.equal(m.selectValueFor(picked, catalog), 'AO-DO');
+
+  // Shop chưa đặt giá: giữ giá đang nhập
+  assert.equal(m.applyCatalogChoice({ ...row, unitPrice: '9000' }, 'COC-1', catalog).unitPrice, '9000');
+  // Bỏ chọn
+  assert.equal(m.applyCatalogChoice(picked, '', catalog).skuCode, '');
+  assert.equal(m.selectValueFor({ ...row }, catalog), '');
+});
+
+test('gõ mã tay và mã không thuộc shop đang chọn', () => {
+  const row = { skuCode: '', quantity: '1', unitPrice: '1' };
+  const manual = m.applyCatalogChoice(row, m.MANUAL_SKU, catalog);
+  assert.equal(manual.manual, true);
+  assert.equal(m.selectValueFor(manual, catalog), m.MANUAL_SKU);
+  // Mã của shop khác (vừa đổi kết nối) hiện ra ô gõ tay thay vì mất trắng
+  assert.equal(m.selectValueFor({ ...row, skuCode: 'SHOP-B-1' }, catalog), m.MANUAL_SKU);
+  // Không phân biệt hoa thường
+  assert.equal(m.selectValueFor({ ...row, skuCode: 'ao-do' }, catalog), 'AO-DO');
+  // Cờ manual không lọt vào payload
+  const payload = m.buildPayload({ ...order, items: [{ ...manual, skuCode: 'X' }] }, 'SPE-1', new Date(0));
+  assert.deepEqual(Object.keys(payload.items[0]).sort(), ['quantity', 'skuCode', 'unitPrice']);
+  // Thông báo lỗi theo cách nhập
+  assert.match(m.validateOrder({ ...order, items: [row] }).join(), /chưa chọn sản phẩm/);
+  assert.match(m.validateOrder({ ...order, items: [manual] }).join(), /chưa nhập mã SKU/);
+});
+
+test('cảnh báo vượt tồn cộng dồn các dòng cùng SKU', () => {
+  const warnings = m.stockWarnings(
+    [
+      { skuCode: 'AO-DO', quantity: '4', unitPrice: '1' },
+      { skuCode: 'ao-do', quantity: '4', unitPrice: '1' },
+      { skuCode: 'KHAC', quantity: '99', unitPrice: '1' },
+      { skuCode: 'COC-1', quantity: '1', unitPrice: '1' },
+    ],
+    catalog,
+  );
+  assert.match(warnings[0], /Đặt 8 nhưng chỉ còn 7 Cái/);
+  assert.match(warnings[1], /Đặt 8/);
+  assert.equal(warnings[2], null);
+  assert.match(warnings[3], /chỉ còn 0 cái/);
+  assert.deepEqual(plain(m.stockWarnings([{ skuCode: 'AO-DO', quantity: '7', unitPrice: '1' }], catalog)), [null]);
+});

@@ -8,7 +8,7 @@
 | **Đường dẫn URL Routes** | `http://localhost:5174/` (`pos-app`); `/pos` trong Admin chỉ chuyển hướng |
 | **Quyền truy cập (RBAC)** | `Owner`, `Staff`, `Cashier` |
 | **Source code Frontend** | [`PosPage.tsx`](../../src/frontend/pos-app/src/pages/PosPage.tsx), [`ProductCatalog.tsx`](../../src/frontend/pos-app/src/components/pos/ProductCatalog.tsx), [`PaymentModal.tsx`](../../src/frontend/pos-app/src/components/pos/PaymentModal.tsx), [`ReceiptPrintModal.tsx`](../../src/frontend/pos-app/src/components/pos/ReceiptPrintModal.tsx) |
-| **Controllers Backend** | [`PosCatalogController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/PosCatalogController.cs), [`PosCheckoutActionHelper.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/PosCheckoutActionHelper.cs), [`OrdersController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/OrdersController.cs) |
+| **Controllers Backend** | [`PosCatalogController.cs`](../../src/backend/src/OISM.WebApi/Controllers/PosCatalogController.cs), [`PosCheckoutActionHelper.cs`](../../src/backend/src/OISM.WebApi/Controllers/PosCheckoutActionHelper.cs), [`OrdersController.cs`](../../src/backend/src/OISM.WebApi/Controllers/OrdersController.cs) |
 
 ---
 

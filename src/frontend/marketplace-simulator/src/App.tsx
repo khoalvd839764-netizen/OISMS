@@ -1,14 +1,21 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { CheckCircle2, Eye, EyeOff, Loader2, Plus, RotateCcw, Send, Shuffle, Trash2, X, Zap } from 'lucide-react';
-import { sendWebhook, whoAmI, type WebhookIdentity } from './api';
+import { CheckCircle2, Eye, EyeOff, Loader2, Plus, RefreshCw, RotateCcw, Send, Shuffle, Trash2, X, Zap } from 'lucide-react';
+import { fetchCatalog, isCatalog, sendWebhook, whoAmI, type WebhookIdentity } from './api';
 import {
   CHANNELS,
+  MANUAL_SKU,
+  applyCatalogChoice,
   buildPayload,
+  catalogOptionLabel,
   calculateTotal,
   mutatePayload,
   newExternalOrderId,
+  findCatalogItem,
   parseResponse,
+  selectValueFor,
+  stockWarnings,
   validateOrder,
+  type CatalogItem,
   type Channel,
   type ItemInput,
   type OrderInput,
@@ -21,6 +28,13 @@ interface Connection {
   key: number;
   secret: string;
   identity: WebhookIdentity;
+}
+
+/** Danh sách sản phẩm của shop theo từng kết nối; null khi chưa tải xong. */
+interface CatalogState {
+  items: CatalogItem[] | null;
+  loading: boolean;
+  error: string | null;
 }
 
 interface LastSent {
@@ -90,6 +104,7 @@ export default function App() {
   const [showSecret, setShowSecret] = useState(false);
   const [checking, setChecking] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
+  const [catalogs, setCatalogs] = useState<Record<number, CatalogState>>({});
   const [lastSent, setLastSent] = useState<LastSent | null>(null);
   const [burstCount, setBurstCount] = useState('20');
   const [burstSameId, setBurstSameId] = useState(false);
@@ -122,6 +137,23 @@ export default function App() {
   const canSend = !busy && errors.length === 0 && selected !== null;
   const itemsValid = effectiveForm.items.length > 0 && errors.every((e) => !e.startsWith('Dòng'));
   const total = itemsValid ? calculateTotal(effectiveForm.items) : null;
+  const catalogState = selected ? catalogs[selected.key] : undefined;
+  const catalogItems = catalogState?.items;
+  const catalog = useMemo(() => catalogItems ?? [], [catalogItems]);
+  const warnings = useMemo(() => stockWarnings(form.items, catalog), [form.items, catalog]);
+
+  async function loadCatalog(connection: Connection) {
+    setCatalogs((all) => ({ ...all, [connection.key]: { items: all[connection.key]?.items ?? null, loading: true, error: null } }));
+    const result = await fetchCatalog(connection.secret);
+    let next: CatalogState;
+    if (result.status === 200 && isCatalog(result.body)) {
+      next = { items: result.body, loading: false, error: null };
+    } else {
+      const summary = result.networkError ? `Lỗi mạng: ${result.networkError}` : parseResponse(result.status, result.body).summary;
+      next = { items: null, loading: false, error: `Không tải được sản phẩm của shop: ${summary}` };
+    }
+    setCatalogs((all) => ({ ...all, [connection.key]: next }));
+  }
 
   async function addConnection() {
     const secret = secretDraft.trim();
@@ -148,6 +180,7 @@ export default function App() {
       setSelectedKey(connection.key);
       setSecretDraft('');
       setShowSecret(false);
+      void loadCatalog(connection);
     } finally {
       setChecking(false);
     }
@@ -155,6 +188,7 @@ export default function App() {
 
   function removeConnection(key: number) {
     setConnections((list) => list.filter((c) => c.key !== key));
+    setCatalogs(({ [key]: _removed, ...rest }) => rest);
     if (selectedKey === key) setSelectedKey(null);
     if (lastSent?.connectionKey === key) setLastSent(null);
   }
@@ -346,28 +380,97 @@ export default function App() {
             </div>
 
             <div className="mt-2 space-y-2">
-              <div className="grid grid-cols-[1fr_70px_100px_32px] gap-2 text-xs font-medium text-slate-500">
-                <span>Mã SKU</span>
-                <span>SL</span>
-                <span>Đơn giá</span>
-                <span />
-              </div>
-              {form.items.map((item, index) => (
-                <div key={index} className="grid grid-cols-[1fr_70px_100px_32px] gap-2">
-                  <input className={`${inputClass} font-mono`} value={item.skuCode} onChange={(e) => updateItem(index, { skuCode: e.target.value })} placeholder="SKU-001" />
-                  <input className={inputClass} inputMode="decimal" value={item.quantity} onChange={(e) => updateItem(index, { quantity: e.target.value })} />
-                  <input className={inputClass} inputMode="decimal" value={item.unitPrice} onChange={(e) => updateItem(index, { unitPrice: e.target.value })} placeholder="75000" />
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-medium text-slate-600">Sản phẩm của shop</span>
+                {selected && (
                   <button
                     type="button"
-                    className={iconButtonClass}
-                    disabled={form.items.length === 1}
-                    onClick={() => update({ items: form.items.filter((_, i) => i !== index) })}
-                    aria-label="Xóa dòng"
+                    onClick={() => void loadCatalog(selected)}
+                    disabled={catalogState?.loading}
+                    className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 disabled:opacity-40"
+                    title="Tải lại tên, giá và tồn có thể bán"
                   >
-                    <Trash2 size={14} />
+                    <RefreshCw size={12} className={catalogState?.loading ? 'animate-spin' : ''} /> Tải lại
                   </button>
-                </div>
-              ))}
+                )}
+              </div>
+              {!selected && <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">Thêm hoặc chọn kết nối gian hàng để chọn sản phẩm.</p>}
+              {catalogState?.error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-800">{catalogState.error} Có thể gõ mã SKU tay.</p>}
+              {catalogState?.items && catalogState.items.length === 0 && (
+                <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">Shop chưa có sản phẩm đang bán. Tạo sản phẩm trong Admin rồi bấm Tải lại, hoặc gõ mã SKU tay.</p>
+              )}
+
+              {form.items.map((item, index) => {
+                const choice = selectValueFor(item, catalog);
+                const picked = findCatalogItem(catalog, item.skuCode);
+                const isManual = choice === MANUAL_SKU;
+                return (
+                  <div key={index} className="space-y-1.5 rounded-lg border border-slate-200 p-2">
+                    <div className="flex gap-2">
+                      <select
+                        className={`${inputClass} min-w-0`}
+                        value={choice}
+                        disabled={!selected || (catalogState?.loading && !catalogState.items)}
+                        onChange={(e) => setForm((f) => ({ ...f, items: f.items.map((it, i) => (i === index ? applyCatalogChoice(it, e.target.value, catalog) : it)) }))}
+                        aria-label={`Sản phẩm dòng ${index + 1}`}
+                      >
+                        <option value="">{catalogState?.loading && !catalogState.items ? 'Đang tải sản phẩm…' : '— Chọn sản phẩm —'}</option>
+                        {catalog.map((c) => (
+                          <option key={c.skuCode} value={c.skuCode}>
+                            {catalogOptionLabel(c)} · còn {c.available.toLocaleString('vi-VN')}
+                          </option>
+                        ))}
+                        <option value={MANUAL_SKU}>Gõ mã SKU khác…</option>
+                      </select>
+                      <button
+                        type="button"
+                        className={iconButtonClass}
+                        disabled={form.items.length === 1}
+                        onClick={() => update({ items: form.items.filter((_, i) => i !== index) })}
+                        aria-label="Xóa dòng"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="block">
+                        <span className="mb-0.5 block text-xs text-slate-500">Số lượng{picked ? ` (${picked.unitName})` : ''}</span>
+                        <input className={inputClass} inputMode="decimal" value={item.quantity} onChange={(e) => updateItem(index, { quantity: e.target.value })} />
+                      </label>
+                      <label className="block">
+                        <span className="mb-0.5 block text-xs text-slate-500">Đơn giá</span>
+                        <input className={inputClass} inputMode="decimal" value={item.unitPrice} onChange={(e) => updateItem(index, { unitPrice: e.target.value })} placeholder="75000" />
+                      </label>
+                    </div>
+                    {isManual && (
+                      <div className="flex items-center gap-2">
+                        <input
+                          className={`${inputClass} font-mono`}
+                          value={item.skuCode}
+                          onChange={(e) => updateItem(index, { skuCode: e.target.value, manual: true })}
+                          placeholder="Mã SKU, ví dụ SKU-KHONG-TON-TAI"
+                          aria-label={`Mã SKU dòng ${index + 1}`}
+                        />
+                        {catalog.length > 0 && (
+                          <button type="button" onClick={() => updateItem(index, { skuCode: '', manual: false })} className="shrink-0 text-xs text-indigo-600 hover:text-indigo-800">
+                            Chọn từ danh sách
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {isManual && item.skuCode.trim() && catalogState?.items && !picked && (
+                      <p className="text-xs text-amber-700">Mã này không có trong shop đang chọn, backend sẽ trả SKU_NOT_FOUND.</p>
+                    )}
+                    {picked && (
+                      <p className={`text-xs ${warnings[index] ? 'text-amber-700' : 'text-slate-500'}`}>
+                        <span className="font-mono">{picked.skuCode}</span> · còn {picked.available.toLocaleString('vi-VN')} {picked.unitName} có thể bán
+                        {picked.unitPrice == null && ' · shop chưa đặt giá bán, tự nhập đơn giá'}
+                        {warnings[index] && <> · {warnings[index]}</>}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
               <button
                 type="button"
                 onClick={() => update({ items: [...form.items, { skuCode: '', quantity: '1', unitPrice: '' }] })}

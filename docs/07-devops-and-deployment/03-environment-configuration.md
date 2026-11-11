@@ -74,3 +74,30 @@ location / {
 ```
 
 - Bật gzip cho file từ 10 KB. Nginx này chỉ phục vụ file tĩnh; HTTPS và reverse proxy do Caddy đảm nhận trên production.
+
+## 6. Bật Trợ lý OISMS cho demo
+
+> **Lưu ý kinh phí:** nhóm không có kinh phí cho API AI, nên chỉ dùng key gói miễn phí của Groq và Gemini với hạn mức rất thấp (Gemini Free Tier khoảng 20 request/ngày). Tính năng AI vì vậy bị giới hạn số câu hỏi mỗi ngày. Chi tiết: [FR-13](../02-functional-requirements/fr-13-ai-assistant.md#lưu-ý-giới-hạn-hạn-mức-api-ai).
+
+AI mặc định tắt. Để bật trên Docker Compose, đặt các biến sau trong môi trường của tiến trình Compose hoặc cấu hình backend demo.
+
+| Biến Compose | Khóa .NET | Giá trị demo |
+| :--- | :--- | :--- |
+| `AI_ENABLED` | `Ai__Enabled` | `true` để bật |
+| `AI_BASE_URL` | `Ai__BaseUrl` | `https://api.groq.com/openai/v1` |
+| `AI_MODEL` | `Ai__Model` | `openai/gpt-oss-120b` |
+| `AI_API_KEY` | `Ai__ApiKey` | Key Groq từ biến môi trường backend |
+| `AI_TIMEOUT_SECONDS` | `Ai__TimeoutSeconds` | `30` |
+| `AI_MAX_TOKENS` | `Ai__MaxTokens` | `1024` |
+| `AI_DEFAULT_PROVIDER` | `Ai__DefaultProvider` | `groq`: model chọn sẵn trong khung chat |
+| `AI_GEMINI_MODEL` | `Ai__Providers__gemini__Model` | `gemini-3.5-flash` |
+| `AI_GEMINI_API_KEY` | `Ai__Providers__gemini__ApiKey` | Key Google AI Studio. Để trống thì Gemini không hiện trong danh sách chọn |
+| `AI_GEMINI_TIMEOUT_SECONDS` | `Ai__Providers__gemini__TimeoutSeconds` | `60` (Gemini suy luận lâu hơn Groq) |
+
+Key Gemini ở gói Free Tier của AI Studio chỉ có khoảng 20 request/ngày cho mỗi model (đo 10/11/2026). Muốn dùng credit của gói Google AI Pro thì phải gắn tài khoản thanh toán Google Cloud có credit vào project tạo key.
+
+Sau khi đặt biến, chạy `docker compose up -d --build backend` để tạo lại backend. Khi chạy .NET trực tiếp, dùng cột khóa .NET làm tên biến môi trường. Nếu bật mà thiếu key, backend vẫn khởi động, ghi cảnh báo và chat trả `AI_DISABLED`.
+
+Giữ key trong môi trường backend hoặc secret do hệ thống triển khai cung cấp. Các file mẫu để trống key. Dùng dữ liệu giả cho demo Groq.
+
+Bộ eval 20 câu là lệnh thủ công tách khỏi unit và integration. Khi có `Ai__ApiKey` trong môi trường và muốn gọi nhà cung cấp thật, chạy `AI_LIVE_EVAL=1 dotnet run --project test-oisms/ai-eval/Oism.AiEval.csproj` từ root repo. Kết quả ghi tỷ lệ đúng tool và đúng ngày. Bộ eval chỉ gửi câu hỏi mẫu, prompt và schema tool, rồi chấm lượt chọn công cụ đầu tiên.

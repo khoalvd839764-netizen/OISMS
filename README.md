@@ -41,57 +41,61 @@
 
 ## 3. Cấu Trúc Thư Mục Dự Án (Project Folder Structure)
 
-Hiện tại toàn bộ cấu trúc thư mục đã được dựng sẵn khung sườn chuẩn hóa, phân tách rõ ràng giữa Backend và 2 ứng dụng Frontend:
+Mã nguồn nằm trong `src/` (Backend .NET và 3 ứng dụng Frontend); toàn bộ test tự động gom trong `test-oisms/`:
 
 ```text
-D:\OISMS\
+OISMS/
 ├── .github/
 │   └── workflows/
-│       └── ci.yml                 # Pipeline CI tự động kiểm tra build Backend & Frontend
-├── scripts/                       # Các file script PowerShell hỗ trợ chạy nhanh
-│   ├── build-all.ps1              # Kiểm tra build toàn bộ dự án
-│   ├── run-backend.ps1            # Chạy nhanh Backend Web API
-│   ├── run-admin.ps1              # Chạy nhanh Admin Dashboard
-│   ├── run-pos.ps1                # Chạy nhanh POS App
-│   └── start-docker.ps1           # Chạy toàn bộ hệ thống bằng Docker Compose
+│       └── ci.yml                     # CI: build + test Backend, build 3 Frontend, chạy npm test POS & Simulator
+├── docker/
+│   ├── caddy/Caddyfile                # Reverse proxy HTTPS khi deploy AWS
+│   ├── pos-tests/                     # Môi trường backend/PostgreSQL cô lập cho test live của POS
+│   └── postgres/
+│       ├── init-oisms.sh              # Khởi tạo DB khi volume trống
+│       └── migrations/                # Script nâng cấp DB đã có dữ liệu (chỉ thêm file mới)
+├── docs/                              # Tài liệu: yêu cầu, kiến trúc, API, kiểm thử, deploy, sprint, báo cáo
+│   └── database/oisms_schema.sql      # Nguồn cấu trúc DB hiện hành (44 bảng)
+├── scripts/                           # Script PowerShell/Node hỗ trợ chạy nhanh và kiểm tra
+│   ├── build-all.ps1                  # Kiểm tra build toàn bộ dự án
+│   ├── run-backend.ps1 / run-admin.ps1 / run-pos.ps1
+│   └── start-docker.ps1               # Chạy toàn bộ hệ thống bằng Docker Compose
+├── skills/                            # Skill hướng dẫn cho AI agent (Codex/Antigravity/Claude)
 ├── src/
-│   ├── backend/                   # Khung sườn .NET 8 Clean Architecture
-│   │   ├── OISM.sln               # Solution liên kết tất cả project backend
-│   │   ├── Dockerfile             # File đóng gói container cho Web API
-│   │   ├── src/
-│   │   │   ├── OISM.Domain/       # Tầng Domain: Nơi định nghĩa Entities, Enums, Exceptions lõi
-│   │   │   │   ├── Common/
-│   │   │   │   ├── Entities/
-│   │   │   │   ├── Enums/
-│   │   │   │   └── Exceptions/
-│   │   │   ├── OISM.Application/  # Tầng Application: Use cases, DTOs, Commands, Queries
-│   │   │   │   ├── Common/
-│   │   │   │   ├── Features/
-│   │   │   │   └── Interfaces/
-│   │   │   ├── OISM.Infrastructure/# Tầng Infrastructure: EF Core DbContext, PostgreSQL, JWT, SignalR
-│   │   │   │   ├── Persistence/
-│   │   │   │   └── Services/
-│   │   │   └── OISM.WebApi/       # Tầng Presentation: Endpoints, Swagger UI, Controllers
-│   │   │       ├── Controllers/
-│   │   │       ├── Middlewares/
-│   │   │       ├── Program.cs
-│   │   │       └── appsettings.json
-│   │   └── tests/
-│   │       ├── OISM.UnitTests/    # Dự án Unit Test (xUnit, Moq, FluentAssertions)
-│   │       └── OISM.IntegrationTests/ # Dự án Integration Test (WebApplicationFactory)
+│   ├── backend/                       # .NET 8 Clean Architecture
+│   │   ├── OISM.sln                   # Solution gồm 4 project nguồn + 2 project test trong test-oisms/backend
+│   │   ├── Dockerfile                 # Đóng gói container Web API
+│   │   └── src/
+│   │       ├── OISM.Domain/           # Entity, enum, exception lõi (Common, Entities, Enums, Exceptions)
+│   │       ├── OISM.Application/      # Use case theo Features/<Module>/, DTO, interface nghiệp vụ
+│   │       ├── OISM.Infrastructure/   # AppDbContext, PostgreSQL, JWT, khóa SQL, job Hangfire, health check
+│   │       └── OISM.WebApi/           # Controllers, Hubs (SignalR), Middlewares, Program.cs
 │   └── frontend/
-│       ├── admin-dashboard/       # Web Admin Dashboard (Vite + React 19 + TypeScript)
-│       │   ├── Dockerfile
-│       │   ├── package.json
-│       │   └── src/
-│       └── pos-app/               # POS Web App PWA bán hàng tại quầy (Vite + React 19 + TypeScript)
-│           ├── Dockerfile
-│           ├── package.json
-│           └── src/
-├── docker-compose.yml             # Cấu hình chạy PostgreSQL, Redis, PgAdmin, Backend, Frontend
-├── .env.example                   # Biến môi trường mẫu
-├── .gitignore                     # Bỏ qua các file rác/cache của .NET và Node
-└── README.md                      # Tài liệu tổng quan dự án
+│       ├── admin-dashboard/           # Web quản trị (Vite + React 19 + TS), cổng 5173
+│       ├── pos-app/                   # POS bán hàng tại quầy, PWA (Vite + React 19 + TS), cổng 5174
+│       └── marketplace-simulator/     # Giả lập bắn đơn Shopee/TikTok/Lazada qua webhook, cổng 5175
+├── test-oisms/                        # Toàn bộ test tự động (xem test-oisms/README.md)
+│   ├── backend/
+│   │   ├── OISM.UnitTests/            # Unit test (xUnit, Moq, FluentAssertions, EF InMemory)
+│   │   └── OISM.IntegrationTests/     # Integration test API (WebApplicationFactory, PostgreSQL thật)
+│   ├── frontend/
+│   │   ├── pos-app/                   # Test POS (node --test) + test-support/ harness dùng chung
+│   │   └── marketplace-simulator/     # Test dựng payload webhook
+│   └── test-data/                     # Fixture dùng chung (dự phòng)
+├── docker-compose.yml                 # PostgreSQL, Redis, PgAdmin, Backend, 3 Frontend (local)
+├── docker-compose.prod.yml            # Cấu hình chạy production trên AWS EC2
+├── .env.example / .env.production.example  # Biến môi trường mẫu
+├── checklist.md                       # Checklist nghiệm thu toàn dự án
+├── CLAUDE.md                          # Bối cảnh dự án cho Claude Code
+└── README.md                          # Tài liệu tổng quan dự án
+```
+
+Chạy test:
+
+```bash
+dotnet test src/backend/OISM.sln                       # Unit + Integration (Integration cần PostgreSQL, cấu hình qua biến OISM_TEST_*)
+npm test --prefix src/frontend/pos-app                 # Test POS trong test-oisms/frontend/pos-app
+npm test --prefix src/frontend/marketplace-simulator   # Test simulator trong test-oisms/frontend/marketplace-simulator
 ```
 
 ---

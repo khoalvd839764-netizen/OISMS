@@ -1,4 +1,4 @@
-import type { Channel, WebhookPayload } from './webhookPayload';
+import type { CatalogItem, Channel, WebhookPayload } from './webhookPayload';
 
 // Để trống thì gọi cùng domain: Vite proxy khi dev, nginx hoặc Caddy khi deploy.
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '');
@@ -42,6 +42,15 @@ async function request(path: string, init: RequestInit): Promise<SendResult> {
 /** Hỏi backend secret thuộc gian hàng nào. 200 kèm WebhookIdentity; secret không dùng được trả 401. */
 export function whoAmI(secret: string): Promise<SendResult> {
   return request('/api/webhooks/simulator/whoami', { method: 'GET', headers: { 'X-Webhook-Secret': secret } });
+}
+
+/** Sản phẩm đang bán của shop sở hữu secret, để chọn thay vì gõ mã SKU. 200 kèm CatalogItem[]. */
+export function fetchCatalog(secret: string): Promise<SendResult> {
+  return request('/api/webhooks/simulator/catalog', { method: 'GET', headers: { 'X-Webhook-Secret': secret } });
+}
+
+export function isCatalog(body: unknown): body is CatalogItem[] {
+  return Array.isArray(body) && body.every((x) => x && typeof x === 'object' && typeof (x as CatalogItem).skuCode === 'string');
 }
 
 export function sendWebhook(channel: Channel, secret: string, payload: WebhookPayload): Promise<SendResult> {

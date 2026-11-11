@@ -7,8 +7,8 @@
 | **Ngày hiệu lực** | `2026-10-25` |
 | **Đường dẫn URL Routes** | `/admin/organization`, `/organization` |
 | **Quyền truy cập (RBAC)** | **Chỉ dành cho Chủ sở hữu (`Owner`)** |
-| **Source code Frontend** | [`OrganizationPage.tsx`](file:///d:/OISMS/src/frontend/admin-dashboard/src/pages/OrganizationPage.tsx) |
-| **Controllers Backend** | [`BranchController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/BranchController.cs), [`WarehousesController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/WarehousesController.cs), [`SuppliersController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/SuppliersController.cs) |
+| **Source code Frontend** | [`OrganizationPage.tsx`](../../src/frontend/admin-dashboard/src/pages/OrganizationPage.tsx) |
+| **Controllers Backend** | [`BranchController.cs`](../../src/backend/src/OISM.WebApi/Controllers/BranchController.cs), [`WarehousesController.cs`](../../src/backend/src/OISM.WebApi/Controllers/WarehousesController.cs), [`SuppliersController.cs`](../../src/backend/src/OISM.WebApi/Controllers/SuppliersController.cs) |
 
 ---
 

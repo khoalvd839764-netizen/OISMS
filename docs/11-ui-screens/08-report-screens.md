@@ -7,8 +7,8 @@
 | **Ngày hiệu lực** | `2026-10-25` |
 | **Đường dẫn URL Routes** | `/admin/reports`, `/reports` |
 | **Quyền truy cập (RBAC)** | **Chỉ dành cho Chủ sở hữu (`Owner`)** |
-| **Source code Frontend** | [`ReportsPage.tsx`](file:///d:/OISMS/src/frontend/admin-dashboard/src/pages/ReportsPage.tsx) |
-| **Controllers Backend** | [`OrdersController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/OrdersController.cs) |
+| **Source code Frontend** | [`ReportsPage.tsx`](../../src/frontend/admin-dashboard/src/pages/ReportsPage.tsx) |
+| **Controllers Backend** | [`OrdersController.cs`](../../src/backend/src/OISM.WebApi/Controllers/OrdersController.cs) |
 
 ---
 
@@ -21,7 +21,7 @@ Màn hình **Báo Cáo Doanh Thu & Quản Trị Lãi Gộp (P&L Reports)** là p
 2. **Hiệu quả mặt hàng (SKU Performance Ranking):** Phân tích danh sách biến thể SKU bán chạy nhất (Top Sellers) và các mặt hàng ứ đọng vốn (Dead Stock / Slow-moving Inventory).
 3. **Dự báo nhu cầu & Gợi ý nhập hàng AI (AI Reorder Recommendations):** Áp dụng mô hình dự báo tiêu thụ theo chuỗi thời gian để gợi ý số lượng đặt hàng tối ưu cho từng nhà cung cấp.
 
-> **Trạng thái 04/11/2026:** giao diện gợi ý nhập hàng nằm ở một tab của `/inventory` và đang tạm ẩn; API `GET /api/ai/reorder-recommendations` vẫn hoạt động.
+> **Trạng thái 10/11/2026:** giao diện gợi ý nhập hàng là tab Gợi ý nhập hàng trong `/inventory`, đã mở lại cho Owner và Staff (tạm ẩn từ 04/11/2026). API `GET /api/ai/reorder-recommendations` tính bằng công thức; Trợ lý OISMS dùng cùng dữ liệu để trả lời "nên nhập gì".
 
 ---
 
