@@ -22,6 +22,8 @@ Cách quét: grep mẫu lệch đã biết (số bảng, tên class cũ, POS Adm
 
 ## A. Lệch ảnh hưởng trực tiếp nghiệm thu Sprint 4
 
+> **Cập nhật 12/11/2026:** nhóm quyết định giữ báo cáo tổng kết Sprint 4 ở bản gốc `v1.0.0` (chốt 04/11/2026), không áp các sửa A1 – A10 vào báo cáo đó. Hiện trạng sau 04/11/2026 và các hạng mục còn thiếu ghi ở [báo cáo tổng kết Sprint 5](../sprint-5/BAO_CAO_TONG_KET_NGHIEM_THU_SPRINT_5.md).
+
 ### `08-sprints/sprint-4/BAO_CAO_TONG_KET_NGHIEM_THU_SPRINT_4.md`
 
 | # | Dòng | Tài liệu ghi | Thực tế | Cần người dùng quyết |

@@ -45,7 +45,7 @@ Tổ chức toàn bộ khối lượng công việc của giai đoạn hoàn thi
 
 ## 3. Thực Tế Thực Hiện So Với Kế Hoạch (cập nhật 11/11/2026)
 
-Bảng mục 2 là kế hoạch gốc. Kết quả nghiệm thu xem [báo cáo tổng kết Sprint 4](./BAO_CAO_TONG_KET_NGHIEM_THU_SPRINT_4.md).
+Bảng mục 2 là kế hoạch gốc. Kết quả nghiệm thu chốt ngày 04/11/2026 xem [báo cáo tổng kết Sprint 4](./BAO_CAO_TONG_KET_NGHIEM_THU_SPRINT_4.md). Việc làm sau 04/11/2026 (tách POS, trả hàng CS-01, tài khoản nhận tiền CS-05, Trợ lý OISMS) thuộc Sprint 5, xem [báo cáo tổng kết Sprint 5](../sprint-5/BAO_CAO_TONG_KET_NGHIEM_THU_SPRINT_5.md).
 
 - **Nhân sự:** Phúc Hữu và Phương Lê tạm nghỉ có phép trong Sprint 4, cam kết làm bù ở Sprint 5. Phần việc Frontend được giao cho hai bạn (Admin, CS-05 trên POS) do Lê Võ Đăng Khoa, Phùng Minh Nhựt và Nam Nguyễn thực hiện.
 - **Upgrade 02:** giao diện Admin đã có (trang Hóa đơn bán `/invoices`: chi tiết, truy vết, in lại), khác với ghi chú "chưa làm" ở v2.3.0.
