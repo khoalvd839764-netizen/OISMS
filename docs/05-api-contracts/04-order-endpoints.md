@@ -113,7 +113,7 @@ Quản lý chu trình khách đổi trả hàng bán từ đơn `Confirmed`/`Com
 
 **Tìm kiếm toàn cục:** `GET /api/search?q=&limit=5` (mọi vai trò đã đăng nhập) tìm sản phẩm/SKU, đơn hàng, hóa đơn... theo từ khóa; kết quả lọc theo vai trò lấy từ JWT.
 
-**Tác vụ nền:** job `oisms-reservation-expiry` (`*/1 * * * *` UTC) chỉ chạy khi `Hangfire:Enabled=true`. `appsettings.json` và Docker Compose hiện để `false`, nên đơn giữ chỗ quá hạn không tự hủy trên bản demo.
+**Tác vụ nền:** job `oisms-reservation-expiry` (`*/1 * * * *` UTC) chỉ chạy khi `Hangfire:Enabled=true`. `appsettings.json` và Docker Compose mặc định để `false`, nên khi chạy local đơn giữ chỗ quá hạn không tự hủy; bản demo AWS đã bật từ 11/11/2026.
 
 > **Tồn theo đơn vị (04/11/2026):** `GET /api/reports/inventory-velocity` trả thêm `quantityByUnit`, mỗi phần tử gồm `unitName`, `onHand`, `reserved`, `available` theo đơn vị gốc, sắp theo `onHand` giảm dần. SKU chưa có đơn vị gốc nằm trong nhóm `Chưa xác định`. Các trường `totalOnHandQuantity`, `totalReservedQuantity`, `totalAvailableQuantity` vẫn trả về để tương thích nhưng cộng gộp khác đơn vị, không dùng để hiển thị. Trong `bestSellers` và `slowMovingItems`, mỗi SKU một dòng; `currentOnHand` là tổng tồn trong phạm vi chi nhánh đang lọc; `baseUnitName` là `null` khi SKU chưa có đơn vị gốc.
 

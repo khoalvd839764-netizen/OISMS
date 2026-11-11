@@ -95,5 +95,5 @@ Không chạy bản local và bản production cùng lúc trên một máy với
 - Một máy, không dự phòng: máy dừng là hệ thống dừng.
 - Database chạy trong container trên cùng máy, backup phải tự làm (chưa dùng RDS hay snapshot tự động).
 - Build image ngay trên EC2, tốn RAM/CPU lúc deploy; chưa có registry (ECR) hay pipeline CD.
-- Hangfire chưa bật trên bản demo nên không có job hết hạn giữ chỗ và sinh kỳ kiểm kê tự động. Cách bật: [cấu hình backend trên production](./03-cau-hinh-moi-truong-production.md#4-cấu-hình-backend-trên-production).
+- Hangfire đã bật trên bản demo từ 11/11/2026: job hết hạn giữ chỗ chạy mỗi phút, sinh kỳ kiểm kê chạy phút thứ 5 mỗi giờ. Trợ lý OISMS cũng đã bật (key gói miễn phí). Cách bật, tắt: [cấu hình backend trên production](./03-cau-hinh-moi-truong-production.md#4-cấu-hình-backend-trên-production).
 - `/health/ready` công khai qua Caddy và trả kèm tên user database đang kết nối, số bảng; chấp nhận được cho bản demo nhưng nên chặn hoặc rút gọn nếu dùng thật.

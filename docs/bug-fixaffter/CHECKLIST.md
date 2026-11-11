@@ -109,7 +109,7 @@ Không phải lỗi: đây là chức năng chưa làm xong, đang có nhãn Com
 | [x] | Upgrade 02 | Hóa đơn bán, in lại, truy vết đến dòng sổ `OUT` | ✅ | ✅ | [hoa-don-truy-vet-xuat-kho.md](../report-after-upgrade/hoa-don-truy-vet-xuat-kho.md) |
 | [x] | Upgrade 03 | Lịch kiểm kê, kỳ kiểm kê, duyệt chênh lệch (`PendingApproval`) | ✅ | ✅ | [lich-kiem-ke-duyet-chenh-lech.md](../report-after-upgrade/lich-kiem-ke-duyet-chenh-lech.md) |
 
-Lưu ý: kỳ kiểm kê chỉ tự sinh khi bật Hangfire (`Hangfire:Enabled=true`). Mặc định và trên bản demo AWS đang tắt.
+Lưu ý: kỳ kiểm kê chỉ tự sinh khi bật Hangfire (`Hangfire:Enabled=true`). Mặc định tắt khi chạy local; bản demo AWS đã bật từ 11/11/2026.
 
 ---
 

@@ -260,8 +260,8 @@ Cách chạy local không đổi, các thay đổi cho deploy không áp dụng 
 | Vận hành kho | Phiếu mua → phiếu nhập (U01-A), chuyển kho 2 bước, kiểm kê theo lịch và duyệt chênh lệch (U03), đa đơn vị tính (U05), bảng giá theo thời gian (U04) | U01-B (hóa đơn NCC, chênh lệch) chưa làm |
 | Bán hàng | Đơn đa kênh, POS riêng `pos-app` có VietQR (CS-05), hóa đơn bán và truy vết xuất kho (U02), trả hàng (CS-01), webhook sàn và app giả lập | Xác nhận thanh toán QR tự động qua ngân hàng chưa làm |
 | Quản trị | Nhân viên (CS-02), ngưỡng cảnh báo tồn (CS-03), tìm kiếm toàn hệ thống (CS-04), KPI Tổng quan (CS-07), gợi ý nhập hàng (CS-08), tài khoản nhận tiền | CS-02 chưa phân công chi nhánh; CS-06 in chứng từ, in báo cáo chưa làm |
-| AI | Trợ lý OISMS (`POST /api/ai/chat`) cho Owner, Staff, chỉ đọc, trả lời theo tài liệu | Mặc định tắt; hạn mức gói miễn phí rất thấp |
-| Tác vụ nền | Hết hạn giữ chỗ, sinh kỳ kiểm kê | Hangfire mặc định tắt (cả bản demo AWS); chưa có job tổng hợp báo cáo hằng ngày |
+| AI | Trợ lý OISMS (`POST /api/ai/chat`) cho Owner, Staff, chỉ đọc, trả lời theo tài liệu | Mặc định tắt khi chạy local; bản demo AWS đã bật từ 11/11/2026. Hạn mức gói miễn phí rất thấp |
+| Tác vụ nền | Hết hạn giữ chỗ, sinh kỳ kiểm kê | Hangfire mặc định tắt khi chạy local; bản demo AWS đã bật từ 11/11/2026. Chưa có job tổng hợp báo cáo hằng ngày |
 
 Kiểm thử gần nhất (11/11/2026): unit backend 380/380 PASS, `npm test` POS 89/89 PASS. Integration trên PostgreSQL 372/372 PASS ngày 07/11/2026.
 

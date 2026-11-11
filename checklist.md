@@ -42,7 +42,7 @@ Chi tiết 42 hạng mục đã triển khai và 5 mục chưa xác nhận hoàn
 - [ ] **Simulator đầy đủ:** Chưa có bằng chứng nghiệm thu UI/sender HTTP concurrent hoàn chỉnh; batch tạo đơn tuần tự trên nhánh tích hợp không chứng minh mục này. *(11/11/2026: đã có app giả lập `marketplace-simulator` cổng 5175; runner HTTP concurrent vẫn chưa có.)*
 - [ ] **UI E2E Admin/POS/realtime:** Cần bằng chứng tích hợp frontend riêng.
 - [ ] **Thiết kế AI gợi ý nhập hàng:** Chưa có bằng chứng hoàn tất trong gói BE1 hiện được tổng kết. *(11/11/2026: đã có ở Sprint 4, xem CS-08.)*
-- [ ] **Triển khai production và bật/provision Hangfire trên môi trường đích:** Chưa thuộc kết luận nghiệm thu local. *(11/11/2026: đã deploy AWS `oisms.khoadang.site`; Hangfire trên AWS vẫn tắt.)*
+- [ ] **Triển khai production và bật/provision Hangfire trên môi trường đích:** Chưa thuộc kết luận nghiệm thu local. *(11/11/2026: đã deploy AWS `oisms.khoadang.site` và bật Hangfire trên AWS: 12 bảng schema `hangfire`, 1 server, job chạy `Succeeded`.)*
 
 Quy ước: mục FR bao gồm nhiều người hoặc nhiều sprint chỉ được đánh dấu hoàn tất khi toàn bộ phạm vi có bằng chứng. Phần BE1 đã đạt được đánh dấu riêng ở các mục con; `[ ]` của nhóm không phủ nhận phần backend đã hoàn thành.
 
@@ -57,11 +57,12 @@ Quy ước: mục FR bao gồm nhiều người hoặc nhiều sprint chỉ đư
 - [x] **CS-01, CS-03, CS-04, CS-05, CS-07, CS-08:** đã có backend và giao diện. CS-08 là gợi ý theo quy tắc, còn thiếu bằng chứng đánh giá độ chính xác (xem 0A.3).
 - [ ] **CS-02:** có tạo/sửa/khóa nhân viên, vai trò `Staff`/`Cashier`; chưa có phân công chi nhánh.
 - [ ] **CS-06:** in biên nhận POS và in lại hóa đơn bán đã có; in chứng từ giao hàng và in báo cáo còn Coming soon.
-- [x] **Trợ lý OISMS (`FR-AI-02`):** Owner, Staff hỏi đáp chỉ đọc; mặc định tắt, dùng gói miễn phí hạn mức thấp.
+- [x] **Trợ lý OISMS (`FR-AI-02`):** Owner, Staff hỏi đáp chỉ đọc; mặc định tắt khi chạy local, đã bật trên bản demo AWS; dùng gói miễn phí hạn mức thấp.
 - [x] **POS:** một ứng dụng `src/frontend/pos-app` (cổng 5174), Admin `/pos` chỉ chuyển hướng.
 - [ ] **Kiểm chứng lỗi POS sau khi gộp:** BF-003, BF-015 đã có test và đóng; BF-019 có code chặn, chưa có test riêng; BF-020 (checkout cũ xóa giỏ mới khi đổi chi nhánh) chưa có test, cần kiểm chứng lại.
 - [x] **Kết nối sàn và app giả lập (cổng 5175):** tạo secret, chọn sản phẩm của shop theo secret, bắn đơn qua webhook.
-- [ ] **Job Hangfire tổng hợp báo cáo hằng ngày, màn demo concurrency:** chưa có. Hangfire mặc định tắt, kể cả bản demo AWS.
+- [ ] **Job Hangfire tổng hợp báo cáo hằng ngày, màn demo concurrency:** chưa có.
+- [x] **Hangfire và Trợ lý AI trên bản demo AWS:** bật ngày 11/11/2026 (sau khi backup DB và `.env.production`); job hết hạn giữ chỗ và sinh kỳ kiểm kê tự chạy, AI dùng key gói miễn phí.
 - [ ] **NFR trên môi trường deploy:** chưa đo p95 POS, chưa chạy stress test 50 đơn trên AWS.
 - [x] **BE2-F04 (doanh thu tính cả đơn `Confirmed`):** nhóm chốt 11/11/2026 giữ cách tính hiện tại (`Confirmed` và `Completed`), đã ghi vào [`fr-11`](docs/02-functional-requirements/fr-11-reports-analytics.md) v1.1.0 và API contract.
 - [ ] **Lọc báo cáo doanh thu theo SKU (`BE2-F04`):** chưa có trong code, hoàn thành ở sprint sau.

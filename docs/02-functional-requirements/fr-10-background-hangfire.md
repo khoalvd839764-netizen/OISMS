@@ -29,7 +29,7 @@
 
 > **Hiện trạng (06/11/2026):**
 > - Job đã có: `oisms-reservation-expiry` (`ReservationExpiryJob`, `*/1 * * * *` UTC) và job sinh kỳ kiểm kê (`StockCountPeriodJob`, `5 * * * *` UTC). Storage là PostgreSQL schema `hangfire`.
-> - `Hangfire:Enabled` mặc định `false` trong `appsettings.json` và Docker Compose (`HANGFIRE_ENABLED`, mặc định `false`). Khi tắt, không có Hangfire server và không đăng ký job, nên đơn giữ chỗ quá hạn không tự hủy. Bản demo AWS chưa bật.
+> - `Hangfire:Enabled` mặc định `false` trong `appsettings.json` và Docker Compose (`HANGFIRE_ENABLED`, mặc định `false`). Khi tắt, không có Hangfire server và không đăng ký job, nên đơn giữ chỗ quá hạn không tự hủy. Bản demo AWS đã bật từ 11/11/2026.
 > - Chưa có job tổng hợp báo cáo hằng ngày; bảng `daily_sales_summaries` chưa dùng, báo cáo tính trực tiếp từ đơn hàng.
 > - Cách bật: [cấu hình môi trường](../07-devops-and-deployment/03-environment-configuration.md#2-khóa-cấu-hình-backend-net); trên AWS xem [cấu hình production](../13-deploy-aws/03-cau-hinh-moi-truong-production.md#4-cấu-hình-backend-trên-production).
 >
