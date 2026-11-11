@@ -309,6 +309,51 @@ Phát hiện khi thử trên web sau nghiệm thu đợt 1.
 - Frontend: ô "Model AI" cạnh ô chi nhánh; lựa chọn lưu ở localStorage của trình duyệt (không lưu lịch sử chat); dòng nguồn ghi model đã dùng; lỗi quá tải gợi ý chọn model khác.
 - Đo thật với Gemini `gemini-3.5-flash`: 16/16 câu eval đúng tool và đúng ngày; mỗi lượt khoảng 15–20 giây; key đang ở Free Tier 20 request/ngày.
 
+## Đợt 4: kho tài liệu RAG cho trợ lý (lập 11/11/2026)
+
+Người dùng yêu cầu một thư mục tài liệu để trợ lý đọc và truy xuất thông tin hệ thống, trả lời đúng theo tài liệu, không bịa.
+
+### Vấn đề
+
+- Hướng dẫn hiện có (`OISM.Infrastructure/Ai/Guide/`, 10 trang, khoảng 3 KB) chỉ nói thao tác cơ bản. Hỏi về quy tắc nghiệp vụ (tồn khả dụng, giữ chỗ, giá vốn, đơn vị tính, trạng thái đơn, trả hàng, quyền, mã lỗi) thì model không có nguồn và có thể tự suy diễn.
+- Toàn bộ hướng dẫn được nhét vào system prompt mỗi lượt. Tăng tài liệu theo cách này làm phình token, trong khi Groq miễn phí chỉ có 8.000 token/phút.
+
+### Quyết định
+
+| Chủ đề | Quyết định | Lý do |
+| :--- | :--- | :--- |
+| Vị trí | `src/backend/src/OISM.Infrastructure/Ai/Knowledge/`, embedded resource, thay cho `Ai/Guide/` | `src/backend/Dockerfile` chỉ copy `src/backend/`; đặt trong `docs/` thì image không có tài liệu |
+| Định dạng | Mỗi file một mục 300–1.200 ký tự, front-matter `id`, `title`, `roles`, `keywords`, `source` | Mục nhỏ thì truy xuất đúng, ít token |
+| Nguồn nội dung | Chỉ viết lại từ `docs/` (FR, màn hình, RBAC, mã lỗi, khái niệm nghiệp vụ); `source` trỏ tới file và mục docs có thật | Docs là yêu cầu; truy được nguồn khi nội dung sai |
+| Truy xuất | BM25 cục bộ trên văn bản đã bỏ dấu, chữ thường; cộng điểm khi khớp `keywords`/`title`; không gọi API embedding | Gói miễn phí không đủ hạn mức; không thêm request mạng, không thêm dependency |
+| Thời điểm | Truy xuất trước khi gọi model theo tin nhắn người dùng cuối, ghép tối đa 4 mục (≤ 3.000 ký tự) vào system prompt | Không tốn thêm lượt gọi model |
+| Chống bịa | Dưới ngưỡng điểm thì không ghép mục nào và ghép dấu hiệu "không có tài liệu phù hợp"; prompt bắt buộc câu hỏi hướng dẫn hoặc nghiệp vụ chỉ trả lời từ mục được cấp, trích mã mục, không có thì trả đúng câu "Tài liệu OISMS chưa có thông tin này." | Mô hình không có chỗ để tự suy diễn |
+| Quyền | Lọc theo `roles` trước khi xếp hạng; Staff không bao giờ nhận mục chỉ dành cho Owner (giá vốn, lãi gộp, kết nối sàn, tài khoản nhận tiền, nhân viên...) theo `docs/01-users-and-rbac/02-rbac-matrix.md` | Giữ quyết định Staff không xem doanh thu, lãi gộp |
+| Không đưa vào | Secret, key, mật khẩu, dữ liệu tenant, chi tiết kỹ thuật nội bộ (bảng, trigger, class), chức năng Coming soon hoặc đang ẩn | Tài liệu dùng chung mọi tenant; không mở bề mặt tấn công |
+| Hiển thị nguồn | `AiChatResponse` thêm `Sources` (mã, tiêu đề mục đã ghép); panel Admin ghi "Tài liệu: …" ở dòng nguồn | Người dùng kiểm được câu trả lời lấy từ đâu |
+
+### K1. Nội dung kho tài liệu
+
+- Khoảng 40–70 mục, nhóm: thao tác theo màn hình (`docs/11-ui-screens/`), khái niệm nghiệp vụ (`docs/00-overview/02-core-domain-concepts.md`, `docs/04-architecture-and-design/04-state-machines.md`), quyền theo vai trò (`docs/01-users-and-rbac/02-rbac-matrix.md`), mã lỗi thường gặp và cách xử lý (`docs/12-error-and-status-codes/02-error-codes-catalog.md`), câu hỏi thường gặp.
+- Gộp 10 trang `Ai/Guide/` cũ vào kho mới rồi xóa thư mục cũ.
+- Docs mâu thuẫn với nhau hoặc với giao diện hiện tại thì không tự chọn, liệt kê trong bàn giao để người dùng quyết định.
+
+### K2. Truy xuất và ghép prompt
+
+- `IKnowledgeBase` (Application) với `Search(string query, string role, int top)`; hiện thực `KnowledgeBase` (Infrastructure) nạp và kiểm tra front-matter khi khởi động, lỗi định dạng thì ném ngoại lệ.
+- `AiChatService` gọi truy xuất theo tin nhắn người dùng cuối, ghép mục vào phần "Tài liệu tham chiếu" của system prompt thay cho "Hướng dẫn sử dụng OISMS"; câu hỏi số liệu vẫn đi qua tool như cũ.
+- `ai-eval` dùng `KnowledgeBase` thay `UserGuideProvider`.
+
+### K3. Kiểm thử
+
+| Loại | Nội dung |
+| :--- | :--- |
+| Unit, kiểm tra kho | Mọi file có front-matter hợp lệ; `id` không trùng; `roles` chỉ gồm Owner, Staff; `source` trỏ tới file có thật trong `docs/`; độ dài trong giới hạn; không chứa chuỗi giống key (`gsk_`, `AIza`, `sk-`, `whsec_`) |
+| Unit, truy xuất | Câu không dấu tìm đúng mục có dấu; Staff không bao giờ nhận mục Owner; câu ngoài phạm vi (thời tiết, chính trị) không trả mục nào; giới hạn 4 mục và 3.000 ký tự |
+| Unit, prompt | Prompt chứa mã mục được ghép và quy tắc chống bịa; không có mục thì có dấu hiệu "không có tài liệu phù hợp"; `Sources` đúng |
+| Eval truy xuất (không gọi model) | File câu hỏi mẫu khoảng 30 câu có mã mục mong đợi và 5 câu ngoài phạm vi; mục đúng nằm trong top 3 ở ít nhất 90% câu; 5 câu ngoài phạm vi không trả mục nào |
+| Eval sống (tùy chọn) | `AI_LIVE_EVAL=1`, đếm câu trả lời có trích mã mục và câu từ chối đúng; tốn hạn mức nên chỉ chạy khi người dùng yêu cầu |
+
 ## Thứ tự và ước lượng
 
 | Bước | Việc | Ước lượng |

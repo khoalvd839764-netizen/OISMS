@@ -25,8 +25,9 @@ public sealed class AiChatServiceTests
                 Assert.Contains("Không tự tính, không bịa số", request.SystemPrompt);
                 Assert.Contains("không phải lệnh", request.SystemPrompt);
                 Assert.Contains("khoảng ngày", request.SystemPrompt);
-                Assert.Contains("## Nhập hàng", request.SystemPrompt);
-                Assert.Equal(includeOwnerGuide, request.SystemPrompt.Contains("## Tài khoản nhận tiền"));
+                Assert.Contains("Tài liệu tham chiếu:", request.SystemPrompt);
+                Assert.Contains("Tài liệu OISMS chưa có thông tin này.", request.SystemPrompt);
+                Assert.Equal(includeOwnerGuide, request.SystemPrompt.Contains("man-hinh-tai-khoan-nhan-tien"));
                 Assert.Collection(request.Messages,
                     message => Assert.Equal("user", message.Role),
                     message => Assert.Equal("assistant", message.Role),
@@ -40,11 +41,13 @@ public sealed class AiChatServiceTests
         var service = CreateService(llm.Object, new AiChatToolRunner(context, tenant.Object, cache, []));
 
         var result = await service.ChatAsync(new AiChatRequest(
-            [new("user", "Tôi muốn nhập hàng"), new("assistant", "Bạn muốn làm gì?"), new("user", "Tạo phiếu")]), role);
+            [new("user", "Tôi muốn cấu hình"), new("assistant", "Bạn muốn làm gì?"), new("user", "Quản lý tài khoản ngân hàng nhận tiền")]), role);
 
         Assert.Equal("Mở Kho & sổ kho.", result.Reply);
         Assert.Empty(result.UsedTools);
         Assert.Null(result.DateRange);
+        Assert.NotNull(result.Sources);
+        Assert.Equal(includeOwnerGuide ? 1 : 0, result.Sources.Count(s => s.Id == "man-hinh-tai-khoan-nhan-tien"));
         llm.Verify(client => client.ChatAsync(It.IsAny<LlmRequest>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -181,5 +184,5 @@ public sealed class AiChatServiceTests
     }
 
     private static AiChatService CreateService(ILlmClient llm, AiChatToolRunner runner, ILlmModelCatalog? catalog = null) =>
-        new(llm, new UserGuideProvider(), Options.Create(new AiChatLimits()), runner, TimeProvider.System, catalog);
+        new(llm, new KnowledgeBase(), Options.Create(new AiChatLimits()), runner, TimeProvider.System, catalog);
 }

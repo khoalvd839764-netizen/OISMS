@@ -34,7 +34,7 @@ using var services = new ServiceCollection().AddHttpContextAccessor().AddInfrast
 using var scope = services.CreateScope();
 var provider = scope.ServiceProvider;
 var firstRound = new FirstRoundClient(provider.GetRequiredService<ILlmClient>());
-var chat = new AiChatService(firstRound, new UserGuideProvider(), Options.Create(new AiChatLimits()),
+var chat = new AiChatService(firstRound, new KnowledgeBase(), Options.Create(new AiChatLimits()),
     provider.GetRequiredService<AiChatToolRunner>(), new EvalClock(suite.ReferenceDate));
 var tools = provider.GetServices<IAiChatTool>().ToDictionary(tool => tool.Definition.Name);
 

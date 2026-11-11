@@ -18,7 +18,7 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <EmbeddedResource Include="Ai/Guide/*.md" />
+    <EmbeddedResource Include="Ai/Knowledge/*.md" />
   </ItemGroup>
 
   <PropertyGroup>

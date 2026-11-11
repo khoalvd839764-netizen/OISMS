@@ -3,7 +3,7 @@ import { buildRequest, readAiChatError, sendChat, type AiChatError } from "../..
 import type { AiChatMessage, AiChatRequest, AiChatResponse } from "../../types/aiChat";
 
 export type ChatEntry = AiChatMessage & {
-  source?: Pick<AiChatResponse, "usedTools" | "dateRange" | "scope" | "model">;
+  source?: Pick<AiChatResponse, "usedTools" | "dateRange" | "scope" | "model" | "sources">;
   branchChoices?: AiChatResponse["branchChoices"];
 };
 type ChatStatus = "idle" | "sending" | "error" | "disabled";
@@ -44,12 +44,12 @@ export function useAiChat(onUnauthorized: () => void) {
     setError(null);
     setStatus("sending");
     try {
-      const { reply, usedTools, dateRange, scope, branchChoices, model } = await sendChat(request, controller.signal);
+      const { reply, usedTools, dateRange, scope, branchChoices, model, sources } = await sendChat(request, controller.signal);
       if (active.current !== controller) return;
       setMessages((previous) => [...previous, {
         role: "assistant",
         content: reply,
-        source: { usedTools, dateRange, scope, model },
+        source: { usedTools, dateRange, scope, model, sources },
         branchChoices,
       }]);
       setLastRequest(null);

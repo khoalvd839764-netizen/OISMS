@@ -115,7 +115,7 @@ export async function sendChat(request: AiChatRequest, signal: AbortSignal): Pro
     timeout: 90_000,
   });
   const result = readPanelResponse<AiChatResponse>(status, data);
-  return { ...result, scope: result.scope ?? null, branchChoices: result.branchChoices ?? [], model: result.model ?? null };
+  return { ...result, scope: result.scope ?? null, branchChoices: result.branchChoices ?? [], model: result.model ?? null, sources: result.sources ?? [] };
 }
 
 export async function loadAiModels(signal: AbortSignal): Promise<AiModelOption[]> {

@@ -392,7 +392,7 @@ public sealed class AiChatToolTests
                 tools.Add(new RevenueChatTool(Reports.Object));
             }
             var runner = new AiChatToolRunner(Db, Tenant.Object, _cache, tools);
-            Service = new AiChatService(Llm.Object, new UserGuideProvider(), Options.Create(new AiChatLimits()), runner, new FixedClock());
+            Service = new AiChatService(Llm.Object, new KnowledgeBase(), Options.Create(new AiChatLimits()), runner, new FixedClock());
         }
 
         public async Task<Branch> AddBranchAsync(string name, bool active = true, Guid? tenantId = null)

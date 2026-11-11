@@ -17,6 +17,11 @@ export interface AiChatBranchChoice {
   name: string;
 }
 
+export interface AiChatSource {
+  id: string;
+  title: string;
+}
+
 export interface AiChatResponse {
   reply: string;
   usedTools: string[];
@@ -24,6 +29,7 @@ export interface AiChatResponse {
   scope: string | null;
   branchChoices: AiChatBranchChoice[];
   model: string | null;
+  sources?: AiChatSource[];
 }
 
 export interface AiModelOption {

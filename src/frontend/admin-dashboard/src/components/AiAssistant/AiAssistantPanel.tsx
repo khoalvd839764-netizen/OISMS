@@ -60,8 +60,15 @@ function sourceLabel(source: ChatEntry["source"] | undefined, models: AiModelOpt
   const names = source.usedTools.map((tool) => SOURCE_LABELS[tool] ?? tool).join(", ");
   const range = source.dateRange;
   const modelLabel = source.model ? models.find((model) => model.id === source.model)?.label ?? source.model : "";
+  const docLabel = source.sources && source.sources.length > 0
+    ? `Tài liệu: ${source.sources.map((s) => s.title).join(", ")}`
+    : "";
   const data = [names, source.scope, range && `${shortDate(range.from)}–${shortDate(range.to)}`].filter(Boolean);
-  const parts = [data.length ? `Nguồn: ${data.join(" · ")}` : "", modelLabel && `Model: ${modelLabel}`].filter(Boolean);
+  const parts = [
+    data.length ? `Nguồn: ${data.join(" · ")}` : "",
+    docLabel,
+    modelLabel && `Model: ${modelLabel}`,
+  ].filter(Boolean);
   return parts.join(" · ");
 }
 

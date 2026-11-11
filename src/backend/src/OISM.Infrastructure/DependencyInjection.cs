@@ -52,7 +52,7 @@ public static class DependencyInjection
             })
             .ValidateOnStart();
         services.Configure<OISM.Application.Features.Ai.Services.AiChatLimits>(configuration.GetSection(AiOptions.SectionName));
-        services.AddSingleton<IUserGuideProvider, OISM.Infrastructure.Ai.UserGuideProvider>();
+        services.AddSingleton<IKnowledgeBase, OISM.Infrastructure.Ai.KnowledgeBase>();
         services.AddSingleton<DisabledLlmClient>();
         services.AddHttpClient<OpenAiCompatibleLlmClient>((provider, client) =>
             client.Timeout = TimeSpan.FromSeconds(125))

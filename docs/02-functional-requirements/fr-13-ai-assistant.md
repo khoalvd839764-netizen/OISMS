@@ -18,7 +18,9 @@ Vai trò và tenant lấy từ JWT. Chi nhánh được kiểm tra thuộc tenan
 
 Panel mặc định dùng tất cả chi nhánh và ô chọn chỉ liệt kê chi nhánh đang hoạt động. Tên chi nhánh được nhắc trong câu hỏi ưu tiên hơn lựa chọn hiện tại. Backend so tên của các chi nhánh đang hoạt động trong tenant, bỏ dấu và không phân biệt hoa thường. Khi không khớp duy nhất, trợ lý hiển thị tối đa 10 nút chọn. Bấm một nút sẽ gửi lại câu hỏi gần nhất theo chi nhánh đã xác nhận, giữ một bản của tin người dùng trong lịch sử.
 
-Câu trả lời hiển thị đoạn văn, số in đậm, mã nội tuyến và danh sách. Dòng nguồn kèm phạm vi chi nhánh thực tế và khoảng ngày khi có.
+Câu trả lời hiển thị đoạn văn, số in đậm, mã nội tuyến và danh sách. Dòng nguồn kèm phạm vi chi nhánh thực tế, khoảng ngày và danh sách tài liệu tham chiếu khi có.
+
+Kho tài liệu hướng dẫn và nghiệp vụ (RAG): các câu hỏi hướng dẫn sử dụng và quy tắc nghiệp vụ được đối chiếu với kho tài liệu gồm các mục nhỏ nhúng sẵn trong backend (lọc theo vai trò trước khi xếp hạng bằng thuật toán BM25 cục bộ, hỗ trợ từ đồng nghĩa và cụm từ nghiệp vụ). Trợ lý chỉ trả lời từ tài liệu được truy xuất, kèm mã mục tham chiếu ở cuối câu, và từ chối nếu không tìm thấy thông tin phù hợp để chống bịa. Response API trả danh sách mục tài liệu tham chiếu (`Sources`) để giao diện hiển thị tên tài liệu ở dòng nguồn.
 
 Ngày nghiệp vụ theo UTC+07. Mỗi ngày được truy vấn từ 00:00 đến trước 00:00 ngày kế tiếp. Khoảng tra cứu tối đa 92 ngày. Trợ lý mặc định tắt. Lịch sử tồn tại trong bộ nhớ của panel theo phiên Admin.
 

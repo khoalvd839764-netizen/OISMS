@@ -41,6 +41,8 @@ public sealed class AiChatEndpointTests
             Assert.Null(result.DateRange);
             Assert.Null(result.Scope);
             Assert.Empty(result.BranchChoices);
+            Assert.NotNull(result.Sources);
+            Assert.NotEmpty(result.Sources);
         }
     }
 

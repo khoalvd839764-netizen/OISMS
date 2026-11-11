@@ -24,6 +24,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="Ai\knowledge-questions.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\..\src\backend\src\OISM.Domain\OISM.Domain.csproj" />
     <ProjectReference Include="..\..\..\src\backend\src\OISM.Application\OISM.Application.csproj" />
     <ProjectReference Include="..\..\..\src\backend\src\OISM.Infrastructure\OISM.Infrastructure.csproj" />
