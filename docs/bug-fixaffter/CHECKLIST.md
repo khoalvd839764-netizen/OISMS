@@ -1,6 +1,6 @@
 # Checklist lỗi, Coming Soon và Upgrade
 
-Cập nhật: **07/11/2026**. Nhánh đối chiếu: `feature/OISMS-48-shop-integrations-api`.
+Cập nhật: **11/11/2026**. Nhánh đối chiếu: `feature/OISMS-58-chatbot-ai`. Từ 08/11/2026 POS Admin đã chuyển thành ứng dụng POS duy nhất `src/frontend/pos-app`.
 
 Ký hiệu: `[x]` đã xong · `[~]` đã sửa nhưng cần kiểm chứng lại hoặc mới xong một phần · `[ ]` chưa làm.
 Chi tiết từng lỗi nằm trong thư mục [`errors/`](./errors/), mỗi lỗi một file.
@@ -9,7 +9,7 @@ Chi tiết từng lỗi nằm trong thư mục [`errors/`](./errors/), mỗi l�
 
 | Nhóm | Đã xong | Cần kiểm chứng / một phần | Chưa làm |
 | :--- | :---: | :---: | :---: |
-| Lỗi `BF-001..036` | 25 | 4 | 7 |
+| Lỗi `BF-001..036` | 27 | 2 | 7 |
 | Coming Soon `CS-01..08` + Quên mật khẩu | 3 | 3 | 3 |
 | Upgrade (GVHD) | 6 | 0 | 1 |
 
@@ -23,7 +23,7 @@ Chi tiết từng lỗi nằm trong thư mục [`errors/`](./errors/), mỗi l�
 | :---: | :--- | :---: | :--- | :--- | :--- |
 | [x] | [BF-001](./errors/BF-001-http-va-refresh-khong-gan-voi-chu.md) | P1 | Đăng nhập/HTTP | Refresh và replay 401 không gắn với chủ phiên | Đã sửa |
 | [x] | [BF-002](./errors/BF-002-ket-noi-signalr-khong-duoc-thay-theo.md) | P1 | Realtime | Kết nối SignalR không được thay theo phiên | Đã sửa |
-| [~] | [BF-003](./errors/BF-003-pos-doi-request-key-khi-thu-lai.md) | P1 | POS | Retry thanh toán sinh `requestKey` mới | Đã sửa ở POS Admin; POS riêng cần kiểm chứng lại |
+| [x] | [BF-003](./errors/BF-003-pos-doi-request-key-khi-thu-lai.md) | P1 | POS | Retry thanh toán sinh `requestKey` mới | Bản sửa nằm trong `pos-app` (`pendingCheckoutStore.ts`). 11/11/2026: `npm test --prefix src/frontend/pos-app` 89/89 PASS, gồm 4 test `BF-003 POS` trong `test-checkout.mjs` |
 | [x] | [BF-004](./errors/BF-004-tao-phieu-chuyen-kho-doi-key-khi.md) | P1 | Chuyển kho | Retry tạo phiếu sinh key mới | Đã sửa |
 | [x] | [BF-005](./errors/BF-005-form-tao-kiem-ke-khong-giu-dinh.md) | P1 | Kiểm kê | Form tạo kiểm kê không giữ key khi retry | Đã sửa |
 | [x] | [BF-006](./errors/BF-006-xoa-so-da-luu-roi-chot-co.md) | P1 | Kiểm kê | Xóa số đã lưu rồi chốt vẫn chốt số cũ | Đã sửa |
@@ -35,11 +35,11 @@ Chi tiết từng lỗi nằm trong thư mục [`errors/`](./errors/), mỗi l�
 | [x] | [BF-012](./errors/BF-012-ton-tren-form-chuyen-kho-khong-theo.md) | P2 | Chuyển kho | Tồn không theo kho nguồn | Đã sửa |
 | [x] | [BF-013](./errors/BF-013-giu-cho-co-the-mat-y-dinh.md) | P1 | Giữ chỗ kho | Sửa form làm mất ý định chưa rõ kết quả | Đã sửa |
 | [x] | [BF-014](./errors/BF-014-trang-chi-nhanh-kho-nuot-loi-tai.md) | P2 | Chi nhánh/kho | Lỗi API hiện thành danh sách rỗng | Đã sửa |
-| [~] | [BF-015](./errors/BF-015-pos-xu-ly-thieu-loi-het-phien.md) | P2 | POS | Checkout 401 và ProblemDetails | Đã sửa ở POS Admin; POS riêng cần kiểm chứng lại |
+| [x] | [BF-015](./errors/BF-015-pos-xu-ly-thieu-loi-het-phien.md) | P2 | POS | Checkout 401 và ProblemDetails | Bản sửa nằm trong `pos-app/src/services/posApi.ts`. 11/11/2026: 89/89 PASS, gồm test 401 trong `test-auth.mjs` (giữ body checkout, không xóa pending) |
 | [x] | [BF-016](./errors/BF-016-dong-bo-realtime-ton-kho-chua-noi.md) | P2 | Realtime | Không join nhóm chi nhánh, không cập nhật tồn | Đã sửa |
 | [x] | [BF-017](./errors/BF-017-link-thong-bao-canh-bao-khong-mo.md) | P2 | Báo cáo | Link `?tab=alerts` mở sai tab | Đã sửa |
 | [x] | [BF-018](./errors/BF-018-bao-cao-khong-loc-duoc-rieng-don.md) | P2 | Báo cáo | Thiếu bộ lọc kênh Admin | Đã sửa |
-| [~] | [BF-019](./errors/BF-019-pos-nhan-http-200-sai-contract-la.md) | P2 | POS | HTTP 200 thiếu mã đơn bị coi là thành công | Đã sửa ở POS Admin; POS riêng cần kiểm chứng lại |
+| [~] | [BF-019](./errors/BF-019-pos-nhan-http-200-sai-contract-la.md) | P2 | POS | HTTP 200 thiếu mã đơn bị coi là thành công | Code chặn đã có trong `pos-app/src/services/posApi.ts` (thiếu mã đơn hoặc GUID rỗng trả `isUnknown`); chưa có test riêng cho trường hợp này |
 | [~] | [BF-020](./errors/BF-020-pos-rieng-chua-khoa-gio-va-ngu.md) | P1 | POS riêng | Checkout cũ xóa giỏ mới khi đổi chi nhánh | Bản sửa cũ không còn; POS mới có cơ chế pending riêng, cần kiểm chứng lại |
 
 ### A2. Phát hiện sau nghiệm thu, 04–06/11/2026 (BF-021..027)
@@ -87,7 +87,7 @@ Không phải lỗi: đây là chức năng chưa làm xong, đang có nhãn Com
 | [~] | CS-02 | Nhân viên, phân quyền, phân công chi nhánh | Có danh sách, tạo, sửa, khóa nhân viên (`/api/users`) | Phân công chi nhánh: chưa có trường ở backend, cần quyết định làm hay bỏ khỏi yêu cầu |
 | [x] | CS-03 | Ngưỡng cảnh báo tồn (`ReorderPoint`) | Đã có API và UI | Chưa kiểm tra thông báo tồn thấp qua realtime |
 | [x] | CS-04 | Tìm kiếm toàn hệ thống | Đã có `GET /api/search` và ô tìm kiếm | Lỗi mở phiếu nhập: [BF-024](./errors/BF-024-tim-kiem-phieu-nhap-khong-mo-dung-phieu.md) |
-| [x] | CS-05 | Thanh toán QR | VietQR ở POS PWA và POS Admin, tài khoản nhận tiền theo cửa hàng (Owner quản lý), lưu bản chụp người nhận vào `payments`. Nghiệm thu 07/11/2026: integration 372/372 trên PostgreSQL, kiểm tay toàn luồng ([review PR 39](../report-after-upgrade/vietqr-cs05-review-pr39.md)) | Giai đoạn (c) webhook ngân hàng tạm gác; `test-b03-live.mjs` cần viết lại theo API |
+| [x] | CS-05 | Thanh toán QR | VietQR ở POS (`pos-app`; lúc nghiệm thu có cả POS PWA và POS Admin, hai bản đã gộp ngày 08/11), tài khoản nhận tiền theo cửa hàng (Owner quản lý), lưu bản chụp người nhận vào `payments`. Nghiệm thu 07/11/2026: integration 372/372 trên PostgreSQL, kiểm tay toàn luồng ([review PR 39](../report-after-upgrade/vietqr-cs05-review-pr39.md)) | Giai đoạn (c) webhook ngân hàng tạm gác; `test-b03-live.mjs` cần viết lại theo API |
 | [ ] | CS-06 | In chứng từ giao hàng, in báo cáo | Chưa làm | Bố cục A4/80mm, cô lập vùng in, ẩn giá vốn theo vai trò |
 | [x] | CS-07 | KPI, biểu đồ, đơn gần đây ở Tổng quan | Đã có dữ liệu thật | Số liệu lũy kế, API chưa lọc theo thời gian |
 | [~] | CS-08 | Dự báo, gợi ý nhập hàng (`FR-AI-01`) | Có API `GET /api/ai/reorder-recommendations`; tab Gợi ý nhập hàng đã mở lại (10/11/2026); Trợ lý OISMS trả lời "nên nhập gì" từ cùng dữ liệu | Bằng chứng đánh giá độ chính xác dự báo (đang tính bằng công thức) |
@@ -109,7 +109,7 @@ Không phải lỗi: đây là chức năng chưa làm xong, đang có nhãn Com
 | [x] | Upgrade 02 | Hóa đơn bán, in lại, truy vết đến dòng sổ `OUT` | ✅ | ✅ | [hoa-don-truy-vet-xuat-kho.md](../report-after-upgrade/hoa-don-truy-vet-xuat-kho.md) |
 | [x] | Upgrade 03 | Lịch kiểm kê, kỳ kiểm kê, duyệt chênh lệch (`PendingApproval`) | ✅ | ✅ | [lich-kiem-ke-duyet-chenh-lech.md](../report-after-upgrade/lich-kiem-ke-duyet-chenh-lech.md) |
 
-Lưu ý: kỳ kiểm kê chỉ tự sinh khi bật Hangfire (`Hangfire:Enabled=true`). Mặc định và trên bản demo AWS đang tắt.
+Lưu ý: kỳ kiểm kê chỉ tự sinh khi bật Hangfire (`Hangfire:Enabled=true`). Mặc định tắt khi chạy local; bản demo AWS đã bật từ 11/11/2026.
 
 ---
 
@@ -118,11 +118,11 @@ Lưu ý: kỳ kiểm kê chỉ tự sinh khi bật Hangfire (`Hangfire:Enabled=t
 - [ ] BF-021: chặn Staff ở endpoint hay ẩn trường lãi gộp trong dữ liệu trả về.
 - [ ] BF-023: Staff có được quản lý kho không (sửa code hay sửa yêu cầu).
 - [ ] CS-02: làm phân công chi nhánh hay bỏ khỏi yêu cầu.
-- [ ] CS-08: thời điểm mở lại tab Gợi ý nhập hàng.
+- [x] CS-08: thời điểm mở lại tab Gợi ý nhập hàng. *(Đã mở lại 10/11/2026 cho Owner, Staff.)*
 - [ ] Upgrade 01-B: cách xử lý chênh lệch hóa đơn nhà cung cấp.
 - [ ] Màn Handoff: bỏ đặc tả [07-handoff-screens.md](../11-ui-screens/07-handoff-screens.md) hay làm lại.
 - [ ] Đơn vị mặc định cho phép 3 chữ số lẻ, nên POS nhận cả số lẻ với "Cái": có cấm hay không.
-- [ ] Kiểm chứng lại BF-003, BF-015, BF-019, BF-020 trên `pos-app` hiện tại.
+- [ ] Kiểm chứng lại BF-019, BF-020 trên `pos-app` hiện tại. *(BF-003, BF-015 đã kiểm chứng 11/11/2026 bằng `npm test` POS 89/89.)*
 
 ---
 

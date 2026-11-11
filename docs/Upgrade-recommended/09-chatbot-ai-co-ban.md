@@ -138,7 +138,7 @@ Chạy backend ngoài Docker (`scripts/run-backend.ps1` hoặc `dotnet run`): đ
 
 - Viết mới khoảng 10 trang markdown ngắn, đặt tại `OISM.Infrastructure/Ai/Guide/` dạng embedded resource: đăng nhập, sản phẩm và đơn vị tính, nhập hàng, chuyển kho, kiểm kê, đơn hàng, POS, VietQR, báo cáo, tài khoản.
 - Mỗi trang có front-matter `roles: [Owner, Staff]`. Backend ghép các trang hợp vai trò vào system prompt.
-- Nội dung bám theo giao diện thật hiện tại, không mô tả chức năng đang ẩn hoặc Coming soon (tab Gợi ý nhập hàng, Quên mật khẩu, CS-01, CS-06).
+- Nội dung bám theo giao diện thật hiện tại, không mô tả chức năng đang ẩn hoặc Coming soon (Quên mật khẩu, CS-06). *(Cập nhật 11/11/2026: tab Gợi ý nhập hàng đã mở lại ngày 10/11 và CS-01 trả hàng đã xong ở PR #41, nên hai chức năng này được mô tả.)*
 
 ### B3. Application: `Features/Ai/`
 

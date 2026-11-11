@@ -2,7 +2,7 @@
 
 | Mục | Giá trị |
 | :--- | :--- |
-| **Trạng thái** | 🟡 Đã sửa, cần kiểm chứng lại |
+| **Trạng thái** | 🟡 Đã sửa, chưa có test riêng |
 | **Ưu tiên** | P2 |
 | **Khu vực** | POS |
 | **Phát hiện** | 28–29/10/2026 (Tái hiện có kiểm soát) |
@@ -36,3 +36,7 @@
   * Validate chặt chẽ phản hồi HTTP 200: Chỉ chấp nhận thành công khi server trả về định danh đơn hàng hợp lệ (`orderNumber`, `number` hoặc `id` khác chuỗi rỗng và khác GUID rỗng `00000000-0000-0000-0000-000000000000`).
   * Nếu phản hồi sai contract, coi giao dịch là chưa xác nhận thành công, giữ nguyên giỏ hàng và `requestKey` để thu ngân đối soát hoặc thử lại an toàn.
 * **Kiểm thử xác thực:** Pass kịch bản `pos-malformed-success`: phản hồi HTTP 200 thiếu định danh đơn hàng bị từ chối và báo lỗi xác thực contract.
+
+## Kiểm chứng sau khi gộp POS (11/11/2026)
+
+Code chặn nằm trong `src/frontend/pos-app/src/services/posApi.ts`: HTTP 200 thiếu mã đơn hoặc mã là GUID rỗng trả `isUnknown`, giữ giỏ để đối soát. Chưa có test nào trong `test-oisms/frontend/pos-app/` cho trường hợp này, nên giữ trạng thái cần kiểm chứng.

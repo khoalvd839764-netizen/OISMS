@@ -121,7 +121,7 @@ Muốn thêm header bảo mật hoặc chặn `/health/ready` khỏi Internet th
 | `Hangfire__Enabled` | `docker-compose.yml` | `${HANGFIRE_ENABLED:-false}` |
 | `Hangfire__WorkerCount` | `docker-compose.yml` | `${HANGFIRE_WORKER_COUNT:-2}` |
 
-Bản demo hiện chưa bật Hangfire. Hangfire dùng chung kết nối `Database__*` với backend nên không cần `HangfireConnection`. Các bước bật:
+Bản demo đã bật Hangfire từ 11/11/2026 theo đúng các bước dưới (lúc bật không có giữ chỗ `Active` quá hạn nên không đơn nào bị hủy). Hangfire dùng chung kết nối `Database__*` với backend nên không cần `HangfireConnection`. Các bước bật:
 
 1. Backup DB theo [sao lưu database](./05-van-hanh-giam-sat-backup.md#3-sao-lưu-database).
 2. Đếm đơn giữ chỗ đã quá hạn, vì lần chạy đầu job sẽ hủy hết:
@@ -134,7 +134,7 @@ Bản demo hiện chưa bật Hangfire. Hangfire dùng chung kết nối `Databa
    docker compose -f docker-compose.yml -f docker-compose.prod.yml --env-file .env.production exec -T postgres \
      psql -U postgres -d oisms -v ON_ERROR_STOP=1 < docker/postgres/migrations/20261108_hangfire_schema.sql
    ```
-4. Đặt `HANGFIRE_ENABLED=true` trong `.env.production`, rồi build lại và khởi động lại `backend`.
+4. Đặt `HANGFIRE_ENABLED=true` trong `.env.production`, rồi tạo lại container `backend` (chỉ đổi biến môi trường thì không cần build lại): `docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.prod.yml up -d backend`.
 5. Kiểm tra log backend có `Starting Hangfire Server ... Schema: hangfire`, `/health/ready` trả 200, và `SELECT statename, count(*) FROM hangfire.job GROUP BY 1;` chỉ có `Succeeded` sau 1–2 phút.
 
 Tắt lại: đặt `HANGFIRE_ENABLED=false` rồi khởi động lại `backend`; schema `hangfire` để nguyên không ảnh hưởng.

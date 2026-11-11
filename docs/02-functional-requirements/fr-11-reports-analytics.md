@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-FR-11` |
-| **Phiên bản (Version)** | `v1.0.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-10-22` |
+| **Phiên bản (Version)** | `v1.1.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-11` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-REP-01..03`, `NFR-PERF-01` (Trang 3, 6) |
 | **Gói công việc (Task Package)** | Task Package 5 — Reporting, AI Integration, Testing & Deployment |
 
@@ -15,6 +15,7 @@
 | Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả thay đổi | Mã tham chiếu |
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả chi tiết nhóm yêu cầu báo cáo tài chính, báo cáo giá trị tồn kho, tốc độ luân chuyển và cảnh báo tồn tối thiểu. | `INIT-FR-11` |
+| `v1.1.0` | `2026-11-11` | Nhóm dự án OISMS | Chốt quy tắc ghi nhận doanh thu (đóng `BE2-F04`): tính đơn `Confirmed` và `Completed`, không chỉ `Completed`. Bộ lọc theo `SKU` chưa có trong code, dời sang sprint sau. | `BE2-F04` |
 
 ---
 
@@ -22,6 +23,6 @@
 
 | Mã yêu cầu | Tên yêu cầu | Mô tả nghiệp vụ & Quy tắc kỹ thuật | Tiêu chí nghiệm thu (Acceptance Criteria) |
 | :---: | :--- | :--- | :--- |
-| **`FR-REP-01`** | **Revenue & Gross Profit Report** | Tổng hợp Doanh thu thuần (`Net Revenue`), Tổng giá vốn hàng bán (`Total COGS` tính từ `OrderItem.CostPrice`), và Lợi nhuận gộp (`Gross Profit = Revenue - COGS`). Hỗ trợ bộ lọc theo Khoảng thời gian (`Timeframe`), Chi nhánh (`Branch`), Kênh bán (`Channel`) và `SKU`. | - Số liệu tính toán chính xác dựa trên giá vốn đã chụp (`CostPrice`) của các đơn đã hoàn tất.<br/>- Thời gian phản hồi báo cáo `< 2 giây` với tập dữ liệu dưới `100,000` bản ghi (`NFR-PERF-01`). |
+| **`FR-REP-01`** | **Revenue & Gross Profit Report** | Tổng hợp Doanh thu thuần (`Net Revenue`), Tổng giá vốn hàng bán (`Total COGS` tính từ `OrderItem.CostPrice`), và Lợi nhuận gộp (`Gross Profit = Revenue - COGS`). Hỗ trợ bộ lọc theo Khoảng thời gian (`Timeframe`), Chi nhánh (`Branch`), Kênh bán (`Channel`) và `SKU` *(lọc theo `SKU` chưa có, hoàn thành ở sprint sau)*. | - Số liệu tính toán chính xác dựa trên giá vốn đã chụp (`CostPrice`) của các đơn đã xuất kho.<br/>- **Quy tắc ghi nhận doanh thu (chốt 11/11/2026):** tính các đơn ở trạng thái `Confirmed` và `Completed`. Lý do: từ `Confirmed` hàng đã trừ `OnHand`, đã ghi sổ `OUT` và đã chụp `CostPrice`, nên doanh thu khớp với giá vốn và sổ kho; POS checkout đi thẳng tới `Completed`. Đơn `Draft`, `Reserved`, `Cancelled` không tính. Lọc thời gian theo `orders.created_at` (UTC+7, nửa mở `CreatedAt < endBoundary`); hàng trả khấu trừ theo `sales_returns.confirmed_at`.<br/>- Thời gian phản hồi báo cáo `< 2 giây` với tập dữ liệu dưới `100,000` bản ghi (`NFR-PERF-01`). |
 | **`FR-REP-02`** | **Inventory & Velocity Report** | Theo dõi tổng giá trị tồn kho hiện tại dựa trên giá vốn bình quân (`OnHand * UnitCost`), thống kê danh sách mặt hàng bán chạy nhất (`Best-sellers`) và hàng luân chuyển chậm (`Slow-moving items`). | - Hiển thị trực quan trên Admin Dashboard cho `Owner`. |
 | **`FR-REP-03`** | **Stock Alert** (Cảnh báo tồn kho tối thiểu) | Tự động hiển thị thông báo cảnh báo trên Dashboard khi số lượng tồn khả dụng giảm xuống chạm hoặc thấp hơn ngưỡng đặt hàng tối thiểu của SKU (`available <= Threshold / MinStockLevel`). Làm rõ 10/11/2026: SKU hết hàng (`available <= 0`) luôn được cảnh báo mức `OutOfStock` kể cả khi chưa đặt ngưỡng (`ReorderPoint = 0`); SKU còn hàng chỉ cảnh báo khi đã đặt ngưỡng (`ReorderPoint > 0`). Áp dụng cho báo cáo cảnh báo tồn, số SKU tồn thấp ở Tổng quan, màn Kho và Trợ lý OISMS. | - Danh sách cảnh báo cập nhật tự động ngay khi tồn khả dụng giảm xuống dưới ngưỡng `MinStockLevel`. |

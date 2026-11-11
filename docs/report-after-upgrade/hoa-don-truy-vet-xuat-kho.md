@@ -37,7 +37,7 @@ Chạy trên PostgreSQL 16 riêng, cổng `55437`, biến `OISM_TEST_PORT`; khô
 
 ## Lỗi phát hiện khi nghiệm thu và đã sửa
 
-Các test Anti bàn giao đều đạt nhưng không chạm tới những lỗi này. Thêm [`SalesInvoiceTraceIntegrationTests.cs`](../../src/backend/tests/OISM.IntegrationTests/SalesInvoiceTraceIntegrationTests.cs) mới thấy.
+Các test Anti bàn giao đều đạt nhưng không chạm tới những lỗi này. Thêm [`SalesInvoiceTraceIntegrationTests.cs`](../../test-oisms/backend/OISM.IntegrationTests/SalesInvoiceTraceIntegrationTests.cs) mới thấy.
 
 | Lỗi | Hậu quả | Kiểm chứng |
 | --- | --- | --- |

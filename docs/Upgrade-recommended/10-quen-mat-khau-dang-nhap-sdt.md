@@ -115,7 +115,7 @@ Các chỗ phải sửa theo quy tắc schema của dự án:
 1. File mới `docker/postgres/migrations/2026MMDD_password_reset_tokens.sql`, có `GRANT` cho `oisms_runtime`.
 2. `docs/database/oisms_schema.sql` và `docs/database/README.md`.
 3. Entity `PasswordResetToken`, cấu hình EF trong `OISM.Infrastructure/Persistence/Configurations`, query filter `tenant_id` trong `AppDbContext`, `DbSet` trong `IAppDbContext`.
-4. `RequiredTables` trong `DatabaseMigrationService` và `Program.cs`.
+4. `RequiredTables` trong `DatabaseMigrationService` (`Program.cs` không còn danh sách riêng).
 5. Số bảng kiểm tra trong `docker/postgres/init-oisms.sh` (44 → 45).
 6. Các tài liệu còn ghi "44 bảng", gồm `CLAUDE.md`.
 

@@ -8,6 +8,12 @@
 | Phạm vi | Admin, POS trong Admin, POS PWA; sửa nhỏ backend ở gợi ý nhập, cảnh báo tồn và `/health/ready` |
 | Trạng thái | Các luồng trong bảng dưới đã chạy trên backend và PostgreSQL local. **Chưa phải nghiệm thu E2E toàn sản phẩm;** còn các mục ở phần Chưa làm và Chưa chạy. |
 
+> **Cập nhật 11/11/2026.** Kết quả kiểm thử bên dưới là mốc 04/11/2026. Sau mốc đó:
+> - Ngày 08/11/2026 POS trong Admin được chuyển thành ứng dụng POS duy nhất `src/frontend/pos-app`; POS PWA giao diện tím cũ đã gỡ, Admin `/pos` chỉ chuyển hướng. Các dòng "POS Admin", "POS PWA", "hai POS" trong phần kiểm thử là hai bản lúc đó. Xem [tách POS khỏi Admin](./tach-pos-khoi-admin-2026-11-08.md).
+> - Test backend đã chuyển từ `src/backend/tests/` sang `test-oisms/backend/` (commit `a9e5837`).
+> - Schema hiện có 44 bảng (thêm `payment_accounts` của CS-05).
+> - `npm test --prefix src/frontend/pos-app` ngày 11/11/2026: 89/89 PASS.
+
 ## Đã có trong sản phẩm
 
 | Mục | Chức năng | Ghi chú |
@@ -105,7 +111,7 @@ Các thay đổi sau bảng kết quả trên, cùng nhánh `feature/OISMS-46-fi
 
 ## Chưa làm
 
-- **CS-05:** POS PWA và POS Admin đều có VietQR, thu ngân chọn tài khoản nhận tiền (mặc định chọn sẵn) và bấm xác nhận thủ công. Tài khoản nhận tiền lấy từ `GET /api/payment-accounts/active`; Owner quản lý ở màn "Tài khoản nhận tiền". Chưa có xác nhận tự động qua webhook ngân hàng. Chi tiết: [review PR 39](./vietqr-cs05-review-pr39.md).
+- **CS-05 (đã xong 07/11/2026, phần còn lại là xác nhận tự động):** POS có VietQR, thu ngân chọn tài khoản nhận tiền (mặc định chọn sẵn) và bấm xác nhận thủ công. Tài khoản nhận tiền lấy từ `GET /api/payment-accounts/active`; Owner quản lý ở màn "Tài khoản nhận tiền". Chưa có xác nhận tự động qua webhook ngân hàng. Chi tiết: [review PR 39](./vietqr-cs05-review-pr39.md).
 - **CS-06:** in chứng từ giao hàng và in báo cáo.
 - **U01-B:** hóa đơn nhà cung cấp và chênh lệch, cần backend và GVHD chốt cách xử lý.
 - **CS-02:** phân công chi nhánh, cần quyết định làm thêm backend hay bỏ khỏi yêu cầu.

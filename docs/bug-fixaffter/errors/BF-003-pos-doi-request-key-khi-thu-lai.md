@@ -2,7 +2,7 @@
 
 | Mục | Giá trị |
 | :--- | :--- |
-| **Trạng thái** | 🟡 Đã sửa, cần kiểm chứng lại |
+| **Trạng thái** | ✅ Đã sửa, kiểm chứng trên `pos-app` 11/11/2026 |
 | **Ưu tiên** | P1 |
 | **Khu vực** | POS |
 | **Phát hiện** | 28–29/10/2026 (Tái hiện có kiểm soát) |
@@ -32,3 +32,10 @@
   * Tạo chữ ký `cartSignature` dựa trên chi nhánh, thu ngân và danh sách mặt hàng/số lượng/đơn giá trong giỏ.
   * Lưu trữ cặp `{ signature, key }` đồng thời trong `checkoutKeyRef` và `sessionStorage`. Mọi lần submit hoặc retry cùng một giỏ hàng (kể cả khi đóng/mở lại modal) đều tái sử dụng đúng `requestKey` đó. Khi giỏ hàng thay đổi hoặc sau khi thanh toán thành công, khóa cũ được xóa để cấp khóa mới cho giao dịch mới.
 * **Kiểm thử xác thực:** Pass kịch bản `pos-retry-key`: hai lần submit liên tiếp khi retry gửi cùng một `requestKey` duy nhất lên API.
+
+## Kiểm chứng sau khi gộp POS (11/11/2026)
+
+POS Admin đã chuyển thành ứng dụng POS duy nhất `src/frontend/pos-app` (08/11/2026), nên bản sửa ở POS Admin chính là bản đang chạy.
+
+- `npm test --prefix src/frontend/pos-app`: PASS 89/89.
+- Kiểm tay trên trình duyệt: NOT RUN.

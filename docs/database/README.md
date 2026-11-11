@@ -256,7 +256,7 @@ Endpoint `GET /health/ready` thực hiện kiểm tra sâu thực tế:
 | Phạm vi kiểm thử | Công cụ / Môi trường | Số test | Kết quả | Chi tiết kiểm chứng |
 | :--- | :--- | :--- | :--- | :--- |
 | **CSDL & Provisioning** | `scripts/test-database-schema.cjs` (PostgreSQL 16 PGlite) | 26 / 26 | **PASS (100%)** | 29 bảng, 94 FK, 86 CHECK, chống UPDATE/DELETE sổ cái, cân bằng tồn kho, mật khẩu ký tự đặc biệt, chặn quyền admin/thừa hưởng role |
-| **Backend Integration** | `src/backend/tests/OISM.IntegrationTests` (xUnit, .NET 8) | 11 / 11 | **PASS (100%)** | Dựng chuỗi kết nối với mật khẩu chấm phẩy/nháy kép, fallback default, endpoint liveness, timeout readiness, missing tables, trigger status, admin rejection |
+| **Backend Integration** | `src/backend/tests/OISM.IntegrationTests` (xUnit, .NET 8; nay ở `test-oisms/backend/OISM.IntegrationTests`) | 11 / 11 | **PASS (100%)** | Dựng chuỗi kết nối với mật khẩu chấm phẩy/nháy kép, fallback default, endpoint liveness, timeout readiness, missing tables, trigger status, admin rejection |
 | **Toàn bộ dự án** | `scripts/build-all.ps1` (PowerShell) | 4 công đoạn | **PASS (100%)** | Backend build (0 warn, 0 error), Unit & Integration tests, Admin Dashboard build, POS App build |
 
 > [!NOTE]

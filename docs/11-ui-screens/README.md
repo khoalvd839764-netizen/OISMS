@@ -29,7 +29,7 @@ Hệ thống OISMS (Omnichannel Inventory & Sales Management System) được tr
 | **5** | Quản lý Danh mục, Sản phẩm & SKU | `/admin/products` | ✅ | ✅ | ❌ | [`03-product-screens.md`](./03-product-screens.md) |
 | **6** | Quản lý Kho, Sổ cái & Kiểm kê | `/admin/inventory`, `/inventory/transfers`, `/inventory/counts` | ✅ | ✅ | ❌ | [`04-inventory-screens.md`](./04-inventory-screens.md) |
 | **7** | Trung tâm Đơn hàng đa kênh | `/admin/orders` | ✅ | ✅ | ❌ | [`05-order-screens.md`](./05-order-screens.md) |
-| **8** | Quầy Bán hàng POS tích hợp | `/pos` | ✅ | ✅ | ✅ | [`06-pos-terminal-screens.md`](./06-pos-terminal-screens.md) |
+| **8** | Đường dẫn POS trong Admin *(chỉ chuyển hướng sang POS từ 08/11/2026)* | `/pos` | ✅ | ✅ | ✅ | [`06-pos-terminal-screens.md`](./06-pos-terminal-screens.md) |
 | **9** | Quầy Bán hàng POS độc lập (PWA) | local `http://localhost:5174`, demo `https://pos.oisms.khoadang.site` | ✅ | ✅ | ✅ | [`06-pos-terminal-screens.md`](./06-pos-terminal-screens.md) |
 | **10** | Điều phối & Bàn giao vận chuyển *(đã tạm gỡ 04/11/2026)* | `/admin/handoff` | ✅ | ✅ | ❌ | [`07-handoff-screens.md`](./07-handoff-screens.md) |
 | **11** | Báo cáo Doanh thu & Quản trị Lãi gộp | `/admin/reports` | ✅ | ❌ | ❌ | [`08-report-screens.md`](./08-report-screens.md) |
@@ -38,6 +38,7 @@ Hệ thống OISMS (Omnichannel Inventory & Sales Management System) được tr
 | **14** | Hóa đơn bán hàng | `/invoices` | ✅ | ✅ | ❌ | [`05-order-screens.md`](./05-order-screens.md) |
 | **15** | Kết nối sàn (secret webhook) | `/shop-integrations` | ✅ | ❌ | ❌ | [`10-shop-integration-screens.md`](./10-shop-integration-screens.md) |
 | **16** | App giả lập đơn sàn | local `http://localhost:5175`, deploy `https://<SIM_DOMAIN>` | Dùng secret, không đăng nhập | | | [`10-shop-integration-screens.md`](./10-shop-integration-screens.md) |
+| **17** | Tài khoản nhận tiền (VietQR) | `/settings/payment-accounts` | ✅ | ❌ | ❌ | [`11-payment-account-screens.md`](./11-payment-account-screens.md) |
 
 Mọi route Admin có hai dạng tương đương: có và không có tiền tố `/admin` (ví dụ `/products` và `/admin/products`), theo `src/frontend/admin-dashboard/src/App.tsx`. Route không khớp chuyển về `/admin`.
 
@@ -113,6 +114,7 @@ Giao diện POS được tối ưu hóa cho màn hình cảm ứng, máy POS hai
 8. [`08-report-screens.md`](./08-report-screens.md) — Đặc tả Màn hình Báo cáo Doanh thu - Giá vốn - Lãi gộp, Định giá kho theo WAC và Gợi ý tái đặt hàng AI.
 9. [`09-organization-screens.md`](./09-organization-screens.md) — Đặc tả Màn hình Quản lý Chi nhánh, Kho trực thuộc, Danh bạ Nhà cung cấp và Phân quyền nhân sự.
 10. [`10-shop-integration-screens.md`](./10-shop-integration-screens.md) — Đặc tả Màn hình Kết nối sàn (tạo kết nối, hiện secret một lần, đổi secret) và App giả lập đơn sàn.
+11. [`11-payment-account-screens.md`](./11-payment-account-screens.md) — Đặc tả Màn hình Tài khoản nhận tiền VietQR (thêm, đặt mặc định, ngừng dùng, xem thử QR). Màn Hóa đơn bán (`/invoices`) nằm ở mục 7 của `05-order-screens.md`.
 
 ## Cập nhật màn hình 04/11/2026
 

@@ -87,4 +87,4 @@ flowchart LR
 - **Hành vi tương tác:**
   - Quét định kỳ các đơn hàng ở trạng thái `Reserved` đã quá thời gian chờ thanh toán/xác nhận để tự động chuyển sang `Cancelled` và giải phóng số lượng `reserved` về lại quỹ `available`.
   - Sinh kỳ kiểm kê định kỳ theo lịch (`StockCountPeriodJob`, phút thứ 5 mỗi giờ).
-- **Hiện trạng:** job hết hạn giữ chỗ là `ReservationExpiryJob` (`oisms-reservation-expiry`, mỗi phút). Cả hai job chỉ chạy khi `Hangfire:Enabled=true`; cấu hình mặc định và Docker Compose (kể cả bản demo trên AWS) đang tắt. Chưa có job tổng hợp báo cáo ngày; bảng `daily_sales_summaries` có trong schema nhưng chưa dùng, báo cáo tính trực tiếp từ đơn hàng.
+- **Hiện trạng:** job hết hạn giữ chỗ là `ReservationExpiryJob` (`oisms-reservation-expiry`, mỗi phút). Cả hai job chỉ chạy khi `Hangfire:Enabled=true`; cấu hình mặc định và Docker Compose local đang tắt; bản demo trên AWS đã bật từ 11/11/2026. Chưa có job tổng hợp báo cáo ngày; bảng `daily_sales_summaries` có trong schema nhưng chưa dùng, báo cáo tính trực tiếp từ đơn hàng.
