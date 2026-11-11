@@ -1,0 +1,12 @@
+.pos-login { min-height: 100dvh; display: grid; place-items: center; padding: 24px; background: #eef2f7; }
+.pos-login form { width: min(420px, 100%); padding: 32px; border: 1px solid #e0e6ef; border-radius: 16px; background: #fff; box-shadow: 0 12px 40px #18365310; }
+.pos-login-icon { display: grid; place-items: center; width: 52px; height: 52px; background: #eaf2ff; border-radius: 12px; color: #1769e0; }
+.pos-login h1 { font-size: 23px; margin: 20px 0 10px; color: #183653; }
+.pos-login p { color: #667085; line-height: 1.6; }
+.pos-login label { display: block; margin: 20px 0; font-weight: 600; }
+.pos-login input { display: block; width: 100%; padding: 12px; margin-top: 8px; border: 1px solid #cbd5e1; border-radius: 8px; }
+.pos-login button { width: 100%; padding: 12px; background: #1769e0; color: #fff; border: 0; border-radius: 8px; cursor: pointer; }
+.pos-login button:disabled { opacity: .5; cursor: wait; }
+.pos-login a { display: block; margin-top: 20px; color: #1769e0; text-align: center; }
+.pos-login [role=alert] { color: #b42318; }
+.pos-login .pos-login-notice { margin: 16px 0 0; padding: 10px 12px; border: 1px solid #b2ccff; border-radius: 8px; background: #eff4ff; color: #1849a9; font-size: 14px; }

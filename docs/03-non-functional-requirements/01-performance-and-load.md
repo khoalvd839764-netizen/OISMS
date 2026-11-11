@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-NFR-01` |
-| **Phiên bản (Version)** | `v1.0.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-10-22` |
+| **Phiên bản (Version)** | `v1.1.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `NFR-PERF-01`, `NFR-PERF-02` (Trang 3, 4) |
 | **Phạm vi áp dụng** | Toàn bộ REST APIs, Database Locking & Flash Sale Concurrency |
 
@@ -15,6 +15,7 @@
 | Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả thay đổi | Mã tham chiếu |
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả chỉ tiêu thời gian phản hồi API (`p95`) và kịch bản chịu tải đồng thời Flash Sale (`50 reqs / 1 SKU`). | `INIT-NFR-01` |
+| `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Ghi chú hiện thực: hệ thống dùng khóa bi quan, không dùng khóa lạc quan. | `OISMS-46` |
 
 ---
 
@@ -34,3 +35,5 @@
 - **Cơ chế kỹ thuật bắt buộc:**
   - Áp dụng **Khóa bi quan mức cơ sở dữ liệu (`Pessimistic Locking: SELECT ... FOR UPDATE`)** hoặc **Khóa lạc quan (`Optimistic Locking: Version Check`)** kết hợp `PostgreSQL Advisory Lock` khi cập nhật `reserved` và `on_hand`.
   - **Kết quả bắt buộc:** Chỉ đúng **1** yêu cầu thành công (`HTTP 200/201`), **49** yêu cầu còn lại bị từ chối an toàn (`HTTP 409 Conflict`), số lượng `available` tuyệt đối không âm (`available == 0`).
+
+> **Hiện thực (06/11/2026):** hệ thống chọn khóa bi quan (`pg_advisory_xact_lock` theo Tenant/Chi nhánh/SKU và `SELECT ... FOR UPDATE` trên số dư), lấy sau khi mở transaction và theo thứ tự SKU cố định. Không dùng khóa lạc quan `RowVersion`.

@@ -23,7 +23,7 @@ public class GoodsReceipt : BaseEntity, IMustHaveTenant
     /// <summary>
     /// Trạng thái chứng từ: 'Draft', 'Confirmed', 'Cancelled'.
     /// </summary>
-    public string Status { get; set; } = "Draft";
+    public string Status { get; set; } = GoodsReceiptStatus.Draft;
 
     public string? Note { get; set; }
 
@@ -41,4 +41,22 @@ public class GoodsReceipt : BaseEntity, IMustHaveTenant
     public User? ConfirmedByUser { get; set; }
 
     public ICollection<GoodsReceiptItem> Items { get; set; } = new List<GoodsReceiptItem>();
+
+    public bool IsDraft => Status == GoodsReceiptStatus.Draft;
+
+    public void Confirm(Guid userId, DateTimeOffset at)
+    {
+        StateTransition.Ensure(IsDraft, nameof(GoodsReceipt), Status, GoodsReceiptStatus.Confirmed);
+        Status = GoodsReceiptStatus.Confirmed;
+        ConfirmedBy = userId;
+        ConfirmedAt = at;
+        UpdatedAt = at;
+    }
+
+    public void Cancel(DateTimeOffset at)
+    {
+        StateTransition.Ensure(IsDraft, nameof(GoodsReceipt), Status, GoodsReceiptStatus.Cancelled);
+        Status = GoodsReceiptStatus.Cancelled;
+        UpdatedAt = at;
+    }
 }

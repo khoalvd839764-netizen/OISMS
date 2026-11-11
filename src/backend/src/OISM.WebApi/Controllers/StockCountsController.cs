@@ -1,9 +1,8 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using OISM.Application.Common.Exceptions;
 using OISM.Application.Features.StockCounts.Dtos;
 using OISM.Application.Features.StockCounts.Services;
+using OISM.WebApi.Http;
 
 namespace OISM.WebApi.Controllers;
 
@@ -43,13 +42,13 @@ public class StockCountsController : ControllerBase
     {
         if (id == Guid.Empty)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã đợt kiểm kê không được để trống (Guid.Empty).");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.StockCounts, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã đợt kiểm kê không được để trống (Guid.Empty).");
         }
 
         var count = await _stockCountService.GetStockCountByIdAsync(id, ct);
         if (count == null)
         {
-            return CreateProblemResult("NOT_FOUND", "Không tìm thấy dữ liệu", StatusCodes.Status404NotFound, $"Không tìm thấy đợt kiểm kê với ID '{id}'.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.StockCounts, "NOT_FOUND", "Không tìm thấy dữ liệu", StatusCodes.Status404NotFound, $"Không tìm thấy đợt kiểm kê với ID '{id}'.");
         }
 
         return Ok(count);
@@ -60,6 +59,7 @@ public class StockCountsController : ControllerBase
     /// </summary>
     [HttpPost]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.StockCounts)]
     public async Task<IActionResult> CreateStockCount(
         [FromBody] CreateStockCountRequestDto dto,
         [FromHeader(Name = "Idempotency-Key")] string? idempotencyKeyHeader,
@@ -68,7 +68,7 @@ public class StockCountsController : ControllerBase
     {
         if (dto == null)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Dữ liệu yêu cầu không được để trống.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.StockCounts, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Dữ liệu yêu cầu không được để trống.");
         }
 
         var rawHeaderKey = !string.IsNullOrWhiteSpace(idempotencyKeyHeader) ? idempotencyKeyHeader : xRequestKeyHeader;
@@ -78,7 +78,7 @@ public class StockCountsController : ControllerBase
             {
                 if (dto.RequestKey != Guid.Empty && dto.RequestKey != parsedHeaderGuid)
                 {
-                    return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "RequestKey trong payload không khớp với Idempotency-Key trong header.");
+                    return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.StockCounts, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "RequestKey trong payload không khớp với Idempotency-Key trong header.");
                 }
 
                 if (dto.RequestKey == Guid.Empty)
@@ -88,32 +88,19 @@ public class StockCountsController : ControllerBase
             }
             else
             {
-                return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Giá trị Idempotency-Key trong header không phải là GUID hợp lệ.");
+                return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.StockCounts, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Giá trị Idempotency-Key trong header không phải là GUID hợp lệ.");
             }
         }
 
-        if (!ModelState.IsValid)
+        var userId = User.GetUserId() ?? Guid.Empty;
+        var result = await _stockCountService.CreateStockCountAsync(dto, userId, ct);
+
+        if (result.IsReplay)
         {
-            var firstError = ModelState.Values.SelectMany(v => v.Errors).FirstOrDefault()?.ErrorMessage ?? "Dữ liệu yêu cầu không hợp lệ.";
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, firstError);
+            return Ok(result);
         }
 
-        try
-        {
-            var userId = GetCurrentUserId() ?? Guid.Empty;
-            var result = await _stockCountService.CreateStockCountAsync(dto, userId, ct);
-
-            if (result.IsReplay)
-            {
-                return Ok(result);
-            }
-
-            return StatusCode(StatusCodes.Status201Created, result);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
-        }
+        return StatusCode(StatusCodes.Status201Created, result);
     }
 
     /// <summary>
@@ -121,6 +108,7 @@ public class StockCountsController : ControllerBase
     /// </summary>
     [HttpPost("{id:guid}/record")]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.StockCounts)]
     public async Task<IActionResult> RecordCounts(
         [FromRoute] Guid id,
         [FromBody] RecordStockCountBatchRequestDto dto,
@@ -128,35 +116,22 @@ public class StockCountsController : ControllerBase
     {
         if (id == Guid.Empty)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã đợt kiểm kê không được để trống (Guid.Empty).");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.StockCounts, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã đợt kiểm kê không được để trống (Guid.Empty).");
         }
 
         if (dto == null)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Dữ liệu yêu cầu không được để trống.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.StockCounts, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Dữ liệu yêu cầu không được để trống.");
         }
 
         if (dto.Items != null && dto.Items.Any(i => i == null))
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Danh sách mặt hàng chứa phần tử rỗng (null).");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.StockCounts, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Danh sách mặt hàng chứa phần tử rỗng (null).");
         }
 
-        if (!ModelState.IsValid)
-        {
-            var firstError = ModelState.Values.SelectMany(v => v.Errors).FirstOrDefault()?.ErrorMessage ?? "Dữ liệu yêu cầu không hợp lệ.";
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, firstError);
-        }
-
-        try
-        {
-            var userId = GetCurrentUserId() ?? Guid.Empty;
-            var result = await _stockCountService.RecordCountsAsync(id, dto, userId, ct);
-            return Ok(result);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
-        }
+        var userId = User.GetUserId() ?? Guid.Empty;
+        var result = await _stockCountService.RecordCountsAsync(id, dto, userId, ct);
+        return Ok(result);
     }
 
     /// <summary>
@@ -165,6 +140,7 @@ public class StockCountsController : ControllerBase
     /// </summary>
     [HttpPost("{id:guid}/confirm")]
     [Authorize(Roles = "Owner")]
+    [ApiErrorContract(ApiErrorProfile.StockCounts)]
     public async Task<IActionResult> ConfirmStockCount(
         [FromRoute] Guid id,
         [FromBody] ConfirmStockCountRequestDto? dto,
@@ -172,25 +148,12 @@ public class StockCountsController : ControllerBase
     {
         if (id == Guid.Empty)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã đợt kiểm kê không được để trống (Guid.Empty).");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.StockCounts, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã đợt kiểm kê không được để trống (Guid.Empty).");
         }
 
-        if (!ModelState.IsValid)
-        {
-            var firstError = ModelState.Values.SelectMany(v => v.Errors).FirstOrDefault()?.ErrorMessage ?? "Dữ liệu yêu cầu không hợp lệ.";
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, firstError);
-        }
-
-        try
-        {
-            var userId = GetCurrentUserId() ?? Guid.Empty;
-            var result = await _stockCountService.ConfirmStockCountAsync(id, dto ?? new ConfirmStockCountRequestDto(), userId, ct);
-            return Ok(result);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
-        }
+        var userId = User.GetUserId() ?? Guid.Empty;
+        var result = await _stockCountService.ConfirmStockCountAsync(id, dto ?? new ConfirmStockCountRequestDto(), userId, ct);
+        return Ok(result);
     }
 
     /// <summary>
@@ -198,6 +161,7 @@ public class StockCountsController : ControllerBase
     /// </summary>
     [HttpPost("{id:guid}/submit")]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.StockCounts)]
     public async Task<IActionResult> SubmitStockCount(
         [FromRoute] Guid id,
         [FromBody] SubmitStockCountRequestDto? dto,
@@ -205,25 +169,12 @@ public class StockCountsController : ControllerBase
     {
         if (id == Guid.Empty)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã đợt kiểm kê không được để trống (Guid.Empty).");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.StockCounts, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã đợt kiểm kê không được để trống (Guid.Empty).");
         }
 
-        if (!ModelState.IsValid)
-        {
-            var firstError = ModelState.Values.SelectMany(v => v.Errors).FirstOrDefault()?.ErrorMessage ?? "Dữ liệu yêu cầu không hợp lệ.";
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, firstError);
-        }
-
-        try
-        {
-            var userId = GetCurrentUserId() ?? Guid.Empty;
-            var result = await _stockCountService.SubmitStockCountAsync(id, dto ?? new SubmitStockCountRequestDto(), userId, ct);
-            return Ok(result);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
-        }
+        var userId = User.GetUserId() ?? Guid.Empty;
+        var result = await _stockCountService.SubmitStockCountAsync(id, dto ?? new SubmitStockCountRequestDto(), userId, ct);
+        return Ok(result);
     }
 
     /// <summary>
@@ -231,6 +182,7 @@ public class StockCountsController : ControllerBase
     /// </summary>
     [HttpPost("{id:guid}/recount")]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.StockCounts)]
     public async Task<IActionResult> RecountDrifted(
         [FromRoute] Guid id,
         [FromBody] RecountStockCountRequestDto dto,
@@ -238,35 +190,22 @@ public class StockCountsController : ControllerBase
     {
         if (id == Guid.Empty)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã đợt kiểm kê không được để trống (Guid.Empty).");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.StockCounts, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã đợt kiểm kê không được để trống (Guid.Empty).");
         }
 
         if (dto == null)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Dữ liệu yêu cầu không được để trống.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.StockCounts, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Dữ liệu yêu cầu không được để trống.");
         }
 
         if (dto.SkuIds == null || dto.SkuIds.Count == 0)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Danh sách SKU kiểm đếm lại không được rỗng.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.StockCounts, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Danh sách SKU kiểm đếm lại không được rỗng.");
         }
 
-        if (!ModelState.IsValid)
-        {
-            var firstError = ModelState.Values.SelectMany(v => v.Errors).FirstOrDefault()?.ErrorMessage ?? "Dữ liệu yêu cầu không hợp lệ.";
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, firstError);
-        }
-
-        try
-        {
-            var userId = GetCurrentUserId() ?? Guid.Empty;
-            var result = await _stockCountService.RecountDriftedAsync(id, dto, userId, ct);
-            return Ok(result);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
-        }
+        var userId = User.GetUserId() ?? Guid.Empty;
+        var result = await _stockCountService.RecountDriftedAsync(id, dto, userId, ct);
+        return Ok(result);
     }
 
     /// <summary>
@@ -274,6 +213,7 @@ public class StockCountsController : ControllerBase
     /// </summary>
     [HttpPost("{id:guid}/request-recount")]
     [Authorize(Roles = "Owner")]
+    [ApiErrorContract(ApiErrorProfile.StockCounts)]
     public async Task<IActionResult> RequestRecount(
         [FromRoute] Guid id,
         [FromBody] RequestRecountRequestDto dto,
@@ -281,30 +221,17 @@ public class StockCountsController : ControllerBase
     {
         if (id == Guid.Empty)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã đợt kiểm kê không được để trống (Guid.Empty).");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.StockCounts, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã đợt kiểm kê không được để trống (Guid.Empty).");
         }
 
         if (dto == null)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Dữ liệu yêu cầu không được để trống.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.StockCounts, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Dữ liệu yêu cầu không được để trống.");
         }
 
-        if (!ModelState.IsValid)
-        {
-            var firstError = ModelState.Values.SelectMany(v => v.Errors).FirstOrDefault()?.ErrorMessage ?? "Dữ liệu yêu cầu không hợp lệ.";
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, firstError);
-        }
-
-        try
-        {
-            var userId = GetCurrentUserId() ?? Guid.Empty;
-            var result = await _stockCountService.RequestRecountAsync(id, dto, userId, ct);
-            return Ok(result);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
-        }
+        var userId = User.GetUserId() ?? Guid.Empty;
+        var result = await _stockCountService.RequestRecountAsync(id, dto, userId, ct);
+        return Ok(result);
     }
 
     /// <summary>
@@ -312,6 +239,7 @@ public class StockCountsController : ControllerBase
     /// </summary>
     [HttpPost("{id:guid}/cancel")]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.StockCounts)]
     public async Task<IActionResult> CancelStockCount(
         [FromRoute] Guid id,
         [FromBody] CancelStockCountRequestDto? dto,
@@ -319,66 +247,11 @@ public class StockCountsController : ControllerBase
     {
         if (id == Guid.Empty)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã đợt kiểm kê không được để trống (Guid.Empty).");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.StockCounts, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã đợt kiểm kê không được để trống (Guid.Empty).");
         }
 
-        try
-        {
-            var userId = GetCurrentUserId() ?? Guid.Empty;
-            var result = await _stockCountService.CancelStockCountAsync(id, dto?.Reason, userId, ct);
-            return Ok(result);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
-        }
+        var userId = User.GetUserId() ?? Guid.Empty;
+        var result = await _stockCountService.CancelStockCountAsync(id, dto?.Reason, userId, ct);
+        return Ok(result);
     }
-
-    private Guid? GetCurrentUserId()
-    {
-        var claim = User.FindFirst("userId")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        return Guid.TryParse(claim, out var userId) ? userId : null;
-    }
-
-    private ObjectResult CreateProblemResult(string errorCode, string title, int statusCode, string detail)
-    {
-        var problem = new ProblemDetails
-        {
-            Type = $"https://oisms.local/errors/{errorCode}",
-            Title = title,
-            Status = statusCode,
-            Detail = detail,
-            Instance = HttpContext.Request.Path,
-            Extensions =
-            {
-                ["errorCode"] = errorCode,
-                ["timestamp"] = DateTimeOffset.UtcNow
-            }
-        };
-        return StatusCode(statusCode, problem);
-    }
-
-    private static string GetTitleForErrorCode(string errorCode) => errorCode switch
-    {
-        "INSUFFICIENT_STOCK" => "Tồn kho không đủ",
-        "INSUFFICIENT_STOCK_FOR_RESERVATION" => "Tồn kho không đủ đáp ứng hàng giữ chỗ",
-        "IDEMPOTENCY_CONFLICT" => "Xung đột khóa Idempotency",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH" => "Xung đột khóa Idempotency",
-        "STOCK_COUNT_DRIFT_DETECTED" => "Sai lệch sequence kiểm kê (drift)",
-        "STOCK_COUNT_SEQUENCE_DRIFT" => "Sai lệch sequence kiểm kê",
-        "STOCK_COUNT_SELF_APPROVAL" => "Không được tự duyệt phiếu kiểm kê",
-        "STOCK_COUNT_APPROVAL_REASON_REQUIRED" => "Bắt buộc nhập lý do duyệt",
-        "STOCK_COUNT_SKU_NOT_DRIFTED" => "Sản phẩm không bị lệch sequence",
-        "STOCK_COUNT_SCHEDULE_DUPLICATE" => "Lịch kiểm kê bị trùng lặp",
-        "EMPTY_WAREHOUSE_STOCK_COUNT" => "Kho không có sản phẩm để kiểm kê",
-        "INVALID_COUNT_ITEM" => "Sản phẩm kiểm đếm không hợp lệ",
-        "INCOMPLETE_STOCK_COUNT" => "Chưa kiểm đếm đủ sản phẩm",
-        "ADJUSTMENT_COST_REQUIRED" => "Bắt buộc cung cấp đơn giá điều chỉnh",
-        "SKU_INACTIVE" => "Sản phẩm hoặc biến thể bị khóa",
-        "VALIDATION_ERROR" => "Lỗi xác thực dữ liệu",
-        "NOT_FOUND" => "Không tìm thấy dữ liệu",
-        "INVALID_STATE_TRANSITION" => "Chuyển trạng thái không hợp lệ",
-        "UNAUTHORIZED" => "Chưa xác thực",
-        _ => "Lỗi xử lý nghiệp vụ"
-    };
 }

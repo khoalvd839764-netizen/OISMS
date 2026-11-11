@@ -113,13 +113,15 @@ export function DashboardPage() {
               ? "..."
               : loadError
               ? "—"
-              : `${(summary?.totalRevenue ?? 0).toLocaleString("vi-VN")} ₫`
+              : `${(summary?.netRevenue ?? summary?.totalRevenue ?? 0).toLocaleString("vi-VN")} ₫`
           }
           change={
             loadError
               ? "Lỗi tải số liệu"
               : summary
-              ? `Lũy kế từ ${summary.totalOrders} đơn đã xác nhận hoặc hoàn tất`
+              ? summary?.returnAmount > 0
+                ? `Đã trừ hàng trả: ${(summary.returnAmount).toLocaleString("vi-VN")} ₫ (Gộp: ${summary.totalRevenue.toLocaleString("vi-VN")} ₫)`
+                : `Lũy kế từ ${summary.totalOrders} đơn đã xác nhận hoặc hoàn tất`
               : "Đang tải..."
           }
           icon={<WalletCards size={19} />}

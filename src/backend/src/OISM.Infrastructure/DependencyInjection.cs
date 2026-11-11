@@ -1,10 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using OISM.Application.Common.Interfaces;
+using OISM.Infrastructure.Health;
 using OISM.Infrastructure.Jobs;
 using OISM.Infrastructure.Persistence;
 using OISM.Infrastructure.Services;
+using OISM.Infrastructure.Services.Ai;
 
 namespace OISM.Infrastructure;
 
@@ -32,9 +36,30 @@ public static class DependencyInjection
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddScoped<IDatabaseMigrationService, DatabaseMigrationService>();
-        services.AddScoped<ISqlLockService, SqlLockService>();
+        services.AddSingleton<IDatabaseReadinessService, NpgsqlDatabaseReadinessService>();
+        services.AddScoped<ISqlLockService>(provider => provider.GetRequiredService<AppDbContext>().Locks);
         services.AddScoped<IWarehouseBranchReassignmentStore, WarehouseBranchReassignmentStore>();
         services.AddOismHangfire(configuration);
+        services.AddOptions<AiOptions>()
+            .Bind(configuration.GetSection(AiOptions.SectionName))
+            .PostConfigure<ILogger<AiOptions>>((options, logger) =>
+            {
+                options.ApiKey ??= configuration["AI_API_KEY"];
+                if (options.Enabled && LlmRouter.Providers(options).Count == 0)
+                {
+                    logger.LogWarning("Ai is enabled without any provider API key. The AI assistant is disabled.");
+                }
+            })
+            .ValidateOnStart();
+        services.Configure<OISM.Application.Features.Ai.Services.AiChatLimits>(configuration.GetSection(AiOptions.SectionName));
+        services.AddSingleton<IKnowledgeBase, OISM.Infrastructure.Ai.KnowledgeBase>();
+        services.AddSingleton<DisabledLlmClient>();
+        services.AddHttpClient<OpenAiCompatibleLlmClient>((provider, client) =>
+            client.Timeout = TimeSpan.FromSeconds(125))
+            .RedactLoggedHeaders(new[] { "Authorization" });
+        services.AddTransient<LlmRouter>();
+        services.AddTransient<ILlmClient>(provider => provider.GetRequiredService<LlmRouter>());
+        services.AddTransient<ILlmModelCatalog>(provider => provider.GetRequiredService<LlmRouter>());
 
         return services;
     }

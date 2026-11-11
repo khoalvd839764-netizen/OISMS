@@ -24,4 +24,23 @@ public class PriceChangeRequest : BaseEntity, IMustHaveTenant
     public User? CreatedByUser { get; set; }
     public User? ReviewedByUser { get; set; }
     public ICollection<PriceChangeRequestItem> Items { get; set; } = new List<PriceChangeRequestItem>();
+
+    public bool IsPending => Status == PriceChangeRequestStatus.Pending;
+
+    public void Approve(Guid? reviewerId, DateTimeOffset at)
+    {
+        StateTransition.Ensure(IsPending, nameof(PriceChangeRequest), Status, PriceChangeRequestStatus.Approved);
+        Status = PriceChangeRequestStatus.Approved;
+        ReviewedBy = reviewerId;
+        ReviewedAt = at;
+    }
+
+    public void Reject(Guid? reviewerId, string note, DateTimeOffset at)
+    {
+        StateTransition.Ensure(IsPending, nameof(PriceChangeRequest), Status, PriceChangeRequestStatus.Rejected);
+        Status = PriceChangeRequestStatus.Rejected;
+        ReviewedBy = reviewerId;
+        ReviewedAt = at;
+        ReviewNote = note;
+    }
 }

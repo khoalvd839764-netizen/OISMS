@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-NFR-02` |
-| **Phiên bản (Version)** | `v1.0.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-10-22` |
+| **Phiên bản (Version)** | `v1.1.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `NFR-TENANT-01`, `NFR-TENANT-02`, `NFR-SEC-01` (Trang 4) |
 | **Phạm vi áp dụng** | PostgreSQL Schema, EF Core DbContext, JWT Authentication & HTTPS |
 
@@ -15,6 +15,7 @@
 | Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả thay đổi | Mã tham chiếu |
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả yêu cầu cô lập dữ liệu Multi-tenant, tối ưu hóa chỉ mục hàng triệu bản ghi và mã hóa xác thực. | `INIT-NFR-02` |
+| `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Ghi chú hiện thực HTTPS trên bản deploy AWS (Caddy + Let's Encrypt). | `OISMS-46` |
 
 ---
 
@@ -32,3 +33,5 @@
 - **Băm mật khẩu (`Password Hashing`):** Mật khẩu người dùng bắt buộc băm một chiều bằng thuật toán **BCrypt** (hoặc Argon2), tuyệt đối không lưu mật khẩu dạng rõ (`Plaintext`).
 - **Bảo mật đường truyền:** Giao tiếp API qua giao thức **HTTPS / TLS 1.3**.
 - **Quản lý phiên JWT:** Sử dụng **Access Token ngắn hạn (60 phút)** đi kèm cơ chế **Refresh Token an toàn** (có khóa dòng chống race condition khi xoay vòng token).
+
+> **Hiện thực (06/11/2026):** mật khẩu băm bằng BCrypt. Trên bản deploy AWS, HTTPS do Caddy kết thúc TLS với chứng chỉ Let's Encrypt; backend nhận HTTP trong mạng Docker nội bộ. Chi tiết: [`13-deploy-aws/`](../13-deploy-aws/README.md).

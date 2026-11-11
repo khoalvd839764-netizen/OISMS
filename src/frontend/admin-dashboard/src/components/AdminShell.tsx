@@ -19,10 +19,14 @@ import {
   ArrowLeftRight,
   ClipboardCheck,
   Receipt,
+  CreditCard,
+  RotateCcw,
 } from "lucide-react";
 import { Button } from "./ui";
 import { useAuth } from "../context/AuthContext";
 import { NotificationCenter } from "./NotificationCenter";
+import { AiAssistant } from "./AiAssistant/AiAssistant";
+import { POS_URL } from "../services/posNavigation";
 import { apiAdapter } from "../services/apiAdapter";
 
 const nav = [
@@ -33,6 +37,7 @@ const nav = [
   { to: "/inventory/transfers", label: "Chuyển kho", icon: ArrowLeftRight },
   { to: "/inventory/counts", label: "Kiểm kê kho", icon: ClipboardCheck },
   { to: "/orders", label: "Đơn đa kênh", icon: ShoppingBag },
+  { to: "/returns", label: "Trả hàng", icon: RotateCcw },
   { to: "/invoices", label: "Hóa đơn & Truy vết", icon: Receipt },
   { to: "/reports", label: "Báo cáo", icon: ChartNoAxesCombined },
 ];
@@ -116,9 +121,12 @@ export function AdminShell() {
     landingPath: "/admin",
   };
 
-  const visibleNav = nav.filter(
-    (item) => account.role === "Owner" || !["/reports"].includes(item.to)
-  );
+  const visibleNav = nav.filter((item) => {
+    if (item.to === "/returns") {
+      return account.role === "Owner" || account.role === "Staff";
+    }
+    return account.role === "Owner" || !["/reports"].includes(item.to);
+  });
 
   const secondaryTitles: Record<string, string> = {
     "/": "Tổng quan",
@@ -129,6 +137,8 @@ export function AdminShell() {
     "/admin/purchase-orders": "Đơn mua hàng từ NCC",
     "/invoices": "Hóa đơn & Truy vết",
     "/admin/invoices": "Hóa đơn & Truy vết",
+    "/returns": "Phiếu trả hàng & hoàn tiền",
+    "/admin/returns": "Phiếu trả hàng & hoàn tiền",
     "/inventory": "Kho & sổ kho",
     "/admin/inventory": "Kho & sổ kho",
     "/inventory/transfers": "Chuyển kho nội bộ (2 Bước)",
@@ -142,6 +152,10 @@ export function AdminShell() {
     "/demo-tools": "Công cụ demo",
     "/organization": "Nhân viên & chi nhánh",
     "/admin/organization": "Nhân viên & chi nhánh",
+    "/shop-integrations": "Kết nối sàn",
+    "/admin/shop-integrations": "Kết nối sàn",
+    "/settings/payment-accounts": "Tài khoản nhận tiền VietQR",
+    "/admin/settings/payment-accounts": "Tài khoản nhận tiền VietQR",
   };
 
   const current =
@@ -200,9 +214,17 @@ export function AdminShell() {
 
         <div className="sidebar-bottom">
           {account.role === "Owner" && (
-            <NavLink to="/organization">
-              <Settings2 size={18} />Nhân viên & chi nhánh
-            </NavLink>
+            <>
+              <NavLink to="/organization">
+                <Settings2 size={18} />Nhân viên & chi nhánh
+              </NavLink>
+              <NavLink to="/shop-integrations">
+                <Store size={18} />Kết nối sàn
+              </NavLink>
+              <NavLink to="/settings/payment-accounts">
+                <CreditCard size={18} />Tài khoản nhận tiền
+              </NavLink>
+            </>
           )}
         </div>
       </aside>
@@ -451,11 +473,14 @@ export function AdminShell() {
           </div>
 
           <div className="topbar-right">
-            <Button variant="secondary" className="pos-btn" onClick={() => navigate("/pos")}>
+            <Button variant="secondary" className="pos-btn" onClick={() => window.location.assign(POS_URL)}>
               <Store size={18} />
               <span>Mở Web POS</span>
             </Button>
             <NotificationCenter />
+            {user && (user.role === "Owner" || user.role === "Staff") && (
+              <AiAssistant key={`${user.tenantId}:${user.id}:${user.role}`} role={user.role} />
+            )}
             <div className="profile-chip">
               <span className="avatar">{account.initials}</span>
               <div className="profile-chip-text">

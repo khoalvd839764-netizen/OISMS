@@ -3,12 +3,12 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-SCR-04` |
-| **Phiên bản (Version)** | `v1.0.0` |
-| **Ngày hiệu lực** | `2026-10-25` |
+| **Phiên bản (Version)** | `v1.1.0` |
+| **Ngày hiệu lực** | `2026-11-06` |
 | **Đường dẫn URL Routes** | `/admin/inventory`, `/inventory` |
 | **Quyền truy cập (RBAC)** | `Owner`, `Staff` |
-| **Source code Frontend** | [`InventoryPage.tsx`](file:///d:/OISMS/src/frontend/admin-dashboard/src/pages/InventoryPage.tsx) |
-| **Controllers Backend** | [`InventoryController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/InventoryController.cs), [`GoodsReceiptsController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/GoodsReceiptsController.cs), [`StockTransfersController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/StockTransfersController.cs), [`StockCountsController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/StockCountsController.cs) |
+| **Source code Frontend** | [`InventoryPage.tsx`](../../src/frontend/admin-dashboard/src/pages/InventoryPage.tsx) |
+| **Controllers Backend** | [`InventoryController.cs`](../../src/backend/src/OISM.WebApi/Controllers/InventoryController.cs), [`GoodsReceiptsController.cs`](../../src/backend/src/OISM.WebApi/Controllers/GoodsReceiptsController.cs), [`StockTransfersController.cs`](../../src/backend/src/OISM.WebApi/Controllers/StockTransfersController.cs), [`StockCountsController.cs`](../../src/backend/src/OISM.WebApi/Controllers/StockCountsController.cs) |
 
 ---
 
@@ -82,10 +82,12 @@ Màn hình **Quản lý Kho & Sổ cái** là trái tim vận hành kho vận c�
 | :---: | :--- | :--- | :--- | :--- |
 | `GET` | `/api/inventory/balances` | `InventoryController.GetBalances` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#1-danh-mục-endpoints-sổ-cái-tồn-kho--phiếu-nhập-fr-inv-0102-fr-cost-01) | `NO_ACTIVE_WAREHOUSE`, `DATABASE_CONNECTION_ERROR` (Xem [`DOC-ERR-02`](../12-error-and-status-codes/02-error-codes-catalog.md)) |
 | `GET` | `/api/inventory/ledger` | `InventoryController.GetLedger` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#1-danh-mục-endpoints-sổ-cái-tồn-kho--phiếu-nhập-fr-inv-0102-fr-cost-01) | `AUTH_UNAUTHORIZED` |
-| `POST` | `/api/inventory/goods-receipts` | `GoodsReceiptsController.Create` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#1-danh-mục-endpoints-sổ-cái-tồn-kho--phiếu-nhập-fr-inv-0102-fr-cost-01) | `VALIDATION_ERROR` |
-| `POST` | `/api/inventory/goods-receipts/{id}/confirm` | `GoodsReceiptsController.Confirm` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#1-danh-mục-endpoints-sổ-cái-tồn-kho--phiếu-nhập-fr-inv-0102-fr-cost-01) | `INVALID_STATE_TRANSITION`, `LEDGER_IMMUTABLE_VIOLATION` |
-| `POST` | `/api/inventory/transfers` | `StockTransfersController.Create` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#2-danh-mục-endpoints-chuyển-kho-2-bước--kiểm-kê-fr-inv-0304) | `SAME_WAREHOUSE_TRANSFER`, `DUPLICATE_TRANSFER_SKU` |
-| `POST` | `/api/inventory/transfers/{id}/dispatch` | `StockTransfersController.Dispatch` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#2-danh-mục-endpoints-chuyển-kho-2-bước--kiểm-kê-fr-inv-0304) | `INSUFFICIENT_STOCK`, `INVALID_STATE_TRANSITION` |
-| `POST` | `/api/inventory/transfers/{id}/receive` | `StockTransfersController.Receive` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#2-danh-mục-endpoints-chuyển-kho-2-bước--kiểm-kê-fr-inv-0304) | `INVALID_STATE_TRANSITION` |
-| `POST` | `/api/inventory/stocktakes` | `StockCountsController.Create` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#2-danh-mục-endpoints-chuyển-kho-2-bước--kiểm-kê-fr-inv-0304) | `VALIDATION_ERROR`, `NO_ACTIVE_WAREHOUSE` |
-| `POST` | `/api/inventory/stocktakes/{id}/finalize` | `StockCountsController.Finalize` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#2-danh-mục-endpoints-chuyển-kho-2-bước--kiểm-kê-fr-inv-0304) | `STOCK_COUNT_DRIFT_DETECTED`, `INCOMPLETE_STOCK_COUNT`, `ADJUSTMENT_COST_REQUIRED` |
+| `POST` | `/api/goods-receipts` | `GoodsReceiptsController.Create` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#1-danh-mục-endpoints-sổ-cái-tồn-kho--phiếu-nhập-fr-inv-0102-fr-cost-01) | `VALIDATION_ERROR` |
+| `POST` | `/api/goods-receipts/{id}/confirm` | `GoodsReceiptsController.Confirm` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#1-danh-mục-endpoints-sổ-cái-tồn-kho--phiếu-nhập-fr-inv-0102-fr-cost-01) | `INVALID_STATE_TRANSITION`, `LEDGER_IMMUTABLE_VIOLATION` |
+| `POST` | `/api/stock-transfers` | `StockTransfersController.Create` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#2-danh-mục-endpoints-chuyển-kho-2-bước--kiểm-kê-fr-inv-0304) | `SAME_WAREHOUSE_TRANSFER`, `DUPLICATE_TRANSFER_SKU` |
+| `POST` | `/api/stock-transfers/{id}/dispatch` | `StockTransfersController.Dispatch` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#2-danh-mục-endpoints-chuyển-kho-2-bước--kiểm-kê-fr-inv-0304) | `INSUFFICIENT_STOCK`, `INVALID_STATE_TRANSITION` |
+| `POST` | `/api/stock-transfers/{id}/receive` | `StockTransfersController.Receive` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#2-danh-mục-endpoints-chuyển-kho-2-bước--kiểm-kê-fr-inv-0304) | `INVALID_STATE_TRANSITION` |
+| `POST` | `/api/stock-counts` | `StockCountsController.Create` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#2-danh-mục-endpoints-chuyển-kho-2-bước--kiểm-kê-fr-inv-0304) | `VALIDATION_ERROR`, `NO_ACTIVE_WAREHOUSE` |
+| `POST` | `/api/stock-counts/{id}/confirm` | `StockCountsController.Confirm` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#2-danh-mục-endpoints-chuyển-kho-2-bước--kiểm-kê-fr-inv-0304) | `STOCK_COUNT_DRIFT_DETECTED`, `INCOMPLETE_STOCK_COUNT`, `ADJUSTMENT_COST_REQUIRED` |
+
+Route đầy đủ (phiếu mua, lịch/kỳ kiểm kê, `record`, `submit`, `recount`, `request-recount`, `cancel`, ngưỡng đặt hàng lại) xem [DOC-API-03](../05-api-contracts/03-inventory-endpoints.md). Màn Chuyển kho ở `/inventory/transfers`, Kiểm kê ở `/inventory/counts`, Đơn mua ở `/purchase-orders`.

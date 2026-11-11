@@ -1,0 +1,53 @@
+{
+  "observations": [
+    {
+      "id": "retry-transfer",
+      "status": "REPRODUCED",
+      "scenario": "Same payload retried after an unknown result",
+      "observed": {
+        "sameKey": false,
+        "requestCount": 2
+      }
+    },
+    {
+      "id": "retry-count",
+      "status": "REPRODUCED",
+      "scenario": "Same payload retried after an unknown result",
+      "observed": {
+        "sameKey": false,
+        "requestCount": 2
+      }
+    },
+    {
+      "id": "auth-refresh-owner",
+      "status": "REPRODUCED",
+      "scenario": "Login B while token refresh A is pending",
+      "observed": {
+        "expectedOwner": "B",
+        "storedTokenOwner": "A"
+      }
+    },
+    {
+      "id": "auth-old-401-replay",
+      "status": "REPRODUCED",
+      "scenario": "An old mutation sent by A returns 401 after B signs in",
+      "observed": {
+        "originalIntentOwner": "A",
+        "replayedWithOwner": "B",
+        "mutationReplayed": true
+      }
+    },
+    {
+      "id": "realtime-owner",
+      "status": "REPRODUCED",
+      "scenario": "A connected transport remains active when B subscribes",
+      "observed": {
+        "connections": 1,
+        "transportOwner": "A",
+        "activeOwner": "B",
+        "oldOwnerEventDelivered": true
+      }
+    }
+  ],
+  "error": "Expected values to be strictly equal:\n+ actual - expected\n\n+ '2026-09-28T00:00:00Z'\n- '2026-10-28T00:00:00Z'\n        ^\n"
+}

@@ -1,11 +1,14 @@
 using OISM.Application;
 using OISM.Infrastructure;
+using OISM.Infrastructure.Health;
+using OISM.WebApi.Http;
 using System.Text;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
-using Npgsql;
 using OISM.Application.Common.Interfaces;
 using OISM.Domain.Entities;
 using OISM.Infrastructure.Jobs;
@@ -22,7 +25,6 @@ builder.Services.AddApplicationServices();
 
 // 3. Đăng ký các dịch vụ WebApi, SignalR & HttpContextAccessor
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddSingleton<IDatabaseReadinessService, NpgsqlDatabaseReadinessService>();
 builder.Services.AddScoped<OISM.Application.Features.Realtime.IRealtimeNotifier, OISM.WebApi.Services.RealtimeNotifier>();
 builder.Services.AddSignalR();
 
@@ -67,6 +69,26 @@ builder.Services.AddAuthentication(options =>
 });
 
 builder.Services.AddAuthorization();
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddPolicy("AiChat", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.User.GetUserId().GetValueOrDefault(),
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        }));
+    options.OnRejected = async (rejection, ct) =>
+    {
+        const string code = "AI_RATE_LIMITED";
+        var context = rejection.HttpContext;
+        var problem = ApiErrorResponse.CreateProblemDetails(context, code, ApiErrorTitles.Get(ApiErrorProfile.Ai, code),
+            StatusCodes.Status429TooManyRequests, "Bạn hỏi hơi nhanh, thử lại sau ít phút.");
+        context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        await context.Response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json", cancellationToken: ct);
+    };
+});
 
 // 4. Cấu hình CORS cho Frontend Admin (5173) và Frontend POS (5174)
 builder.Services.AddCors(options =>
@@ -85,6 +107,14 @@ builder.Services.AddControllers()
     {
         options.InvalidModelStateResponseFactory = context =>
         {
+            if (context.HttpContext.GetEndpoint()?.Metadata.GetMetadata<ApiErrorContractAttribute>()?.Profile == ApiErrorProfile.Ai)
+            {
+                const string code = "AI_INVALID_REQUEST";
+                return ApiErrorResponse.Problem(context.HttpContext, ApiErrorProfile.Ai, code,
+                    ApiErrorTitles.Get(ApiErrorProfile.Ai, code), StatusCodes.Status400BadRequest,
+                    "Dữ liệu yêu cầu trợ lý AI không hợp lệ.");
+            }
+
             var errors = context.ModelState
                 .Where(e => e.Value?.Errors.Count > 0)
                 .ToDictionary(
@@ -97,20 +127,9 @@ builder.Services.AddControllers()
                 .Select(e => !string.IsNullOrWhiteSpace(e.ErrorMessage) ? e.ErrorMessage : e.Exception?.Message)
                 .FirstOrDefault(msg => !string.IsNullOrWhiteSpace(msg)) ?? "Dữ liệu yêu cầu không hợp lệ.";
 
-            var problemDetails = new Microsoft.AspNetCore.Mvc.ProblemDetails
-            {
-                Type = "https://oisms.local/errors/VALIDATION_ERROR",
-                Title = "Lỗi xác thực dữ liệu",
-                Status = Microsoft.AspNetCore.Http.StatusCodes.Status400BadRequest,
-                Detail = firstError,
-                Instance = context.HttpContext.Request.Path,
-                Extensions =
-                {
-                    ["errorCode"] = "VALIDATION_ERROR",
-                    ["errors"] = errors,
-                    ["timestamp"] = DateTimeOffset.UtcNow
-                }
-            };
+            var problemDetails = ApiErrorResponse.CreateProblemDetails(
+                context.HttpContext, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, firstError);
+            problemDetails.Extensions["errors"] = errors;
 
             return new Microsoft.AspNetCore.Mvc.BadRequestObjectResult(problemDetails)
             {
@@ -191,6 +210,23 @@ else if (seedEnabledInConfig && !DemoSeedPolicy.IsEnvironmentAllowed(app.Environ
         app.Environment.EnvironmentName, seedResult.Reason);
 }
 
+// Đọc IP và scheme gốc khi chạy sau reverse proxy (Caddy trong mạng Docker).
+// Mặc định ASP.NET chỉ tin proxy loopback, nên phải khai báo dải mạng riêng mà Docker dùng.
+var forwardedHeadersOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |
+                       Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+};
+forwardedHeadersOptions.KnownNetworks.Clear();
+forwardedHeadersOptions.KnownProxies.Clear();
+foreach (var (prefix, length) in new[] { ("10.0.0.0", 8), ("172.16.0.0", 12), ("192.168.0.0", 16), ("127.0.0.0", 8) })
+{
+    forwardedHeadersOptions.KnownNetworks.Add(
+        new Microsoft.AspNetCore.HttpOverrides.IPNetwork(System.Net.IPAddress.Parse(prefix), length));
+}
+forwardedHeadersOptions.KnownProxies.Add(System.Net.IPAddress.IPv6Loopback);
+app.UseForwardedHeaders(forwardedHeadersOptions);
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -201,12 +237,17 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-app.UseHttpsRedirection();
 app.UseCors("AllowFrontendApps");
 app.UseMiddleware<OISM.WebApi.Middlewares.ExceptionHandlingMiddleware>();
 
+if (!app.Environment.IsDevelopment() && builder.Configuration.GetValue<bool>("UseHttpsRedirection", false))
+{
+    app.UseHttpsRedirection();
+}
+
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 app.UseOismHangfire(builder.Configuration);
 
 // Controllers API (Auth, Products, Categories, Brands, POS, Branches, Suppliers)
@@ -244,223 +285,5 @@ app.MapGet("/health", async (IDatabaseReadinessService readinessService, Cancell
 });
 
 app.Run();
-
-public record ReadinessCheckResult(
-    bool IsHealthy,
-    int StatusCode,
-    string Status,
-    string Description,
-    string? CurrentUser = null,
-    int? TablesCount = null,
-    IReadOnlyList<string>? MissingTables = null,
-    bool? TriggerVerified = null,
-    string? ErrorType = null,
-    DateTime? Timestamp = null
-);
-
-public interface IDatabaseReadinessService
-{
-    Task<ReadinessCheckResult> CheckReadinessAsync(CancellationToken ct = default);
-}
-
-public class NpgsqlDatabaseReadinessService : IDatabaseReadinessService
-{
-    private readonly IConfiguration _configuration;
-    private readonly ILogger<NpgsqlDatabaseReadinessService> _logger;
-
-    public static readonly string[] RequiredTables = new[]
-    {
-        "tenants", "users", "refresh_tokens", "branches", "warehouses",
-        "categories", "brands", "products", "skus", "suppliers",
-        "goods_receipts", "goods_receipt_items", "inventory_balances",
-        "warehouse_inventory_balances", "stock_transfers", "stock_transfer_items",
-        "stock_counts", "stock_count_items", "inventory_adjustments",
-        "inventory_adjustment_items", "orders", "order_items", "reservations",
-        "payments", "sales_returns", "sales_return_items", "inventory_transactions",
-        "daily_sales_summaries", "replenishment_suggestions", "shop_integrations",
-        "units", "sku_units", "sku_unit_factor_history",
-        "price_lists", "price_change_requests", "price_change_request_items", "sku_unit_prices",
-        "purchase_orders", "purchase_order_items", "sales_invoices",
-        "stock_count_schedules", "stock_count_periods", "stock_count_approvals"
-    };
-
-    public NpgsqlDatabaseReadinessService(IConfiguration configuration, ILogger<NpgsqlDatabaseReadinessService> logger)
-    {
-        _configuration = configuration;
-        _logger = logger;
-    }
-
-    public static NpgsqlConnectionStringBuilder BuildConnectionStringBuilder(IConfiguration configuration)
-    {
-        return DatabaseConnectionHelper.BuildConnectionStringBuilder(configuration);
-    }
-
-    public async Task<ReadinessCheckResult> CheckReadinessAsync(CancellationToken ct = default)
-    {
-        NpgsqlConnectionStringBuilder connBuilder;
-        try
-        {
-            connBuilder = BuildConnectionStringBuilder(_configuration);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to construct database connection builder.");
-            return new ReadinessCheckResult(
-                false, StatusCodes.Status503ServiceUnavailable, "Unhealthy",
-                "Database connection configuration is invalid or missing.",
-                ErrorType: ex.GetType().Name,
-                Timestamp: DateTime.UtcNow);
-        }
-
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        cts.CancelAfter(TimeSpan.FromSeconds(5));
-
-        try
-        {
-            await using var connection = new NpgsqlConnection(connBuilder.ConnectionString);
-            await connection.OpenAsync(cts.Token);
-
-            // 1. Identify current connected user
-            await using var userCmd = new NpgsqlCommand("SELECT current_user, session_user;", connection);
-            await using var userReader = await userCmd.ExecuteReaderAsync(cts.Token);
-            string currentUser = "unknown";
-            if (await userReader.ReadAsync(cts.Token))
-            {
-                currentUser = userReader.GetString(0);
-            }
-            await userReader.CloseAsync();
-
-            // 2. Security validation: Ensure runtime account has no direct or indirect admin rights or schema/table ownership
-            await using var secCmd = new NpgsqlCommand(@"
-                SELECT 
-                    (r.rolsuper OR r.rolcreatedb OR r.rolcreaterole OR r.rolreplication OR r.rolbypassrls) AS is_direct_admin,
-                    EXISTS (
-                        SELECT 1 FROM pg_roles ar
-                        WHERE (ar.rolsuper OR ar.rolcreatedb OR ar.rolcreaterole OR ar.rolreplication OR ar.rolbypassrls OR ar.rolname IN (
-                            'pg_read_all_data', 'pg_write_all_data', 'pg_database_owner',
-                            'pg_execute_server_program', 'pg_read_server_files', 'pg_write_server_files'
-                        )) AND pg_has_role(current_user, ar.oid, 'member')
-                    ) AS inherits_admin,
-                    EXISTS (
-                        SELECT 1 FROM pg_namespace n
-                        WHERE n.nspname = 'public'
-                          AND (n.nspowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)
-                               OR pg_has_role(current_user, n.nspowner, 'member'))
-                    ) AS owns_schema,
-                    EXISTS (
-                        SELECT 1 FROM pg_class c
-                        JOIN pg_namespace n ON c.relnamespace = n.oid
-                        WHERE n.nspname = 'public' AND c.relkind = 'r'
-                          AND (c.relowner = (SELECT oid FROM pg_roles WHERE rolname = current_user)
-                               OR pg_has_role(current_user, c.relowner, 'member'))
-                    ) AS owns_table
-                FROM pg_roles r
-                WHERE r.rolname = current_user;
-            ", connection);
-
-            await using var secReader = await secCmd.ExecuteReaderAsync(cts.Token);
-            bool isDirectAdmin = false, inheritsAdmin = false, ownsSchema = false, ownsTable = false;
-            if (await secReader.ReadAsync(cts.Token))
-            {
-                isDirectAdmin = secReader.GetBoolean(0);
-                inheritsAdmin = secReader.GetBoolean(1);
-                ownsSchema = secReader.GetBoolean(2);
-                ownsTable = secReader.GetBoolean(3);
-            }
-            await secReader.CloseAsync();
-
-            if (isDirectAdmin || inheritsAdmin || ownsSchema || ownsTable)
-            {
-                _logger.LogWarning("Security violation: Runtime user '{User}' has administrative privileges (direct={Direct}, inherited={Inherited}) or owns schema/tables.",
-                    currentUser, isDirectAdmin, inheritsAdmin);
-                return new ReadinessCheckResult(
-                    false, StatusCodes.Status503ServiceUnavailable, "Degraded",
-                    "Security alert: Connected database user possesses direct or inherited administrative privileges or owns schema/tables. Least-privilege runtime account required.",
-                    CurrentUser: currentUser,
-                    Timestamp: DateTime.UtcNow);
-            }
-
-            // 3. Schema completeness check: verify presence of all 29 required tables in public schema
-            await using var tableCmd = new NpgsqlCommand(
-                "SELECT table_name FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';",
-                connection);
-            await using var tableReader = await tableCmd.ExecuteReaderAsync(cts.Token);
-            var existingTables = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            while (await tableReader.ReadAsync(cts.Token))
-            {
-                existingTables.Add(tableReader.GetString(0));
-            }
-            await tableReader.CloseAsync();
-
-            var missingTables = RequiredTables.Where(t => !existingTables.Contains(t)).ToList();
-            if (missingTables.Count > 0)
-            {
-                return new ReadinessCheckResult(
-                    false, StatusCodes.Status503ServiceUnavailable, "Unhealthy",
-                    $"Database schema is incomplete ({existingTables.Count} of {RequiredTables.Length} base tables found). Missing: {string.Join(", ", missingTables)}. Database migration required.",
-                    CurrentUser: currentUser,
-                    TablesCount: existingTables.Count,
-                    MissingTables: missingTables,
-                    Timestamp: DateTime.UtcNow);
-            }
-
-            // 4. Critical trigger check: verify trigger 'ledger_append_only' on 'public.inventory_transactions' is enabled
-            await using var triggerCmd = new NpgsqlCommand(@"
-                SELECT count(*)::int
-                FROM pg_trigger tg
-                JOIN pg_class c ON tg.tgrelid = c.oid
-                JOIN pg_namespace n ON c.relnamespace = n.oid
-                WHERE n.nspname = 'public'
-                  AND c.relname = 'inventory_transactions'
-                  AND tg.tgname = 'ledger_append_only'
-                  AND tg.tgenabled IN ('O', 'A')
-                  AND NOT tg.tgisinternal;
-            ", connection);
-
-            var triggerCount = (int)(await triggerCmd.ExecuteScalarAsync(cts.Token) ?? 0);
-            if (triggerCount == 0)
-            {
-                return new ReadinessCheckResult(
-                    false, StatusCodes.Status503ServiceUnavailable, "Unhealthy",
-                    "Critical trigger 'ledger_append_only' on 'public.inventory_transactions' is missing or disabled. Database migration required.",
-                    CurrentUser: currentUser,
-                    TablesCount: existingTables.Count,
-                    TriggerVerified: false,
-                    Timestamp: DateTime.UtcNow);
-            }
-
-            // 5. Query permission verification: verify runtime can query business tables
-            await using var pingCmd = new NpgsqlCommand("SELECT count(*)::int FROM tenants;", connection);
-            await pingCmd.ExecuteScalarAsync(cts.Token);
-
-            return new ReadinessCheckResult(
-                true, StatusCodes.Status200OK, "Healthy",
-                $"Database connection, schema completeness ({RequiredTables.Length} tables), trigger immutability, and runtime permissions verified.",
-                CurrentUser: currentUser,
-                TablesCount: existingTables.Count,
-                TriggerVerified: true,
-                Timestamp: DateTime.UtcNow);
-        }
-        catch (OperationCanceledException)
-        {
-            _logger.LogError("Database readiness check timed out after 5 seconds.");
-            return new ReadinessCheckResult(
-                false, StatusCodes.Status503ServiceUnavailable, "Unhealthy",
-                "Database readiness check timed out. PostgreSQL service is not responding.",
-                ErrorType: nameof(OperationCanceledException),
-                Timestamp: DateTime.UtcNow);
-        }
-        catch (Exception ex)
-        {
-            // Log detailed exception internally without leaking connection string or secrets to client
-            _logger.LogError(ex, "Database readiness check failed.");
-            return new ReadinessCheckResult(
-                false, StatusCodes.Status503ServiceUnavailable, "Unhealthy",
-                "Database connection or validation failed. PostgreSQL service is not ready.",
-                ErrorType: ex.GetType().Name,
-                Timestamp: DateTime.UtcNow);
-        }
-    }
-}
 
 public partial class Program { }

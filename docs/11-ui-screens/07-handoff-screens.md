@@ -8,7 +8,7 @@
 | **Đường dẫn URL Routes** | `/admin/handoff`, `/handoff` |
 | **Quyền truy cập (RBAC)** | `Owner`, `Staff` |
 | **Source code Frontend** | Không còn; `HandoffPage.tsx` đã gỡ ngày 04/11/2026 |
-| **Controllers Backend** | [`OrdersController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/OrdersController.cs) |
+| **Controllers Backend** | [`OrdersController.cs`](../../src/backend/src/OISM.WebApi/Controllers/OrdersController.cs) |
 
 ---
 
@@ -55,4 +55,4 @@ Màn hình **Bàn Giao Kỹ Thuật & Điều Phối Vận Chuyển (Handoff & D
 | :---: | :--- | :--- | :--- | :--- |
 | `GET` | `/api/orders` | `OrdersController.GetOrders` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#1-danh-mục-endpoints-đơn-hàng-đa-kênh--webhook-fr-ord-0103-fr-sim-01) | `AUTH_UNAUTHORIZED` (Xem [`DOC-ERR-02`](../12-error-and-status-codes/02-error-codes-catalog.md)) |
 | `POST` | `/api/orders/{id}/complete` | `OrdersController.CompleteOrder` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#1-danh-mục-endpoints-đơn-hàng-đa-kênh--webhook-fr-ord-0103-fr-sim-01) | `ORDER_NOT_FOUND`, `INVALID_STATE_TRANSITION` |
-| `GET` | `/api/branches` | `BranchController.GetBranches` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#3-endpoints-quản-lý-chi-nhánh-kho-hàng--nhà-cung-cấp-fr-auth-04) | `AUTH_UNAUTHORIZED` |
+| `GET` | `/api/branches` | `BranchController.GetBranches` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#2-danh-mục-endpoints-chi-nhánh-kho--nhà-cung-cấp-fr-auth-04) | `AUTH_UNAUTHORIZED` |

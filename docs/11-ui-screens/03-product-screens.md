@@ -7,8 +7,8 @@
 | **Ngày hiệu lực** | `2026-10-25` |
 | **Đường dẫn URL Routes** | `/admin/products`, `/products` |
 | **Quyền truy cập (RBAC)** | `Owner`, `Staff` |
-| **Source code Frontend** | [`ProductsPage.tsx`](file:///d:/OISMS/src/frontend/admin-dashboard/src/pages/ProductsPage.tsx) |
-| **Controllers Backend** | [`ProductsController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/ProductsController.cs), [`CategoriesController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/CategoriesController.cs), [`BrandsController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/BrandsController.cs) |
+| **Source code Frontend** | [`ProductsPage.tsx`](../../src/frontend/admin-dashboard/src/pages/ProductsPage.tsx) |
+| **Controllers Backend** | [`ProductsController.cs`](../../src/backend/src/OISM.WebApi/Controllers/ProductsController.cs), [`CategoriesController.cs`](../../src/backend/src/OISM.WebApi/Controllers/CategoriesController.cs), [`BrandsController.cs`](../../src/backend/src/OISM.WebApi/Controllers/BrandsController.cs) |
 
 ---
 
@@ -61,9 +61,9 @@ Khi bấm nút **`[+ Thêm Sản Phẩm Mới]`**, một Modal xuất hiện v�
 
 | Method | Endpoint Backend | Hàm xử lý Controller / Service | Tài liệu Hợp đồng API tham chiếu | Mã lỗi liên quan |
 | :---: | :--- | :--- | :--- | :--- |
-| `GET` | `/api/products` | `ProductsController.GetProducts` | [`DOC-API-02 - 02-catalog-endpoints.md`](../05-api-contracts/02-catalog-endpoints.md#2-danh-mục-endpoints-sản-phẩm-biến-thể-sku--giá-bán-fr-prod-0204) | `AUTH_UNAUTHORIZED` (Xem [`DOC-ERR-02`](../12-error-and-status-codes/02-error-codes-catalog.md)) |
-| `POST` | `/api/products` | `ProductsController.CreateProduct` | [`DOC-API-02 - 02-catalog-endpoints.md`](../05-api-contracts/02-catalog-endpoints.md#2-danh-mục-endpoints-sản-phẩm-biến-thể-sku--giá-bán-fr-prod-0204) | `VALIDATION_ERROR`, `BARCODE_DUPLICATE` |
-| `PUT` | `/api/products/{pId}/variants/{vId}/prices` | `ProductsController.UpdatePrices` | [`DOC-API-02 - 02-catalog-endpoints.md`](../05-api-contracts/02-catalog-endpoints.md#2-danh-mục-endpoints-sản-phẩm-biến-thể-sku--giá-bán-fr-prod-0204) | `SKU_NOT_FOUND`, `PRICE_MISMATCH` |
+| `GET` | `/api/products` | `ProductsController.GetProducts` | [`DOC-API-02 - 02-catalog-endpoints.md`](../05-api-contracts/02-catalog-endpoints.md#2-danh-mục-endpoints-sản-phẩm-biến-thể-sku-barcode--giá-fr-prod-0204) | `AUTH_UNAUTHORIZED` (Xem [`DOC-ERR-02`](../12-error-and-status-codes/02-error-codes-catalog.md)) |
+| `POST` | `/api/products` | `ProductsController.CreateProduct` | [`DOC-API-02 - 02-catalog-endpoints.md`](../05-api-contracts/02-catalog-endpoints.md#2-danh-mục-endpoints-sản-phẩm-biến-thể-sku-barcode--giá-fr-prod-0204) | `VALIDATION_ERROR`, `BARCODE_DUPLICATE` |
+| `PUT` | `/api/products/{pId}/variants/{vId}/prices` | `ProductsController.UpdatePrices` | [`DOC-API-02 - 02-catalog-endpoints.md`](../05-api-contracts/02-catalog-endpoints.md#2-danh-mục-endpoints-sản-phẩm-biến-thể-sku-barcode--giá-fr-prod-0204) | `SKU_NOT_FOUND`, `PRICE_MISMATCH` |
 | `GET` | `/api/categories` | `CategoriesController.GetCategories` | [`DOC-API-02 - 02-catalog-endpoints.md`](../05-api-contracts/02-catalog-endpoints.md#1-danh-mục-endpoints-cây-danh-mục--thương-hiệu-fr-prod-01) | `AUTH_UNAUTHORIZED` |
 | `POST` | `/api/categories` | `CategoriesController.CreateCategory` | [`DOC-API-02 - 02-catalog-endpoints.md`](../05-api-contracts/02-catalog-endpoints.md#1-danh-mục-endpoints-cây-danh-mục--thương-hiệu-fr-prod-01) | `CATEGORY_CYCLIC_DEPENDENCY` |
 | `GET` | `/api/brands` | `BrandsController.GetBrands` | [`DOC-API-02 - 02-catalog-endpoints.md`](../05-api-contracts/02-catalog-endpoints.md#1-danh-mục-endpoints-cây-danh-mục--thương-hiệu-fr-prod-01) | `AUTH_UNAUTHORIZED` |

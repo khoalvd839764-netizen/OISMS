@@ -679,6 +679,11 @@ CREATE TABLE "payments" (
   "amount" numeric(20,2) NOT NULL,
   "cash_received" numeric(20,2),
   "paid_at" timestamptz,
+  "transfer_reference" varchar(100),
+  "receiver_bank_bin" varchar(6),
+  "receiver_account_number" varchar(20),
+  "receiver_account_name" varchar(255),
+  "payment_account_id" uuid,
   "created_at" timestamptz DEFAULT now() NOT NULL,
   "updated_at" timestamptz,
   CONSTRAINT "uq_payments_1" UNIQUE ("tenant_id", "id"),
@@ -688,7 +693,8 @@ CREATE TABLE "payments" (
   CONSTRAINT "ck_payments_amount_nonnegative" CHECK (amount >= 0),
   CONSTRAINT "ck_payments_cash_received_nonnegative" CHECK (cash_received >= 0),
   CONSTRAINT "ck_payments_paid_time" CHECK ((status = 'Succeeded') = (paid_at IS NOT NULL)),
-  CONSTRAINT "ck_payments_cash_received" CHECK ((method = 'Cash' AND (status <> 'Succeeded' OR cash_received IS NOT NULL) AND (cash_received IS NULL OR cash_received >= amount)) OR (method = 'BankTransfer' AND cash_received IS NULL))
+  CONSTRAINT "ck_payments_cash_received" CHECK ((method = 'Cash' AND (status <> 'Succeeded' OR cash_received IS NOT NULL) AND (cash_received IS NULL OR cash_received >= amount)) OR (method = 'BankTransfer' AND cash_received IS NULL)),
+  CONSTRAINT "ck_payments_bank_transfer_snapshot" CHECK (method = 'BankTransfer' OR (transfer_reference IS NULL AND receiver_bank_bin IS NULL AND receiver_account_number IS NULL AND receiver_account_name IS NULL AND payment_account_id IS NULL))
 );
 
 -- Hóa đơn bán hàng nội bộ khi khách mua hàng (Upgrade 02, bảng thứ 40 - Append-only)
@@ -780,16 +786,42 @@ CREATE TABLE "stock_count_approvals" (
   CONSTRAINT "ck_stock_count_approvals_action" CHECK (action IN ('Submitted', 'Approved', 'RecountRequested', 'Recounted', 'Cancelled'))
 );
 
+-- Cấu hình tài khoản ngân hàng thụ hưởng nhận tiền theo tenant (Upgrade CS-05, Bảng thứ 44)
+CREATE TABLE "payment_accounts" (
+  "id" uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+  "tenant_id" uuid NOT NULL,
+  "bank_bin" varchar(6) NOT NULL,
+  "bank_name" varchar(255) NOT NULL,
+  "bank_short_name" varchar(50) NOT NULL,
+  "account_number" varchar(20) NOT NULL,
+  "account_name" varchar(255) NOT NULL,
+  "is_default" boolean DEFAULT false NOT NULL,
+  "is_active" boolean DEFAULT true NOT NULL,
+  "created_at" timestamptz DEFAULT now() NOT NULL,
+  "updated_at" timestamptz,
+  "updated_by_user_id" uuid,
+  CONSTRAINT "uq_payment_accounts_1" UNIQUE ("tenant_id", "id"),
+  CONSTRAINT "uq_payment_accounts_2" UNIQUE ("tenant_id", "bank_bin", "account_number"),
+  CONSTRAINT "ck_payment_accounts_bank_bin" CHECK (bank_bin ~ '^[0-9]{6}$'),
+  CONSTRAINT "ck_payment_accounts_account_number" CHECK (account_number ~ '^[A-Za-z0-9]{6,19}$')
+);
+
+CREATE UNIQUE INDEX "uq_payment_accounts_tenant_default_active" ON "payment_accounts" ("tenant_id") WHERE is_default AND is_active;
+CREATE INDEX "ix_payment_accounts_tenant_active" ON "payment_accounts" ("tenant_id", "is_active");
+
 -- Nguồn giao dịch trả hàng cho ledger theo FR-INV-01; chi tiết quy trình hoàn tiền là thiết kế hỗ trợ, không phải yêu cầu nguyên văn.
 CREATE TABLE "sales_returns" (
   "id" uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
   "tenant_id" uuid NOT NULL,
+  "request_key" uuid NOT NULL,
   "number" varchar(50) NOT NULL,
   "order_id" uuid NOT NULL,
   "branch_id" uuid NOT NULL,
   "warehouse_id" uuid NOT NULL,
   "status" varchar(20) DEFAULT 'Draft' NOT NULL,
   "reason" text NOT NULL,
+  "note" text,
+  "total_refund_amount" numeric(20,2) DEFAULT 0 NOT NULL,
   "created_by" uuid NOT NULL,
   "confirmed_by" uuid,
   "confirmed_at" timestamptz,
@@ -800,10 +832,12 @@ CREATE TABLE "sales_returns" (
   CONSTRAINT "uq_sales_returns_1" UNIQUE ("tenant_id", "id"),
   CONSTRAINT "uq_sales_returns_2" UNIQUE ("tenant_id", "number"),
   CONSTRAINT "uq_sales_returns_3" UNIQUE ("tenant_id", "id", "order_id"),
+  CONSTRAINT "uq_sales_returns_4" UNIQUE ("tenant_id", "request_key"),
   CONSTRAINT "ck_sales_returns_status_values" CHECK (status IN ('Draft', 'Confirmed', 'Cancelled')),
   CONSTRAINT "ck_sales_returns_refund_method_values" CHECK (refund_method IN ('Cash', 'BankTransfer')),
   CONSTRAINT "ck_sales_returns_confirmed" CHECK ((status = 'Confirmed') = (confirmed_at IS NOT NULL) AND (confirmed_at IS NULL) = (confirmed_by IS NULL)),
-  CONSTRAINT "ck_sales_returns_refund" CHECK ((refund_method IS NULL) = (refunded_at IS NULL) AND (refunded_at IS NULL OR status = 'Confirmed'))
+  CONSTRAINT "ck_sales_returns_refund" CHECK ((refund_method IS NULL) = (refunded_at IS NULL) AND (refunded_at IS NULL OR status = 'Confirmed')),
+  CONSTRAINT "ck_sales_returns_total_refund_amount_nonnegative" CHECK (total_refund_amount >= 0)
 );
 
 -- Dòng trả phải thuộc đúng đơn/SKU. Giữ giá vốn gốc và số tiền hoàn để tính doanh thu thuần.
@@ -995,6 +1029,9 @@ ALTER TABLE "reservations" ADD CONSTRAINT "fk_reservations_order_item" FOREIGN K
 ALTER TABLE "reservations" ADD CONSTRAINT "fk_reservations_order_branch" FOREIGN KEY ("tenant_id", "order_id", "branch_id") REFERENCES "orders" ("tenant_id", "id", "branch_id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 ALTER TABLE "payments" ADD CONSTRAINT "fk_payments_tenant_id" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 ALTER TABLE "payments" ADD CONSTRAINT "fk_payments_order_id" FOREIGN KEY ("tenant_id", "order_id") REFERENCES "orders" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "payments" ADD CONSTRAINT "fk_payments_payment_account_id" FOREIGN KEY ("tenant_id", "payment_account_id") REFERENCES "payment_accounts" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "payment_accounts" ADD CONSTRAINT "fk_payment_accounts_tenant_id" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "payment_accounts" ADD CONSTRAINT "fk_payment_accounts_updated_by" FOREIGN KEY ("tenant_id", "updated_by_user_id") REFERENCES "users" ("tenant_id", "id") ON DELETE SET NULL ("updated_by_user_id") ON UPDATE NO ACTION;
 ALTER TABLE "sales_returns" ADD CONSTRAINT "fk_sales_returns_tenant_id" FOREIGN KEY ("tenant_id") REFERENCES "tenants" ("id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 ALTER TABLE "sales_returns" ADD CONSTRAINT "fk_sales_returns_order_id" FOREIGN KEY ("tenant_id", "order_id") REFERENCES "orders" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 ALTER TABLE "sales_returns" ADD CONSTRAINT "fk_sales_returns_branch_id" FOREIGN KEY ("tenant_id", "branch_id") REFERENCES "branches" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
@@ -1477,8 +1514,8 @@ END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='oisms_runtime') THEN CREATE ROLE oisms_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS; END IF; END $$;
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA public TO oisms_runtime;
-REVOKE ALL ON public."tenants", public."users", public."refresh_tokens", public."branches", public."warehouses", public."categories", public."brands", public."products", public."skus", public."suppliers", public."purchase_orders", public."purchase_order_items", public."goods_receipts", public."goods_receipt_items", public."inventory_balances", public."warehouse_inventory_balances", public."stock_transfers", public."stock_transfer_items", public."stock_counts", public."stock_count_items", public."inventory_adjustments", public."inventory_adjustment_items", public."orders", public."order_items", public."reservations", public."payments", public."sales_returns", public."sales_return_items", public."inventory_transactions", public."daily_sales_summaries", public."replenishment_suggestions", public."shop_integrations", public."units", public."sku_units", public."sku_unit_factor_history", public."price_lists", public."price_change_requests", public."price_change_request_items", public."sku_unit_prices", public."sales_invoices", public."stock_count_schedules", public."stock_count_periods", public."stock_count_approvals" FROM PUBLIC, oisms_runtime;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public."tenants", public."users", public."refresh_tokens", public."branches", public."warehouses", public."categories", public."brands", public."products", public."skus", public."suppliers", public."purchase_order_items", public."goods_receipts", public."goods_receipt_items", public."inventory_balances", public."warehouse_inventory_balances", public."stock_transfers", public."stock_transfer_items", public."stock_counts", public."stock_count_items", public."inventory_adjustments", public."inventory_adjustment_items", public."orders", public."order_items", public."reservations", public."payments", public."sales_returns", public."sales_return_items", public."inventory_transactions", public."daily_sales_summaries", public."replenishment_suggestions", public."shop_integrations", public."units", public."sku_units" TO oisms_runtime;
+REVOKE ALL ON public."tenants", public."users", public."refresh_tokens", public."branches", public."warehouses", public."categories", public."brands", public."products", public."skus", public."suppliers", public."purchase_orders", public."purchase_order_items", public."goods_receipts", public."goods_receipt_items", public."inventory_balances", public."warehouse_inventory_balances", public."stock_transfers", public."stock_transfer_items", public."stock_counts", public."stock_count_items", public."inventory_adjustments", public."inventory_adjustment_items", public."orders", public."order_items", public."reservations", public."payments", public."sales_returns", public."sales_return_items", public."inventory_transactions", public."daily_sales_summaries", public."replenishment_suggestions", public."shop_integrations", public."units", public."sku_units", public."sku_unit_factor_history", public."price_lists", public."price_change_requests", public."price_change_request_items", public."sku_unit_prices", public."sales_invoices", public."stock_count_schedules", public."stock_count_periods", public."stock_count_approvals", public."payment_accounts" FROM PUBLIC, oisms_runtime;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public."tenants", public."users", public."refresh_tokens", public."branches", public."warehouses", public."categories", public."brands", public."products", public."skus", public."suppliers", public."purchase_order_items", public."goods_receipts", public."goods_receipt_items", public."inventory_balances", public."warehouse_inventory_balances", public."stock_transfers", public."stock_transfer_items", public."stock_counts", public."stock_count_items", public."inventory_adjustments", public."inventory_adjustment_items", public."orders", public."order_items", public."reservations", public."payments", public."sales_returns", public."sales_return_items", public."inventory_transactions", public."daily_sales_summaries", public."replenishment_suggestions", public."shop_integrations", public."units", public."sku_units", public."payment_accounts" TO oisms_runtime;
 GRANT SELECT, INSERT, UPDATE ON public."price_lists", public."price_change_requests", public."sku_unit_prices", public."purchase_orders", public."stock_count_schedules", public."stock_count_periods" TO oisms_runtime;
 GRANT SELECT, INSERT ON public."price_change_request_items", public."sku_unit_factor_history", public."sales_invoices", public."stock_count_approvals" TO oisms_runtime;
 REVOKE DELETE, TRUNCATE ON public.price_lists, public.price_change_requests, public.sku_unit_prices, public.purchase_orders, public.stock_count_schedules, public.stock_count_periods FROM oisms_runtime;

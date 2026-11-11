@@ -28,7 +28,8 @@ public class ReportsController : ControllerBase
     [HttpGet("revenue-profit")]
     public async Task<IActionResult> GetRevenueProfit([FromQuery] ReportFilterDto filter, CancellationToken ct)
     {
-        var result = await _reportService.GetRevenueProfitReportAsync(filter, ct);
+        var isOwner = User.IsInRole("Owner");
+        var result = await _reportService.GetRevenueProfitReportAsync(filter, isOwner, ct);
         return Ok(result);
     }
 

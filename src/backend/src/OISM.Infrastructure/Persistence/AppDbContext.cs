@@ -1,9 +1,9 @@
 using System.Security;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 using OISM.Application.Common.Interfaces;
 using OISM.Domain.Common;
 using OISM.Domain.Entities;
+using OISM.Infrastructure.Services;
 
 namespace OISM.Infrastructure.Persistence;
 
@@ -16,11 +16,17 @@ public class AppDbContext : DbContext, IAppDbContext
 {
     private readonly ICurrentTenantService _currentTenantService;
 
+    public IDbErrorTranslator DatabaseErrors { get; } = new PostgresDbErrorTranslator();
+    public IUnitOfWork UnitOfWork { get; }
+    public ISqlLockService Locks { get; }
+
     public AppDbContext(
         DbContextOptions<AppDbContext> options,
         ICurrentTenantService currentTenantService) : base(options)
     {
         _currentTenantService = currentTenantService;
+        UnitOfWork = new EfUnitOfWork(this);
+        Locks = new SqlLockService(this);
     }
 
     public DbSet<Tenant> Tenants { get; set; } = null!;
@@ -43,6 +49,9 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<OrderItem> OrderItems { get; set; } = null!;
     public DbSet<Reservation> Reservations { get; set; } = null!;
     public DbSet<Payment> Payments { get; set; } = null!;
+    public DbSet<PaymentAccount> PaymentAccounts { get; set; } = null!;
+    public DbSet<SalesReturn> SalesReturns { get; set; } = null!;
+    public DbSet<SalesReturnItem> SalesReturnItems { get; set; } = null!;
     public DbSet<StockTransfer> StockTransfers { get; set; } = null!;
     public DbSet<StockTransferItem> StockTransferItems { get; set; } = null!;
     public DbSet<StockCount> StockCounts { get; set; } = null!;
@@ -63,29 +72,6 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<StockCountSchedule> StockCountSchedules { get; set; } = null!;
     public DbSet<StockCountPeriod> StockCountPeriods { get; set; } = null!;
     public DbSet<StockCountApproval> StockCountApprovals { get; set; } = null!;
-
-    public bool IsRelationalDatabase => Database.IsRelational();
-    public bool HasActiveTransaction => Database.CurrentTransaction != null;
-
-    public Task<IDbContextTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
-    {
-        return Database.BeginTransactionAsync(cancellationToken);
-    }
-
-    public IExecutionStrategy CreateExecutionStrategy()
-    {
-        return Database.CreateExecutionStrategy();
-    }
-
-    public Task<int> ExecuteSqlRawAsync(string sql, object[] parameters, CancellationToken cancellationToken = default)
-    {
-        return Database.ExecuteSqlRawAsync(sql, parameters, cancellationToken);
-    }
-
-    public void ClearChangeTracker()
-    {
-        ChangeTracker.Clear();
-    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -151,6 +137,15 @@ public class AppDbContext : DbContext, IAppDbContext
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
 
         modelBuilder.Entity<Payment>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<PaymentAccount>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<SalesReturn>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<SalesReturnItem>()
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
 
         modelBuilder.Entity<StockTransfer>()

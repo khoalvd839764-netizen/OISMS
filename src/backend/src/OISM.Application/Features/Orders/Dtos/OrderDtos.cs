@@ -1,3 +1,4 @@
+using OISM.Domain.Common;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 using OISM.Application.Common.Attributes;
@@ -33,7 +34,7 @@ public class OrderItemRequestDto
 
 /// <summary>
 /// Hợp đồng DTO thanh toán nhanh tại quầy POS (Hỗ trợ cả POST /api/pos/checkout và alias POST /api/orders/checkout).
-/// Tương thích 100% với Frontend Web POS PWA (src/frontend/pos-app/src/types/pos.ts) và Admin Dashboard.
+/// Tương thích với ứng dụng POS (src/frontend/pos-app/src/types/pos.ts).
 /// </summary>
 public class PosCheckoutRequestDto
 {
@@ -57,6 +58,17 @@ public class PosCheckoutRequestDto
 
     [DecimalRange("0", "999999999999999999.99", ErrorMessage = "Tiền thừa không được âm và không vượt quá giới hạn tối đa.")]
     public decimal? ChangeDue { get; set; }
+
+    /// <summary>
+    /// ID tài khoản ngân hàng thụ hưởng (áp dụng khi thanh toán BankTransfer / VietQR).
+    /// </summary>
+    public Guid? PaymentAccountId { get; set; }
+
+    /// <summary>
+    /// Nội dung chuyển khoản hoặc mã tham chiếu giao dịch QR.
+    /// </summary>
+    [MaxLength(100, ErrorMessage = "Nội dung chuyển khoản không được vượt quá 100 ký tự.")]
+    public string? TransferReference { get; set; }
 
     /// <summary>
     /// Khóa Idempotency chống trừ kho kép và chống thanh toán trùng lặp khi mạng chập chờn hoặc nhân viên nhấn đúp F4.
@@ -167,6 +179,7 @@ public class OrderItemResponseDto
     public decimal FactorSnapshot { get; set; } = 1m;
     public decimal BaseQuantity { get; set; }
     public decimal Quantity { get; set; }
+    public decimal ReturnedQuantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal? CostPrice { get; set; } // WAC snapshot theo đơn vị gốc tại thời điểm Confirm/Checkout
     public decimal Subtotal => Quantity * UnitPrice;
@@ -180,10 +193,15 @@ public class PaymentResponseDto
 {
     public Guid Id { get; set; }
     public string Method { get; set; } = "Cash";
-    public string Status { get; set; } = "Pending";
+    public string Status { get; set; } = PaymentStatus.Pending;
     public decimal Amount { get; set; }
     public decimal? CashReceived { get; set; }
     public DateTimeOffset? PaidAt { get; set; }
+    public string? TransferReference { get; set; }
+    public string? ReceiverBankBin { get; set; }
+    public string? ReceiverAccountNumber { get; set; }
+    public string? ReceiverAccountName { get; set; }
+    public Guid? PaymentAccountId { get; set; }
 }
 
 /// <summary>
@@ -199,7 +217,7 @@ public class OrderResponseDto
     public string Channel { get; set; } = "POS";
     public string? ExternalShopId { get; set; }
     public string? ExternalOrderId { get; set; }
-    public string Status { get; set; } = "Draft";
+    public string Status { get; set; } = OrderStatus.Draft;
     public string? CustomerName { get; set; }
     public string? CustomerPhone { get; set; }
     public string? ShippingAddress { get; set; }
@@ -263,6 +281,11 @@ public class PosReceiptDto
     public string PaymentMethod { get; set; } = "Cash";
     public decimal? AmountGiven { get; set; }
     public decimal? ChangeDue { get; set; }
+    public string? TransferReference { get; set; }
+    public string? ReceiverBankBin { get; set; }
+    public string? ReceiverBankName { get; set; }
+    public string? ReceiverAccountNumber { get; set; }
+    public string? ReceiverAccountName { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 
     public List<PosReceiptItemDto> Items { get; set; } = new();
@@ -315,6 +338,7 @@ public class OrderItemDto
     public decimal FactorSnapshot { get; set; } = 1m;
     public decimal BaseQuantity { get; set; }
     public decimal Quantity { get; set; }
+    public decimal ReturnedQuantity { get; set; }
     public decimal UnitPrice { get; set; }
     public decimal? CostPrice { get; set; }
     public decimal TotalLineAmount => Quantity * UnitPrice;
@@ -329,7 +353,7 @@ public class OrderSummaryDto
     public string Channel { get; set; } = "POS";
     public string? ExternalShopId { get; set; }
     public string? ExternalOrderId { get; set; }
-    public string Status { get; set; } = "Draft";
+    public string Status { get; set; } = OrderStatus.Draft;
     public string? CustomerName { get; set; }
     public string? CustomerPhone { get; set; }
     public decimal TotalAmount { get; set; }
@@ -388,7 +412,7 @@ public class CreateOrderDto
     /// <summary>
     /// Trạng thái ban đầu: 'Draft' hoặc 'Reserved'. Mặc định 'Draft'.
     /// </summary>
-    public string InitialStatus { get; set; } = "Draft";
+    public string InitialStatus { get; set; } = OrderStatus.Draft;
 
     public Guid? RequestKey { get; set; }
 

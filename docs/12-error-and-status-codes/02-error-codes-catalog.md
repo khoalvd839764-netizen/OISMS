@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-ERR-02` |
-| **Phiên bản (Version)** | `v1.1.0` |
-| **Ngày hiệu lực** | `2026-11-03` |
+| **Phiên bản (Version)** | `v1.2.0` |
+| **Ngày hiệu lực** | `2026-11-06` |
 | **Nguồn truy vết thực tế** | Source code Backend C# (`OISM.Application`, `OISM.WebApi`, `OismException.cs`) |
 | **Tài liệu liên quan** | [`01-error-response-spec.md`](./01-error-response-spec.md), [`03-color-system-tokens.md`](./03-color-system-tokens.md) |
 
@@ -147,11 +147,32 @@ Tài liệu này là **từ điển tra cứu danh mục mã lỗi toàn hệ th
 | `IDEMPOTENCY_PAYLOAD_MISMATCH` | `409` | Xung đột khóa Idempotency | *RequestKey đã được sử dụng cho một yêu cầu thanh toán khác với nội dung giỏ hàng khác.* | Bấm thanh toán lại với cùng một khóa `RequestKey` nhưng đã sửa sản phẩm trong giỏ hàng. | Khởi tạo lại `RequestKey` mới (GUID) khi thay đổi nội dung đơn. |
 | `INSUFFICIENT_CASH_RECEIVED` | `400` | Tiền khách đưa chưa đủ | *Số tiền khách đưa ({amountGiven}đ) không đủ để thanh toán tổng tiền đơn ({totalAmount}đ).* | Nhân viên thu ngân nhập số tiền khách đưa nhỏ hơn tổng tiền phải trả. | Nhập số tiền khách đưa lớn hơn hoặc bằng tổng tiền đơn hàng. |
 | `INVALID_PAYMENT_METHOD` | `400` | Sai phương thức thanh toán | *Phương thức thanh toán '{method}' không được hỗ trợ. Chỉ chấp nhận 'Cash' hoặc 'BankTransfer'.* | Chọn phương thức thanh toán ngoài danh mục quy định. | Chọn lại Tiền mặt (`Cash`) hoặc Chuyển khoản QR (`BankTransfer`). |
+| `PAYMENT_ACCOUNT_DUPLICATE` | `409` | Trùng tài khoản ngân hàng | *Tài khoản ngân hàng {bin} - {account} đã tồn tại trong cửa hàng.* | Thêm hoặc sửa tài khoản ngân hàng trùng số BIN và số tài khoản với tài khoản khác trong cùng shop. | Kiểm tra lại số tài khoản ngân hàng hoặc cập nhật tài khoản đã có. |
+| `PAYMENT_ACCOUNT_NOT_FOUND` | `404` | Không tìm thấy tài khoản nhận | *Không tìm thấy tài khoản thanh toán '{id}'.* | Gửi ID tài khoản ngân hàng không tồn tại hoặc thuộc tenant khác (cả ở API quản lý và ở checkout QR). | Kiểm tra lại ID tài khoản. |
+| `PAYMENT_ACCOUNT_INACTIVE` | `409` (checkout) / `400` (đặt mặc định) | Tài khoản nhận đã ngừng dùng | *Tài khoản nhận tiền đã ngừng sử dụng. Vui lòng chọn tài khoản khác và tạo lại mã QR.* | Checkout QR với `paymentAccountId` đã bị Owner ngừng dùng, hoặc đặt tài khoản đã ngừng làm mặc định. Replay cùng `RequestKey` đã thành công không bị lỗi này. | Chọn tài khoản đang dùng và tạo lại mã QR. |
+| `PAYMENT_ACCOUNT_IDENTITY_IMMUTABLE` | `400` | Không được đổi ngân hàng hoặc số tài khoản | *Không được đổi ngân hàng hoặc số tài khoản của tài khoản đã tạo...* | `PUT /api/payment-accounts/{id}` gửi BIN hoặc số tài khoản khác bản đã lưu. Chỉ được đổi tên hiển thị. | Thêm tài khoản mới rồi ngừng dùng tài khoản cũ. |
+| `PAYMENT_ACCOUNT_CONFLICT` | `409` | Xung đột cập nhật tài khoản mặc định | *Tài khoản mặc định vừa được thay đổi bởi thao tác khác...* | Hai thao tác đặt mặc định chạm nhau và DB chặn bằng index `uq_payment_accounts_tenant_default_active`. | Tải lại danh sách và thử lại. |
 | `ORDER_NOT_FOUND` | `404` | Không tìm thấy đơn hàng | *Không tìm thấy đơn hàng với mã '{orderId}'.* | Mã đơn hàng không tồn tại trong Tenant. | Kiểm tra lại danh sách đơn hàng. |
 | `SALES_INVOICE_NOT_FOUND` | `404` | Không tìm thấy hóa đơn bán hàng | *Không tìm thấy hóa đơn bán hàng với mã định danh được yêu cầu.* | Mã hóa đơn hoặc số hóa đơn không tồn tại trong Tenant. | Kiểm tra lại số hóa đơn hoặc mã định danh. |
 | `LEDGER_ENTRY_NOT_FOUND` | `404` | Không tìm thấy dòng sổ kho | *Không tìm thấy dòng sổ kho với mã định danh được yêu cầu.* | ID dòng sổ kho không tồn tại trong Tenant. | Kiểm tra lại mã dòng sổ kho cần truy vết. |
 | `BRANCH_INACTIVE_OR_INVALID` | `404` | Chi nhánh không hợp lệ | *Chi nhánh '{branchId}' không tồn tại hoặc đã ngừng hoạt động.* | Chi nhánh bị xóa hoặc bị tắt kích hoạt. | Chọn chi nhánh khác đang hoạt động trên Header. |
+| `SHOP_INTEGRATION_NOT_FOUND` | `404` | Không tìm thấy kết nối gian hàng | *Không tìm thấy kết nối gian hàng.* | ID kết nối không tồn tại trong Tenant hiện tại. | Tải lại danh sách kết nối sàn. |
+| `SHOP_INTEGRATION_DUPLICATE` | `409` | Gian hàng đã được kết nối | *Gian hàng '{externalShopId}' trên kênh {channel} đã được kết nối.* | Trùng `(tenant_id, channel, external_shop_id)` (`uq_shop_integrations_2`). | Sửa kết nối đã có hoặc dùng mã gian hàng khác. |
 | `CONCURRENCY_CONFLICT` | `409` | Xung đột dữ liệu đồng thời | *Dữ liệu đã được cập nhật bởi một người dùng khác trong lúc bạn đang thao tác.* | Lạc quan khóa phiên bản (Optimistic Concurrency Control) phát hiện phiên bản cũ. | Bấm nút "Tải lại trang" để lấy dữ liệu mới nhất rồi thực hiện lại. |
+
+---
+
+### 2.6a. Phân Hệ Trả Hàng Từ Khách (`SALES_RETURNS`, `CS-01`)
+*Liên kết hợp đồng API:* [`../05-api-contracts/04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md)  
+*Liên kết đặc tả nghiệp vụ:* [`../Upgrade-recommended/08-tra-hang-cs01.md`](../Upgrade-recommended/08-tra-hang-cs01.md)
+
+| Mã lỗi (`ErrorCode`) | HTTP Status | Tiêu đề lỗi | Thông báo chi tiết mẫu | Nguyên nhân phát sinh | Hướng dẫn khắc phục trên UI |
+| :--- | :---: | :--- | :--- | :--- | :--- |
+| `SALES_RETURN_NOT_FOUND` | `404` | Không tìm thấy phiếu trả hàng | *Không tìm thấy phiếu trả hàng.* | Phiếu trả hàng không tồn tại hoặc thuộc tenant khác. | Kiểm tra lại số phiếu trả hàng. |
+| `ORDER_NOT_RETURNABLE` | `409` | Đơn hàng không thể trả | *Đơn hàng chưa xuất kho hoặc đã bị hủy.* | Đơn hàng không ở trạng thái Confirmed hoặc Completed. | Chỉ lập phiếu trả cho đơn hàng đã xuất kho thành công. |
+| `RETURN_QUANTITY_EXCEEDED` | `422` | Vượt số lượng được trả | *Số lượng trả vượt quá số lượng còn được phép trả.* | Tổng số lượng trả trên dòng đơn vượt quá (Quantity - đã trả trước đó). | Giảm số lượng trả xuống mức cho phép. |
+| `REFUND_AMOUNT_EXCEEDED` | `422` | Tiền hoàn vượt mức cho phép | *Tiền hoàn vượt quá giá trị dòng sản phẩm hoặc tổng đơn hàng.* | Tiền hoàn nhập cao hơn đơn giá × số lượng trả hoặc vượt tổng tiền đơn. | Giảm số tiền hoàn lại cho khách. |
+| `RETURN_WAREHOUSE_MISMATCH` | `422` | Kho nhận không thuộc chi nhánh đơn hàng | *Kho nhận hàng trả không thuộc chi nhánh của đơn hàng gốc.* | Chọn kho không thuộc chi nhánh đã xuất bán đơn hàng. | Chọn kho hàng thuộc đúng chi nhánh của đơn. |
 
 ---
 
@@ -162,3 +183,58 @@ Tài liệu này là **từ điển tra cứu danh mục mã lỗi toàn hệ th
 | `DATABASE_CONNECTION_ERROR` | `500` | Lỗi kết nối CSDL | *Không thể kết nối đến máy chủ cơ sở dữ liệu.* | Mất kết nối mạng CSDL hoặc CSDL đang khởi động lại. | Hiển thị màn hình lỗi chờ kết nối và tự động thử lại sau 5 giây. |
 | `INTERNAL_SERVER_ERROR` | `500` | Lỗi hệ thống nội bộ | *Đã xảy ra lỗi không mong muốn trên máy chủ.* | Ngoại lệ chưa được bắt (Unhandled Exception). | Hiển thị thông báo xin lỗi người dùng và ghi nhật ký Log với CorrelationId. |
 | `NETWORK_DISCONNECTED` | `0` (Client) | Mất kết nối Internet | *Mất kết nối mạng Internet. Hệ thống đang chuyển sang chế độ dự phòng Offline.* | Trình duyệt mất kết nối mạng (`navigator.onLine === false`). | Đổi trạng thái Header sang màu đỏ "OFFLINE", chặn các thao tác đồng bộ nhạy cảm. |
+
+---
+
+### 2.8. Trợ Lý OISMS (`AI`)
+
+Các lỗi nghiệp vụ từ `POST /api/ai/chat` trả `application/problem+json` với trường `errorCode`.
+
+| Mã lỗi | HTTP | Tiêu đề | Xử lý trên giao diện |
+| :--- | :---: | :--- | :--- |
+| `AI_INVALID_REQUEST` | 400 | Yêu cầu trợ lý AI không hợp lệ | Hiển thị chi tiết về lịch sử, chi nhánh hoặc khoảng ngày cần sửa. |
+| `AI_RATE_LIMITED` | 429 | Vượt giới hạn yêu cầu trợ lý AI | Giới hạn của OISMS: 10 câu/phút mỗi người dùng. Hiển thị thông báo và khóa gửi 30 giây. |
+| `AI_MODEL_QUOTA` | 429 | Model AI đã hết lượt | Nhà cung cấp của model đã chọn báo hết lượt (theo phút hoặc ngày) sau khi backend đã tự chờ và thử lại một lần nếu chỉ cần chờ ≤ 10 giây. Hiển thị `detail` và nút hỏi lại bằng model khác; không khóa gửi. |
+| `AI_DISABLED` | 503 | Trợ lý AI chưa được bật | Hiển thị lý do trong panel và ẩn nút mở đến hết phiên. |
+| `AI_UPSTREAM_ERROR` | 502 | Lỗi nhà cung cấp AI | Hiển thị lỗi tạm thời và cho phép gửi lại tin cuối. |
+
+---
+
+## 3. Đối Chiếu Với Code (06/11/2026)
+
+Quét mọi `new OismException("<MÃ>", ..., <HTTP>)`, `CreateProblemResult("<MÃ>", ...)` trong `src/backend/src` và `ExceptionHandlingMiddleware`.
+
+### 3.1. Mã backend đang trả nhưng chưa có ở mục 2
+
+| Mã lỗi | HTTP | Nơi phát sinh | Khi nào |
+| :--- | :---: | :--- | :--- |
+| `BRANCH_MISMATCH` | `400` | `SimulatorService` | Chi nhánh trong yêu cầu mô phỏng không khớp cấu hình gian hàng |
+| `CHANNEL_MISMATCH` | `400` | `WebhookCanonicalValidator` | Kênh trong payload khác kênh trên URL webhook |
+| `INTEGRATION_NOT_FOUND` | `404` | `SimulatorService` | Không có `shop_integrations` phù hợp |
+| `WEBHOOK_PAYLOAD_MISMATCH` | `409` | `OrderService` | Cùng mã đơn sàn nhưng nội dung khác lần trước |
+| `TOTAL_AMOUNT_MISMATCH` | `400` | `OrderService` | `totalAmount` client gửi khác tổng tính lại |
+| `INCONSISTENT_STOCK` | `409` | `OrderService` | Số dư giữ chỗ ở kho/chi nhánh không đủ để giải phóng (dữ liệu lệch) |
+| `CATEGORY_NOT_FOUND` | `400` | `ProductService` | Danh mục gán cho sản phẩm không tồn tại trong tenant |
+| `PRODUCT_NOT_FOUND`, `VARIANT_NOT_FOUND` | `404` | `ProductService` | Không tìm thấy sản phẩm / biến thể |
+| `EMPTY_VARIANTS`, `NULL_VARIANTS` | `400` | `ProductService` | Tạo sản phẩm không có biến thể |
+| `DUPLICATE_INPUT_SKU` | `400` | `ProductService` | Trùng mã SKU ngay trong request |
+| `DUPLICATE_INPUT_BARCODE`, `DUPLICATE_COMBINATION` | `409` | `ProductService` | Trùng barcode trong request / trùng tổ hợp thuộc tính biến thể |
+| `EMPTY_BARCODE` | `400` | `PosCatalogService` | Quét mã rỗng |
+| `EMPTY_WAREHOUSE_STOCK_COUNT` | `400` | `StockCountService` | Kho không có mặt hàng nào để kiểm kê |
+| `WAREHOUSE_HAS_DEPENDENCIES`, `FK_VIOLATION` | `409` | `WarehouseService` | Kho đã có tồn/sổ cái hoặc bị tham chiếu |
+| `TARGET_BRANCH_INVALID` | `400` | `WarehouseService` | Chi nhánh đích khi đổi chi nhánh của kho không hợp lệ |
+| `TENANT_INACTIVE`, `USER_INACTIVE`, `INVALID_TOKEN` | `401` | `AuthService` | Cửa hàng/tài khoản bị khóa, refresh token sai hoặc hết hạn |
+| `EMPTY_TOKEN`, `CONSTRAINT_VIOLATION` | `400` | `AuthService` | Thiếu refresh token / vi phạm ràng buộc khi đăng ký |
+| `NOT_FOUND` | `404` | Nhiều controller (`CreateProblemResult`) | Không tìm thấy bản ghi theo ID (phiếu chuyển kho, kiểm kê...) |
+| `UNAUTHORIZED` | `401` | `ExceptionHandlingMiddleware` | Service ném `UnauthorizedAccessException` (thiếu tenant context) |
+
+### 3.2. Mã có ở mục 2 nhưng backend chưa trả
+
+| Mã | Ghi chú |
+| :--- | :--- |
+| `AUTH_INVALID_CREDENTIALS`, `AUTH_TENANT_NOT_FOUND`, `AUTH_TENANT_LOCKED`, `AUTH_USER_LOCKED`, `AUTH_UNAUTHORIZED`, `AUTH_TOKEN_EXPIRED` | `AuthController` trả JSON `{ "message": "..." }` (không phải Problem Details) với 400/401/409; tài khoản hoặc cửa hàng bị khóa trả `401` kèm `USER_INACTIVE`/`TENANT_INACTIVE` ở tầng service. Token hết hạn do middleware JWT trả `401` không có body. Frontend Admin quy về mã `AUTH_FAILED`. |
+| `NETWORK_DISCONNECTED` | Mã phía client, không do server trả. |
+| `CATEGORY_CYCLIC_DEPENDENCY`, `LEDGER_IMMUTABLE_VIOLATION`, `CONCURRENCY_CONFLICT`, `DATABASE_CONNECTION_ERROR` | Quy ước dự kiến. Hiện vòng lặp danh mục, vi phạm trigger sổ cái, lỗi kết nối DB rơi vào mã khác hoặc `INTERNAL_SERVER_ERROR`. |
+| `SAME_WAREHOUSE_TRANSFER`, `DUPLICATE_TRANSFER_SKU`, `TRANSFER_NOT_FOUND`, `STOCK_COUNT_NOT_FOUND` | Service kiểm tra các trường hợp này nhưng trả mã chung `VALIDATION_ERROR` (400) hoặc `NOT_FOUND` (404) kèm `detail` cụ thể; cần đối chiếu từng endpoint trước khi dựa vào mã. |
+
+Khi thêm mã mới vào code, bổ sung vào mục 2 và xóa khỏi bảng 3.1.

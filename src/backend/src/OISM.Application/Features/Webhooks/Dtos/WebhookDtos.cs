@@ -1,3 +1,4 @@
+using OISM.Domain.Common;
 using System.ComponentModel.DataAnnotations;
 using OISM.Application.Common.Attributes;
 
@@ -73,6 +74,33 @@ public class WebhookSimulationResultDto
     public Guid? OrderId { get; set; }
     public string? OrderNumber { get; set; }
     public string Channel { get; set; } = string.Empty;
-    public string Status { get; set; } = "Draft"; // 'Draft', 'Reserved'
+    public string Status { get; set; } = OrderStatus.Draft; // 'Draft', 'Reserved'
     public DateTimeOffset ReceivedAt { get; set; } = DateTimeOffset.UtcNow;
+}
+
+public class WebhookIdentityDto
+{
+    public string Channel { get; set; } = string.Empty;
+    public string ExternalShopId { get; set; } = string.Empty;
+    public string BranchName { get; set; } = string.Empty;
+
+    /// <summary>Chi nhánh tắt thì webhook vẫn xác thực được nhưng đơn sẽ bị từ chối.</summary>
+    public bool BranchIsActive { get; set; }
+}
+
+/// <summary>
+/// Một SKU cho app giả lập chọn khi bắn đơn. Số lượng và tồn theo đơn vị gốc vì webhook không gửi đơn vị.
+/// </summary>
+public class WebhookCatalogItemDto
+{
+    public string SkuCode { get; set; } = string.Empty;
+    public string ProductName { get; set; } = string.Empty;
+    public string? VariantName { get; set; }
+    public string UnitName { get; set; } = string.Empty;
+
+    /// <summary>Giá bán lẻ hiện hành theo đơn vị gốc; null khi SKU chưa có giá.</summary>
+    public decimal? UnitPrice { get; set; }
+
+    /// <summary>OnHand - Reserved tại chi nhánh của kết nối, không âm.</summary>
+    public decimal Available { get; set; }
 }

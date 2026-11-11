@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-OVW-02` |
-| **Phiên bản (Version)** | `v1.0.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-10-22` |
+| **Phiên bản (Version)** | `v1.1.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục 3.2.b, 3.2.c, 3.2.d (Trang 1, 2, 3, 4) |
 | **Phạm vi áp dụng** | Domain Layer, Application Use Cases, Database Schema & UI Workflows |
 
@@ -15,6 +15,7 @@
 | Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả thay đổi | Mã tham chiếu |
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Định nghĩa chuẩn hóa các khái niệm miền nghiệp vụ (Ubiquitous Language) và quy tắc bất biến của hệ thống OISMS. | `INIT-OVW-02` |
+| `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Đồng bộ với hệ thống: giá niêm yết qua bảng giá theo thời gian (Upgrade 04), POS checkout không qua giữ chỗ, khóa thực tế (`FOR UPDATE` + `pg_advisory_xact_lock`), trả hàng chưa làm, Hangfire mặc định tắt. | `OISMS-46` |
 
 ---
 
@@ -38,7 +39,7 @@
   - Mỗi biến thể cụ thể là một **SKU (Stock Keeping Unit)** có mã `SkuCode` **duy nhất trong phạm vi cùng một Tenant**.
 - **Barcode (Mã vạch EAN-13 / Code128):** Mỗi SKU được gắn mã vạch (nhập thủ công hoặc tự động sinh) phục vụ quét tia laser/camera tại quầy POS và khi kiểm kê kho.
 - **Listed Price vs. COGS (Giá bán niêm yết vs. Giá vốn):**
-  - Mỗi SKU có **Giá bán lẻ (Retail Price)** và **Giá bán sỉ (Wholesale Price)** do chủ cửa hàng thiết lập.
+  - Mỗi SKU có **Giá bán lẻ** (bảng giá `retail`) và **Giá bán sỉ** (bảng giá `wholesale`) theo từng đơn vị tính, lưu trong `sku_unit_prices` có hiệu lực theo thời gian. Đổi giá phải qua **phiếu đổi giá** (`price_change_requests`): `Owner` duyệt ngay, `Staff` chờ `Owner` duyệt. Cột `skus.retail_price`, `wholesale_price` chỉ còn là dữ liệu cũ; API sửa giá trực tiếp trả `410`. Chi tiết: [Upgrade 04](../Upgrade-recommended/04-bang-gia-theo-thoi-gian.md).
   - Giá bán niêm yết hoàn toàn **tách biệt độc lập** với Giá vốn hàng bán (**COGS / Unit Cost**).
 
 ---
@@ -52,7 +53,7 @@ flowchart LR
     subgraph Events["Mọi Sự kiện Biến động Kho"]
         E1["Nhập kho NCC (Import)"]
         E2["Xuất bán POS/Online (Sale)"]
-        E3["Khách trả hàng (Return)"]
+        E3["Khách trả hàng (Return) — schema có, chưa có API"]
         E4["Chuyển kho 2 bước (Transfer)"]
         E5["Kiểm kê cân bằng (Stocktake)"]
     end
@@ -97,9 +98,9 @@ $$\text{Available (Tồn khả dụng)} = \text{OnHand (Tồn vật lý trong kh
 | **1. Đơn Online mới vào trạng thái `Reserved`** | Giữ nguyên | $+\text{Qty}$ | $-\text{Qty}$ | Chưa ghi (chỉ giữ chỗ) |
 | **2. Đơn hàng được duyệt `Confirmed`** | $-\text{Qty}$ | $-\text{Qty}$ | Giữ nguyên (đã trừ lúc Reserve) | **Ghi `OUT`** + Chụp `CostPrice` |
 | **3. Đơn `Reserved` bị hủy `Cancelled` / Hết hạn** | Giữ nguyên | $-\text{Qty}$ | $+\text{Qty}$ (Hoàn trả kho khả dụng) | Không ghi |
-| **4. Thanh toán nhanh tại quầy POS (`Fast Checkout`)** | $-\text{Qty}$ | $+ \text{Qty} \rightarrow -\text{Qty}$ (Nguyên tử) | $-\text{Qty}$ | **Ghi `OUT`** + Chụp `CostPrice` |
+| **4. Thanh toán nhanh tại quầy POS (`Fast Checkout`)** | $-\text{Qty}$ | Giữ nguyên (không tạo giữ chỗ) | $-\text{Qty}$ | **Ghi `OUT`** + Chụp `CostPrice` + lập hóa đơn |
 
-- **Khóa mức Cơ sở dữ liệu (Database-level Locking):** Trong kịch bản tranh chấp cao (ví dụ: 50 khách cùng đặt mua 1 sản phẩm cuối cùng trong Flash Sale), hệ thống bắt buộc sử dụng **Pessimistic Locking (`SELECT ... FOR UPDATE`)** hoặc **Optimistic Concurrency (`RowVersion`)** trong Transaction ACID để đảm bảo chỉ đúng 1 đơn thành công và `Available` không bao giờ âm (`< 0`).
+- **Khóa mức Cơ sở dữ liệu (Database-level Locking):** Trong kịch bản tranh chấp cao (ví dụ: 50 khách cùng đặt mua 1 sản phẩm cuối cùng trong Flash Sale), hệ thống dùng **khóa bi quan** trong transaction ACID: `pg_advisory_xact_lock` theo (Tenant, Chi nhánh, SKU) và `SELECT ... FOR UPDATE` trên dòng số dư, lấy sau khi mở transaction và theo thứ tự SKU cố định để tránh deadlock. CHECK `reserved <= on_hand` và `on_hand >= 0` ở PostgreSQL là lớp chặn cuối, để đảm bảo chỉ đúng 1 đơn thành công và `Available` không bao giờ âm (`< 0`).
 
 ---
 
@@ -116,6 +117,8 @@ stateDiagram-v2
     Draft --> Reserved : Giữ chỗ thành công (available >= qty)
     Draft --> Cancelled : Từ chối giữ chỗ / Hủy đơn nháp
     Reserved --> Confirmed : Nhân viên duyệt đơn / POS thanh toán
-    Reserved --> Cancelled : Khách hủy / Hangfire tự hủy đơn quá hạn (Giải phóng reserved)
+    Reserved --> Cancelled : Khách hủy / job hết hạn giữ chỗ (Giải phóng reserved)
     Confirmed --> Completed : Giao hàng thành công / Hoàn tất tại quầy POS
 ```
+
+- Đơn POS được lưu thẳng ở `Completed` trong một transaction. Job hết hạn giữ chỗ chỉ chạy khi `Hangfire:Enabled=true` (mặc định tắt). Chi tiết: [máy trạng thái](../04-architecture-and-design/04-state-machines.md).

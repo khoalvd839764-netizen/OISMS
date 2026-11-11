@@ -4,6 +4,7 @@ using OISM.Application.Common.Interfaces;
 using OISM.Application.Features.Catalog.Units.Services;
 using OISM.Application.Features.Inventory.Dtos;
 using OISM.Application.Features.PurchaseOrders.Dtos;
+using OISM.Domain.Common;
 using OISM.Domain.Entities;
 
 namespace OISM.Application.Features.PurchaseOrders.Services;
@@ -57,11 +58,10 @@ public class PurchaseOrderService : IPurchaseOrderService
         var tenantId = RequireTenantId();
         ValidateHeaderAndItemsBasic(dto.SupplierId, dto.BranchId, dto.Number, dto.Note, dto.Items);
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            _context.ClearChangeTracker();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             var existing = await LoadPurchaseOrderGraphQuery()
                 .FirstOrDefaultAsync(p => p.TenantId == tenantId && p.RequestKey == requestKey, ct);
@@ -123,7 +123,7 @@ public class PurchaseOrderService : IPurchaseOrderService
                 RequestKey = requestKey,
                 SupplierId = dto.SupplierId,
                 BranchId = dto.BranchId,
-                Status = "Draft",
+                Status = PurchaseOrderStatus.Draft,
                 Note = string.IsNullOrWhiteSpace(dto.Note) ? null : dto.Note.Trim(),
                 CreatedBy = userId,
                 CreatedAt = now
@@ -159,10 +159,10 @@ public class PurchaseOrderService : IPurchaseOrderService
                 await _context.SaveChangesAsync(ct);
                 await tx.CommitAsync(ct);
             }
-            catch (DbUpdateException ex) when (IsRequestKeyConflict(ex))
+            catch (DbUpdateException ex) when (_context.DatabaseErrors.IsUniqueViolation(ex, "uq_purchase_orders_3"))
             {
                 await tx.RollbackAsync(ct);
-                _context.ClearChangeTracker();
+                _context.UnitOfWork.ResetTracking();
 
                 var reloaded = await LoadPurchaseOrderGraphQuery()
                     .FirstOrDefaultAsync(p => p.TenantId == tenantId && p.RequestKey == requestKey, ct);
@@ -181,7 +181,7 @@ public class PurchaseOrderService : IPurchaseOrderService
 
                 throw;
             }
-            catch (DbUpdateException ex) when (IsNumberConflict(ex))
+            catch (DbUpdateException ex) when (_context.DatabaseErrors.IsUniqueViolation(ex, "uq_purchase_orders_2"))
             {
                 await tx.RollbackAsync(ct);
                 throw new OismException("VALIDATION_ERROR", $"Mã phiếu mua '{number}' đã tồn tại trong gian hàng.", 409);
@@ -205,11 +205,10 @@ public class PurchaseOrderService : IPurchaseOrderService
         var tenantId = RequireTenantId();
         ValidateHeaderAndItemsBasic(dto.SupplierId, dto.BranchId, dto.Number, dto.Note, dto.Items);
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            _context.ClearChangeTracker();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             await _sqlLockService.LockPurchaseOrderAsync(tenantId, id, ct);
 
@@ -222,7 +221,7 @@ public class PurchaseOrderService : IPurchaseOrderService
                 throw new OismException("NOT_FOUND", $"Không tìm thấy phiếu mua hàng với ID '{id}'.", 404);
             }
 
-            if (po.Status != "Draft")
+            if (!po.IsDraft)
             {
                 throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', chỉ được sửa khi ở trạng thái 'Draft'.", 409);
             }
@@ -319,11 +318,10 @@ public class PurchaseOrderService : IPurchaseOrderService
     {
         var tenantId = RequireTenantId();
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            _context.ClearChangeTracker();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             await _sqlLockService.LockPurchaseOrderAsync(tenantId, id, ct);
 
@@ -336,7 +334,7 @@ public class PurchaseOrderService : IPurchaseOrderService
                 throw new OismException("NOT_FOUND", $"Không tìm thấy phiếu mua hàng với ID '{id}'.", 404);
             }
 
-            if (po.Status != "Draft")
+            if (!po.IsDraft)
             {
                 throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', chỉ được duyệt phiếu ở trạng thái 'Draft'.", 409);
             }
@@ -352,10 +350,7 @@ public class PurchaseOrderService : IPurchaseOrderService
             }
 
             var now = DateTimeOffset.UtcNow;
-            po.Status = "Approved";
-            po.ApprovedBy = userId;
-            po.ApprovedAt = now;
-            po.UpdatedAt = now;
+            po.Approve(userId, now);
 
             await _context.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
@@ -383,11 +378,10 @@ public class PurchaseOrderService : IPurchaseOrderService
 
         var tenantId = RequireTenantId();
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            _context.ClearChangeTracker();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             await _sqlLockService.LockPurchaseOrderAsync(tenantId, id, ct);
 
@@ -400,17 +394,13 @@ public class PurchaseOrderService : IPurchaseOrderService
                 throw new OismException("NOT_FOUND", $"Không tìm thấy phiếu mua hàng với ID '{id}'.", 404);
             }
 
-            if (po.Status != "Approved" && po.Status != "PartiallyReceived")
+            if (!po.CanReceive)
             {
                 throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', chỉ được đóng phiếu ở trạng thái 'Approved' hoặc 'PartiallyReceived'.", 409);
             }
 
             var now = DateTimeOffset.UtcNow;
-            po.Status = "Closed";
-            po.ClosedBy = userId;
-            po.ClosedAt = now;
-            po.CloseReason = trimmedReason;
-            po.UpdatedAt = now;
+            po.Close(userId, trimmedReason, now);
 
             await _context.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
@@ -426,11 +416,10 @@ public class PurchaseOrderService : IPurchaseOrderService
     {
         var tenantId = RequireTenantId();
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            _context.ClearChangeTracker();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
             await _sqlLockService.LockPurchaseOrderAsync(tenantId, id, ct);
 
@@ -443,21 +432,18 @@ public class PurchaseOrderService : IPurchaseOrderService
                 throw new OismException("NOT_FOUND", $"Không tìm thấy phiếu mua hàng với ID '{id}'.", 404);
             }
 
-            if (po.Status != "Draft" && po.Status != "Approved")
+            if (!po.IsCancellableStatus)
             {
                 throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', chỉ được hủy khi ở trạng thái 'Draft' hoặc 'Approved' chưa nhận hàng.", 409);
             }
 
-            if (po.Items.Any(i => i.ReceivedBaseQuantity > 0m))
+            if (po.HasReceivedItems)
             {
                 throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu mua '{po.Number}' đã phát sinh hàng nhận, không thể hủy.", 409);
             }
 
             var now = DateTimeOffset.UtcNow;
-            po.Status = "Cancelled";
-            po.CancelledBy = userId;
-            po.CancelledAt = now;
-            po.UpdatedAt = now;
+            po.Cancel(userId, now);
 
             await _context.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
@@ -653,20 +639,6 @@ public class PurchaseOrderService : IPurchaseOrderService
         }
 
         return true;
-    }
-
-    private static bool IsRequestKeyConflict(DbUpdateException ex)
-    {
-        var msg = ex.InnerException?.Message ?? string.Empty;
-        return msg.Contains("uq_purchase_orders_3") ||
-               (msg.Contains("23505") && msg.Contains("request_key"));
-    }
-
-    private static bool IsNumberConflict(DbUpdateException ex)
-    {
-        var msg = ex.InnerException?.Message ?? string.Empty;
-        return msg.Contains("uq_purchase_orders_2") ||
-               (msg.Contains("23505") && msg.Contains("number"));
     }
 
     private static PurchaseOrderResponseDto MapToResponseDto(PurchaseOrder po)

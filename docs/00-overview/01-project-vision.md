@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-OVW-01` |
-| **Phiên bản (Version)** | `v1.0.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-10-22` |
+| **Phiên bản (Version)** | `v1.1.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục 3.1, 3.2.a, 3.2.b, 3.2.e, 3.2.f, 3.2.g (Trang 1, 4, 5, 6) |
 | **Phạm vi áp dụng** | Toàn bộ hệ thống OISMS (Backend, Web Admin, Web POS PWA, DevOps) |
 
@@ -15,6 +15,7 @@
 | Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả thay đổi | Mã tham chiếu |
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Khởi tạo tài liệu tầm nhìn, bối cảnh bài toán, giải pháp kiến trúc và lộ trình 5 gói công việc từ đề bài gốc. | `INIT-OVW-01` |
+| `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Ghi rõ cơ chế khóa bi quan đang dùng, cách seed dữ liệu demo và bổ sung mục hiện trạng triển khai (EC2, Docker Compose, Caddy). | `OISMS-46` |
 
 ---
 
@@ -61,7 +62,7 @@ flowchart TD
 | **1** | **Sổ cái kho chỉ ghi thêm (Append-Only Inventory Ledger)** | Thay thế hoàn toàn thao tác sửa trực tiếp cột tồn kho (`on_hand`) bằng bảng giao dịch sổ cái bất biến (`InventoryTransaction`), đảm bảo khả năng kiểm toán tuyệt đối 100%. | `FR-INV-01`, `NFR-SEC-03` |
 | **2** | **Trung tâm tiếp nhận đơn hàng đa kênh (Order Ingestion Hub)** | Chuẩn hóa đơn hàng từ POS, Web Admin và Webhook sàn TMĐT về một mô hình đơn hợp nhất (**Canonical Order Model**) vận hành theo máy trạng thái (**State Machine**) nghiêm ngặt. | `FR-ORD-01`, `FR-ORD-02` |
 | **3** | **Bộ tính Giá vốn bình quân tự động (Automated WAC Engine)** | Tự động tính lại giá vốn đơn vị theo công thức bình quân gia quyền ngay khi xác nhận nhập kho và chụp (snapshot) giá vốn vào từng dòng đơn hàng khi xuất bán. | `FR-COST-01`, `FR-COST-02` |
-| **4** | **Module chống bán vượt dựa trên khóa CSDL (Lock-based Anti-Oversell)** | Duy trì tồn khả dụng động (`available = on_hand - reserved`) và áp dụng khóa mức cơ sở dữ liệu (Pessimistic/Optimistic Locking) để chặn đứng tình trạng bán âm trong các đợt Flash Sale. | `FR-RSE-01..03`, `NFR-PERF-02` |
+| **4** | **Module chống bán vượt dựa trên khóa CSDL (Lock-based Anti-Oversell)** | Duy trì tồn khả dụng động (`available = on_hand - reserved`) và áp dụng khóa bi quan mức cơ sở dữ liệu (`pg_advisory_xact_lock`, `SELECT ... FOR UPDATE`) để chặn đứng tình trạng bán âm trong các đợt Flash Sale. | `FR-RSE-01..03`, `NFR-PERF-02` |
 | **5** | **Giao diện bán hàng PWA POS & Realtime** | Ứng dụng Web POS dạng Progressive Web App tối ưu cho màn hình cảm ứng, máy quét mã vạch, in hóa đơn nhiệt và thông báo đơn mới tức thời qua SignalR. | `FR-POS-01..04`, `FR-SIM-02` |
 
 ---
@@ -74,7 +75,7 @@ flowchart TD
 1. **Backend System (`.NET 8 Web API`):** Xử lý xác thực đa người thuê (Multi-tenant JWT/RBAC), sổ cái tồn kho bất biến, động cơ chống bán vượt và xử lý đơn hàng thời gian thực.
 2. **Admin Dashboard (`React Web Application`):** Ứng dụng quản trị dành cho Chủ cửa hàng (Owner) và Nhân viên kho (Staff) để quản lý danh mục sản phẩm/SKU, xem sổ cái kho, điều phối đơn hàng đa kênh và phân tích báo cáo lợi nhuận gộp.
 3. **POS Application (`React PWA`):** Ứng dụng bán hàng tại quầy tốc độ cao dành cho Thu ngân (Cashier), hỗ trợ quét mã vạch (EAN-13/Code128), thanh toán nguyên tử dưới 3 thao tác và in hóa đơn trình duyệt.
-4. **Gói cài đặt Demo (`Docker Compose Package`):** Đóng gói trọn bộ Backend, Web Admin, POS App, PostgreSQL Database và kịch bản khởi tạo dữ liệu mẫu (`seed data scripts`) để triển khai tức thì.
+4. **Gói cài đặt Demo (`Docker Compose Package`):** Đóng gói trọn bộ Backend, Web Admin, POS App, PostgreSQL Database. Schema nạp từ `docs/database/oisms_schema.sql` khi volume trống; dữ liệu mẫu do `OismsDatabaseSeeder` sinh khi chạy ở `Development` (production không seed).
 
 ### 4.2. Bộ Hồ sơ Tài liệu Kỹ thuật (Software Engineering Documentation)
 Áp dụng quy trình **Agile** và ngôn ngữ mô hình hóa **UML 2.0**:
@@ -106,3 +107,11 @@ flowchart LR
 | **Task Package 3** | **Centralized Order Hub & Anti-Oversell Engine** | Hiện thực Mô hình đơn hàng hợp nhất (Canonical Order Model) và luật chuyển trạng thái (State Machine); xây dựng động cơ giữ chỗ/trừ tồn (Reserve/Deduct) với Database Locking; phát triển Webhook Simulator và tác vụ nền Hangfire. | `FR-ORD-01..03`, `FR-RSE-01..03`, `FR-SIM-01`, `FR-SIM-03`, `NFR-PERF-02` |
 | **Task Package 4** | **POS Front-end & Real-time Integration** | Xây dựng Web Admin Dashboard quản lý kho/danh mục/đơn hàng; xây dựng ứng dụng PWA POS hỗ trợ quét barcode nhanh, in hóa đơn trình duyệt và thanh toán 1 giao dịch nguyên tử; tích hợp SignalR báo đơn mới thời gian thực. | `FR-POS-01..04`, `FR-SIM-02`, `NFR-USA-02` |
 | **Task Package 5** | **Reporting, AI Integration, Testing & Deployment** | Xây dựng báo cáo phân tích Doanh thu, Giá vốn (COGS) và Lợi nhuận gộp; tích hợp dự báo AI gợi ý nhập lại hàng; viết Unit/Integration Test ($\ge 80\%$), chạy test chịu tải Flash Sale, thiết lập CI/CD GitHub Actions và đóng gói Docker. | `FR-REP-01..03`, `FR-AI`, `NFR-PERF-01`, `NFR-MAINT-02` |
+
+---
+
+## 6. Hiện Trạng Triển Khai (06/11/2026)
+
+- Bản demo chạy trên một máy AWS EC2 bằng Docker Compose, Caddy làm reverse proxy và cấp HTTPS: Admin tại [oisms.khoadang.site](https://oisms.khoadang.site), POS tại [pos.oisms.khoadang.site](https://pos.oisms.khoadang.site). Chi tiết: [`13-deploy-aws/`](../13-deploy-aws/README.md).
+- Đã có: 5 gói Upgrade (01-A, 02, 03, 04, 05), phần lớn màn Coming Soon, CS-01 trả hàng (PR #41) và Trợ lý OISMS AI (FR-AI-02, PR #42; không có kinh phí nên api ai chỉ dùng gói miễn phí, hạn mức rất thấp). Còn thiếu CS-06, U01-B và phân công chi nhánh của CS-02. Xem [báo cáo nghiệm thu frontend](../report-after-upgrade/frontend-coming-soon-va-upgrade.md).
+- Redis có container nhưng chưa dùng; Hangfire mặc định tắt (`Hangfire:Enabled=false`).

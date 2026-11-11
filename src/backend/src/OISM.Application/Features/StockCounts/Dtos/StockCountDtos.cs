@@ -1,3 +1,4 @@
+using OISM.Domain.Common;
 using System.ComponentModel.DataAnnotations;
 using OISM.Application.Common.Attributes;
 using OISM.Application.Features.Orders.Dtos;
@@ -98,7 +99,7 @@ public class StockCountResponseDto
     public string? BranchName { get; set; }
     public Guid WarehouseId { get; set; }
     public string? WarehouseName { get; set; }
-    public string Status { get; set; } = "Draft"; // 'Draft', 'Counting', 'PendingApproval', 'Confirmed', 'Cancelled'
+    public string Status { get; set; } = StockCountStatus.Draft; // 'Draft', 'Counting', 'PendingApproval', 'Confirmed', 'Cancelled'
     public string CountType { get; set; } = "AdHoc";
     public string? AdHocReason { get; set; }
     public Guid? PeriodId { get; set; }

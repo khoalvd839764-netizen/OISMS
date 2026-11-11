@@ -1,10 +1,10 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Features.Inventory.Dtos;
 using OISM.Application.Features.Inventory.Services;
 using OISM.Application.Features.SalesInvoices.Services;
+using OISM.WebApi.Http;
 
 namespace OISM.WebApi.Controllers;
 
@@ -29,16 +29,6 @@ public class InventoryController : ControllerBase
         _inventoryService = inventoryService;
         _reservationService = reservationService;
         _salesInvoiceService = salesInvoiceService;
-    }
-
-    private Guid? GetCurrentUserId()
-    {
-        var claim = User.FindFirst("userId")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (Guid.TryParse(claim, out var userId))
-        {
-            return userId;
-        }
-        return null;
     }
 
     /// <summary>
@@ -102,17 +92,13 @@ public class InventoryController : ControllerBase
     /// </summary>
     [HttpPost("reserve")]
     [Authorize(Roles = "Owner,Staff,Cashier")]
+    [ApiErrorContract(ApiErrorProfile.Reserve)]
     public async Task<IActionResult> Reserve(
         [FromBody] ReserveStockRequestDto dto,
         [FromHeader(Name = "Idempotency-Key")] string? idempotencyKeyHeader,
         [FromHeader(Name = "X-Request-Key")] string? xRequestKeyHeader,
         CancellationToken ct)
     {
-        if (!ModelState.IsValid)
-        {
-            return BadRequest(ModelState);
-        }
-
         // Ưu tiên RequestKey từ Body; nếu chưa có thì đọc từ Header Idempotency-Key hoặc X-Request-Key
         if (!dto.RequestKey.HasValue)
         {
@@ -123,24 +109,9 @@ public class InventoryController : ControllerBase
             }
         }
 
-        try
-        {
-            var userId = GetCurrentUserId();
-            var result = await _reservationService.ReserveStockAsync(dto, userId, ct);
-            return Ok(result);
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return NotFound(new { message = ex.Message });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Conflict(new { message = ex.Message });
-        }
-        catch (ArgumentException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        var userId = User.GetUserId();
+        var result = await _reservationService.ReserveStockAsync(dto, userId, ct);
+        return Ok(result);
     }
 
     /// <summary>
@@ -184,38 +155,15 @@ public class InventoryController : ControllerBase
     /// </summary>
     [HttpGet("ledger/{id:guid}/trace")]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.InventoryTrace)]
     public async Task<IActionResult> TraceLedgerEntry(Guid id, CancellationToken ct)
     {
         if (id == Guid.Empty)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã dòng sổ kho không được để trống.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.InventoryTrace, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã dòng sổ kho không được để trống.");
         }
 
-        try
-        {
-            var trace = await _salesInvoiceService.TraceByLedgerIdAsync(id, ct);
-            return Ok(trace);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, "Lỗi truy vết", ex.StatusCode, ex.Message);
-        }
-    }
-
-    private IActionResult CreateProblemResult(string errorCode, string title, int statusCode, string detail)
-    {
-        var problem = new ProblemDetails
-        {
-            Title = title,
-            Status = statusCode,
-            Detail = detail,
-            Instance = HttpContext.Request.Path,
-            Extensions =
-            {
-                ["errorCode"] = errorCode,
-                ["timestamp"] = DateTimeOffset.UtcNow
-            }
-        };
-        return StatusCode(statusCode, problem);
+        var trace = await _salesInvoiceService.TraceByLedgerIdAsync(id, ct);
+        return Ok(trace);
     }
 }

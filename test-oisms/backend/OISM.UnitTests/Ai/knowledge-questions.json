@@ -1,0 +1,212 @@
+[
+  {
+    "id": 1,
+    "question": "nhap hang the nao",
+    "role": "Owner",
+    "expectedIds": ["man-hinh-nhap-kho-nha-cung-cap"]
+  },
+  {
+    "id": 2,
+    "question": "cách tạo phiếu nhập kho từ nhà cung cấp",
+    "role": "Owner",
+    "expectedIds": ["man-hinh-nhap-kho-nha-cung-cap"]
+  },
+  {
+    "id": 3,
+    "question": "cách chuyển kho giữa các chi nhánh",
+    "role": "Owner",
+    "expectedIds": ["man-hinh-chuyen-kho-hai-buoc", "may-trang-thai-chuyen-kho"]
+  },
+  {
+    "id": 4,
+    "question": "kiểm kê kho thực hiện như thế nào",
+    "role": "Owner",
+    "expectedIds": ["man-hinh-kiem-ke-kho"]
+  },
+  {
+    "id": 5,
+    "question": "tồn khả dụng tính như thế nào",
+    "role": "Owner",
+    "expectedIds": ["khai-niem-ton-kha-dung"]
+  },
+  {
+    "id": 6,
+    "question": "tại sao tồn thực tế khác tồn khả dụng",
+    "role": "Owner",
+    "expectedIds": ["khai-niem-ton-kha-dung", "co-che-giu-cho-ton-kho"]
+  },
+  {
+    "id": 7,
+    "question": "giá vốn bình quân gia quyền tính ra sao",
+    "role": "Owner",
+    "expectedIds": ["gia-von-binh-quan-gia-quyen"]
+  },
+  {
+    "id": 8,
+    "question": "chụp giá vốn lịch sử khi bán hàng",
+    "role": "Owner",
+    "expectedIds": ["chup-gia-von-lich-su-khi-ban"]
+  },
+  {
+    "id": 9,
+    "question": "đơn vị tính và hệ số quy đổi là gì",
+    "role": "Owner",
+    "expectedIds": ["quy-cach-nhieu-don-vi-tinh", "man-hinh-cau-hinh-don-vi-tinh"]
+  },
+  {
+    "id": 10,
+    "question": "các trạng thái của đơn hàng đa kênh",
+    "role": "Owner",
+    "expectedIds": ["trang-thai-don-hang-da-kenh"]
+  },
+  {
+    "id": 11,
+    "question": "chính sách và quy trình trả hàng từ khách",
+    "role": "Owner",
+    "expectedIds": ["quy-tac-nghiep-vu-tra-hang", "man-hinh-tra-hang-tu-khach"]
+  },
+  {
+    "id": 12,
+    "question": "làm sao kết nối gian hàng shopee lazada tiktok",
+    "role": "Owner",
+    "expectedIds": ["man-hinh-ket-noi-gian-hang-san"]
+  },
+  {
+    "id": 13,
+    "question": "cách tạo đơn hàng thủ công trên admin",
+    "role": "Owner",
+    "expectedIds": ["man-hinh-tao-don-hang-admin"]
+  },
+  {
+    "id": 14,
+    "question": "quyền của vai trò chủ shop owner",
+    "role": "Owner",
+    "expectedIds": ["phan-quyen-vai-tro-chu-shop-owner"]
+  },
+  {
+    "id": 15,
+    "question": "quyền của nhân viên quản lý staff",
+    "role": "Owner",
+    "expectedIds": ["phan-quyen-vai-tro-quan-ly-staff"]
+  },
+  {
+    "id": 16,
+    "question": "thu ngân cashier có được vào admin không",
+    "role": "Owner",
+    "expectedIds": ["phan-quyen-vai-tro-thu-ngan-cashier"]
+  },
+  {
+    "id": 17,
+    "question": "quản lý tài khoản ngân hàng nhận tiền",
+    "role": "Owner",
+    "expectedIds": ["man-hinh-tai-khoan-nhan-tien"]
+  },
+  {
+    "id": 18,
+    "question": "mã lỗi hết hàng INSUFFICIENT_STOCK xử lý thế nào",
+    "role": "Owner",
+    "expectedIds": ["ma-loi-ton-kho-khong-du"]
+  },
+  {
+    "id": 19,
+    "question": "mã lỗi sai lệch đơn giá niêm yết PRICE_MISMATCH",
+    "role": "Owner",
+    "expectedIds": ["ma-loi-sai-lech-don-gia-niem-yet"]
+  },
+  {
+    "id": 20,
+    "question": "mã lỗi tồn kho âm NEGATIVE_STOCK",
+    "role": "Owner",
+    "expectedIds": ["ma-loi-ton-kho-khong-du"]
+  },
+  {
+    "id": 21,
+    "question": "gợi ý nhập hàng ai hoạt động ra sao",
+    "role": "Owner",
+    "expectedIds": ["man-hinh-goi-y-nhap-hang-ai"]
+  },
+  {
+    "id": 22,
+    "question": "lập phiếu mua hàng với nhà cung cấp",
+    "role": "Owner",
+    "expectedIds": ["man-hinh-lap-phieu-mua-hang"]
+  },
+  {
+    "id": 23,
+    "question": "nguyên tắc sổ cái tồn kho bất biến",
+    "role": "Owner",
+    "expectedIds": ["nguyen-tac-so-cai-ton-kho-bat-bien"]
+  },
+  {
+    "id": 24,
+    "question": "duyệt phiếu đổi giá bán sản phẩm",
+    "role": "Owner",
+    "expectedIds": ["man-hinh-duyet-phieu-doi-gia"]
+  },
+  {
+    "id": 25,
+    "question": "cấu hình đơn vị tính và quy cách sku",
+    "role": "Owner",
+    "expectedIds": ["man-hinh-cau-hinh-don-vi-tinh"]
+  },
+  {
+    "id": 26,
+    "question": "quản lý sản phẩm và biến thể sku",
+    "role": "Owner",
+    "expectedIds": ["man-hinh-quan-ly-san-pham"]
+  },
+  {
+    "id": 27,
+    "question": "báo cáo doanh thu thuần và lãi gộp",
+    "role": "Owner",
+    "expectedIds": ["man-hinh-bao-cao-doanh-thu-lai-gop"]
+  },
+  {
+    "id": 28,
+    "question": "báo cáo sổ kho và tra cứu tồn kho sổ cái",
+    "role": "Owner",
+    "expectedIds": ["man-hinh-so-du-ton-kho-so-cai"]
+  },
+  {
+    "id": 29,
+    "question": "máy trạng thái điều chuyển kho hai bước",
+    "role": "Owner",
+    "expectedIds": ["may-trang-thai-chuyen-kho"]
+  },
+  {
+    "id": 30,
+    "question": "cơ chế giữ chỗ tồn kho và chống bán vượt",
+    "role": "Owner",
+    "expectedIds": ["co-che-giu-cho-ton-kho"]
+  },
+  {
+    "id": 31,
+    "question": "thời tiết hôm nay",
+    "role": "Owner",
+    "expectedIds": []
+  },
+  {
+    "id": 32,
+    "question": "bầu cử",
+    "role": "Owner",
+    "expectedIds": []
+  },
+  {
+    "id": 33,
+    "question": "kết quả bầu cử tổng thống mỹ",
+    "role": "Owner",
+    "expectedIds": []
+  },
+  {
+    "id": 34,
+    "question": "cách nấu phở bò hà nội ngon",
+    "role": "Owner",
+    "expectedIds": []
+  },
+  {
+    "id": 35,
+    "question": "tỉ số bóng đá việt nam hôm qua",
+    "role": "Owner",
+    "expectedIds": []
+  }
+]

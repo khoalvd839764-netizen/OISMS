@@ -1,6 +1,7 @@
 using System.Text.Json;
-using Microsoft.AspNetCore.Mvc;
 using OISM.Application.Common.Exceptions;
+using OISM.Domain.Common;
+using OISM.WebApi.Http;
 
 namespace OISM.WebApi.Middlewares;
 
@@ -29,7 +30,7 @@ public class ExceptionHandlingMiddleware
         {
             // Client đã ngắt kết nối, không còn ai nhận phản hồi.
         }
-        catch (OismException ex)
+        catch (Exception ex) when (ex is OismException or InvalidStateTransitionException)
         {
             await HandleExceptionAsync(context, ex);
         }
@@ -61,6 +62,13 @@ public class ExceptionHandlingMiddleware
             errorCode = oismException.ErrorCode;
             detail = oismException.Message;
         }
+        else if (exception is InvalidStateTransitionException)
+        {
+            statusCode = StatusCodes.Status409Conflict;
+            title = GetTitleForStatus(statusCode);
+            errorCode = "INVALID_STATE_TRANSITION";
+            detail = exception.Message;
+        }
         else if (exception is UnauthorizedAccessException)
         {
             statusCode = StatusCodes.Status401Unauthorized;
@@ -71,19 +79,8 @@ public class ExceptionHandlingMiddleware
 
         context.Response.StatusCode = statusCode;
 
-        var problemDetails = new ProblemDetails
-        {
-            Type = $"https://oisms.local/errors/{errorCode}",
-            Title = title,
-            Status = statusCode,
-            Detail = detail,
-            Instance = context.Request.Path,
-            Extensions =
-            {
-                ["errorCode"] = errorCode,
-                ["timestamp"] = DateTimeOffset.UtcNow
-            }
-        };
+        var problemDetails = ApiErrorResponse.CreateProblemDetails(
+            context, errorCode, title, statusCode, detail, exception as PriceMismatchException);
 
         var json = JsonSerializer.Serialize(problemDetails, new JsonSerializerOptions
         {

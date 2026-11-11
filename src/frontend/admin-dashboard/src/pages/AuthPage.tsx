@@ -1,7 +1,8 @@
-import { ArrowRight, Check, Eye, EyeOff, LockKeyhole, Mail, Phone, ShieldCheck, Store, User, AlertCircle } from "lucide-react";
+import { ArrowRight, Check, Eye, EyeOff, LockKeyhole, Mail, Monitor, Phone, ShieldCheck, Store, User, AlertCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button, ComingSoonBadge, Input } from "../components/ui";
+import { openPosLoginFromAdmin, POS_LOGIN_URL } from "../services/posNavigation";
 import { useAuth } from "../context/AuthContext";
 
 export function AuthPage() {
@@ -38,7 +39,8 @@ export function AuthPage() {
     setLoading(false);
 
     if (result.success) {
-      navigate(result.user?.landingPath || (result.user?.role === "Cashier" ? "/pos" : "/admin"));
+      if (result.user?.role === "Cashier") { openPosLoginFromAdmin(); return; }
+      navigate(result.user?.landingPath || "/admin");
     } else {
       setErrorMessage(result.error || "Đăng nhập thất bại.");
     }
@@ -221,6 +223,13 @@ export function AuthPage() {
             {loading ? "Đang xử lý..." : register ? "Tạo doanh nghiệp & Đăng nhập" : "Đăng nhập"}
             <ArrowRight size={17} />
           </Button>
+
+          {!register && (
+            <a className="button button--secondary auth-pos-link" href={POS_LOGIN_URL}>
+              <Monitor size={16} />
+              Bạn là thu ngân? Đăng nhập tại quầy POS
+            </a>
+          )}
 
           <div className="auth-switch">
             {register ? "Đã có tài khoản doanh nghiệp?" : "Chưa có tài khoản?"}

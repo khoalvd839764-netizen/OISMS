@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-USR-03` |
-| **Phiên bản (Version)** | `v1.0.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-10-22` |
+| **Phiên bản (Version)** | `v1.1.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-AUTH-01`, `FR-AUTH-04`, `NFR-TENANT-01` (Trang 1, 4) |
 | **Phạm vi áp dụng** | Khởi tạo Tenant, Quản lý Chi nhánh/Kho và Bảo vệ Trạng thái Hoạt động (`IsActive`) |
 
@@ -15,6 +15,7 @@
 | Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả thay đổi | Mã tham chiếu |
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả chu trình sống của Tenant, cấu trúc phân cấp Chi nhánh - Kho và quy tắc kiểm tra trạng thái hoạt động. | `INIT-USR-03` |
+| `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Sửa theo `AuthService.RegisterTenantAsync`: đăng ký chỉ tạo Tenant (kèm `Code`) và tài khoản Owner; chi nhánh, kho do Owner tạo sau. | `OISMS-46` |
 
 ---
 
@@ -29,19 +30,20 @@ sequenceDiagram
     participant Validator as PhoneHelper & Validator
     participant DB as PostgreSQL (Transaction)
 
-    Client->>API: POST /api/auth/register-tenant (StoreName, Email, Phone, Password)
+    Client->>API: POST /api/auth/register-tenant (TenantName, FullName, Email, Phone, Password)
     API->>Validator: Chuẩn hóa SĐT E.164 & Kiểm tra trùng Email/Phone
     alt Dữ liệu không hợp lệ hoặc trùng
         Validator-->>Client: HTTP 400 Bad Request / 409 Conflict
     else Hợp lệ
         API->>DB: BEGIN TRANSACTION (Privileged Scope)
-        API->>DB: 1. Tạo bản ghi Tenant (Sinh TenantId duy nhất, IsActive = true)
-        API->>DB: 2. Tạo Chi nhánh mặc định (Main Branch) & Kho mặc định (Main Warehouse)
-        API->>DB: 3. Tạo tài khoản User với Role = Owner (Mật khẩu băm BCrypt)
+        API->>DB: 1. Tạo bản ghi Tenant (Sinh TenantId, IsActive = true; TenantCode chỉ trả về, không lưu cột)
+        API->>DB: 2. Tạo tài khoản User với Role = Owner (Mật khẩu băm BCrypt)
         API->>DB: COMMIT TRANSACTION
-        API-->>Client: HTTP 201 Created (Trả về TenantId & Thông tin Owner)
+        API-->>Client: HTTP 201 Created (TenantId, TenantCode, TenantName, UserId, Email)
     end
 ```
+
+Đăng ký **không** tạo sẵn chi nhánh hay kho. Sau khi đăng nhập, Owner tạo chi nhánh và kho ở màn Tổ chức trước khi nhập hàng hay bán POS.
 
 ---
 

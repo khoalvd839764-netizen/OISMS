@@ -7,8 +7,8 @@
 | **Ngày hiệu lực** | `2026-10-25` |
 | **Đường dẫn URL Routes** | `/login`, `/403`, `/session-expired` |
 | **Quyền truy cập (RBAC)** | Mọi người dùng (Public & Authenticated) |
-| **Source code Frontend** | [`AuthPage.tsx`](file:///d:/OISMS/src/frontend/admin-dashboard/src/pages/AuthPage.tsx), [`AccessPage.tsx`](file:///d:/OISMS/src/frontend/admin-dashboard/src/pages/AccessPage.tsx), [`AuthContext.tsx`](file:///d:/OISMS/src/frontend/admin-dashboard/src/context/AuthContext.tsx) |
-| **Controller Backend** | [`AuthController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/AuthController.cs) |
+| **Source code Frontend** | [`AuthPage.tsx`](../../src/frontend/admin-dashboard/src/pages/AuthPage.tsx), [`AccessPage.tsx`](../../src/frontend/admin-dashboard/src/pages/AccessPage.tsx), [`AuthContext.tsx`](../../src/frontend/admin-dashboard/src/context/AuthContext.tsx) |
+| **Controller Backend** | [`AuthController.cs`](../../src/backend/src/OISM.WebApi/Controllers/AuthController.cs) |
 
 ---
 
@@ -16,7 +16,7 @@
 
 ### 1.1. Mục Tiêu & Luồng Nghiệp Vụ
 Màn hình xác thực tập trung hỗ trợ mô hình Multi-tenant SaaS cho toàn bộ các đối tượng người dùng (`Owner`, `Staff`, `Cashier`). Cho phép đăng nhập linh hoạt bằng **Email** hoặc **Số điện thoại** kết hợp Mật khẩu, đồng thời tự động phân luồng điều hướng:
-* Nếu người dùng là `Cashier` $\rightarrow$ Tự động chuyển hướng sang Quầy bán hàng `/pos`.
+* Nếu người dùng là `Cashier` $\rightarrow$ Phiên Admin bị thu hồi, chuyển sang màn đăng nhập của ứng dụng POS riêng (`<POS_URL>/login#from=admin-login`). POS hiện dòng nhắc thu ngân đăng nhập tại đây và lần sau dùng nút thu ngân ở trang Admin.
 * Nếu người dùng là `Owner` hoặc `Staff` $\rightarrow$ Chuyển hướng vào Bàn làm việc quản trị `/admin`.
 
 ### 1.2. Bố Cục Giao Diện Wireframe (ASCII Wireframe)
@@ -59,6 +59,7 @@ Màn hình xác thực tập trung hỗ trợ mô hình Multi-tenant SaaS cho to
 | `RememberMe` | `Checkbox` | Mặc định `true` (lưu Refresh Token trong 30 ngày). | N/A |
 | Nút `Quên mật khẩu?` | `Button` (`disabled`) + nhãn `Coming soon` | Có ở đăng nhập Admin và POS PWA. Chưa có API và luồng đặt lại mật khẩu. | N/A |
 | Nút `Đăng nhập` | `Button (Primary)` | Hiển thị spinner xoay và vô hiệu hóa (`disabled`) khi đang gửi request. | Chống bấm lặp (Debounce) |
+| Nút `Bạn là thu ngân? Đăng nhập tại quầy POS` | Link dạng `Button (Secondary)` | Chỉ ở chế độ đăng nhập Admin, nằm dưới nút `Đăng nhập`. Mở thẳng `<POS_URL>/login` để thu ngân chỉ đăng nhập một lần tại POS. Không gửi thông tin đăng nhập hay token. | N/A |
 
 Màn đăng nhập không hiển thị tài khoản mẫu và không điền sẵn thông tin đăng nhập.
 
@@ -66,9 +67,9 @@ Màn đăng nhập không hiển thị tài khoản mẫu và không điền s�
 
 | Method | Endpoint Backend | Hàm xử lý Controller / Service | Tài liệu Hợp đồng API tham chiếu | Mã lỗi liên quan |
 | :---: | :--- | :--- | :--- | :--- |
-| `POST` | `/api/auth/login` | `AuthController.Login` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#2-endpoints-xác-thực-người-dùng-fr-auth-02) | `AUTH_INVALID_CREDENTIALS`, `AUTH_TENANT_LOCKED`, `AUTH_USER_LOCKED` (Chi tiết xem [`DOC-ERR-02`](../12-error-and-status-codes/02-error-codes-catalog.md)) |
-| `POST` | `/api/auth/refresh-token` | `AuthController.RefreshToken` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#2-endpoints-xác-thực-người-dùng-fr-auth-02) | `AUTH_TOKEN_EXPIRED`, `AUTH_UNAUTHORIZED` |
-| `GET` | `/api/auth/me` | `AuthController.GetCurrentUser` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#2-endpoints-xác-thực-người-dùng-fr-auth-02) | `AUTH_UNAUTHORIZED` |
+| `POST` | `/api/auth/login` | `AuthController.Login` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#1-danh-mục-endpoints-xác-thực-apiauth) | `AUTH_INVALID_CREDENTIALS`, `AUTH_TENANT_LOCKED`, `AUTH_USER_LOCKED` (Chi tiết xem [`DOC-ERR-02`](../12-error-and-status-codes/02-error-codes-catalog.md)) |
+| `POST` | `/api/auth/refresh-token` | `AuthController.RefreshToken` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#1-danh-mục-endpoints-xác-thực-apiauth) | `AUTH_TOKEN_EXPIRED`, `AUTH_UNAUTHORIZED` |
+| `GET` | `/api/auth/me` | `AuthController.GetCurrentUser` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#1-danh-mục-endpoints-xác-thực-apiauth) | `AUTH_UNAUTHORIZED` |
 
 ---
 

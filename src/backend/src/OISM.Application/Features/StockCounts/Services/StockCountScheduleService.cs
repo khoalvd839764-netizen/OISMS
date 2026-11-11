@@ -4,6 +4,7 @@ using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
 using OISM.Application.Features.Orders.Dtos;
 using OISM.Application.Features.StockCounts.Dtos;
+using OISM.Domain.Common;
 using OISM.Domain.Entities;
 
 namespace OISM.Application.Features.StockCounts.Services;
@@ -141,24 +142,14 @@ public class StockCountScheduleService : IStockCountScheduleService
             throw new OismException("VALIDATION_ERROR", "Hạn hoàn tất kiểm kê phải từ 1 đến 14 ngày.", 400);
         }
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            _context.ClearChangeTracker();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
-            if (_context.IsRelationalDatabase)
-            {
-                await _context.ExecuteSqlRawAsync(
-                    "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/stock_count_schedule/' || {1}::text || '/' || {2}::text, 0));",
-                    new object[] { tenantId.Value.ToString(), dto.WarehouseId.ToString(), periodType },
-                    ct);
+            await _context.Locks.LockStockCountScheduleAsync(tenantId.Value, dto.WarehouseId, periodType, ct);
 
-                await _context.ExecuteSqlRawAsync(
-                    "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/stock_count_period_generate', 0));",
-                    new object[] { tenantId.Value.ToString() },
-                    ct);
-            }
+            await _context.Locks.LockStockCountPeriodGenerationAsync(tenantId.Value, ct);
 
             // Kiểm tra trùng lặp (warehouse, period_type)
             var exists = await _context.StockCountSchedules
@@ -267,24 +258,14 @@ public class StockCountScheduleService : IStockCountScheduleService
             throw new OismException("NOT_FOUND", "Không tìm thấy lịch kiểm kê trong phạm vi doanh nghiệp.", 404);
         }
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            _context.ClearChangeTracker();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
-            if (_context.IsRelationalDatabase)
-            {
-                await _context.ExecuteSqlRawAsync(
-                    "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/stock_count_schedule/' || {1}::text || '/' || {2}::text, 0));",
-                    new object[] { tenantId.Value.ToString(), hint.WarehouseId.ToString(), hint.PeriodType },
-                    ct);
+            await _context.Locks.LockStockCountScheduleAsync(tenantId.Value, hint.WarehouseId, hint.PeriodType, ct);
 
-                await _context.ExecuteSqlRawAsync(
-                    "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/stock_count_period_generate', 0));",
-                    new object[] { tenantId.Value.ToString() },
-                    ct);
-            }
+            await _context.Locks.LockStockCountPeriodGenerationAsync(tenantId.Value, ct);
 
             var schedule = await _context.StockCountSchedules
                 .Include(s => s.Branch)
@@ -356,15 +337,14 @@ public class StockCountScheduleService : IStockCountScheduleService
             // Sửa lịch: các kỳ Planned có scheduled_at > now được tính lại giờ, hạn, người phụ trách.
             // Tắt lịch: các kỳ đó chuyển Cancelled. Kỳ đang làm hoặc đã xong không đổi.
             var futurePlannedPeriods = await _context.StockCountPeriods
-                .Where(p => p.TenantId == tenantId.Value && p.ScheduleId == schedule.Id && p.Status == "Planned" && p.ScheduledAt > now)
+                .Where(p => p.TenantId == tenantId.Value && p.ScheduleId == schedule.Id && p.Status == StockCountPeriodStatus.Planned && p.ScheduledAt > now)
                 .ToListAsync(ct);
 
             if (!schedule.IsActive)
             {
                 foreach (var period in futurePlannedPeriods)
                 {
-                    period.Status = "Cancelled";
-                    period.UpdatedAt = now;
+                    period.Cancel(now);
                 }
             }
             else
@@ -451,11 +431,11 @@ public class StockCountScheduleService : IStockCountScheduleService
         {
             if (filter.Overdue.Value)
             {
-                query = query.Where(p => (p.Status == "Planned" || p.Status == "InProgress") && p.DueAt < now);
+                query = query.Where(p => (p.Status == StockCountPeriodStatus.Planned || p.Status == StockCountPeriodStatus.InProgress) && p.DueAt < now);
             }
             else
             {
-                query = query.Where(p => !((p.Status == "Planned" || p.Status == "InProgress") && p.DueAt < now));
+                query = query.Where(p => !((p.Status == StockCountPeriodStatus.Planned || p.Status == StockCountPeriodStatus.InProgress) && p.DueAt < now));
             }
         }
 
@@ -487,19 +467,12 @@ public class StockCountScheduleService : IStockCountScheduleService
             throw new OismException("UNAUTHORIZED", "Không xác định được danh tính Tenant.", 401);
         }
 
-        var strategy = _context.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
-            _context.ClearChangeTracker();
-            await using var tx = await _context.BeginTransactionAsync(ct);
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
 
-            if (_context.IsRelationalDatabase)
-            {
-                await _context.ExecuteSqlRawAsync(
-                    "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/stock_count_period_generate', 0));",
-                    new object[] { tenantId.Value.ToString() },
-                    ct);
-            }
+            await _context.Locks.LockStockCountPeriodGenerationAsync(tenantId.Value, ct);
 
             var now = nowUtc ?? DateTimeOffset.UtcNow;
             var activeSchedules = await _context.StockCountSchedules
@@ -554,13 +527,9 @@ public class StockCountScheduleService : IStockCountScheduleService
             if (existingPeriod != null)
             {
                 // Đã có period_key: nếu Cancelled và scheduled_at > now thì đưa về Planned với giờ mới; còn lại không đổi
-                if (existingPeriod.Status == "Cancelled" && scheduledAtUtc > now)
+                if (existingPeriod.Status == StockCountPeriodStatus.Cancelled && scheduledAtUtc > now)
                 {
-                    existingPeriod.Status = "Planned";
-                    existingPeriod.ScheduledAt = scheduledAtUtc;
-                    existingPeriod.DueAt = dueAtUtc;
-                    existingPeriod.AssigneeUserId = schedule.AssigneeUserId;
-                    existingPeriod.UpdatedAt = now;
+                    existingPeriod.Reschedule(scheduledAtUtc, dueAtUtc, schedule.AssigneeUserId, now);
                     count++;
                 }
             }
@@ -579,7 +548,7 @@ public class StockCountScheduleService : IStockCountScheduleService
                     ScheduledAt = scheduledAtUtc,
                     DueAt = dueAtUtc,
                     AssigneeUserId = schedule.AssigneeUserId,
-                    Status = "Planned",
+                    Status = StockCountPeriodStatus.Planned,
                     CreatedAt = now
                 };
 
@@ -617,8 +586,8 @@ public class StockCountScheduleService : IStockCountScheduleService
 
     private static StockCountPeriodResponseDto MapToPeriodResponseDto(StockCountPeriod period, DateTimeOffset now)
     {
-        var isOverdue = (period.Status == "Planned" || period.Status == "InProgress") && period.DueAt < now;
-        var activeCount = period.StockCounts.FirstOrDefault(c => c.Status != "Cancelled");
+        var isOverdue = (period.Status == StockCountPeriodStatus.Planned || period.Status == StockCountPeriodStatus.InProgress) && period.DueAt < now;
+        var activeCount = period.StockCounts.FirstOrDefault(c => c.Status != StockCountStatus.Cancelled);
 
         var countedUserIds = activeCount?.Items
             .Where(i => i.CountedBy.HasValue)

@@ -7,8 +7,8 @@
 | **Ngày hiệu lực** | `2026-10-25` |
 | **Đường dẫn URL Routes** | `/admin`, `/` |
 | **Quyền truy cập (RBAC)** | `Owner`, `Staff` (Chặn `Cashier`) |
-| **Source code Frontend** | [`DashboardPage.tsx`](file:///d:/OISMS/src/frontend/admin-dashboard/src/pages/DashboardPage.tsx), [`StatCard`](file:///d:/OISMS/src/frontend/admin-dashboard/src/components/ui.tsx#L29-L31) |
-| **Controllers Backend** | [`OrdersController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/OrdersController.cs), [`InventoryController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/InventoryController.cs) |
+| **Source code Frontend** | [`DashboardPage.tsx`](../../src/frontend/admin-dashboard/src/pages/DashboardPage.tsx), [`StatCard`](../../src/frontend/admin-dashboard/src/components/ui.tsx#L29-L31) |
+| **Controllers Backend** | [`OrdersController.cs`](../../src/backend/src/OISM.WebApi/Controllers/OrdersController.cs), [`InventoryController.cs`](../../src/backend/src/OISM.WebApi/Controllers/InventoryController.cs) |
 
 ---
 
@@ -67,5 +67,5 @@ Màn hình **Dashboard Tổng quan** là trung tâm chỉ huy điều hành kinh
 | :---: | :--- | :--- | :--- | :--- |
 | `GET` | `/api/orders` | `OrdersController.GetOrders` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#1-danh-mục-endpoints-đơn-hàng-đa-kênh--webhook-fr-ord-0103-fr-sim-01) | `AUTH_UNAUTHORIZED`, `DATABASE_CONNECTION_ERROR` (Xem [`DOC-ERR-02`](../12-error-and-status-codes/02-error-codes-catalog.md)) |
 | `GET` | `/api/inventory/balances` | `InventoryController.GetBalances` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#1-danh-mục-endpoints-sổ-cái-tồn-kho--phiếu-nhập-fr-inv-0102-fr-cost-01) | `NO_ACTIVE_WAREHOUSE`, `DATABASE_CONNECTION_ERROR` |
-| `GET` | `/api/reports/revenue-profit` | `OrdersController.GetRevenueProfitReport` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#2-danh-mục-endpoints-báo-cáo--dự-báo-ai-fr-rep-0103-fr-ai-01) | `FORBIDDEN_ACCESS` (Chỉ dành cho Owner) |
-| `GET` | `/api/reports/stock-alerts` | `InventoryController.GetStockAlerts` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#2-danh-mục-endpoints-báo-cáo--dự-báo-ai-fr-rep-0103-fr-ai-01) | `AUTH_UNAUTHORIZED` |
+| `GET` | `/api/reports/revenue-profit` | `OrdersController.GetRevenueProfitReport` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#2-danh-mục-endpoints-báo-cáo-tìm-kiếm--dự-báo-ai-fr-rep-0103-fr-ai-01) | `FORBIDDEN_ACCESS` (Chỉ dành cho Owner) |
+| `GET` | `/api/reports/stock-alerts` | `InventoryController.GetStockAlerts` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#2-danh-mục-endpoints-báo-cáo-tìm-kiếm--dự-báo-ai-fr-rep-0103-fr-ai-01) | `AUTH_UNAUTHORIZED` |

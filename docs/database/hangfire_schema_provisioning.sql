@@ -5,6 +5,10 @@
 -- Chức năng: Khởi tạo schema riêng biệt 'hangfire' và cấp quyền tối thiểu
 -- cho runtime role để lưu trữ dữ liệu hàng đợi Hangfire.
 -- Đảm bảo hoàn toàn tách biệt khỏi schema 'public' (33 bảng nghiệp vụ OISMS).
+--
+-- LƯU Ý (08/11/2026): file lịch sử. Khi bật Hangfire dùng
+-- docker/postgres/migrations/20261108_hangfire_schema.sql (DB đã có dữ liệu)
+-- hoặc init-oisms.sh (volume mới); cả hai chỉ cấp quyền cho oisms_runtime.
 -- =====================================================================
 
 -- 1. Tạo schema 'hangfire' nếu chưa tồn tại

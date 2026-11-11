@@ -5,7 +5,7 @@
 | **Mã tài liệu (Document ID)** | `DOC-ERR-04` |
 | **Phiên bản (Version)** | `v1.0.0` |
 | **Ngày hiệu lực** | `2026-10-25` |
-| **Thành phần UI liên quan** | [`ui.tsx`](file:///d:/OISMS/src/frontend/admin-dashboard/src/components/ui.tsx), [`NotificationCenter.tsx`](file:///d:/OISMS/src/frontend/admin-dashboard/src/components/NotificationCenter.tsx), [`PaymentModal.tsx`](file:///d:/OISMS/src/frontend/pos-app/src/components/PaymentModal.tsx) |
+| **Thành phần UI liên quan** | [`ui.tsx`](../../src/frontend/admin-dashboard/src/components/ui.tsx), [`NotificationCenter.tsx`](../../src/frontend/admin-dashboard/src/components/NotificationCenter.tsx), [`PaymentModal.tsx`](../../src/frontend/pos-app/src/components/pos/PaymentModal.tsx) |
 | **Tài liệu tham chiếu** | [`01-error-response-spec.md`](./01-error-response-spec.md), [`03-color-system-tokens.md`](./03-color-system-tokens.md) |
 
 ---

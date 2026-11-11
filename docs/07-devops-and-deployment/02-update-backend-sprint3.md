@@ -1,5 +1,7 @@
 # Cập nhật backend Docker từ Sprint 2 lên Sprint 3
 
+> **Tài liệu lịch sử (27/10/2026).** Sau Sprint 3 còn 5 migration nữa (`20261102_*`, `20261103_*`). Thứ tự đầy đủ và cách chạy hiện hành xem [database/README.md](../database/README.md#nâng-cấp-database-đã-có-dữ-liệu-cả-nhóm-đọc-khi-kéo-code-mới); trên EC2 xem [13-deploy-aws/04](../13-deploy-aws/04-quy-trinh-deploy-va-cap-nhat.md). Các khối lệnh dưới đây vẫn đúng làm mẫu backup → migration → khởi động lại.
+
 Áp dụng cho Docker Compose trong repo OISMS, database v0.5 đã có dữ liệu. File SQL đóng gói từ `DatabaseMigrationService.UpgradeDatabaseSchemaAsync` tại `bfc83c0`: [20261027_sprint3.sql](../../docker/postgres/migrations/20261027_sprint3.sql). Đây là migration tăng dần, không phải file cài mới database.
 
 Mở Docker Desktop, đợi engine chạy rồi mở PowerShell tại `D:\OISMS`. Giữ nguyên `.env` đang dùng và đúng nhánh chứa backend muốn triển khai. Khi một bước báo lỗi, dừng và đọc lỗi; không tiếp tục sang bước sau. Các lệnh không bật Hangfire hoặc thay đổi credential.
@@ -103,7 +105,7 @@ Ca này chỉ chứng minh route/validation hoạt động, không chứng minh 
 
 ## Hangfire
 
-Cấu hình hiện tại mặc định `Hangfire:Enabled=false`. Các lệnh trên không bật tự động hết hạn giữ chỗ. Muốn bật phải bổ sung cấu hình vào service backend của Compose, cung cấp kết nối storage và quyền cho schema `hangfire` theo [SQL provisioning](../database/hangfire_schema_provisioning.sql); backend runtime vẫn dùng tài khoản ít quyền. Chỉ thêm biến vào `.env` chưa đủ nếu Compose không chuyển biến đó vào container.
+Cấu hình mặc định `Hangfire:Enabled=false`; các lệnh trên không bật tự động hết hạn giữ chỗ. Từ 08/11/2026 Compose truyền `HANGFIRE_ENABLED` và `HANGFIRE_WORKER_COUNT` từ `.env` vào service backend, và Hangfire dùng chung kết nối `Database__*`. Muốn bật trên DB đã có dữ liệu: backup, chạy `docker/postgres/migrations/20261108_hangfire_schema.sql` bằng tài khoản `postgres` để tạo schema `hangfire`, đặt `HANGFIRE_ENABLED=true` trong `.env` rồi build lại backend. Backend runtime vẫn dùng tài khoản ít quyền; nó chỉ có quyền tạo bảng trong schema `hangfire`.
 
 ## Giới hạn kiểm chứng
 

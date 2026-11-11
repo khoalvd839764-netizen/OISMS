@@ -7,8 +7,8 @@
 | **Ngày hiệu lực** | `2026-10-25` |
 | **Đường dẫn URL Routes** | `/admin/organization`, `/organization` |
 | **Quyền truy cập (RBAC)** | **Chỉ dành cho Chủ sở hữu (`Owner`)** |
-| **Source code Frontend** | [`OrganizationPage.tsx`](file:///d:/OISMS/src/frontend/admin-dashboard/src/pages/OrganizationPage.tsx) |
-| **Controllers Backend** | [`BranchController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/BranchController.cs), [`WarehousesController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/WarehousesController.cs), [`SuppliersController.cs`](file:///d:/OISMS/src/backend/src/OISM.WebApi/Controllers/SuppliersController.cs) |
+| **Source code Frontend** | [`OrganizationPage.tsx`](../../src/frontend/admin-dashboard/src/pages/OrganizationPage.tsx) |
+| **Controllers Backend** | [`BranchController.cs`](../../src/backend/src/OISM.WebApi/Controllers/BranchController.cs), [`WarehousesController.cs`](../../src/backend/src/OISM.WebApi/Controllers/WarehousesController.cs), [`SuppliersController.cs`](../../src/backend/src/OISM.WebApi/Controllers/SuppliersController.cs) |
 
 ---
 
@@ -73,9 +73,9 @@ Màn hình **Quản trị Cơ cấu Tổ chức & Chi nhánh** cung cấp quyề
 
 | Method | Endpoint Backend | Hàm xử lý Controller / Service | Tài liệu Hợp đồng API tham chiếu | Mã lỗi liên quan |
 | :---: | :--- | :--- | :--- | :--- |
-| `GET` | `/api/branches` | `BranchController.GetBranches` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#3-endpoints-quản-lý-chi-nhánh-kho-hàng--nhà-cung-cấp-fr-auth-04) | `AUTH_UNAUTHORIZED` (Xem [`DOC-ERR-02`](../12-error-and-status-codes/02-error-codes-catalog.md)) |
-| `POST` | `/api/branches` | `BranchController.CreateBranch` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#3-endpoints-quản-lý-chi-nhánh-kho-hàng--nhà-cung-cấp-fr-auth-04) | `VALIDATION_ERROR`, `FORBIDDEN_ACCESS` |
-| `GET` | `/api/warehouses` | `WarehousesController.GetWarehouses` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#3-endpoints-quản-lý-chi-nhánh-kho-hàng--nhà-cung-cấp-fr-auth-04) | `AUTH_UNAUTHORIZED` |
-| `POST` | `/api/warehouses` | `WarehousesController.CreateWarehouse` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#3-endpoints-quản-lý-chi-nhánh-kho-hàng--nhà-cung-cấp-fr-auth-04) | `VALIDATION_ERROR`, `BRANCH_INACTIVE_OR_INVALID` |
-| `GET` | `/api/suppliers` | `SuppliersController.GetSuppliers` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#3-endpoints-quản-lý-chi-nhánh-kho-hàng--nhà-cung-cấp-fr-auth-04) | `AUTH_UNAUTHORIZED` |
-| `POST` | `/api/suppliers` | `SuppliersController.CreateSupplier` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#3-endpoints-quản-lý-chi-nhánh-kho-hàng--nhà-cung-cấp-fr-auth-04) | `VALIDATION_ERROR` |
+| `GET` | `/api/branches` | `BranchController.GetBranches` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#2-danh-mục-endpoints-chi-nhánh-kho--nhà-cung-cấp-fr-auth-04) | `AUTH_UNAUTHORIZED` (Xem [`DOC-ERR-02`](../12-error-and-status-codes/02-error-codes-catalog.md)) |
+| `POST` | `/api/branches` | `BranchController.CreateBranch` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#2-danh-mục-endpoints-chi-nhánh-kho--nhà-cung-cấp-fr-auth-04) | `VALIDATION_ERROR`, `FORBIDDEN_ACCESS` |
+| `GET` | `/api/warehouses` | `WarehousesController.GetWarehouses` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#2-danh-mục-endpoints-chi-nhánh-kho--nhà-cung-cấp-fr-auth-04) | `AUTH_UNAUTHORIZED` |
+| `POST` | `/api/warehouses` | `WarehousesController.CreateWarehouse` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#2-danh-mục-endpoints-chi-nhánh-kho--nhà-cung-cấp-fr-auth-04) | `VALIDATION_ERROR`, `BRANCH_INACTIVE_OR_INVALID` |
+| `GET` | `/api/suppliers` | `SuppliersController.GetSuppliers` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#2-danh-mục-endpoints-chi-nhánh-kho--nhà-cung-cấp-fr-auth-04) | `AUTH_UNAUTHORIZED` |
+| `POST` | `/api/suppliers` | `SuppliersController.CreateSupplier` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#2-danh-mục-endpoints-chi-nhánh-kho--nhà-cung-cấp-fr-auth-04) | `VALIDATION_ERROR` |

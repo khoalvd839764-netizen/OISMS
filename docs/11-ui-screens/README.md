@@ -3,9 +3,9 @@
 | Thông tin kiểm soát thư mục | Chi tiết |
 | :--- | :--- |
 | **Mã phân hệ (Module ID)** | `MOD-SCR-11` |
-| **Phiên bản hiện hành** | `v1.0.0` |
-| **Ngày cập nhật gần nhất** | `2026-10-25` |
-| **Phạm vi mã nguồn ứng dụng** | Web Admin Dashboard (`src/frontend/admin-dashboard`) & Ứng dụng POS độc lập (`src/frontend/pos-app`) |
+| **Phiên bản hiện hành** | `v1.1.0` |
+| **Ngày cập nhật gần nhất** | `2026-11-06` |
+| **Phạm vi mã nguồn ứng dụng** | Web Admin Dashboard (`src/frontend/admin-dashboard`), Ứng dụng POS độc lập (`src/frontend/pos-app`) & App giả lập đơn sàn (`src/frontend/marketplace-simulator`) |
 | **Tài liệu quy chuẩn đi kèm** | Quy định mã lỗi & màu sắc: [`../12-error-and-status-codes/README.md`](../12-error-and-status-codes/README.md) |
 
 ---
@@ -27,13 +27,20 @@ Hệ thống OISMS (Omnichannel Inventory & Sales Management System) được tr
 | **3** | Màn hình Hết hạn phiên làm việc | `/session-expired` | ✅ | ✅ | ✅ | [`01-auth-screens.md`](./01-auth-screens.md) |
 | **4** | Dashboard Tổng quan kinh doanh | `/admin`, `/` | ✅ | ✅ | ❌ | [`02-dashboard-screen.md`](./02-dashboard-screen.md) |
 | **5** | Quản lý Danh mục, Sản phẩm & SKU | `/admin/products` | ✅ | ✅ | ❌ | [`03-product-screens.md`](./03-product-screens.md) |
-| **6** | Quản lý Kho, Sổ cái & Kiểm kê | `/admin/inventory` | ✅ | ✅ | ❌ | [`04-inventory-screens.md`](./04-inventory-screens.md) |
+| **6** | Quản lý Kho, Sổ cái & Kiểm kê | `/admin/inventory`, `/inventory/transfers`, `/inventory/counts` | ✅ | ✅ | ❌ | [`04-inventory-screens.md`](./04-inventory-screens.md) |
 | **7** | Trung tâm Đơn hàng đa kênh | `/admin/orders` | ✅ | ✅ | ❌ | [`05-order-screens.md`](./05-order-screens.md) |
-| **8** | Quầy Bán hàng POS tích hợp | `/pos` | ✅ | ✅ | ✅ | [`06-pos-terminal-screens.md`](./06-pos-terminal-screens.md) |
-| **9** | Quầy Bán hàng POS độc lập (PWA) | `http://localhost:5174` | ✅ | ✅ | ✅ | [`06-pos-terminal-screens.md`](./06-pos-terminal-screens.md) |
+| **8** | Đường dẫn POS trong Admin *(chỉ chuyển hướng sang POS từ 08/11/2026)* | `/pos` | ✅ | ✅ | ✅ | [`06-pos-terminal-screens.md`](./06-pos-terminal-screens.md) |
+| **9** | Quầy Bán hàng POS độc lập (PWA) | local `http://localhost:5174`, demo `https://pos.oisms.khoadang.site` | ✅ | ✅ | ✅ | [`06-pos-terminal-screens.md`](./06-pos-terminal-screens.md) |
 | **10** | Điều phối & Bàn giao vận chuyển *(đã tạm gỡ 04/11/2026)* | `/admin/handoff` | ✅ | ✅ | ❌ | [`07-handoff-screens.md`](./07-handoff-screens.md) |
 | **11** | Báo cáo Doanh thu & Quản trị Lãi gộp | `/admin/reports` | ✅ | ❌ | ❌ | [`08-report-screens.md`](./08-report-screens.md) |
 | **12** | Quản lý Cơ cấu Tổ chức & Chi nhánh | `/admin/organization` | ✅ | ❌ | ❌ | [`09-organization-screens.md`](./09-organization-screens.md) |
+| **13** | Đơn mua hàng | `/purchase-orders` | ✅ | ✅ | ❌ | [`04-inventory-screens.md`](./04-inventory-screens.md) |
+| **14** | Hóa đơn bán hàng | `/invoices` | ✅ | ✅ | ❌ | [`05-order-screens.md`](./05-order-screens.md) |
+| **15** | Kết nối sàn (secret webhook) | `/shop-integrations` | ✅ | ❌ | ❌ | [`10-shop-integration-screens.md`](./10-shop-integration-screens.md) |
+| **16** | App giả lập đơn sàn | local `http://localhost:5175`, deploy `https://<SIM_DOMAIN>` | Dùng secret, không đăng nhập | | | [`10-shop-integration-screens.md`](./10-shop-integration-screens.md) |
+| **17** | Tài khoản nhận tiền (VietQR) | `/settings/payment-accounts` | ✅ | ❌ | ❌ | [`11-payment-account-screens.md`](./11-payment-account-screens.md) |
+
+Mọi route Admin có hai dạng tương đương: có và không có tiền tố `/admin` (ví dụ `/products` và `/admin/products`), theo `src/frontend/admin-dashboard/src/App.tsx`. Route không khớp chuyển về `/admin`.
 
 ---
 
@@ -52,7 +59,7 @@ Giao diện Web Admin tuân theo chuẩn Master-Detail hiện đại với thanh
 │ 📦 Sản phẩm & Giá         │                                                                    │
 │ 🏬 Tồn kho & Sổ cái       │                      NỘI DUNG MÀN HÌNH CHÍNH                       │
 │ 🛒 Đơn hàng đa kênh       │                 (Tables, Filter Bars, Data Cards)                  │
-│ 🚚 Bàn giao vận chuyển    │                                                                    │
+│ (Bàn giao — đã gỡ)        │                                                                    │
 │ ───────────────           │                                                                    │
 │ 📈 Báo cáo lãi gộp (Owner)│                                                                    │
 │ 🏢 Chi nhánh & Kho (Owner)│                                                                    │
@@ -60,6 +67,17 @@ Giao diện Web Admin tuân theo chuẩn Master-Detail hiện đại với thanh
 │ 💻 Quầy POS Bán lẻ        │                                                                    │
 └───────────────────────────┴────────────────────────────────────────────────────────────────────┘
 ```
+
+#### Trợ lý OISMS (`FR-AI-02`)
+
+Owner và Staff mở trợ lý bằng nút hình Bot cạnh chuông thông báo. Panel rộng 380 px ở cạnh phải trên desktop và chiếm toàn màn hình trên mobile. Người dùng chọn chi nhánh (chỉ chi nhánh đang hoạt động) hoặc giữ mặc định **Tất cả chi nhánh**, và chọn **Model AI** (Groq hoặc Gemini, chỉ hiện model có key; lựa chọn nhớ trên trình duyệt).
+
+- Nút **Cuộc trò chuyện mới** xóa lịch sử trong panel. Đóng panel hủy yêu cầu đang chờ. Đăng xuất, đổi tenant hoặc đổi tài khoản xóa lịch sử phiên.
+- Nút **Tóm tắt hôm nay** hỏi về doanh thu (chỉ Owner), nhập/xuất, tồn thấp và gợi ý nhập. Khi chưa có tin nhắn, panel có bốn câu hỏi mẫu; Staff không thấy câu hỏi doanh thu.
+- Ô nhập tối đa 1.000 ký tự, Enter gửi và Shift+Enter xuống dòng. Câu trả lời hiển thị Markdown tối giản an toàn (đoạn, **đậm**, danh sách), không dùng HTML thô. Dòng nguồn ghi công cụ, phạm vi chi nhánh, khoảng ngày và model đã dùng.
+- Khi tên chi nhánh trong câu hỏi không khớp hoặc khớp nhiều chi nhánh, panel hiện nút chọn chi nhánh; bấm nút thì hỏi lại câu cũ. Người dùng không bao giờ phải nhập mã chi nhánh.
+- Lỗi hiển thị trong panel. Model hết lượt (`AI_MODEL_QUOTA`) có nút **Hỏi lại bằng** model còn lại. Khi trợ lý tắt, panel báo trạng thái và nút mở biến mất đến hết phiên.
+- Không có kinh phí nên API AI chỉ dùng gói miễn phí, hạn mức rất thấp, xem [FR-13](../02-functional-requirements/fr-13-ai-assistant.md).
 
 ### 3.2. Bố Cục Quầy Thu Ngân Bán Lẻ POS (`PosApp`)
 Giao diện POS được tối ưu hóa cho màn hình cảm ứng, máy POS hai màn hình và phím bấm vật lý siêu tốc:
@@ -95,6 +113,8 @@ Giao diện POS được tối ưu hóa cho màn hình cảm ứng, máy POS hai
 7. [`07-handoff-screens.md`](./07-handoff-screens.md) — Đặc tả Màn hình Quét mã vận đơn bàn giao shipper và In phiếu đóng gói (Packing Slip). Màn hình đã tạm gỡ khỏi Admin.
 8. [`08-report-screens.md`](./08-report-screens.md) — Đặc tả Màn hình Báo cáo Doanh thu - Giá vốn - Lãi gộp, Định giá kho theo WAC và Gợi ý tái đặt hàng AI.
 9. [`09-organization-screens.md`](./09-organization-screens.md) — Đặc tả Màn hình Quản lý Chi nhánh, Kho trực thuộc, Danh bạ Nhà cung cấp và Phân quyền nhân sự.
+10. [`10-shop-integration-screens.md`](./10-shop-integration-screens.md) — Đặc tả Màn hình Kết nối sàn (tạo kết nối, hiện secret một lần, đổi secret) và App giả lập đơn sàn.
+11. [`11-payment-account-screens.md`](./11-payment-account-screens.md) — Đặc tả Màn hình Tài khoản nhận tiền VietQR (thêm, đặt mặc định, ngừng dùng, xem thử QR). Màn Hóa đơn bán (`/invoices`) nằm ở mục 7 của `05-order-screens.md`.
 
 ## Cập nhật màn hình 04/11/2026
 
@@ -103,10 +123,10 @@ Giao diện POS được tối ưu hóa cho màn hình cảm ứng, máy POS hai
 | `/purchase-orders` | Owner, Staff | Tạo, sửa đơn mua; Owner duyệt, đóng, hủy; mở lập phiếu nhập từ đơn đã duyệt |
 | `/invoices` | Owner, Staff | Danh sách, chi tiết, in lại hóa đơn và truy vết đến dòng sổ `OUT` |
 | `/inventory/counts` | Owner, Staff | Phiếu kiểm kê, kỳ theo lịch, lịch định kỳ (chỉ Owner thêm lịch), đếm lại, duyệt chênh lệch (chỉ Owner) |
-| `/inventory` | Owner, Staff | Tab Gợi ý nhập hàng đang tạm ẩn; phiếu nhập bắt buộc chọn đơn mua đã duyệt; SKU chưa có tồn hiện nhãn "Chưa nhập kho" |
+| `/inventory` | Owner, Staff | Tab Gợi ý nhập hàng hiện cho Owner và Staff (mở lại 10/11/2026); thẻ Cảnh báo tồn tính cả SKU hết hàng chưa đặt ngưỡng; phiếu nhập bắt buộc chọn đơn mua đã duyệt; SKU chưa có tồn hiện nhãn "Chưa nhập kho" |
 | `/products` | Owner, Staff | Cấu hình đơn vị, tạo phiếu đổi giá theo bảng đơn vị và bảng giá, quản lý bảng giá và lịch sử giá |
 | `/reports` | Theo báo cáo | Tab vận tốc kho hiện tồn theo từng đơn vị gốc |
-| `/login` và đăng nhập POS PWA | Công khai | Bỏ tài khoản mẫu; có nút Quên mật khẩu đang tắt, nhãn Coming soon |
+| `/login` và đăng nhập POS PWA | Công khai | Bỏ tài khoản mẫu; có nút Quên mật khẩu đang tắt, nhãn Coming soon. `/login` Admin có nút "Bạn là thu ngân?" mở màn đăng nhập POS; POS hiện dòng nhắc khi Cashier bị chuyển từ Admin sang |
 | `/orders` | Owner, Staff | Chọn đơn vị và bảng giá; giá lấy từ server, đơn vị chưa có giá bị chặn |
 | `/pos` và POS PWA | Owner, Staff, Cashier | Chọn đơn vị trên từng dòng, quét mã quy cách, nhập số lẻ theo đơn vị, xác nhận giá mới khi `PRICE_MISMATCH` |
 

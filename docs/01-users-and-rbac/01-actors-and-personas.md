@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-USR-01` |
-| **Phiên bản (Version)** | `v1.0.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-10-22` |
+| **Phiên bản (Version)** | `v1.1.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-AUTH-01..04`, `FR-ORD-03`, `FR-POS-01..04`, `FR-SIM-01..03` (Trang 1, 2, 3) |
 | **Phạm vi áp dụng** | Phân hệ Xác thực, Phân quyền RBAC, Giao diện Web Admin & Web POS PWA |
 
@@ -15,6 +15,7 @@
 | Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả thay đổi | Mã tham chiếu |
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả chi tiết 5 nhóm tác nhân (Actors) tương tác với hệ thống OISMS theo đề bài. | `INIT-USR-01` |
+| `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Ghi hiện trạng: POS checkout trừ tồn trực tiếp; Hangfire mặc định tắt, có 2 job (hết hạn giữ chỗ, sinh kỳ kiểm kê), chưa có job tổng hợp báo cáo ngày. | `OISMS-46` |
 
 ---
 
@@ -30,7 +31,7 @@ flowchart LR
 
     subgraph ExternalSystemActors["Tác nhân Bên ngoài & Tự động"]
         A4["4. E-commerce Webhook / Simulator<br/>Đẩy đơn hàng online từ<br/>Shopee, TikTok Shop, Lazada"]
-        A5["5. Background Worker (Hangfire)<br/>Tự động hủy đơn Reserved quá hạn<br/>& Tổng hợp báo cáo cuối ngày"]
+        A5["5. Background Worker (Hangfire)<br/>Hết hạn giữ chỗ & sinh kỳ kiểm kê<br/>(mặc định tắt)"]
     end
 
     HumanActors --> OISMS["Hệ thống OISMS<br/>(Multi-tenant SaaS)"]
@@ -68,7 +69,7 @@ flowchart LR
 - **Trách nhiệm & Quyền hạn chính:**
   - Tìm kiếm nhanh hàng hóa theo Tên, mã SKU hoặc quét mã vạch `EAN-13`/`Code128` (`p95 < 200ms`).
   - Kiểm tra tồn khả dụng (`available`) tức thì tại chi nhánh đang đứng quầy, lập giỏ hàng đa dòng.
-  - Thực hiện thu tiền (Tiền mặt / Chuyển khoản QR), kích hoạt luồng thanh toán nguyên tử `Reserve -> Confirm -> Deduct` và in hóa đơn nhiệt cho khách hàng.
+  - Thực hiện thu tiền (Tiền mặt / Chuyển khoản QR), kích hoạt luồng thanh toán nguyên tử (một transaction: kiểm tồn, trừ `on_hand`, ghi `OUT`, lập hóa đơn) và in hóa đơn nhiệt cho khách hàng.
 - **Giới hạn quyền hạn nghiêm ngặt (`Strict RBAC`):**
   - **Chỉ được phép sử dụng phân hệ POS (`POS only`).**
   - Bị chặn hoàn toàn (`HTTP 403 Forbidden` trên API và chặn điều hướng trên UI) đối với các chức năng quản trị Web Admin: thêm/sửa sản phẩm, nhập kho, điều chỉnh tồn kho, cấu hình chi nhánh và báo cáo lợi nhuận gộp.
@@ -85,4 +86,5 @@ flowchart LR
 - **Mô tả vai trò:** Tác nhân hệ thống chạy ngầm định kỳ không cần sự can thiệp của con người.
 - **Hành vi tương tác:**
   - Quét định kỳ các đơn hàng ở trạng thái `Reserved` đã quá thời gian chờ thanh toán/xác nhận để tự động chuyển sang `Cancelled` và giải phóng số lượng `reserved` về lại quỹ `available`.
-  - Thực hiện tổng hợp dữ liệu báo cáo doanh thu - giá vốn hằng ngày (`Daily report aggregations`).
+  - Sinh kỳ kiểm kê định kỳ theo lịch (`StockCountPeriodJob`, phút thứ 5 mỗi giờ).
+- **Hiện trạng:** job hết hạn giữ chỗ là `ReservationExpiryJob` (`oisms-reservation-expiry`, mỗi phút). Cả hai job chỉ chạy khi `Hangfire:Enabled=true`; cấu hình mặc định và Docker Compose local đang tắt; bản demo trên AWS đã bật từ 11/11/2026. Chưa có job tổng hợp báo cáo ngày; bảng `daily_sales_summaries` có trong schema nhưng chưa dùng, báo cáo tính trực tiếp từ đơn hàng.

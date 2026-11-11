@@ -8,12 +8,15 @@ import { InventoryPage } from "./pages/InventoryPage";
 import { InventoryTransfersPage } from "./pages/InventoryTransfersPage";
 import { StockCountsPage } from "./pages/StockCountsPage";
 import { OrdersPage } from "./pages/OrdersPage";
+import { SalesReturnsPage } from "./pages/SalesReturnsPage";
 import { SalesInvoicesPage } from "./pages/SalesInvoicesPage";
 import { ReportsPage } from "./pages/ReportsPage";
-import { PosPage } from "./pages/PosPage";
+import { PosRedirectPage } from "./pages/PosRedirectPage";
 import { AccessPage } from "./pages/AccessPage";
 import { AuthPage } from "./pages/AuthPage";
 import { OrganizationPage } from "./pages/OrganizationPage";
+import { ShopIntegrationsPage } from "./pages/ShopIntegrationsPage";
+import { PaymentAccountsPage } from "./pages/PaymentAccountsPage";
 import { AuthProvider } from "./context/AuthContext";
 
 export default function App() {
@@ -26,10 +29,8 @@ export default function App() {
           <Route path="/403" element={<AccessPage type="forbidden" />} />
           <Route path="/session-expired" element={<AccessPage type="expired" />} />
 
-          {/* POS Route (http://localhost:5173/pos) - Cho phép Owner, Staff và Cashier đã xác thực */}
-          <Route element={<ProtectedRoute allowedRoles={["Owner", "Staff", "Cashier"]} />}>
-            <Route path="/pos" element={<PosPage />} />
-          </Route>
+          {/* Compatibility link: the workstation lives only in pos-app. */}
+          <Route path="/pos" element={<PosRedirectPage />} />
 
           {/* Protected Admin Routes (Hỗ trợ cả http://localhost:5173/admin và /) */}
           <Route element={<ProtectedRoute />}>
@@ -51,12 +52,22 @@ export default function App() {
               <Route path="/invoices" element={<SalesInvoicesPage />} />
               <Route path="/admin/invoices" element={<SalesInvoicesPage />} />
 
-              {/* Chỉ Owner được truy cập trang Báo cáo & Quản lý Chi nhánh / Tổ chức */}
+              {/* Phân hệ Quản lý Trả hàng (CS-01): Chỉ Owner và Staff */}
+              <Route element={<ProtectedRoute allowedRoles={["Owner", "Staff"]} />}>
+                <Route path="/returns" element={<SalesReturnsPage />} />
+                <Route path="/admin/returns" element={<SalesReturnsPage />} />
+              </Route>
+
+              {/* Chỉ Owner được truy cập Báo cáo, Chi nhánh / Tổ chức và Kết nối sàn */}
               <Route element={<ProtectedRoute allowedRoles={["Owner"]} />}>
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/admin/reports" element={<ReportsPage />} />
                 <Route path="/organization" element={<OrganizationPage />} />
                 <Route path="/admin/organization" element={<OrganizationPage />} />
+                <Route path="/shop-integrations" element={<ShopIntegrationsPage />} />
+                <Route path="/admin/shop-integrations" element={<ShopIntegrationsPage />} />
+                <Route path="/settings/payment-accounts" element={<PaymentAccountsPage />} />
+                <Route path="/admin/settings/payment-accounts" element={<PaymentAccountsPage />} />
               </Route>
             </Route>
           </Route>

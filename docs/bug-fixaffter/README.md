@@ -1,81 +1,70 @@
-# Bug Fix After — Tài Liệu Rà Soát & Khắc Phục Lỗi Hệ Thống
+# Bugfix và Upgrade — theo dõi lỗi
 
-Đợt rà soát & khắc phục: **28–30/10/2026 · Asia/Saigon**  
-Trạng thái tổng thể: ✅ **20/20 Lỗi Hệ Thống (BF-001 ➔ BF-020) Đã Khắc Phục & Kiểm Thử Thành Công (100% VERIFIED PASS)**
+Nơi theo dõi lỗi của OISMS: lỗi nào đã sửa, lỗi nào chưa, kèm trạng thái các chức năng Coming Soon và các gói Upgrade.
 
-> **Cập nhật 02/11/2026, kết quả trên ghi theo đợt 28–30/10:**
-> - Bản sửa cho Web Admin trước đó chỉ nằm trên máy local, nay đã lên nhánh `featch/FIx-and-Uprade` ở commit `97b3418`. Chưa chạy lại toàn bộ kiểm thử BF sau khi đưa lên.
-> - POS riêng (`pos-app`) không đưa bản sửa cũ lên vì xung đột với bản mới của `develop`, nên đang giữ code `develop`. Bản này có cơ chế riêng cho thử lại, hết phiên và kiểm tra biên lai, nhưng chưa có phần khóa giỏ hàng và chi nhánh trong lúc checkout như bản sửa cũ. **BF-020 trên `pos-app` cần kiểm tra lại**; các lỗi BF-003, BF-015, BF-019 trên `pos-app` cũng cần kiểm chứng lại theo code mới.
+- Xem nhanh: [**CHECKLIST.md**](./CHECKLIST.md)
+- Chi tiết từng lỗi: thư mục [`errors/`](./errors/), mỗi lỗi một file
 
----
+Cập nhật ngày **06/11/2026**. Trong **35 lỗi**, có 24 lỗi đã sửa, 4 lỗi cần kiểm chứng hoặc mới sửa một phần và 7 lỗi chưa sửa. Cả bốn đợt Clean Architecture đã qua CI.
 
-## 1. Cấu Trúc Thư Mục & Tham Chiếu Tài Liệu
+## Cấu trúc
 
-Thư mục `docs/bug-fixaffter/` được phân chia thành 2 khu vực chức năng chính nhằm tách biệt rõ ràng giữa **kết quả sửa lỗi hệ thống** và **các tính năng đang phát triển (Coming Soon)**:
-
-```
+```text
 docs/bug-fixaffter/
-├── README.md                              # (Tài liệu này) Tổng quan, bản đồ tài liệu & trạng thái
-├── Comming Soon function/
-│   └── COMING-SOON.md                     # Danh sách tính năng chưa hoàn thiện, gắn badge Coming Soon
-└── Report Bugfix/
-    ├── report result affter fix.md        # ⭐ BÁO CÁO CHI TIẾT KẾT QUẢ KHẮC PHỤC 20 LỖI (Sau khi fix)
-    ├── BUG-LIST.md                        # Danh mục chi tiết 20 lỗi ban đầu (Mô tả, nguyên nhân, vị trí code)
-    └── TEST-RESULTS.md                    # Báo cáo kết quả kiểm thử tự động, phạm vi quét & đối chuẩn
+├── README.md        # Tài liệu này: cấu trúc, quy ước, lịch sử các đợt
+├── CHECKLIST.md     # Bảng tổng: lỗi, Coming Soon, Upgrade, việc cần quyết định
+├── errors/          # Mỗi lỗi một file: BF-<số>-<mô-tả>.md
+│   ├── BF-001-...md
+│   └── ...
+└── evidence/        # Log và dữ liệu thô của các đợt kiểm thử
 ```
 
----
+## Quy ước
 
-## 2. Bảng Điều Hướng Tài Liệu (Navigation & Links)
+**Trạng thái** (ghi ở đầu mỗi file lỗi và trong checklist):
 
-| Thư mục / Tài liệu | Đường dẫn tham chiếu | Nội dung chính | Trạng thái |
-| :--- | :--- | :--- | :---: |
-| **Checklist Bugfix & Upgrade** | [CHECKLIST-BUGFIX-AND-UPGRADE.md](CHECKLIST-BUGFIX-AND-UPGRADE.md) | Checklist tổng hợp 20/20 bug đã fix (`BF-001..020`), Upgrade đã hoàn thành (`Upgrade 06`) và lộ trình 3 nhóm Sprint 4 (`OISMS-45..47`) | ✅ **CẬP NHẬT MỚI** |
-| **Báo cáo kết quả sau fix** | [Report Bugfix/report result affter fix.md](Report%20Bugfix/report%20result%20affter%20fix.md) | Phân tích chi tiết phương pháp khắc phục 20 lỗi, diff logic, và bằng chứng kiểm thử đạt chuẩn | ✅ **HOÀN THÀNH** |
-| **Danh sách lỗi ban đầu** | [Report Bugfix/BUG-LIST.md](Report%20Bugfix/BUG-LIST.md) | Đặc tả 20 lỗi hệ thống được ghi nhận (BF-001 đến BF-020): mức ưu tiên P1/P2, cách tái hiện, ảnh hưởng | ✅ **ĐÃ FIX 20/20** |
-| **Kết quả kiểm thử nền** | [Report Bugfix/TEST-RESULTS.md](Report%20Bugfix/TEST-RESULTS.md) | Kết quả kiểm thử tự động backend/frontend nền tảng (Unit tests, Integration tests, Regression) | ✅ **PASS** |
-| **Chức năng Coming Soon** | [Comming Soon function/COMING-SOON.md](Comming%20Soon%20function/COMING-SOON.md) | Thống kê các nút bấm/tính năng chưa có backend hoặc đang trong lộ trình phát triển (tách khỏi lỗi code) | ℹ️ **ĐANG THEO DÕI** |
-| **Nghiệm thu frontend Coming Soon và Upgrade** | [frontend-coming-soon-va-upgrade.md](../report-after-upgrade/frontend-coming-soon-va-upgrade.md) | Kết quả chạy thử, phần chưa làm và chưa chạy tại 04/11/2026 | 🟡 Còn việc |
-| **Checklist tổng dự án** | [checklist.md](../../checklist.md) | Đồng bộ trạng thái nghiệm thu toàn dự án OISMS (mục 0A) | ✅ **ĐỒNG BỘ** |
+| Ký hiệu | Trạng thái | Nghĩa |
+| :---: | :--- | :--- |
+| ✅ `[x]` | Đã sửa | Có bản sửa trên nhánh hiện tại và đã có kiểm chứng |
+| 🟡 `[~]` | Đã sửa, cần kiểm chứng lại / Cần kiểm chứng lại | Đã sửa ở một nơi, hoặc code đã thay đổi sau khi sửa nên kết quả cũ không còn chắc |
+| ❌ `[ ]` | Chưa sửa | Lỗi còn mở |
 
----
+**Ưu tiên:** `P1` sai phiên/quyền, giao dịch lặp, số liệu sai hoặc lộ dữ liệu · `P2` chức năng sai hoặc kẹt trong tình huống cụ thể · `P3` ảnh hưởng nhỏ hoặc chỉ ở môi trường đặc biệt.
 
-## 3. Tổng Hợp Kết Quả Khắc Phục Lỗi (BF-001 đến BF-020)
+**Mỗi file lỗi gồm:** bảng thông tin (trạng thái, ưu tiên, khu vực, ngày phát hiện, ngày sửa, kiểm chứng), mô tả và cách tái hiện, vị trí trong code, điều kiện đóng, và cách đã sửa nếu có.
 
-Toàn bộ 20 lỗi trong [BUG-LIST.md](Report%20Bugfix/BUG-LIST.md) đã được khắc phục triệt để và kiểm chứng độc lập:
+## Thêm hoặc đóng một lỗi
 
-1. **Nhóm Toàn vẹn phiên & Realtime (P1):**
-   * **BF-001**: Xử lý refresh token và mutation 401 gắn chặt với thế hệ phiên (`currentAuthGeneration`), chặn đứng ghi đè token chéo hoặc replay mutation của user A bằng token của user B.
-   * **BF-002**: Quản lý vòng đời SignalR connection gắn với token phiên, giải phóng triệt để transport cũ khi đăng xuất và tạo mới cho người dùng kế tiếp.
-2. **Nhóm Idempotency & Bảo toàn giao dịch (P1):**
-   * **BF-003**: Cố định khóa `requestKey` qua các lần thử lại (retry) thanh toán POS (cả bản Admin và POS app độc lập).
-   * **BF-004, BF-005**: Bảo toàn `requestKey` và chữ ký payload khi retry tạo phiếu chuyển kho hoặc đợt kiểm kho.
-   * **BF-006, BF-007**: Sửa lỗi kiểm kho: bắt buộc ghi nhận số sổ sách lên database trước khi chốt kiểm kê, và hiển thị hộp thoại xác nhận khi lưu ô trống.
-   * **BF-013**: Khóa form khi đang retry giữ chỗ kho và yêu cầu xác nhận trước khi hủy pending reservation.
-   * **BF-019**: Từ chối phản hồi HTTP 200 thiếu mã định danh đơn hàng server, ngăn ngừa xác nhận thanh toán ảo.
-   * **BF-020**: Khóa ngữ cảnh giỏ hàng và chi nhánh (`cartVersion`, `currentBranchIdRef`) trong POS độc lập, không để giao dịch cũ xóa giỏ hàng mới.
-3. **Nhóm Dữ liệu kinh doanh, Múi giờ & Trải nghiệm (P1 & P2):**
-   * **BF-008**: Reset khóa `actionLoading` khi chuyển đổi chứng từ trong Drawers chuyển kho/kiểm kê.
-   * **BF-009, BF-010**: Ngăn phản hồi API báo cáo cũ ghi đè bộ lọc mới (generation guard), và dọn sạch dữ liệu cũ khi truy vấn bị lỗi.
-   * **BF-011**: Chuẩn hóa múi giờ kinh doanh Việt Nam (Asia/Saigon UTC+07:00) cho "Hôm nay", và chuyển backend sang lọc khoảng nửa mở `CreatedAt < EndDateBoundary`.
-   * **BF-012**: Dropdown chọn SKU trên form chuyển kho đọc số tồn thực tế theo kho nguồn đã chọn.
-   * **BF-014**: Hiển thị banner lỗi API kèm nút "Thử lại" trên trang chi nhánh/kho, không nuốt lỗi thành dữ liệu rỗng.
-   * **BF-015**: POS xử lý chuẩn lỗi 401 (xóa token, kích hoạt `pos-auth-expired`) và trích xuất đúng RFC 7807 `ProblemDetails`.
-   * **BF-016**: Kết nối nhóm chi nhánh (`joinBranch`), cập nhật số tồn khi có biến động và khi phục hồi kết nối (`reconnected`).
-   * **BF-017**: Hỗ trợ mở trực tiếp tab Cảnh báo tồn kho tối thiểu qua URL query parameter `?tab=alerts`.
-   * **BF-018**: Bổ sung tùy chọn kênh bán hàng `Admin (Quản trị viên)` trong bộ lọc báo cáo.
+1. Tạo `errors/BF-<số tiếp theo>-<mô-tả-ngắn-không-dấu>.md` theo mẫu của file có sẵn (ví dụ [BF-021](./errors/BF-021-bao-cao-lai-gop-lo-cho-staff.md)).
+2. Thêm một dòng vào bảng tương ứng trong [CHECKLIST.md](./CHECKLIST.md) và cập nhật bảng tóm tắt.
+3. Khi sửa xong: thêm mục "Cách đã sửa", ghi lệnh kiểm chứng đã chạy (PASS/FAIL/NOT RUN), rồi đổi trạng thái ở cả file lỗi và checklist. Lỗi chạm auth, tenant, transaction, ledger, WAC, giữ chỗ, idempotency hoặc concurrency phải có bằng chứng trên PostgreSQL thật.
+4. Không xóa file lỗi đã đóng; giữ lại làm lịch sử.
 
----
+## Lịch sử các đợt
 
-## 4. Bằng Chứng & Kết Quả Kiểm Thử (Verification Suite)
+| Đợt | Nội dung | Kết quả lúc đó |
+| :--- | :--- | :--- |
+| 28–29/10/2026 | Rà soát, ghi nhận BF-001..020 và 8 chức năng Coming Soon (CS-01..08) trên baseline `e3813da` | Backend 158 unit + 285 integration PASS; Admin regression 13 PASS; các kịch bản lỗi tái hiện được bằng probe (`audit-probes.cjs`), không ghi vào DB đang dùng |
+| 29/10/2026 | Tích hợp `hotfix/sprint-3-core-release` vào `develop` (Sprint 3). Backend và Admin lấy từ `e3813da`; POS riêng giữ code `develop` (PR #24) | Build Admin/POS PASS; POS mới 51 + 24 + 10 = 85 test PASS (log trong `evidence/release-integration/`). Chưa phát hành production |
+| 30/10/2026 | Sửa BF-001..020 | 23/23 probe PASS (`scratch/test_bugfix_after_verification.cjs`), 13/13 regression, 159/159 unit test |
+| 02/11/2026 | Bản sửa Admin đưa lên nhánh `featch/FIx-and-Uprade` (`97b3418`). Bản sửa POS riêng không đưa lên vì xung đột với POS mới | BF-003, BF-015, BF-019, BF-020 trên `pos-app` chuyển sang cần kiểm chứng lại |
+| 02–04/11/2026 | Làm Upgrade 05, 04, 01-A, 02, 03 và phần lớn Coming Soon | Xem [báo cáo nghiệm thu](../report-after-upgrade/frontend-coming-soon-va-upgrade.md) |
+| 04–06/11/2026 | Ghi thêm BF-021..027 khi nghiệm thu và đối chiếu code với ma trận RBAC, cách deploy | Unit test 221/221 PASS (06/11/2026); 7 lỗi mới chưa sửa |
+| 06/11/2026 | Rà soát lại Clean Architecture sau Upgrade 06, ghi BF-028..035 và kế hoạch 4 đợt ([CHECKLIST mục E](./CHECKLIST.md#e-kế-hoạch-hoàn-thiện-clean-architecture-bf-028035)) | Chưa sửa code |
+| 11/11/2026 | Kiểm chứng lại BF-003, BF-015, BF-019 trên `pos-app` sau khi gộp POS (08/11) | `npm test --prefix src/frontend/pos-app` 89/89 PASS. BF-003, BF-015 đóng; BF-019 còn thiếu test riêng |
 
-* **Bộ kiểm tra chuyên sâu 20 lỗi (`scratch/test_bugfix_after_verification.cjs`)**: **20/20 kịch bản PASS**.
-* **Bộ kiểm tra hồi quy Frontend (`scratch/test_regression_v12.cjs`)**: **13/13 tests PASS**.
-* **Bộ kiểm tra đơn vị Backend C# (`src/backend/tests/OISM.UnitTests`)**: **158/158 tests PASS**.
-* **Biên dịch Production**:
-  * `src/frontend/admin-dashboard`: `tsc -b && vite build` ➔ **Thành công (0 lỗi)**.
-  * `src/frontend/pos-app`: `tsc -b && vite build` ➔ **Thành công (0 lỗi)**.
-  * `src/backend/OISM.sln`: `dotnet build` ➔ **Thành công (0 cảnh báo, 0 lỗi)**.
+Các file cũ (`Report Bugfix/BUG-LIST.md`, `report result affter fix.md`, `TEST-RESULTS.md`, `Comming Soon function/COMING-SOON.md`, `SPRINT-3-RELEASE.md`, `CHECKLIST-BUGFIX-AND-UPGRADE.md`) đã được gộp vào `errors/`, `CHECKLIST.md` và bảng trên ngày 06/11/2026; bản gốc còn trong lịch sử git.
 
-> [!NOTE]
-> **Về thư mục `evidence/` cũ**: Thư mục tạm `evidence/` chứa các tệp log `.trx` và `.log` nặng (~10 MB) từ đợt chạy audit ban đầu đã được dọn dẹp để tinh gọn repository. Toàn bộ bằng chứng nghiệm thu, diff code và kịch bản kiểm thử tự động đã được tổng hợp đầy đủ tại [Report Bugfix/report result affter fix.md](Report%20Bugfix/report%20result%20affter%20fix.md).
+## Bằng chứng
+
+- `evidence/release-integration/`: log build và test POS lúc tích hợp Sprint 3.
+- `evidence/probe-results.partial.json`: kết quả probe một phần của đợt rà soát.
+- Log `.trx` và ảnh của đợt 28–29/10 đã được dọn khỏi repo; tên file vẫn ghi trong từng lỗi.
+- Script probe và regression nằm trong `scratch/` (không có trong git).
+
+## Liên quan
+
+- [Ma trận RBAC và bảng lệch với code](../01-users-and-rbac/02-rbac-matrix.md)
+- [Hiện trạng triển khai theo yêu cầu chức năng](../02-functional-requirements/README.md)
+- [Upgrade-recommended](../Upgrade-recommended/README.md) · [report-after-upgrade](../report-after-upgrade/frontend-coming-soon-va-upgrade.md)
+- [Checklist tổng dự án](../../checklist.md)

@@ -3,13 +3,13 @@
 ## Bàn giao kết nối Docker–database — 16/10/2026
 
 - PostgreSQL đã chạy healthy trong Docker; backend kết nối thành công bằng tài khoản runtime `oisms_app` qua `postgres:5432`.
-- Endpoint `http://localhost:5000/health/ready` trả **200 Healthy**, xác nhận đủ **43 bảng**, không thiếu bảng trong danh sách kiểm tra và trigger bảo vệ ledger đang bật.
+- Endpoint `http://localhost:5000/health/ready` trả **200 Healthy**, xác nhận đủ **44 bảng**, không thiếu bảng trong danh sách kiểm tra và trigger bảo vệ ledger đang bật.
 - Khi phát triển local, công cụ quản lý database kết nối `localhost:5432` (hoặc cổng host đã cấu hình); thông tin đăng nhập lấy từ `.env`, không đưa mật khẩu vào Git. Không copy đè `.env.example` lên `.env` mỗi lần khởi động.
 - Có thể bàn giao nền tảng kết nối để Khoa/TV2 triển khai Entity/DbContext, tenant filter và API. Kết quả readiness không thay kiểm thử nghiệp vụ WAC/nhập/xuất/giữ chỗ; việc giữ dữ liệu sau restart vẫn cần xác minh bằng bản ghi thử.
 
 Kiểm tra lại kết nối: `Invoke-RestMethod http://localhost:5000/health/ready`.
 
-Tài liệu chuẩn chung cho Khoa (Backend 1), TV2 (Backend 2) và các thành viên tích hợp. PostgreSQL 16+, **43 bảng nghiệp vụ** (bản bàn giao gốc v0.5 có 29 bảng, 94 khóa ngoại, 86 CHECK; Sprint 3 thêm `shop_integrations`, Upgrade 05 thêm `units`, `sku_units`, `sku_unit_factor_history`, Upgrade 04 thêm `price_lists`, `price_change_requests`, `price_change_request_items`, `sku_unit_prices`, Upgrade 01-A thêm `purchase_orders`, `purchase_order_items`, Upgrade 02 thêm `sales_invoices`, Upgrade 03 thêm `stock_count_schedules`, `stock_count_periods`, `stock_count_approvals`), cùng UNIQUE/index và trigger. Việc gom file không thay đổi mô hình nghiệp vụ v0.5.
+Tài liệu chuẩn chung cho Khoa (Backend 1), TV2 (Backend 2) và các thành viên tích hợp. PostgreSQL 16+, **44 bảng nghiệp vụ** (bản bàn giao gốc v0.5 có 29 bảng, 94 khóa ngoại, 86 CHECK; Sprint 3 thêm `shop_integrations`, Upgrade 05 thêm `units`, `sku_units`, `sku_unit_factor_history`, Upgrade 04 thêm `price_lists`, `price_change_requests`, `price_change_request_items`, `sku_unit_prices`, Upgrade 01-A thêm `purchase_orders`, `purchase_order_items`, Upgrade 02 thêm `sales_invoices`, Upgrade 03 thêm `stock_count_schedules`, `stock_count_periods`, `stock_count_approvals`, CS-05 thêm `payment_accounts`), cùng UNIQUE/index và trigger. Việc gom file không thay đổi mô hình nghiệp vụ v0.5.
 
 ## Bộ file bàn giao
 
@@ -64,7 +64,7 @@ foreach ($f in Get-ChildItem docker/postgres/migrations/*.sql | Sort-Object Name
 docker compose up -d --build
 ```
 
-File `oisms_backup.dump` chứa dữ liệu thật, không commit lên Git. Nâng cấp xong, `/health/ready` phải trả 200 với `tablesCount: 43`. Gặp lỗi thì dừng lại và báo nhóm; mỗi file chạy trong một giao dịch nên file lỗi tự hoàn tác phần của nó, các file đã chạy xong trước đó vẫn giữ nguyên.
+File `oisms_backup.dump` chứa dữ liệu thật, không commit lên Git. Nâng cấp xong, `/health/ready` phải trả 200 với `tablesCount: 44`. Gặp lỗi thì dừng lại và báo nhóm; mỗi file chạy trong một giao dịch nên file lỗi tự hoàn tác phần của nó, các file đã chạy xong trước đó vẫn giữ nguyên.
 
 Khôi phục từ backup khi cần (xóa dữ liệu hiện tại của database `oisms`):
 
@@ -150,7 +150,7 @@ Cơ chế khởi tạo tự động hoạt động dựa trên cơ chế entrypo
 1. Khi volume `postgres_data` còn trống, PostgreSQL chạy script initdb.
 2. Script phát hiện database `oisms` đã được tạo sẵn qua biến `POSTGRES_DB=oisms`.
 3. Script xử lý việc file `oisms_schema.sql` có chứa `CREATE DATABASE oisms` và `\connect oisms` bằng cách bóc tách an toàn phần cài đặt DDL từ `-- OISMS_SCHEMA_BEGIN`, rồi thực thi trực tiếp vào database `oisms`.
-4. Nếu bảng nghiệp vụ đã tồn tại (≥33 bảng), script bỏ qua DDL để bảo toàn dữ liệu. Nếu phát hiện số bảng thấp hơn (1-32 bảng, kể cả database Sprint 3 có 30 bảng chưa nâng cấp), script cảnh báo dữ liệu hiện có và yêu cầu migration chứ không tự ý ghi đè hay xóa bảng.
+4. Nếu bảng nghiệp vụ đã tồn tại (≥44 bảng), script bỏ qua DDL để bảo toàn dữ liệu. Nếu phát hiện số bảng thấp hơn (1-43 bảng, tức database cũ chưa nâng cấp), script báo lỗi, yêu cầu chạy migration và không tự ý ghi đè hay xóa bảng. Cuối script kiểm tra đủ 44 bảng có tên trong danh sách và đúng 1 trigger `ledger_append_only` đang bật.
 5. Tạo nhóm quyền `oisms_runtime` (NOLOGIN), sau đó cấu hình tài khoản runtime backend `oisms_app`:
    - Sử dụng cơ chế truyền biến `\getenv` của psql và hàm `format('%I', ...)` / `format('%L', ...)` trong khối PL/pgSQL; tuyệt đối **không nội suy chuỗi SQL**.
    - Hỗ trợ mật khẩu có dấu nháy và ký tự đặc biệt, không bao giờ in mật khẩu ra log.
@@ -215,7 +215,7 @@ Kiểm tra trạng thái sẵn sàng của Backend qua Readiness Endpoint:
 ```powershell
 curl http://localhost:5000/health/ready
 ```
-Endpoint `/health/ready` thực hiện mở kết nối PostgreSQL bằng tài khoản runtime `oisms_app`, kiểm tra đủ 33 bảng, trigger bất biến sổ cái và quyền hạn trước khi trả về HTTP 200 `Healthy` (trả về HTTP 503 `Unhealthy` nếu thất bại, không để lộ connection string hoặc mật khẩu).
+Endpoint `/health/ready` thực hiện mở kết nối PostgreSQL bằng tài khoản runtime `oisms_app`, kiểm tra đủ 44 bảng (`DatabaseMigrationService.RequiredTables` trong Infrastructure), trigger bất biến sổ cái và quyền hạn trước khi trả về HTTP 200 `Healthy` (trả về HTTP 503 `Unhealthy` nếu thất bại, không để lộ connection string hoặc mật khẩu).
 
 ### Xem log cơ sở dữ liệu
 
@@ -248,15 +248,15 @@ Hệ thống đã trải qua quy trình kiểm chứng tự động toàn diện
 Endpoint `GET /health/ready` thực hiện kiểm tra sâu thực tế:
 - Mở kết nối thật tới CSDL bằng tài khoản runtime `oisms_app` (timeout 5s).
 - Kiểm tra tài khoản kết nối không có đặc quyền quản trị trực tiếp hoặc thừa hưởng, không sở hữu schema/bảng (trả về HTTP 503 `Degraded` nếu vi phạm).
-- Xác minh đầy đủ 33/33 bảng nghiệp vụ trong schema `public` (trả về HTTP 503 `Unhealthy` nếu thiếu bảng).
+- Xác minh đầy đủ 44/44 bảng nghiệp vụ trong schema `public` (trả về HTTP 503 `Unhealthy` nếu thiếu bảng).
 - Xác minh trigger `ledger_append_only` đang kích hoạt (`tgenabled IN ('O', 'A')`) trên `public.inventory_transactions`.
 - Bảo mật: Tuyệt đối không để lộ chuỗi kết nối hoặc mật khẩu ra HTTP response khi xảy ra lỗi.
 
-#### 4. Tổng hợp số liệu kiểm thử thực tế
+#### 4. Tổng hợp số liệu kiểm thử thực tế (mốc 16/10/2026, khi schema còn 29 bảng)
 | Phạm vi kiểm thử | Công cụ / Môi trường | Số test | Kết quả | Chi tiết kiểm chứng |
 | :--- | :--- | :--- | :--- | :--- |
 | **CSDL & Provisioning** | `scripts/test-database-schema.cjs` (PostgreSQL 16 PGlite) | 26 / 26 | **PASS (100%)** | 29 bảng, 94 FK, 86 CHECK, chống UPDATE/DELETE sổ cái, cân bằng tồn kho, mật khẩu ký tự đặc biệt, chặn quyền admin/thừa hưởng role |
-| **Backend Integration** | `src/backend/tests/OISM.IntegrationTests` (xUnit, .NET 8) | 11 / 11 | **PASS (100%)** | Dựng chuỗi kết nối với mật khẩu chấm phẩy/nháy kép, fallback default, endpoint liveness, timeout readiness, missing tables, trigger status, admin rejection |
+| **Backend Integration** | `src/backend/tests/OISM.IntegrationTests` (xUnit, .NET 8; nay ở `test-oisms/backend/OISM.IntegrationTests`) | 11 / 11 | **PASS (100%)** | Dựng chuỗi kết nối với mật khẩu chấm phẩy/nháy kép, fallback default, endpoint liveness, timeout readiness, missing tables, trigger status, admin rejection |
 | **Toàn bộ dự án** | `scripts/build-all.ps1` (PowerShell) | 4 công đoạn | **PASS (100%)** | Backend build (0 warn, 0 error), Unit & Integration tests, Admin Dashboard build, POS App build |
 
 > [!NOTE]
@@ -277,13 +277,24 @@ Khi container khởi động lại hoặc khi volume `postgres_data` đã tồn 
    docker compose exec postgres pg_dump -U postgres -d oisms -F c -b -v -f /var/lib/postgresql/data/backup_pre_migration.dump
    ```
 2. **Soạn script migration tăng dần (Incremental SQL):**
-   Không chạy lại toàn bộ `oisms_schema.sql`. Tạo file SQL migration tăng dần trong `docker/postgres/migrations/` chứa các lệnh `ALTER TABLE`, `CREATE INDEX`, v.v. Bản hiện có: `20261027_sprint3.sql`, `20261102_multi_unit.sql` (Upgrade 05, chạy lại an toàn; backfill `unit_id`, không sửa ledger).
+   Không chạy lại toàn bộ `oisms_schema.sql`. Tạo file SQL migration tăng dần trong `docker/postgres/migrations/` chứa các lệnh `ALTER TABLE`, `CREATE INDEX`, v.v. Bản hiện có, chạy theo thứ tự tên file:
+
+   | File | Nội dung |
+   | :--- | :--- |
+   | `20261027_sprint3.sql` | Sprint 2 → 3: idempotency, liên kết kiểm kê–điều chỉnh, `shop_integrations` |
+   | `20261102_multi_unit.sql` | Upgrade 05: `units`, `sku_units`, `sku_unit_factor_history`, backfill `unit_id` |
+   | `20261102_price_lists.sql` | Upgrade 04: `price_lists`, `price_change_requests(_items)`, `sku_unit_prices` |
+   | `20261102_purchase_orders.sql` | Upgrade 01-A: `purchase_orders`, `purchase_order_items` |
+   | `20261103_sales_invoices.sql` | Upgrade 02: `sales_invoices` |
+   | `20261103_stock_count_schedules.sql` | Upgrade 03: `stock_count_schedules`, `stock_count_periods`, `stock_count_approvals` |
+
+   Các file được viết để chạy lại an toàn; mỗi khối nằm trong transaction.
 3. **Thực thi script bằng tài khoản quản trị `postgres`:**
    ```powershell
    docker compose exec -i postgres psql -U postgres -d oisms -f /path/to/migration.sql
    ```
-4. **Nếu sử dụng EF Core Migration:**
-   Cấu hình connection string migration với tài khoản `postgres` (hoặc tài khoản DBA có quyền DDL) để thực thi `dotnet ef database update`.
+4. **Không dùng EF Core migrations.** Dự án không có thư mục `Migrations` và backend không tự nâng cấp schema (`DatabaseMigrationService` chỉ được integration test gọi để kiểm tra nâng cấp chạy lại an toàn, không chạy lúc khởi động). Mỗi thay đổi schema gồm: file mới trong `docker/postgres/migrations/` (không sửa file cũ), cập nhật `oisms_schema.sql`, thêm bảng vào `DatabaseMigrationService.RequiredTables` trong Infrastructure, sửa số bảng kiểm tra trong `docker/postgres/init-oisms.sh`.
+5. **Trên máy chủ AWS:** xem [13-deploy-aws/04](../13-deploy-aws/04-quy-trinh-deploy-va-cap-nhat.md#33-có-migration).
 
 ## Quy ước tên và dữ liệu
 
@@ -423,13 +434,13 @@ Test cần `@electric-sql/pglite`; đặt `OISMS_TEST_MODULES` trỏ đến thư
 
 ## Quản lý thay đổi và bàn giao giữa hai backend
 
-- SQL này là baseline cài mới. Khi đưa vào EF Core migration, phải mang theo function/trigger/index/quyền, không chỉ generate entity rồi coi tương đương.
+- SQL này là baseline cài mới. Dự án không dùng EF Core migration; nếu sau này chuyển sang, phải mang theo function/trigger/index/quyền, không chỉ generate entity rồi coi tương đương.
 - Thay đổi cấu trúc sửa file SQL bàn giao và phần tương ứng trong README, review cùng nhau; nếu database đã triển khai thì tạo migration riêng có chuyển dữ liệu rõ ràng. Không sửa migration đã chạy trên môi trường chung.
 - Một người phụ trách migration tại một thời điểm; người còn lại cập nhật sau khi merge. Không chỉnh tay DB cá nhân rồi quên cập nhật nguồn.
 - Entity, DTO, Swagger và frontend phải thống nhất kiểu, nullable, enum và phạm vi tenant/branch/warehouse.
 - Danh mục có is_active; chứng từ đã ghi ledger phải bảo toàn lịch sử. Các điều kiện nguồn chứng từ đúng SKU/kho/lượng, trả không vượt bán và chống sửa chứng từ đã ghi kho vẫn phải được kiểm tra trong service.
 - Không tự chọn chính sách hủy sau Confirmed/Completed, nhận chuyển thiếu/từng phần hoặc split payment. Hiện một payment/đơn, chuyển hai bước cơ bản.
-- Không thêm bảng dự phòng; thay đổi dựa trên yêu cầu rõ ràng. Hangfire có thể tạo các bảng kỹ thuật riêng khi tích hợp, ngoài 29 bảng nghiệp vụ.
+- Không thêm bảng dự phòng; thay đổi dựa trên yêu cầu rõ ràng. Hangfire tạo bảng kỹ thuật riêng trong schema `hangfire` khi bật, ngoài 44 bảng nghiệp vụ. Schema này do `init-oisms.sh` (volume mới) hoặc migration `20261108_hangfire_schema.sql` (DB đã có dữ liệu) tạo, thuộc `postgres`; `oisms_runtime` chỉ có `USAGE, CREATE` trên schema đó.
 
 ## Index và bằng chứng kiểm thử
 
@@ -1160,6 +1171,8 @@ Một khoản thanh toán/đơn; retry cập nhật cùng bản ghi, không tạ
 - `(status = 'Succeeded') = (paid_at IS NOT NULL)`.
 - `(method = 'Cash' AND (status <> 'Succeeded' OR cash_received IS NOT NULL) AND (cash_received IS NULL OR cash_received >= amount)) OR (method = 'BankTransfer' AND cash_received IS NULL)`.
 
+**Cột CS-05 (migration `20261106_payment_accounts.sql`):** `transfer_reference varchar(100)`, `receiver_bank_bin varchar(6)`, `receiver_account_number varchar(20)`, `receiver_account_name varchar(255)`, `payment_account_id uuid`, đều NULL được. Là bản chụp người nhận lúc checkout chuyển khoản. CHECK `ck_payments_bank_transfer_snapshot`: chỉ đơn `BankTransfer` mới có giá trị. FK `(tenant_id, payment_account_id)` → `payment_accounts(tenant_id, id)` `ON DELETE RESTRICT`.
+
 ### 25. `sales_returns`
 
 Nguồn giao dịch trả hàng cho ledger theo FR-INV-01; chi tiết quy trình hoàn tiền là thiết kế hỗ trợ, không phải yêu cầu nguyên văn.
@@ -1551,6 +1564,31 @@ Nhật ký xét duyệt đợt kiểm kê, bảng chỉ thêm (append-only, OISM
 **INDEX:** `ix_stock_count_approvals_count (tenant_id, stock_count_id, created_at)`.
 **CHECK:** `ck_stock_count_approvals_action`.
 **Quan hệ FK:** `(tenant_id)` → `tenants(id)`; `(tenant_id, stock_count_id)` → `stock_counts(tenant_id, id)`; `(tenant_id, actor_user_id)` → `users(tenant_id, id)`.
+
+### 44. `payment_accounts`
+
+Tài khoản ngân hàng nhận tiền VietQR của cửa hàng (CS-05), dùng chung cho mọi chi nhánh; một cửa hàng có thể có nhiều tài khoản, tối đa một tài khoản mặc định đang dùng. Không xóa cứng, chỉ ngừng dùng.
+
+| Cột | Kiểu PostgreSQL | Bắt buộc | Mặc định / cách ghi |
+|---|---|---|---|
+| `id` (PK) | `uuid` | Có | `gen_random_uuid()` |
+| `tenant_id` | `uuid` | Có | Lấy từ JWT |
+| `bank_bin` | `varchar(6)` | Có | BIN NAPAS, không đổi sau khi tạo |
+| `bank_name` | `varchar(255)` | Có | Tên ngân hàng (lấy từ `api.vietqr.io/v2/banks` lúc Owner thêm) |
+| `bank_short_name` | `varchar(50)` | Có | Tên viết tắt, viết hoa |
+| `account_number` | `varchar(20)` | Có | Không đổi sau khi tạo |
+| `account_name` | `varchar(255)` | Có | Tên chủ tài khoản, viết hoa |
+| `is_default` | `boolean` | Có | `false` |
+| `is_active` | `boolean` | Có | `true` |
+| `created_at` | `timestamptz` | Có | `now()` |
+| `updated_at` | `timestamptz` | Không | Backend ghi khi sửa |
+| `updated_by_user_id` | `uuid` | Không | Owner thao tác gần nhất |
+
+**UNIQUE:** `(tenant_id, id)`; `(tenant_id, bank_bin, account_number)`; index lọc `uq_payment_accounts_tenant_default_active (tenant_id) WHERE is_default AND is_active`.
+
+**Quan hệ FK:** `(tenant_id)` → `tenants(id)` `RESTRICT`; `(tenant_id, updated_by_user_id)` → `users(tenant_id, id)` `ON DELETE SET NULL (updated_by_user_id)`.
+
+**CHECK:** `bank_bin ~ '^[0-9]{6}$'`; `account_number ~ '^[A-Za-z0-9]{6,19}$'`.
 
 ### Cột Upgrade 03 trên bảng có sẵn
 - `stock_counts.count_type varchar(20) NOT NULL DEFAULT 'AdHoc'`

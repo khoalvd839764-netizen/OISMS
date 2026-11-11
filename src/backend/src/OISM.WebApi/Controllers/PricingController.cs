@@ -1,9 +1,8 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using OISM.Application.Common.Exceptions;
 using OISM.Application.Features.Pricing.Dtos;
 using OISM.Application.Features.Pricing.Services;
+using OISM.WebApi.Http;
 
 namespace OISM.WebApi.Controllers;
 
@@ -41,6 +40,7 @@ public class PricingController : ControllerBase
     /// </summary>
     [HttpPost("api/price-change-requests")]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.Pricing)]
     public async Task<IActionResult> CreatePriceChangeRequest(
         [FromBody] CreatePriceChangeRequest dto,
         [FromHeader(Name = "Idempotency-Key")] string? idempotencyKeyHeader,
@@ -49,38 +49,31 @@ public class PricingController : ControllerBase
     {
         if (dto == null)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Dữ liệu yêu cầu không được để trống.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.Pricing, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Dữ liệu yêu cầu không được để trống.");
         }
 
         var rawHeader = !string.IsNullOrWhiteSpace(idempotencyKeyHeader) ? idempotencyKeyHeader : xRequestKeyHeader;
         if (string.IsNullOrWhiteSpace(rawHeader))
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Bắt buộc cung cấp Idempotency-Key hoặc X-Request-Key header.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.Pricing, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Bắt buộc cung cấp Idempotency-Key hoặc X-Request-Key header.");
         }
 
         if (!Guid.TryParse(rawHeader.Trim(), out var requestKey) || requestKey == Guid.Empty)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Giá trị Idempotency-Key header không phải là GUID hợp lệ.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.Pricing, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Giá trị Idempotency-Key header không phải là GUID hợp lệ.");
         }
 
-        try
+        var userId = User.GetUserId();
+        var isOwner = User.IsInRole("Owner");
+        var actor = new PriceActor(userId, isOwner);
+
+        var result = await _priceChangeService.CreateAsync(dto, requestKey, actor, ct);
+        if (result.IsReplay)
         {
-            var userId = GetCurrentUserId();
-            var isOwner = User.IsInRole("Owner");
-            var actor = new PriceActor(userId, isOwner);
-
-            var result = await _priceChangeService.CreateAsync(dto, requestKey, actor, ct);
-            if (result.IsReplay)
-            {
-                return Ok(result);
-            }
-
-            return StatusCode(StatusCodes.Status201Created, result);
+            return Ok(result);
         }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
-        }
+
+        return StatusCode(StatusCodes.Status201Created, result);
     }
 
     /// <summary>
@@ -113,13 +106,13 @@ public class PricingController : ControllerBase
     {
         if (id == Guid.Empty)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã phiếu không được để trống.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.Pricing, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã phiếu không được để trống.");
         }
 
         var request = await _priceQueryService.GetRequestByIdAsync(id, ct);
         if (request == null)
         {
-            return CreateProblemResult("NOT_FOUND", "Không tìm thấy dữ liệu", StatusCodes.Status404NotFound, $"Không tìm thấy phiếu đổi giá với ID '{id}'.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.Pricing, "NOT_FOUND", "Không tìm thấy dữ liệu", StatusCodes.Status404NotFound, $"Không tìm thấy phiếu đổi giá với ID '{id}'.");
         }
 
         return Ok(request);
@@ -130,23 +123,17 @@ public class PricingController : ControllerBase
     /// </summary>
     [HttpPost("api/price-change-requests/{id:guid}/approve")]
     [Authorize(Roles = "Owner")]
+    [ApiErrorContract(ApiErrorProfile.Pricing)]
     public async Task<IActionResult> ApprovePriceChangeRequest(Guid id, CancellationToken ct)
     {
         if (id == Guid.Empty)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã phiếu không được để trống.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.Pricing, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã phiếu không được để trống.");
         }
 
-        try
-        {
-            var reviewerId = GetCurrentUserId();
-            var result = await _priceChangeService.ApproveAsync(id, reviewerId, ct);
-            return Ok(result);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
-        }
+        var reviewerId = User.GetUserId();
+        var result = await _priceChangeService.ApproveAsync(id, reviewerId, ct);
+        return Ok(result);
     }
 
     /// <summary>
@@ -154,6 +141,7 @@ public class PricingController : ControllerBase
     /// </summary>
     [HttpPost("api/price-change-requests/{id:guid}/reject")]
     [Authorize(Roles = "Owner")]
+    [ApiErrorContract(ApiErrorProfile.Pricing)]
     public async Task<IActionResult> RejectPriceChangeRequest(
         Guid id,
         [FromBody] RejectPriceChangeRequestDto? dto,
@@ -161,19 +149,12 @@ public class PricingController : ControllerBase
     {
         if (id == Guid.Empty)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã phiếu không được để trống.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.Pricing, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã phiếu không được để trống.");
         }
 
-        try
-        {
-            var reviewerId = GetCurrentUserId();
-            var result = await _priceChangeService.RejectAsync(id, dto?.Note ?? string.Empty, reviewerId, ct);
-            return Ok(result);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
-        }
+        var reviewerId = User.GetUserId();
+        var result = await _priceChangeService.RejectAsync(id, dto?.Note ?? string.Empty, reviewerId, ct);
+        return Ok(result);
     }
 
     /// <summary>
@@ -181,6 +162,7 @@ public class PricingController : ControllerBase
     /// </summary>
     [HttpPost("api/sku-unit-prices/{id:guid}/cancel")]
     [Authorize(Roles = "Owner")]
+    [ApiErrorContract(ApiErrorProfile.Pricing)]
     public async Task<IActionResult> CancelScheduledPrice(
         Guid id,
         [FromBody] CancelSkuUnitPriceRequestDto? dto,
@@ -188,19 +170,12 @@ public class PricingController : ControllerBase
     {
         if (id == Guid.Empty)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã dòng giá không được để trống.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.Pricing, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã dòng giá không được để trống.");
         }
 
-        try
-        {
-            var userId = GetCurrentUserId();
-            await _priceChangeService.CancelScheduledPriceAsync(id, dto?.Reason ?? string.Empty, userId, ct);
-            return Ok(new { message = "Hủy giá đã lên lịch thành công." });
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
-        }
+        var userId = User.GetUserId();
+        await _priceChangeService.CancelScheduledPriceAsync(id, dto?.Reason ?? string.Empty, userId, ct);
+        return Ok(new { message = "Hủy giá đã lên lịch thành công." });
     }
 
     /// <summary>
@@ -216,13 +191,13 @@ public class PricingController : ControllerBase
     {
         if (skuId == Guid.Empty)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã SKU không được để trống.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.Pricing, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã SKU không được để trống.");
         }
 
         // Cashier chỉ được dùng at trống (mặc định thời điểm hiện tại)
         if (User.IsInRole("Cashier") && !User.IsInRole("Owner") && !User.IsInRole("Staff") && at.HasValue)
         {
-            return CreateProblemResult("FORBIDDEN_ACCESS", "Không có quyền truy cập", StatusCodes.Status403Forbidden, "Thu ngân chỉ được tra cứu giá tại thời điểm hiện tại.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.Pricing, "FORBIDDEN_ACCESS", "Không có quyền truy cập", StatusCodes.Status403Forbidden, "Thu ngân chỉ được tra cứu giá tại thời điểm hiện tại.");
         }
 
         var result = await _priceQueryService.GetEffectivePriceAsync(skuId, priceListCode, at, ct);
@@ -242,51 +217,10 @@ public class PricingController : ControllerBase
     {
         if (skuId == Guid.Empty)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã SKU không được để trống.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.Pricing, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã SKU không được để trống.");
         }
 
         var result = await _priceQueryService.GetPriceHistoryAsync(skuId, unitId, priceListCode, ct);
         return Ok(result);
     }
-
-    private Guid? GetCurrentUserId()
-    {
-        var claim = User.FindFirst("userId")?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        return Guid.TryParse(claim, out var userId) ? userId : null;
-    }
-
-    private ObjectResult CreateProblemResult(string errorCode, string title, int statusCode, string detail)
-    {
-        var problem = new ProblemDetails
-        {
-            Type = $"https://oisms.local/errors/{errorCode}",
-            Title = title,
-            Status = statusCode,
-            Detail = detail,
-            Instance = HttpContext.Request.Path,
-            Extensions =
-            {
-                ["errorCode"] = errorCode,
-                ["timestamp"] = DateTimeOffset.UtcNow
-            }
-        };
-        return StatusCode(statusCode, problem);
-    }
-
-    private static string GetTitleForErrorCode(string errorCode) => errorCode switch
-    {
-        "PRICE_VALID_FROM_IN_PAST" => "Mốc thời gian hiệu lực ở quá khứ",
-        "PRICE_VALID_FROM_CONFLICT" => "Trùng mốc thời gian hiệu lực",
-        "PRICE_ALREADY_EFFECTIVE" => "Giá đã có hiệu lực",
-        "PRICE_LIST_NOT_FOUND" => "Bảng giá không tồn tại",
-        "DIRECT_PRICE_UPDATE_NOT_ALLOWED" => "Cấm cập nhật giá trực tiếp",
-        "IDEMPOTENCY_PAYLOAD_MISMATCH" => "Xung đột khóa Idempotency",
-        "INVALID_STATE_TRANSITION" => "Chuyển trạng thái không hợp lệ",
-        "UNIT_NOT_ALLOWED" => "Đơn vị không được phép",
-        "VALIDATION_ERROR" => "Lỗi xác thực dữ liệu",
-        "NOT_FOUND" => "Không tìm thấy dữ liệu",
-        "FORBIDDEN_ACCESS" => "Không có quyền truy cập",
-        "UNAUTHORIZED" => "Chưa xác thực",
-        _ => "Lỗi xử lý nghiệp vụ"
-    };
 }

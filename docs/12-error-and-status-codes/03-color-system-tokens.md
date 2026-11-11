@@ -6,7 +6,7 @@
 | **Phiên bản (Version)** | `v1.0.0` |
 | **Ngày hiệu lực** | `2026-10-25` |
 | **Tiêu chuẩn tuân thủ** | `WCAG 2.1 AA (Contrast Ratio >= 4.5:1)`, Tailwind CSS v4 |
-| **Source code áp dụng** | [`src/frontend/admin-dashboard/src/index.css`](file:///d:/OISMS/src/frontend/admin-dashboard/src/index.css), [`src/frontend/pos-app/src/index.css`](file:///d:/OISMS/src/frontend/pos-app/src/index.css) |
+| **Source code áp dụng** | [`src/frontend/admin-dashboard/src/index.css`](../../src/frontend/admin-dashboard/src/index.css), [`src/frontend/pos-app/src/index.css`](../../src/frontend/pos-app/src/index.css) |
 
 ---
 
@@ -36,7 +36,7 @@ Mỗi cấp độ bao gồm 4 biến thể phối hợp:
 
 ## 3. Khai Báo Biến CSS Chuẩn Dự Án
 
-Được khai báo tại `:root` trong [`src/frontend/admin-dashboard/src/index.css`](file:///d:/OISMS/src/frontend/admin-dashboard/src/index.css):
+Được khai báo tại `:root` trong [`src/frontend/admin-dashboard/src/index.css`](../../src/frontend/admin-dashboard/src/index.css):
 
 ```css
 :root {

@@ -35,6 +35,11 @@ services:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     networks:
       - oism_network
 
@@ -68,6 +73,23 @@ services:
       Database__Database: ${POSTGRES_DB:-oisms}
       Database__Username: ${OISMS_APP_USER:-oisms_app}
       Database__Password: "${OISMS_APP_PASSWORD:?Error: OISMS_APP_PASSWORD must be set in .env}"
+      # Job nền (hết hạn giữ chỗ, sinh kỳ kiểm kê). Trước khi bật trên DB đã có dữ liệu phải chạy
+      # docker/postgres/migrations/20261108_hangfire_schema.sql; Hangfire dùng chung kết nối Database__*.
+      Hangfire__Enabled: ${HANGFIRE_ENABLED:-false}
+      Hangfire__WorkerCount: ${HANGFIRE_WORKER_COUNT:-2}
+      Ai__Enabled: ${AI_ENABLED:-false}
+      Ai__BaseUrl: ${AI_BASE_URL:-https://api.groq.com/openai/v1}
+      Ai__Model: ${AI_MODEL:-openai/gpt-oss-120b}
+      Ai__ApiKey: ${AI_API_KEY:-}
+      Ai__Label: ${AI_LABEL:-Groq · GPT-OSS 120B}
+      Ai__DefaultProvider: ${AI_DEFAULT_PROVIDER:-groq}
+      Ai__Providers__gemini__Label: ${AI_GEMINI_LABEL:-Google Gemini 3.5 Flash}
+      Ai__Providers__gemini__BaseUrl: ${AI_GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
+      Ai__Providers__gemini__Model: ${AI_GEMINI_MODEL:-gemini-3.5-flash}
+      Ai__Providers__gemini__ApiKey: ${AI_GEMINI_API_KEY:-}
+      Ai__Providers__gemini__TimeoutSeconds: ${AI_GEMINI_TIMEOUT_SECONDS:-60}
+      Ai__TimeoutSeconds: ${AI_TIMEOUT_SECONDS:-30}
+      Ai__MaxTokens: ${AI_MAX_TOKENS:-1024}
     ports:
       - "${BACKEND_PORT:-5000}:8080"
     depends_on:
@@ -83,6 +105,9 @@ services:
     build:
       context: ./src/frontend/admin-dashboard
       dockerfile: Dockerfile
+      args:
+        VITE_SIMULATOR_URL: "http://localhost:${SIM_PORT:-5175}"
+        VITE_POS_URL: "http://localhost:${POS_PORT:-5174}"
     container_name: oism_admin_dashboard
     restart: always
     ports:
@@ -97,10 +122,28 @@ services:
     build:
       context: ./src/frontend/pos-app
       dockerfile: Dockerfile
+      args:
+        VITE_ADMIN_URL: "http://localhost:${ADMIN_PORT:-5173}"
     container_name: oism_pos_app
     restart: always
     ports:
       - "${POS_PORT:-5174}:80"
+    depends_on:
+      - backend
+    networks:
+      - oism_network
+
+  # Giao diện giả lập bắn đơn sàn qua webhook
+  marketplace-simulator:
+    build:
+      context: ./src/frontend/marketplace-simulator
+      dockerfile: Dockerfile
+      args:
+        VITE_ADMIN_URL: "http://localhost:${ADMIN_PORT:-5173}"
+    container_name: oism_marketplace_simulator
+    restart: always
+    ports:
+      - "${SIM_PORT:-5175}:80"
     depends_on:
       - backend
     networks:

@@ -319,6 +319,63 @@ public class SalesInvoiceService : ISalesInvoiceService
                 .ToList();
         }
 
+        var salesReturns = await _context.SalesReturns
+            .AsNoTracking()
+            .Include(r => r.Confirmer)
+            .Include(r => r.Items)
+                .ThenInclude(i => i.OrderItem)
+            .Where(r => r.TenantId == tenantId && r.OrderId == order.Id)
+            .OrderBy(r => r.CreatedAt)
+            .ToListAsync(ct);
+
+        if (salesReturns.Count > 0)
+        {
+            var allReturnItemIds = salesReturns.SelectMany(r => r.Items).Select(i => i.Id).ToList();
+            var returnTransactions = allReturnItemIds.Count > 0
+                ? await LedgerLines(tenantId)
+                    .Where(t => t.SalesReturnItemId.HasValue && allReturnItemIds.Contains(t.SalesReturnItemId.Value))
+                    .OrderBy(t => t.SequenceNo)
+                    .ToListAsync(ct)
+                : new List<InventoryTransaction>();
+
+            var returnItemMap = salesReturns
+                .SelectMany(r => r.Items)
+                .ToDictionary(i => i.Id);
+
+            var txByReturnItemId = returnTransactions
+                .GroupBy(t => t.SalesReturnItemId!.Value)
+                .ToDictionary(g => g.Key, g => g.ToList());
+
+            trace.SalesReturns = salesReturns.Select(r =>
+            {
+                var rLines = r.Items
+                    .SelectMany(i => txByReturnItemId.GetValueOrDefault(i.Id) ?? new List<InventoryTransaction>())
+                    .OrderBy(t => t.SequenceNo)
+                    .Select(t =>
+                    {
+                        var item = returnItemMap.GetValueOrDefault(t.SalesReturnItemId!.Value);
+                        return MapLine(t, item?.OrderItem, item?.Quantity);
+                    })
+                    .ToList();
+
+                return new DocumentTraceSalesReturnDto
+                {
+                    Id = r.Id,
+                    Number = r.Number,
+                    Status = r.Status,
+                    Reason = r.Reason,
+                    Note = r.Note,
+                    TotalRefundAmount = r.TotalRefundAmount,
+                    RefundMethod = r.RefundMethod,
+                    ConfirmedBy = r.ConfirmedBy,
+                    ConfirmedByName = r.Confirmer?.FullName,
+                    ConfirmedAt = r.ConfirmedAt,
+                    CreatedAt = r.CreatedAt,
+                    Lines = rLines
+                };
+            }).ToList();
+        }
+
         return trace;
     }
 
@@ -442,8 +499,19 @@ public class SalesInvoiceService : ISalesInvoiceService
             }
         }
 
-        // Trả hàng chưa có luồng (CS-01 bổ sung); dòng không rõ nguồn vẫn trả về thay vì báo lỗi.
-        return BuildTrace(ledger.SalesReturnItemId.HasValue ? "SalesReturn" : "Unknown", null, null, null, null, null, null, new[] { ledger });
+        if (ledger.SalesReturnItemId.HasValue)
+        {
+            var returnItem = await _context.SalesReturnItems
+                .AsNoTracking()
+                .FirstOrDefaultAsync(i => i.TenantId == tenantId && i.Id == ledger.SalesReturnItemId.Value, ct);
+
+            if (returnItem != null)
+            {
+                return await TraceByOrderIdAsync(returnItem.OrderId, ct);
+            }
+        }
+
+        return BuildTrace("Unknown", null, null, null, null, null, null, new[] { ledger });
     }
 
     private IQueryable<InventoryTransaction> LedgerLines(Guid tenantId) =>
@@ -477,7 +545,7 @@ public class SalesInvoiceService : ISalesInvoiceService
             Lines = lines.Select(t => MapLine(t)).ToList()
         };
 
-    private static DocumentTraceLineDto MapLine(InventoryTransaction t, OrderItem? orderItem = null) => new()
+    private static DocumentTraceLineDto MapLine(InventoryTransaction t, OrderItem? orderItem = null, decimal? itemQuantity = null) => new()
     {
         LedgerId = t.Id,
         Type = t.Type,
@@ -491,7 +559,8 @@ public class SalesInvoiceService : ISalesInvoiceService
         SequenceNo = t.SequenceNo,
         CreatedAt = t.CreatedAt,
         OrderItemId = t.OrderItemId,
+        SalesReturnItemId = t.SalesReturnItemId,
         UnitName = orderItem?.UnitNameSnapshot,
-        OrderItemQuantity = orderItem?.Quantity
+        OrderItemQuantity = itemQuantity ?? orderItem?.Quantity
     };
 }

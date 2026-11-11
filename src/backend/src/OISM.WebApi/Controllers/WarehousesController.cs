@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
 using OISM.Application.Features.Warehouses;
 using OISM.Application.Features.Warehouses.Services;
+using OISM.WebApi.Http;
 
 namespace OISM.WebApi.Controllers;
 
@@ -64,6 +64,7 @@ public class WarehousesController : ControllerBase
     /// </summary>
     [HttpPost]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.MessageBadRequest)]
     public async Task<IActionResult> CreateWarehouse([FromBody] CreateWarehouseRequest request, CancellationToken ct)
     {
         var validator = new CreateWarehouseValidator();
@@ -73,15 +74,8 @@ public class WarehousesController : ControllerBase
             return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
         }
 
-        try
-        {
-            var response = await _warehouseService.CreateWarehouseAsync(request, ct);
-            return StatusCode(201, response);
-        }
-        catch (OismException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        var response = await _warehouseService.CreateWarehouseAsync(request, ct);
+        return StatusCode(201, response);
     }
 
     /// <summary>
@@ -89,6 +83,7 @@ public class WarehousesController : ControllerBase
     /// </summary>
     [HttpPut("{id}")]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.WarehouseUpdate)]
     public async Task<IActionResult> UpdateWarehouse(Guid id, [FromBody] UpdateWarehouseRequest request, CancellationToken ct)
     {
         var validator = new UpdateWarehouseValidator();
@@ -98,25 +93,14 @@ public class WarehousesController : ControllerBase
             return BadRequest(new { errors = validationResult.Errors.Select(e => e.ErrorMessage) });
         }
 
-        try
+        var tenantId = GetCurrentTenantId();
+        var response = await _warehouseService.UpdateWarehouseAsync(id, request, tenantId, ct);
+        if (response == null)
         {
-            var tenantId = GetCurrentTenantId();
-            var response = await _warehouseService.UpdateWarehouseAsync(id, request, tenantId, ct);
-            if (response == null)
-            {
-                return NotFound(new { message = "Không tìm thấy kho hàng." });
-            }
+            return NotFound(new { message = "Không tìm thấy kho hàng." });
+        }
 
-            return Ok(response);
-        }
-        catch (OismException ex) when (ex.StatusCode == 409)
-        {
-            return Conflict(new { message = ex.Message });
-        }
-        catch (OismException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        return Ok(response);
     }
 
     /// <summary>

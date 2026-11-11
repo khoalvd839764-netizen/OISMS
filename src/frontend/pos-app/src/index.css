@@ -1,23 +1,39 @@
+@import url("https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap");
 @import "tailwindcss";
 
-@theme {
-  --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-}
-
 @layer base {
-  * {
-    box-sizing: border-box;
-  }
-
-  body {
-    margin: 0;
-    padding: 0;
-    background-color: #f1f5f9;
-    color: #1e293b;
-    font-family: var(--font-sans);
-  }
+:root {
+  --brand: #1769e0;
+  --brand-dark: #0f55bd;
+  --brand-soft: #eaf2ff;
+  --ink: #172033;
+  --muted: #667085;
+  --subtle: #98a2b3;
+  --line: #e6eaf0;
+  --surface: #ffffff;
+  --canvas: #f6f7f9;
+  --nav: #111b2e;
+  --success: #16845b;
+  --success-soft: #e8f7f0;
+  --warning: #b76e00;
+  --warning-soft: #fff5dc;
+  --danger: #c93c48;
+  --danger-soft: #fff0f1;
+  --info: #2768d8;
+  --info-soft: #edf3ff;
+  --radius: 12px;
+  --shadow: 0 1px 2px rgb(16 24 40 / 4%), 0 3px 12px rgb(16 24 40 / 4%);
 }
+
+* { box-sizing: border-box; }
+html, body, #root { min-height: 100%; }
+body { margin: 0; background: var(--canvas); color: var(--ink); font-family: "Be Vietnam Pro", sans-serif; font-size: 13px; -webkit-font-smoothing: antialiased; }
+button, input, select { font: inherit; }
+button, a { -webkit-tap-highlight-color: transparent; }
+a { color: inherit; text-decoration: none; }
+button { color: inherit; }
+}
+
 
 /* Animations */
 @keyframes fadeIn {
@@ -39,7 +55,6 @@
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
-/* Hide scrollbar for IE, Edge and Firefox */
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -47,9 +62,6 @@
 
 /* ==========================================================================
    PRINT STYLES FOR THERMAL PRINTER (80mm & 58mm)
-   T05-AC-02: Hỗ trợ linh hoạt cả khổ 80mm và 58mm, không bị che/cắt cột số tiền
-   B01-F01: Giữ các ancestor của receipt hiển thị khi in, chỉ ẩn UI điều khiển
-   B01-F03: Dùng cú pháp @page size hợp lệ được trình duyệt hỗ trợ (80mm 200mm)
    ========================================================================== */
 @media print {
   html, body {
@@ -60,7 +72,7 @@
     width: 80mm !important;
   }
 
-  /* Hide interactive controls and chrome during print */
+  /* Hide everything except the receipt paper */
   .no-print,
   header,
   nav,
@@ -69,78 +81,37 @@
     display: none !important;
   }
 
-  /* B01-F01: Giữ các ancestor của vùng in hiển thị và transparent, không display:none */
-  .no-print-bg {
-    display: block !important;
-    position: static !important;
-    background: transparent !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    border: none !important;
-    box-shadow: none !important;
-    width: 100% !important;
-    max-height: none !important;
-    overflow: visible !important;
-  }
+  /* The receipt's modal ancestors must remain visible; hiding them prints a blank page. */
+  .no-print-bg { display: block !important; position: static !important; background: none !important; backdrop-filter: none !important; padding: 0 !important; }
+  .no-print-bg > div { display: block !important; overflow: visible !important; max-height: none !important; border: 0 !important; box-shadow: none !important; }
 
-  .no-print-border {
-    display: block !important;
-    border: none !important;
-    box-shadow: none !important;
-    background: transparent !important;
-    max-width: none !important;
-    width: 100% !important;
-    max-height: none !important;
-    overflow: visible !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border-radius: 0 !important;
-  }
-
-  /* Container and paper layout */
+  /* Make modal container transparent and top-level */
   .print-container {
-    position: static !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 80mm !important;
     padding: 0 !important;
     margin: 0 !important;
     background: transparent !important;
-    display: block !important;
-    overflow: visible !important;
-    width: 100% !important;
   }
 
   .receipt-paper {
-    margin: 0 auto !important;
-    border: none !important;
-    box-shadow: none !important;
-    color: #000000 !important;
-    background: #ffffff !important;
-    display: block !important;
-  }
-
-  /* Specific rules for 80mm paper (default) */
-  .receipt-paper,
-  .receipt-paper.paper-80mm {
     width: 80mm !important;
     max-width: 80mm !important;
+    margin: 0 !important;
     padding: 2mm 3mm !important;
+    border: none !important;
+    box-shadow: none !important;
     font-size: 11px !important;
-    line-height: 1.35 !important;
-  }
-
-  /* Specific rules for 58mm paper */
-  .receipt-paper.paper-58mm {
-    width: 58mm !important;
-    max-width: 58mm !important;
-    padding: 1.5mm 2mm !important;
-    font-size: 9.5px !important;
-    line-height: 1.25 !important;
+    color: #000000 !important;
+    background: #ffffff !important;
   }
 
   .receipt-paper * {
     color: #000000 !important;
   }
 
-  /* B01-F03: Khổ trang hợp lệ theo chuẩn CSS Paged Media */
   @page {
     size: 80mm 200mm;
     margin: 0;

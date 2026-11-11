@@ -5,6 +5,8 @@ using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
 using OISM.Application.Features.Orders.Dtos;
 using OISM.Application.Features.Orders.Services;
+using OISM.Application.Features.Pricing.Dtos;
+using OISM.Application.Features.Pricing.Services;
 using OISM.Application.Features.Webhooks.Dtos;
 using OISM.Domain.Entities;
 
@@ -28,6 +30,9 @@ public class WebhookService : IWebhookService
     private readonly IOrderService _orderService;
     private readonly ICurrentTenantService _currentTenantService;
     private readonly ILogger<WebhookService> _logger;
+
+    /// <summary>Giới hạn số SKU trả cho app giả lập, đủ cho shop demo và không tải cả catalog lớn.</summary>
+    public const int MaxCatalogItems = 500;
 
     public WebhookService(
         IAppDbContext dbContext,
@@ -68,29 +73,7 @@ public class WebhookService : IWebhookService
         if (hasSecret)
         {
             // Secret Mode: Định danh integration từ secret header trước khi đối soát body shop
-            List<ShopIntegration> allIntegrations;
-            using (_dbContext.OpenPrivilegedScope())
-            {
-                allIntegrations = await _dbContext.ShopIntegrations
-                    .IgnoreQueryFilters()
-                    .ToListAsync(ct);
-            }
-
-            var matchingIntegrations = allIntegrations
-                .Where(si => WebhookSecretHasher.VerifySecret(secretHeader!, si.SecretHash))
-                .ToList();
-
-            if (matchingIntegrations.Count == 0)
-            {
-                throw new OismException("UNAUTHORIZED", "Webhook Secret không hợp lệ.", 401);
-            }
-
-            if (matchingIntegrations.Count > 1)
-            {
-                throw new OismException("UNAUTHORIZED", "Thông tin chứng thực xung đột giữa các cấu hình tích hợp.", 401);
-            }
-
-            var integration = matchingIntegrations[0];
+            var integration = await FindIntegrationBySecretAsync(secretHeader!, ct);
 
             // Đối soát channel và shopId với integration đã định danh từ credential
             if (!string.Equals(integration.Channel, normalizedPathChannel, StringComparison.OrdinalIgnoreCase) ||
@@ -293,5 +276,167 @@ public class WebhookService : IWebhookService
             Status = createdOrder.Status,
             ReceivedAt = createdOrder.CreatedAt
         };
+    }
+
+    public async Task<WebhookIdentityDto> GetIdentityAsync(string? secretHeader, CancellationToken ct = default)
+    {
+        var (integration, branch) = await ResolveUsableIntegrationAsync(secretHeader, ct);
+
+        // Không trả TenantId, BranchId hay tên doanh nghiệp: người giữ secret chỉ cần biết đang bắn vào gian hàng nào.
+        return new WebhookIdentityDto
+        {
+            Channel = integration.Channel,
+            ExternalShopId = integration.ExternalShopId,
+            BranchName = branch?.Name ?? string.Empty,
+            BranchIsActive = branch?.IsActive == true
+        };
+    }
+
+    public async Task<IReadOnlyList<WebhookCatalogItemDto>> GetCatalogAsync(string? secretHeader, CancellationToken ct = default)
+    {
+        var (integration, _) = await ResolveUsableIntegrationAsync(secretHeader, ct);
+        var tenantId = integration.TenantId;
+
+        // Luồng chưa có JWT: tenant lấy từ kết nối đã xác thực bằng secret, giống luồng nhận đơn.
+        // Truy vấn vẫn lọc TenantId tường minh để không phụ thuộc riêng vào global filter.
+        _currentTenantService.SetTenant(tenantId);
+
+        var skus = await _dbContext.ProductVariants
+            .AsNoTracking()
+            .Where(v => v.TenantId == tenantId && v.IsActive && v.Product != null && v.Product.IsActive)
+            .OrderBy(v => v.Product!.Name)
+            .ThenBy(v => v.SKU)
+            .Take(MaxCatalogItems)
+            .Select(v => new
+            {
+                v.Id,
+                v.SKU,
+                ProductName = v.Product!.Name,
+                v.AttributesJson,
+                v.BaseUnitId,
+                BaseUnitName = v.BaseUnit != null ? v.BaseUnit.Name : null,
+                v.Unit,
+                v.RetailPrice
+            })
+            .ToListAsync(ct);
+
+        if (skus.Count == 0)
+        {
+            return [];
+        }
+
+        var skuIds = skus.Select(s => s.Id).ToList();
+        var balances = await _dbContext.InventoryBalances
+            .AsNoTracking()
+            .Where(b => b.TenantId == tenantId && b.BranchId == integration.BranchId && skuIds.Contains(b.SkuId))
+            .Select(b => new { b.SkuId, b.OnHand, b.Reserved })
+            .ToListAsync(ct);
+        var availableBySku = balances
+            .GroupBy(b => b.SkuId)
+            .ToDictionary(g => g.Key, g => g.Sum(b => b.OnHand - b.Reserved));
+
+        // Giá bán lẻ hiện hành theo đơn vị gốc, vì webhook không gửi đơn vị nên backend hiểu số lượng theo đơn vị gốc.
+        var priceKeys = skus
+            .Where(s => s.BaseUnitId.HasValue)
+            .Select(s => new SkuUnitPriceKey(s.Id, s.BaseUnitId!.Value))
+            .ToList();
+        var prices = await new SkuPriceResolver(_dbContext).ResolveAsync("retail", priceKeys, DateTimeOffset.UtcNow, ct);
+
+        // Không trả giá vốn: người giữ secret chỉ đóng vai sàn, chỉ cần mã, tên, giá bán và tồn có thể bán.
+        return skus.Select(s =>
+        {
+            decimal? price = null;
+            if (s.BaseUnitId.HasValue && prices.TryGetValue(new SkuUnitPriceKey(s.Id, s.BaseUnitId.Value), out var resolved))
+            {
+                price = resolved.Price;
+            }
+            else if (s.RetailPrice > 0)
+            {
+                price = s.RetailPrice;
+            }
+
+            var variant = new ProductVariant { AttributesJson = s.AttributesJson };
+            var available = availableBySku.TryGetValue(s.Id, out var a) ? a : 0m;
+            return new WebhookCatalogItemDto
+            {
+                SkuCode = s.SKU,
+                ProductName = s.ProductName,
+                VariantName = string.IsNullOrWhiteSpace(variant.VariantName) ? null : variant.VariantName,
+                UnitName = s.BaseUnitName ?? s.Unit,
+                UnitPrice = price,
+                Available = available < 0 ? 0 : available
+            };
+        }).ToList();
+    }
+
+    /// <summary>
+    /// Cùng điều kiện như luồng nhận đơn: secret sai, kết nối tắt hoặc doanh nghiệp ngừng hoạt động đều trả 401.
+    /// Chi nhánh tắt vẫn trả về để giả lập báo cho người dùng, đơn gửi lên mới bị từ chối.
+    /// </summary>
+    private async Task<(ShopIntegration Integration, Branch? Branch)> ResolveUsableIntegrationAsync(string? secretHeader, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(secretHeader))
+        {
+            throw new OismException("UNAUTHORIZED", "Thiếu header X-Webhook-Secret.", 401);
+        }
+
+        var integration = await FindIntegrationBySecretAsync(secretHeader, ct);
+
+        if (!integration.IsActive)
+        {
+            throw new OismException("UNAUTHORIZED", "Kênh tích hợp gian hàng này đã bị vô hiệu hóa.", 401);
+        }
+
+        Tenant? tenant;
+        Branch? branch;
+        using (_dbContext.OpenPrivilegedScope())
+        {
+            tenant = await _dbContext.Tenants
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Id == integration.TenantId, ct);
+            branch = await _dbContext.Branches
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(b => b.TenantId == integration.TenantId && b.Id == integration.BranchId, ct);
+        }
+
+        if (tenant == null || !tenant.IsActive)
+        {
+            throw new OismException("UNAUTHORIZED", "Doanh nghiệp đã ngừng hoạt động.", 401);
+        }
+
+        return (integration, branch);
+    }
+
+    /// <summary>
+    /// secret_hash là SHA-256 tất định và có ràng buộc UNIQUE, nên tra thẳng theo hash
+    /// thay vì tải toàn bộ kết nối của mọi tenant.
+    /// </summary>
+    private async Task<ShopIntegration> FindIntegrationBySecretAsync(string secret, CancellationToken ct)
+    {
+        var secretHash = WebhookSecretHasher.HashSecret(secret);
+        List<ShopIntegration> matchingIntegrations;
+        using (_dbContext.OpenPrivilegedScope())
+        {
+            matchingIntegrations = await _dbContext.ShopIntegrations
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(si => si.SecretHash == secretHash)
+                .Take(2)
+                .ToListAsync(ct);
+        }
+
+        if (matchingIntegrations.Count == 0)
+        {
+            throw new OismException("UNAUTHORIZED", "Webhook Secret không hợp lệ.", 401);
+        }
+
+        if (matchingIntegrations.Count > 1)
+        {
+            throw new OismException("UNAUTHORIZED", "Thông tin chứng thực xung đột giữa các cấu hình tích hợp.", 401);
+        }
+
+        return matchingIntegrations[0];
     }
 }

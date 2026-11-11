@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-USR-02` |
-| **Phiên bản (Version)** | `v1.0.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-10-22` |
+| **Phiên bản (Version)** | `v1.2.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-AUTH-02`, `FR-AUTH-03`, `FR-AUTH-04`, `NFR-SEC-01` (Trang 1, 4) |
 | **Phạm vi áp dụng** | Middleware Ủy quyền Backend (`[Authorize(Roles = ...)]`) & Route Guard trên Web Admin / POS |
 
@@ -16,6 +16,8 @@
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Thiết lập ma trận phân quyền chi tiết cấp API và Màn hình cho 3 vai trò `Owner`, `Staff`, `Cashier`. | `INIT-USR-02` |
 | `v1.1.0` | `2026-11-03` | Nhóm dự án OISMS | Cập nhật phân quyền lịch kiểm kê, kỳ kiểm kê, nộp duyệt, đếm lại và chốt kiểm kê (OISMS-47-U03). | `OISMS-47-U03` |
+| `v1.2.0` | `2026-11-06` | Nhóm dự án OISMS | Sửa tên claim JWT theo `JwtTokenService`; thêm dòng Quản lý người dùng; thêm mục Lệch giữa yêu cầu và code (báo cáo lãi gộp, giá vốn trong tồn kho cho Cashier, quyền kho của Staff, quyền xóa danh mục). | `OISMS-46` |
+| `v1.3.0` | `2026-11-09` | Nhóm dự án OISMS | Bổ sung phân quyền Trả hàng từ khách (CS-01); chuẩn hóa bảo mật báo cáo: trong báo cáo doanh thu (`/api/reports/revenue-profit`) Staff bị ẩn giá vốn và lãi gộp (`null`) theo ma trận. Truy vết hóa đơn vẫn cho Staff xem giá vốn dòng (dòng *Truy vết chuỗi chứng từ*). | `OISMS-58-CS01-P2` |
 
 ---
 
@@ -26,9 +28,11 @@ Khi người dùng đăng nhập thành công qua Email/SĐT + Mật khẩu, h�
 - **Refresh Token:** Lưu trữ bảo mật trong cơ sở dữ liệu, hỗ trợ cơ chế luân chuyển nguyên tử (`Token Rotation`) và thu hồi (`Revocation`).
 
 Các trường định danh bắt buộc bên trong Payload của JWT:
-- `sub` / `UserId`: Định danh duy nhất của người dùng.
-- `tenant_id` / `TenantId`: Định danh cửa hàng dùng để kích hoạt **EF Core Global Query Filter** cô lập dữ liệu.
-- `role` / `Role`: Một trong 3 giá trị chuẩn: `Owner`, `Staff`, hoặc `Cashier`.
+- `sub` và `userId`: Định danh duy nhất của người dùng.
+- `tenantId`: Định danh cửa hàng, `CurrentTenantService` đọc claim này để kích hoạt **EF Core Global Query Filter** cô lập dữ liệu.
+- `role` và `http://schemas.microsoft.com/ws/2008/06/identity/claims/role` (`ClaimTypes.Role`): Một trong 3 giá trị chuẩn `Owner`, `Staff`, `Cashier`; `[Authorize(Roles=...)]` đọc claim thứ hai.
+- `email`, `name`, `jti`: Email, họ tên, mã token.
+- Ký bằng HMAC-SHA256 với `Jwt:Secret`, kiểm tra `Jwt:Issuer`/`Jwt:Audience`, `ClockSkew = 0`.
 
 ---
 
@@ -44,6 +48,7 @@ Các trường định danh bắt buộc bên trong Payload của JWT:
 | **Xác thực & Tổ chức** | Đăng ký Tenant mới (`Register Tenant`) | `FR-AUTH-01` | ✅ Khởi tạo | ❌ Cấm | ❌ Cấm |
 | **Xác thực & Tổ chức** | Đăng nhập, Đăng xuất, Làm mới Token, Xem hồ sơ (`/me`) | `FR-AUTH-02` | ✅ Cho phép | ✅ Cho phép | ✅ Cho phép |
 | **Xác thực & Tổ chức** | Tạo, cập nhật, bật/tắt Chi nhánh (`Branch`) & Kho (`Warehouse`) | `FR-AUTH-04` | ✅ Toàn quyền | 👁️ Chỉ xem danh sách | 👁️ Chỉ xem chi nhánh POS |
+| **Xác thực & Tổ chức** | Quản lý người dùng (`/api/users`): tạo, sửa, khóa/mở tài khoản | `CS-02` | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) | ❌ Cấm (`403 Forbidden`) |
 | **Danh mục & Sản phẩm** | Thêm, sửa, xóa Danh mục phân cấp (`Category`) & Thương hiệu (`Brand`) | `FR-PROD-01` | ✅ Toàn quyền | ✅ Toàn quyền | 👁️ Chỉ xem |
 | **Danh mục & Sản phẩm** | Tạo, cập nhật Sản phẩm (`Product`) & Biến thể (`SKU`) | `FR-PROD-02` | ✅ Toàn quyền | ✅ Toàn quyền | 👁️ Chỉ tra cứu POS |
 | **Danh mục & Sản phẩm** | Sinh tự động / Cập nhật Mã vạch (`EAN-13`/`Code128`) | `FR-PROD-03` | ✅ Toàn quyền | ✅ Toàn quyền | 👁️ Chỉ quét mã |
@@ -67,20 +72,35 @@ Các trường định danh bắt buộc bên trong Payload của JWT:
 | **Hóa đơn & Truy vết** | Tra cứu danh sách và chi tiết hóa đơn bán hàng (`Sales Invoices`) | `OISMS-47-U02` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |
 | **Hóa đơn & Truy vết** | In lại hóa đơn bán lẻ theo ID hoặc số hóa đơn (dữ liệu che giấu giá vốn) | `OISMS-47-U02` | ✅ Cho phép | ✅ Cho phép | ✅ Cho phép (in lại tại POS) |
 | **Hóa đơn & Truy vết** | Truy vết chuỗi chứng từ xuất kho theo Hóa đơn, Đơn hàng, hoặc Dòng sổ kho | `OISMS-47-U02` | ✅ Toàn quyền | ✅ Toàn quyền (xem giá vốn dòng) | ❌ Cấm (`403 Forbidden`) |
-| **Báo cáo & AI** | Báo cáo Doanh thu thuần, Tổng giá vốn (`COGS`), Lợi nhuận gộp | `FR-REP-01` | ✅ Toàn quyền | ❌ Cấm xem lãi gộp | ❌ Cấm (`403 Forbidden`) |
+| **Trả hàng từ khách** | Lập phiếu trả, tra cứu dòng trả được, xác nhận và hủy phiếu trả (`/api/sales-returns`, `/api/orders/{id}/returnable-items`) | `CS-01` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |
+| **Báo cáo & AI** | Báo cáo Doanh thu thuần, Tổng giá vốn (`COGS`), Lợi nhuận gộp | `FR-REP-01` | ✅ Toàn quyền | 👁️ Chỉ xem doanh thu/hàng trả (ẩn lãi gộp & giá vốn) | ❌ Cấm (`403 Forbidden`) |
 | **Báo cáo & AI** | Báo cáo Giá trị tồn kho, Hàng bán chạy/chậm & Cảnh báo tồn tối thiểu | `FR-REP-02..03` | ✅ Toàn quyền | ✅ Xem cảnh báo kho | ❌ Cấm (`403 Forbidden`) |
 | **Báo cáo & AI** | Xem dự báo nhu cầu AI & Gợi ý nhập lại hàng | `FR-AI-01` | ✅ Toàn quyền | ✅ Xem gợi ý nhập | ❌ Cấm (`403 Forbidden`) |
+| **Báo cáo & AI** | Hỏi Trợ lý OISMS (`POST /api/ai/chat`) | `FR-AI-02` | ✅ Mọi số liệu, kể cả doanh thu và lãi gộp | ✅ Nhập/xuất kho, tồn, gợi ý nhập, hướng dẫn. **Không hỏi được doanh thu, lãi gộp, giá vốn** (chốt 10/11/2026) | ❌ Cấm (`403 Forbidden`) |
+| **Cấu hình & Thanh toán** | Quản lý tài khoản ngân hàng thụ hưởng (`/api/payment-accounts`): thêm, sửa, đặt mặc định, ngừng dùng | `CS-05` | ✅ Toàn quyền | 👁️ Chỉ xem tài khoản active | 👁️ Chỉ xem tài khoản active |
 
 > **Từ Upgrade 04:** không còn đường sửa giá trực tiếp, kể cả với `Owner`. Giá ban đầu trên form tạo SKU hoặc đơn vị cũng đi qua phiếu: của `Owner` có hiệu lực ngay, của `Staff` chờ duyệt. Vai trò lấy từ JWT, client không tự khai được. Xem [tài liệu 04](../Upgrade-recommended/04-bang-gia-theo-thoi-gian.md#phân-quyền).
 
 ---
 
+## 2.1. Lệch Giữa Yêu Cầu Và Code Hiện Tại (đối chiếu 06/11/2026)
+
+Bảng trên là **yêu cầu**. Đối chiếu `[Authorize(Roles = ...)]` và dữ liệu trả về trong code thấy các điểm lệch sau; cần nhóm quyết định sửa code hay sửa yêu cầu.
+
+| Chức năng | Yêu cầu | Code hiện tại | Mức độ |
+| :--- | :--- | :--- | :--- |
+| `GET /api/reports/revenue-profit` | Chỉ `Owner` xem lãi gộp | **Đã sửa tại CS-01 P2 (09/11/2026):** Service kiểm tra vai trò `Owner`, `Staff` chỉ nhận doanh thu và hàng trả; các trường giá vốn (`costOfGoodsSold`, `returnCogs`, `netCogs`) và lãi gộp (`grossProfit`, `grossMarginPercentage`) đều trả `null`. | Đã xử lý |
+| `GET /api/inventory/balances` | `Cashier` không xem sổ cái/số dư chi tiết, không thấy giá vốn | Cho `Cashier` gọi và trả cả `averageCost` (WAC). | Cao (lộ giá vốn) |
+| Kho (`POST/PUT /api/warehouses`, `toggle-status`) | `Staff` chỉ xem | `Staff` được tạo, sửa, bật/tắt kho. Chi nhánh thì đúng (chỉ `Owner`). | Trung bình |
+| Xóa danh mục, thương hiệu, sản phẩm | `Staff` toàn quyền | Chỉ `Owner` (`DELETE` gắn `Roles = "Owner"`) | Thấp (code chặt hơn) |
+| `GET /api/warehouses`, `/api/branches/{id}`, `/api/suppliers` | Không ghi rõ cho `Cashier` | Mọi vai trò đã đăng nhập đều đọc được | Thấp |
+
 ## 3. Cơ Chế Kiểm Soát Hai Lớp (Dual-Layer Enforcement)
 
 1. **Tầng Giao diện (Frontend Route Guard & Unified Login):**
    - Sau khi xác thực JWT, hệ thống đọc trường `Role`:
-     - `Cashier`: Tự động điều hướng thẳng về giao diện quầy bán hàng (`/pos`). Nếu cố tình truy cập đường dẫn `/admin/*`, ứng dụng chuyển hướng ngay sang màn hình `/403` (Forbidden).
-     - `Staff` & `Owner`: Điều hướng vào không gian vận hành và quản trị (`/admin`), tự động ẩn các nút chức năng vượt quá thẩm quyền của `Staff`.
+     - `Cashier`: Bán hàng tại ứng dụng POS riêng (`VITE_POS_URL`, local cổng 5174). Trang đăng nhập Admin có nút "Bạn là thu ngân? Đăng nhập tại quầy POS" mở thẳng màn đăng nhập POS. Nếu Cashier vẫn đăng nhập ở Admin, phiên Admin bị thu hồi và ứng dụng chuyển sang màn đăng nhập POS kèm dòng nhắc; hai ứng dụng không chia sẻ token. Nếu cố tình truy cập đường dẫn `/admin/*`, ứng dụng chuyển hướng sang `/403`.
+     - `Staff` & `Owner`: Điều hướng vào `/admin`. Trang Báo cáo (`/reports`) và Tổ chức (`/organization`) chỉ mở cho `Owner` (`ProtectedRoute allowedRoles={["Owner"]}`); các nút vượt quyền của `Staff` bị ẩn.
 2. **Tầng Backend API (Server-side Policy):**
    - Mọi Controller/Action đều gắn thuộc tính `[Authorize(Roles = "...")]`.
    - Ngay cả khi người dùng dùng Postman/cURL gửi trực tiếp JWT của `Cashier` vào các API quản trị sản phẩm hoặc nhập kho, Backend sẽ trả về mã lỗi chuẩn `HTTP 403 Forbidden`.

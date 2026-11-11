@@ -1,14 +1,14 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.EntityFrameworkCore;
 using OISM.Application.Common.Interfaces;
+using OISM.Application.Features.Branches.Services;
 
 namespace OISM.WebApi.Hubs;
 
 /// <summary>
 /// SignalR Hub phục vụ thông báo thời gian thực (/hubs/notifications).
-/// Hỗ trợ Web Admin Portal và Web POS PWA.
+/// Hỗ trợ Admin Dashboard và ứng dụng POS (pos-app).
 /// 
 /// Nguyên tắc bảo mật & phân quyền:
 /// 1. Yêu cầu xác thực JWT Bearer (hỗ trợ query parameter 'access_token' khi kết nối WebSocket/SSE).
@@ -21,16 +21,16 @@ namespace OISM.WebApi.Hubs;
 [Authorize(Roles = "Owner,Staff,Cashier")]
 public class NotificationHub : Hub
 {
-    private readonly IAppDbContext _dbContext;
+    private readonly IBranchService _branchService;
     private readonly ICurrentTenantService _currentTenantService;
     private readonly ILogger<NotificationHub> _logger;
 
     public NotificationHub(
-        IAppDbContext dbContext,
+        IBranchService branchService,
         ICurrentTenantService currentTenantService,
         ILogger<NotificationHub> logger)
     {
-        _dbContext = dbContext;
+        _branchService = branchService;
         _currentTenantService = currentTenantService;
         _logger = logger;
     }
@@ -80,9 +80,7 @@ public class NotificationHub : Hub
 
         _currentTenantService.SetTenant(tenantId.Value);
 
-        var branchExists = await _dbContext.Branches
-            .IgnoreQueryFilters()
-            .AnyAsync(b => b.TenantId == tenantId.Value && b.Id == branchId && b.IsActive);
+        var branchExists = await _branchService.ExistsActiveAsync(tenantId.Value, branchId, Context.ConnectionAborted);
 
         if (!branchExists)
         {

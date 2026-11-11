@@ -1,4 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
+using OISM.Application.Features.Ai.Services;
+using OISM.Application.Features.Ai.Services.Tools;
 using OISM.Application.Features.Auth.Services;
 using OISM.Application.Features.Branches.Services;
 using OISM.Application.Features.Catalog.Brands.Services;
@@ -34,14 +36,24 @@ public static class DependencyInjection
         services.AddScoped<IGoodsReceiptService, GoodsReceiptService>();
         services.AddScoped<IInventoryService, InventoryService>();
         services.AddScoped<IReservationService, ReservationService>();
-        services.AddScoped<IPosCheckoutService, OrderService>();
+        services.AddScoped<IPosCheckoutService, PosCheckoutService>();
         services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<IReportService, ReportService>();
+        services.AddScoped<IAiChatService, AiChatService>();
+        services.AddScoped<AiChatToolRunner>();
+        services.AddScoped<IAiChatTool, LowStockChatTool>();
+        services.AddScoped<IAiChatTool, ReorderSuggestionsChatTool>();
+        services.AddScoped<IAiChatTool, StockMovementChatTool>();
+        services.AddScoped<IAiChatTool, RevenueChatTool>();
+        services.AddScoped<IStockMovementQuery, StockMovementQuery>();
+        services.AddMemoryCache();
+        services.AddSingleton(TimeProvider.System);
         services.AddScoped<ISimulatorService, SimulatorService>();
         services.AddScoped<IStockTransferService, StockTransferService>();
         services.AddScoped<IStockCountService, StockCountService>();
         services.AddScoped<IStockCountScheduleService, StockCountScheduleService>();
         services.AddScoped<IWebhookService, WebhookService>();
+        services.AddScoped<OISM.Application.Features.ShopIntegrations.Services.IShopIntegrationService, OISM.Application.Features.ShopIntegrations.Services.ShopIntegrationService>();
 
         // Catalog & Management services
         services.AddScoped<IAuthService, AuthService>();
@@ -67,6 +79,12 @@ public static class DependencyInjection
 
         // Sales Invoice services
         services.AddScoped<ISalesInvoiceService, SalesInvoiceService>();
+
+        // Payment Accounts services (CS-05 VietQR)
+        services.AddScoped<OISM.Application.Features.PaymentAccounts.Services.IPaymentAccountService, OISM.Application.Features.PaymentAccounts.Services.PaymentAccountService>();
+
+        // Sales Returns services (CS-01)
+        services.AddScoped<OISM.Application.Features.SalesReturns.Services.ISalesReturnService, OISM.Application.Features.SalesReturns.Services.SalesReturnService>();
 
         return services;
     }

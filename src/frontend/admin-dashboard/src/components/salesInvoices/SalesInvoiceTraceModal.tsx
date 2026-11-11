@@ -10,6 +10,7 @@ import {
   Layers,
   Loader2,
   Package,
+  RotateCcw,
   ShoppingBag,
   User,
   Warehouse,
@@ -293,6 +294,100 @@ export const SalesInvoiceTraceModal: React.FC<SalesInvoiceTraceModalProps> = ({
                   </div>
                 )}
               </div>
+
+              {/* Step 4: Phiếu trả hàng & Dòng sổ kho hoàn lại (IN - CS-01) */}
+              {(trace as any).salesReturns && (trace as any).salesReturns.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2">
+                    <RotateCcw className="w-5 h-5 text-indigo-600" />
+                    <h4 className="font-bold text-sm text-slate-800">
+                      Phiếu Trả Hàng &amp; Dòng Sổ Kho Nhập Lại (IN)
+                    </h4>
+                  </div>
+
+                  {(trace as any).salesReturns.map((sr: any) => (
+                    <div key={sr.id} className="border border-indigo-200 rounded-2xl overflow-hidden shadow-xs bg-white">
+                      <div className="bg-indigo-50/70 px-5 py-3 border-b border-indigo-200 flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-indigo-900 text-sm">{sr.number}</span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            sr.status === 'Confirmed' ? 'bg-emerald-100 text-emerald-800' :
+                            sr.status === 'Cancelled' ? 'bg-rose-100 text-rose-800' : 'bg-gray-100 text-gray-700'
+                          }`}>
+                            {sr.status === 'Confirmed' ? 'Đã xác nhận' : sr.status === 'Cancelled' ? 'Đã hủy' : 'Nháp'}
+                          </span>
+                          <span className="text-slate-600">
+                            Hoàn: <strong className="text-indigo-700">{formatCurrency(sr.totalRefundAmount || 0)}</strong>
+                          </span>
+                        </div>
+                        <div className="text-slate-500 text-[11px]">
+                          {sr.confirmedAt
+                            ? `Xác nhận lúc: ${new Date(sr.confirmedAt).toLocaleString('vi-VN')} (${sr.confirmedByName || sr.confirmedBy || 'Hệ thống'})`
+                            : `Tạo lúc: ${new Date(sr.createdAt).toLocaleString('vi-VN')}`}
+                        </div>
+                      </div>
+
+                      {(!sr.lines || sr.lines.length === 0) ? (
+                        <div className="p-4 text-center text-slate-400 text-xs">
+                          Chưa có dòng sổ kho IN (phiếu chưa được xác nhận nhập kho).
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                              <tr>
+                                <th className="py-2.5 px-3">Bút toán #</th>
+                                <th className="py-2.5 px-3">Mặt hàng / SKU</th>
+                                <th className="py-2.5 px-3">Kho hàng</th>
+                                <th className="py-2.5 px-3 text-right">Lượng nhập lại (gốc)</th>
+                                <th className="py-2.5 px-3 text-right">Giá vốn (WAC)</th>
+                                <th className="py-2.5 px-3 text-right">Tồn sau nhập</th>
+                                <th className="py-2.5 px-3 text-right">Thời gian ghi sổ</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 font-mono">
+                              {sr.lines.map((line: any, idx: number) => (
+                                <tr key={line.ledgerId || idx} className="hover:bg-slate-50/80 transition-colors">
+                                  <td className="py-2.5 px-3 text-slate-700">
+                                    <span className="font-bold text-slate-900">#{line.sequenceNo}</span>
+                                    <div className="text-[10px] text-slate-400 truncate max-w-[100px]" title={line.ledgerId}>
+                                      {line.ledgerId.slice(0, 8)}...
+                                    </div>
+                                  </td>
+                                  <td className="py-2.5 px-3 font-sans">
+                                    <div className="flex items-center gap-1.5 font-bold font-mono text-slate-800">
+                                      <Package className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                      <span>{line.skuCode}</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-2.5 px-3 font-sans text-slate-700">
+                                    <div className="flex items-center gap-1.5">
+                                      <Warehouse className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                      <span>{line.warehouseName}</span>
+                                    </div>
+                                  </td>
+                                  <td className="py-2.5 px-3 text-right font-bold text-emerald-600">
+                                    +{Math.abs(line.quantity).toLocaleString('vi-VN')} (gốc)
+                                  </td>
+                                  <td className="py-2.5 px-3 text-right text-slate-700">
+                                    {formatCurrency(line.unitCost)}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-right font-semibold text-slate-900">
+                                    {line.balanceAfter.toLocaleString('vi-VN')}
+                                  </td>
+                                  <td className="py-2.5 px-3 text-right font-sans text-slate-500 text-[11px]">
+                                    {new Date(line.createdAt).toLocaleString('vi-VN')}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           )}
         </div>

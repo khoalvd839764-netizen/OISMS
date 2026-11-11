@@ -73,7 +73,7 @@ flowchart TD
 - **Đường dẫn vật lý:** `D:\OISMS\skills\csharp-pro\`
 - **File kích hoạt:** `SKILL.md`
 - **Công dụng đối với OISMS:** Hướng dẫn viết mã C# hiện đại trên nền tảng .NET 8. Sử dụng các tính năng nâng cao như Primary Constructors, C# Records, Pattern Matching, Async/Await không gây deadlock, LINQ tối ưu và Nullable Reference Types.
-- **Phạm vi tác động:** `src/backend/src/OISM.Domain`, `OISM.Application`, `OISM.Infrastructure`, `OISM.WebAPI`.
+- **Phạm vi tác động:** `src/backend/src/OISM.Domain`, `OISM.Application`, `OISM.Infrastructure`, `OISM.WebApi`.
 - **Tài liệu đối chiếu:** [`docs/04-architecture-and-design/01-clean-architecture.md`](../04-architecture-and-design/01-clean-architecture.md).
 
 #### 2. `architecture-patterns`
@@ -86,7 +86,7 @@ flowchart TD
 - **Đường dẫn vật lý:** `D:\OISMS\skills\api-design-principles\`
 - **File kích hoạt:** `SKILL.md`, `resources/implementation-playbook.md`, `references/`
 - **Công dụng đối với OISMS:** Định hình chuẩn mực RESTful API cho toàn bộ các Controllers (`/api/auth`, `/api/inventory`, `/api/products`, `/api/pos`). Hướng dẫn chuẩn hóa HTTP Status Code, mô hình phân trang `PagedResult<T>`, OpenAPI/Swagger và cấu trúc lỗi `ProblemDetails` (RFC 7807).
-- **Phạm vi tác động:** `src/backend/src/OISM.WebAPI/Controllers/` và [`docs/05-api-contracts/`](../05-api-contracts/README.md).
+- **Phạm vi tác động:** `src/backend/src/OISM.WebApi/Controllers/` và [`docs/05-api-contracts/`](../05-api-contracts/README.md).
 
 ---
 
@@ -95,7 +95,7 @@ flowchart TD
 #### 4. `postgresql`
 - **Đường dẫn vật lý:** `D:\OISMS\skills\postgresql\`
 - **File kích hoạt:** `SKILL.md`
-- **Công dụng đối với OISMS:** Thiết kế và tối ưu 29 bảng dữ liệu PostgreSQL theo chuẩn schema `oisms_schema.sql`. Đảm bảo các kiểu dữ liệu khắt khe như `NUMERIC(18,2)` cho tiền tệ/giá vốn, `TIMESTAMP WITH TIME ZONE`, ràng buộc khóa ngoại kép và kiểm tra toàn vẹn dữ liệu đa chi nhánh.
+- **Công dụng đối với OISMS:** Thiết kế và tối ưu 44 bảng dữ liệu PostgreSQL theo chuẩn schema `oisms_schema.sql`. Đảm bảo các kiểu dữ liệu khắt khe như `NUMERIC(18,2)` cho tiền tệ/giá vốn, `TIMESTAMP WITH TIME ZONE`, ràng buộc khóa ngoại kép và kiểm tra toàn vẹn dữ liệu đa chi nhánh.
 - **Phạm vi tác động:** `docs/database/oisms_schema.sql` và cấu hình Fluent API trong `OISM.Infrastructure`.
 
 #### 5. `sql-optimization-patterns`
@@ -150,7 +150,7 @@ flowchart TD
 - **Đường dẫn vật lý:** `D:\OISMS\skills\unit-testing-test-generate\`
 - **File kích hoạt:** `SKILL.md`
 - **Công dụng đối với OISMS:** Tự động sinh mã Unit Test và Integration Test với xUnit, FluentAssertions và Moq/NSubstitute. Tập trung kiểm thử logic nghiệp vụ then chốt: tính giá vốn xuất kho WAC, cơ chế khóa giữ chỗ kho (Reservation), và xác nhận đơn thanh toán POS, cam kết duy trì độ phủ kiểm thử $\ge 80\%$.
-- **Phạm vi tác động:** `src/backend/tests/` và [`docs/06-testing-and-qa/`](../06-testing-and-qa/README.md).
+- **Phạm vi tác động:** `test-oisms/backend/` và [`docs/06-testing-and-qa/`](../06-testing-and-qa/README.md).
 
 #### 12. `github-actions-templates`
 - **Đường dẫn vật lý:** `D:\OISMS\skills\github-actions-templates\`

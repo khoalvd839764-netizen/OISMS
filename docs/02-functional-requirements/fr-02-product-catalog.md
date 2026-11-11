@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-FR-02` |
-| **Phiên bản (Version)** | `v1.0.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-10-22` |
+| **Phiên bản (Version)** | `v1.1.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-PROD-01..04` (Trang 1, 2) |
 | **Gói công việc (Task Package)** | Task Package 2 — Product Catalog & Append-Only Inventory Ledger |
 
@@ -15,6 +15,7 @@
 | Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả thay đổi | Mã tham chiếu |
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả chi tiết nhóm yêu cầu chức năng `FR-PROD-01` đến `FR-PROD-04`. | `INIT-FR-02` |
+| `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Cập nhật hiện trạng Upgrade 04: đã có giao diện quản lý giá và phiếu đổi giá. | `OISMS-46` |
 
 ---
 
@@ -27,4 +28,4 @@
 | **`FR-PROD-03`** | **Barcode Management** | Tự động sinh hoặc cho phép nhập thủ công mã vạch chuẩn `EAN-13` / `Code128` cho từng SKU để phục vụ quét bán hàng POS và kiểm kê kho. | - Tự động sinh mã `EAN-13` hợp lệ có cơ chế retry chống trùng.<br/>- Ràng buộc Unique `(TenantId, Barcode)` trả về `409 Conflict` rõ ràng khi trùng. |
 | **`FR-PROD-04`** | **Listed Price Management** | Thiết lập và cập nhật Giá bán lẻ (`RetailPrice`) và Giá bán sỉ (`WholesalePrice`) cho từng SKU, tách biệt hoàn toàn với giá vốn hàng bán (`COGS`). | - Chặn nhập giá âm (`400 Bad Request`).<br/>- Thay đổi giá bán niêm yết không làm ảnh hưởng đến cột giá vốn bình quân (`UnitCost`). |
 
-> **Đã triển khai backend ở Upgrade 04:** `FR-PROD-04` chuyển sang bảng giá theo đơn vị và đổi giá qua phiếu; các cột giá trên SKU không còn dùng khi bán. Giao diện chưa làm. Xem [tài liệu 04](../Upgrade-recommended/04-bang-gia-theo-thoi-gian.md).
+> **Đã triển khai backend ở Upgrade 04:** `FR-PROD-04` chuyển sang bảng giá theo đơn vị và đổi giá qua phiếu; các cột giá trên SKU không còn dùng khi bán. Giao diện đã có (`PriceManagementModal`, `CreatePriceChangeModal` trong Admin). Xem [tài liệu 04](../Upgrade-recommended/04-bang-gia-theo-thoi-gian.md).

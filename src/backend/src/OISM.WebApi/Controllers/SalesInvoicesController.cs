@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using OISM.Application.Common.Exceptions;
 using OISM.Application.Features.SalesInvoices.Dtos;
 using OISM.Application.Features.SalesInvoices.Services;
+using OISM.WebApi.Http;
 
 namespace OISM.WebApi.Controllers;
 
@@ -37,22 +37,16 @@ public class SalesInvoicesController : ControllerBase
     /// </summary>
     [HttpGet("{id:guid}")]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.SalesInvoices)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
         if (id == Guid.Empty)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã hóa đơn không được để trống.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.SalesInvoices, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã hóa đơn không được để trống.");
         }
 
-        try
-        {
-            var invoice = await _salesInvoiceService.GetSalesInvoiceByIdAsync(id, ct);
-            return Ok(invoice);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
-        }
+        var invoice = await _salesInvoiceService.GetSalesInvoiceByIdAsync(id, ct);
+        return Ok(invoice);
     }
 
     /// <summary>
@@ -60,22 +54,16 @@ public class SalesInvoicesController : ControllerBase
     /// </summary>
     [HttpGet("receipt")]
     [Authorize(Roles = "Owner,Staff,Cashier")]
+    [ApiErrorContract(ApiErrorProfile.SalesInvoices)]
     public async Task<IActionResult> GetReceiptByNumber([FromQuery] string? number, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(number))
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Số hóa đơn (number) không được để trống.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.SalesInvoices, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Số hóa đơn (number) không được để trống.");
         }
 
-        try
-        {
-            var receipt = await _salesInvoiceService.GetReceiptByNumberAsync(number, ct);
-            return Ok(receipt);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
-        }
+        var receipt = await _salesInvoiceService.GetReceiptByNumberAsync(number, ct);
+        return Ok(receipt);
     }
 
     /// <summary>
@@ -83,22 +71,16 @@ public class SalesInvoicesController : ControllerBase
     /// </summary>
     [HttpGet("{id:guid}/receipt")]
     [Authorize(Roles = "Owner,Staff,Cashier")]
+    [ApiErrorContract(ApiErrorProfile.SalesInvoices)]
     public async Task<IActionResult> GetReceiptById(Guid id, CancellationToken ct)
     {
         if (id == Guid.Empty)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã hóa đơn không được để trống.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.SalesInvoices, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã hóa đơn không được để trống.");
         }
 
-        try
-        {
-            var receipt = await _salesInvoiceService.GetReceiptByIdAsync(id, ct);
-            return Ok(receipt);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
-        }
+        var receipt = await _salesInvoiceService.GetReceiptByIdAsync(id, ct);
+        return Ok(receipt);
     }
 
     /// <summary>
@@ -106,48 +88,15 @@ public class SalesInvoicesController : ControllerBase
     /// </summary>
     [HttpGet("{id:guid}/trace")]
     [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.SalesInvoices)]
     public async Task<IActionResult> TraceById(Guid id, CancellationToken ct)
     {
         if (id == Guid.Empty)
         {
-            return CreateProblemResult("VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã hóa đơn không được để trống.");
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.SalesInvoices, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã hóa đơn không được để trống.");
         }
 
-        try
-        {
-            var trace = await _salesInvoiceService.TraceByInvoiceIdAsync(id, ct);
-            return Ok(trace);
-        }
-        catch (OismException ex)
-        {
-            return CreateProblemResult(ex.ErrorCode, GetTitleForErrorCode(ex.ErrorCode), ex.StatusCode, ex.Message);
-        }
+        var trace = await _salesInvoiceService.TraceByInvoiceIdAsync(id, ct);
+        return Ok(trace);
     }
-
-    private IActionResult CreateProblemResult(string errorCode, string title, int statusCode, string detail)
-    {
-        var problem = new ProblemDetails
-        {
-            Title = title,
-            Status = statusCode,
-            Detail = detail,
-            Instance = HttpContext.Request.Path,
-            Extensions =
-            {
-                ["errorCode"] = errorCode,
-                ["timestamp"] = DateTimeOffset.UtcNow
-            }
-        };
-        return StatusCode(statusCode, problem);
-    }
-
-    private static string GetTitleForErrorCode(string errorCode) => errorCode switch
-    {
-        "SALES_INVOICE_NOT_FOUND" => "Không tìm thấy hóa đơn bán hàng",
-        "ORDER_NOT_FOUND" => "Không tìm thấy đơn hàng",
-        "LEDGER_ENTRY_NOT_FOUND" => "Không tìm thấy dòng sổ kho",
-        "VALIDATION_ERROR" => "Lỗi xác thực dữ liệu",
-        "UNAUTHORIZED" => "Chưa xác thực",
-        _ => "Lỗi xử lý nghiệp vụ"
-    };
 }

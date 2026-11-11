@@ -14,9 +14,10 @@ Trả lời bằng tiếng Việt. Docs là yêu cầu, code và test là hiện
 | `src/backend/src/OISM.Application` | `Features/<Module>/` chứa service, DTO, interface nghiệp vụ |
 | `src/backend/src/OISM.Infrastructure` | `AppDbContext`, JWT, BCrypt, `SqlLockService`, job Hangfire |
 | `src/backend/src/OISM.WebApi` | Controller, `NotificationHub`, middleware lỗi, `Program.cs` |
-| `src/backend/tests` | `OISM.UnitTests`, `OISM.IntegrationTests` |
-| `src/frontend/admin-dashboard` | React 19 + Vite, cổng 5173; có cả POS tích hợp tại `/pos` (`PosPage.tsx`) |
-| `src/frontend/pos-app` | POS PWA riêng, cổng 5174 |
+| `test-oisms/backend` | `OISM.UnitTests`, `OISM.IntegrationTests` |
+| `src/frontend/admin-dashboard` | React 19 + Vite, cổng 5173; quản trị, `/pos` chỉ chuyển sang ứng dụng POS riêng |
+| `src/frontend/pos-app` | POS hiện tại chuyển từ Admin, cổng 5174; `src/pages/PosPage.tsx`, một implementation quầy |
+| `src/frontend/marketplace-simulator` | Giao diện giả lập bắn đơn sàn qua webhook, cổng 5175; chỉ gọi `/api/webhooks/*`. Xem `docs/14-webhook-simulator/` |
 | `docs/database/oisms_schema.sql` | Nguồn cấu trúc DB hiện hành |
 | `docker/postgres/migrations/` | Script nâng cấp DB đã có dữ liệu |
 
@@ -26,8 +27,8 @@ Không sửa và không tìm code trong `backend/` (chỉ còn thư mục build,
 
 ```bash
 dotnet build src/backend/OISM.sln
-dotnet test src/backend/tests/OISM.UnitTests/OISM.UnitTests.csproj
-dotnet test src/backend/tests/OISM.IntegrationTests/OISM.IntegrationTests.csproj --filter "FullyQualifiedName~<TenTest>"
+dotnet test test-oisms/backend/OISM.UnitTests/OISM.UnitTests.csproj
+dotnet test test-oisms/backend/OISM.IntegrationTests/OISM.IntegrationTests.csproj --filter "FullyQualifiedName~<TenTest>"
 ```
 
 Một phần integration test cần PostgreSQL thật và các biến `OISM_TEST_HOST`, `OISM_TEST_PORT`, `OISM_TEST_ADMIN_USER`, `OISM_TEST_ADMIN_PASSWORD`, `OISM_TEST_APP_USER`, `OISM_TEST_APP_PASSWORD`. Xem cách đặt trong `.github/workflows/ci.yml`.
@@ -37,10 +38,14 @@ npm run build --prefix src/frontend/admin-dashboard
 npm run build --prefix src/frontend/pos-app
 npm test --prefix src/frontend/pos-app
 npm run lint --prefix src/frontend/pos-app
+# Live: docker compose -f docker/pos-tests/compose.yml up -d --build
+npm run test:live --prefix src/frontend/pos-app
+npm run build --prefix src/frontend/marketplace-simulator
+npm test --prefix src/frontend/marketplace-simulator
 ```
 
 Chạy local: `docker compose up -d`, hoặc `scripts/run-backend.ps1`, `run-admin.ps1`, `run-pos.ps1`. Backend ở cổng 5000, có `/swagger` khi Development và `/health/ready`.
-CI chạy khi push hoặc mở PR vào `main`, `master`, `develop`: build và test backend, build hai frontend, chạy `npm test` của POS.
+CI chạy khi push hoặc mở PR vào `main`, `master`, `develop`: build và test backend, build ba frontend, chạy `npm test` của POS và của app giả lập.
 
 ## Quy tắc không được phá
 
@@ -56,25 +61,26 @@ CI chạy khi push hoặc mở PR vào `main`, `master`, `develop`: build và te
 - **Idempotency:** thao tác ghi quan trọng dùng `RequestKey` hoặc `Idempotency-Key`: cùng key và payload trả kết quả cũ, khác payload trả 409. Frontend giữ nguyên key khi retry lúc kết quả chưa rõ.
 - **Trạng thái đơn:** `Draft → Reserved → Confirmed → Completed`; `Draft` hoặc `Reserved → Cancelled`. Xem `docs/04-architecture-and-design/04-state-machines.md`.
 - **Phân quyền:** ba vai trò `Owner`, `Staff`, `Cashier`. Báo cáo tài chính và trường giá vốn phải kiểm tra quyền ở cả dữ liệu trả về.
-- **Clean Architecture:** controller chỉ điều phối HTTP, nghiệp vụ nằm trong Application. Nợ đã biết: Application vẫn tham chiếu EF Core và một số service cũ còn SQL PostgreSQL. Không tiện tay refactor phần này.
+- **Clean Architecture:** controller điều phối HTTP, Application điều phối nghiệp vụ qua `IUnitOfWork` và `ISqlLockService`. SQL khóa và cách thực thi transaction nằm trong Infrastructure. Application vẫn tham chiếu EF Core cho truy vấn và lưu entity.
 - **Múi giờ báo cáo:** ngày nghiệp vụ theo `UTC+07:00`, lọc theo khoảng nửa mở `CreatedAt < endBoundary`.
 
 ## Database
 
-- Không dùng EF migrations. Mỗi thay đổi schema gồm: một file mới trong `docker/postgres/migrations/` (không sửa file cũ), cập nhật `oisms_schema.sql`, thêm bảng vào `RequiredTables` trong `Program.cs`, sửa số bảng kiểm tra trong `docker/postgres/init-oisms.sh`.
+- Không dùng EF migrations. Mỗi thay đổi schema gồm: một file mới trong `docker/postgres/migrations/` (không sửa file cũ), cập nhật `oisms_schema.sql`, thêm bảng vào `DatabaseMigrationService.RequiredTables` trong Infrastructure, sửa số bảng kiểm tra trong `docker/postgres/init-oisms.sh`.
 - Không chạy `oisms_schema.sql` lên DB đã có dữ liệu. `init-oisms.sh` chỉ chạy khi volume trống; rebuild không nâng cấp schema. `/health/ready` trả 503 "schema is incomplete" nghĩa là còn thiếu migration.
 - Không tự chạy `docker compose down -v` vì lệnh này xóa dữ liệu local.
 - Backend chạy bằng tài khoản `oisms_app` ít quyền; `postgres` chỉ dùng cho migration và backup.
 
 ## Điểm cần biết
 
-- **Docs cũ:** tài liệu lịch sử (sprint, báo cáo cá nhân) còn ghi 29 bảng; hiện là **43 bảng** (`oisms_schema.sql`, `init-oisms.sh`, `RequiredTables`). Docs kiến trúc còn ghi `ApplicationDbContext`, `OISM.WebAPI` thay vì `AppDbContext`, `OISM.WebApi`.
-- **Tiến độ:** hiện trạng frontend xem `docs/report-after-upgrade/frontend-coming-soon-va-upgrade.md`. Còn thiếu CS-01, CS-05 ở POS Admin, CS-06, U01-B và phân công chi nhánh của CS-02. Vẫn phải kiểm tra code trước khi kết luận chức năng còn thiếu. Dấu `[x]` Sprint 2 chỉ là baseline lịch sử, không phải nghiệm thu toàn sản phẩm.
-- **Tạm ẩn:** tab Gợi ý nhập hàng được comment trong `InventoryPage.tsx`, API vẫn chạy. Màn Handoff đã gỡ nhưng đặc tả `docs/11-ui-screens/07-handoff-screens.md` còn giữ. Quên mật khẩu mới là nút tắt có nhãn Coming soon.
-- **Hangfire:** `Hangfire:Enabled` mặc định `false` và compose không bật, nên job hết hạn giữ chỗ và lịch kiểm kê không tự chạy trừ khi cấu hình.
+- **Docs cũ:** tài liệu lịch sử (sprint, báo cáo cá nhân) còn ghi 29 bảng; hiện là **44 bảng** (`oisms_schema.sql`, `init-oisms.sh`, `RequiredTables`, bao gồm `payment_accounts` của CS-05). Docs kiến trúc còn ghi `ApplicationDbContext`, `OISM.WebAPI` thay vì `AppDbContext`, `OISM.WebApi`.
+- **Tiến độ:** hiện trạng frontend xem `docs/report-after-upgrade/frontend-coming-soon-va-upgrade.md`. CS-05 (VietQR) và CS-01 (trả hàng, PR #41) đã hoàn thành; còn thiếu CS-06, U01-B và phân công chi nhánh của CS-02. Vẫn phải kiểm tra code trước khi kết luận chức năng còn thiếu. Dấu `[x]` Sprint 2 chỉ là baseline lịch sử, không phải nghiệm thu toàn sản phẩm.
+- **Trợ lý OISMS (FR-AI-02, PR #42):** `POST /api/ai/chat`, `GET /api/ai/models`, chỉ Owner và Staff, chỉ đọc. Gọi Groq hoặc Gemini qua chuẩn OpenAI (`LlmRouter`), mặc định tắt (`AI_ENABLED`), key đặt trong `.env`, không commit. Không có kinh phí nên API AI chỉ dùng gói miễn phí, hạn mức rất thấp (Gemini Free Tier 20 request/ngày), xem `docs/02-functional-requirements/fr-13-ai-assistant.md`. Tab Gợi ý nhập hàng (FR-AI-01) đã mở lại.
+- **Tạm ẩn:** Màn Handoff đã gỡ nhưng đặc tả `docs/11-ui-screens/07-handoff-screens.md` còn giữ. Quên mật khẩu mới là nút tắt có nhãn Coming soon.
+- **Hangfire:** `Hangfire:Enabled` mặc định `false`; compose truyền `HANGFIRE_ENABLED` (mặc định `false`) và `HANGFIRE_WORKER_COUNT`. Khi tắt, job hết hạn giữ chỗ và lịch kiểm kê không tự chạy. Hangfire dùng chung kết nối `Database:*` với `AppDbContext` (`HangfireConnection` chỉ là tùy chọn). Trước khi bật trên DB đã có dữ liệu phải chạy `docker/postgres/migrations/20261108_hangfire_schema.sql`; thiếu schema `hangfire` thì backend không khởi động. Bản demo AWS đã bật từ 11/11/2026 (`HANGFIRE_ENABLED=true`).
 - **Redis:** có container nhưng code backend chưa dùng.
-- **POS đa đơn vị:** `posCartUnits.ts` có một bản trong mỗi app, sửa thì sửa cả hai; `pos-app/test-cart-units.mjs` chạy cả hai bản. Giá theo đơn vị phải lấy từ `/api/pos/search` hoặc `/api/sku-unit-prices/effective`, vì `salePrice` trong `/api/products` có thể rỗng; không tự tính giá theo hệ số.
-- **Quyền xem:** Staff được xem giá vốn ở truy vết và doanh thu ở Tổng quan theo `docs/01-users-and-rbac/02-rbac-matrix.md`; chỉ lãi gộp là Owner.
+- **POS đa đơn vị:** `posCartUnits.ts` chỉ còn tại `pos-app`; `test-cart-units.mjs` chạy implementation này. Giá theo đơn vị phải lấy từ `/api/pos/search` hoặc `/api/sku-unit-prices/effective`, vì `salePrice` trong `/api/products` có thể rỗng; không tự tính giá theo hệ số.
+- **Quyền xem:** Staff được xem giá vốn ở truy vết và doanh thu ở Tổng quan theo `docs/01-users-and-rbac/02-rbac-matrix.md`; chỉ lãi gộp là Owner. Riêng Trợ lý OISMS: Staff không hỏi được doanh thu (tool `get_revenue` chỉ Owner, chốt 10/11/2026).
 - **JWT:** `Program.cs` có secret fallback viết cứng. Môi trường thật phải đặt `Jwt:Secret`; không dựa vào fallback.
 - **Deploy:** frontend nhúng URL API lúc build. `VITE_API_BASE_URL` không thêm đuôi `/api`. Production không có Swagger và không seed demo.
 - **Bí mật:** không đọc, in hay commit `.env`, `.env.production`, file dump.
