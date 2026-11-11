@@ -27,9 +27,9 @@ Các file trong thư mục là **yêu cầu**. Bảng dưới ghi cách hệ th�
 
 | Mã | Cách đáp ứng hiện tại | Chưa có / cần lưu ý |
 | :--- | :--- | :--- |
-| `NFR-PERF-01` | Index `uq_skus_3` (barcode), index lịch sử sổ cái; có script đo độ trễ POS (`pos-app/measure-pos-latency.mjs`) | Chưa đo lại p95 trên bản deploy AWS |
+| `NFR-PERF-01` | Index `uq_skus_3` (barcode), index lịch sử sổ cái | Script đo độ trễ POS `measure-pos-latency.mjs` (Sprint 3) không còn trong `pos-app` sau khi tách POS 08/11/2026; log đo cũ ở `docs/09-personal-reports/phuong/sprint-3/.../evidence/v1.3/`. Chưa đo lại p95 trên bản deploy AWS |
 | `NFR-PERF-02` | Khóa bi quan `pg_advisory_xact_lock` + `SELECT ... FOR UPDATE`, CHECK `reserved <= on_hand`; API mô phỏng `POST /api/webhooks/simulator/batch`; integration test đồng thời trên PostgreSQL | Không dùng khóa lạc quan (`RowVersion`). Stress test trên môi trường deploy chưa chạy |
-| `NFR-TENANT-01..02` | 38 global query filter, tenant guard khi `SaveChanges`, khóa ngoại kép `(tenant_id, id)` | — |
+| `NFR-TENANT-01..02` | 41 global query filter (đếm `HasQueryFilter` trong `AppDbContext`, 11/11/2026), tenant guard khi `SaveChanges`, khóa ngoại kép `(tenant_id, id)` | — |
 | `NFR-SEC-01` | BCrypt (`BCrypt.Net-Next`), JWT 60 phút + refresh token xoay vòng. Production: HTTPS do Caddy + Let's Encrypt (TLS 1.2/1.3) | Local chạy HTTP. `Program.cs` còn secret JWT fallback, production bắt buộc `JWT_SECRET` |
 | `NFR-SEC-02` | Mọi thao tác kho trong một transaction, rollback toàn phần | — |
 | `NFR-SEC-03` | Trigger `ledger_append_only`, `/health/ready` kiểm trigger đang bật | — |

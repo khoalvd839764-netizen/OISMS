@@ -234,3 +234,27 @@ Toàn bộ 9 kịch bản kiểm thử nghiệp vụ giao diện đã được t
 | **SCR-05** | `05-invoice-trace-with-return.png` | **Modal truy vết chứng từ (`SalesInvoiceTraceModal`)**: Khối "Phiếu Trả Hàng & Dòng Sổ Kho Nhập Lại (IN)" hiển thị chi tiết số phiếu trả, ngày xác nhận và các dòng bút toán sổ kho `IN` hoàn trả giá vốn. | [05-invoice-trace-with-return.png](./screenshots/sales-returns/05-invoice-trace-with-return.png) |
 | **SCR-06** | `06-reports-net-revenue.png` | **Trang Báo cáo Doanh thu & Lợi nhuận (`/reports`)**: Thẻ KPI "Hàng trả lại" (`returnAmount`) và "Doanh thu thuần (Net)" (`netRevenue`), cùng các bảng phân rã kênh bán và xu hướng theo ngày có trừ hàng trả. | [06-reports-net-revenue.png](./screenshots/sales-returns/06-reports-net-revenue.png) |
 
+
+---
+
+## 7. Đặc Tả Màn Hình Hóa Đơn Bán Hàng (`/invoices`, Upgrade 02)
+
+*Bổ sung 11/11/2026 theo code hiện tại.*
+
+| Thông tin | Chi tiết |
+| :--- | :--- |
+| **Route** | `/invoices`, `/admin/invoices` |
+| **Quyền** | Owner, Staff. Cashier không vào Admin (đăng nhập Admin sẽ được chuyển sang POS); Cashier chỉ in lại biên lai qua `GET /api/sales-invoices/receipt` |
+| **Source** | `src/frontend/admin-dashboard/src/pages/SalesInvoicesPage.tsx`, `components/salesInvoices/SalesInvoiceDetailModal.tsx`, `SalesInvoiceReprintModal.tsx`, `SalesInvoiceTraceModal.tsx`, `services/salesInvoiceService.ts` |
+| **API** | `GET /api/sales-invoices`, `GET /api/sales-invoices/{id}`, `GET /api/sales-invoices/{id}/receipt`, `GET /api/sales-invoices/{id}/trace` |
+| **Yêu cầu** | [Upgrade 02](../Upgrade-recommended/02-truy-vet-chung-tu-xuat-kho.md) |
+
+| Khu vực | Nội dung |
+| :--- | :--- |
+| Tiêu đề | "Hóa Đơn Bán Hàng & Truy Vết", nút **Tải lại** |
+| Bộ lọc | Số hóa đơn (`INV-...`), Chi nhánh, Từ ngày, Đến ngày |
+| Bảng | Số hóa đơn, Đơn hàng gốc, Chi nhánh, Khách hàng, Người lập, Thời gian lập, Tổng tiền, Thao tác |
+| Thao tác mỗi dòng | **Xem chi tiết**; **In lại** (khổ 80mm hoặc 58mm, dùng dữ liệu đã chụp lúc lập hóa đơn); **Truy vết** |
+| Modal truy vết | Chuỗi Hóa đơn → Đơn hàng → Dòng sổ kho `OUT` (bảng chi tiết bút toán); nếu đơn có trả hàng thì thêm khối Phiếu trả hàng và dòng sổ `IN` (CS-01) |
+
+Giá vốn trong truy vết do backend lọc theo vai trò; trang không tự ẩn trường. In chứng từ giao hàng từ đơn hàng (CS-06) chưa làm, nút trong drawer đơn hàng còn nhãn Coming soon.

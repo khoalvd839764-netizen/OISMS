@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-QA-02` |
-| **Phiên bản (Version)** | `v1.1.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
+| **Phiên bản (Version)** | `v1.2.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-11` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `NFR-MAINT-02`, `3.2.e` (Trang 4, 5) |
 | **Phạm vi áp dụng** | `test-oisms/backend/OISM.UnitTests` & `test-oisms/backend/OISM.IntegrationTests` |
 
@@ -16,6 +16,7 @@
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả phương pháp kiểm thử tự động trên PostgreSQL thật và hướng dẫn đo độ phủ mã nguồn (`Code Coverage`). | `INIT-QA-02` |
 | `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Cập nhật số lượng test theo hiện trạng (unit 221/221 PASS, integration 364/365 ở lần chạy gần nhất), biến `OISM_TEST_*`, ghi rõ số coverage là mốc Sprint 2. | `OISMS-46` |
+| `v1.2.0` | `2026-11-11` | Nhóm dự án OISMS | Cập nhật quy mô test sau CS-01, CS-05, Trợ lý AI và gộp POS: unit 380/380 PASS, POS 89/89 PASS (chạy 11/11/2026); integration chưa chạy lại. Thêm test app giả lập và Admin. | `OISMS-58` |
 
 ---
 
@@ -23,9 +24,10 @@
 
 | Project | Quy mô hiện tại | Phạm vi |
 | :--- | :--- | :--- |
-| `OISM.UnitTests` (xUnit, Moq, FluentAssertions, EF InMemory) | 149 `[Fact]` + 16 `[Theory]`; lần chạy 06/11/2026: 221/221 PASS | WAC, quy tắc sổ cái, `PhoneHelper`, `SkuAttributeHelper`, validator, quy đổi đơn vị, giá, gợi ý nhập hàng, `DemoSeedPolicy`. |
-| `OISM.IntegrationTests` (`WebApplicationFactory`, PostgreSQL thật) | 357 `[Fact]` + 2 `[Theory]`; lần chạy gần nhất 364/365 (1 FAIL do CRLF trên Windows, xem [báo cáo](../report-after-upgrade/frontend-coming-soon-va-upgrade.md#lệnh-kiểm-chứng)) | Cô lập tenant, ACID/rollback, `FOR UPDATE` và `pg_advisory_xact_lock`, idempotency, RBAC trên API, migration chạy lại, SignalR. |
-| `src/frontend/pos-app` (`node --test`) | 63/63 | Giỏ hàng đa đơn vị (cả hai bản `posCartUnits.ts`), QR, môi trường build, luồng POS. |
+| `OISM.UnitTests` (xUnit, Moq, FluentAssertions, EF InMemory) | 243 `[Fact]` + 34 `[Theory]`; lần chạy 11/11/2026: 380/380 PASS | WAC, quy tắc sổ cái, `PhoneHelper`, `SkuAttributeHelper`, validator, quy đổi đơn vị, giá, gợi ý nhập hàng, `DemoSeedPolicy`, trả hàng, tài khoản nhận tiền, Trợ lý AI (tool, router, kho tài liệu), webhook catalog. |
+| `OISM.IntegrationTests` (`WebApplicationFactory`, PostgreSQL thật) | 382 `[Fact]` + 5 `[Theory]` (đếm 11/11/2026); lần chạy 07/11/2026: 372/372 PASS trên PostgreSQL (xem [review PR 39](../report-after-upgrade/vietqr-cs05-review-pr39.md)). Chưa chạy lại sau CS-01 và Trợ lý AI | Cô lập tenant, ACID/rollback, `FOR UPDATE` và `pg_advisory_xact_lock`, idempotency, RBAC trên API, migration chạy lại, SignalR. |
+| `src/frontend/pos-app` (`node --test`, file test ở `test-oisms/frontend/pos-app/`) | 89/89 PASS (11/11/2026) | Giỏ hàng đa đơn vị (`posCartUnits.ts` của `pos-app`), QR, checkout giữ `requestKey`, phiên đăng nhập, realtime, hóa đơn, service worker. |
+| `src/frontend/marketplace-simulator`, `admin-dashboard` (`node --test`) | `test-oisms/frontend/marketplace-simulator/test-payload.mjs`, `test-oisms/frontend/admin-dashboard/test-ai-chat-format.mjs` | Payload webhook giả lập; định dạng câu trả lời Trợ lý AI. |
 
 Mock và EF InMemory không chứng minh được transaction hay concurrency; các thay đổi chạm ledger, WAC, reservation, idempotency, concurrency phải có integration test trên PostgreSQL thật.
 

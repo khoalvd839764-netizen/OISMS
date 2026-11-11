@@ -5,10 +5,11 @@
 | **Dự án** | Omnichannel Inventory & Sales Management System (OISMS) |
 | **Không gian Confluence** | `OISMS` \| **Thư mục:** `Report Sprint` |
 | **Mã tài liệu (Document ID)** | `DOC-REP-SPRINT-04` |
-| **Phiên bản (Version)** | `v1.0.0` |
+| **Phiên bản (Version)** | `v1.1.0` (cập nhật 11/11/2026 theo [rà soát docs](./ra-soat-lech-docs-2026-11-11.md)) |
 | **Giai đoạn (Sprint Phase)** | **Sprint 4: Hoàn Thiện Nghiệp Vụ, Trí Tuệ Nhân Tạo (AI) & Triển Khai Thực Nghiệm (AWS)** |
-| **Thời gian thực hiện** | `23/10/2026 – 04/11/2026` (D13 – D25) |
-| **Trạng thái nghiệm thu** | **HOÀN THÀNH TOÀN DIỆN (100% DoD) & DEPLOY PRODUCTION DEMO** |
+| **Thời gian thực hiện** | `23/10/2026 – 27/10/2026` (D13 – D18) theo kế hoạch |
+| **Ngày chốt số liệu nghiệm thu** | `04/11/2026` (số test, build và kết quả deploy bên dưới lấy theo ngày này) |
+| **Trạng thái nghiệm thu** | **HOÀN THÀNH PHẦN LỚN & DEPLOY PRODUCTION DEMO.** Còn lại: CS-02, CS-06 đạt một phần; U01-B chưa làm |
 | **Môi trường Demo Trực Tuyến** | 🌐 **[https://oisms.khoadang.site](https://oisms.khoadang.site)** |
 
 ---
@@ -48,19 +49,20 @@ Trong giai đoạn Sprint 4, do hai thành viên **Phúc Hữu** và **Phương 
 | Mã | Tên chức năng | Chi tiết hiện thực | Kết quả nghiệm thu |
 | :---: | :--- | :--- | :---: |
 | **CS-01** | **Nhận hàng trả từ khách** | Cho phép chọn đơn hàng gốc, kiểm tra số lượng đã bán/đã trả, nhập kho hoàn tồn tự động quy đổi về đơn vị gốc `BaseQuantity` kèm hệ số `FactorSnapshot`. | **PASS** |
-| **CS-02** | **Quản trị Nhân viên & RBAC** | Màn hình `OrganizationPage.tsx` hỗ trợ tạo mới, chỉnh sửa thông tin, phân quyền vai trò (Owner, Staff) và khóa tài khoản nhân viên. | **PASS** |
+| **CS-02** | **Quản trị Nhân viên & RBAC** | Màn hình `OrganizationPage.tsx` hỗ trợ tạo mới, chỉnh sửa thông tin, gán vai trò (`Staff`, `Cashier`) và khóa tài khoản nhân viên. Chưa có phân công nhân viên vào chi nhánh (backend chưa có trường). | **ĐẠT MỘT PHẦN** |
 | **CS-03** | **Ngưỡng tồn an toàn trên Server** | Cấu hình `ReorderPoint` được lưu trữ tập trung tại server, đồng bộ chính xác trên Kho, Sản phẩm, Báo cáo và Tổng quan. | **PASS** |
 | **CS-04** | **Tìm kiếm toàn hệ thống** | Thanh tìm kiếm Global Search trên Header (`AdminShell.tsx`), tra cứu tức thời SKU, Đơn hàng, Phiếu kho và điều hướng trực tiếp đúng quyền. | **PASS** |
-| **CS-05** | **Thanh toán VietQR động POS** | Tích hợp mã VietQR động theo đơn hàng trong `PaymentModal.tsx` trên cả POS Admin và POS PWA, hỗ trợ xác nhận thanh toán an toàn. | **PASS** |
-| **CS-06** | **In ấn chuyên nghiệp** | In biên nhận POS khổ 80mm/58mm với mã hóa đơn chuẩn `INV-`, in phiếu giao hàng và báo cáo thống kê khổ A4 chuẩn hóa. | **PASS** |
+| **CS-05** | **Thanh toán VietQR động POS** | Tích hợp mã VietQR động theo đơn hàng trong `PaymentModal.tsx` của POS, hỗ trợ xác nhận thanh toán an toàn. *(Lúc nghiệm thu có hai bản POS Admin và POS PWA; ngày 08/11/2026 đã gộp thành một ứng dụng `pos-app`.)* | **PASS** |
+| **CS-06** | **In ấn chuyên nghiệp** | Đã có: in biên nhận POS khổ 80mm/58mm với mã hóa đơn `INV-`, in lại hóa đơn bán. Chưa làm: in chứng từ giao hàng từ đơn hàng và in báo cáo (hai nút còn nhãn Coming soon). | **ĐẠT MỘT PHẦN** |
 | **CS-07** | **Dashboard KPI Tổng quan** | Bảng số liệu kinh doanh thật: Doanh thu thuần, Giá vốn, Lợi nhuận gộp, Số lượng đơn, biểu đồ xu hướng 7 ngày và danh sách đơn hàng gần đây. | **PASS** |
-| **CS-08** | **AI Gợi ý nhập hàng (`FR-AI-01`)** | Thuật toán AI phân tích lịch sử bán hàng, tốc độ xuất kho và ngưỡng tồn an toàn để đưa ra khuyến nghị nhập hàng tự động kèm lý do trực quan. | **PASS** |
+| **CS-08** | **AI Gợi ý nhập hàng (`FR-AI-01`)** | Gợi ý nhập hàng theo quy tắc: tính tốc độ xuất bán trung bình theo ngày từ sổ kho (bỏ dòng chuyển kho), ước số ngày còn hàng, so với ngưỡng `ReorderPoint` và thời gian chờ hàng, kèm lý do cho từng SKU. | **PASS** |
 
 ### B. Nhóm chức năng nâng cấp nghiệp vụ lõi theo gợi ý của GVHD (Upgrade 01 → 06)
 
 | Mã | Gói nâng cấp | Chi tiết kỹ thuật & Nghiệp vụ | Kết quả nghiệm thu |
 | :---: | :--- | :--- | :---: |
 | **U01-A** | **Mua hàng & Nhập kho NCC** | Thêm bảng `purchase_orders`, `purchase_order_items`. Bắt buộc phiếu nhập kho NCC phải gắn với đơn mua đã được phê duyệt; khóa đơn giá và hệ số quy đổi; chặn nhập vượt số lượng (`PURCHASE_ORDER_OVER_RECEIPT`). | **PASS** |
+| **U01-B** | **Hóa đơn NCC & Chênh lệch mua hàng** | Bảng `supplier_invoices`, `purchase_variances`: đối chiếu hóa đơn nhà cung cấp với phiếu mua, phiếu nhập. Cần backend và GVHD chốt cách xử lý chênh lệch. | **CHƯA LÀM** |
 | **U02** | **Hóa đơn & Truy vết xuất kho** | Thêm bảng `sales_invoices`. Liên kết trực tiếp mọi dòng sổ cái kho `OUT` với chứng từ nguồn và hóa đơn bán; hỗ trợ in lại hóa đơn và tra cứu lịch sử xuất bán. | **PASS** |
 | **U03** | **Lịch kiểm kê & Duyệt chênh lệch** | Bảng `stock_count_schedules` hỗ trợ lịch định kỳ (ngày 15, cuối tháng, đột xuất); quy trình nộp và phê duyệt chênh lệch 2 bước (`PendingApproval`); chống ghi đè khi kho biến động giữa chừng. | **PASS** |
 | **U04** | **Bảng giá theo thời gian hiệu lực** | Bảng `price_lists`, `sku_unit_prices` quản lý hiệu lực theo `valid_from`; quy trình lập & duyệt Phiếu đổi giá (`price_change_requests`); chụp snapshot giá vào đơn và đóng API sửa giá trực tiếp trên SKU. | **PASS** |
@@ -72,9 +74,9 @@ Trong giai đoạn Sprint 4, do hai thành viên **Phúc Hữu** và **Phương 
 | Tiêu chí đo kiểm | Kết quả thực tế | Trạng thái |
 | :--- | :--- | :---: |
 | **Fix 20 lỗi hệ thống (`BF-001` → `BF-020`)** | Hoàn tất 100% (Phiên, SignalR, Idempotency, múi giờ Việt Nam, khóa form). | **PASS** |
-| **Backend Unit Tests** | **212 / 212 tests PASS** (100%) | **PASS** |
-| **Backend Integration Tests** | **364 / 365 tests PASS** (99.7% — 1 test khác biệt CRLF/LF trên Windows) | **PASS** |
-| **Frontend POS Tests** | **63 / 63 tests PASS** (bao gồm test giỏ hàng đa đơn vị tính) | **PASS** |
+| **Backend Unit Tests** | **212 / 212 tests PASS** (100%, chạy 04/11/2026) | **PASS** |
+| **Backend Integration Tests** | **364 / 365 tests PASS** (99.7% — 1 test khác biệt CRLF/LF trên Windows; chạy 04/11/2026) | **PASS** |
+| **Frontend POS Tests** | **63 / 63 tests PASS** (bao gồm test giỏ hàng đa đơn vị tính; chạy 04/11/2026) | **PASS** |
 | **Build Web Admin Dashboard** | `npm run build` thành công, 0 lỗi, 0 warning chặn | **PASS** |
 | **Build Web POS App (PWA)** | `npm run build` thành công, 0 lỗi | **PASS** |
 | **Kiểm tra độ sẵn sàng hệ thống** | Endpoint `/health/ready` trả về HTTP 200, kiểm tra đủ 43 bảng database | **PASS** |
@@ -133,4 +135,11 @@ Hệ thống OISMS đã được đóng gói container hóa và triển khai th�
 
 ## 7. Kết Luận Nghiệm Thu Sprint 4
 
-Sprint 4 đã chính thức **HOÀN THÀNH TOÀN BỘ 100% KHỐI LƯỢNG MỤC TIÊU ĐỀ RA**. Toàn bộ các tính năng còn thiếu (Coming Soon), 5 gói nâng cấp nghiệp vụ lõi của GVHD và 20 lỗi hệ thống đã được xử lý triệt để, kiểm thử đạt chuẩn và triển khai thực tế lên đám mây AWS tại **[https://oisms.khoadang.site](https://oisms.khoadang.site)**. Nhóm sẵn sàng bước vào Sprint 5 để nghiệm thu, đo kiểm NFR và bảo vệ đồ án tốt nghiệp.
+Sprint 4 **hoàn thành phần lớn khối lượng mục tiêu**: 6/8 chức năng Coming Soon đạt (CS-01, CS-03, CS-04, CS-05, CS-07, CS-08), Upgrade 01-A, 02, 03, 04, 05, 06 đạt, 20 lỗi hệ thống `BF-001..020` đã xử lý, hệ thống đã triển khai lên AWS tại **[https://oisms.khoadang.site](https://oisms.khoadang.site)**.
+
+Còn lại chuyển sang giai đoạn sau:
+
+- **CS-02:** phân công nhân viên vào chi nhánh (cần quyết định làm thêm backend hay bỏ khỏi yêu cầu).
+- **CS-06:** in chứng từ giao hàng và in báo cáo.
+- **U01-B:** hóa đơn nhà cung cấp và chênh lệch mua hàng.
+- Hạng mục kế hoạch chưa có: job Hangfire tổng hợp báo cáo hằng ngày, màn demo concurrency, đo NFR p95 POS và stress test trên môi trường deploy.

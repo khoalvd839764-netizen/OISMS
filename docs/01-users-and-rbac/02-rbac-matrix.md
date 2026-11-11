@@ -17,7 +17,7 @@
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Thiết lập ma trận phân quyền chi tiết cấp API và Màn hình cho 3 vai trò `Owner`, `Staff`, `Cashier`. | `INIT-USR-02` |
 | `v1.1.0` | `2026-11-03` | Nhóm dự án OISMS | Cập nhật phân quyền lịch kiểm kê, kỳ kiểm kê, nộp duyệt, đếm lại và chốt kiểm kê (OISMS-47-U03). | `OISMS-47-U03` |
 | `v1.2.0` | `2026-11-06` | Nhóm dự án OISMS | Sửa tên claim JWT theo `JwtTokenService`; thêm dòng Quản lý người dùng; thêm mục Lệch giữa yêu cầu và code (báo cáo lãi gộp, giá vốn trong tồn kho cho Cashier, quyền kho của Staff, quyền xóa danh mục). | `OISMS-46` |
-| `v1.3.0` | `2026-11-09` | Nhóm dự án OISMS | Bổ sung phân quyền Trả hàng từ khách (CS-01); chuẩn hóa bảo mật báo cáo: Staff bị ẩn toàn bộ giá vốn và lãi gộp (`null`) theo ma trận. | `OISMS-58-CS01-P2` |
+| `v1.3.0` | `2026-11-09` | Nhóm dự án OISMS | Bổ sung phân quyền Trả hàng từ khách (CS-01); chuẩn hóa bảo mật báo cáo: trong báo cáo doanh thu (`/api/reports/revenue-profit`) Staff bị ẩn giá vốn và lãi gộp (`null`) theo ma trận. Truy vết hóa đơn vẫn cho Staff xem giá vốn dòng (dòng *Truy vết chuỗi chứng từ*). | `OISMS-58-CS01-P2` |
 
 ---
 

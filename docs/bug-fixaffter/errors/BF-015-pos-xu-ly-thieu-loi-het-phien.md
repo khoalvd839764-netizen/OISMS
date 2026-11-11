@@ -2,7 +2,7 @@
 
 | Mục | Giá trị |
 | :--- | :--- |
-| **Trạng thái** | 🟡 Đã sửa, cần kiểm chứng lại |
+| **Trạng thái** | ✅ Đã sửa, kiểm chứng trên `pos-app` 11/11/2026 |
 | **Ưu tiên** | P2 |
 | **Khu vực** | POS |
 | **Phát hiện** | 28–29/10/2026 (Tái hiện có kiểm soát) |
@@ -34,3 +34,10 @@
   * Khi gặp HTTP 401, xóa token hết hạn và phát sự kiện `window.dispatchEvent(new CustomEvent('pos-auth-expired'))`, đồng thời tại `pos-app/src/App.tsx` giữ nguyên `cart` khi hết phiên để thu ngân đăng nhập lại tiếp tục thanh toán.
   * Trích xuất đầy đủ `detail`, `message` và `errorCode` từ cấu trúc chuẩn RFC 7807 `ProblemDetails`.
 * **Kiểm thử xác thực:** Pass kịch bản `pos-checkout-401`: token hết hạn bị xóa sạch, sự kiện hết phiên được phát, giỏ hàng được bảo toàn và thông báo chi tiết của backend được hiển thị.
+
+## Kiểm chứng sau khi gộp POS (11/11/2026)
+
+POS Admin đã chuyển thành ứng dụng POS duy nhất `src/frontend/pos-app` (08/11/2026), nên bản sửa ở POS Admin chính là bản đang chạy.
+
+- `npm test --prefix src/frontend/pos-app`: PASS 89/89.
+- Kiểm tay trên trình duyệt: NOT RUN.

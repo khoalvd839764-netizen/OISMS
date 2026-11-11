@@ -32,7 +32,7 @@ Chạy trên PostgreSQL 16 của `oism_postgres`, cổng `5432`. Fixture tự t�
 | So SQL nhúng trong `DatabaseMigrationService` với file migration | Giống nhau sau khi bỏ khoảng trắng và comment |
 | Test `U03_Migration_TuSchemaTruocU03...`: đưa database về trước U03, chạy `UpgradeDatabaseSchemaAsync` 2 lần, phiếu `Counting` cũ đi tiếp đến chốt | PASS |
 
-Test mới: [`StockCountU03IntegrationTests.cs`](../../src/backend/tests/OISM.IntegrationTests/StockCountU03IntegrationTests.cs) (14 test), [`StockCountPeriodCalculatorTests.cs`](../../src/backend/tests/OISM.UnitTests/StockCountPeriodCalculatorTests.cs) (6 test). Có các ca song song: 8 job sinh kỳ, 10 lần bắt đầu cùng một kỳ, 10 lần duyệt cùng một phiếu.
+Test mới: [`StockCountU03IntegrationTests.cs`](../../test-oisms/backend/OISM.IntegrationTests/StockCountU03IntegrationTests.cs) (14 test), [`StockCountPeriodCalculatorTests.cs`](../../test-oisms/backend/OISM.UnitTests/StockCountPeriodCalculatorTests.cs) (6 test). Có các ca song song: 8 job sinh kỳ, 10 lần bắt đầu cùng một kỳ, 10 lần duyệt cùng một phiếu.
 
 ## Lỗi phát hiện khi nghiệm thu và đã sửa
 
@@ -62,7 +62,7 @@ Các sửa đổi và test trên do người nghiệm thu vừa làm vừa tự 
 
 ## Triển khai
 
-Backend này cần đủ 43 bảng. Database cũ phải backup rồi chạy `docker/postgres/migrations/20261103_stock_count_schedules.sql`; thiếu bảng thì `/health/ready` báo chưa sẵn sàng. Job chỉ chạy khi `Hangfire:Enabled = true`; khi tắt, kỳ vẫn được sinh lúc tạo hoặc sửa lịch nhưng không tự sinh tháng mới.
+Backend này cần đủ 43 bảng (mốc 03/11/2026; hiện là 44 bảng sau khi thêm `payment_accounts`). Database cũ phải backup rồi chạy `docker/postgres/migrations/20261103_stock_count_schedules.sql`; thiếu bảng thì `/health/ready` báo chưa sẵn sàng. Job chỉ chạy khi `Hangfire:Enabled = true`; khi tắt, kỳ vẫn được sinh lúc tạo hoặc sửa lịch nhưng không tự sinh tháng mới.
 
 ## Còn lại
 

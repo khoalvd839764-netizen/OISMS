@@ -51,6 +51,7 @@ docs/bug-fixaffter/
 | 02–04/11/2026 | Làm Upgrade 05, 04, 01-A, 02, 03 và phần lớn Coming Soon | Xem [báo cáo nghiệm thu](../report-after-upgrade/frontend-coming-soon-va-upgrade.md) |
 | 04–06/11/2026 | Ghi thêm BF-021..027 khi nghiệm thu và đối chiếu code với ma trận RBAC, cách deploy | Unit test 221/221 PASS (06/11/2026); 7 lỗi mới chưa sửa |
 | 06/11/2026 | Rà soát lại Clean Architecture sau Upgrade 06, ghi BF-028..035 và kế hoạch 4 đợt ([CHECKLIST mục E](./CHECKLIST.md#e-kế-hoạch-hoàn-thiện-clean-architecture-bf-028035)) | Chưa sửa code |
+| 11/11/2026 | Kiểm chứng lại BF-003, BF-015, BF-019 trên `pos-app` sau khi gộp POS (08/11) | `npm test --prefix src/frontend/pos-app` 89/89 PASS. BF-003, BF-015 đóng; BF-019 còn thiếu test riêng |
 
 Các file cũ (`Report Bugfix/BUG-LIST.md`, `report result affter fix.md`, `TEST-RESULTS.md`, `Comming Soon function/COMING-SOON.md`, `SPRINT-3-RELEASE.md`, `CHECKLIST-BUGFIX-AND-UPGRADE.md`) đã được gộp vào `errors/`, `CHECKLIST.md` và bảng trên ngày 06/11/2026; bản gốc còn trong lịch sử git.
 

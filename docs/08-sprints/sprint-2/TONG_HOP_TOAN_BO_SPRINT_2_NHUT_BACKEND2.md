@@ -109,7 +109,7 @@
 
 # 5. CHI TIẾT MÃ NGUỒN TRONG VS CODE (9 NHÓM VIỆC BE2-01 ĐẾN BE2-09)
 
-Dựa trên tài liệu nghiệm thu [**`docs/09-personal-reports/nhut/sprint-2/S2_BACKEND2_REPORT_2026-10-18.md`**](file:///Users/bo/OISMS/docs/09-personal-reports/nhut/sprint-2/S2_BACKEND2_REPORT_2026-10-18.md), toàn bộ 9 nhóm việc của bạn bao gồm:
+Dựa trên tài liệu nghiệm thu [**`docs/09-personal-reports/nhut/sprint-2/S2_BACKEND2_REPORT_2026-10-18.md`**](../../09-personal-reports/nhut/sprint-2/S2_BACKEND2_REPORT_2026-10-18.md), toàn bộ 9 nhóm việc của bạn bao gồm:
 
 | Mã việc | Tên phân hệ | File mã nguồn triển khai trong VS Code | Bài test kiểm chứng (Passed 100%) |
 | :---: | :--- | :--- | :--- |

@@ -77,7 +77,7 @@ Năm điểm cần cẩn thận:
 2. **Nhập đồng thời:** hai phiếu cùng nhập từ một đơn mua có thể vượt số lượng, và lệnh hủy hoặc đóng đơn có thể chạy song song với xác nhận nhập. Dùng advisory lock theo đơn mua qua `ISqlLockService` cho cả nhập, hủy và đóng đơn; thứ tự khóa là phiếu nhập → đơn mua → SKU. Thêm `CHECK` lượng đã nhận không vượt lượng đặt làm chốt chặn cuối, và kiểm chứng trên PostgreSQL thật vì EF InMemory không chạy khóa.
 3. **Phiếu nháp chưa giữ lượng:** nhiều phiếu nháp có thể cùng trỏ một dòng đơn mua. Lúc lập phiếu chỉ kiểm tra để báo sớm; kết luận cuối cùng là lúc xác nhận, sau khi đã có khóa.
 4. **Phiếu nháp cũ:** phiếu chưa gắn đơn mua sẽ không xác nhận được nữa, mà hiện chưa có API hủy phiếu nhập. Cần có API hủy trước khi bật quy tắc bắt buộc, và kiểm tra số phiếu nháp cũ trước khi nâng cấp.
-5. **Cập nhật database đang chạy:** dự án không dùng EF Migrations mà dùng script SQL trong `docker/postgres/migrations/`, do admin chạy thủ công sau khi sao lưu (xem [hướng dẫn Sprint 3](../07-devops-and-deployment/02-update-backend-sprint3.md)). Upgrade này cần thêm một script mới và cập nhật `oisms_schema.sql`, hai danh sách `RequiredTables` (`Program.cs`, `DatabaseMigrationService.cs`), phần kiểm tra schema và `init-oisms.sh`.
+5. **Cập nhật database đang chạy:** dự án không dùng EF Migrations mà dùng script SQL trong `docker/postgres/migrations/`, do admin chạy thủ công sau khi sao lưu (xem [hướng dẫn Sprint 3](../07-devops-and-deployment/02-update-backend-sprint3.md)). Upgrade này cần thêm một script mới và cập nhật `oisms_schema.sql`, danh sách `RequiredTables` (lúc viết có ở cả `Program.cs` và `DatabaseMigrationService.cs`; hiện chỉ còn `DatabaseMigrationService.cs`), phần kiểm tra schema và `init-oisms.sh`.
 
 ### Câu hỏi cần hỏi GVHD
 
