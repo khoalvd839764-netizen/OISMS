@@ -4,7 +4,7 @@
 
 ## Vấn đề cần giải quyết
 
-Đơn đã `Confirmed` hoặc `Completed` thì đã trừ `OnHand` và ghi sổ `OUT`, nên không hủy được. Muốn nhận lại hàng khách trả phải lập phiếu trả hàng gắn với đơn gốc. Phiếu này nhập lại kho bằng dòng sổ `IN`, ghi nhận tiền hoàn cho khách và làm giảm doanh thu cũng như giá vốn trong báo cáo ([state machine](../04-architecture-and-design/04-state-machines.md)).
+Đơn đã `Confirmed` hoặc `Completed` thì đã trừ `OnHand` và ghi sổ `OUT`, nên không hủy được. Muốn nhận lại hàng khách trả phải lập phiếu trả hàng gắn với đơn gốc. Phiếu này nhập lại kho bằng dòng sổ `IN`, ghi nhận tiền hoàn cho khách và làm giảm doanh thu cũng như giá vốn trong báo cáo ([state machine](../../04-architecture-and-design/04-state-machines.md)).
 
 ## Quyết định đã chốt
 
@@ -107,7 +107,7 @@ Cập nhật `oisms_schema.sql` và phần kiểm tra cột, ràng buộc trong 
 | `POST` | `/api/sales-returns/{id}/confirm` | Owner, Staff | Body: `refundMethod` |
 | `POST` | `/api/sales-returns/{id}/cancel` | Owner, Staff | |
 
-Mã lỗi mới, thêm vào `ApiErrorTitles` và [catalog](../12-error-and-status-codes/02-error-codes-catalog.md):
+Mã lỗi mới, thêm vào `ApiErrorTitles` và [catalog](../../12-error-and-status-codes/02-error-codes-catalog.md):
 
 | Mã | HTTP | Khi nào |
 | :--- | :--- | :--- |
@@ -182,7 +182,7 @@ Giao diện do nhóm Frontend làm (`OISMS-46`), bắt đầu khi B4 đã có co
 - Thêm mục menu "Trả hàng" (icon `RotateCcw`) ngay sau "Đơn đa kênh" trong `AdminShell.tsx`.
 - Bộ lọc: số phiếu hoặc số đơn gốc, chi nhánh, trạng thái, khoảng ngày. Ngày tính theo UTC+07:00 và gửi `toDate` là đầu ngày kế tiếp (nửa mở), giống `SalesInvoicesPage`.
 - Bảng: số phiếu, đơn gốc (bấm để mở chi tiết đơn), kênh, chi nhánh, kho nhận, số dòng, tiền hoàn, trạng thái, người tạo, ngày xác nhận.
-- Badge trạng thái: `Draft` màu xám, `Confirmed` màu xanh lá, `Cancelled` màu đỏ nhạt, theo [color tokens](../12-error-and-status-codes/03-color-system-tokens.md).
+- Badge trạng thái: `Draft` màu xám, `Confirmed` màu xanh lá, `Cancelled` màu đỏ nhạt, theo [color tokens](../../12-error-and-status-codes/03-color-system-tokens.md).
 - Nút "Tạo phiếu trả" ở tiêu đề trang. Bảng phân trang, có trạng thái rỗng và banner lỗi.
 
 **G2. Modal tạo phiếu trả** (`components/salesReturns/CreateSalesReturnModal.tsx`), 3 bước:

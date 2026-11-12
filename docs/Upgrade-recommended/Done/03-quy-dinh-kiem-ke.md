@@ -1,6 +1,6 @@
 # 03. Quy định kiểm kê giữa tháng, cuối tháng và kiểm kê đột xuất
 
-> Trạng thái: đề xuất phân tích; ngày/giờ cụ thể và quyền duyệt cần được chốt theo vận hành thực tế.
+> Trạng thái ngày 12/11/2026. Đã triển khai lịch, kỳ kiểm kê, kiểm kê đột xuất và duyệt chênh lệch. Phần hiện trạng bên dưới ghi nhận hệ thống trước nâng cấp. [Báo cáo triển khai](../../report-after-upgrade/lich-kiem-ke-duyet-chenh-lech.md)
 
 ## Vấn đề cần giải quyết
 
@@ -8,9 +8,9 @@ Hệ thống đã có thao tác tạo và chốt đợt kiểm kê, nhưng chưa
 
 ## Hiện trạng đã kiểm tra
 
-- `CreateStockCountRequestDto` có chi nhánh, kho, danh sách SKU và ghi chú; chưa có loại kỳ, ngày dự kiến hoặc thời điểm chốt. Xem [StockCountDtos.cs](../../src/backend/src/OISM.Application/Features/StockCounts/Dtos/StockCountDtos.cs).
-- `StockCount` có trạng thái `Draft`, `Counting`, `Confirmed`, `Cancelled`, người tạo và người xác nhận; chưa có lịch/phiên duyệt riêng. Xem [StockCount.cs](../../src/backend/src/OISM.Domain/Entities/StockCount.cs).
-- Dịch vụ hiện chụp số dư và sequence, chặn chốt khi có giao dịch xen giữa làm lệch sequence; đồng thời đối chiếu lượng giữ chỗ. Xem [StockCountService.cs](../../src/backend/src/OISM.Application/Features/StockCounts/Services/StockCountService.cs).
+- `CreateStockCountRequestDto` có chi nhánh, kho, danh sách SKU và ghi chú; chưa có loại kỳ, ngày dự kiến hoặc thời điểm chốt. Xem [StockCountDtos.cs](../../../src/backend/src/OISM.Application/Features/StockCounts/Dtos/StockCountDtos.cs).
+- `StockCount` có trạng thái `Draft`, `Counting`, `Confirmed`, `Cancelled`, người tạo và người xác nhận; chưa có lịch/phiên duyệt riêng. Xem [StockCount.cs](../../../src/backend/src/OISM.Domain/Entities/StockCount.cs).
+- Dịch vụ hiện chụp số dư và sequence, chặn chốt khi có giao dịch xen giữa làm lệch sequence; đồng thời đối chiếu lượng giữ chỗ. Xem [StockCountService.cs](../../../src/backend/src/OISM.Application/Features/StockCounts/Services/StockCountService.cs).
 
 ## Tham khảo Odoo và KiotViet
 

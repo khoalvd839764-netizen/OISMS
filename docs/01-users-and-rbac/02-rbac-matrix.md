@@ -60,6 +60,8 @@ Các trường định danh bắt buộc bên trong Payload của JWT:
 | **Kho & Sổ cái** | Tạo, Xác nhận & Hủy nháp Phiếu nhập hàng từ Nhà cung cấp (`Goods Receipt`) | `FR-INV-02`, `OISMS-47-U01A` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |
 | **Kho & Sổ cái** | Xem, lập và sửa nháp Phiếu mua hàng (`Purchase Order`) | `OISMS-47-U01A` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |
 | **Kho & Sổ cái** | Duyệt, đóng và hủy Phiếu mua hàng | `OISMS-47-U01A` | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) | ❌ Cấm (`403 Forbidden`) |
+| **Kho & Sổ cái** | Xem, nhập, sửa nháp, gửi đối chiếu và hủy hóa đơn nhà cung cấp | `OISMS-47-U01B` | ✅ Cho phép | ✅ Cho phép | ❌ Cấm (`403 Forbidden`) |
+| **Kho & Sổ cái** | Duyệt hoặc từ chối chênh lệch hóa đơn nhà cung cấp | `OISMS-47-U01B` | ✅ Cho phép, gọi riêng sau khi gửi | ❌ Cấm (`403 Forbidden`) | ❌ Cấm (`403 Forbidden`) |
 | **Kho & Sổ cái** | Thực hiện Chuyển kho 2 bước (Xuất đi & Xác nhận nhập) | `FR-INV-03` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |
 | **Kho & Sổ cái** | Thiết lập cấu hình Lịch kiểm kê định kỳ (`StockCountSchedule`) | `OISMS-47-U03` | ✅ Toàn quyền (`POST`, `PUT`) | 👁️ Chỉ xem (`GET`) | ❌ Cấm (`403 Forbidden`) |
 | **Kho & Sổ cái** | Xem danh sách Kỳ kiểm kê & Bắt đầu đếm kỳ (`StockCountPeriod`) | `OISMS-47-U03` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |
@@ -79,7 +81,7 @@ Các trường định danh bắt buộc bên trong Payload của JWT:
 | **Báo cáo & AI** | Hỏi Trợ lý OISMS (`POST /api/ai/chat`) | `FR-AI-02` | ✅ Mọi số liệu, kể cả doanh thu và lãi gộp | ✅ Nhập/xuất kho, tồn, gợi ý nhập, hướng dẫn. **Không hỏi được doanh thu, lãi gộp, giá vốn** (chốt 10/11/2026) | ❌ Cấm (`403 Forbidden`) |
 | **Cấu hình & Thanh toán** | Quản lý tài khoản ngân hàng thụ hưởng (`/api/payment-accounts`): thêm, sửa, đặt mặc định, ngừng dùng | `CS-05` | ✅ Toàn quyền | 👁️ Chỉ xem tài khoản active | 👁️ Chỉ xem tài khoản active |
 
-> **Từ Upgrade 04:** không còn đường sửa giá trực tiếp, kể cả với `Owner`. Giá ban đầu trên form tạo SKU hoặc đơn vị cũng đi qua phiếu: của `Owner` có hiệu lực ngay, của `Staff` chờ duyệt. Vai trò lấy từ JWT, client không tự khai được. Xem [tài liệu 04](../Upgrade-recommended/04-bang-gia-theo-thoi-gian.md#phân-quyền).
+> **Từ Upgrade 04:** không còn đường sửa giá trực tiếp, kể cả với `Owner`. Giá ban đầu trên form tạo SKU hoặc đơn vị cũng đi qua phiếu: của `Owner` có hiệu lực ngay, của `Staff` chờ duyệt. Vai trò lấy từ JWT, client không tự khai được. Xem [tài liệu 04](../Upgrade-recommended/Done/04-bang-gia-theo-thoi-gian.md#phân-quyền).
 
 ---
 

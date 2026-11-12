@@ -1,6 +1,6 @@
 # 02. Truy vết chứng từ xuất kho
 
-> Trạng thái: backend đã triển khai và kiểm chứng ngày 03/11/2026, xem [báo cáo](../report-after-upgrade/hoa-don-truy-vet-xuat-kho.md); **giao diện Admin, POS chưa làm**. Yêu cầu "xuất kèm hóa đơn" được người dùng xác nhận là **hóa đơn khi khách mua hàng**. Các mục ghi "đề xuất của nhóm" chưa có GVHD xác nhận.
+> Trạng thái ngày 12/11/2026. Backend có truy vết chứng từ xuất và hóa đơn bán. Admin có màn hình xem, truy vết và in lại hóa đơn, POS hiển thị số hóa đơn trên biên nhận. Yêu cầu "xuất kèm hóa đơn" được xác nhận là **hóa đơn khi khách mua hàng**. Các mục ghi "đề xuất của nhóm" chưa có GVHD xác nhận. [Báo cáo triển khai](../../report-after-upgrade/hoa-don-truy-vet-xuat-kho.md) · [Nghiệm thu giao diện](../../report-after-upgrade/frontend-coming-soon-va-upgrade.md)
 
 ## Vấn đề cần giải quyết
 

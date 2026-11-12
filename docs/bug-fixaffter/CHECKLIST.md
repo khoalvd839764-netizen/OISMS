@@ -83,7 +83,7 @@ Không phải lỗi: đây là chức năng chưa làm xong, đang có nhãn Com
 
 | | Mã | Chức năng | Hiện trạng | Còn thiếu |
 | :---: | :--- | :--- | :--- | :--- |
-| [x] | CS-01 | Nhận hàng trả từ khách | Đã làm (PR #41, 09/11/2026): phiếu trả gắn đơn gốc, nhập `IN` theo giá vốn lúc bán, tính lại WAC, trừ doanh thu theo ngày trả; màn Trả hàng trên Admin. Xem [plan 08](../Upgrade-recommended/08-tra-hang-cs01.md) | Chọn đơn gốc, kiểm lượng đã bán/đã trả, ghi `IN` bù theo `BaseQuantity`, `FactorSnapshot` của đơn gốc; chốt chính sách hoàn tiền |
+| [x] | CS-01 | Nhận hàng trả từ khách | Đã làm (PR #41, 09/11/2026): phiếu trả gắn đơn gốc, nhập `IN` theo giá vốn lúc bán, tính lại WAC, trừ doanh thu theo ngày trả; màn Trả hàng trên Admin. Xem [plan 08](../Upgrade-recommended/Done/08-tra-hang-cs01.md) | Chọn đơn gốc, kiểm lượng đã bán/đã trả, ghi `IN` bù theo `BaseQuantity`, `FactorSnapshot` của đơn gốc; chốt chính sách hoàn tiền |
 | [~] | CS-02 | Nhân viên, phân quyền, phân công chi nhánh | Có danh sách, tạo, sửa, khóa nhân viên (`/api/users`) | Phân công chi nhánh: chưa có trường ở backend, cần quyết định làm hay bỏ khỏi yêu cầu |
 | [x] | CS-03 | Ngưỡng cảnh báo tồn (`ReorderPoint`) | Đã có API và UI | Chưa kiểm tra thông báo tồn thấp qua realtime |
 | [x] | CS-04 | Tìm kiếm toàn hệ thống | Đã có `GET /api/search` và ô tìm kiếm | Lỗi mở phiếu nhập: [BF-024](./errors/BF-024-tim-kiem-phieu-nhap-khong-mo-dung-phieu.md) |
@@ -105,7 +105,7 @@ Không phải lỗi: đây là chức năng chưa làm xong, đang có nhãn Com
 | [x] | Upgrade 05 | Nhiều đơn vị tính: `units`, `sku_units`, `BaseQuantity = Quantity × FactorSnapshot`, WAC theo đơn vị gốc | ✅ | ✅ | [frontend-coming-soon-va-upgrade.md](../report-after-upgrade/frontend-coming-soon-va-upgrade.md) |
 | [x] | Upgrade 04 | Bảng giá theo thời gian, phiếu đổi giá, đóng API sửa giá trực tiếp | ✅ | ✅ | [bang-gia-theo-thoi-gian.md](../report-after-upgrade/bang-gia-theo-thoi-gian.md) |
 | [x] | Upgrade 01-A | Phiếu mua hàng, phiếu nhập bắt buộc gắn phiếu mua đã duyệt, chặn nhập vượt | ✅ | ✅ | [mua-hang-nhap-kho.md](../report-after-upgrade/mua-hang-nhap-kho.md) |
-| [ ] | Upgrade 01-B | Hóa đơn nhà cung cấp (`supplier_invoices`) và chứng từ chênh lệch (`purchase_variances`) | ❌ | ❌ | Chờ GVHD chốt cách xử lý |
+| [x] | Upgrade 01-B | Hóa đơn nhà cung cấp (`supplier_invoices`) và chứng từ chênh lệch (`purchase_variances`) | ✅ | ✅ | Nhóm tự chốt 12/11/2026, nghiệm thu PostgreSQL thật. [Báo cáo](../report-after-upgrade/hoa-don-nha-cung-cap-u01b.md) |
 | [x] | Upgrade 02 | Hóa đơn bán, in lại, truy vết đến dòng sổ `OUT` | ✅ | ✅ | [hoa-don-truy-vet-xuat-kho.md](../report-after-upgrade/hoa-don-truy-vet-xuat-kho.md) |
 | [x] | Upgrade 03 | Lịch kiểm kê, kỳ kiểm kê, duyệt chênh lệch (`PendingApproval`) | ✅ | ✅ | [lich-kiem-ke-duyet-chenh-lech.md](../report-after-upgrade/lich-kiem-ke-duyet-chenh-lech.md) |
 
@@ -119,7 +119,7 @@ Lưu ý: kỳ kiểm kê chỉ tự sinh khi bật Hangfire (`Hangfire:Enabled=t
 - [ ] BF-023: Staff có được quản lý kho không (sửa code hay sửa yêu cầu).
 - [ ] CS-02: làm phân công chi nhánh hay bỏ khỏi yêu cầu.
 - [x] CS-08: thời điểm mở lại tab Gợi ý nhập hàng. *(Đã mở lại 10/11/2026 cho Owner, Staff.)*
-- [ ] Upgrade 01-B: cách xử lý chênh lệch hóa đơn nhà cung cấp.
+- [x] Upgrade 01-B: cách xử lý chênh lệch hóa đơn nhà cung cấp. Nhóm chốt 12/11/2026, xem [đặc tả 01](../Upgrade-recommended/Done/01-mua-hang-nhap-kho-gia-von.md#quyết-định-01-b-chốt-12112026); báo GVHD khi nghiệm thu.
 - [ ] Màn Handoff: bỏ đặc tả [07-handoff-screens.md](../11-ui-screens/07-handoff-screens.md) hay làm lại.
 - [ ] Đơn vị mặc định cho phép 3 chữ số lẻ, nên POS nhận cả số lẻ với "Cái": có cấm hay không.
 - [ ] Kiểm chứng lại BF-019, BF-020 trên `pos-app` hiện tại. *(BF-003, BF-015 đã kiểm chứng 11/11/2026 bằng `npm test` POS 89/89.)*

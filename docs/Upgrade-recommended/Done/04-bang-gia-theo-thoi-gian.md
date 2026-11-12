@@ -1,6 +1,6 @@
 # 04. Bảng giá bán có thời gian hiệu lực
 
-> Trạng thái: **đã xong backend ngày 02/11/2026, chưa có giao diện.** Kết quả kiểm chứng và ghi chú cho frontend ở [báo cáo sau nâng cấp](../report-after-upgrade/bang-gia-theo-thoi-gian.md). Còn chờ xác nhận với thầy các câu ở mục [Cần xác nhận](#cần-xác-nhận). Nội dung này nói về **giá bán**; giá mua và WAC được xử lý ở [tài liệu 01](./01-mua-hang-nhap-kho-gia-von.md).
+> Trạng thái ngày 12/11/2026. Đã triển khai backend và giao diện Admin để lập, duyệt phiếu đổi giá và tra cứu lịch sử giá. Các câu hỏi nghiệp vụ được lưu tại mục [Cần xác nhận](#cần-xác-nhận). Giá mua và WAC được xử lý ở [tài liệu 01](../Done/01-mua-hang-nhap-kho-gia-von.md). [Báo cáo triển khai](../../report-after-upgrade/bang-gia-theo-thoi-gian.md)
 
 ## Tóm tắt quyết định
 
@@ -19,11 +19,11 @@ Giá bán hiện bị ghi đè trực tiếp, không có kỳ hiệu lực, ngư
 Đối chiếu code ngày 02/11/2026:
 
 - **Giá nằm ở hai nơi:** `skus.retail_price`, `skus.wholesale_price` cho SKU và `sku_units.sale_price` cho đơn vị không phải đơn vị gốc.
-- **Có nhiều đường ghi giá:** tạo và sửa biến thể, `PUT /api/products/{productId}/variants/{variantId}/prices` trong [ProductService.cs](../../src/backend/src/OISM.Application/Features/Catalog/Products/Services/ProductService.cs), tạo và sửa đơn vị trong [UnitService.cs](../../src/backend/src/OISM.Application/Features/Catalog/Units/Services/UnitService.cs).
-- **Đọc giá chưa qua một đầu mối:** [SkuUnitResolver.cs](../../src/backend/src/OISM.Application/Features/Catalog/Units/Services/SkuUnitResolver.cs), [PosCatalogService.cs](../../src/backend/src/OISM.Application/Features/Pos/PosCatalogService.cs) và [ReservationService.cs](../../src/backend/src/OISM.Application/Features/Inventory/Services/ReservationService.cs). Riêng `ReservationService` đọc thẳng `RetailPrice`.
+- **Có nhiều đường ghi giá:** tạo và sửa biến thể, `PUT /api/products/{productId}/variants/{variantId}/prices` trong [ProductService.cs](../../../src/backend/src/OISM.Application/Features/Catalog/Products/Services/ProductService.cs), tạo và sửa đơn vị trong [UnitService.cs](../../../src/backend/src/OISM.Application/Features/Catalog/Units/Services/UnitService.cs).
+- **Đọc giá chưa qua một đầu mối:** [SkuUnitResolver.cs](../../../src/backend/src/OISM.Application/Features/Catalog/Units/Services/SkuUnitResolver.cs), [PosCatalogService.cs](../../../src/backend/src/OISM.Application/Features/Pos/PosCatalogService.cs) và [ReservationService.cs](../../../src/backend/src/OISM.Application/Features/Inventory/Services/ReservationService.cs). Riêng `ReservationService` đọc thẳng `RetailPrice`.
 - **Giá sỉ chưa được dùng khi bán:** `OrderService`, `ReservationService`, `SkuUnitResolver` và `PosCatalogService` không đọc `WholesalePrice`.
 - **Đổi giá không có dấu vết:** `UpdateVariantPricesAsync` ghi đè giá, không nhận người sửa. CodeGraph không tìm thấy test nào phủ hàm này.
-- **`PRICE_MISMATCH` chỉ xảy ra lúc tạo đơn hoặc checkout:** lỗi này được ném trong `BuildOrderLines` của [OrderService.cs](../../src/backend/src/OISM.Application/Features/Orders/Services/OrderService.cs), không chạy lúc xác nhận đơn. Đơn từ sàn được bỏ qua bước so giá.
+- **`PRICE_MISMATCH` chỉ xảy ra lúc tạo đơn hoặc checkout:** lỗi này được ném trong `BuildOrderLines` của [OrderService.cs](../../../src/backend/src/OISM.Application/Features/Orders/Services/OrderService.cs), không chạy lúc xác nhận đơn. Đơn từ sàn được bỏ qua bước so giá.
 - **Chưa có dữ liệu khách hàng:** schema không có bảng khách hàng hay nhóm khách.
 
 ## Tham khảo các hệ thống khác
@@ -105,7 +105,7 @@ Người dùng nhập giá trên form tạo SKU hoặc đơn vị, và hệ th�
 | Staff | Chờ Owner duyệt; trong thời gian này chưa bán được | Tạo phiếu, chờ Owner duyệt; trong thời gian này vẫn bán giá cũ | Không |
 | Cashier | Không | Không | Không |
 
-Phiếu tự duyệt của Owner vẫn lưu người tạo, lý do và thời điểm. [Ma trận RBAC](../01-users-and-rbac/02-rbac-matrix.md) đã được cập nhật theo bảng này.
+Phiếu tự duyệt của Owner vẫn lưu người tạo, lý do và thời điểm. [Ma trận RBAC](../../01-users-and-rbac/02-rbac-matrix.md) đã được cập nhật theo bảng này.
 
 ## Khi bán hàng
 
@@ -124,7 +124,7 @@ Mọi luồng lấy giá qua **một resolver dùng chung**, không đọc trự
 
 ## Quan hệ với phiếu mua
 
-Phiếu mua chỉ quyết định giá mua và WAC, **không tự đổi giá bán**. Giá mua lấy theo quy trình ở [tài liệu 01](./01-mua-hang-nhap-kho-gia-von.md).
+Phiếu mua chỉ quyết định giá mua và WAC, **không tự đổi giá bán**. Giá mua lấy theo quy trình ở [tài liệu 01](../Done/01-mua-hang-nhap-kho-gia-von.md).
 
 Sau khi có Upgrade 01, có thể thêm cảnh báo: sau khi xác nhận nhập kho, nếu giá bán thấp hơn WAC hoặc dưới ngưỡng lãi thì hiện nút tạo phiếu đổi giá đã điền sẵn SKU và đơn vị. Giá mới vẫn do người dùng nhập, phiếu vẫn qua bước duyệt, và cảnh báo không chặn nhập kho.
 

@@ -4,7 +4,7 @@
 | --- | --- |
 | Task | `OISMS-47-U03`, phần backend (`P1`) |
 | Ngày kiểm tra | 03/11/2026 |
-| Đặc tả | [Tài liệu 03](../Upgrade-recommended/03-quy-dinh-kiem-ke.md), mục "Quyết định đã chốt" |
+| Đặc tả | [Tài liệu 03](../Upgrade-recommended/Done/03-quy-dinh-kiem-ke.md), mục "Quyết định đã chốt" |
 | Phạm vi | Backend, test, tài liệu API. **Chưa có giao diện (`P2`).** |
 | Trạng thái | Backend đã kiểm chứng trên PostgreSQL 16 bằng database test riêng. Chưa kiểm chứng đầu cuối từ giao diện, chưa chạy migration trên database Docker đang dùng. |
 

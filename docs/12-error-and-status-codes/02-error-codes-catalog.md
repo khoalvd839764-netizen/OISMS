@@ -106,6 +106,16 @@ Tài liệu này là **từ điển tra cứu danh mục mã lỗi toàn hệ th
 
 ---
 
+### 2.3b. Hóa đơn nhà cung cấp (U01-B)
+
+| Mã | HTTP | Tiêu đề | Khi trả về |
+| :--- | :---: | :--- | :--- |
+| `SUPPLIER_INVOICE_DUPLICATE` | `409` | Trùng ký hiệu và số hóa đơn nhà cung cấp | Cùng nhà cung cấp có hóa đơn chưa hủy trùng ký hiệu và số. |
+| `SUPPLIER_INVOICE_INVALID_STATE` | `409` | Trạng thái hóa đơn không hợp lệ | Hóa đơn sai trạng thái cho thao tác, hoặc lập, sửa, gửi trên phiếu nhập đã hủy. |
+| `SUPPLIER_INVOICE_RECEIPT_MISMATCH` | `422` | Hóa đơn không khớp phiếu nhập | Nhà cung cấp hoặc dòng hàng không thuộc phiếu nhập, hoặc phiếu nhập thiếu liên kết hợp lệ đến dòng phiếu mua. |
+| `SUPPLIER_INVOICE_ALREADY_EXISTS` | `409` | Phiếu nhập đã có hóa đơn còn hiệu lực | Phiếu nhập đã có hóa đơn khác ngoài `Cancelled` hoặc `Rejected`. |
+| `GOODS_RECEIPT_INVOICE_PENDING` | `409` | Hóa đơn phiếu nhập chưa sẵn sàng | Xác nhận phiếu nhập khi hóa đơn còn `Draft` hoặc `PendingApproval`. |
+
 ### 2.4. Phân Hệ Chuyển Kho 2 Bước (`TRANSFER`)
 *Liên kết hợp đồng API:* [`../05-api-contracts/03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md)  
 *Liên kết màn hình:* [`../11-ui-screens/04-inventory-screens.md`](../11-ui-screens/04-inventory-screens.md)
@@ -164,7 +174,7 @@ Tài liệu này là **từ điển tra cứu danh mục mã lỗi toàn hệ th
 
 ### 2.6a. Phân Hệ Trả Hàng Từ Khách (`SALES_RETURNS`, `CS-01`)
 *Liên kết hợp đồng API:* [`../05-api-contracts/04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md)  
-*Liên kết đặc tả nghiệp vụ:* [`../Upgrade-recommended/08-tra-hang-cs01.md`](../Upgrade-recommended/08-tra-hang-cs01.md)
+*Liên kết đặc tả nghiệp vụ:* [`../Upgrade-recommended/08-tra-hang-cs01.md`](../Upgrade-recommended/Done/08-tra-hang-cs01.md)
 
 | Mã lỗi (`ErrorCode`) | HTTP Status | Tiêu đề lỗi | Thông báo chi tiết mẫu | Nguyên nhân phát sinh | Hướng dẫn khắc phục trên UI |
 | :--- | :---: | :--- | :--- | :--- | :--- |

@@ -3,8 +3,8 @@
 | Thông tin kiểm soát thư mục | Chi tiết |
 | :--- | :--- |
 | **Mã phân hệ (Module ID)** | `MOD-FR-02` |
-| **Phiên bản hiện hành** | `v1.1.0` |
-| **Ngày cập nhật gần nhất** | `2026-11-06` |
+| **Phiên bản hiện hành** | `v1.2.0` |
+| **Ngày cập nhật gần nhất** | `2026-11-12` |
 | **Nguồn đối chiếu gốc** | `De bai CNPM.pdf` — Mục 3.2.c & 3.2.g (Trang 1, 2, 3, 5, 6) |
 
 ---
@@ -23,30 +23,30 @@
 | **8** | `DOC-FR-08` | [`fr-08-marketplace-sync.md`](./fr-08-marketplace-sync.md) | `FR-SIM-01` | `v1.0.0` | Công cụ giả lập gửi Webhook đơn hàng từ Shopee, TikTok Shop, Lazada. |
 | **9** | `DOC-FR-09` | [`fr-09-realtime-signalr.md`](./fr-09-realtime-signalr.md) | `FR-SIM-02` | `v1.0.0` | Đẩy cảnh báo âm thanh/popup đơn hàng mới thời gian thực qua SignalR. |
 | **10** | `DOC-FR-10` | [`fr-10-background-hangfire.md`](./fr-10-background-hangfire.md) | `FR-SIM-03` | `v1.0.0` | Xử lý tác vụ nền Hangfire: tự động hủy đơn giữ chỗ quá hạn và tổng hợp báo cáo hằng ngày (hiện mặc định tắt). |
-| **11** | `DOC-FR-11` | [`fr-11-reports-analytics.md`](./fr-11-reports-analytics.md) | `FR-REP-01..03` | `v1.0.0` | Báo cáo Doanh thu, COGS, Lợi nhuận gộp, Giá trị tồn kho và Cảnh báo tồn kho tối thiểu. |
+| **11** | `DOC-FR-11` | [`fr-11-reports-analytics.md`](./fr-11-reports-analytics.md) | `FR-REP-01..03` | `v1.1.0` | Báo cáo Doanh thu, COGS, Lợi nhuận gộp, Giá trị tồn kho và Cảnh báo tồn kho tối thiểu. |
 | **12** | `DOC-FR-12` | [`fr-12-ai-forecasting.md`](./fr-12-ai-forecasting.md) | `FR-AI-01` | `v1.0.0` | Dự báo nhu cầu tiêu thụ bằng AI và Gợi ý kế hoạch nhập lại hàng hóa. |
 | **13** | `DOC-FR-13` | [`fr-13-ai-assistant.md`](./fr-13-ai-assistant.md) | `FR-AI-02` | `v1.0.0` | Trợ lý Admin hỏi đáp tiếng Việt và tóm tắt số liệu trong phạm vi quyền. |
 
 ---
 
-## Hiện Trạng Triển Khai Theo Yêu Cầu (đối chiếu code 06/11/2026)
+## Hiện Trạng Triển Khai Theo Yêu Cầu (đối chiếu code 12/11/2026)
 
-Các file `fr-*.md` là **yêu cầu**. Bảng dưới tóm tắt mức hiện thực trong code; khi lệch, yêu cầu vẫn là chuẩn và cần nhóm quyết định.
+Các file `fr-*.md` đặc tả yêu cầu. Xem [checklist theo từng mã](../../checklist.md#3-yêu-cầu-chức-năng-functional-requirements) để đối chiếu mã nguồn, kiểm thử và các tiêu chí còn mở.
 
 | Mã | Hiện trạng | Ghi chú |
 | :--- | :--- | :--- |
-| `FR-AUTH-01..02` | Đã có | Đăng ký chỉ tạo Tenant + Owner; Quên mật khẩu là nút tắt có nhãn Coming soon. |
+| `FR-AUTH-01..02` | Đăng ký đã có, đăng nhập một phần | Đăng ký tạo Tenant và Owner. Owner tạo chi nhánh/kho qua màn tổ chức. Đăng nhập hiện dùng email. Còn thiếu đăng nhập SĐT. Quên mật khẩu có nhãn Coming soon. |
 | `FR-AUTH-03` | Đã có, còn lệch | Xem [lệch RBAC](../01-users-and-rbac/02-rbac-matrix.md#21-lệch-giữa-yêu-cầu-và-code-hiện-tại-đối-chiếu-06112026). |
 | `FR-AUTH-04` | Đã có | Phân công người dùng vào chi nhánh (phần của CS-02) chưa có. |
-| `FR-PROD-01..04` | Đã có | Giá theo bảng giá thời gian + phiếu đổi giá (Upgrade 04), nhiều đơn vị tính (Upgrade 05). |
+| `FR-PROD-01..04` | Đã có các luồng chính | Quét barcode đã có tại POS, còn thiếu tại màn kiểm kê. Giá theo bảng giá và phiếu đổi giá (Upgrade 04), có nhiều đơn vị tính (Upgrade 05). |
 | `FR-INV-01..04` | Đã có | Phiếu mua → phiếu nhập (Upgrade 01-A), lịch/kỳ kiểm kê, duyệt chênh lệch (Upgrade 03). Trả hàng (`Return`, CS-01): backend đã hoàn thành API, ghi sổ cái IN, tính lại WAC, khấu trừ doanh thu/giá vốn thuần và truy vết chuỗi chứng từ (09/11/2026). |
 | `FR-COST-01..02` | Đã có | WAC theo đơn vị gốc, chụp `CostPrice` khi Confirm/POS. |
 | `FR-RSE-01..03` | Đã có | Khóa `pg_advisory_xact_lock` + `FOR UPDATE`. |
-| `FR-ORD-01..03` | Đã có | Hóa đơn bán và truy vết chứng từ (Upgrade 02). |
-| `FR-POS-01..04` | Đã có | Một giao diện POS trong `pos-app` (5174), chuyển từ Admin; `/pos` Admin chỉ chuyển hướng. |
-| `FR-SIM-01..02` | Đã có; POS realtime tồn đạt 08/11/2026 | Webhook có chữ ký; POS nhận `StockLevelChanged`, đổi nhóm chi nhánh, lọc phiên cũ và refetch khi reconnect. Đã kiểm chứng backend/PostgreSQL thật và hai tab. Popup/âm thanh đơn mới trên POS nằm ngoài pha này; chưa đánh dấu toàn bộ FR-09 hoàn tất. |
-| `FR-SIM-03` | Có code, mặc định tắt | Xem [fr-10](./fr-10-background-hangfire.md). |
-| `FR-REP-01..03` | Đã có | Báo cáo theo ngày nghiệp vụ `UTC+07:00`, lọc nửa mở; khấu trừ hàng trả (`returnAmount`, `returnCogs`) ra số thuần; bảo mật giá vốn và lãi gộp chỉ Owner xem được. |
+| `FR-ORD-01..03` | Đã có mô hình đa kênh và xử lý đơn | Đơn Admin/webhook bắt đầu ở `Reserved`. Có hóa đơn bán và truy vết (Upgrade 02). In phiếu giao hàng còn Coming soon. |
+| `FR-POS-01..04` | Đã có checkout và in biên nhận thủ công | Một ứng dụng `pos-app` (5174), Admin `/pos` chuyển hướng. Thu ngân bấm **In** ở bản xem trước để mở hộp thoại in của trình duyệt. |
+| `FR-SIM-01..02` | Simulator đã có, thông báo POS còn thiếu | Simulator gửi 1–200 đơn đồng thời. Admin nhận thông báo đơn mới. POS nhận `StockLevelChanged` và tải lại tồn khi kết nối lại, chưa có popup/âm thanh đơn mới. |
+| `FR-SIM-03` | Đã có job hết hạn và sinh kỳ kiểm kê | Chưa có job tổng hợp báo cáo hằng ngày. [Đặc tả Hangfire](./fr-10-background-hangfire.md) |
+| `FR-REP-01..03` | Đã có báo cáo và cảnh báo tồn | Báo cáo theo ngày nghiệp vụ `UTC+07:00`, trừ hàng trả, giá vốn và lãi gộp chỉ Owner xem. Còn thiếu lọc doanh thu theo SKU. |
 | `FR-AI-01` | Đã có API và bảng Admin | Mở lại tab Gợi ý nhập hàng cho Owner và Staff ngày 10/11/2026 trên nhánh `feature/OISMS-58-chatbot-ai`. |
 | `FR-AI-02` | Đã có API và panel Admin, mặc định tắt | Claude nghiệm thu 10/11/2026, PR #42 vào `develop`. Không có kinh phí nên API AI chỉ dùng gói miễn phí, hạn mức rất thấp (xem [fr-13](./fr-13-ai-assistant.md)). |
 

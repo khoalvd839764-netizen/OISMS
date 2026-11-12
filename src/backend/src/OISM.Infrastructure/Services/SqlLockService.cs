@@ -33,6 +33,11 @@ public class SqlLockService : ISqlLockService
             "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/request_key/' || {1}::text, 0));",
             ct, tenantId.ToString(), requestKey.ToString());
 
+    public Task LockSupplierInvoiceAsync(Guid tenantId, Guid invoiceId, CancellationToken ct = default) =>
+        ExecutePostgresCommandAsync(
+            "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/supplier_invoice/' || {1}::text, 0));",
+            ct, tenantId.ToString(), invoiceId.ToString());
+
     public Task LockGoodsReceiptAsync(Guid tenantId, Guid receiptId, CancellationToken ct = default) =>
         ExecutePostgresCommandAsync(
             "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/goods_receipt/' || {1}::text, 0));",

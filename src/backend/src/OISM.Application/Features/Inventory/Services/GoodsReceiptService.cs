@@ -251,7 +251,11 @@ public class GoodsReceiptService : IGoodsReceiptService
             .Take(pageSize)
             .ToListAsync(ct);
 
-        var items = receipts.Select(r => MapReceiptToDto(r)).ToList();
+        var receiptIds = receipts.Select(r => r.Id).ToList();
+        var invoices = await ActiveInvoices().AsNoTracking()
+            .Where(i => receiptIds.Contains(i.GoodsReceiptId))
+            .ToDictionaryAsync(i => i.GoodsReceiptId, ct);
+        var items = receipts.Select(r => MapReceiptToDto(r, invoices.GetValueOrDefault(r.Id))).ToList();
 
         return new PagedResult<GoodsReceiptResponseDto>
         {
@@ -309,6 +313,22 @@ public class GoodsReceiptService : IGoodsReceiptService
                     throw new InvalidOperationException("Phiếu nhập không có dòng hàng nào để xác nhận.");
                 }
 
+                // Khóa hóa đơn sau phiếu nhập, trước phiếu mua và SKU.
+                var invoiceId = await ActiveInvoices().Where(i => i.GoodsReceiptId == id)
+                    .Select(i => (Guid?)i.Id).SingleOrDefaultAsync(ct);
+                SupplierInvoice? invoice = null;
+                if (invoiceId is { } activeInvoiceId)
+                {
+                    await _sqlLockService.LockSupplierInvoiceAsync(tenantId, activeInvoiceId, ct);
+                    invoice = await ActiveInvoices().AsNoTracking().Include(i => i.Items)
+                        .SingleOrDefaultAsync(i => i.GoodsReceiptId == id && i.Id == activeInvoiceId, ct);
+                    if (invoice?.Status is SupplierInvoiceStatus.Draft or SupplierInvoiceStatus.PendingApproval)
+                    {
+                        throw new OismException("GOODS_RECEIPT_INVOICE_PENDING",
+                            "Hóa đơn cần được gửi đối chiếu hoặc duyệt trước khi xác nhận phiếu nhập.", 409);
+                    }
+                }
+
                 // 3. PurchaseOrderId hoặc bất kỳ PurchaseOrderItemId nào trống thì trả PURCHASE_ORDER_REQUIRED
                 if (!receipt.PurchaseOrderId.HasValue || receipt.PurchaseOrderId.Value == Guid.Empty ||
                     receipt.Items.Any(i => !i.PurchaseOrderItemId.HasValue || i.PurchaseOrderItemId.Value == Guid.Empty))
@@ -318,7 +338,7 @@ public class GoodsReceiptService : IGoodsReceiptService
 
                 var poId = receipt.PurchaseOrderId.Value;
 
-                // 4. LockPurchaseOrderAsync (đúng thứ tự: phiếu nhập -> phiếu mua -> SKU)
+                // 4. LockPurchaseOrderAsync (đúng thứ tự: phiếu nhập -> hóa đơn -> phiếu mua -> SKU)
                 await _sqlLockService.LockPurchaseOrderAsync(tenantId, poId, ct);
 
                 // 5. Tải phiếu mua và các dòng SAU KHÓA
@@ -378,6 +398,20 @@ public class GoodsReceiptService : IGoodsReceiptService
                 var skuIds = sortedItems.Select(i => i.SkuId).Distinct().ToList();
 
                 await _sqlLockService.LockSkuStockAsync(tenantId, receipt.BranchId, skuIds, ct);
+
+                if (invoice?.Status == SupplierInvoiceStatus.Approved)
+                {
+                    var approvedPrices = invoice.Items.ToDictionary(i => i.GoodsReceiptItemId, i => i.UnitPrice);
+                    foreach (var item in sortedItems)
+                    {
+                        if (approvedPrices.TryGetValue(item.Id, out var approvedPrice))
+                            item.UnitPrice = approvedPrice;
+                    }
+
+                    // Trigger bảo vệ dòng phiếu nhập đã xác nhận. Lưu giá khi phiếu còn Draft,
+                    // cùng transaction với xác nhận, cập nhật tồn và ghi sổ.
+                    await _context.SaveChangesAsync(ct);
+                }
 
                 // 8. Tải tồn kho hiện tại cấp Chi nhánh và cấp Kho, cộng tồn, tính WAC, ghi sổ kho
                 var branchBalances = await _context.InventoryBalances
@@ -598,10 +632,16 @@ public class GoodsReceiptService : IGoodsReceiptService
             throw new KeyNotFoundException($"Không tìm thấy Phiếu nhập kho với ID '{id}'.");
         }
 
-        return MapReceiptToDto(receipt);
+        var invoice = await ActiveInvoices().AsNoTracking()
+            .SingleOrDefaultAsync(i => i.GoodsReceiptId == id, ct);
+        return MapReceiptToDto(receipt, invoice);
     }
 
-    private static GoodsReceiptResponseDto MapReceiptToDto(GoodsReceipt receipt)
+    private IQueryable<SupplierInvoice> ActiveInvoices() =>
+        _context.SupplierInvoices.Where(i =>
+            i.Status != SupplierInvoiceStatus.Cancelled && i.Status != SupplierInvoiceStatus.Rejected);
+
+    private static GoodsReceiptResponseDto MapReceiptToDto(GoodsReceipt receipt, SupplierInvoice? invoice)
     {
         return new GoodsReceiptResponseDto
         {
@@ -609,6 +649,8 @@ public class GoodsReceiptService : IGoodsReceiptService
             Number = receipt.Number,
             PurchaseOrderId = receipt.PurchaseOrderId,
             PurchaseOrderNumber = receipt.PurchaseOrder?.Number,
+            InvoiceId = invoice?.Id,
+            InvoiceStatus = invoice?.Status,
             BranchId = receipt.BranchId,
             BranchName = receipt.Branch?.Name ?? string.Empty,
             WarehouseId = receipt.WarehouseId,

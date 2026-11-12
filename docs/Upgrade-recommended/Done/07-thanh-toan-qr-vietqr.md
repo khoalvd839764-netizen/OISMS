@@ -1,9 +1,9 @@
 # 07. Kế hoạch thanh toán QR bằng VietQR (CS-05)
 
-> Cập nhật kiến trúc 08/11/2026: một POS tại `src/frontend/pos-app`, dùng giao diện chuyển từ Admin. Các mô tả hai bản POS và đường dẫn Admin dưới đây là bối cảnh của kế hoạch cũ, không còn là chỉ dẫn triển khai. Logic quầy tại `pages/PosPage.tsx`, `components/pos/PaymentModal.tsx`; giỏ/QR chỉ duy trì một bản. Xem [báo cáo tách POS](../report-after-upgrade/tach-pos-khoi-admin-2026-11-08.md).
+> Cập nhật kiến trúc 08/11/2026: một POS tại `src/frontend/pos-app`, dùng giao diện chuyển từ Admin. Các mô tả hai bản POS và đường dẫn Admin dưới đây là bối cảnh của kế hoạch cũ, không còn là chỉ dẫn triển khai. Logic quầy tại `pages/PosPage.tsx`, `components/pos/PaymentModal.tsx`; giỏ/QR chỉ duy trì một bản. Xem [báo cáo tách POS](../../report-after-upgrade/tach-pos-khoi-admin-2026-11-08.md).
 
 > **Loại tài liệu:** kế hoạch và đặc tả CS-05.
-> **Trạng thái (07/11/2026):** giai đoạn (a) + (b) đã xong trên nhánh `feature/OISMS-48-shop-integrations-api` (commit `89e6172`, sửa theo review ở `2f85bb8`). Bằng chứng kiểm thử (PASS/FAIL/NOT RUN) ghi trong [review PR 39](../report-after-upgrade/vietqr-cs05-review-pr39.md). Giai đoạn (c) tạm gác.
+> **Trạng thái (07/11/2026):** giai đoạn (a) + (b) đã xong trên nhánh `feature/OISMS-48-shop-integrations-api` (commit `89e6172`, sửa theo review ở `2f85bb8`). Bằng chứng kiểm thử (PASS/FAIL/NOT RUN) ghi trong [review PR 39](../../report-after-upgrade/vietqr-cs05-review-pr39.md). Giai đoạn (c) tạm gác.
 > **Ngày khảo sát code:** 06/11/2026, nhánh `feature/OISMS-48-shop-integrations-api` (phần QR không phụ thuộc thay đổi chưa commit của nhánh này).
 
 ## 0. Quyết định đã chốt (06/11/2026)

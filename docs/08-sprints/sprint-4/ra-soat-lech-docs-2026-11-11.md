@@ -63,7 +63,7 @@ Cách quét: grep mẫu lệch đã biết (số bảng, tên class cũ, POS Adm
 | B9 | `06-testing-and-qa/02-unit-and-integration-test.md:26–28` | Unit 149 Fact + 16 Theory; Integration 357 + 2; "cả hai bản `posCartUnits.ts`" | Source hiện 243 + 34 và 382 + 5; chỉ còn một `posCartUnits.ts` |
 | B10 | `06-testing-and-qa/01-requirements-matrix-rtm.md` (v1.0.0, 22/10) | Không có FR-AI-02, trả hàng, mua hàng, bảng giá, đa đơn vị, lịch kiểm kê, hóa đơn bán, tài khoản nhận tiền | Bổ sung dòng cho các chức năng Sprint 4 (Sprint 5 yêu cầu "RTM kiểm chứng 100%") |
 | B11 | `04-architecture-and-design/01-clean-architecture.md:57` | "25 controller" | 28 controller |
-| B12 | `Upgrade-recommended/10-quen-mat-khau-dang-nhap-sdt.md:118`, `01-mua-hang-nhap-kho-gia-von.md:80` | `RequiredTables` "trong `DatabaseMigrationService` và `Program.cs`" | `Program.cs` không còn `RequiredTables`; chỉ `DatabaseMigrationService` |
+| B12 | `Upgrade-recommended/Pedding/10-quen-mat-khau-dang-nhap-sdt.md:118`, `01-mua-hang-nhap-kho-gia-von.md:80` | `RequiredTables` "trong `DatabaseMigrationService` và `Program.cs`" | `Program.cs` không còn `RequiredTables`; chỉ `DatabaseMigrationService` |
 | B13 | `03-non-functional-requirements/README.md:30` | Script `pos-app/measure-pos-latency.mjs` | File không còn trong `pos-app` (chỉ có ở `scratch/`) |
 | B14 | `11-ui-screens/` | Không có đặc tả màn Tài khoản nhận tiền (`/settings/payment-accounts`) và màn Hóa đơn bán (`/invoices`, chỉ nhắc ở README) | Thêm mục đặc tả hoặc ghi rõ chưa có |
 | B15 | `01-users-and-rbac/02-rbac-matrix.md:20` (v1.3.0) | "Staff bị ẩn toàn bộ giá vốn và lãi gộp" | Quy ước dự án: Staff được xem giá vốn ở truy vết, chỉ lãi gộp là Owner. Cần thống nhất câu này với dòng 92 và RBAC thật |

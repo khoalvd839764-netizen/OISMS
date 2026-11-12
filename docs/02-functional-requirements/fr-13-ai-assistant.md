@@ -24,7 +24,7 @@ Kho tài liệu hướng dẫn và nghiệp vụ (RAG): các câu hỏi hướng
 
 Ngày nghiệp vụ theo UTC+07. Mỗi ngày được truy vấn từ 00:00 đến trước 00:00 ngày kế tiếp. Khoảng tra cứu tối đa 92 ngày. Trợ lý mặc định tắt. Lịch sử tồn tại trong bộ nhớ của panel theo phiên Admin.
 
-[Thiết kế nâng cấp](../Upgrade-recommended/09-chatbot-ai-co-ban.md) · [Hợp đồng API](../05-api-contracts/04-order-endpoints.md#21-trợ-lý-oisms-fr-ai-02) · [Ma trận RBAC](../01-users-and-rbac/02-rbac-matrix.md)
+[Thiết kế nâng cấp](../Upgrade-recommended/Done/09-chatbot-ai-co-ban.md) · [Hợp đồng API](../05-api-contracts/04-order-endpoints.md#21-trợ-lý-oisms-fr-ai-02) · [Ma trận RBAC](../01-users-and-rbac/02-rbac-matrix.md)
 
 ## Lưu ý: giới hạn hạn mức API AI
 

@@ -4,7 +4,7 @@ internal static class ApiErrorTitles
 {
     public static string Get(ApiErrorProfile profile, string code) => profile switch
     {
-        ApiErrorProfile.GoodsReceipts or ApiErrorProfile.GoodsReceiptCreate or ApiErrorProfile.GoodsReceiptRead or ApiErrorProfile.PurchaseOrders => GoodsReceipts(code),
+        ApiErrorProfile.GoodsReceipts or ApiErrorProfile.GoodsReceiptCreate or ApiErrorProfile.GoodsReceiptRead or ApiErrorProfile.PurchaseOrders or ApiErrorProfile.SupplierInvoices => GoodsReceipts(code),
         ApiErrorProfile.Orders or ApiErrorProfile.OrderProcess => Orders(code),
         ApiErrorProfile.PosCheckout => PosCheckout(code),
         ApiErrorProfile.PaymentAccounts => PaymentAccounts(code),
@@ -34,6 +34,11 @@ internal static class ApiErrorTitles
 
     private static string GoodsReceipts(string code) => code switch
     {
+        "SUPPLIER_INVOICE_DUPLICATE" => "Trùng ký hiệu và số hóa đơn nhà cung cấp",
+        "SUPPLIER_INVOICE_INVALID_STATE" => "Trạng thái hóa đơn không hợp lệ",
+        "SUPPLIER_INVOICE_RECEIPT_MISMATCH" => "Hóa đơn không khớp phiếu nhập",
+        "SUPPLIER_INVOICE_ALREADY_EXISTS" => "Phiếu nhập đã có hóa đơn còn hiệu lực",
+        "GOODS_RECEIPT_INVOICE_PENDING" => "Hóa đơn phiếu nhập chưa sẵn sàng",
         "PURCHASE_ORDER_REQUIRED" => "Yêu cầu phiếu mua hàng",
         "PURCHASE_ORDER_NOT_RECEIVABLE" => "Phiếu mua không ở trạng thái nhận hàng",
         "PURCHASE_ORDER_OVER_RECEIPT" => "Vượt số lượng đặt mua",

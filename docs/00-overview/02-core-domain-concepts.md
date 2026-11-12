@@ -39,7 +39,7 @@
   - Mỗi biến thể cụ thể là một **SKU (Stock Keeping Unit)** có mã `SkuCode` **duy nhất trong phạm vi cùng một Tenant**.
 - **Barcode (Mã vạch EAN-13 / Code128):** Mỗi SKU được gắn mã vạch (nhập thủ công hoặc tự động sinh) phục vụ quét tia laser/camera tại quầy POS và khi kiểm kê kho.
 - **Listed Price vs. COGS (Giá bán niêm yết vs. Giá vốn):**
-  - Mỗi SKU có **Giá bán lẻ** (bảng giá `retail`) và **Giá bán sỉ** (bảng giá `wholesale`) theo từng đơn vị tính, lưu trong `sku_unit_prices` có hiệu lực theo thời gian. Đổi giá phải qua **phiếu đổi giá** (`price_change_requests`): `Owner` duyệt ngay, `Staff` chờ `Owner` duyệt. Cột `skus.retail_price`, `wholesale_price` chỉ còn là dữ liệu cũ; API sửa giá trực tiếp trả `410`. Chi tiết: [Upgrade 04](../Upgrade-recommended/04-bang-gia-theo-thoi-gian.md).
+  - Mỗi SKU có **Giá bán lẻ** (bảng giá `retail`) và **Giá bán sỉ** (bảng giá `wholesale`) theo từng đơn vị tính, lưu trong `sku_unit_prices` có hiệu lực theo thời gian. Đổi giá phải qua **phiếu đổi giá** (`price_change_requests`): `Owner` duyệt ngay, `Staff` chờ `Owner` duyệt. Cột `skus.retail_price`, `wholesale_price` chỉ còn là dữ liệu cũ; API sửa giá trực tiếp trả `410`. Chi tiết: [Upgrade 04](../Upgrade-recommended/Done/04-bang-gia-theo-thoi-gian.md).
   - Giá bán niêm yết hoàn toàn **tách biệt độc lập** với Giá vốn hàng bán (**COGS / Unit Cost**).
 
 ---
@@ -77,7 +77,7 @@ Ngay tại thời điểm xác nhận Phiếu nhập hàng từ Nhà cung cấp 
 
 $$\text{NewCost} = \frac{(\text{OldStock} \times \text{OldCost}) + (\text{ImportQty} \times \text{ImportPrice})}{\text{OldStock} + \text{ImportQty}}$$
 
-> **Nhiều đơn vị tính (Upgrade 05):** tồn và WAC luôn theo đơn vị gốc của SKU. Dòng chứng từ giữ `Quantity`, `UnitPrice` theo đơn vị giao dịch và chụp `FactorSnapshot`; `BaseQuantity = Quantity × FactorSnapshot`. Khi nhập, giá vốn đưa vào công thức là `UnitPrice / FactorSnapshot`. Giữ chỗ, xuất kho và giá vốn hàng bán dùng `BaseQuantity`; thành tiền dùng `Quantity × UnitPrice`. Chi tiết: [tài liệu 05](../Upgrade-recommended/05-nhieu-don-vi-tinh.md).
+> **Nhiều đơn vị tính (Upgrade 05):** tồn và WAC luôn theo đơn vị gốc của SKU. Dòng chứng từ giữ `Quantity`, `UnitPrice` theo đơn vị giao dịch và chụp `FactorSnapshot`; `BaseQuantity = Quantity × FactorSnapshot`. Khi nhập, giá vốn đưa vào công thức là `UnitPrice / FactorSnapshot`. Giữ chỗ, xuất kho và giá vốn hàng bán dùng `BaseQuantity`; thành tiền dùng `Quantity × UnitPrice`. Chi tiết: [tài liệu 05](../Upgrade-recommended/Done/05-nhieu-don-vi-tinh.md).
 
 ### 4.2. Chụp giá vốn tại thời điểm xuất bán (`FR-COST-02`)
 - Khi một đơn hàng chuyển sang trạng thái **Confirmed** hoặc được **thanh toán tại quầy POS**, hệ thống chụp (snapshot) chính xác giá vốn bình quân hiện hành của SKU vào trường `OrderItem.CostPrice`.

@@ -34,7 +34,7 @@
 | `GET` | `/api/inventory/ledger/{id}/trace` | `Owner, Staff` | `OISMS-47-U02` | Truy vết chuỗi chứng từ nguồn và các dòng sổ kho liên quan bắt đầu từ một dòng sổ cái kho (`DocumentTraceDto`). |
 | `POST` | `/api/goods-receipts` | `Owner, Staff` | `FR-INV-02`, `OISMS-47-U01A` | Lập phiếu nhập `Draft` từ phiếu mua đã duyệt. Xem mục 1.1. |
 | `GET` | `/api/goods-receipts`, `/api/goods-receipts/{id}` | `Owner, Staff` | `FR-INV-02` | Danh sách và chi tiết phiếu nhập. Lọc thêm được theo `purchaseOrderId`. |
-| `POST` | `/api/goods-receipts/{id}/confirm` | `Owner, Staff` | `FR-INV-02`, `FR-COST-01` | Xác nhận phiếu nhập nguyên tử: kiểm tra phiếu mua và lượng còn được nhận, ghi Sổ cái `IN`, tăng `OnHand`, tính lại `WAC`. Xác nhận lặp trả `409 INVALID_STATE_TRANSITION`. |
+| `POST` | `/api/goods-receipts/{id}/confirm` | `Owner, Staff` | `FR-INV-02`, `FR-COST-01` | Xác nhận phiếu nhập nguyên tử: kiểm tra phiếu mua và lượng còn được nhận, ghi Sổ cái `IN`, tăng `OnHand`, tính lại `WAC`. Xác nhận lặp trả `409 INVALID_STATE_TRANSITION`. Hóa đơn `Draft` hoặc `PendingApproval` trả `409 GOODS_RECEIPT_INVOICE_PENDING`. |
 | `POST` | `/api/goods-receipts/{id}/cancel` | `Owner, Staff` | `OISMS-47-U01A` | Hủy phiếu `Draft`; không đổi tồn, sổ cái hay lượng đã nhận. |
 | `POST` | `/api/inventory/reserve` | `Owner, Staff, Cashier` | `FR-RSE-02` | Giữ chỗ tồn kho chống bán vượt với khóa dòng CSDL và `Idempotency-Key` / `RequestKey`. |
 
@@ -62,9 +62,29 @@
 - `quantity` là số thực nhận theo **đơn vị của dòng phiếu mua**. Được bỏ bớt dòng để nhận một phần.
 - Trả `201` với `GoodsReceiptResponseDto`, có thêm `purchaseOrderId`, `purchaseOrderNumber`, và `items[].purchaseOrderItemId`.
 - Phiếu nháp không giữ lượng. Lúc lập chỉ kiểm tra để báo sớm; kết luận cuối cùng là lúc xác nhận.
+- `GoodsReceiptResponseDto` gồm `invoiceId` và `invoiceStatus` của hóa đơn còn hiệu lực; hai trường là `null` khi không có hóa đơn còn hiệu lực.
 - Phiếu nháp cũ không gắn phiếu mua: xác nhận trả `422 PURCHASE_ORDER_REQUIRED`, vẫn hủy được.
 
-### 1.2. Phiếu mua hàng (`OISMS-47-U01A`)
+### 1.2. Hóa đơn nhà cung cấp và đối chiếu ba bên (U01-B)
+
+| Method | Endpoint | Quyền | Kết quả |
+| :---: | :--- | :--- | :--- |
+| `GET` | `/api/supplier-invoices` | Owner, Staff | Phân trang và lọc theo `supplierId`, `status`, `fromDate`, `toDate`, `goodsReceiptId`, `pendingOnly`, `pageIndex`, `pageSize`. Hai mốc ngày hóa đơn gồm cả ngày biên. |
+| `GET` | `/api/supplier-invoices/{id}` | Owner, Staff | Chi tiết hóa đơn, bảng `comparison` và `variance` nếu có. |
+| `POST` | `/api/supplier-invoices` | Owner, Staff | Tạo `Draft`. Header `Idempotency-Key` là GUID bắt buộc. Tạo mới trả `201`; gửi lại nội dung gốc trả `200` với cùng ID và `isReplay: true`; đổi nội dung với cùng key trả `409 IDEMPOTENCY_PAYLOAD_MISMATCH`. |
+| `PUT` | `/api/supplier-invoices/{id}` | Owner, Staff | Thay nội dung và các dòng khi còn `Draft`. Liên kết phiếu nhập và nhà cung cấp cố định. |
+| `POST` | `/api/supplier-invoices/{id}/submit` | Owner, Staff | Gửi `Draft`, tự chuyển `Matched` hoặc `PendingApproval`. |
+| `POST` | `/api/supplier-invoices/{id}/approve` | Owner | Duyệt `PendingApproval`. Có thể gửi `{ "decisionNote": "..." }`. |
+| `POST` | `/api/supplier-invoices/{id}/reject` | Owner | Từ chối `PendingApproval`, bắt buộc `{ "decisionNote": "..." }`. Nếu loại `AtReceipt`, phiếu nhập còn nháp được hủy cùng transaction. |
+| `POST` | `/api/supplier-invoices/{id}/cancel` | Owner, Staff | Hủy `Draft`, `Matched` hoặc `Approved`; bắt buộc `{ "reason": "..." }`. |
+
+Body tạo mới gồm `goodsReceiptId`, `supplierId`, `invoiceSeries`, `invoiceNumber`, `invoiceDate` (YYYY-MM-DD), `vatAmount`, `shippingFee` và `items` với `goodsReceiptItemId`, `quantity`, `unitPrice`. Body sửa dùng các trường nội dung và dòng. Ký hiệu và số tối đa 50 ký tự, lý do/ghi chú quyết định tối đa 500 ký tự. Đơn giá trước thuế theo đơn vị mua, tiền hàng là tổng lượng nhân đơn giá, tổng thanh toán trên chứng từ cộng thuế và phí vận chuyển.
+
+Mỗi dòng `comparison` có ba cột `purchaseOrder`, `goodsReceipt`, `invoice`, cùng `expectedQuantity`, `expectedUnitPrice`, `quantityDiff`, `priceDiff` và `amountDiff`. Dòng thực nhận thiếu trên hóa đơn có cột `invoice: null` và chênh lệch lượng âm khi gửi. Chênh lệch tiền bằng tiền hàng hóa đơn trừ thực nhận nhân giá phiếu mua. Thuế và phí vận chuyển được loại khỏi đối chiếu. `variance` trả loại `AtReceipt` hoặc `AfterReceipt`, tổng chênh lệch và thông tin quyết định.
+
+Cashier nhận `403` trên mọi API hóa đơn. Với ID thuộc tenant khác, API chi tiết hoặc ghi trả `404`. Lỗi nghiệp vụ trả `ProblemDetails` với `errorCode`: `SUPPLIER_INVOICE_DUPLICATE` (409), `SUPPLIER_INVOICE_INVALID_STATE` (409), `SUPPLIER_INVOICE_RECEIPT_MISMATCH` (422), `SUPPLIER_INVOICE_ALREADY_EXISTS` (409). Xác nhận phiếu nhập trả `GOODS_RECEIPT_INVOICE_PENDING` (409) nếu hóa đơn còn chờ gửi hoặc duyệt.
+
+### 1.3. Phiếu mua hàng (`OISMS-47-U01A`)
 
 | Method | Endpoint | Quyền (RBAC) | Mô tả & Quy tắc xử lý |
 | :---: | :--- | :---: | :--- |

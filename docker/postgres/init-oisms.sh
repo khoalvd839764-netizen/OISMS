@@ -11,7 +11,7 @@
 # 5. Enforces security validations (no direct or indirect admin privilege, no schema/table ownership).
 # 6. Does not print passwords to log and supports quotes, semicolons, $, and special characters.
 # 7. Validates correct trigger 'ledger_append_only' on public.inventory_transactions.
-# 8. Verifies all 44 required tables explicitly; fails fast on incomplete schema.
+# 8. Verifies all 47 required tables explicitly; fails fast on incomplete schema.
 # ==============================================================================
 set -e
 
@@ -68,10 +68,10 @@ else
     echo ">> Database '$TARGET_DB' already exists (pre-created by Docker entrypoint or existing volume)."
     TABLE_COUNT=$(psql -v ON_ERROR_STOP=1 --username "$SUPERUSER" --dbname "$TARGET_DB" -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'")
 
-    if [ "$TABLE_COUNT" -ge 44 ]; then
+    if [ "$TABLE_COUNT" -ge 47 ]; then
         echo ">> Database '$TARGET_DB' already contains $TABLE_COUNT base tables. Schema already exists; preserving existing data, skipping DDL."
     elif [ "$TABLE_COUNT" -gt 0 ]; then
-        echo ">> [FATAL ERROR] Database '$TARGET_DB' contains $TABLE_COUNT base tables (expected 44). Incomplete schema detected on existing data volume!" >&2
+        echo ">> [FATAL ERROR] Database '$TARGET_DB' contains $TABLE_COUNT base tables (expected 47). Incomplete schema detected on existing data volume!" >&2
         echo ">> [FATAL ERROR] Refusing to overwrite or drop existing data. Incremental database migration required!" >&2
         exit 1
     else
@@ -223,7 +223,7 @@ $do$;
 EOSQL
 
 # 5. Schema riêng cho storage Hangfire (cùng nội dung migrations/20261108_hangfire_schema.sql).
-# Hangfire tự tạo bảng khi backend bật Hangfire:Enabled=true; không tính vào 44 bảng public.
+# Hangfire tự tạo bảng khi backend bật Hangfire:Enabled=true; không tính vào 47 bảng public.
 echo ">> Provisioning schema 'hangfire' for background jobs..."
 psql -v ON_ERROR_STOP=1 --username "$SUPERUSER" --dbname "$TARGET_DB" <<-'EOSQL'
 CREATE SCHEMA IF NOT EXISTS hangfire;
@@ -259,7 +259,7 @@ MISSING_TABLES=$(psql -v ON_ERROR_STOP=1 --username "$SUPERUSER" --dbname "$TARG
         ('price_lists'),('price_change_requests'),('price_change_request_items'),('sku_unit_prices'),
         ('purchase_orders'),('purchase_order_items'),('sales_invoices'),
         ('stock_count_schedules'),('stock_count_periods'),('stock_count_approvals'),
-        ('payment_accounts')
+        ('payment_accounts'),('supplier_invoices'),('supplier_invoice_items'),('purchase_variances')
     )
     SELECT string_agg(r.t, ', ')
     FROM required r
@@ -276,10 +276,10 @@ if [ -n "$MISSING_TABLES" ]; then
     exit 1
 fi
 
-if [ "$FINAL_TABLES" -ne 44 ] || [ "$TRIGGER_COUNT" -ne 1 ]; then
+if [ "$FINAL_TABLES" -ne 47 ] || [ "$TRIGGER_COUNT" -ne 1 ]; then
     echo "==========================================================" >&2
     echo ">> [FATAL ERROR] Initialization verification failed!" >&2
-    echo ">> Expected 44 base tables, found: $FINAL_TABLES" >&2
+    echo ">> Expected 47 base tables, found: $FINAL_TABLES" >&2
     echo ">> Expected 1 active ledger_append_only trigger, found: $TRIGGER_COUNT" >&2
     echo "==========================================================" >&2
     exit 1
@@ -287,7 +287,7 @@ fi
 
 echo "=========================================================="
 echo ">> [OISMS Init] Database Initialization Complete"
-echo ">> Total public base tables:                 $FINAL_TABLES (all 44 verified)"
+echo ">> Total public base tables:                 $FINAL_TABLES (all 47 verified)"
 echo ">> Ledger trigger (ledger_append_only):      $TRIGGER_COUNT (active and enabled)"
 echo ">> Runtime login user:                       $APP_USER (granted oisms_runtime)"
 echo "=========================================================="

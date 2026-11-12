@@ -11,6 +11,7 @@ public interface ISqlLockService
     /// </summary>
     Task LockSkuStockAsync(Guid tenantId, Guid branchId, IEnumerable<Guid> skuIds, CancellationToken ct = default);
     Task LockRequestKeyAsync(Guid tenantId, Guid requestKey, CancellationToken ct = default);
+    Task LockSupplierInvoiceAsync(Guid tenantId, Guid invoiceId, CancellationToken ct = default);
     Task LockGoodsReceiptAsync(Guid tenantId, Guid receiptId, CancellationToken ct = default);
     Task LockStockTransferAsync(Guid tenantId, Guid transferId, CancellationToken ct = default);
     Task LockStockTransferNumberAsync(Guid tenantId, CancellationToken ct = default);

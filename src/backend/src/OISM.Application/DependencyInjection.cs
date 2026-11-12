@@ -17,6 +17,7 @@ using OISM.Application.Features.SalesInvoices.Services;
 using OISM.Application.Features.Simulator.Services;
 using OISM.Application.Features.StockCounts.Services;
 using OISM.Application.Features.StockTransfers.Services;
+using OISM.Application.Features.SupplierInvoices;
 using OISM.Application.Features.Suppliers.Services;
 using OISM.Application.Features.Search.Services;
 using OISM.Application.Features.Users.Services;
@@ -76,6 +77,7 @@ public static class DependencyInjection
 
         // Purchase Order services
         services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
+        services.AddScoped<SupplierInvoiceService>();
 
         // Sales Invoice services
         services.AddScoped<ISalesInvoiceService, SalesInvoiceService>();
