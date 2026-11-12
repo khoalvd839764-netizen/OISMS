@@ -109,3 +109,8 @@ Không đổi nghiệp vụ. Payload gửi lên API giữ nguyên định dạng
 | Trình duyệt, backend từ source + DB 47 bảng, tài khoản Owner demo | PASS: chi tiết đơn mua hiện 2 phiếu nhập; **Xem phiếu nhập** mở đúng phiếu; dán `1c26taa-00001234` → `1C26TAA` / `00001234`; gõ `125000` hiện `125.000`; nút 8% điền 30.000; tổng 405.000, lệch +15.000; gửi đối chiếu → Chờ duyệt; lịch sử hóa đơn hiện đủ cột, lọc `Matched` rỗng, `PendingApproval` 1 dòng; đơn mua hiện hóa đơn vừa gửi; console không lỗi |
 
 Chưa chạy: toàn bộ integration suite sau bổ sung này; đăng nhập Staff trên trình duyệt (quyền giữ như API cũ: Owner, Staff).
+
+### Sửa 12/11/2026: xem lại phiếu đã nhập kho
+- **Lỗi người dùng báo:** bấm **Xem phiếu nhập** trên phiếu đã xác nhận chỉ hiện thông báo "Đã ghi sổ kho & tính lại giá vốn WAC", không có dòng hàng, người xác nhận hay thời điểm, dễ hiểu nhầm là vừa nhập kho lại.
+- **Sửa:** thêm `GoodsReceiptDetailView` (chỉ đọc) cho phiếu đã nhập kho hoặc đã hủy. Thông báo thành công chỉ hiện ngay sau khi vừa bấm xác nhận trong phiên. Không đổi API hay nghiệp vụ.
+- **Kiểm chứng:** `npm run build` admin PASS. Trình duyệt (backend từ source, DB 47 bảng, Owner demo): mở phiếu đã xác nhận → hiện chi tiết đủ thông tin và phần hóa đơn NCC; xác nhận phiếu nháp → hiện thông báo thành công; mở lại phiếu đó → hiện chi tiết; console không lỗi.

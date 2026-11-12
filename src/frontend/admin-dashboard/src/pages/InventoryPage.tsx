@@ -37,6 +37,7 @@ import type { GoodsReceiptResponse } from "../types/goodsReceipt";
 import type { SupplierInvoice } from "../types/supplierInvoice";
 import { PendingSupplierInvoices } from "../components/supplierInvoices/PendingSupplierInvoices";
 import { SupplierInvoiceHistory } from "../components/supplierInvoices/SupplierInvoiceHistory";
+import { GoodsReceiptDetailView } from "../components/GoodsReceiptDetailView";
 import { SupplierInvoicePanel } from "../components/supplierInvoices/SupplierInvoicePanel";
 
 // [F1] Cấu trúc lưu tạm phiếu nhập nháp đang chờ xác nhận qua các lần đóng/mở form hoặc refresh
@@ -204,6 +205,8 @@ export function InventoryPage() {
   const receiptActorRef = useRef(receiptActor);
   receiptActorRef.current = receiptActor;
   const [confirmedSuccess, setConfirmedSuccess] = useState(false);
+  // true chỉ ngay sau khi người dùng vừa bấm Xác nhận nhập kho trong phiên này; mở lại phiếu cũ thì xem chi tiết
+  const [justConfirmed, setJustConfirmed] = useState(false);
   const [selectedLedger, setSelectedLedger] = useState<LedgerEntry | null>(null);
 
   // [A08 & F2] Modal Giữ chỗ tồn kho (Reserve) hỗ trợ Idempotency-Key chống giữ lặp
@@ -754,6 +757,7 @@ export function InventoryPage() {
     setCreatedReceiptId(isDraft ? receipt.id : null);
     setReceiptReady(isDraft);
     setConfirmedSuccess(receipt.status === "Confirmed");
+    setJustConfirmed(false);
     if (isDraft && trackDraft) {
       savePendingReceipt({
         receiptId: receipt.id,
@@ -1068,6 +1072,7 @@ export function InventoryPage() {
       }
       if (receiptActorRef.current !== actor) return;
       applyReceiptSnapshot(receipt);
+      setJustConfirmed(receipt.status === "Confirmed");
       await Promise.all([loadBalances(), loadLedger()]);
     } catch (error) {
       if (receiptActorRef.current === actor) {
@@ -2186,14 +2191,19 @@ export function InventoryPage() {
               : createdReceiptId ? "Xem lại phiếu nhập nháp" : "Lập phiếu nhập kho nhiều dòng hàng"
           }
           onClose={closeReceiptModal}
-          wide={canManageInvoices && Boolean(savedReceipt)}
+          wide={Boolean(savedReceipt)}
         >
-          {savedReceipt?.status === "Cancelled" ? (
-            <div className="supplier-invoice">
-              <p><Badge tone="danger">Phiếu nhập đã hủy</Badge></p>
-              <p>{savedReceipt.supplierName} · {savedReceipt.warehouseName}</p>
-              {receiptError && <p role="alert" className="supplier-invoice__error">{receiptError}</p>}
-            </div>
+          {savedReceipt && (savedReceipt.status === "Cancelled" || (savedReceipt.status === "Confirmed" && !justConfirmed)) ? (
+            <>
+              {receiptError && <p role="alert" className="supplier-invoice__error receipt-detail">{receiptError}</p>}
+              <GoodsReceiptDetailView
+                receipt={savedReceipt}
+                onViewLedger={() => {
+                  setReceiptModal(false);
+                  setTab("ledger");
+                }}
+              />
+            </>
           ) : confirmedSuccess ? (
             <div className="success-panel">
               <CheckCircle2 size={48} color="#16a34a" />
