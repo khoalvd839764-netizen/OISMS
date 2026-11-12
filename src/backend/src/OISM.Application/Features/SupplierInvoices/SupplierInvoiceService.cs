@@ -26,11 +26,16 @@ public sealed class SupplierInvoiceService(
         if (filter.FromDate > filter.ToDate)
             throw Validation("Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.");
 
-        var query = context.SupplierInvoices.AsNoTracking().Include(i => i.Variance).AsQueryable();
+        var query = context.SupplierInvoices.AsNoTracking().Include(i => i.Variance)
+            .Include(i => i.GoodsReceipt).ThenInclude(r => r.PurchaseOrder)
+            .Include(i => i.GoodsReceipt).ThenInclude(r => r.Supplier)
+            .AsQueryable();
         if (filter.SupplierId is { } supplierId)
             query = query.Where(i => i.SupplierId == supplierId);
         if (filter.GoodsReceiptId is { } receiptId)
             query = query.Where(i => i.GoodsReceiptId == receiptId);
+        if (filter.PurchaseOrderId is { } purchaseOrderId)
+            query = query.Where(i => i.GoodsReceipt.PurchaseOrderId == purchaseOrderId);
         if (filter.PendingOnly)
             query = query.Where(i => i.Status == SupplierInvoiceStatus.PendingApproval);
         if (!string.IsNullOrWhiteSpace(filter.Status))
@@ -94,6 +99,7 @@ public sealed class SupplierInvoiceService(
 
             await locks.LockSupplierInvoiceAsync(tenantId, invoiceId, ct);
             var receipt = await context.GoodsReceipts.Include(r => r.Items).ThenInclude(i => i.PurchaseOrderItem)
+                .Include(r => r.PurchaseOrder).Include(r => r.Supplier)
                 .SingleOrDefaultAsync(r => r.Id == dto.GoodsReceiptId, ct)
                 ?? throw NotFound("Không tìm thấy phiếu nhập kho.");
             EnsureReceiptUsable(receipt, dto.SupplierId);
@@ -263,7 +269,9 @@ public sealed class SupplierInvoiceService(
 
     private IQueryable<SupplierInvoice> InvoiceGraph() =>
         context.SupplierInvoices.Include(i => i.Items).Include(i => i.Variance)
-            .Include(i => i.GoodsReceipt).ThenInclude(r => r.Items).ThenInclude(i => i.PurchaseOrderItem);
+            .Include(i => i.GoodsReceipt).ThenInclude(r => r.Items).ThenInclude(i => i.PurchaseOrderItem)
+            .Include(i => i.GoodsReceipt).ThenInclude(r => r.PurchaseOrder)
+            .Include(i => i.GoodsReceipt).ThenInclude(r => r.Supplier);
 
     private void ApplyDraft(SupplierInvoice invoice, ValidatedDraft draft, bool trackNewItems = false)
     {
@@ -359,7 +367,14 @@ public sealed class SupplierInvoiceService(
             invoice.InvoiceNumber, invoice.InvoiceDate, invoice.Subtotal, invoice.VatAmount, invoice.ShippingFee,
             invoice.TotalAmount, invoice.Status, invoice.RequestKey, invoice.CreatedBy, invoice.CreatedAt, invoice.SubmittedAt,
             invoice.CancelledBy, invoice.CancelledAt, invoice.CancelReason, varianceDto,
-            includeComparison ? Compare(invoice) : null);
+            includeComparison ? Compare(invoice) : null)
+        {
+            SupplierName = invoice.GoodsReceipt?.Supplier?.Name,
+            GoodsReceiptNumber = invoice.GoodsReceipt?.Number,
+            GoodsReceiptStatus = invoice.GoodsReceipt?.Status,
+            PurchaseOrderId = invoice.GoodsReceipt?.PurchaseOrderId,
+            PurchaseOrderNumber = invoice.GoodsReceipt?.PurchaseOrder?.Number
+        };
     }
 
     private static List<SupplierInvoiceComparisonDto> Compare(SupplierInvoice invoice)

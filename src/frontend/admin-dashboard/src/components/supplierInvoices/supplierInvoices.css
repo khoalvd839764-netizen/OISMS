@@ -37,3 +37,10 @@
 .supplier-invoice__notice { color: #854d0e; }
 .supplier-invoice__totals { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; }
 .supplier-invoice__queue { padding: 16px 20px; display: grid; gap: 12px; }
+.supplier-invoice__hint { color: var(--muted, #64748b); font-size: 12px; }
+.supplier-invoice__form .table-wrap .number-field { min-width: 110px; max-width: 160px; }
+.supplier-invoice__fields .supplier-invoice__actions .button,
+.supplier-invoice__fields .supplier-invoice__actions button { padding: 4px 10px; min-height: 0; }
+.supplier-invoice__po { display: grid; gap: 8px; }
+.supplier-invoice__po h4 { margin: 0; font-size: 14px; }
+.supplier-invoice__po small { color: var(--muted, #64748b); }

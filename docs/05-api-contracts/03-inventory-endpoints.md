@@ -69,7 +69,7 @@
 
 | Method | Endpoint | Quyền | Kết quả |
 | :---: | :--- | :--- | :--- |
-| `GET` | `/api/supplier-invoices` | Owner, Staff | Phân trang và lọc theo `supplierId`, `status`, `fromDate`, `toDate`, `goodsReceiptId`, `pendingOnly`, `pageIndex`, `pageSize`. Hai mốc ngày hóa đơn gồm cả ngày biên. |
+| `GET` | `/api/supplier-invoices` | Owner, Staff | Phân trang và lọc theo `supplierId`, `status`, `fromDate`, `toDate`, `goodsReceiptId`, `purchaseOrderId` (mọi hóa đơn của các phiếu nhập thuộc phiếu mua), `pendingOnly`, `pageIndex`, `pageSize`. Hai mốc ngày hóa đơn gồm cả ngày biên. |
 | `GET` | `/api/supplier-invoices/{id}` | Owner, Staff | Chi tiết hóa đơn, bảng `comparison` và `variance` nếu có. |
 | `POST` | `/api/supplier-invoices` | Owner, Staff | Tạo `Draft`. Header `Idempotency-Key` là GUID bắt buộc. Tạo mới trả `201`; gửi lại nội dung gốc trả `200` với cùng ID và `isReplay: true`; đổi nội dung với cùng key trả `409 IDEMPOTENCY_PAYLOAD_MISMATCH`. |
 | `PUT` | `/api/supplier-invoices/{id}` | Owner, Staff | Thay nội dung và các dòng khi còn `Draft`. Liên kết phiếu nhập và nhà cung cấp cố định. |
@@ -77,6 +77,8 @@
 | `POST` | `/api/supplier-invoices/{id}/approve` | Owner | Duyệt `PendingApproval`. Có thể gửi `{ "decisionNote": "..." }`. |
 | `POST` | `/api/supplier-invoices/{id}/reject` | Owner | Từ chối `PendingApproval`, bắt buộc `{ "decisionNote": "..." }`. Nếu loại `AtReceipt`, phiếu nhập còn nháp được hủy cùng transaction. |
 | `POST` | `/api/supplier-invoices/{id}/cancel` | Owner, Staff | Hủy `Draft`, `Matched` hoặc `Approved`; bắt buộc `{ "reason": "..." }`. |
+
+Mọi phản hồi hóa đơn có thêm các trường chỉ đọc `supplierName`, `goodsReceiptNumber`, `goodsReceiptStatus`, `purchaseOrderId`, `purchaseOrderNumber` để hiển thị danh sách và lịch sử.
 
 Body tạo mới gồm `goodsReceiptId`, `supplierId`, `invoiceSeries`, `invoiceNumber`, `invoiceDate` (YYYY-MM-DD), `vatAmount`, `shippingFee` và `items` với `goodsReceiptItemId`, `quantity`, `unitPrice`. Body sửa dùng các trường nội dung và dòng. Ký hiệu và số tối đa 50 ký tự, lý do/ghi chú quyết định tối đa 500 ký tự. Đơn giá trước thuế theo đơn vị mua, tiền hàng là tổng lượng nhân đơn giá, tổng thanh toán trên chứng từ cộng thuế và phí vận chuyển.
 

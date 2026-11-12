@@ -27,6 +27,7 @@ public sealed class SupplierInvoiceFilterDto
     public DateOnly? FromDate { get; init; }
     public DateOnly? ToDate { get; init; }
     public Guid? GoodsReceiptId { get; init; }
+    public Guid? PurchaseOrderId { get; init; }
     public bool PendingOnly { get; init; }
     public int PageIndex { get; init; } = 1;
     public int PageSize { get; init; } = 20;
@@ -53,7 +54,12 @@ public sealed record SupplierInvoiceResponseDto(
     string? CancelReason,
     PurchaseVarianceDto? Variance,
     IReadOnlyList<SupplierInvoiceComparisonDto>? Comparison,
-    bool IsReplay = false);
+    bool IsReplay = false,
+    string? SupplierName = null,
+    string? GoodsReceiptNumber = null,
+    string? GoodsReceiptStatus = null,
+    Guid? PurchaseOrderId = null,
+    string? PurchaseOrderNumber = null);
 
 public sealed record PurchaseVarianceDto(
     Guid Id,

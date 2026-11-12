@@ -86,3 +86,26 @@ Claude chạy lại trên PostgreSQL 16 tạm (cổng 55447, cấu hình như CI
 | `psql -v ON_ERROR_STOP=1` chạy `20261112_supplier_invoices.sql` hai lần trên DB dựng từ schema HEAD (44 bảng, chưa có dữ liệu mẫu) | PASS cả hai lần, 47 bảng, có 4 trigger mới |
 
 Giới hạn: chưa chạy migration trên DB có dữ liệu thật hoặc bản demo AWS; chưa có reviewer độc lập ngoài Claude.
+
+## Bổ sung 12/11/2026: hóa đơn trong đơn mua, lịch sử hóa đơn, nhập nhanh
+
+Người dùng yêu cầu sau khi nghiệm thu P1/P2. Claude tự làm (mức STANDARD, chỉ đọc dữ liệu, không đổi schema).
+
+### Đã làm
+- **API:** `GET /api/supplier-invoices` thêm bộ lọc `purchaseOrderId`. Phản hồi hóa đơn thêm `supplierName`, `goodsReceiptNumber`, `goodsReceiptStatus`, `purchaseOrderId`, `purchaseOrderNumber` (chỉ đọc). Không đổi hành vi ghi, khóa hay giá vốn.
+- **Chi tiết đơn mua:** phần **Phiếu nhập và hóa đơn NCC** liệt kê từng đợt nhận, hóa đơn còn hiệu lực, trạng thái, tổng và chênh lệch; hóa đơn đã hủy/từ chối ghi bên dưới. **Xem phiếu nhập** mở `/inventory?receiptId=<id>`.
+- **Lịch sử hóa đơn NCC** (Owner, Staff) ở trang Kho: lọc nhà cung cấp, trạng thái, khoảng ngày hóa đơn, phân trang.
+- **Form nhập hóa đơn:** ô tiền và số lượng nhóm hàng nghìn; ký hiệu tự in hoa, số hóa đơn chỉ nhận chữ số; dán `1C26TAA-00001234` tự tách ký hiệu và số; nút thuế 0/5/8/10%; nút điền lại theo phiếu mua; hiển thị ngay tiền hàng, tổng thanh toán và mức lệch trước khi gửi.
+
+### Ảnh hưởng chức năng hiện có
+Không đổi nghiệp vụ. Payload gửi lên API giữ nguyên định dạng. Số hóa đơn nhập qua form giờ chỉ gồm chữ số; dữ liệu cũ không bị sửa.
+
+### Kiểm chứng
+| Lệnh / thao tác | Kết quả |
+| :--- | :--- |
+| `dotnet build src/backend/OISM.sln -p:UseAppHost=false` | PASS, 0 lỗi |
+| Integration `PostgresSupplierInvoice` trên PostgreSQL 16 tạm (thêm ca `ListByPurchaseOrder_ReturnsOnlyInvoicesOfThatOrder_WithReceiptAndOrderInfo`) | PASS 12/12 |
+| `npm run build --prefix src/frontend/admin-dashboard` | PASS (cảnh báo bundle > 500 kB có từ trước) |
+| Trình duyệt, backend từ source + DB 47 bảng, tài khoản Owner demo | PASS: chi tiết đơn mua hiện 2 phiếu nhập; **Xem phiếu nhập** mở đúng phiếu; dán `1c26taa-00001234` → `1C26TAA` / `00001234`; gõ `125000` hiện `125.000`; nút 8% điền 30.000; tổng 405.000, lệch +15.000; gửi đối chiếu → Chờ duyệt; lịch sử hóa đơn hiện đủ cột, lọc `Matched` rỗng, `PendingApproval` 1 dòng; đơn mua hiện hóa đơn vừa gửi; console không lỗi |
+
+Chưa chạy: toàn bộ integration suite sau bổ sung này; đăng nhập Staff trên trình duyệt (quyền giữ như API cũ: Owner, Staff).

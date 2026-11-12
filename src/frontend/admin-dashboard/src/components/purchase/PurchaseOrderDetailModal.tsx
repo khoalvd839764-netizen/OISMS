@@ -3,6 +3,7 @@ import { Badge, Button, Modal } from '../ui';
 import { purchaseOrderService } from '../../services/purchaseOrderService';
 import type { PurchaseOrderResponse, PurchaseOrderStatus } from '../../types/purchaseOrder';
 import { ClosePurchaseOrderModal } from './ClosePurchaseOrderModal';
+import { PurchaseOrderInvoices } from '../supplierInvoices/PurchaseOrderInvoices';
 
 interface PurchaseOrderDetailModalProps {
   po: PurchaseOrderResponse;
@@ -11,6 +12,7 @@ interface PurchaseOrderDetailModalProps {
   onRefresh: () => void;
   onEdit: (po: PurchaseOrderResponse) => void;
   onCreateReceipt: (po: PurchaseOrderResponse) => void;
+  onOpenReceipt?: (receiptId: string) => void;
 }
 
 export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> = ({
@@ -20,6 +22,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
   onRefresh,
   onEdit,
   onCreateReceipt,
+  onOpenReceipt,
 }) => {
   const isOwner = userRole === 'Owner';
   const [loading, setLoading] = useState(false);
@@ -253,6 +256,11 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
               </div>
             </div>
           </div>
+
+          {/* Phiếu nhập và hóa đơn NCC của đơn mua (đối chiếu ba bên) */}
+          {po.status !== 'Draft' && onOpenReceipt && (
+            <PurchaseOrderInvoices purchaseOrderId={po.id} onOpenReceipt={onOpenReceipt} />
+          )}
 
           {/* Actions */}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 8 }}>

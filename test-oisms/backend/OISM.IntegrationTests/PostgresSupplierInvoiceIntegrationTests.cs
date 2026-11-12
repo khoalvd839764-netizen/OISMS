@@ -301,6 +301,38 @@ public sealed class PostgresSupplierInvoiceIntegrationTests(WebApplicationFactor
     }
 
     [Fact]
+    public async Task ListByPurchaseOrder_ReturnsOnlyInvoicesOfThatOrder_WithReceiptAndOrderInfo()
+    {
+        var first = await DraftReceiptAsync();
+        var other = await DraftReceiptAsync();
+        var invoice = await CreateAsync(first, 120m);
+        await ReadAsync<SupplierInvoiceResponseDto>(await SendCreateAsync(Draft(other, 120m, number: "02"), Guid.NewGuid()),
+            HttpStatusCode.Created);
+
+        var page = await ReadAsync<PagedResult<SupplierInvoiceResponseDto>>(
+            await _owner.GetAsync($"{Invoices}?purchaseOrderId={first.PurchaseOrderId}"));
+        var item = Assert.Single(page.Items);
+        Assert.Equal(invoice.Id, item.Id);
+        Assert.Equal(first.PurchaseOrderId, item.PurchaseOrderId);
+        await using (var db = OpenDb())
+        {
+            var poNumber = await db.PurchaseOrders.Where(p => p.Id == first.PurchaseOrderId).Select(p => p.Number).SingleAsync();
+            Assert.Equal(poNumber, item.PurchaseOrderNumber);
+        }
+        Assert.Equal(first.Number, item.GoodsReceiptNumber);
+        Assert.Equal("Draft", item.GoodsReceiptStatus);
+        Assert.False(string.IsNullOrWhiteSpace(item.SupplierName));
+
+        var details = await ReadAsync<SupplierInvoiceResponseDto>(await _owner.GetAsync($"{Invoices}/{invoice.Id}"));
+        Assert.Equal(item.PurchaseOrderNumber, details.PurchaseOrderNumber);
+        Assert.Equal(item.SupplierName, details.SupplierName);
+
+        var none = await ReadAsync<PagedResult<SupplierInvoiceResponseDto>>(
+            await _owner.GetAsync($"{Invoices}?purchaseOrderId={Guid.NewGuid()}"));
+        Assert.Empty(none.Items);
+    }
+
+    [Fact]
     public async Task DatabaseGuards_BlockDeletingInvoiceAndChangingSubmittedItems()
     {
         var receipt = await DraftReceiptAsync();

@@ -362,6 +362,10 @@ export const PurchaseOrdersPage: React.FC = () => {
             setSelectedPo(null);
             handleCreateReceipt(po);
           }}
+          onOpenReceipt={(receiptId) => {
+            setSelectedPo(null);
+            navigate(`/inventory?receiptId=${receiptId}`);
+          }}
         />
       )}
     </div>

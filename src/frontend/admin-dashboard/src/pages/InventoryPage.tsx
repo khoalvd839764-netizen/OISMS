@@ -36,6 +36,7 @@ import { readSupplierInvoiceError, receiptInvoicePendingMessage } from "../servi
 import type { GoodsReceiptResponse } from "../types/goodsReceipt";
 import type { SupplierInvoice } from "../types/supplierInvoice";
 import { PendingSupplierInvoices } from "../components/supplierInvoices/PendingSupplierInvoices";
+import { SupplierInvoiceHistory } from "../components/supplierInvoices/SupplierInvoiceHistory";
 import { SupplierInvoicePanel } from "../components/supplierInvoices/SupplierInvoicePanel";
 
 // [F1] Cấu trúc lưu tạm phiếu nhập nháp đang chờ xác nhận qua các lần đóng/mở form hoặc refresh
@@ -191,6 +192,7 @@ export function InventoryPage() {
   const [receiptModal, setReceiptModal] = useState(false);
   const [receiptListOpen, setReceiptListOpen] = useState(false);
   const [invoiceQueueOpen, setInvoiceQueueOpen] = useState(false);
+  const [invoiceHistoryOpen, setInvoiceHistoryOpen] = useState(false);
   const [savedReceipt, setSavedReceipt] = useState<GoodsReceiptResponse | null>(null);
   const [invoiceBusy, setInvoiceBusy] = useState(false);
   const receiptInvoiceStatus = savedReceipt?.invoiceStatus;
@@ -771,6 +773,7 @@ export function InventoryPage() {
   const openSavedReceipt = async (id: string) => {
     const seq = ++receiptReadSeq.current;
     setInvoiceQueueOpen(false);
+    setInvoiceHistoryOpen(false);
     setReceiptListOpen(false);
     setReceiptModal(true);
     setConfirmedSuccess(false);
@@ -858,6 +861,13 @@ export function InventoryPage() {
     if (poParam) {
       openReceiptModalForPo(poParam);
       searchParams.delete("purchaseOrderId");
+      setSearchParams(searchParams, { replace: true });
+    }
+    // Mở chi tiết phiếu nhập từ màn khác (chi tiết đơn mua, lịch sử hóa đơn NCC)
+    const receiptParam = searchParams.get("receiptId");
+    if (receiptParam) {
+      openSavedReceipt(receiptParam);
+      searchParams.delete("receiptId");
       setSearchParams(searchParams, { replace: true });
     }
   }, [searchParams]);
@@ -1284,6 +1294,9 @@ export function InventoryPage() {
             </Button>
             {isOwner && (
               <Button variant="secondary" onClick={() => setInvoiceQueueOpen(true)}>Chênh lệch chờ duyệt</Button>
+            )}
+            {canManageInvoices && (
+              <Button variant="secondary" onClick={() => setInvoiceHistoryOpen(true)}>Lịch sử hóa đơn NCC</Button>
             )}
             <Button variant="secondary" onClick={() => setReceiptListOpen(true)}>Phiếu nhập đã lưu</Button>
             <Button onClick={openReceiptModal}>
@@ -2148,6 +2161,14 @@ export function InventoryPage() {
         <Modal title="Phiếu nhập đã lưu" onClose={() => setReceiptListOpen(false)}>
           <GoodsReceiptList tenantId={currentTenantId} onOpen={openSavedReceipt} />
         </Modal>
+      )}
+
+      {canManageInvoices && invoiceHistoryOpen && (
+        <SupplierInvoiceHistory
+          suppliers={suppliers}
+          onOpenReceipt={openSavedReceipt}
+          onClose={() => setInvoiceHistoryOpen(false)}
+        />
       )}
 
       {isOwner && invoiceQueueOpen && (

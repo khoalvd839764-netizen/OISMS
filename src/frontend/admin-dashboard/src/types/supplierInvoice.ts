@@ -71,10 +71,19 @@ export interface SupplierInvoice {
   variance: PurchaseVariance | null;
   comparison: SupplierInvoiceComparison[] | null;
   isReplay: boolean;
+  supplierName?: string | null;
+  goodsReceiptNumber?: string | null;
+  goodsReceiptStatus?: string | null;
+  purchaseOrderId?: string | null;
+  purchaseOrderNumber?: string | null;
 }
 
 export interface SupplierInvoiceFilter {
   goodsReceiptId?: string;
+  purchaseOrderId?: string;
+  supplierId?: string;
+  fromDate?: string;
+  toDate?: string;
   status?: SupplierInvoiceStatus;
   pendingOnly?: boolean;
   pageIndex?: number;
