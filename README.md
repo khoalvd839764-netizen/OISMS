@@ -9,7 +9,7 @@
 > **Yêu cầu từ đề bài:** Xem [docs/00-overview/03-de-bai-cnpm-reference.md](docs/00-overview/03-de-bai-cnpm-reference.md) để tra cứu FR/NFR, sản phẩm bàn giao, các điểm cần làm rõ và checklist nghiệm thu từ PDF đề bài. Đối chiếu tài liệu này khi thiết kế hoặc đánh giá phạm vi dự án.
 
 > **Cập nhật ngày:** 11/11/2026  
-> **Trạng thái:** Sprint 4 hoàn thành phần lớn ([báo cáo tổng kết](docs/08-sprints/sprint-4/BAO_CAO_TONG_KET_NGHIEM_THU_SPRINT_4.md)). Đã có Upgrade 01-A, 02, 03, 04, 05, 06; Coming Soon CS-01, 03, 04, 05, 07, 08; Trợ lý OISMS (`FR-AI-02`). Còn thiếu: CS-06 (in chứng từ, in báo cáo), U01-B (hóa đơn NCC), phân công chi nhánh của CS-02. Chi tiết ở [mục Hiện trạng](#hiện-trạng-chức-năng-11112026).
+> **Trạng thái:** Sprint 5 đã nghiệm thu ([báo cáo tổng kết Sprint 5](docs/08-sprints/sprint-5/BAO_CAO_TONG_KET_NGHIEM_THU_SPRINT_5.md), [Sprint 4](docs/08-sprints/sprint-4/BAO_CAO_TONG_KET_NGHIEM_THU_SPRINT_4.md)). Đã có Upgrade 01-A, 02, 03, 04, 05, 06; Coming Soon CS-01, 03, 04, 05, 07, 08; Trợ lý OISMS (`FR-AI-02`). Còn thiếu: CS-06 (in chứng từ, in báo cáo), U01-B (hóa đơn NCC), phân công chi nhánh của CS-02. Chi tiết ở [mục Hiện trạng](#hiện-trạng-chức-năng-11112026).
 
 ---
 

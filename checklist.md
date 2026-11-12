@@ -8,7 +8,7 @@
 | **Nguồn truy vết gốc** | `C:\Users\Jacki Khoa\Documents\De bai CNPM.pdf` (Trang 1 – 6) & Confluence Page ID `5275650` (Version 9) |
 | **Bằng chứng kiểm thử Sprint 2** | **194/194 Tests Pass (100%)** — 103 Unit Tests + 91 Integration Tests trên PostgreSQL 16+ thật; Code Coverage Core Inventory đạt **`92.49% – 94.83%`** |
 | **Nguồn cập nhật Sprint 3** | [Phân công Sprint 3 lưu trong repo, Confluence v11](docs/08-sprints/sprint-3/README.md) và [báo cáo tổng kết Đăng Khoa](docs/09-personal-reports/dang-khoa/sprint-3/SUMMARY.md); không tra cứu/cập nhật Confluence live trong lượt này |
-| **Hiện trạng sản phẩm mới nhất** | [Cập nhật 11/11/2026](#0b-hiện-trạng-sản-phẩm--cập-nhật-11112026): Sprint 4 hoàn thành phần lớn ([báo cáo tổng kết](docs/08-sprints/sprint-4/BAO_CAO_TONG_KET_NGHIEM_THU_SPRINT_4.md)). Còn thiếu CS-06, U01-B, phân công chi nhánh của CS-02, job Hangfire báo cáo hằng ngày, lọc báo cáo theo SKU (dời sprint sau). Chi tiết lỗi và Coming Soon: [`docs/bug-fixaffter/CHECKLIST.md`](docs/bug-fixaffter/CHECKLIST.md) |
+| **Hiện trạng sản phẩm mới nhất** | [Cập nhật 11/11/2026](#0b-hiện-trạng-sản-phẩm--cập-nhật-11112026): Sprint 5 đã nghiệm thu ([báo cáo tổng kết Sprint 5](docs/08-sprints/sprint-5/BAO_CAO_TONG_KET_NGHIEM_THU_SPRINT_5.md)). Còn thiếu CS-06, U01-B, phân công chi nhánh của CS-02, job Hangfire báo cáo hằng ngày, lọc báo cáo theo SKU (dời sprint sau). Chi tiết lỗi và Coming Soon: [`docs/bug-fixaffter/CHECKLIST.md`](docs/bug-fixaffter/CHECKLIST.md) |
 | **Frontend Coming Soon và Upgrade** | [Báo cáo 04/11/2026](docs/report-after-upgrade/frontend-coming-soon-va-upgrade.md) (đã có ghi chú cập nhật 11/11). CS-05 xong 07/11/2026, CS-01 xong 09/11/2026 (PR #41), POS gộp thành một ứng dụng `pos-app` ngày 08/11/2026. |
 
 ---
@@ -258,7 +258,7 @@ Trước khi đẩy nhánh ngày 29/10, đã chạy lại build Admin và POS ri
   - [x] [`docs/05-api-contracts/`](docs/05-api-contracts/README.md) — 5 file đặc tả hợp đồng REST API Endpoints.
   - [x] [`docs/06-testing-and-qa/`](docs/06-testing-and-qa/README.md) — Ma trận RTM (đồng bộ Confluence), Kế hoạch Test & DoD.
   - [x] [`docs/07-devops-and-deployment/`](docs/07-devops-and-deployment/README.md) — Hướng dẫn Docker Compose, CI/CD & Biến môi trường.
-  - [x] [`docs/08-sprints/`](docs/08-sprints/README.md) — Kế hoạch & phân công chi tiết `sprint-2`, `sprint-3`, `sprint-4`, `sprint-5` khớp 100% với Confluence Page `5275650`. *(11/11/2026: README Sprint 4 v2.2.0–v2.4.0 và báo cáo tổng kết v1.1.0 chưa đồng bộ lên Confluence.)*
+  - [x] [`docs/08-sprints/`](docs/08-sprints/README.md) — Kế hoạch & phân công chi tiết `sprint-2`, `sprint-3`, `sprint-4`, `sprint-5` khớp 100% với Confluence Page `5275650`. *(12/11/2026: README Sprint 4 v2.2.0–v2.4.0, README Sprint 5 v1.1.0 và báo cáo tổng kết Sprint 5 chưa đồng bộ lên Confluence.)*
   - [x] [`docs/09-personal-reports/`](docs/09-personal-reports/README.md) — Báo cáo cá nhân chuẩn hóa tên tiếng Anh ngắn gọn của 4 thành viên (`dang-khoa`, `nhut`, `phuc-huu`, `phuong`).
   - [x] [`docs/10-ai-skills/`](docs/10-ai-skills/README.md) — Skill cho Codex/Antigravity/Claude.
   - [x] [`docs/11-ui-screens/`](docs/11-ui-screens/README.md) — Đặc tả màn hình Admin, POS, kết nối sàn, tài khoản nhận tiền và ma trận quyền theo route.

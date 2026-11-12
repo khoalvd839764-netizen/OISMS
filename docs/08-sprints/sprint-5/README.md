@@ -1,10 +1,11 @@
-# KẾ HOẠCH & PHÂN CÔNG CHI TIẾT SPRINT 5 (28/10/2026 – 01/11/2026 | D19 – D21)
+# KẾ HOẠCH & PHÂN CÔNG CHI TIẾT SPRINT 5 (thực tế 05/11/2026 – 12/11/2026; kế hoạch gốc 28/10/2026 – 01/11/2026 | D19 – D21)
 
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-SPR-05` |
-| **Phiên bản (Version)** | `v1.0.0` |
-| **Ngày cập nhật** | `2026-10-22` |
+| **Phiên bản (Version)** | `v1.1.0` |
+| **Ngày cập nhật** | `2026-11-12` |
+| **Báo cáo nghiệm thu** | [`BAO_CAO_TONG_KET_NGHIEM_THU_SPRINT_5.md`](./BAO_CAO_TONG_KET_NGHIEM_THU_SPRINT_5.md) |
 | **Nguồn truy vết gốc** | `De bai CNPM.pdf` & Confluence Page ID `5275650` (Version 9) — Mục III.5 |
 | **Chủ đề Sprint 5** | **Rà soát (Review), Hồi quy & Chốt Bàn giao (Final Sign-off)** |
 
@@ -15,6 +16,7 @@
 | Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả nội dung & Chi tiết rà soát thay đổi (Change Check) | Mã tham chiếu |
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | • Thiết lập kế hoạch và phân công Sprint 5 (`28/10/2026 – 01/11/2026 \| D19 – D21`).<br/>• **Check thay đổi so với bản nháp ban đầu khi đối chiếu Confluence (`Page ID: 5275650`):**<br/>  1. Loại bỏ việc phát triển tính năng `AI Forecasting` ở Sprint 5 (đã đưa về Sprint 4) và áp dụng quy tắc **Tuyệt đối không mở module mới**.<br/>  2. Tập trung 100% vào Code Review, sửa blocker bugs, kiểm thử hồi quy toàn diện, đóng gói Release Docker/CI-CD, hoàn thiện trọn bộ hồ sơ UML 2.0/RTM/User Guide và diễn tập phân vai bảo vệ đồ án cho cả 5 thành viên. | `INIT-SYNC-SPR-05` |
+| `v1.1.0` | `2026-11-12` | Nhóm dự án OISMS | • Ghi thời gian thực tế `05/11/2026 – 12/11/2026` vì Sprint 4 chốt nghiệm thu ngày 04/11/2026.<br/>• Thêm [báo cáo tổng kết Sprint 5](./BAO_CAO_TONG_KET_NGHIEM_THU_SPRINT_5.md): PR #38 – #43, gồm cả phần làm ngoài kế hoạch (Trợ lý OISMS, giả lập đơn sàn, tách POS, trả hàng CS-01). Bảng phân công mục 2 giữ nguyên là kế hoạch. Phần này chưa đồng bộ lên Confluence. | `NGHIEM-THU-SPR-05` |
 
 ---
 
