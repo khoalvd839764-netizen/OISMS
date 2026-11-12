@@ -4,7 +4,7 @@
 | --- | --- |
 | Task | `OISMS-47-U01A` |
 | Ngày kiểm tra | 02/11/2026 |
-| Đặc tả | [Tài liệu 01](../Upgrade-recommended/01-mua-hang-nhap-kho-gia-von.md) |
+| Đặc tả | [Tài liệu 01](../Upgrade-recommended/Done/01-mua-hang-nhap-kho-gia-von.md) |
 | Phạm vi | Backend, test, tài liệu API. **Chưa có giao diện; chưa làm U01-B.** |
 | Trạng thái | Backend đã kiểm chứng. **Chưa nên đưa lên môi trường đang dùng thật trước khi frontend cập nhật**, vì form nhập kho hiện tại không tạo được phiếu theo hợp đồng mới. |
 

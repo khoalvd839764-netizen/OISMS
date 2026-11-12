@@ -120,7 +120,7 @@ Các thay đổi sau bảng kết quả trên, cùng nhánh `feature/OISMS-46-fi
 
 ## Ghi chú đối chiếu
 
-- **Giá vốn ở truy vết:** Staff được xem theo [ma trận phân quyền](../01-users-and-rbac/02-rbac-matrix.md) và [quyết định U02](../Upgrade-recommended/02-truy-vet-chung-tu-xuat-kho.md). Mô tả "chỉ Owner" trong PR #33 không đúng; code giữ nguyên.
+- **Giá vốn ở truy vết:** Staff được xem theo [ma trận phân quyền](../01-users-and-rbac/02-rbac-matrix.md) và [quyết định U02](../Upgrade-recommended/Done/02-truy-vet-chung-tu-xuat-kho.md). Mô tả "chỉ Owner" trong PR #33 không đúng; code giữ nguyên.
 - **Doanh thu ở Tổng quan:** ma trận chỉ cấm Staff xem lãi gộp, nên Staff vẫn thấy doanh thu.
 - **Số lẻ:** POS dùng `decimalPlaces` server trả về. Đơn vị mặc định đang cho phép 3 chữ số thập phân, nên POS nhận cả số lẻ với "Cái". Cần chốt nếu muốn cấm.
 - **Gợi ý nhập hàng:** Tab `FR-AI-01` hiện trong **Kho & sổ kho** cho Owner và Staff. Bảng giữ API dự báo hiện có và hiển thị SKU, tồn thực tế, tốc độ bán trung bình/ngày, số ngày dự kiến hết hàng và số lượng đề xuất nhập.

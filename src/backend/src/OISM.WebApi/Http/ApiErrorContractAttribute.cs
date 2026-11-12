@@ -41,6 +41,7 @@ internal enum ApiErrorProfile
     GoodsReceiptRead,
     GoodsReceipts,
     PurchaseOrders,
+    SupplierInvoices,
     Reserve,
     InventoryTrace,
     Orders,

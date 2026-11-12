@@ -247,7 +247,7 @@ Toàn bộ 9 kịch bản kiểm thử nghiệp vụ giao diện đã được t
 | **Quyền** | Owner, Staff. Cashier không vào Admin (đăng nhập Admin sẽ được chuyển sang POS); Cashier chỉ in lại biên lai qua `GET /api/sales-invoices/receipt` |
 | **Source** | `src/frontend/admin-dashboard/src/pages/SalesInvoicesPage.tsx`, `components/salesInvoices/SalesInvoiceDetailModal.tsx`, `SalesInvoiceReprintModal.tsx`, `SalesInvoiceTraceModal.tsx`, `services/salesInvoiceService.ts` |
 | **API** | `GET /api/sales-invoices`, `GET /api/sales-invoices/{id}`, `GET /api/sales-invoices/{id}/receipt`, `GET /api/sales-invoices/{id}/trace` |
-| **Yêu cầu** | [Upgrade 02](../Upgrade-recommended/02-truy-vet-chung-tu-xuat-kho.md) |
+| **Yêu cầu** | [Upgrade 02](../Upgrade-recommended/Done/02-truy-vet-chung-tu-xuat-kho.md) |
 
 | Khu vực | Nội dung |
 | :--- | :--- |

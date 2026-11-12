@@ -62,7 +62,7 @@ stateDiagram-v2
     Draft --> Cancelled : Hủy phiếu nháp
 ```
 
-Từ `OISMS-47-U01A`, xác nhận phiếu nhập yêu cầu phiếu mua còn nhận được và không vượt lượng còn lại.
+Xác nhận phiếu nhập yêu cầu phiếu mua còn nhận được và không vượt lượng còn lại. Từ U01-B, hóa đơn còn hiệu lực ở `Draft` hoặc `PendingApproval` làm xác nhận trả `409 GOODS_RECEIPT_INVOICE_PENDING`. Với `Approved`, mỗi dòng có trên hóa đơn dùng giá trước thuế của hóa đơn. Khi hóa đơn khớp, vắng mặt hoặc thiếu một dòng, dòng nhập tương ứng dùng giá phiếu mua. Tồn và lượng đã nhận luôn theo thực nhận. Từ chối chênh lệch `AtReceipt` hủy phiếu nhập nếu phiếu vẫn `Draft`, trong cùng transaction.
 
 ### 2.1. Máy Trạng Thái Phiếu Mua Hàng (`OISMS-47-U01A`)
 
@@ -80,6 +80,20 @@ stateDiagram-v2
 ```
 
 ---
+
+### 2.2. Máy trạng thái hóa đơn nhà cung cấp và chênh lệch (U01-B)
+
+| Chứng từ | Từ | Đến | Điều kiện |
+| :--- | :--- | :--- | :--- |
+| `SupplierInvoice` | `Draft` | `Matched` | Gửi và mọi chênh lệch giá/lượng đều bằng 0. |
+| `SupplierInvoice` | `Draft` | `PendingApproval` | Gửi và có chênh lệch. Tạo một `PurchaseVariance` ở `Pending`. |
+| `SupplierInvoice` | `PendingApproval` | `Approved` / `Rejected` | Owner quyết định riêng. Từ chối bắt buộc có ghi chú. |
+| `SupplierInvoice` | `Draft`, `Matched`, `Approved` | `Cancelled` | Owner hoặc Staff hủy và ghi lý do. |
+| `PurchaseVariance` | `Pending` | `Approved` / `Rejected` | Cùng transaction với chuyển trạng thái hóa đơn. |
+
+`Rejected` và `Cancelled` là trạng thái kết thúc của hóa đơn. `Approved` và `Rejected` là trạng thái kết thúc của chênh lệch. Hủy hóa đơn đã duyệt giữ quyết định của chênh lệch để truy vết. Khi gửi, loại là `AtReceipt` nếu phiếu nhập còn `Draft`, hoặc `AfterReceipt` nếu đã `Confirmed`. Với `AfterReceipt`, các thao tác hóa đơn chỉ lưu chứng từ.
+
+Trong transaction xác nhận nhập, khóa theo thứ tự phiếu nhập → hóa đơn còn hiệu lực (đọc lại sau khóa) → phiếu mua → SKU. Mọi thao tác ghi hóa đơn khóa phiếu nhập trước hóa đơn.
 
 ## 3. Máy Trạng Thái Chuyển Kho 2 Bước (`FR-INV-03`)
 

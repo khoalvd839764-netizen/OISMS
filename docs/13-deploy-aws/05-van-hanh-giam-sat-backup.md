@@ -33,7 +33,7 @@ Log container dùng driver `json-file` mặc định và không giới hạn kí
 | Endpoint | Ý nghĩa | Lỗi thường gặp |
 | :--- | :--- | :--- |
 | `/health/live` | Tiến trình backend còn trả lời | Không trả lời → backend chết hoặc Caddy không tới được |
-| `/health/ready` (và `/health`) | Kết nối bằng `oisms_app`, đủ 44 bảng, trigger `ledger_append_only` bật, user không có quyền quản trị | 503 `schema is incomplete` → thiếu migration; 503 `Security alert` → user runtime có quyền quá cao; 503 `timed out` → PostgreSQL không phản hồi |
+| `/health/ready` (và `/health`) | Kết nối bằng `oisms_app`, đủ 47 bảng, trigger `ledger_append_only` bật, user không có quyền quản trị | 503 `schema is incomplete` → thiếu migration; 503 `Security alert` → user runtime có quyền quá cao; 503 `timed out` → PostgreSQL không phản hồi |
 
 Có thể gắn một dịch vụ kiểm tra uptime bên ngoài (UptimeRobot, Route 53 health check, CloudWatch Synthetics) gọi `/health/ready` mỗi vài phút.
 

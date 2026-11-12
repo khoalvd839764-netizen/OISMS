@@ -6,7 +6,7 @@
 | **Phiên bản (Version)** | `v1.1.1` |
 | **Ngày hiệu lực (Effective Date)** | `2026-11-08` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-INV-01`, `NFR-TENANT-02`, `NFR-SEC-03`, `3.2.e` (Trang 2, 4, 5) |
-| **Phạm vi áp dụng** | PostgreSQL 16+ Schema (`docs/database/oisms_schema.sql` — 44 bảng) |
+| **Phạm vi áp dụng** | PostgreSQL 16+ Schema (`docs/database/oisms_schema.sql` — 47 bảng) |
 
 ---
 
@@ -37,7 +37,17 @@ erDiagram
     SKUS ||--o{ INVENTORY_BALANCES : "tồn chi nhánh"
     SKUS ||--o{ WAREHOUSE_INVENTORY_BALANCES : "tồn kho"
     SKUS ||--o{ INVENTORY_TRANSACTIONS : "ghi sổ cái"
+    SUPPLIERS ||--o{ PURCHASE_ORDERS : "nhận đơn mua"
+    PURCHASE_ORDERS ||--o{ PURCHASE_ORDER_ITEMS : "chi tiết đặt"
+    PURCHASE_ORDERS o|--o{ GOODS_RECEIPTS : "giao từng đợt"
+    PURCHASE_ORDER_ITEMS o|--o{ GOODS_RECEIPT_ITEMS : "đối chiếu lượng nhận"
     GOODS_RECEIPTS ||--o{ GOODS_RECEIPT_ITEMS : "chi tiết nhập"
+    SUPPLIERS ||--o{ SUPPLIER_INVOICES : "phát hành"
+    GOODS_RECEIPTS ||--o{ SUPPLIER_INVOICES : "lịch sử hóa đơn"
+    SUPPLIER_INVOICES ||--o{ SUPPLIER_INVOICE_ITEMS : "chi tiết hóa đơn"
+    GOODS_RECEIPT_ITEMS ||--o{ SUPPLIER_INVOICE_ITEMS : "đối chiếu dòng"
+    SUPPLIER_INVOICES ||--o| PURCHASE_VARIANCES : "chênh lệch"
+    GOODS_RECEIPTS ||--o{ PURCHASE_VARIANCES : "chứng từ nhận hàng"
     ORDERS ||--o{ ORDER_ITEMS : "chi tiết đơn"
     ORDER_ITEMS ||--o{ RESERVATIONS : "giữ chỗ"
     ORDERS ||--o| SALES_INVOICES : "tối đa một hóa đơn bán"
@@ -91,6 +101,34 @@ erDiagram
         uuid reference_id "cột sinh từ đúng 1 nguồn chứng từ"
         timestamptz created_at
     }
+    SUPPLIER_INVOICES {
+        uuid id PK
+        uuid tenant_id FK
+        uuid goods_receipt_id FK
+        uuid supplier_id FK
+        text invoice_series
+        text invoice_number
+        text status
+        uuid request_key
+    }
+    SUPPLIER_INVOICE_ITEMS {
+        uuid id PK
+        uuid tenant_id FK
+        uuid invoice_id FK
+        uuid goods_receipt_item_id FK
+        uuid sku_id FK
+        numeric quantity
+        numeric unit_price
+    }
+    PURCHASE_VARIANCES {
+        uuid id PK
+        uuid tenant_id FK
+        uuid invoice_id FK,UK
+        uuid goods_receipt_id FK
+        text variance_type
+        numeric total_amount_diff
+        text status
+    }
     SALES_INVOICES {
         uuid id PK
         uuid tenant_id FK
@@ -107,6 +145,8 @@ erDiagram
 ```
 
 ---
+
+Mỗi phiếu nhập có thể lưu nhiều hóa đơn lịch sử và tối đa một hóa đơn còn hiệu lực. Chỉ mục unique `uq_supplier_invoices_active_receipt` loại `Cancelled` và `Rejected`. Dòng hóa đơn đối chiếu với dòng phiếu nhập rồi tới dòng phiếu mua. Các khóa ngoại nghiệp vụ ghép `tenant_id`.
 
 ## 2. Chiến Lược Đánh Chỉ Mục Quy Mô Lớn (`NFR-TENANT-02`)
 
@@ -126,7 +166,7 @@ erDiagram
 | `sales_invoices` | `uq_sales_invoices_3` | `(tenant_id, order_id)` | Mỗi đơn có tối đa một hóa đơn bán. |
 | `sales_invoices` | `ix_sales_invoices_time` | `(tenant_id, issued_at, id)` | Phân trang hóa đơn theo thời gian xuất. |
 
-> **Tham chiếu chi tiết DDL:** Xem toàn bộ 44 bảng và trigger bảo vệ Sổ cái tại [`docs/database/oisms_schema.sql`](../database/oisms_schema.sql) và [`docs/database/README.md`](../database/README.md).
+> **Tham chiếu chi tiết DDL:** Xem toàn bộ 47 bảng và trigger bảo vệ Sổ cái tại [`docs/database/oisms_schema.sql`](../database/oisms_schema.sql) và [`docs/database/README.md`](../database/README.md).
 
 ## 3. Quy Tắc Thay Đổi Schema
 

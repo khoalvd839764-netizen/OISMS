@@ -68,6 +68,9 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<SkuUnitPrice> SkuUnitPrices { get; set; } = null!;
     public DbSet<PurchaseOrder> PurchaseOrders { get; set; } = null!;
     public DbSet<PurchaseOrderItem> PurchaseOrderItems { get; set; } = null!;
+    public DbSet<SupplierInvoice> SupplierInvoices { get; set; } = null!;
+    public DbSet<SupplierInvoiceItem> SupplierInvoiceItems { get; set; } = null!;
+    public DbSet<PurchaseVariance> PurchaseVariances { get; set; } = null!;
     public DbSet<SalesInvoice> SalesInvoices { get; set; } = null!;
     public DbSet<StockCountSchedule> StockCountSchedules { get; set; } = null!;
     public DbSet<StockCountPeriod> StockCountPeriods { get; set; } = null!;
@@ -194,6 +197,15 @@ public class AppDbContext : DbContext, IAppDbContext
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
 
         modelBuilder.Entity<PurchaseOrderItem>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<SupplierInvoice>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<SupplierInvoiceItem>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<PurchaseVariance>()
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
 
         modelBuilder.Entity<SalesInvoice>()

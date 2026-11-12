@@ -4,7 +4,7 @@
 | --- | --- |
 | Task | `OISMS-47-U02`, phần backend (`P1`) |
 | Ngày kiểm tra | 03/11/2026 |
-| Đặc tả | [Tài liệu 02](../Upgrade-recommended/02-truy-vet-chung-tu-xuat-kho.md) |
+| Đặc tả | [Tài liệu 02](../Upgrade-recommended/Done/02-truy-vet-chung-tu-xuat-kho.md) |
 | Phạm vi | Backend, test, tài liệu API. **Chưa có giao diện (`P2`).** |
 | Trạng thái | Backend đã kiểm chứng trên PostgreSQL 16 riêng. Chưa kiểm chứng đầu cuối từ giao diện. Database đang chạy phải chạy migration trước, xem mục Triển khai. |
 

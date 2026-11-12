@@ -30,7 +30,7 @@ dcp ps
 Chuyện gì xảy ra:
 
 1. Build 4 image: backend (.NET SDK → ASP.NET runtime), admin, POS và giả lập đơn sàn (Node 22 → nginx). Lần đầu mất vài phút.
-2. `postgres` khởi động với volume trống, chạy `init-oisms.sh`: nạp `oisms_schema.sql` (44 bảng, trigger `ledger_append_only`), tạo nhóm `oisms_runtime` và login `oisms_app`, kiểm tra đủ 44 bảng. Lỗi ở bước này thì container dừng; xem `dcp logs postgres`.
+2. `postgres` khởi động với volume trống, chạy `init-oisms.sh`: nạp `oisms_schema.sql` (47 bảng, trigger `ledger_append_only`), tạo nhóm `oisms_runtime` và login `oisms_app`, kiểm tra đủ 47 bảng. Lỗi ở bước này thì container dừng; xem `dcp logs postgres`.
 3. `backend` chờ `postgres` healthy rồi chạy. Production không seed demo.
 4. `caddy` xin chứng chỉ cho `ADMIN_DOMAIN`, `POS_DOMAIN` và `SIM_DOMAIN`. Xem tiến trình: `dcp logs -f caddy`.
 
@@ -42,7 +42,7 @@ curl -sI https://<POS_DOMAIN>/ | head -1
 curl -sI https://<SIM_DOMAIN>/ | head -1
 ```
 
-`/health/ready` phải trả HTTP 200, `status: "Healthy"`, `tablesCount: 44`, `triggerVerified: true`.
+`/health/ready` phải trả HTTP 200, `status: "Healthy"`, `tablesCount: 47`, `triggerVerified: true`.
 
 ## 2. Tạo Dữ Liệu Ban Đầu
 
@@ -79,6 +79,15 @@ curl -s https://<ADMIN_DOMAIN>/health/ready
 `up -d --build` chỉ tạo lại container có image thay đổi. Trong lúc container backend khởi động lại sẽ có vài giây lỗi 502 từ Caddy.
 
 ### 3.3. Có migration
+
+Khi DB đang chạy đã có đủ 44 bảng của baseline U01-A, sao lưu theo bước bên dưới rồi chạy riêng migration U01-B trước khi cập nhật backend. Chạy từ thư mục gốc trên máy deploy với cấu hình Compose production đã thiết lập.
+
+```bash
+dcp exec -T postgres sh -c 'psql -X -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' \
+  < docker/postgres/migrations/20261112_supplier_invoices.sql
+```
+
+DB ở baseline cũ hơn cần chạy đủ các migration còn thiếu theo thứ tự tên file. Sau cập nhật, kiểm tra `/health/ready` trả HTTP 200 và `tablesCount: 47`.
 
 Backend không tự nâng cấp schema, và `init-oisms.sh` không chạy lại trên volume đã có dữ liệu. Nếu chỉ rebuild, `/health/ready` sẽ trả 503 `Database schema is incomplete`.
 
@@ -146,7 +155,7 @@ dcp up -d --build
 
 | Kiểm tra | Kỳ vọng |
 | :--- | :--- |
-| `https://<ADMIN_DOMAIN>/health/ready` | 200, `Healthy`, 44 bảng |
+| `https://<ADMIN_DOMAIN>/health/ready` | 200, `Healthy`, 47 bảng |
 | `https://<ADMIN_DOMAIN>/swagger` | Không mở được (production không có Swagger; SPA trả trang chuyển về `/admin`) |
 | `http://<ADMIN_DOMAIN>` | Chuyển hướng sang `https://` |
 | Đăng nhập Admin, mở Sản phẩm, Tồn kho | Có dữ liệu, không lỗi mạng |

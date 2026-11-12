@@ -36,6 +36,8 @@ public class GoodsReceiptResponseDto
     public string Number { get; set; } = string.Empty;
     public Guid? PurchaseOrderId { get; set; }
     public string? PurchaseOrderNumber { get; set; }
+    public Guid? InvoiceId { get; set; }
+    public string? InvoiceStatus { get; set; }
     public Guid BranchId { get; set; }
     public string BranchName { get; set; } = string.Empty;
     public Guid WarehouseId { get; set; }

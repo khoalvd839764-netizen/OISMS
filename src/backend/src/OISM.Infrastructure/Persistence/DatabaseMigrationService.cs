@@ -102,7 +102,10 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         "stock_count_schedules",
         "stock_count_periods",
         "stock_count_approvals",
-        "payment_accounts"
+        "payment_accounts",
+        "supplier_invoices",
+        "supplier_invoice_items",
+        "purchase_variances"
     ];
 
     public static readonly ExpectedTrigger[] ExpectedTriggers =
@@ -150,6 +153,11 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         // sku_unit_prices
         new("sku_unit_prices", "sku_unit_price_guard", "oisms_sku_unit_price_guard", "public", "BEFORE", true, HasUpdate: true),
         new("sku_unit_prices", "sku_unit_price_no_delete", "oisms_deny_mutation", "public", "BEFORE", false, HasDelete: true, HasTruncate: true),
+
+        new("supplier_invoices", "supplier_invoice_guard", "oisms_supplier_invoice_guard", "public", "BEFORE", true, HasInsert: true, HasUpdate: true),
+        new("supplier_invoices", "supplier_invoice_no_delete", "oisms_deny_mutation", "public", "BEFORE", false, HasDelete: true, HasTruncate: true),
+        new("supplier_invoice_items", "supplier_invoice_item_guard", "oisms_supplier_invoice_item_guard", "public", "BEFORE", true, HasInsert: true, HasUpdate: true, HasDelete: true),
+        new("purchase_variances", "purchase_variance_no_delete", "oisms_deny_mutation", "public", "BEFORE", false, HasDelete: true, HasTruncate: true),
 
         // purchase_orders & purchase_order_items
         new("purchase_orders", "purchase_order_guard", "oisms_purchase_order_guard", "public", "BEFORE", true, HasUpdate: true),
@@ -243,6 +251,20 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         new("fk_order_items_sku_unit_price_id", "order_items", ["tenant_id", "sku_unit_price_id"], "sku_unit_prices", ["tenant_id", "id"]),
 
         // Purchase Orders Foreign Keys (U01-A)
+        new("fk_supplier_invoices_tenant", "supplier_invoices", ["tenant_id"], "tenants", ["id"]),
+        new("fk_supplier_invoices_receipt", "supplier_invoices", ["tenant_id", "goods_receipt_id"], "goods_receipts", ["tenant_id", "id"]),
+        new("fk_supplier_invoices_supplier", "supplier_invoices", ["tenant_id", "supplier_id"], "suppliers", ["tenant_id", "id"]),
+        new("fk_supplier_invoices_creator", "supplier_invoices", ["tenant_id", "created_by"], "users", ["tenant_id", "id"]),
+        new("fk_supplier_invoices_canceller", "supplier_invoices", ["tenant_id", "cancelled_by"], "users", ["tenant_id", "id"]),
+        new("fk_supplier_invoice_items_tenant", "supplier_invoice_items", ["tenant_id"], "tenants", ["id"]),
+        new("fk_supplier_invoice_items_invoice", "supplier_invoice_items", ["tenant_id", "invoice_id"], "supplier_invoices", ["tenant_id", "id"]),
+        new("fk_supplier_invoice_items_receipt_item", "supplier_invoice_items", ["tenant_id", "goods_receipt_item_id"], "goods_receipt_items", ["tenant_id", "id"]),
+        new("fk_supplier_invoice_items_sku", "supplier_invoice_items", ["tenant_id", "sku_id"], "skus", ["tenant_id", "id"]),
+        new("fk_purchase_variances_tenant", "purchase_variances", ["tenant_id"], "tenants", ["id"]),
+        new("fk_purchase_variances_invoice", "purchase_variances", ["tenant_id", "invoice_id"], "supplier_invoices", ["tenant_id", "id"]),
+        new("fk_purchase_variances_receipt", "purchase_variances", ["tenant_id", "goods_receipt_id"], "goods_receipts", ["tenant_id", "id"]),
+        new("fk_purchase_variances_decider", "purchase_variances", ["tenant_id", "decided_by"], "users", ["tenant_id", "id"]),
+
         new("fk_purchase_orders_tenant_id", "purchase_orders", ["tenant_id"], "tenants", ["id"]),
         new("fk_purchase_orders_supplier_id", "purchase_orders", ["tenant_id", "supplier_id"], "suppliers", ["tenant_id", "id"]),
         new("fk_purchase_orders_branch_id", "purchase_orders", ["tenant_id", "branch_id"], "branches", ["tenant_id", "id"]),
@@ -393,6 +415,16 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         // order_items price source constraints
         new("ck_order_items_price_source", 'c', "order_items", ExpectedNormalizedExpression: "((price_source)::text = ANY ((ARRAY['PriceList'::character varying, 'Marketplace'::character varying, 'Legacy'::character varying])::text[]))"),
         new("ck_order_items_price_source_ref", 'c', "order_items", ExpectedNormalizedExpression: "(((price_source)::text = 'PriceList'::text) = (sku_unit_price_id IS NOT NULL))"),
+
+        new("uq_supplier_invoices_tenant_id", 'u', "supplier_invoices", Columns: ["tenant_id", "id"]),
+        new("uq_supplier_invoices_request_key", 'u', "supplier_invoices", Columns: ["tenant_id", "request_key"]),
+        new("ck_supplier_invoices_status", 'c', "supplier_invoices"),
+        new("ck_supplier_invoices_submitted", 'c', "supplier_invoices"),
+        new("ck_supplier_invoices_cancelled", 'c', "supplier_invoices"),
+        new("uq_supplier_invoice_items_receipt_item", 'u', "supplier_invoice_items", Columns: ["tenant_id", "invoice_id", "goods_receipt_item_id"]),
+        new("ck_supplier_invoice_items_comparison", 'c', "supplier_invoice_items"),
+        new("uq_purchase_variances_invoice", 'u', "purchase_variances", Columns: ["invoice_id"]),
+        new("ck_purchase_variances_decision", 'c', "purchase_variances"),
 
         // purchase_orders
         new("uq_purchase_orders_1", 'u', "purchase_orders", Columns: ["tenant_id", "id"]),
@@ -2239,13 +2271,27 @@ END $$;
                 await salesReturnsCmd.ExecuteNonQueryAsync(cancellationToken);
             }
 
+            const string supplierInvoiceStart = "-- OISMS_SUPPLIER_INVOICES_BEGIN";
+            const string supplierInvoiceEnd = "-- OISMS_SUPPLIER_INVOICES_END";
+            var schema = FindAndLoadSchemaDdl() ?? string.Empty;
+            var start = schema.IndexOf(supplierInvoiceStart, StringComparison.Ordinal);
+            var end = schema.IndexOf(supplierInvoiceEnd, StringComparison.Ordinal);
+            if (start < 0 || end <= start + supplierInvoiceStart.Length)
+                throw new InvalidOperationException("Không tìm thấy DDL hóa đơn nhà cung cấp trong oisms_schema.sql.");
+
+            var supplierInvoiceSql = schema[(start + supplierInvoiceStart.Length)..end];
+            await using (var supplierInvoiceCmd = new NpgsqlCommand(supplierInvoiceSql, connection, tx))
+            {
+                await supplierInvoiceCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
             await tx.CommitAsync(cancellationToken);
             return new MigrationExecutionResult(
                 Success: true,
                 IsFreshInstall: false,
                 IsBaselineAdopted: false,
                 TableCount: RequiredTables.Length,
-                Message: "Nâng cấp schema v0.5 stock_transfers, shop_integrations, multi_unit, price_lists, purchase_orders, sales_invoices, stock_count_schedules, payment_accounts và sales_returns thành công.");
+                Message: "Nâng cấp schema v0.5 stock_transfers, shop_integrations, multi_unit, price_lists, purchase_orders, sales_invoices, stock_count_schedules, payment_accounts, sales_returns và supplier_invoices thành công.");
         }
         catch (Exception ex)
         {
@@ -2736,7 +2782,8 @@ WHERE n.nspname = 'public';";
         string[] requiredFunctions = [
             "oisms_deny_mutation", "oisms_lock_stock", "oisms_stock_constraint", "oisms_check_stock",
             "oisms_price_change_request_guard", "oisms_sku_unit_price_guard",
-            "oisms_purchase_order_guard", "oisms_purchase_order_item_guard"
+            "oisms_purchase_order_guard", "oisms_purchase_order_item_guard",
+            "oisms_supplier_invoice_guard", "oisms_supplier_invoice_item_guard"
         ];
         foreach (var fn in requiredFunctions)
         {
@@ -3041,7 +3088,7 @@ SELECT table_name, privilege_type
 FROM information_schema.role_table_grants 
 WHERE grantee = 'oisms_runtime' 
   AND table_schema = 'public' 
-  AND table_name IN ('price_lists', 'price_change_requests', 'sku_unit_prices', 'purchase_orders', 'stock_count_schedules', 'stock_count_periods') 
+  AND table_name IN ('price_lists', 'price_change_requests', 'sku_unit_prices', 'purchase_orders', 'stock_count_schedules', 'stock_count_periods', 'supplier_invoices', 'purchase_variances')
   AND privilege_type IN ('DELETE', 'TRUNCATE');";
 
         await using (var cmdPriceNoDel = new NpgsqlCommand(checkPriceNoDeletePrivilegesSql, connection, tx))

@@ -9,7 +9,7 @@
 
 Kiểm tra lại kết nối: `Invoke-RestMethod http://localhost:5000/health/ready`.
 
-Tài liệu chuẩn chung cho Khoa (Backend 1), TV2 (Backend 2) và các thành viên tích hợp. PostgreSQL 16+, **44 bảng nghiệp vụ** (bản bàn giao gốc v0.5 có 29 bảng, 94 khóa ngoại, 86 CHECK; Sprint 3 thêm `shop_integrations`, Upgrade 05 thêm `units`, `sku_units`, `sku_unit_factor_history`, Upgrade 04 thêm `price_lists`, `price_change_requests`, `price_change_request_items`, `sku_unit_prices`, Upgrade 01-A thêm `purchase_orders`, `purchase_order_items`, Upgrade 02 thêm `sales_invoices`, Upgrade 03 thêm `stock_count_schedules`, `stock_count_periods`, `stock_count_approvals`, CS-05 thêm `payment_accounts`), cùng UNIQUE/index và trigger. Việc gom file không thay đổi mô hình nghiệp vụ v0.5.
+Tài liệu chuẩn chung cho Khoa (Backend 1), TV2 (Backend 2) và các thành viên tích hợp. PostgreSQL 16+, **47 bảng nghiệp vụ** (bản bàn giao gốc v0.5 có 29 bảng, 94 khóa ngoại, 86 CHECK; Sprint 3 thêm `shop_integrations`, Upgrade 05 thêm `units`, `sku_units`, `sku_unit_factor_history`, Upgrade 04 thêm `price_lists`, `price_change_requests`, `price_change_request_items`, `sku_unit_prices`, Upgrade 01-A thêm `purchase_orders`, `purchase_order_items`, Upgrade 02 thêm `sales_invoices`, Upgrade 03 thêm `stock_count_schedules`, `stock_count_periods`, `stock_count_approvals`, CS-05 thêm `payment_accounts`, Upgrade 01-B thêm `supplier_invoices`, `supplier_invoice_items`, `purchase_variances`), cùng UNIQUE/index và trigger. Việc gom file không thay đổi mô hình nghiệp vụ v0.5.
 
 ## Bộ file bàn giao
 
@@ -36,6 +36,8 @@ Script database duy nhất được giữ trong `scripts` là `scripts/test-data
 | Dữ liệu trên máy không cần giữ | `docker compose down -v` rồi `up -d --build`. **Cờ `-v` xóa toàn bộ dữ liệu trong volume**, kể cả tài khoản đã tạo |
 
 Không chạy `oisms_schema.sql` lên database đã có dữ liệu. Không sửa file migration đã có: mỗi thay đổi schema tạo file mới, đồng thời cập nhật `oisms_schema.sql`.
+
+DB đã có đủ 44 bảng của baseline U01-A chỉ cần chạy `docker/postgres/migrations/20261112_supplier_invoices.sql` để lên 47 bảng. Chạy file bằng tài khoản quản trị schema với `psql -v ON_ERROR_STOP=1` sau khi sao lưu.
 
 Git Bash, Linux, macOS (chạy ở thư mục gốc repo):
 
@@ -64,7 +66,7 @@ foreach ($f in Get-ChildItem docker/postgres/migrations/*.sql | Sort-Object Name
 docker compose up -d --build
 ```
 
-File `oisms_backup.dump` chứa dữ liệu thật, không commit lên Git. Nâng cấp xong, `/health/ready` phải trả 200 với `tablesCount: 44`. Gặp lỗi thì dừng lại và báo nhóm; mỗi file chạy trong một giao dịch nên file lỗi tự hoàn tác phần của nó, các file đã chạy xong trước đó vẫn giữ nguyên.
+File `oisms_backup.dump` chứa dữ liệu thật, không commit lên Git. Nâng cấp xong, `/health/ready` phải trả 200 với `tablesCount: 47`. Gặp lỗi thì dừng lại và báo nhóm; mỗi file chạy trong một giao dịch nên file lỗi tự hoàn tác phần của nó, các file đã chạy xong trước đó vẫn giữ nguyên.
 
 Khôi phục từ backup khi cần (xóa dữ liệu hiện tại của database `oisms`):
 
@@ -150,7 +152,7 @@ Cơ chế khởi tạo tự động hoạt động dựa trên cơ chế entrypo
 1. Khi volume `postgres_data` còn trống, PostgreSQL chạy script initdb.
 2. Script phát hiện database `oisms` đã được tạo sẵn qua biến `POSTGRES_DB=oisms`.
 3. Script xử lý việc file `oisms_schema.sql` có chứa `CREATE DATABASE oisms` và `\connect oisms` bằng cách bóc tách an toàn phần cài đặt DDL từ `-- OISMS_SCHEMA_BEGIN`, rồi thực thi trực tiếp vào database `oisms`.
-4. Nếu bảng nghiệp vụ đã tồn tại (≥44 bảng), script bỏ qua DDL để bảo toàn dữ liệu. Nếu phát hiện số bảng thấp hơn (1-43 bảng, tức database cũ chưa nâng cấp), script báo lỗi, yêu cầu chạy migration và không tự ý ghi đè hay xóa bảng. Cuối script kiểm tra đủ 44 bảng có tên trong danh sách và đúng 1 trigger `ledger_append_only` đang bật.
+4. Nếu bảng nghiệp vụ đã tồn tại (≥47 bảng), script bỏ qua DDL để bảo toàn dữ liệu. Nếu phát hiện số bảng thấp hơn (1–46 bảng, tức database cũ chưa nâng cấp), script báo lỗi, yêu cầu chạy migration và không tự ý ghi đè hay xóa bảng. Cuối script kiểm tra đủ 47 bảng có tên trong danh sách và đúng 1 trigger `ledger_append_only` đang bật.
 5. Tạo nhóm quyền `oisms_runtime` (NOLOGIN), sau đó cấu hình tài khoản runtime backend `oisms_app`:
    - Sử dụng cơ chế truyền biến `\getenv` của psql và hàm `format('%I', ...)` / `format('%L', ...)` trong khối PL/pgSQL; tuyệt đối **không nội suy chuỗi SQL**.
    - Hỗ trợ mật khẩu có dấu nháy và ký tự đặc biệt, không bao giờ in mật khẩu ra log.
@@ -215,7 +217,7 @@ Kiểm tra trạng thái sẵn sàng của Backend qua Readiness Endpoint:
 ```powershell
 curl http://localhost:5000/health/ready
 ```
-Endpoint `/health/ready` thực hiện mở kết nối PostgreSQL bằng tài khoản runtime `oisms_app`, kiểm tra đủ 44 bảng (`DatabaseMigrationService.RequiredTables` trong Infrastructure), trigger bất biến sổ cái và quyền hạn trước khi trả về HTTP 200 `Healthy` (trả về HTTP 503 `Unhealthy` nếu thất bại, không để lộ connection string hoặc mật khẩu).
+Endpoint `/health/ready` thực hiện mở kết nối PostgreSQL bằng tài khoản runtime `oisms_app`, kiểm tra đủ 47 bảng (`DatabaseMigrationService.RequiredTables` trong Infrastructure), trigger bất biến sổ cái và quyền hạn trước khi trả về HTTP 200 `Healthy` (trả về HTTP 503 `Unhealthy` nếu thất bại, không để lộ connection string hoặc mật khẩu).
 
 ### Xem log cơ sở dữ liệu
 
@@ -287,6 +289,7 @@ Khi container khởi động lại hoặc khi volume `postgres_data` đã tồn 
    | `20261102_purchase_orders.sql` | Upgrade 01-A: `purchase_orders`, `purchase_order_items` |
    | `20261103_sales_invoices.sql` | Upgrade 02: `sales_invoices` |
    | `20261103_stock_count_schedules.sql` | Upgrade 03: `stock_count_schedules`, `stock_count_periods`, `stock_count_approvals` |
+   | `20261112_supplier_invoices.sql` | Upgrade 01-B: `supplier_invoices`, `supplier_invoice_items`, `purchase_variances` |
 
    Các file được viết để chạy lại an toàn; mỗi khối nằm trong transaction.
 3. **Thực thi script bằng tài khoản quản trị `postgres`:**
@@ -440,7 +443,7 @@ Test cần `@electric-sql/pglite`; đặt `OISMS_TEST_MODULES` trỏ đến thư
 - Entity, DTO, Swagger và frontend phải thống nhất kiểu, nullable, enum và phạm vi tenant/branch/warehouse.
 - Danh mục có is_active; chứng từ đã ghi ledger phải bảo toàn lịch sử. Các điều kiện nguồn chứng từ đúng SKU/kho/lượng, trả không vượt bán và chống sửa chứng từ đã ghi kho vẫn phải được kiểm tra trong service.
 - Không tự chọn chính sách hủy sau Confirmed/Completed, nhận chuyển thiếu/từng phần hoặc split payment. Hiện một payment/đơn, chuyển hai bước cơ bản.
-- Không thêm bảng dự phòng; thay đổi dựa trên yêu cầu rõ ràng. Hangfire tạo bảng kỹ thuật riêng trong schema `hangfire` khi bật, ngoài 44 bảng nghiệp vụ. Schema này do `init-oisms.sh` (volume mới) hoặc migration `20261108_hangfire_schema.sql` (DB đã có dữ liệu) tạo, thuộc `postgres`; `oisms_runtime` chỉ có `USAGE, CREATE` trên schema đó.
+- Không thêm bảng dự phòng; thay đổi dựa trên yêu cầu rõ ràng. Hangfire tạo bảng kỹ thuật riêng trong schema `hangfire` khi bật, ngoài 47 bảng nghiệp vụ. Schema này do `init-oisms.sh` (volume mới) hoặc migration `20261108_hangfire_schema.sql` (DB đã có dữ liệu) tạo, thuộc `postgres`; `oisms_runtime` chỉ có `USAGE, CREATE` trên schema đó.
 
 ## Index và bằng chứng kiểm thử
 
@@ -1589,6 +1592,47 @@ Tài khoản ngân hàng nhận tiền VietQR của cửa hàng (CS-05), dùng c
 **Quan hệ FK:** `(tenant_id)` → `tenants(id)` `RESTRICT`; `(tenant_id, updated_by_user_id)` → `users(tenant_id, id)` `ON DELETE SET NULL (updated_by_user_id)`.
 
 **CHECK:** `bank_bin ~ '^[0-9]{6}$'`; `account_number ~ '^[A-Za-z0-9]{6,19}$'`.
+
+### 45. `supplier_invoices`
+
+| Cột | Kiểu | Ý nghĩa |
+|---|---|---|
+| `id`, `tenant_id` | `uuid` | PK `id`; khóa tenant và ID dùng cho FK. |
+| `goods_receipt_id`, `supplier_id` | `uuid` | Phiếu nhập và nhà cung cấp tương ứng, bắt buộc. |
+| `invoice_series`, `invoice_number`, `invoice_date` | `text`, `text`, `date` | Ký hiệu, số và ngày hóa đơn, bắt buộc. |
+| `subtotal`, `vat_amount`, `shipping_fee`, `total_amount` | `numeric` | Tiền hàng, thuế, vận chuyển, và tổng của ba khoản. |
+| `status` | `text` | `Draft`, `Matched`, `PendingApproval`, `Approved`, `Rejected`, `Cancelled`. |
+| `request_key`, `request_payload_hash` | `uuid`, `text` | Khóa retry và dấu vết nội dung yêu cầu tạo ban đầu. |
+| `created_by`, `created_at`, `updated_at`, `submitted_at` | `uuid`, `timestamptz` | Người tạo, thời điểm tạo, sửa và gửi đối chiếu. |
+| `cancelled_by`, `cancelled_at`, `cancel_reason` | `uuid`, `timestamptz`, `text` | Người hủy, thời điểm và lý do; bắt buộc khi `Cancelled`. |
+
+Các FK đến `goods_receipts`, `suppliers`, `users` ghép `tenant_id`. Duy nhất theo `(tenant_id, request_key)`, theo `(tenant_id, supplier_id, invoice_series, invoice_number)` trừ `Cancelled`, và theo `(tenant_id, goods_receipt_id)` trừ `Cancelled` và `Rejected`. Trigger `supplier_invoice_guard` kiểm tra nhà cung cấp khi tạo, chuyển trạng thái và bảo vệ nội dung sau khi gửi. `supplier_invoice_no_delete` chặn xóa và truncate.
+
+### 46. `supplier_invoice_items`
+
+| Cột | Kiểu | Ý nghĩa |
+|---|---|---|
+| `id`, `tenant_id` | `uuid` | PK `id` và tenant bắt buộc. |
+| `invoice_id`, `goods_receipt_item_id`, `sku_id` | `uuid` | Hóa đơn, dòng thực nhận và SKU; FK ghép tenant. |
+| `quantity`, `expected_quantity`, `quantity_diff` | `numeric(18,3)` | Lượng ghi hóa đơn, lượng thực nhận khi gửi và hiệu hai lượng. |
+| `unit_price`, `expected_unit_price`, `price_diff` | `numeric(20,6)` | Giá hóa đơn trước thuế, giá phiếu mua chụp khi gửi và hiệu hai giá. |
+| `amount_diff` | `numeric` | Tiền hàng hóa đơn trừ số thực nhận nhân giá phiếu mua. |
+| `created_at`, `updated_at` | `timestamptz` | Thời điểm tạo và sửa. |
+
+Duy nhất theo `(tenant_id, invoice_id, goods_receipt_item_id)`. Các cột so sánh để trống trước khi gửi. Trigger `supplier_invoice_item_guard` chỉ cho phép ghi hoặc xóa dòng khi hóa đơn `Draft`, đồng thời kiểm tra dòng nhập và SKU.
+
+### 47. `purchase_variances`
+
+| Cột | Kiểu | Ý nghĩa |
+|---|---|---|
+| `id`, `tenant_id` | `uuid` | PK `id` và tenant bắt buộc. |
+| `invoice_id`, `goods_receipt_id` | `uuid` | FK ghép tenant; `invoice_id` duy nhất. |
+| `variance_type`, `status` | `text` | `AtReceipt` hoặc `AfterReceipt`; `Pending`, `Approved` hoặc `Rejected`. |
+| `total_amount_diff` | `numeric` | Chênh lệch tổng tiền hàng có dấu, trước thuế và phí vận chuyển. |
+| `decided_by`, `decided_at`, `decision_note` | `uuid`, `timestamptz`, `text` | Owner quyết định, thời điểm và ghi chú; lý do bắt buộc khi từ chối. |
+| `created_at`, `updated_at` | `timestamptz` | Thời điểm tạo và sửa. |
+
+`purchase_variance_no_delete` chặn xóa và truncate. FK tới người quyết định ghép `tenant_id`. Chênh lệch có thể mang số âm hoặc bằng 0 khi các dòng bù trừ nhau.
 
 ### Cột Upgrade 03 trên bảng có sẵn
 - `stock_counts.count_type varchar(20) NOT NULL DEFAULT 'AdHoc'`

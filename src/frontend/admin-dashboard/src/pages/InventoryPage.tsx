@@ -31,6 +31,14 @@ import { GoodsReceiptList } from "../components/GoodsReceiptList";
 import { CreateSalesReturnModal } from "../components/salesReturns/CreateSalesReturnModal";
 import { purchaseOrderService } from "../services/purchaseOrderService";
 import type { PurchaseOrderResponse } from "../types/purchaseOrder";
+import { goodsReceiptService } from "../services/goodsReceiptService";
+import { readSupplierInvoiceError, receiptInvoicePendingMessage } from "../services/supplierInvoiceService";
+import type { GoodsReceiptResponse } from "../types/goodsReceipt";
+import type { SupplierInvoice } from "../types/supplierInvoice";
+import { PendingSupplierInvoices } from "../components/supplierInvoices/PendingSupplierInvoices";
+import { SupplierInvoiceHistory } from "../components/supplierInvoices/SupplierInvoiceHistory";
+import { GoodsReceiptDetailView } from "../components/GoodsReceiptDetailView";
+import { SupplierInvoicePanel } from "../components/supplierInvoices/SupplierInvoicePanel";
 
 // [F1] Cấu trúc lưu tạm phiếu nhập nháp đang chờ xác nhận qua các lần đóng/mở form hoặc refresh
 interface PendingReceiptState {
@@ -117,6 +125,8 @@ function clearSavedPendingReservation(tenantId?: string) {
 export function InventoryPage() {
   const { account } = useAuth();
   const currentTenantId = account?.tenantId;
+  const isOwner = account?.role === "Owner";
+  const canManageInvoices = isOwner || account?.role === "Staff";
 
   const [tab, setTab] = useState<"balance" | "ledger" | "ai-reorder">("balance");
   const [loading, setLoading] = useState(false);
@@ -182,6 +192,12 @@ export function InventoryPage() {
   // Modals
   const [receiptModal, setReceiptModal] = useState(false);
   const [receiptListOpen, setReceiptListOpen] = useState(false);
+  const [invoiceQueueOpen, setInvoiceQueueOpen] = useState(false);
+  const [invoiceHistoryOpen, setInvoiceHistoryOpen] = useState(false);
+  const [savedReceipt, setSavedReceipt] = useState<GoodsReceiptResponse | null>(null);
+  const [invoiceBusy, setInvoiceBusy] = useState(false);
+  const receiptInvoiceStatus = savedReceipt?.invoiceStatus;
+  const invoiceBlocksConfirm = receiptInvoiceStatus === "Draft" || receiptInvoiceStatus === "PendingApproval";
   const [receiptReady, setReceiptReady] = useState(false);
   const [receiptNumber, setReceiptNumber] = useState("");
   const receiptReadSeq = useRef(0);
@@ -189,6 +205,8 @@ export function InventoryPage() {
   const receiptActorRef = useRef(receiptActor);
   receiptActorRef.current = receiptActor;
   const [confirmedSuccess, setConfirmedSuccess] = useState(false);
+  // true chỉ ngay sau khi người dùng vừa bấm Xác nhận nhập kho trong phiên này; mở lại phiếu cũ thì xem chi tiết
+  const [justConfirmed, setJustConfirmed] = useState(false);
   const [selectedLedger, setSelectedLedger] = useState<LedgerEntry | null>(null);
 
   // [A08 & F2] Modal Giữ chỗ tồn kho (Reserve) hỗ trợ Idempotency-Key chống giữ lặp
@@ -709,78 +727,108 @@ export function InventoryPage() {
     }
   }, [selectedPoDetail, warehouses, selectedBranch, selectedWarehouse, createdReceiptId]);
 
-  // [F1] Mở Modal Phiếu nhập và tự động khôi phục / đối soát phiếu nháp đang chờ xác nhận
   const closeReceiptModal = () => {
-    if (isConfirmingReceiptRef.current) return;
+    if (isConfirmingReceiptRef.current || invoiceBusy) return;
     receiptReadSeq.current++;
     setVerifyingPendingReceipt(false);
     setReceiptModal(false);
   };
 
-  // Always review the server snapshot, including drafts created in another session.
+  const applyReceiptSnapshot = (receipt: GoodsReceiptResponse, trackDraft = false) => {
+    const items = receipt.items.map((item) => ({
+      purchaseOrderItemId: item.purchaseOrderItemId ?? undefined,
+      skuId: item.skuId,
+      skuCode: item.skuCode,
+      skuName: item.productName,
+      unitName: item.unitName,
+      factorSnapshot: item.factorSnapshot,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+    }));
+    const isDraft = receipt.status === "Draft";
+    setSavedReceipt(receipt);
+    setSelectedBranch(receipt.branchId);
+    setSelectedWarehouse(receipt.warehouseId);
+    setSelectedSupplier(receipt.supplierId);
+    setSelectedPurchaseOrderId(receipt.purchaseOrderId ?? "");
+    setReceiptNotes(receipt.note ?? "");
+    setReceiptItems(items);
+    setReceiptNumber(receipt.number);
+    setCreatedReceiptId(isDraft ? receipt.id : null);
+    setReceiptReady(isDraft);
+    setConfirmedSuccess(receipt.status === "Confirmed");
+    setJustConfirmed(false);
+    if (isDraft && trackDraft) {
+      savePendingReceipt({
+        receiptId: receipt.id,
+        purchaseOrderId: receipt.purchaseOrderId ?? undefined,
+        purchaseOrderNumber: receipt.purchaseOrderNumber ?? undefined,
+        branchId: receipt.branchId,
+        warehouseId: receipt.warehouseId,
+        supplierId: receipt.supplierId,
+        notes: receipt.note ?? "",
+        items,
+      }, currentTenantId);
+    } else if (!isDraft && loadSavedPendingReceipt(currentTenantId)?.receiptId === receipt.id) {
+      clearSavedPendingReceipt(currentTenantId);
+    }
+  };
+
   const openSavedReceipt = async (id: string) => {
     const seq = ++receiptReadSeq.current;
+    setInvoiceQueueOpen(false);
+    setInvoiceHistoryOpen(false);
     setReceiptListOpen(false);
     setReceiptModal(true);
     setConfirmedSuccess(false);
+    setSavedReceipt(null);
+    setSelectedPoDetail(null);
     setCreatedReceiptId(id);
     setReceiptReady(false);
     setReceiptError(null);
     setVerifyingPendingReceipt(true);
     try {
-      const response = await apiAdapter.getGoodsReceiptById(id);
+      const receipt = await goodsReceiptService.getGoodsReceiptById(id);
       if (seq !== receiptReadSeq.current || receiptActorRef.current !== receiptActor) return;
-      const receipt = response.data;
-      if (response.error || !receipt || receipt.id !== id) {
-        throw new Error(response.error?.message || "Không thể đọc phiếu nhập từ máy chủ.");
-      }
-      if (receipt.status !== "Draft" && receipt.status !== "Confirmed") {
-        throw new Error("Phiếu không còn ở trạng thái cho phép xác nhận.");
-      }
-      const items = receipt.items.map((item: any) => ({
-        purchaseOrderItemId: item.purchaseOrderItemId,
-        skuId: item.skuId,
-        skuCode: item.skuCode,
-        skuName: item.productName,
-        unitName: item.unitName,
-        factorSnapshot: item.factorSnapshot,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-      }));
-      setSelectedBranch(receipt.branchId);
-      setSelectedWarehouse(receipt.warehouseId);
-      setSelectedSupplier(receipt.supplierId);
-      setSelectedPurchaseOrderId(receipt.purchaseOrderId || "");
-      setReceiptNotes(receipt.note || "");
-      setReceiptItems(items);
-      setReceiptNumber(receipt.number);
-      if (receipt.status === "Confirmed") {
-        if (loadSavedPendingReceipt(currentTenantId)?.receiptId === id) clearSavedPendingReceipt(currentTenantId);
-        setCreatedReceiptId(null);
-        setConfirmedSuccess(true);
-      } else {
-        savePendingReceipt({
-          receiptId: id,
-          purchaseOrderId: receipt.purchaseOrderId,
-          purchaseOrderNumber: receipt.purchaseOrderNumber,
-          branchId: receipt.branchId,
-          warehouseId: receipt.warehouseId,
-          supplierId: receipt.supplierId,
-          notes: receipt.note || "",
-          items,
-        }, currentTenantId);
-        setReceiptReady(true);
-      }
+      applyReceiptSnapshot(receipt, true);
     } catch (error) {
       if (seq === receiptReadSeq.current && receiptActorRef.current === receiptActor) {
-        setReceiptError(error instanceof Error ? error.message : "Không thể tải phiếu nhập.");
+        setReceiptError(readSupplierInvoiceError(error, "Không thể tải phiếu nhập.").message);
       }
     } finally {
       if (seq === receiptReadSeq.current && receiptActorRef.current === receiptActor) setVerifyingPendingReceipt(false);
     }
   };
 
+  const refreshReceiptAfterInvoice = async (updated?: SupplierInvoice) => {
+    if (!savedReceipt || receiptActorRef.current !== receiptActor) return;
+    const seq = receiptReadSeq.current;
+    const id = savedReceipt.id;
+    const isCurrent = () => seq === receiptReadSeq.current && receiptActorRef.current === receiptActor;
+    setReceiptError(null);
+    if (updated) {
+      const active = updated.status !== "Cancelled" && updated.status !== "Rejected";
+      const cancelledReceipt = updated.status === "Rejected" && updated.variance?.varianceType === "AtReceipt"
+        && savedReceipt.status === "Draft";
+      const snapshot: GoodsReceiptResponse = {
+        ...savedReceipt,
+        status: cancelledReceipt ? "Cancelled" : savedReceipt.status,
+        invoiceId: active ? updated.id : null,
+        invoiceStatus: active ? updated.status : null,
+      };
+      if (cancelledReceipt) applyReceiptSnapshot(snapshot);
+      else setSavedReceipt(snapshot);
+    }
+    try {
+      const receipt = await goodsReceiptService.getGoodsReceiptById(id);
+      if (isCurrent()) applyReceiptSnapshot(receipt);
+    } catch (error) {
+      if (isCurrent()) setReceiptError(readSupplierInvoiceError(error, "Không thể tải lại phiếu nhập.").message);
+    }
+  };
+
   const openReceiptModal = async () => {
+    setSavedReceipt(null);
     setReceiptModal(true);
     setConfirmedSuccess(false);
     setReceiptError(null);
@@ -801,6 +849,7 @@ export function InventoryPage() {
   };
 
   const openReceiptModalForPo = async (poId: string) => {
+    setSavedReceipt(null);
     setReceiptModal(true);
     setConfirmedSuccess(false);
     setReceiptError(null);
@@ -818,6 +867,13 @@ export function InventoryPage() {
       searchParams.delete("purchaseOrderId");
       setSearchParams(searchParams, { replace: true });
     }
+    // Mở chi tiết phiếu nhập từ màn khác (chi tiết đơn mua, lịch sử hóa đơn NCC)
+    const receiptParam = searchParams.get("receiptId");
+    if (receiptParam) {
+      openSavedReceipt(receiptParam);
+      searchParams.delete("receiptId");
+      setSearchParams(searchParams, { replace: true });
+    }
   }, [searchParams]);
 
   // [F1] Người dùng chủ động bỏ theo dõi phiếu nháp đang chờ để tạo mới từ đầu (chứng từ cũ vẫn lưu Draft trên server)
@@ -833,6 +889,7 @@ export function InventoryPage() {
       if (!confirmDiscard) return;
     }
     clearSavedPendingReceipt(currentTenantId);
+    setSavedReceipt(null);
     setCreatedReceiptId(null);
     setReceiptReady(false);
     setReceiptNumber("");
@@ -947,6 +1004,7 @@ export function InventoryPage() {
         }
 
         receiptIdToConfirm = res.data.id;
+        setSavedReceipt(res.data);
         setCreatedReceiptId(receiptIdToConfirm);
         setReceiptNumber(res.data.number);
         setReceiptReady(true);
@@ -977,38 +1035,49 @@ export function InventoryPage() {
   };
 
   const handleConfirmReceipt = async () => {
-    if (isConfirmingReceiptRef.current || !createdReceiptId || !receiptReady) return;
+    if (isConfirmingReceiptRef.current || !createdReceiptId || !receiptReady || invoiceBusy || invoiceBlocksConfirm) return;
     const id = createdReceiptId;
     const actor = receiptActor;
     isConfirmingReceiptRef.current = true;
     setLoading(true);
     setReceiptError(null);
     try {
-      const before = await apiAdapter.getGoodsReceiptById(id);
+      let receipt = await goodsReceiptService.getGoodsReceiptById(id);
       if (receiptActorRef.current !== actor) return;
-      if (before.error || !before.data || before.data.id !== id) {
-        throw new Error(before.error?.message || "Không thể kiểm tra trạng thái phiếu nhập.");
-      }
-      if (before.data.status !== "Confirmed") {
-        if (before.data.status !== "Draft") throw new Error("Chỉ có thể xác nhận phiếu nháp.");
-        const result = await apiAdapter.confirmGoodsReceipt(id);
-        if (receiptActorRef.current !== actor) return;
-        if (result.error || result.data?.status !== "Confirmed") {
-          // Lost response / duplicate confirm: trust the authoritative status, not error text.
-          const after = await apiAdapter.getGoodsReceiptById(id);
+      applyReceiptSnapshot(receipt);
+      if (receipt.status !== "Confirmed") {
+        if (receipt.status !== "Draft") {
+          setReceiptError("Chỉ có thể xác nhận phiếu nháp.");
+          return;
+        }
+        if (receipt.invoiceStatus === "Draft" || receipt.invoiceStatus === "PendingApproval") {
+          setReceiptError(receiptInvoicePendingMessage);
+          return;
+        }
+        try {
+          receipt = await goodsReceiptService.confirmGoodsReceipt(id);
+        } catch (error) {
           if (receiptActorRef.current !== actor) return;
-          if (after.data?.id !== id || after.data.status !== "Confirmed") {
-            throw new Error(result.error?.message || "Chưa xác minh được kết quả. Phiếu được giữ lại để kiểm tra và thử xác nhận lại.");
+          const failure = readSupplierInvoiceError(error, "Chưa xác minh được kết quả. Phiếu được giữ lại để kiểm tra và thử xác nhận lại.");
+          // Lost response or competing action: reconcile against the server before offering retry.
+          const after = await goodsReceiptService.getGoodsReceiptById(id).catch(() => null);
+          if (receiptActorRef.current !== actor) return;
+          if (after) applyReceiptSnapshot(after);
+          if (after?.status !== "Confirmed") {
+            setReceiptError(failure.message);
+            return;
           }
+          receipt = after;
         }
       }
-      clearSavedPendingReceipt(currentTenantId);
-      setCreatedReceiptId(null);
-      setReceiptReady(false);
-      setConfirmedSuccess(true);
+      if (receiptActorRef.current !== actor) return;
+      applyReceiptSnapshot(receipt);
+      setJustConfirmed(receipt.status === "Confirmed");
       await Promise.all([loadBalances(), loadLedger()]);
     } catch (error) {
-      if (receiptActorRef.current === actor) setReceiptError(error instanceof Error ? error.message : "Không thể xác nhận phiếu nhập.");
+      if (receiptActorRef.current === actor) {
+        setReceiptError(readSupplierInvoiceError(error, "Không thể xác nhận phiếu nhập.").message);
+      }
     } finally {
       isConfirmingReceiptRef.current = false;
       if (receiptActorRef.current === actor) setLoading(false);
@@ -1228,6 +1297,12 @@ export function InventoryPage() {
             <Button variant="secondary" onClick={() => openReserveModal()}>
               <Lock size={17} />Giữ chỗ theo kho
             </Button>
+            {isOwner && (
+              <Button variant="secondary" onClick={() => setInvoiceQueueOpen(true)}>Chênh lệch chờ duyệt</Button>
+            )}
+            {canManageInvoices && (
+              <Button variant="secondary" onClick={() => setInvoiceHistoryOpen(true)}>Lịch sử hóa đơn NCC</Button>
+            )}
             <Button variant="secondary" onClick={() => setReceiptListOpen(true)}>Phiếu nhập đã lưu</Button>
             <Button onClick={openReceiptModal}>
               <Plus size={17} />Lập phiếu nhập
@@ -2093,21 +2168,48 @@ export function InventoryPage() {
         </Modal>
       )}
 
+      {canManageInvoices && invoiceHistoryOpen && (
+        <SupplierInvoiceHistory
+          suppliers={suppliers}
+          onOpenReceipt={openSavedReceipt}
+          onClose={() => setInvoiceHistoryOpen(false)}
+        />
+      )}
+
+      {isOwner && invoiceQueueOpen && (
+        <PendingSupplierInvoices
+          onOpenReceipt={openSavedReceipt}
+          onClose={() => setInvoiceQueueOpen(false)}
+        />
+      )}
+
       {/* MODAL LẬP PHIẾU NHẬP KHO NHIỀU DÒNG (GOODS RECEIPT DIALOG) */}
       {receiptModal && (
         <Modal
           title={
-            confirmedSuccess
-              ? "Phiếu nhập kho đã ghi sổ thành công"
+            savedReceipt ? `Chi tiết phiếu nhập ${savedReceipt.number}`
               : createdReceiptId ? "Xem lại phiếu nhập nháp" : "Lập phiếu nhập kho nhiều dòng hàng"
           }
           onClose={closeReceiptModal}
+          wide={Boolean(savedReceipt)}
         >
-          {confirmedSuccess ? (
+          {savedReceipt && (savedReceipt.status === "Cancelled" || (savedReceipt.status === "Confirmed" && !justConfirmed)) ? (
+            <>
+              {receiptError && <p role="alert" className="supplier-invoice__error receipt-detail">{receiptError}</p>}
+              <GoodsReceiptDetailView
+                receipt={savedReceipt}
+                onViewLedger={() => {
+                  setReceiptModal(false);
+                  setTab("ledger");
+                }}
+              />
+            </>
+          ) : confirmedSuccess ? (
             <div className="success-panel">
               <CheckCircle2 size={48} color="#16a34a" />
               <h3>Đã ghi sổ kho & tính lại giá vốn WAC</h3>
               <p>Mã phiếu: <strong>{receiptNumber}</strong></p>
+              {receiptError && <p role="alert" className="supplier-invoice__error">{receiptError}</p>}
               <p>Đã nhập {totalReceiptQuantity} sản phẩm vào kho lưu trữ.</p>
               <div className="cost-result">
                 <span>
@@ -2255,7 +2357,7 @@ export function InventoryPage() {
                         fontWeight: 600,
                       }}
                     >
-                      {selectedPoDetail?.number || receiptNumber || "Đơn mua đã gắn kết"}
+                      {savedReceipt?.purchaseOrderNumber || selectedPoDetail?.number || "Đơn mua đã gắn kết"}
                       {selectedPoDetail?.status && (
                         <span style={{ marginLeft: 8, fontWeight: 400, color: "#64748b" }}>
                           ({selectedPoDetail.status === "Approved" ? "Đã duyệt" : "Đã nhận một phần"})
@@ -2507,7 +2609,7 @@ export function InventoryPage() {
                               {item.unitPrice.toLocaleString("vi-VN")} ₫
                             </div>
                             <div style={{ fontSize: "10px", color: "#059669" }}>
-                              🔒 Khóa theo PO
+                              Giá trên phiếu mua
                             </div>
                           </div>
 
@@ -2551,14 +2653,35 @@ export function InventoryPage() {
 
               {/* Tác động WAC */}
               <div className="impact-box" style={{ marginTop: "12px" }}>
-                <strong>Cơ chế đối chiếu giá vốn WAC từ Đơn mua hàng:</strong>
-                <p>
-                  Đơn giá nhập được <strong>khóa chặt theo Đơn mua hàng đã được duyệt</strong>, đảm bảo tính bất biến và chuẩn xác của giá vốn bình quân (WAC) khi tăng tồn kho và ghi nhận sổ cái IN.
-                </p>
+                <strong>Đơn giá dùng khi xác nhận nhập</strong>
+                <p>Giá theo phiếu mua. Các dòng có trên hóa đơn kèm hàng đã được duyệt dùng đơn giá trước thuế của hóa đơn.</p>
               </div>
 
+            </>
+          )}
+
+          {canManageInvoices && savedReceipt && (
+            <SupplierInvoicePanel
+              key={`${receiptActor}:${savedReceipt.id}`}
+              receipt={savedReceipt}
+              actor={receiptActor}
+              isOwner={isOwner}
+              receiptBusy={loading || verifyingPendingReceipt}
+              onBusyChange={setInvoiceBusy}
+              onRefreshReceipt={refreshReceiptAfterInvoice}
+            />
+          )}
+
+          {!confirmedSuccess && savedReceipt?.status !== "Cancelled" && (
+            <>
+              {createdReceiptId && invoiceBlocksConfirm && (
+                <p id="receipt-invoice-confirm-reason" className="supplier-invoice__notice" style={{ padding: "0 18px" }}>
+                  {receiptInvoiceStatus === "Draft" ? "Hãy gửi đối chiếu hóa đơn NCC trước khi xác nhận nhập kho."
+                    : "Hóa đơn NCC đang chờ Owner duyệt chênh lệch."}
+                </p>
+              )}
               <div className="modal-actions">
-                <Button variant="secondary" disabled={loading} onClick={closeReceiptModal}>
+                <Button variant="secondary" disabled={loading || invoiceBusy} onClick={closeReceiptModal}>
                   Đóng
                 </Button>
                 {createdReceiptId && (
@@ -2566,7 +2689,7 @@ export function InventoryPage() {
                     <Button
                       variant="danger"
                       onClick={handleCancelDraftReceipt}
-                      disabled={loading || verifyingPendingReceipt}
+                      disabled={loading || verifyingPendingReceipt || invoiceBusy || !savedReceipt}
                       title="Hủy hoàn toàn phiếu nhập nháp này trên máy chủ OISM"
                     >
                       Hủy phiếu nháp này
@@ -2574,7 +2697,7 @@ export function InventoryPage() {
                     <Button
                       variant="secondary"
                       onClick={handleDiscardPendingReceipt}
-                      disabled={loading || verifyingPendingReceipt}
+                      disabled={loading || verifyingPendingReceipt || invoiceBusy}
                       title="Bỏ theo dõi phiếu này trên giao diện và tạo phiếu mới (phiếu cũ vẫn lưu ở trạng thái Draft trên máy chủ)"
                     >
                       Tạo phiếu khác
@@ -2583,11 +2706,13 @@ export function InventoryPage() {
                 )}
                 <Button
                   onClick={createdReceiptId ? handleConfirmReceipt : handleSaveReceipt}
+                  aria-describedby={invoiceBlocksConfirm ? "receipt-invoice-confirm-reason" : undefined}
                   disabled={
                     loading ||
                     verifyingPendingReceipt ||
+                    invoiceBusy ||
                     (createdReceiptId
-                      ? !receiptReady
+                      ? !receiptReady || invoiceBlocksConfirm
                       : !selectedPurchaseOrderId || receiptItems.length === 0 || loadingModalWhStock || Boolean(modalWhError))
                   }
                 >
