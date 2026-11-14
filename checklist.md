@@ -138,9 +138,9 @@ Hồ sơ theo sprint và các lỗi chi tiết có tại [báo cáo BE1 Sprint 3
   - **Hiện trạng.** Cả ba nguồn ghi vào `orders` và `order_items`.
   - **Dẫn chứng.** [Test truy vết POS/Admin/sàn](test-oisms/backend/OISM.IntegrationTests/SalesInvoiceIntegrationTests.cs#L113) · [Đơn Admin](src/frontend/admin-dashboard/src/pages/OrdersPage.tsx)
 
-- [ ] **`FR-ORD-02` — Vòng đời đơn.** Áp dụng vòng đời `Draft → Reserved → Confirmed → Completed` và chuyển `Cancelled` khi hủy hợp lệ.
-  - **Hiện trạng.** Đã có `Reserved → Confirmed → Completed`, hủy đơn trước xuất và chặn chuyển trạng thái sai. Đơn Admin/webhook mới được tạo trực tiếp ở `Reserved`. Bước `Draft` trong đề chưa thành một bước tạo đơn riêng của luồng hiện tại.
-  - **Dẫn chứng.** [OrderIntakeService](src/backend/src/OISM.Application/Features/Orders/Services/OrderIntakeService.cs#L651) · [Test vòng đời đơn](test-oisms/backend/OISM.IntegrationTests/OnlineOrderLifecycleIntegrationTests.cs)
+- [x] **`FR-ORD-02` — Vòng đời đơn.** Áp dụng vòng đời `Draft → Reserved → Confirmed → Completed` và chuyển `Cancelled` khi hủy hợp lệ.
+  - **Hiện trạng.** Đã chốt 15/11/2026: đơn đi qua `Draft → Reserved` trong cùng giao dịch tạo đơn, không lưu `Draft` riêng với đơn online (để giữ nguyên tử `tạo đơn → giữ chỗ`). Chuyển trạng thái sai trả `409 INVALID_STATE_TRANSITION`, có test PostgreSQL.
+  - **Dẫn chứng.** [Đặc tả FR-ORD-02](docs/02-functional-requirements/fr-06-omnichannel-orders.md) · [Ranh giới giao dịch](docs/04-architecture-and-design/04-state-machines.md#12-ranh-giới-giao-dịch-theo-kênh) · [Test PostgreSQL](test-oisms/backend/OISM.IntegrationTests/PostgresOrderLifecycleAtomicityTests.cs) · [Báo cáo](docs/report-after-upgrade/goi-3-vong-doi-don-hang.md)
 
 - [ ] **`FR-ORD-03` — Xử lý đơn.** Cho nhân viên xem đơn chờ, duyệt đơn, in phiếu giao hàng và hủy đơn.
   - **Hiện trạng.** API và Admin có danh sách, chi tiết, bộ lọc, duyệt, hoàn tất và hủy. Nút in chứng từ giao hàng còn Coming soon (CS-06).
@@ -178,9 +178,9 @@ Hồ sơ theo sprint và các lỗi chi tiết có tại [báo cáo BE1 Sprint 3
   - **Hiện trạng.** Admin nhận `OrderCreated` và có thông báo/âm thanh. POS nhận `StockLevelChanged`, chưa có popup/âm thanh đơn mới.
   - **Dẫn chứng.** [Thông báo Admin](src/frontend/admin-dashboard/src/components/NotificationCenter.tsx) · [SignalR POS](src/frontend/pos-app/src/services/realtimeService.ts#L63)
 
-- [ ] **`FR-SIM-03` — Tác vụ nền.** Dùng Hangfire tự hủy đơn giữ chỗ quá hạn và tổng hợp báo cáo hằng ngày.
-  - **Hiện trạng.** Đã có job hủy đơn hết hạn giữ chỗ và job sinh kỳ kiểm kê. Chưa có job tổng hợp báo cáo hằng ngày.
-  - **Dẫn chứng.** [Cấu hình Hangfire](src/backend/src/OISM.Infrastructure/Jobs/HangfireConfigurationExtensions.cs#L93) · [Test hết hạn](test-oisms/backend/OISM.IntegrationTests/ReservationExpiryIntegrationTests.cs)
+- [x] **`FR-SIM-03` — Tác vụ nền.** Dùng Hangfire tự hủy đơn giữ chỗ quá hạn và tổng hợp báo cáo hằng ngày.
+  - **Hiện trạng.** Có job hủy đơn hết hạn, job sinh kỳ kiểm kê và job `oisms-daily-sales-summary` (00:30 UTC+07, tính lại 7 ngày) ghi `daily_sales_summaries`. Owner đối soát và tính lại trên trang Báo cáo. Kiểm chứng trên Docker 15/11/2026.
+  - **Dẫn chứng.** [Cấu hình Hangfire](src/backend/src/OISM.Infrastructure/Jobs/HangfireConfigurationExtensions.cs#L93) · [Test hết hạn](test-oisms/backend/OISM.IntegrationTests/ReservationExpiryIntegrationTests.cs) · [Test tổng hợp ngày](test-oisms/backend/OISM.IntegrationTests/DailySalesSummaryIntegrationTests.cs) · [Báo cáo](docs/report-after-upgrade/goi-3-tong-hop-bao-cao-ngay.md)
 
 ### 3.9. Báo cáo và cảnh báo (`FR-REP`) — Nhựt, Phúc Hữu, Nam Nguyễn, Đăng Khoa
 
@@ -240,9 +240,9 @@ Hồ sơ theo sprint và các lỗi chi tiết có tại [báo cáo BE1 Sprint 3
   - **Hiện trạng.** Có BCrypt, JWT 60 phút, refresh token xoay vòng và HTTPS qua Caddy. Tài liệu triển khai ghi hỗ trợ TLS 1.2/1.3. Chưa có kết quả xác nhận TLS 1.3 trên bản deploy.
   - **Dẫn chứng.** [Hiện trạng bảo mật](docs/03-non-functional-requirements/README.md#hiện-trạng-đáp-ứng-đối-chiếu-12112026) · [Caddyfile](docker/caddy/Caddyfile)
 
-- [ ] **`NFR-SEC-02` — Giao dịch nguyên tử.** Chuỗi tạo đơn, giữ chỗ và trừ tồn chạy nguyên tử và hoàn tác toàn bộ khi gặp lỗi.
-  - **Hiện trạng.** Checkout POS và xác nhận nhập kho có giao dịch nguyên tử và rollback. Đơn online có giao dịch riêng cho tạo đơn/giữ chỗ và xác nhận xuất sau đó. Cần chốt cách diễn giải yêu cầu một giao dịch của đề đối với đơn online.
-  - **Dẫn chứng.** [Ghi chú đề bài về vòng đời](docs/08-sprints/sprint-2/DE_BAI_OISM.md#6-điểm-cần-làm-rõ-trước-khi-chốt-thiết-kế) · [Test vòng đời đơn](test-oisms/backend/OISM.IntegrationTests/OnlineOrderLifecycleIntegrationTests.cs)
+- [x] **`NFR-SEC-02` — Giao dịch nguyên tử.** Chuỗi tạo đơn, giữ chỗ và trừ tồn chạy nguyên tử và hoàn tác toàn bộ khi gặp lỗi.
+  - **Hiện trạng.** Đã chốt 15/11/2026: POS một giao dịch; đơn online hai giao dịch nguyên tử nối tiếp (tạo đơn + giữ chỗ, rồi xác nhận xuất) vì `FR-ORD-03` yêu cầu nhân viên duyệt. Rollback khi lỗi giữa giao dịch có test PostgreSQL.
+  - **Dẫn chứng.** [Diễn giải NFR-SEC-02](docs/03-non-functional-requirements/03-reliability-and-acid.md) · [Test vòng đời đơn](test-oisms/backend/OISM.IntegrationTests/OnlineOrderLifecycleIntegrationTests.cs) · [Test PostgreSQL](test-oisms/backend/OISM.IntegrationTests/PostgresOrderLifecycleAtomicityTests.cs)
 
 - [x] **`NFR-SEC-03` — Sổ cái append-only.** Sổ cái chỉ ghi thêm. Điều chỉnh sai sót bằng bút toán bù, cấm cập nhật và xóa dòng cũ.
   - **Hiện trạng.** Trigger chặn `UPDATE`, `DELETE` và `TRUNCATE`. Điều chỉnh tồn ghi thêm bút toán qua nghiệp vụ kho.
@@ -280,7 +280,7 @@ Dấu tick ở mục này theo các đầu việc được liệt kê cho từng
 
 - [x] **Gói 1 — Nền tảng.** Đã triển khai cấu trúc bốn tầng, schema PostgreSQL, cô lập tenant, JWT và RBAC. Các điểm lệch về quyền và phân tầng đã đóng ngày 14/11/2026 (`FR-AUTH-03`, `NFR-MAINT-01`); đăng nhập SĐT còn theo dõi tại `FR-AUTH-02` và Upgrade 10. [Kiến trúc backend](docs/04-architecture-and-design/01-clean-architecture.md) · [Schema](docs/database/oisms_schema.sql)
 - [x] **Gói 2 — Catalog và sổ cái.** Có sản phẩm, SKU, mã vạch, bảng giá, phiếu nhập, chuyển kho và WAC. [API catalog](docs/05-api-contracts/02-catalog-endpoints.md) · [Test chuyển kho](test-oisms/backend/OISM.IntegrationTests/StockTransferIntegrationTests.cs)
-- [x] **Gói 3 — Đơn hàng và chống bán vượt.** Đã triển khai mô hình đơn chung, chuyển trạng thái, khóa giữ chỗ, giả lập webhook và Hangfire hết hạn. Bước Draft riêng và job báo cáo hằng ngày được theo dõi tại `FR-ORD-02` và `FR-SIM-03`. [Test vòng đời đơn](test-oisms/backend/OISM.IntegrationTests/OnlineOrderLifecycleIntegrationTests.cs) · [Test 50 webhook](test-oisms/backend/OISM.IntegrationTests/WebhookIntegrationTests.cs#L1773)
+- [x] **Gói 3 — Đơn hàng và chống bán vượt.** Đã triển khai mô hình đơn chung, chuyển trạng thái, khóa giữ chỗ, giả lập webhook và Hangfire hết hạn. Đóng các tiêu chí còn lại ngày 15/11/2026: ranh giới giao dịch theo kênh và job tổng hợp báo cáo ngày ([Gói 3](docs/Upgrade-recommended/Done/goi-3-vong-doi-don-hang-va-hangfire.md)). [Test vòng đời đơn](test-oisms/backend/OISM.IntegrationTests/OnlineOrderLifecycleIntegrationTests.cs) · [Test 50 webhook](test-oisms/backend/OISM.IntegrationTests/WebhookIntegrationTests.cs#L1773)
 - [x] **Gói 4 — Frontend và realtime.** Đã triển khai Admin, PWA POS, checkout nguyên tử, in qua trình duyệt và SignalR. Tự mở hộp thoại in và thông báo đơn mới trên POS được theo dõi tại `FR-POS-03` và `FR-SIM-02`. [Test checkout POS](test-oisms/backend/OISM.IntegrationTests/PosCheckoutIntegrationTests.cs) · [SignalR POS](src/frontend/pos-app/src/services/realtimeService.ts#L63)
 - [ ] **Gói 5 — Báo cáo, AI, test và triển khai.** Có báo cáo, gợi ý nhập hàng, Docker, CI và bộ kiểm thử. Hồ sơ bàn giao ở mục 5.2 còn hạng mục chưa đạt. Lọc theo SKU, đánh giá dự báo và các phép đo NFR còn mở ở mục 3.9, 4 và 6.1. [RTM](docs/06-testing-and-qa/01-requirements-matrix-rtm.md) · [Báo cáo nghiệm thu Sprint 5](docs/08-sprints/sprint-5/BAO_CAO_TONG_KET_NGHIEM_THU_SPRINT_5.md)
 

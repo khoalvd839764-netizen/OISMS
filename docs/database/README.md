@@ -1301,7 +1301,7 @@ Ledger có trường đề yêu cầu và WarehouseId. BalanceAfter và Sequence
 
 ### 28. `daily_sales_summaries`
 
-FR-REP: tổng hợp theo ngày, chi nhánh, kênh và SKU.
+FR-REP: bảng tổng hợp doanh thu, hàng trả và giá vốn theo ngày kinh doanh (UTC+07), chi nhánh, kênh và SKU (**đang sử dụng** từ Gói 3B — `OISMS-59-G3B`). Được ghi tự động bởi Hangfire job `oisms-daily-sales-summary` (`DailySalesSummaryJob`) và theo yêu cầu bởi `DailySalesSummaryService.RebuildAsync` / `POST /api/reports/daily-summaries/rebuild` (khóa `pg_advisory_xact_lock` trong transaction, xóa rồi ghi lại theo ngày, không ghi dòng toàn `0`). Cột `cost_of_goods_sold` lưu **giá vốn thuần** (`COGS bán - COGS trả`).
 
 | Cột | Kiểu PostgreSQL | Bắt buộc | Mặc định / cách ghi |
 |---|---|---|---|

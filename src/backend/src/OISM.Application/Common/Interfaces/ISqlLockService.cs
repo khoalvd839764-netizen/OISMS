@@ -83,4 +83,9 @@ public interface ISqlLockService
     /// Khóa số phiếu trả hàng bằng advisory lock ({tenant}/sales_return_number) để sinh số phiếu RT-yyyyMMdd-xxxx tuần tự không trùng.
     /// </summary>
     Task LockSalesReturnNumberAsync(Guid tenantId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Khóa tổng hợp báo cáo theo ngày bằng advisory lock ({tenant}/daily_sales_summary/{yyyy-MM-dd}) để tuần tự hóa thao tác xóa và ghi lại theo tenant/ngày.
+    /// </summary>
+    Task LockDailySalesSummaryAsync(Guid tenantId, DateOnly businessDate, CancellationToken ct = default);
 }

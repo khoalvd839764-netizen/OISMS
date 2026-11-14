@@ -6,6 +6,7 @@ import { apiAdapter } from '../services/apiAdapter';
 import { ComingSoonBadge } from '../components/ui';
 import type {
   RevenueProfitReport,
+  DailySalesSummaryComparison,
   InventoryVelocityReport,
   UnitQuantity,
   StockAlert,
@@ -161,6 +162,11 @@ export const ReportsPage: React.FC = () => {
 
   // Data states
   const [pnlData, setPnlData] = useState<RevenueProfitReport | null>(null);
+  const [dailySummaryData, setDailySummaryData] = useState<DailySalesSummaryComparison | null>(null);
+  const [dailySummaryError, setDailySummaryError] = useState<string | null>(null);
+  const [rebuildingSummaries, setRebuildingSummaries] = useState(false);
+  const [rebuildError, setRebuildError] = useState<string | null>(null);
+  const [rebuildSuccess, setRebuildSuccess] = useState<string | null>(null);
   const [velocityData, setVelocityData] = useState<InventoryVelocityReport | null>(null);
   const [showAllUnits, setShowAllUnits] = useState(false);
   const [alertsData, setAlertsData] = useState<StockAlert[]>([]);
@@ -169,6 +175,12 @@ export const ReportsPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const activeReqRef = useRef(0);
+
+  const extractProblemMessage = (err: any, fallback: string): string => {
+    const problem = err?.response?.data;
+    const baseMsg = problem?.detail || problem?.title || err?.detail || err?.message || fallback;
+    return problem?.errorCode ? `[${problem.errorCode}] ${baseMsg}` : baseMsg;
+  };
 
   // Tính ngày theo preset theo múi giờ Việt Nam (BF-011)
   const calculateDates = useCallback(() => {
@@ -223,9 +235,37 @@ export const ReportsPage: React.FC = () => {
 
     try {
       if (activeTab === 'pnl') {
-        const data = await reportService.getRevenueProfit(filter);
+        setDailySummaryError(null);
+        const summaryPromise =
+          startDate && endDate
+            ? reportService
+                .getDailySummaries({
+                  fromDate: startDate,
+                  toDate: endDate,
+                  branchId: selectedBranch || undefined,
+                })
+                .then((res) => ({ ok: true as const, data: res }))
+                .catch((err) => ({ ok: false as const, err }))
+            : Promise.resolve({ ok: true as const, data: null });
+
+        const [data, summaryResult] = await Promise.all([
+          reportService.getRevenueProfit(filter),
+          summaryPromise,
+        ]);
         if (reqSeq !== activeReqRef.current) return;
         setPnlData(data);
+        if (summaryResult.ok) {
+          setDailySummaryData(summaryResult.data);
+          setDailySummaryError(null);
+        } else {
+          setDailySummaryData(null);
+          setDailySummaryError(
+            extractProblemMessage(
+              'err' in summaryResult ? summaryResult.err : null,
+              'Không thể tải dữ liệu tổng hợp theo ngày.'
+            )
+          );
+        }
       } else if (activeTab === 'velocity') {
         const data = await reportService.getInventoryVelocity(filter);
         if (reqSeq !== activeReqRef.current) return;
@@ -239,9 +279,10 @@ export const ReportsPage: React.FC = () => {
       if (reqSeq !== activeReqRef.current) return;
       // [BF-010] Khi lỗi, xóa sạch số liệu cũ để không hiển thị số liệu cũ dưới bộ lọc mới
       setPnlData(null);
+      setDailySummaryData(null);
       setVelocityData(null);
       setAlertsData([]);
-      setErrorMessage(err?.detail || err?.message || 'Không thể tải báo cáo từ máy chủ.');
+      setErrorMessage(extractProblemMessage(err, 'Không thể tải báo cáo từ máy chủ.'));
     } finally {
       if (reqSeq === activeReqRef.current) {
         setLoading(false);
@@ -252,6 +293,52 @@ export const ReportsPage: React.FC = () => {
   useEffect(() => {
     loadReports();
   }, [loadReports]);
+
+  const handleRebuildDailySummaries = async () => {
+    if (!startDate || !endDate || rebuildingSummaries) return;
+    setRebuildingSummaries(true);
+    setRebuildError(null);
+    setRebuildSuccess(null);
+    try {
+      const result = await reportService.rebuildDailySummaries({
+        fromDate: startDate,
+        toDate: endDate,
+      });
+      setRebuildSuccess(
+        `Đã tính lại ${result.daysProcessed} ngày (${result.rowsWritten} dòng tổng hợp).`
+      );
+      await loadReports();
+    } catch (err: any) {
+      setRebuildError(
+        extractProblemMessage(err, 'Không thể tính lại bảng tổng hợp theo ngày.')
+      );
+    } finally {
+      setRebuildingSummaries(false);
+    }
+  };
+
+  const renderSummaryStatusBadge = (status: string) => {
+    switch (status) {
+      case 'Matched':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
+            <CheckCircle2 className="w-3 h-3" /> Khớp
+          </span>
+        );
+      case 'Mismatch':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-100 text-rose-700 border border-rose-200">
+            <XCircle className="w-3 h-3" /> Lệch
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+            <AlertTriangle className="w-3 h-3" /> Chưa tổng hợp
+          </span>
+        );
+    }
+  };
 
   // Alert level styling helper
   const getAlertBadge = (level: string) => {
@@ -690,6 +777,127 @@ export const ReportsPage: React.FC = () => {
                           {d.grossProfit?.toLocaleString('vi-VN')} đ
                         </td>
                         <td className="py-2.5 px-3 text-right text-gray-700">{d.orderCount}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Daily Sales Summary Reconciliation Section (AC-07) */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden" data-testid="daily-sales-summary-section">
+            <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="font-semibold text-xs text-gray-800 uppercase flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-indigo-600" />
+                  Tổng hợp theo ngày
+                </div>
+                <p className="text-[11px] text-gray-500 mt-0.5">
+                  Đối soát dữ liệu bảng tổng hợp định kỳ với số liệu tính trực tiếp theo từng ngày (UTC+07)
+                  {selectedChannel ? ' · Lưu ý: Tổng hợp ngày gom tất cả kênh bán.' : ''}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleRebuildDailySummaries}
+                disabled={rebuildingSummaries || loading || !startDate || !endDate}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${rebuildingSummaries ? 'animate-spin' : ''}`} />
+                {rebuildingSummaries ? 'Đang tính lại...' : 'Tính lại'}
+              </button>
+            </div>
+
+            {rebuildError && (
+              <div className="mx-4 mt-3 p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{rebuildError}</span>
+              </div>
+            )}
+
+            {rebuildSuccess && (
+              <div className="mx-4 mt-3 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>{rebuildSuccess}</span>
+              </div>
+            )}
+
+            {dailySummaryError && (
+              <div className="mx-4 mt-3 p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{dailySummaryError}</span>
+              </div>
+            )}
+
+            <div className="overflow-x-auto max-h-96 mt-2">
+              <table className="w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50/70 border-b border-gray-200 text-gray-500 font-semibold">
+                    <th className="py-2.5 px-3">Ngày</th>
+                    <th className="py-2.5 px-3 text-right">Doanh thu (TH / TT)</th>
+                    <th className="py-2.5 px-3 text-right">Hàng trả (TH / TT)</th>
+                    <th className="py-2.5 px-3 text-right">Giá vốn (TH / TT)</th>
+                    <th className="py-2.5 px-3 text-right">Lãi gộp (TH / TT)</th>
+                    <th className="py-2.5 px-3 text-center">Đối soát</th>
+                    <th className="py-2.5 px-3 text-right">Cập nhật lúc</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {(dailySummaryData?.days || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-6 text-center text-gray-400">
+                        Không có dữ liệu tổng hợp hoặc phát sinh trong khoảng thời gian đã chọn
+                      </td>
+                    </tr>
+                  ) : (
+                    dailySummaryData?.days.map((day) => (
+                      <tr key={day.date} className="hover:bg-gray-50">
+                        <td className="py-2.5 px-3 font-mono font-medium text-gray-800 whitespace-nowrap">
+                          {day.date}
+                        </td>
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                          <div className="font-semibold text-gray-900">
+                            {day.summary ? `${day.summary.revenue.toLocaleString('vi-VN')} đ` : '—'}
+                          </div>
+                          <div className="text-[11px] text-gray-500">
+                            TT: {day.live.revenue.toLocaleString('vi-VN')} đ
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                          <div className="font-semibold text-rose-600">
+                            {day.summary ? `${day.summary.returnAmount.toLocaleString('vi-VN')} đ` : '—'}
+                          </div>
+                          <div className="text-[11px] text-gray-500">
+                            TT: {day.live.returnAmount.toLocaleString('vi-VN')} đ
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                          <div className="font-semibold text-gray-700">
+                            {day.summary ? `${day.summary.costOfGoodsSold.toLocaleString('vi-VN')} đ` : '—'}
+                          </div>
+                          <div className="text-[11px] text-gray-500">
+                            TT: {day.live.costOfGoodsSold.toLocaleString('vi-VN')} đ
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                          <div className="font-bold text-emerald-600">
+                            {day.summary ? `${day.summary.grossProfit.toLocaleString('vi-VN')} đ` : '—'}
+                          </div>
+                          <div className="text-[11px] text-gray-500">
+                            TT: {day.live.grossProfit.toLocaleString('vi-VN')} đ
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                          {renderSummaryStatusBadge(day.status)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-gray-600 whitespace-nowrap">
+                          {day.updatedAt
+                            ? new Date(day.updatedAt).toLocaleString('vi-VN', {
+                                timeZone: 'Asia/Ho_Chi_Minh',
+                              })
+                            : '—'}
+                        </td>
                       </tr>
                     ))
                   )}

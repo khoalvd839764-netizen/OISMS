@@ -58,6 +58,7 @@ public interface IAppDbContext
     DbSet<StockCountSchedule> StockCountSchedules { get; }
     DbSet<StockCountPeriod> StockCountPeriods { get; }
     DbSet<StockCountApproval> StockCountApprovals { get; }
+    DbSet<DailySalesSummary> DailySalesSummaries { get; }
 
     int SaveChanges();
     int SaveChanges(bool acceptAllChangesOnSuccess);

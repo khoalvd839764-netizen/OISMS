@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-USR-02` |
-| **Phiên bản (Version)** | `v1.5.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-14` |
+| **Phiên bản (Version)** | `v1.6.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-15` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-AUTH-02`, `FR-AUTH-03`, `FR-AUTH-04`, `NFR-SEC-01` (Trang 1, 4) |
 | **Phạm vi áp dụng** | Middleware Ủy quyền Backend (`[Authorize(Roles = ...)]`) & Route Guard trên Web Admin / POS |
 
@@ -20,6 +20,7 @@
 | `v1.3.0` | `2026-11-09` | Nhóm dự án OISMS | Bổ sung phân quyền Trả hàng từ khách (CS-01); chuẩn hóa bảo mật báo cáo: trong báo cáo doanh thu (`/api/reports/revenue-profit`) Staff bị ẩn giá vốn và lãi gộp (`null`) theo ma trận. Truy vết hóa đơn vẫn cho Staff xem giá vốn dòng (dòng *Truy vết chuỗi chứng từ*). | `OISMS-58-CS01-P2` |
 | `v1.4.0` | `2026-11-14` | Nhóm dự án OISMS | Che `averageCost` (`null`) với `Cashier` trên hai API số dư tồn kho; siết `POST/PUT /api/warehouses` và `toggle-status` chỉ còn `Owner`; chốt yêu cầu xóa danh mục/thương hiệu/sản phẩm chỉ `Owner`; cập nhật bảng đối chiếu mục 2.1. | `OISMS-59-G1A` |
 | `v1.5.0` | `2026-11-14` | Nhóm dự án OISMS | Bổ sung phân công chi nhánh cho nhân viên (`CS-02`): `Owner` gán `branchIds` qua `/api/users`; `Cashier` có gán chỉ thấy chi nhánh được gán ở `GET /api/branches` và chỉ checkout POS ở chi nhánh được gán (`403 BRANCH_NOT_ASSIGNED`). | `OISMS-59-G1B` |
+| `v1.6.0` | `2026-11-15` | Nhóm dự án OISMS | Bổ sung quyền `Owner`-only cho hai endpoint tổng hợp báo cáo ngày (`GET /api/reports/daily-summaries`, `POST /api/reports/daily-summaries/rebuild`); `Staff` và `Cashier` nhận `403`. | `OISMS-59-G3B` |
 
 ---
 
@@ -79,6 +80,7 @@ Các trường định danh bắt buộc bên trong Payload của JWT:
 | **Hóa đơn & Truy vết** | Truy vết chuỗi chứng từ xuất kho theo Hóa đơn, Đơn hàng, hoặc Dòng sổ kho | `OISMS-47-U02` | ✅ Toàn quyền | ✅ Toàn quyền (xem giá vốn dòng) | ❌ Cấm (`403 Forbidden`) |
 | **Trả hàng từ khách** | Lập phiếu trả, tra cứu dòng trả được, xác nhận và hủy phiếu trả (`/api/sales-returns`, `/api/orders/{id}/returnable-items`) | `CS-01` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |
 | **Báo cáo & AI** | Báo cáo Doanh thu thuần, Tổng giá vốn (`COGS`), Lợi nhuận gộp | `FR-REP-01` | ✅ Toàn quyền | 👁️ Chỉ xem doanh thu/hàng trả (ẩn lãi gộp & giá vốn) | ❌ Cấm (`403 Forbidden`) |
+| **Báo cáo & AI** | Đối soát & tính lại bảng tổng hợp báo cáo ngày (`/api/reports/daily-summaries`, `/api/reports/daily-summaries/rebuild`) | `FR-REP-01`, `FR-SIM-03` | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) | ❌ Cấm (`403 Forbidden`) |
 | **Báo cáo & AI** | Báo cáo Giá trị tồn kho, Hàng bán chạy/chậm & Cảnh báo tồn tối thiểu | `FR-REP-02..03` | ✅ Toàn quyền | ✅ Xem cảnh báo kho | ❌ Cấm (`403 Forbidden`) |
 | **Báo cáo & AI** | Xem dự báo nhu cầu AI & Gợi ý nhập lại hàng | `FR-AI-01` | ✅ Toàn quyền | ✅ Xem gợi ý nhập | ❌ Cấm (`403 Forbidden`) |
 | **Báo cáo & AI** | Hỏi Trợ lý OISMS (`POST /api/ai/chat`) | `FR-AI-02` | ✅ Mọi số liệu, kể cả doanh thu và lãi gộp | ✅ Nhập/xuất kho, tồn, gợi ý nhập, hướng dẫn. **Không hỏi được doanh thu, lãi gộp, giá vốn** (chốt 10/11/2026) | ❌ Cấm (`403 Forbidden`) |

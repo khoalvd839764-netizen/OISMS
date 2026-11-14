@@ -20,12 +20,14 @@ public static class HangfireConfigurationExtensions
 {
     public const string RecurringJobId = "oisms-reservation-expiry";
     public const string StockCountPeriodJobId = "oisms-stock-count-periods";
+    public const string DailySalesSummaryJobId = "oisms-daily-sales-summary";
 
     public static IServiceCollection AddOismHangfire(this IServiceCollection services, IConfiguration configuration)
     {
         // Luôn đăng ký các background jobs trong DI container để có thể inject độc lập
         services.AddScoped<IReservationExpiryJob, ReservationExpiryJob>();
         services.AddScoped<IStockCountPeriodJob, StockCountPeriodJob>();
+        services.AddScoped<IDailySalesSummaryJob, DailySalesSummaryJob>();
 
         var enabled = configuration.GetValue<bool>("Hangfire:Enabled", false);
         if (!enabled)
@@ -108,6 +110,30 @@ public static class HangfireConfigurationExtensions
                 TimeZone = TimeZoneInfo.Utc
             });
 
+        recurringJobManager.AddOrUpdate<IDailySalesSummaryJob>(
+            DailySalesSummaryJobId,
+            job => job.ExecuteAsync(null, CancellationToken.None),
+            "30 0 * * *",
+            new RecurringJobOptions
+            {
+                TimeZone = ResolveVietnamTimeZone()
+            });
+
         return app;
+    }
+
+    internal static TimeZoneInfo ResolveVietnamTimeZone()
+    {
+        foreach (var id in new[] { "Asia/Ho_Chi_Minh", "SE Asia Standard Time" })
+        {
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById(id);
+            }
+            catch (TimeZoneNotFoundException) { }
+            catch (InvalidTimeZoneException) { }
+        }
+
+        return TimeZoneInfo.CreateCustomTimeZone("UTC+07", TimeSpan.FromHours(7), "(UTC+07:00) Vietnam", "UTC+07");
     }
 }

@@ -76,6 +76,7 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<StockCountSchedule> StockCountSchedules { get; set; } = null!;
     public DbSet<StockCountPeriod> StockCountPeriods { get; set; } = null!;
     public DbSet<StockCountApproval> StockCountApprovals { get; set; } = null!;
+    public DbSet<DailySalesSummary> DailySalesSummaries { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -222,6 +223,9 @@ public class AppDbContext : DbContext, IAppDbContext
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
 
         modelBuilder.Entity<StockCountApproval>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<DailySalesSummary>()
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
     }
 

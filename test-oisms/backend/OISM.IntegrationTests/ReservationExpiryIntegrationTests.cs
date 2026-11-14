@@ -53,6 +53,8 @@ public class ReservationExpiryIntegrationTests : IAsyncLifetime, IClassFixture<W
         await PostgresTestEnvironment.ResetTestDataAsync();
         await PostgresTestEnvironment.EnsureHangfireSchemaAsync();
         OrderService.ResetCursors();
+        // Con trỏ tenant tĩnh của job hết hạn có thể còn từ class test chạy trước (dữ liệu đã truncate) làm job bỏ sót tenant.
+        ReservationExpiryJob.ResetTenantCursor();
     }
 
     public Task DisposeAsync() => Task.CompletedTask;

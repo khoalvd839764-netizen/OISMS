@@ -43,6 +43,7 @@ internal enum ApiErrorProfile
     PurchaseOrders,
     SupplierInvoices,
     Reserve,
+    Reports,
     InventoryTrace,
     Orders,
     OrderProcess,

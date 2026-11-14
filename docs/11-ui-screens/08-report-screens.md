@@ -59,10 +59,12 @@ Màn hình **Báo Cáo Doanh Thu & Quản Trị Lãi Gộp (P&L Reports)** là p
 
 | Method | Endpoint Backend | Hàm xử lý Controller / Service | Tài liệu Hợp đồng API tham chiếu | Mã lỗi liên quan |
 | :---: | :--- | :--- | :--- | :--- |
-| `GET` | `/api/reports/revenue-profit` | `OrdersController.GetRevenueProfitReport` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#2-danh-mục-endpoints-báo-cáo-tìm-kiếm--dự-báo-ai-fr-rep-0103-fr-ai-01) | `FORBIDDEN_ACCESS` (Chặn nhân viên không phải Owner, xem [`DOC-ERR-02`](../12-error-and-status-codes/02-error-codes-catalog.md)) |
-| `GET` | `/api/reports/inventory-velocity` | `OrdersController.GetInventoryVelocityReport` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#2-danh-mục-endpoints-báo-cáo-tìm-kiếm--dự-báo-ai-fr-rep-0103-fr-ai-01) | `AUTH_UNAUTHORIZED` |
-| `GET` | `/api/reports/stock-alerts` | `InventoryController.GetStockAlerts` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#2-danh-mục-endpoints-báo-cáo-tìm-kiếm--dự-báo-ai-fr-rep-0103-fr-ai-01) | `AUTH_UNAUTHORIZED` |
-| `GET` | `/api/ai/reorder-recommendations` | `OrdersController.GetAiReorderRecommendations` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#2-danh-mục-endpoints-báo-cáo-tìm-kiếm--dự-báo-ai-fr-rep-0103-fr-ai-01) | `AUTH_UNAUTHORIZED` |
+| `GET` | `/api/reports/revenue-profit` | `ReportsController.GetRevenueProfitReport` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#2-danh-mục-endpoints-báo-cáo-tìm-kiếm--dự-báo-ai-fr-rep-0103-fr-ai-01) | `FORBIDDEN_ACCESS` (Chặn nhân viên không phải Owner, xem [`DOC-ERR-02`](../12-error-and-status-codes/02-error-codes-catalog.md)) |
+| `GET` | `/api/reports/daily-summaries` | `ReportsController.GetDailySummaries` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#2-danh-mục-endpoints-báo-cáo-tìm-kiếm--dự-báo-ai-fr-rep-0103-fr-ai-01) | `FORBIDDEN_ACCESS`, `VALIDATION_ERROR` (Chỉ `Owner`, `Staff`/`Cashier` nhận `403`) |
+| `POST` | `/api/reports/daily-summaries/rebuild` | `ReportsController.RebuildDailySummaries` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#2-danh-mục-endpoints-báo-cáo-tìm-kiếm--dự-báo-ai-fr-rep-0103-fr-ai-01) | `FORBIDDEN_ACCESS`, `VALIDATION_ERROR` (Tối đa 31 ngày mỗi lần tính lại) |
+| `GET` | `/api/reports/inventory-velocity` | `ReportsController.GetInventoryVelocityReport` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#2-danh-mục-endpoints-báo-cáo-tìm-kiếm--dự-báo-ai-fr-rep-0103-fr-ai-01) | `AUTH_UNAUTHORIZED` |
+| `GET` | `/api/reports/stock-alerts` | `ReportsController.GetStockAlerts` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#2-danh-mục-endpoints-báo-cáo-tìm-kiếm--dự-báo-ai-fr-rep-0103-fr-ai-01) | `AUTH_UNAUTHORIZED` |
+| `GET` | `/api/ai/reorder-recommendations` | `AiController.GetReorderRecommendations` | [`DOC-API-04 - 04-order-endpoints.md`](../05-api-contracts/04-order-endpoints.md#2-danh-mục-endpoints-báo-cáo-tìm-kiếm--dự-báo-ai-fr-rep-0103-fr-ai-01) | `AUTH_UNAUTHORIZED` |
 
 ---
 
@@ -75,3 +77,14 @@ Màn hình **Báo Cáo Doanh Thu & Quản Trị Lãi Gộp (P&L Reports)** là p
 | Nhiều đơn vị | Hiện 4 dòng đầu; nút `Xem đủ N đơn vị` mở cùng lúc cho cả ba thẻ. |
 | SKU chưa có đơn vị gốc | Gom vào nhóm `Chưa xác định`. |
 | Cột SL bán và Tồn hiện tại | Ghi kèm đơn vị gốc. Tồn hiện tại cộng trên mọi chi nhánh, hoặc chỉ chi nhánh đang lọc; mỗi SKU một dòng. |
+
+---
+
+## 5. Tab Lợi Nhuận: Khu Vực "Tổng Hợp Theo Ngày" (Cập nhật 15/11/2026)
+
+| Thành phần | Quy tắc hiển thị & Tương tác |
+| :--- | :--- |
+| Vị trí | Nằm ngay dưới bảng *Biến động doanh thu & lãi gộp theo ngày* trong tab Doanh thu & Lợi nhuận (`Owner` only). |
+| Bảng đối soát | Gồm các cột: `Ngày`, `Doanh thu (TH / TT)`, `Hàng trả (TH / TT)`, `Giá vốn (TH / TT)`, `Lãi gộp (TH / TT)`, `Đối soát`, `Cập nhật lúc` (`Asia/Ho_Chi_Minh`). Khi `summary == null` (chưa tổng hợp), cột tổng hợp hiển thị `—`. |
+| Nhãn trạng thái đối soát | - `Khớp` (`Matched`): số tổng hợp bằng số tính trực tiếp, chỉ chênh do làm tròn (tối đa `0,01 đ` × số dòng tổng hợp của ngày).<br/>- `Lệch` (`Mismatch`): phát sinh đơn/trả mới sau lần tổng hợp gần nhất.<br/>- `Chưa tổng hợp` (`NotSummarized`): có phát sinh trong ngày nhưng chưa có dòng trong `daily_sales_summaries`. |
+| Nút **Tính lại** | Gọi `POST /api/reports/daily-summaries/rebuild` theo khoảng `startDate..endDate` đang chọn (tối đa 31 ngày). Khóa nút và hiển thị trạng thái xoay khi đang chạy hoặc đang tải báo cáo; tự nạp lại bảng đối soát sau khi hoàn tất; lỗi (ví dụ > 31 ngày) hiển thị rõ theo `ProblemDetails` + `errorCode`. Không dùng mock data. |

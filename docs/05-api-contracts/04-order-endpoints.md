@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-API-04` |
-| **Phiên bản (Version)** | `v1.1.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
+| **Phiên bản (Version)** | `v1.4.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-15` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-ORD-01..03`, `FR-SIM-01`, `FR-REP-01..03`, `FR-AI` (Trang 2, 3, 6) |
 | **Hợp đồng chi tiết Sprint 3** | [`../08-sprints/sprint-3/01-api-contracts-sprint-3.md`](../08-sprints/sprint-3/01-api-contracts-sprint-3.md) |
 | **Phạm vi áp dụng** | Trung tâm Đơn hàng (`Orders`), Trình giả lập Webhook (`Simulator`), Báo cáo (`Reports`) & Dự báo AI |
@@ -15,6 +15,7 @@
 
 | Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả thay đổi | Mã tham chiếu |
 | :---: | :---: | :--- | :--- | :--- |
+| `v1.4.0` | `2026-11-15` | Nhóm dự án OISMS | OISMS-59-G3B: Bổ sung 2 API tổng hợp & đối soát báo cáo ngày cho `Owner`: `GET /api/reports/daily-summaries` và `POST /api/reports/daily-summaries/rebuild`. | `OISMS-59-G3B` |
 | `v1.3.1` | `2026-11-10` | Nhóm dự án OISMS | Thêm `GET /api/webhooks/simulator/catalog` cho app giả lập chọn sản phẩm theo secret. | `OISMS-48` |
 | `v1.3.0` | `2026-11-09` | Nhóm dự án OISMS | OISMS-58 (CS-01): Bổ sung endpoints Phiếu trả hàng `/api/sales-returns` (lập draft, xác nhận nhập kho, hủy, lấy dòng có thể trả); chi tiết đơn có `returnedQuantity`; truy vết chứng từ có `salesReturns` và dòng sổ `IN`; báo cáo doanh thu/lợi nhuận và dashboard summary phản ánh số thuần (`returnAmount`, `netRevenue`, `returnCogs`, `netCogs`) và ẩn thông tin lãi gộp/giá vốn (`null`) với Staff. | `OISMS-58-CS01-P2` |
 | `v1.2.0` | `2026-11-06` | Nhóm dự án OISMS | Thêm API quản lý kết nối gian hàng sàn `/api/shop-integrations` (Owner): tạo, sửa, đổi secret webhook. Thêm `GET /api/webhooks/simulator/whoami`. Webhook tra secret theo hash. | `OISMS-48` |
@@ -106,6 +107,8 @@ Quản lý chu trình khách đổi trả hàng bán từ đơn `Confirmed`/`Com
 | `GET` | `/api/reports/dashboard-summary` | `Owner, Staff` | `CS-07`, `CS-01` | KPI trang Tổng quan: doanh thu gộp, tiền trả (`returnAmount`), doanh thu thuần (`netRevenue`), giá vốn thuần (`netCogs`), số đơn, xu hướng 7 ngày gần nhất.<br/>**Bảo mật dữ liệu (RBAC):** `totalGrossProfit`, `grossMarginPercentage`, `totalInventoryValue` và giá vốn/lợi nhuận theo kênh trả về `null`/`0` khi caller là `Staff`. |
 | `GET` | `/api/reports/inventory-velocity` | `Owner, Staff` | `FR-REP-02` | Báo cáo giá trị tồn kho theo giá vốn, top hàng bán chạy và hàng luân chuyển chậm. |
 | `GET` | `/api/reports/stock-alerts` | `Owner, Staff` | `FR-REP-03` | Danh sách SKU hết hàng (`available <= 0`, kể cả khi `reorder_point = 0`) hoặc đã đặt ngưỡng và `available <= reorder_point`; phân cấp `Warning`, `Critical` (dưới 50%), `OutOfStock`. Lọc theo `branchId`. |
+| `GET` | `/api/reports/daily-summaries` | `Owner` | `FR-REP-01`, `FR-SIM-03` | Đối soát theo từng ngày kinh doanh UTC+07 giữa bảng `daily_sales_summaries` (`summary`) và báo cáo trực tiếp (`live`), trả `matched` (`true`/`false`), `status` (`Matched`/`Mismatch`/`NotSummarized`) và `updatedAt`. Query: `fromDate`, `toDate`, `branchId` (tùy chọn). Chỉ `Owner`; `Staff`/`Cashier` nhận `403`. |
+| `POST` | `/api/reports/daily-summaries/rebuild` | `Owner` | `FR-REP-01`, `FR-SIM-03` | Tính lại dữ liệu `daily_sales_summaries` cho tenant trong JWT theo khoảng `fromDate..toDate` (tối đa `31` ngày tính cả hai đầu; vượt giới hạn hoặc thiếu/ngược ngày trả `400 VALIDATION_ERROR` theo `ProblemDetails`). Mỗi ngày chạy trong 1 transaction với `pg_advisory_xact_lock`. Chỉ `Owner`; `Staff`/`Cashier` nhận `403`. |
 | `GET` | `/api/ai/export-history` | `Owner, Staff` | `FR-AI-01` | Chuỗi lịch sử xuất kho theo ngày và SKU (đơn vị gốc) làm đầu vào dự báo. Trùng dữ liệu với `/api/inventory/export-history`. |
 | `GET` | `/api/ai/reorder-recommendations` | `Owner, Staff` | `FR-AI-01` | Dự báo nhu cầu tiêu thụ và gợi ý số lượng đặt hàng nhập kho theo từng SKU. |
 | `POST` | `/api/ai/chat` | `Owner, Staff` | `FR-AI-02` | Hướng dẫn sử dụng và tóm tắt số liệu đã lọc theo vai trò và tenant. Body nhận thêm `model` (tùy chọn, mã model từ `GET /api/ai/models`); response trả `model` đã dùng. Model không có trong danh sách trả 400 `AI_INVALID_REQUEST`. |

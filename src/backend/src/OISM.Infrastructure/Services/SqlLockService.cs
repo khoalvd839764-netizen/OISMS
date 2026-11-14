@@ -236,4 +236,9 @@ public class SqlLockService : ISqlLockService
         ExecutePostgresCommandAsync(
             "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/sales_return_number', 0));",
             ct, tenantId.ToString());
+
+    public Task LockDailySalesSummaryAsync(Guid tenantId, DateOnly businessDate, CancellationToken ct = default) =>
+        ExecutePostgresCommandAsync(
+            "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/daily_sales_summary/' || {1}::text, 0));",
+            ct, tenantId.ToString(), businessDate.ToString("yyyy-MM-dd"));
 }

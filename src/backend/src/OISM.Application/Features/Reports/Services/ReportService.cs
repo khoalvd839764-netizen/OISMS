@@ -30,24 +30,8 @@ public class ReportService : IReportService
         return tenantId.Value;
     }
 
-    private static readonly HashSet<string> MarketplaceChannels = new(StringComparer.OrdinalIgnoreCase) { "Shopee", "TikTok", "Lazada" };
-
-    /// <summary>
-    /// Doanh thu bị giảm do một phiếu trả hàng đã xác nhận.
-    /// Đơn POS/Admin: bằng số tiền thực hoàn cho khách (TotalRefundAmount, đã trừ phí trả hàng).
-    /// Đơn sàn: phiếu không ghi hoàn tiền (sàn hoàn cho khách) nhưng doanh thu của shop vẫn giảm,
-    /// nên trừ theo giá trị dòng trả = SL trả × đơn giá snapshot (quyết định người dùng 09/11/2026).
-    /// Cần Include(Order) và Items.OrderItem.
-    /// </summary>
-    private static decimal ReturnRevenueAmount(SalesReturn r)
-    {
-        if (r.Order != null && MarketplaceChannels.Contains(r.Order.Channel))
-        {
-            return r.Items.Sum(i => i.Quantity * (i.OrderItem?.UnitPrice ?? 0m));
-        }
-
-        return r.TotalRefundAmount;
-    }
+    private static decimal ReturnRevenueAmount(SalesReturn r) =>
+        RevenueProfitCalculationHelper.CalculateReturnRevenueAmount(r);
 
     public Task<RevenueProfitReportDto> GetRevenueProfitReportAsync(ReportFilterDto filter, CancellationToken ct = default)
         => GetRevenueProfitReportAsync(filter, isOwner: true, ct);
@@ -56,86 +40,33 @@ public class ReportService : IReportService
     {
         var tenantId = RequireTenantId();
 
-        var ordersQuery = _context.Orders
-            .AsNoTracking()
-            .Include(o => o.Branch)
-            .Include(o => o.Items)
-            .Where(o => o.TenantId == tenantId && (o.Status == OrderStatus.Confirmed || o.Status == OrderStatus.Completed));
+        DateTimeOffset? endBoundary = filter.EndDate.HasValue
+            ? RevenueProfitCalculationHelper.ResolveHalfOpenEndBoundary(filter.EndDate.Value)
+            : null;
 
-        if (filter.BranchId.HasValue && filter.BranchId.Value != Guid.Empty)
-        {
-            ordersQuery = ordersQuery.Where(o => o.BranchId == filter.BranchId.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(filter.Channel))
-        {
-            var channelTrim = filter.Channel.Trim();
-            ordersQuery = ordersQuery.Where(o => o.Channel == channelTrim);
-        }
-
-        DateTimeOffset? endBoundary = null;
-        if (filter.EndDate.HasValue)
-        {
-            var boundary = filter.EndDate.Value;
-            // [BF-011] Khoảng nửa mở [StartDate, EndDate) chống bỏ sót giao dịch có phần lẻ giây 23:59:59.xxx
-            if (boundary.Second == 59)
-            {
-                boundary = new DateTimeOffset(
-                    boundary.Year,
-                    boundary.Month,
-                    boundary.Day,
-                    boundary.Hour,
-                    boundary.Minute,
-                    59,
-                    boundary.Offset).AddSeconds(1);
-            }
-            endBoundary = boundary;
-            ordersQuery = ordersQuery.Where(o => o.CreatedAt < boundary);
-        }
-
-        if (filter.StartDate.HasValue)
-        {
-            ordersQuery = ordersQuery.Where(o => o.CreatedAt >= filter.StartDate.Value);
-        }
-
-        var orders = await ordersQuery.ToListAsync(ct);
+        var orders = await RevenueProfitCalculationHelper.QueryRevenueOrdersAsync(
+            _context,
+            tenantId,
+            filter.StartDate,
+            endBoundary,
+            filter.BranchId,
+            filter.Channel,
+            includeBranch: true,
+            ct: ct);
 
         // Phiếu trả hàng đã xác nhận (Confirmed) theo ngày confirmed_at
-        var returnsQuery = _context.SalesReturns
-            .AsNoTracking()
-            .Include(r => r.Order)
-            .Include(r => r.Branch)
-            .Include(r => r.Items)
-                .ThenInclude(i => i.OrderItem)
-            .Where(r => r.TenantId == tenantId && r.Status == SalesReturnStatus.Confirmed && r.ConfirmedAt != null);
+        var returns = await RevenueProfitCalculationHelper.QueryConfirmedReturnsAsync(
+            _context,
+            tenantId,
+            filter.StartDate,
+            endBoundary,
+            filter.BranchId,
+            filter.Channel,
+            includeBranch: true,
+            ct: ct);
 
-        if (filter.BranchId.HasValue && filter.BranchId.Value != Guid.Empty)
-        {
-            returnsQuery = returnsQuery.Where(r => r.BranchId == filter.BranchId.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(filter.Channel))
-        {
-            var channelTrim = filter.Channel.Trim();
-            returnsQuery = returnsQuery.Where(r => r.Order != null && r.Order.Channel == channelTrim);
-        }
-
-        if (filter.StartDate.HasValue)
-        {
-            returnsQuery = returnsQuery.Where(r => r.ConfirmedAt >= filter.StartDate.Value);
-        }
-
-        if (endBoundary.HasValue)
-        {
-            returnsQuery = returnsQuery.Where(r => r.ConfirmedAt < endBoundary.Value);
-        }
-
-        var returns = await returnsQuery.ToListAsync(ct);
-
-        decimal CalculateReturnCogs(SalesReturn r)
-        {
-            return r.Items.Sum(i => i.Quantity * (i.OrderItem != null ? i.OrderItem.FactorSnapshot : 1m) * i.OriginalUnitCost);
-        }
+        static decimal CalculateReturnCogs(SalesReturn r) =>
+            RevenueProfitCalculationHelper.CalculateReturnCogs(r);
 
         decimal totalRevenue = 0;
         decimal totalOrderCogs = 0;
@@ -552,24 +483,22 @@ public class ReportService : IReportService
         var tenantId = RequireTenantId();
 
         // 1. Thống kê Doanh thu và Lợi nhuận từ các đơn hàng hợp lệ
-        var revenueOrders = await _context.Orders
-            .AsNoTracking()
-            .Include(o => o.Items)
-            .Where(o => o.TenantId == tenantId && (o.Status == OrderStatus.Confirmed || o.Status == OrderStatus.Completed))
-            .ToListAsync(ct);
+        var revenueOrders = await RevenueProfitCalculationHelper.QueryRevenueOrdersAsync(
+            _context,
+            tenantId,
+            startUtc: null,
+            endUtcExclusive: null,
+            ct: ct);
 
-        var returns = await _context.SalesReturns
-            .AsNoTracking()
-            .Include(r => r.Order)
-            .Include(r => r.Items)
-                .ThenInclude(i => i.OrderItem)
-            .Where(r => r.TenantId == tenantId && r.Status == SalesReturnStatus.Confirmed && r.ConfirmedAt != null)
-            .ToListAsync(ct);
+        var returns = await RevenueProfitCalculationHelper.QueryConfirmedReturnsAsync(
+            _context,
+            tenantId,
+            startUtc: null,
+            endUtcExclusive: null,
+            ct: ct);
 
-        decimal CalculateReturnCogs(SalesReturn r)
-        {
-            return r.Items.Sum(i => i.Quantity * (i.OrderItem != null ? i.OrderItem.FactorSnapshot : 1m) * i.OriginalUnitCost);
-        }
+        static decimal CalculateReturnCogs(SalesReturn r) =>
+            RevenueProfitCalculationHelper.CalculateReturnCogs(r);
 
         decimal totalRevenue = revenueOrders.Sum(o => o.TotalAmount);
         int totalOrders = revenueOrders.Count;

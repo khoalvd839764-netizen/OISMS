@@ -1,6 +1,6 @@
 # Công việc còn mở theo đề bài OISMS
 
-Mục 5.1 của checklist còn **Gói 5**. Gói 1 đã đóng toàn bộ tiêu chí ngày 14/11/2026 ([Done](../Done/goi-1-phan-quyen-va-kien-truc.md)). Gói 2–4 đã triển khai các đầu việc chính, với một số tiêu chí chi tiết còn mở. Mỗi tài liệu dưới đây ghi hiện trạng, đầu việc và bằng chứng cần có để đóng mục. [Checklist](../../../checklist.md) · [Năm gói trong đề bài](../../08-sprints/sprint-2/DE_BAI_OISM.md#5-các-gói-công-việc-trong-pdf-trang-5-6)
+Mục 5.1 của checklist còn **Gói 5**. Gói 1 đã đóng toàn bộ tiêu chí ngày 14/11/2026 ([Done](../Done/goi-1-phan-quyen-va-kien-truc.md)), Gói 3 đóng ngày 15/11/2026 ([Done](../Done/goi-3-vong-doi-don-hang-va-hangfire.md)). Gói 2 và 4 đã triển khai các đầu việc chính, với một số tiêu chí chi tiết còn mở. Mỗi tài liệu dưới đây ghi hiện trạng, đầu việc và bằng chứng cần có để đóng mục. [Checklist](../../../checklist.md) · [Năm gói trong đề bài](../../08-sprints/sprint-2/DE_BAI_OISM.md#5-các-gói-công-việc-trong-pdf-trang-5-6)
 
 ## Gói 5 còn mở
 
@@ -11,12 +11,11 @@ Mục 5.1 của checklist còn **Gói 5**. Gói 1 đã đóng toàn bộ tiêu c
 | [Kiểm chứng NFR](./goi-5-kiem-chung-nfr.md) | Hiệu năng, HTTPS/TLS, uptime, thao tác POS và coverage |
 | [Hoàn thiện hồ sơ bàn giao](./goi-5-ho-so-ban-giao.md) | URS/RTM, kiến trúc, SDD và hướng dẫn sử dụng |
 
-## Tiêu chí còn mở thuộc Gói 2–4
+## Tiêu chí còn mở thuộc Gói 2 và 4
 
 | Công việc | Mã hoặc hồ sơ |
 | --- | --- |
 | [Gói 2 — Quét mã vạch khi kiểm kê](./goi-2-quet-ma-vach-kiem-ke.md) | `FR-PROD-03`, bằng chứng E2E kho |
-| [Gói 3 — Vòng đời đơn và Hangfire](./goi-3-vong-doi-don-hang-va-hangfire.md) | `FR-ORD-02`, `FR-SIM-03`, `NFR-SEC-02` |
 | [Gói 4 — In chứng từ và thông báo POS](./goi-4-in-chung-tu-va-thong-bao-pos.md) | `FR-ORD-03`, `FR-POS-03`, `FR-SIM-02`, CS-06 |
 
 ## Nâng cấp 10

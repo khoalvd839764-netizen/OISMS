@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using OISM.Application.Features.Reports.Dtos;
 using OISM.Application.Features.Reports.Services;
+using OISM.WebApi.Http;
 
 namespace OISM.WebApi.Controllers;
 
@@ -15,10 +16,12 @@ namespace OISM.WebApi.Controllers;
 public class ReportsController : ControllerBase
 {
     private readonly IReportService _reportService;
+    private readonly IDailySalesSummaryService _dailySalesSummaryService;
 
-    public ReportsController(IReportService reportService)
+    public ReportsController(IReportService reportService, IDailySalesSummaryService dailySalesSummaryService)
     {
         _reportService = reportService;
+        _dailySalesSummaryService = dailySalesSummaryService;
     }
 
     /// <summary>
@@ -65,6 +68,47 @@ public class ReportsController : ControllerBase
     {
         var isOwner = User.IsInRole("Owner");
         var result = await _reportService.GetDashboardSummaryAsync(isOwner, ct);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Đối soát số liệu từng ngày giữa bảng tổng hợp <c>daily_sales_summaries</c> và báo cáo trực tiếp (chỉ Owner).
+    /// </summary>
+    [HttpGet("daily-summaries")]
+    [Authorize(Roles = "Owner")]
+    [ApiErrorContract(ApiErrorProfile.Reports)]
+    public async Task<IActionResult> GetDailySummaries(
+        [FromQuery] DateOnly? fromDate,
+        [FromQuery] DateOnly? toDate,
+        [FromQuery] Guid? branchId,
+        CancellationToken ct)
+    {
+        var result = await _dailySalesSummaryService.GetComparisonAsync(fromDate, toDate, branchId, ct);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Tính lại thủ công bảng tổng hợp <c>daily_sales_summaries</c> theo khoảng ngày tối đa 31 ngày (chỉ Owner).
+    /// Chạy đồng bộ cả khi Hangfire đang tắt; TenantId lấy hoàn toàn từ JWT.
+    /// </summary>
+    [HttpPost("daily-summaries/rebuild")]
+    [Authorize(Roles = "Owner")]
+    [ApiErrorContract(ApiErrorProfile.Reports)]
+    public async Task<IActionResult> RebuildDailySummaries(
+        [FromBody] RebuildDailySummaryRequestDto? request,
+        CancellationToken ct)
+    {
+        if (request == null)
+        {
+            return ApiErrorResponse.Problem(
+                HttpContext,
+                ApiErrorProfile.Reports,
+                "VALIDATION_ERROR",
+                StatusCodes.Status400BadRequest,
+                "Dữ liệu yêu cầu tính lại tổng hợp ngày không được để trống.");
+        }
+
+        var result = await _dailySalesSummaryService.RebuildRangeAsync(request.FromDate, request.ToDate, ct);
         return Ok(result);
     }
 }

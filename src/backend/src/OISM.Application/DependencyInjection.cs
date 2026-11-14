@@ -40,6 +40,7 @@ public static class DependencyInjection
         services.AddScoped<IPosCheckoutService, PosCheckoutService>();
         services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<IReportService, ReportService>();
+        services.AddScoped<IDailySalesSummaryService, DailySalesSummaryService>();
         services.AddScoped<IAiChatService, AiChatService>();
         services.AddScoped<AiChatToolRunner>();
         services.AddScoped<IAiChatTool, LowStockChatTool>();

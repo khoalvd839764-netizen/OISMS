@@ -9,6 +9,7 @@ internal static class ApiErrorTitles
         ApiErrorProfile.PosCheckout => PosCheckout(code),
         ApiErrorProfile.PaymentAccounts => PaymentAccounts(code),
         ApiErrorProfile.Pricing => Pricing(code),
+        ApiErrorProfile.Reports => Reports(code),
         ApiErrorProfile.SalesInvoices => SalesInvoices(code),
         ApiErrorProfile.SalesReturns => SalesReturns(code),
         ApiErrorProfile.Ai => Ai(code),
@@ -155,6 +156,13 @@ internal static class ApiErrorTitles
         "VALIDATION_ERROR" => "Lỗi xác thực dữ liệu",
         "INVALID_STATE_TRANSITION" => "Chuyển trạng thái không hợp lệ",
         _ => "Lỗi xử lý nghiệp vụ"
+    };
+
+    private static string Reports(string code) => code switch
+    {
+        "VALIDATION_ERROR" => "Lỗi xác thực dữ liệu",
+        "UNAUTHORIZED" => "Chưa xác thực",
+        _ => "Lỗi xử lý báo cáo"
     };
 
     private static string StockCountSchedules(string code) => code switch

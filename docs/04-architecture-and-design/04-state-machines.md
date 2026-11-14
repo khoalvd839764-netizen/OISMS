@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-ARC-04` |
-| **Phiên bản (Version)** | `v1.3.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
+| **Phiên bản (Version)** | `v1.5.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-15` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-ORD-02`, `FR-INV-02..03`, `FR-RSE-02..03` (Trang 2, 3) |
 | **Phạm vi áp dụng** | Đơn hàng (`Order`), Giữ chỗ (`Reservation`), Phiếu nhập (`GoodsReceipt`) & Chuyển kho (`StockTransfer`) |
 
@@ -19,6 +19,7 @@
 | `v1.2.0` | `2026-11-03` | Nhóm dự án OISMS | Bổ sung máy trạng thái Đợt kiểm kê (StockCount) và Kỳ kiểm kê (StockCountPeriod). | `OISMS-47-U03` |
 | `v1.3.0` | `2026-11-06` | Nhóm dự án OISMS | Đối chiếu với service: thêm máy trạng thái Giữ chỗ, `PendingApproval → Cancelled` của kiểm kê, kỳ kiểm kê bị hủy khi tắt lịch; ghi chú Hangfire mặc định tắt. | `OISMS-46` |
 | `v1.4.0` | `2026-11-09` | Nhóm dự án OISMS | Bổ sung máy trạng thái Phiếu trả hàng từ khách (`SalesReturn`, CS-01). | `OISMS-58-CS01-P2` |
+| `v1.5.0` | `2026-11-15` | Nhóm dự án OISMS | Bổ sung bảng ranh giới giao dịch theo kênh và ghi chú luồng giữ chỗ kỹ thuật POS (`Draft`). | `OISMS-59-G3A` |
 
 ---
 
@@ -38,7 +39,7 @@ stateDiagram-v2
 
 - POS checkout (`POST /api/pos/checkout`, `POST /api/orders/checkout`) đi thẳng từ giỏ hàng tới `Completed` trong một transaction: trừ `on_hand`, ghi `OUT`, chụp `OrderItem.CostPrice`, lập `SalesInvoice`.
 - `POST /api/orders/{id}/process` (xử lý đóng gói) gọi lại luồng Confirm cho đơn `Reserved`; đơn đã `Confirmed` thì trả nguyên kết quả. Không có trạng thái `Processing` trong DB (CHECK của `orders.status` chỉ có 5 giá trị trên).
-- Hủy đơn `Draft` chỉ áp dụng cho nháp chưa thanh toán; đơn đã `Confirmed`/`Completed` không hủy được, phải xử lý bằng phiếu trả hàng (CS-01, `/api/sales-returns`, PR #41): phiếu trả gắn đơn gốc, không đổi trạng thái đơn.
+- Hủy đơn `Draft` chỉ áp dụng cho nháp chưa thanh toán (luồng giữ chỗ kỹ thuật của `POST /api/inventory/reserve` sinh đơn `POS` ở `Draft` kèm `Reservation` `Active` để thỏa `Order.CanCancel` và `ReservationExpiryJob`); đơn đã `Confirmed`/`Completed` không hủy được, phải xử lý bằng phiếu trả hàng (CS-01, `/api/sales-returns`, PR #41): phiếu trả gắn đơn gốc, không đổi trạng thái đơn.
 - Job hết hạn giữ chỗ (`ReservationExpiryJob`, mỗi phút) chỉ chạy khi `Hangfire:Enabled=true`; cấu hình mặc định và Docker Compose đang tắt.
 
 ### 1.1. Máy Trạng Thái Phiếu Giữ Chỗ (`Reservation`)
@@ -50,6 +51,16 @@ stateDiagram-v2
     Active --> Released : Hủy đơn khi giữ chỗ còn hạn
     Active --> Expired : Hủy đơn / job quét khi expires_at đã qua
 ```
+
+### 1.2. Ranh Giới Giao Dịch Theo Kênh
+
+| Kênh / Thao tác | Giao dịch 1 | Giao dịch 2 |
+| :--- | :--- | :--- |
+| **POS** (`POST /api/pos/checkout`, `POST /api/orders/checkout`) | Tạo đơn + giữ chỗ + trừ tồn `on_hand` + ghi sổ `OUT` + chụp `CostPrice` + lập `SalesInvoice` + `Completed` | — |
+| **Admin, sàn** (`Admin`, `Shopee`, `TikTok`, `Lazada`) | Tạo đơn (đi qua `Draft -> Reserved` trong cùng giao dịch, không lưu `Draft`) + giữ chỗ (`Active`) | Xác nhận (`Confirm`): trừ `OnHand`, giảm `Reserved`, ghi sổ `OUT`, chụp `CostPrice`, lập `SalesInvoice` -> `Confirmed` |
+| **Hủy / hết hạn** (`Cancel`, `ReservationExpiryJob`) | Chỉ giảm `Reserved`, chuyển giữ chỗ sang `Released`/`Expired` và đơn sang `Cancelled`, không ghi bút toán `IN` bù | — |
+
+Đơn online không thể gộp xác nhận vào giao dịch tạo đơn vì `FR-ORD-03` yêu cầu nhân viên duyệt. Mỗi giao dịch tự rollback 100% khi có lỗi.
 
 ---
 
