@@ -7,8 +7,8 @@ File này dùng để tra cứu yêu cầu OISMS theo mã, xem tiến độ tri�
 | Thông tin | Chi tiết |
 | --- | --- |
 | Mã tài liệu | `DOC-CHK-S2` |
-| Phiên bản | `v1.7.2` |
-| Ngày cập nhật | 12/11/2026 (Asia/Saigon) |
+| Phiên bản | `v1.8.0` |
+| Ngày cập nhật | 14/11/2026 (Asia/Saigon) |
 | Mốc rà soát mã nguồn | 12/11/2026 trên nhánh `feature/OISMS-58-nghiem-thu-sprint-5` |
 | Phạm vi đề bài | 30 FR, 1 mục dự báo nhập hàng, 11 NFR, 5 gói công việc và 6 nhóm hồ sơ. [Bản đối chiếu đề bài](docs/00-overview/03-de-bai-cnpm-reference.md) |
 | Tiến độ tại mốc rà soát | 22/31 mục chức năng đã triển khai, 4/11 NFR đã đánh dấu đạt theo bằng chứng ghi ở từng mục. |
@@ -36,6 +36,7 @@ Hồ sơ theo sprint và các lỗi chi tiết có tại [báo cáo BE1 Sprint 3
 | `v1.7.0` | `2026-11-12` | Rà soát tài liệu | Đưa tổng quan và lịch sử phiên bản lên đầu. Trình bày từng FR/NFR với tiêu chí, hiện trạng và file dẫn chứng. | `DOC-CHK-S2` |
 | `v1.7.1` | `2026-11-12` | Rà soát tài liệu | Cập nhật dấu tick theo phạm vi năm gói công việc trong đề bài. | `DOC-CHK-S2` |
 | `v1.7.2` | `2026-11-12` | Rà soát tài liệu | Liên kết kế hoạch Gói 5 và các tiêu chí còn mở của Gói 1–4. | `DOC-CHK-S2` |
+| `v1.8.0` | `2026-11-14` | Rà soát nghiệm thu | Đóng tiêu chí mở của Gói 1: `FR-AUTH-03` (che giá vốn với Cashier, ghi kho chỉ Owner), CS-02 (phân công chi nhánh, bảng `user_branches`), `NFR-MAINT-01` (test kiến trúc). | `OISMS-59-G1` |
 
 ## 3. Yêu cầu chức năng (Functional Requirements)
 
@@ -51,12 +52,12 @@ Hồ sơ theo sprint và các lỗi chi tiết có tại [báo cáo BE1 Sprint 3
   - **Hiện trạng.** Đã có đăng nhập bằng email, JWT, làm mới token, đăng xuất và kiểm tra trạng thái Tenant/User. API và hai màn hình đăng nhập hiện nhận email. Còn thiếu đăng nhập bằng SĐT.
   - **Dẫn chứng.** [AuthService](src/backend/src/OISM.Application/Features/Auth/Services/AuthService.cs#L144) · [Auth Admin](src/frontend/admin-dashboard/src/pages/AuthPage.tsx#L163) · [Auth POS](src/frontend/pos-app/src/pages/LoginPage.tsx#L21)
 
-- [ ] **`FR-AUTH-03` — RBAC theo API và màn hình.** Phân quyền trên API và giao diện. Owner có toàn quyền, Staff quản lý kho và đơn, Cashier chỉ dùng POS.
-  - **Hiện trạng.** Có ba vai trò và định tuyến POS riêng. API số dư tồn vẫn cho Cashier gọi và có thể trả `AverageCost`.
-  - **Dẫn chứng.** [ma trận RBAC](docs/01-users-and-rbac/02-rbac-matrix.md#21-lệch-giữa-yêu-cầu-và-code-hiện-tại-đối-chiếu-06112026). [InventoryController](src/backend/src/OISM.WebApi/Controllers/InventoryController.cs#L39)
+- [x] **`FR-AUTH-03` — RBAC theo API và màn hình.** Phân quyền trên API và giao diện. Owner có toàn quyền, Staff quản lý kho và đơn, Cashier chỉ dùng POS.
+  - **Hiện trạng.** Có ba vai trò và định tuyến POS riêng. Từ 14/11/2026 API số dư tồn trả `averageCost = null` cho Cashier; ghi kho chỉ Owner; xóa danh mục, thương hiệu, sản phẩm chỉ Owner (đã chốt). Cashier được phân công chi nhánh chỉ thấy và checkout tại chi nhánh đó.
+  - **Dẫn chứng.** [ma trận RBAC](docs/01-users-and-rbac/02-rbac-matrix.md#21-lệch-giữa-yêu-cầu-và-code-hiện-tại-đối-chiếu-06112026) · [InventoryAndWarehouseRbacIntegrationTests](test-oisms/backend/OISM.IntegrationTests/InventoryAndWarehouseRbacIntegrationTests.cs) · [UserBranchAssignmentIntegrationTests](test-oisms/backend/OISM.IntegrationTests/UserBranchAssignmentIntegrationTests.cs) · [Báo cáo G1A](docs/report-after-upgrade/phan-quyen-gia-von-va-kho-g1a.md)
 
 - [x] **`FR-AUTH-04` — Quản lý chi nhánh và kho.** Cho Owner tạo, sửa và bật/tắt chi nhánh và kho thuộc tenant mình.
-  - **Hiện trạng.** Owner có thể tạo, sửa và bật/tắt. Quyền ghi kho của Staff được ghi ở `FR-AUTH-03`.
+  - **Hiện trạng.** Owner có thể tạo, sửa và bật/tắt. Staff và Cashier chỉ xem, ghi kho trả `403` (14/11/2026).
   - **Dẫn chứng.** [BranchController](src/backend/src/OISM.WebApi/Controllers/BranchController.cs) · [WarehousesController](src/backend/src/OISM.WebApi/Controllers/WarehousesController.cs)
 
 ### 3.2. Danh mục, SKU, mã vạch và giá (`FR-PROD`) — Nhựt, Phúc Hữu, Nam Nguyễn
@@ -263,9 +264,9 @@ Hồ sơ theo sprint và các lỗi chi tiết có tại [báo cáo BE1 Sprint 3
 
 [Đặc tả](docs/03-non-functional-requirements/05-maintainability-testing.md)
 
-- [ ] **`NFR-MAINT-01` — Clean Architecture.** Tách Domain, Application, Infrastructure và Presentation. Domain giữ nghiệp vụ lõi, Application chứa ca sử dụng, Infrastructure chứa tích hợp và Presentation phục vụ API.
-  - **Hiện trạng.** Có bốn project Domain, Application, Infrastructure và Web API. Một số dịch vụ WAC/Reserve và truy vấn EF Core hiện nằm trong Application.
-  - **Dẫn chứng.** [Đặc tả phân tầng](docs/03-non-functional-requirements/05-maintainability-testing.md) · [Hiện trạng kiến trúc](docs/03-non-functional-requirements/README.md#hiện-trạng-đáp-ứng-đối-chiếu-12112026)
+- [x] **`NFR-MAINT-01` — Clean Architecture.** Tách Domain, Application, Infrastructure và Presentation. Domain giữ nghiệp vụ lõi, Application chứa ca sử dụng, Infrastructure chứa tích hợp và Presentation phục vụ API.
+  - **Hiện trạng.** Có bốn project Domain, Application, Infrastructure và Web API. Application dùng EF Core qua `IAppDbContext` là ngoại lệ có chủ đích (chốt 14/11/2026); SQL, lock và transaction ở Infrastructure. `ArchitectureRulesTests` khóa quy tắc phụ thuộc, 5/5 PASS.
+  - **Dẫn chứng.** [Đặc tả phân tầng](docs/03-non-functional-requirements/05-maintainability-testing.md) · [Đối chiếu bốn tầng](docs/report-after-upgrade/doi-chieu-kien-truc-nfr-maint-01.md) · [ArchitectureRulesTests](test-oisms/backend/OISM.IntegrationTests/ArchitectureRulesTests.cs)
 
 - [ ] **`NFR-MAINT-02` — Coverage tối thiểu 80% cho Ledger, Anti-Oversell Reserve và COGS.** Coverage Unit và Integration tối thiểu 80% cho Ledger, Anti-Oversell Reserve và COGS.
   - **Hiện trạng.** Mốc Sprint 2 ghi nhận 92,49–94,83% cho nhóm Inventory. Chưa đo lại coverage unit và integration của đủ ba module trên bản hiện tại.
@@ -277,7 +278,7 @@ Hồ sơ theo sprint và các lỗi chi tiết có tại [báo cáo BE1 Sprint 3
 
 Dấu tick ở mục này theo các đầu việc được liệt kê cho từng gói trong đề bài. Tiêu chí chi tiết theo từng mã có trạng thái riêng ở mục 3 và 4. [Phạm vi các gói](docs/08-sprints/sprint-2/DE_BAI_OISM.md#5-các-gói-công-việc-trong-pdf-trang-5-6) · [Kế hoạch phần còn mở](docs/Upgrade-recommended/Pedding/README.md)
 
-- [x] **Gói 1 — Nền tảng.** Đã triển khai cấu trúc bốn tầng, schema PostgreSQL, cô lập tenant, JWT và RBAC. Đăng nhập SĐT và các điểm lệch về quyền, phân tầng được theo dõi tại `FR-AUTH-02`, `FR-AUTH-03` và `NFR-MAINT-01`. [Kiến trúc backend](docs/04-architecture-and-design/01-clean-architecture.md) · [Schema](docs/database/oisms_schema.sql)
+- [x] **Gói 1 — Nền tảng.** Đã triển khai cấu trúc bốn tầng, schema PostgreSQL, cô lập tenant, JWT và RBAC. Các điểm lệch về quyền và phân tầng đã đóng ngày 14/11/2026 (`FR-AUTH-03`, `NFR-MAINT-01`); đăng nhập SĐT còn theo dõi tại `FR-AUTH-02` và Upgrade 10. [Kiến trúc backend](docs/04-architecture-and-design/01-clean-architecture.md) · [Schema](docs/database/oisms_schema.sql)
 - [x] **Gói 2 — Catalog và sổ cái.** Có sản phẩm, SKU, mã vạch, bảng giá, phiếu nhập, chuyển kho và WAC. [API catalog](docs/05-api-contracts/02-catalog-endpoints.md) · [Test chuyển kho](test-oisms/backend/OISM.IntegrationTests/StockTransferIntegrationTests.cs)
 - [x] **Gói 3 — Đơn hàng và chống bán vượt.** Đã triển khai mô hình đơn chung, chuyển trạng thái, khóa giữ chỗ, giả lập webhook và Hangfire hết hạn. Bước Draft riêng và job báo cáo hằng ngày được theo dõi tại `FR-ORD-02` và `FR-SIM-03`. [Test vòng đời đơn](test-oisms/backend/OISM.IntegrationTests/OnlineOrderLifecycleIntegrationTests.cs) · [Test 50 webhook](test-oisms/backend/OISM.IntegrationTests/WebhookIntegrationTests.cs#L1773)
 - [x] **Gói 4 — Frontend và realtime.** Đã triển khai Admin, PWA POS, checkout nguyên tử, in qua trình duyệt và SignalR. Tự mở hộp thoại in và thông báo đơn mới trên POS được theo dõi tại `FR-POS-03` và `FR-SIM-02`. [Test checkout POS](test-oisms/backend/OISM.IntegrationTests/PosCheckoutIntegrationTests.cs) · [SignalR POS](src/frontend/pos-app/src/services/realtimeService.ts#L63)
@@ -297,7 +298,7 @@ Dấu tick ở mục này theo các đầu việc được liệt kê cho từng
 ### 6.1. Chức năng sản phẩm
 
 - [x] **CS-01 / Upgrade 08 — Trả hàng từ khách.** Có phiếu trả liên kết đơn gốc, hoàn kho theo giá vốn lúc bán, tính lại WAC và khấu trừ doanh thu. [Đặc tả](docs/Upgrade-recommended/Done/08-tra-hang-cs01.md) · [API](src/backend/src/OISM.WebApi/Controllers/SalesReturnsController.cs) · [Màn hình Admin](src/frontend/admin-dashboard/src/pages/SalesReturnsPage.tsx)
-- [ ] **CS-02 — Nhân viên và phân công chi nhánh.** Có danh sách, tạo, sửa, khóa và gán vai trò Staff/Cashier. Còn thiếu phân công chi nhánh. [API nhân viên](src/backend/src/OISM.WebApi/Controllers/UsersController.cs) · [Ma trận quyền](docs/01-users-and-rbac/02-rbac-matrix.md)
+- [x] **CS-02 — Nhân viên và phân công chi nhánh.** Có danh sách, tạo, sửa, khóa, gán vai trò Staff/Cashier và phân công nhiều chi nhánh (bảng `user_branches`, 14/11/2026). Chưa lọc dữ liệu Admin theo chi nhánh. [Báo cáo CS-02](docs/report-after-upgrade/phan-cong-chi-nhanh-cs02.md) [API nhân viên](src/backend/src/OISM.WebApi/Controllers/UsersController.cs) · [Ma trận quyền](docs/01-users-and-rbac/02-rbac-matrix.md)
 - [x] **CS-03 — Cấu hình ngưỡng tồn thấp.** Có API và UI lưu ngưỡng theo SKU và chi nhánh. [API tồn kho](src/backend/src/OISM.WebApi/Controllers/InventoryController.cs#L120) · [Màn hình Kho](src/frontend/admin-dashboard/src/pages/InventoryPage.tsx)
 - [x] **CS-04 — Tìm kiếm toàn hệ thống.** Có ô tìm kiếm và API. Điều hướng kết quả phiếu nhập còn được theo dõi ở BF-024. [API tìm kiếm](src/backend/src/OISM.WebApi/Controllers/SearchController.cs) · [BF-024](docs/bug-fixaffter/errors/BF-024-tim-kiem-phieu-nhap-khong-mo-dung-phieu.md)
 - [x] **CS-05 / Upgrade 07 — VietQR ở POS.** Owner quản lý tài khoản nhận tiền, thu ngân xác nhận đã nhận tiền, giao dịch lưu thông tin người nhận. [Đặc tả](docs/Upgrade-recommended/Done/07-thanh-toan-qr-vietqr.md) · [Nghiệm thu VietQR](docs/report-after-upgrade/vietqr-cs05-review-pr39.md)

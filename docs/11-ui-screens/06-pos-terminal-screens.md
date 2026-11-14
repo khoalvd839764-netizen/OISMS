@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-SCR-06` |
-| **Phiên bản (Version)** | `v1.0.0` |
-| **Ngày hiệu lực** | `2026-10-25` |
+| **Phiên bản (Version)** | `v1.1.0` |
+| **Ngày hiệu lực** | `2026-11-14` |
 | **Đường dẫn URL Routes** | `http://localhost:5174/` (`pos-app`); `/pos` trong Admin chỉ chuyển hướng |
 | **Quyền truy cập (RBAC)** | `Owner`, `Staff`, `Cashier` |
 | **Source code Frontend** | [`PosPage.tsx`](../../src/frontend/pos-app/src/pages/PosPage.tsx), [`ProductCatalog.tsx`](../../src/frontend/pos-app/src/components/pos/ProductCatalog.tsx), [`PaymentModal.tsx`](../../src/frontend/pos-app/src/components/pos/PaymentModal.tsx), [`ReceiptPrintModal.tsx`](../../src/frontend/pos-app/src/components/pos/ReceiptPrintModal.tsx) |
@@ -93,8 +93,8 @@ Giao diện **Quầy Thu Ngân Bán Lẻ (POS Counter)** được thiết kế c
 | :---: | :--- | :--- | :--- | :--- |
 | `GET` | `/api/pos/search` | `PosCatalogController.Search` | [`DOC-API-05 - 05-pos-endpoints.md`](../05-api-contracts/05-pos-endpoints.md#1-danh-mục-endpoints-quầy-bán-hàng-pos-apipos) | `AUTH_UNAUTHORIZED`, `BRANCH_INACTIVE_OR_INVALID` (Xem [`DOC-ERR-02`](../12-error-and-status-codes/02-error-codes-catalog.md)) |
 | `GET` | `/api/pos/barcode/{code}` | `PosCatalogController.GetByBarcode` | [`DOC-API-05 - 05-pos-endpoints.md`](../05-api-contracts/05-pos-endpoints.md#1-danh-mục-endpoints-quầy-bán-hàng-pos-apipos) | `SKU_NOT_FOUND`, `SKU_INACTIVE` |
-| `POST` | `/api/pos/checkout`<br/>*(Alias: `/api/orders/checkout`)* | `PosCheckoutActionHelper.ExecuteCheckoutAsync` $\rightarrow$ `OrderService.CheckoutPosAsync` | [`DOC-API-05 - 05-pos-endpoints.md`](../05-api-contracts/05-pos-endpoints.md#1-danh-mục-endpoints-quầy-bán-hàng-pos-apipos) | `INSUFFICIENT_STOCK`, `IDEMPOTENCY_PAYLOAD_MISMATCH`, `INSUFFICIENT_CASH_RECEIVED`, `PRICE_MISMATCH`, `NO_ACTIVE_WAREHOUSE`, `INVALID_PAYMENT_METHOD` |
-| `GET` | `/api/branches` | `BranchController.GetBranches` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#2-danh-mục-endpoints-chi-nhánh-kho--nhà-cung-cấp-fr-auth-04) | `AUTH_UNAUTHORIZED` |
+| `POST` | `/api/pos/checkout`<br/>*(Alias: `/api/orders/checkout`)* | `PosCheckoutActionHelper.ExecuteCheckoutAsync` $\rightarrow$ `IBranchAccessService` $\rightarrow$ `OrderService.CheckoutPosAsync` | [`DOC-API-05 - 05-pos-endpoints.md`](../05-api-contracts/05-pos-endpoints.md#1-danh-mục-endpoints-quầy-bán-hàng-pos-apipos) | `BRANCH_NOT_ASSIGNED` (`403`, xóa pending, không retry), `INSUFFICIENT_STOCK`, `IDEMPOTENCY_PAYLOAD_MISMATCH`, `INSUFFICIENT_CASH_RECEIVED`, `PRICE_MISMATCH`, `NO_ACTIVE_WAREHOUSE`, `INVALID_PAYMENT_METHOD` |
+| `GET` | `/api/branches` | `BranchController.GetBranches` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#2-danh-mục-endpoints-chi-nhánh-kho--nhà-cung-cấp-fr-auth-04) | `AUTH_UNAUTHORIZED` (Dropdown POS chỉ hiển thị chi nhánh được gán nếu `Cashier` có bản ghi trong `user_branches`) |
 
 ---
 

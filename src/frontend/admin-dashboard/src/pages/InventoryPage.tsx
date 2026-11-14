@@ -1609,9 +1609,13 @@ export function InventoryPage() {
                           <td>
                             <strong className={isUnder ? "text-warning" : ""}>{available}</strong>
                           </td>
-                          <td>{sku.averageCost.toLocaleString("vi-VN")} ₫</td>
+                          <td>{sku.averageCost !== null && sku.averageCost !== undefined ? `${sku.averageCost.toLocaleString("vi-VN")} ₫` : "—"}</td>
                           <td>
-                            <strong>{(sku.averageCost * sku.onHand).toLocaleString("vi-VN")} ₫</strong>
+                            <strong>
+                              {sku.averageCost !== null && sku.averageCost !== undefined
+                                ? `${(sku.averageCost * sku.onHand).toLocaleString("vi-VN")} ₫`
+                                : "—"}
+                            </strong>
                           </td>
                           <td>
                             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
@@ -2912,7 +2916,7 @@ export function InventoryPage() {
             const onHand = whBal?.onHand ?? 0;
             const reserved = whBal?.reserved ?? 0;
             const available = Math.max(0, onHand - reserved);
-            const wac = whBal?.averageCost ?? 0;
+            const wac = whBal?.averageCost ?? null;
             return (
               <div
                 style={{
@@ -2952,7 +2956,7 @@ export function InventoryPage() {
                     <span style={{ fontSize: "11px", color: "#64748b", display: "block" }}>
                       Giá vốn WAC (Chi nhánh)
                     </span>
-                    <strong>{wac.toLocaleString("vi-VN")} ₫</strong>
+                    <strong>{wac !== null ? `${wac.toLocaleString("vi-VN")} ₫` : "—"}</strong>
                   </div>
                 </div>
               </div>

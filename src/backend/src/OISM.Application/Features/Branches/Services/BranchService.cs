@@ -17,9 +17,29 @@ public class BranchService : IBranchService
         _context = context;
     }
 
-    public async Task<List<BranchResponse>> GetBranchesAsync(CancellationToken ct = default)
+    public Task<List<BranchResponse>> GetBranchesAsync(CancellationToken ct = default) =>
+        GetBranchesAsync(null, false, ct);
+
+    public async Task<List<BranchResponse>> GetBranchesAsync(Guid? userId, bool isCashier, CancellationToken ct = default)
     {
-        return await _context.Branches
+        var query = _context.Branches.AsNoTracking().AsQueryable();
+
+        if (isCashier && userId.HasValue && userId.Value != Guid.Empty)
+        {
+            var assignedBranchIds = await _context.UserBranches
+                .AsNoTracking()
+                .Where(ub => ub.UserId == userId.Value)
+                .Select(ub => ub.BranchId)
+                .Distinct()
+                .ToListAsync(ct);
+
+            if (assignedBranchIds.Count > 0)
+            {
+                query = query.Where(b => assignedBranchIds.Contains(b.Id));
+            }
+        }
+
+        return await query
             .Select(b => new BranchResponse
             {
                 Id = b.Id,

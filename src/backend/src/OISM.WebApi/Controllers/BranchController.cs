@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using OISM.Application.Features.Branches;
 using OISM.Application.Features.Branches.Services;
+using OISM.WebApi.Http;
 
 namespace OISM.WebApi.Controllers;
 
@@ -18,12 +19,16 @@ public class BranchController : ControllerBase
     }
 
     /// <summary>
-    /// Lấy danh sách chi nhánh thuộc về Cửa hàng của phiên đăng nhập (FR-AUTH-04).
+    /// Lấy danh sách chi nhánh thuộc về Cửa hàng của phiên đăng nhập (FR-AUTH-04, CS-02).
+    /// Thu ngân (Cashier) có phân công chi nhánh chỉ nhận danh sách chi nhánh được gán.
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> GetBranches(CancellationToken ct)
     {
-        var branches = await _branchService.GetBranchesAsync(ct);
+        var branches = await _branchService.GetBranchesAsync(
+            User.GetUserId(),
+            User.IsInRole("Cashier"),
+            ct);
         return Ok(branches);
     }
 

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using OISM.Application.Features.Branches.Services;
 using OISM.Application.Features.Orders.Dtos;
 using OISM.Application.Features.Orders.Services;
 using OISM.Application.Features.SalesInvoices.Services;
@@ -19,15 +20,18 @@ public class OrdersController : ControllerBase
     private readonly IPosCheckoutService _posCheckoutService;
     private readonly IOrderService _orderService;
     private readonly ISalesInvoiceService _salesInvoiceService;
+    private readonly IBranchAccessService _branchAccessService;
 
     public OrdersController(
         IPosCheckoutService posCheckoutService,
         IOrderService orderService,
-        ISalesInvoiceService salesInvoiceService)
+        ISalesInvoiceService salesInvoiceService,
+        IBranchAccessService branchAccessService)
     {
         _posCheckoutService = posCheckoutService;
         _orderService = orderService;
         _salesInvoiceService = salesInvoiceService;
+        _branchAccessService = branchAccessService;
     }
 
     /// <summary>
@@ -87,7 +91,8 @@ public class OrdersController : ControllerBase
         [FromHeader(Name = "X-Request-Key")] string? xRequestKeyHeader,
         CancellationToken ct)
     {
-        return await PosCheckoutActionHelper.ExecuteCheckoutAsync(this, _posCheckoutService, dto, idempotencyKeyHeader, xRequestKeyHeader, ct);
+        return await PosCheckoutActionHelper.ExecuteCheckoutAsync(
+            this, _branchAccessService, _posCheckoutService, dto, idempotencyKeyHeader, xRequestKeyHeader, ct);
     }
 
     /// <summary>

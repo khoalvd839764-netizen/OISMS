@@ -13,6 +13,7 @@ public interface IAppDbContext
     ISqlLockService Locks { get; }
     DbSet<Tenant> Tenants { get; }
     DbSet<User> Users { get; }
+    DbSet<UserBranch> UserBranches { get; }
     DbSet<RefreshToken> RefreshTokens { get; }
     DbSet<Branch> Branches { get; }
     DbSet<Warehouse> Warehouses { get; }

@@ -105,7 +105,8 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         "payment_accounts",
         "supplier_invoices",
         "supplier_invoice_items",
-        "purchase_variances"
+        "purchase_variances",
+        "user_branches"
     ];
 
     public static readonly ExpectedTrigger[] ExpectedTriggers =
@@ -307,7 +308,12 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         // CS-05: tài khoản nhận tiền VietQR
         new("fk_payment_accounts_tenant_id", "payment_accounts", ["tenant_id"], "tenants", ["id"]),
         new("fk_payment_accounts_updated_by", "payment_accounts", ["tenant_id", "updated_by_user_id"], "users", ["tenant_id", "id"], OnDelete: 'n'),
-        new("fk_payments_payment_account_id", "payments", ["tenant_id", "payment_account_id"], "payment_accounts", ["tenant_id", "id"])
+        new("fk_payments_payment_account_id", "payments", ["tenant_id", "payment_account_id"], "payment_accounts", ["tenant_id", "id"]),
+
+        // CS-02: phân công chi nhánh cho nhân viên
+        new("fk_user_branches_tenant", "user_branches", ["tenant_id"], "tenants", ["id"]),
+        new("fk_user_branches_user", "user_branches", ["tenant_id", "user_id"], "users", ["tenant_id", "id"], OnDelete: 'c'),
+        new("fk_user_branches_branch", "user_branches", ["tenant_id", "branch_id"], "branches", ["tenant_id", "id"])
     ];
 
     public static readonly ExpectedConstraint[] ExpectedCriticalConstraints =
@@ -2285,13 +2291,26 @@ END $$;
                 await supplierInvoiceCmd.ExecuteNonQueryAsync(cancellationToken);
             }
 
+            const string userBranchesStart = "-- OISMS_USER_BRANCHES_BEGIN";
+            const string userBranchesEnd = "-- OISMS_USER_BRANCHES_END";
+            var ubStart = schema.IndexOf(userBranchesStart, StringComparison.Ordinal);
+            var ubEnd = schema.IndexOf(userBranchesEnd, StringComparison.Ordinal);
+            if (ubStart < 0 || ubEnd <= ubStart + userBranchesStart.Length)
+                throw new InvalidOperationException("Không tìm thấy DDL phân công chi nhánh (user_branches) trong oisms_schema.sql.");
+
+            var userBranchesSql = schema[(ubStart + userBranchesStart.Length)..ubEnd];
+            await using (var userBranchesCmd = new NpgsqlCommand(userBranchesSql, connection, tx))
+            {
+                await userBranchesCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
             await tx.CommitAsync(cancellationToken);
             return new MigrationExecutionResult(
                 Success: true,
                 IsFreshInstall: false,
                 IsBaselineAdopted: false,
                 TableCount: RequiredTables.Length,
-                Message: "Nâng cấp schema v0.5 stock_transfers, shop_integrations, multi_unit, price_lists, purchase_orders, sales_invoices, stock_count_schedules, payment_accounts, sales_returns và supplier_invoices thành công.");
+                Message: "Nâng cấp schema v0.5 stock_transfers, shop_integrations, multi_unit, price_lists, purchase_orders, sales_invoices, stock_count_schedules, payment_accounts, sales_returns, supplier_invoices và user_branches thành công.");
         }
         catch (Exception ex)
         {
@@ -2841,7 +2860,8 @@ WHERE table_schema = 'public';";
             "stock_count_approvals.stock_count_id", "stock_count_approvals.action", "stock_count_approvals.differences",
             "stock_counts.count_type", "stock_counts.period_id", "stock_counts.submitted_by", "stock_counts.submitted_at",
             "stock_count_items.counted_by", "stock_count_items.counted_at", "stock_count_items.snapshot_at",
-            "sales_returns.request_key", "sales_returns.total_refund_amount", "sales_returns.note"
+            "sales_returns.request_key", "sales_returns.total_refund_amount", "sales_returns.note",
+            "user_branches.tenant_id", "user_branches.user_id", "user_branches.branch_id", "user_branches.created_at"
         ];
         foreach (var col in crucialColumns)
         {

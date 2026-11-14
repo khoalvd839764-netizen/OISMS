@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-USR-02` |
-| **Phiên bản (Version)** | `v1.2.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
+| **Phiên bản (Version)** | `v1.5.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-14` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-AUTH-02`, `FR-AUTH-03`, `FR-AUTH-04`, `NFR-SEC-01` (Trang 1, 4) |
 | **Phạm vi áp dụng** | Middleware Ủy quyền Backend (`[Authorize(Roles = ...)]`) & Route Guard trên Web Admin / POS |
 
@@ -18,6 +18,8 @@
 | `v1.1.0` | `2026-11-03` | Nhóm dự án OISMS | Cập nhật phân quyền lịch kiểm kê, kỳ kiểm kê, nộp duyệt, đếm lại và chốt kiểm kê (OISMS-47-U03). | `OISMS-47-U03` |
 | `v1.2.0` | `2026-11-06` | Nhóm dự án OISMS | Sửa tên claim JWT theo `JwtTokenService`; thêm dòng Quản lý người dùng; thêm mục Lệch giữa yêu cầu và code (báo cáo lãi gộp, giá vốn trong tồn kho cho Cashier, quyền kho của Staff, quyền xóa danh mục). | `OISMS-46` |
 | `v1.3.0` | `2026-11-09` | Nhóm dự án OISMS | Bổ sung phân quyền Trả hàng từ khách (CS-01); chuẩn hóa bảo mật báo cáo: trong báo cáo doanh thu (`/api/reports/revenue-profit`) Staff bị ẩn giá vốn và lãi gộp (`null`) theo ma trận. Truy vết hóa đơn vẫn cho Staff xem giá vốn dòng (dòng *Truy vết chuỗi chứng từ*). | `OISMS-58-CS01-P2` |
+| `v1.4.0` | `2026-11-14` | Nhóm dự án OISMS | Che `averageCost` (`null`) với `Cashier` trên hai API số dư tồn kho; siết `POST/PUT /api/warehouses` và `toggle-status` chỉ còn `Owner`; chốt yêu cầu xóa danh mục/thương hiệu/sản phẩm chỉ `Owner`; cập nhật bảng đối chiếu mục 2.1. | `OISMS-59-G1A` |
+| `v1.5.0` | `2026-11-14` | Nhóm dự án OISMS | Bổ sung phân công chi nhánh cho nhân viên (`CS-02`): `Owner` gán `branchIds` qua `/api/users`; `Cashier` có gán chỉ thấy chi nhánh được gán ở `GET /api/branches` và chỉ checkout POS ở chi nhánh được gán (`403 BRANCH_NOT_ASSIGNED`). | `OISMS-59-G1B` |
 
 ---
 
@@ -47,16 +49,17 @@ Các trường định danh bắt buộc bên trong Payload của JWT:
 | :---: | :--- | :---: | :---: | :---: | :---: |
 | **Xác thực & Tổ chức** | Đăng ký Tenant mới (`Register Tenant`) | `FR-AUTH-01` | ✅ Khởi tạo | ❌ Cấm | ❌ Cấm |
 | **Xác thực & Tổ chức** | Đăng nhập, Đăng xuất, Làm mới Token, Xem hồ sơ (`/me`) | `FR-AUTH-02` | ✅ Cho phép | ✅ Cho phép | ✅ Cho phép |
-| **Xác thực & Tổ chức** | Tạo, cập nhật, bật/tắt Chi nhánh (`Branch`) & Kho (`Warehouse`) | `FR-AUTH-04` | ✅ Toàn quyền | 👁️ Chỉ xem danh sách | 👁️ Chỉ xem chi nhánh POS |
-| **Xác thực & Tổ chức** | Quản lý người dùng (`/api/users`): tạo, sửa, khóa/mở tài khoản | `CS-02` | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) | ❌ Cấm (`403 Forbidden`) |
-| **Danh mục & Sản phẩm** | Thêm, sửa, xóa Danh mục phân cấp (`Category`) & Thương hiệu (`Brand`) | `FR-PROD-01` | ✅ Toàn quyền | ✅ Toàn quyền | 👁️ Chỉ xem |
-| **Danh mục & Sản phẩm** | Tạo, cập nhật Sản phẩm (`Product`) & Biến thể (`SKU`) | `FR-PROD-02` | ✅ Toàn quyền | ✅ Toàn quyền | 👁️ Chỉ tra cứu POS |
+| **Xác thực & Tổ chức** | Tạo, cập nhật, bật/tắt Chi nhánh (`Branch`) & Kho (`Warehouse`) | `FR-AUTH-04`, `CS-02` | ✅ Toàn quyền | 👁️ Chỉ xem danh sách | 👁️ Chỉ xem chi nhánh POS (nếu có gán trong `user_branches` thì chỉ thấy chi nhánh được gán; rỗng = tất cả) |
+| **Xác thực & Tổ chức** | Quản lý người dùng (`/api/users`): tạo, sửa, khóa/mở tài khoản, gán chi nhánh (`branchIds`) | `CS-02` | ✅ Toàn quyền (riêng `Owner` không gán chi nhánh) | ❌ Cấm (`403 Forbidden`) | ❌ Cấm (`403 Forbidden`) |
+| **Danh mục & Sản phẩm** | Thêm, sửa Danh mục phân cấp (`Category`) & Thương hiệu (`Brand`) | `FR-PROD-01` | ✅ Toàn quyền | ✅ Thêm, sửa (Xóa: ❌ Cấm) | 👁️ Chỉ xem |
+| **Danh mục & Sản phẩm** | Tạo, cập nhật Sản phẩm (`Product`) & Biến thể (`SKU`) | `FR-PROD-02` | ✅ Toàn quyền | ✅ Thêm, sửa (Xóa: ❌ Cấm) | 👁️ Chỉ tra cứu POS |
+| **Danh mục & Sản phẩm** | Xóa Danh mục, Thương hiệu, Sản phẩm (`DELETE`) | `FR-PROD-01..02` | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) | ❌ Cấm (`403 Forbidden`) |
 | **Danh mục & Sản phẩm** | Sinh tự động / Cập nhật Mã vạch (`EAN-13`/`Code128`) | `FR-PROD-03` | ✅ Toàn quyền | ✅ Toàn quyền | 👁️ Chỉ quét mã |
 | **Danh mục & Sản phẩm** | Tạo phiếu đổi giá, xem phiếu và lịch sử giá | `FR-PROD-04`, `OISMS-47-U04` | ✅ Phiếu được duyệt ngay | ✅ Phiếu chờ `Owner` duyệt | ❌ Cấm (`403 Forbidden`) |
 | **Danh mục & Sản phẩm** | Duyệt, từ chối phiếu đổi giá; hủy giá đã lên lịch | `OISMS-47-U04` | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) | ❌ Cấm (`403 Forbidden`) |
 | **Danh mục & Sản phẩm** | Đọc bảng giá và giá hiệu lực | `OISMS-47-U04` | ✅ Mọi thời điểm | ✅ Mọi thời điểm | 👁️ Chỉ giá hiện tại |
 | **Danh mục & Sản phẩm** | Quản lý Đơn vị tính (`Unit`) & Quy cách SKU (`SkuUnit`) | `OISMS-47-U05` | ✅ Toàn quyền | ✅ Toàn quyền | 👁️ Chỉ xem (`GET`), trừ lịch sử hệ số |
-| **Kho & Sổ cái** | Xem lịch sử Sổ cái kho (`InventoryTransaction`) & Số dư tồn kho | `FR-INV-01` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (Chỉ xem `available` tại POS) |
+| **Kho & Sổ cái** | Xem lịch sử Sổ cái kho (`InventoryTransaction`) & Số dư tồn kho | `FR-INV-01` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm sổ cái (Chỉ xem tồn khả dụng POS, `averageCost = null`) |
 | **Kho & Sổ cái** | Tạo, Xác nhận & Hủy nháp Phiếu nhập hàng từ Nhà cung cấp (`Goods Receipt`) | `FR-INV-02`, `OISMS-47-U01A` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |
 | **Kho & Sổ cái** | Xem, lập và sửa nháp Phiếu mua hàng (`Purchase Order`) | `OISMS-47-U01A` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |
 | **Kho & Sổ cái** | Duyệt, đóng và hủy Phiếu mua hàng | `OISMS-47-U01A` | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) | ❌ Cấm (`403 Forbidden`) |
@@ -70,7 +73,7 @@ Các trường định danh bắt buộc bên trong Payload của JWT:
 | **Đơn hàng & Giữ chỗ** | Xem danh sách đơn đa kênh, duyệt đơn (`Confirm`), in phiếu giao, hủy đơn | `FR-ORD-03` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm quản lý đơn Admin |
 | **Đơn hàng & Giữ chỗ** | Gọi API Giữ chỗ tồn kho (`Reserve Stock`) | `FR-RSE-02` | ✅ Cho phép | ✅ Cho phép | ✅ Cho phép (trong luồng POS) |
 | **Bán hàng tại quầy** | Tra cứu nhanh SKU, quét Barcode tại giao diện PWA POS | `FR-POS-01` | ✅ Cho phép | ✅ Cho phép | ✅ Toàn quyền |
-| **Bán hàng tại quầy** | Thanh toán nhanh nguyên tử tại quầy POS (`Fast Checkout`) & In hóa đơn | `FR-POS-03..04` | ✅ Cho phép | ✅ Cho phép | ✅ Toàn quyền |
+| **Bán hàng tại quầy** | Thanh toán nhanh nguyên tử tại quầy POS (`Fast Checkout`) & In hóa đơn | `FR-POS-03..04`, `CS-02` | ✅ Cho phép mọi chi nhánh | ✅ Cho phép mọi chi nhánh | ✅ Toàn quyền (bị chặn `403 BRANCH_NOT_ASSIGNED` nếu đã được gán chi nhánh nhưng checkout ngoài danh sách) |
 | **Hóa đơn & Truy vết** | Tra cứu danh sách và chi tiết hóa đơn bán hàng (`Sales Invoices`) | `OISMS-47-U02` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |
 | **Hóa đơn & Truy vết** | In lại hóa đơn bán lẻ theo ID hoặc số hóa đơn (dữ liệu che giấu giá vốn) | `OISMS-47-U02` | ✅ Cho phép | ✅ Cho phép | ✅ Cho phép (in lại tại POS) |
 | **Hóa đơn & Truy vết** | Truy vết chuỗi chứng từ xuất kho theo Hóa đơn, Đơn hàng, hoặc Dòng sổ kho | `OISMS-47-U02` | ✅ Toàn quyền | ✅ Toàn quyền (xem giá vốn dòng) | ❌ Cấm (`403 Forbidden`) |
@@ -80,6 +83,8 @@ Các trường định danh bắt buộc bên trong Payload của JWT:
 | **Báo cáo & AI** | Xem dự báo nhu cầu AI & Gợi ý nhập lại hàng | `FR-AI-01` | ✅ Toàn quyền | ✅ Xem gợi ý nhập | ❌ Cấm (`403 Forbidden`) |
 | **Báo cáo & AI** | Hỏi Trợ lý OISMS (`POST /api/ai/chat`) | `FR-AI-02` | ✅ Mọi số liệu, kể cả doanh thu và lãi gộp | ✅ Nhập/xuất kho, tồn, gợi ý nhập, hướng dẫn. **Không hỏi được doanh thu, lãi gộp, giá vốn** (chốt 10/11/2026) | ❌ Cấm (`403 Forbidden`) |
 | **Cấu hình & Thanh toán** | Quản lý tài khoản ngân hàng thụ hưởng (`/api/payment-accounts`): thêm, sửa, đặt mặc định, ngừng dùng | `CS-05` | ✅ Toàn quyền | 👁️ Chỉ xem tài khoản active | 👁️ Chỉ xem tài khoản active |
+
+> **Phân công chi nhánh (`CS-02`):** `Owner` không gán chi nhánh và luôn dùng mọi chi nhánh. `Staff` và `Cashier` lưu danh sách `branchIds` trong `user_branches` (rỗng = mọi chi nhánh), nhưng hiện tại mới áp dụng lọc `GET /api/branches` và chặn checkout ngoài danh sách cho `Cashier`; `Staff` chưa bị lọc dữ liệu theo chi nhánh.
 
 > **Từ Upgrade 04:** không còn đường sửa giá trực tiếp, kể cả với `Owner`. Giá ban đầu trên form tạo SKU hoặc đơn vị cũng đi qua phiếu: của `Owner` có hiệu lực ngay, của `Staff` chờ duyệt. Vai trò lấy từ JWT, client không tự khai được. Xem [tài liệu 04](../Upgrade-recommended/Done/04-bang-gia-theo-thoi-gian.md#phân-quyền).
 
@@ -92,9 +97,9 @@ Bảng trên là **yêu cầu**. Đối chiếu `[Authorize(Roles = ...)]` và d
 | Chức năng | Yêu cầu | Code hiện tại | Mức độ |
 | :--- | :--- | :--- | :--- |
 | `GET /api/reports/revenue-profit` | Chỉ `Owner` xem lãi gộp | **Đã sửa tại CS-01 P2 (09/11/2026):** Service kiểm tra vai trò `Owner`, `Staff` chỉ nhận doanh thu và hàng trả; các trường giá vốn (`costOfGoodsSold`, `returnCogs`, `netCogs`) và lãi gộp (`grossProfit`, `grossMarginPercentage`) đều trả `null`. | Đã xử lý |
-| `GET /api/inventory/balances` | `Cashier` không xem sổ cái/số dư chi tiết, không thấy giá vốn | Cho `Cashier` gọi và trả cả `averageCost` (WAC). | Cao (lộ giá vốn) |
-| Kho (`POST/PUT /api/warehouses`, `toggle-status`) | `Staff` chỉ xem | `Staff` được tạo, sửa, bật/tắt kho. Chi nhánh thì đúng (chỉ `Owner`). | Trung bình |
-| Xóa danh mục, thương hiệu, sản phẩm | `Staff` toàn quyền | Chỉ `Owner` (`DELETE` gắn `Roles = "Owner"`) | Thấp (code chặt hơn) |
+| `GET /api/inventory/balances`, `GET /api/inventory/balances/sku/{skuId}/branch/{branchId}` | `Cashier` không xem sổ cái/số dư chi tiết, không thấy giá vốn | **Đã sửa tại G1A (14/11/2026):** Controller truyền `canViewCost = Owner \|\| Staff` vào `InventoryService`; `Cashier` vẫn tra được tồn khả dụng (`onHand`, `reserved`, `available`, `reorderPoint`) cho POS nhưng `averageCost` trả `null` trên mọi dòng. `Owner` và `Staff` vẫn nhận giá vốn WAC. | Đã xử lý (14/11/2026) |
+| Kho (`POST/PUT /api/warehouses`, `toggle-status`) | `Staff` chỉ xem | **Đã sửa tại G1A (14/11/2026):** Gắn `[Authorize(Roles = "Owner")]` cho `POST`, `PUT`, `toggle-status`; `Staff` và `Cashier` nhận `403`, `GET` giữ nguyên. Admin ẩn nút tạo và bật/tắt kho với `Staff`. | Đã xử lý (14/11/2026) |
+| Xóa danh mục, thương hiệu, sản phẩm | Chỉ `Owner` (quyết định người dùng 14/11/2026) | Chỉ `Owner` (`DELETE` gắn `Roles = "Owner"`) | Khớp yêu cầu |
 | `GET /api/warehouses`, `/api/branches/{id}`, `/api/suppliers` | Không ghi rõ cho `Cashier` | Mọi vai trò đã đăng nhập đều đọc được | Thấp |
 
 ## 3. Cơ Chế Kiểm Soát Hai Lớp (Dual-Layer Enforcement)

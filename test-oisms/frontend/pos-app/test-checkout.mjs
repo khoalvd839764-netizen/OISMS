@@ -40,6 +40,21 @@ test('BF-003 POS: lỗi chắc chắn 409 xóa pending, lần sau dùng khóa m�
   assert.notEqual(w.requests[1].payload.requestKey, w.requests[0].payload.requestKey);
 });
 
+test('CS-02 POS: lỗi 403 BRANCH_NOT_ASSIGNED xóa pending và không retry kể cả sau lỗi mạng trước đó', async () => {
+  const w = world();
+  await w.settle();
+  await w.submit();
+  assert.equal(w.store.getPendingCheckout(w.user, 'branch-a')?.status, 'unknown');
+  w.server.checkout = () => ({
+    ok: false,
+    status: 403,
+    json: async () => ({ detail: 'Bạn không được phân công làm việc tại chi nhánh này.', errorCode: 'BRANCH_NOT_ASSIGNED' }),
+  });
+  await w.submit();
+  assert.equal(w.store.getPendingCheckout(w.user, 'branch-a'), null);
+  assert.equal(w.requests.length, 2);
+});
+
 test('BF-003 POS: render nhiều lần không đổi RequestKey của mã QR', async () => {
   const w = world(); w.server.accounts.push(accountA); await w.selectQR();
   const shown = w.image(); assert.ok(shown);

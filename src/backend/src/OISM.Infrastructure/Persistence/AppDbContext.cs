@@ -31,6 +31,7 @@ public class AppDbContext : DbContext, IAppDbContext
 
     public DbSet<Tenant> Tenants { get; set; } = null!;
     public DbSet<User> Users { get; set; } = null!;
+    public DbSet<UserBranch> UserBranches { get; set; } = null!;
     public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
     public DbSet<Branch> Branches { get; set; } = null!;
     public DbSet<Warehouse> Warehouses { get; set; } = null!;
@@ -89,6 +90,9 @@ public class AppDbContext : DbContext, IAppDbContext
         // Luồng login / register / refresh chưa có JWT phải dùng .IgnoreQueryFilters().
         // =====================================================================
         modelBuilder.Entity<User>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<UserBranch>()
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
 
         modelBuilder.Entity<RefreshToken>()

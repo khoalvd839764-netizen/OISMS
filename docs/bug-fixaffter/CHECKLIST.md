@@ -47,8 +47,8 @@ Chi tiết từng lỗi nằm trong thư mục [`errors/`](./errors/), mỗi l�
 | | Mã | Ưu tiên | Khu vực | Lỗi | Trạng thái |
 | :---: | :--- | :---: | :--- | :--- | :--- |
 | [ ] | [BF-021](./errors/BF-021-bao-cao-lai-gop-lo-cho-staff.md) | P1 | Backend/Báo cáo | `revenue-profit` trả giá vốn, lãi gộp cho Staff | Chưa sửa |
-| [ ] | [BF-022](./errors/BF-022-ton-kho-lo-gia-von-cho-cashier.md) | P1 | Backend/Tồn kho | `inventory/balances` trả `averageCost` cho Cashier | Chưa sửa |
-| [ ] | [BF-023](./errors/BF-023-staff-duoc-tao-sua-kho.md) | P2 | Backend/Tổ chức | Staff được tạo, sửa, bật/tắt kho | Chưa sửa, cần quyết định |
+| [x] | [BF-022](./errors/BF-022-ton-kho-lo-gia-von-cho-cashier.md) | P1 | Backend/Tồn kho | `inventory/balances` trả `averageCost` cho Cashier | Đã sửa 14/11/2026 (OISMS-59-G1A): Cashier nhận `averageCost = null` |
+| [x] | [BF-023](./errors/BF-023-staff-duoc-tao-sua-kho.md) | P2 | Backend/Tổ chức | Staff được tạo, sửa, bật/tắt kho | Đã sửa 14/11/2026 (OISMS-59-G1A): ghi kho chỉ Owner, Staff `403` |
 | [ ] | [BF-024](./errors/BF-024-tim-kiem-phieu-nhap-khong-mo-dung-phieu.md) | P2 | Admin/Tìm kiếm | Kết quả phiếu nhập không mở đúng phiếu | Chưa sửa |
 | [ ] | [BF-025](./errors/BF-025-integration-test-crlf-tren-windows.md) | P2 | Test | Test AC01 fail trên Windows do CRLF | Chưa sửa |
 | [ ] | [BF-026](./errors/BF-026-health-ready-lo-thong-tin-db.md) | P3 | Deploy | `/health/ready` công khai trả tên user DB | Chưa sửa |
@@ -84,7 +84,7 @@ Không phải lỗi: đây là chức năng chưa làm xong, đang có nhãn Com
 | | Mã | Chức năng | Hiện trạng | Còn thiếu |
 | :---: | :--- | :--- | :--- | :--- |
 | [x] | CS-01 | Nhận hàng trả từ khách | Đã làm (PR #41, 09/11/2026): phiếu trả gắn đơn gốc, nhập `IN` theo giá vốn lúc bán, tính lại WAC, trừ doanh thu theo ngày trả; màn Trả hàng trên Admin. Xem [plan 08](../Upgrade-recommended/Done/08-tra-hang-cs01.md) | Chọn đơn gốc, kiểm lượng đã bán/đã trả, ghi `IN` bù theo `BaseQuantity`, `FactorSnapshot` của đơn gốc; chốt chính sách hoàn tiền |
-| [~] | CS-02 | Nhân viên, phân quyền, phân công chi nhánh | Có danh sách, tạo, sửa, khóa nhân viên (`/api/users`) | Phân công chi nhánh: chưa có trường ở backend, cần quyết định làm hay bỏ khỏi yêu cầu |
+| [x] | CS-02 | Nhân viên, phân quyền, phân công chi nhánh | Có danh sách, tạo, sửa, khóa nhân viên (`/api/users`) và phân công chi nhánh (`branchIds`, bảng `user_branches`) | Xong 14/11/2026 (OISMS-59-G1B). Chưa lọc dữ liệu Admin theo chi nhánh |
 | [x] | CS-03 | Ngưỡng cảnh báo tồn (`ReorderPoint`) | Đã có API và UI | Chưa kiểm tra thông báo tồn thấp qua realtime |
 | [x] | CS-04 | Tìm kiếm toàn hệ thống | Đã có `GET /api/search` và ô tìm kiếm | Lỗi mở phiếu nhập: [BF-024](./errors/BF-024-tim-kiem-phieu-nhap-khong-mo-dung-phieu.md) |
 | [x] | CS-05 | Thanh toán QR | VietQR ở POS (`pos-app`; lúc nghiệm thu có cả POS PWA và POS Admin, hai bản đã gộp ngày 08/11), tài khoản nhận tiền theo cửa hàng (Owner quản lý), lưu bản chụp người nhận vào `payments`. Nghiệm thu 07/11/2026: integration 372/372 trên PostgreSQL, kiểm tay toàn luồng ([review PR 39](../report-after-upgrade/vietqr-cs05-review-pr39.md)) | Giai đoạn (c) webhook ngân hàng tạm gác; `test-b03-live.mjs` cần viết lại theo API |
@@ -116,8 +116,8 @@ Lưu ý: kỳ kiểm kê chỉ tự sinh khi bật Hangfire (`Hangfire:Enabled=t
 ## D. Việc cần nhóm quyết định
 
 - [ ] BF-021: chặn Staff ở endpoint hay ẩn trường lãi gộp trong dữ liệu trả về.
-- [ ] BF-023: Staff có được quản lý kho không (sửa code hay sửa yêu cầu).
-- [ ] CS-02: làm phân công chi nhánh hay bỏ khỏi yêu cầu.
+- [x] BF-023: Staff chỉ xem kho, sửa code theo yêu cầu (chốt 14/11/2026).
+- [x] CS-02: làm phân công chi nhánh, chưa giới hạn dữ liệu Admin (chốt 14/11/2026).
 - [x] CS-08: thời điểm mở lại tab Gợi ý nhập hàng. *(Đã mở lại 10/11/2026 cho Owner, Staff.)*
 - [x] Upgrade 01-B: cách xử lý chênh lệch hóa đơn nhà cung cấp. Nhóm chốt 12/11/2026, xem [đặc tả 01](../Upgrade-recommended/Done/01-mua-hang-nhap-kho-gia-von.md#quyết-định-01-b-chốt-12112026); báo GVHD khi nghiệm thu.
 - [ ] Màn Handoff: bỏ đặc tả [07-handoff-screens.md](../11-ui-screens/07-handoff-screens.md) hay làm lại.

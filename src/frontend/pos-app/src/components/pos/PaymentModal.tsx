@@ -316,7 +316,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         setPendingAttempt(null);
         onSuccessAndPrint(mapServerReceipt(result.receipt, tenantName || 'CỬA HÀNG OISMS'));
         onClose();
-      } else if (result.isAuthExpired || result.isUnknown || isRetryActive) {
+      } else if (result.errorCode !== 'BRANCH_NOT_ASSIGNED' && (result.isAuthExpired || result.isUnknown || isRetryActive)) {
         // Kết quả chưa rõ: giữ nguyên RequestKey và payload để thử lại, không sinh khóa mới.
         updatePendingCheckoutStatus('unknown', result.message, result.errorCode, activeUser, branchId);
         setPendingAttempt(getPendingCheckout(activeUser, branchId));

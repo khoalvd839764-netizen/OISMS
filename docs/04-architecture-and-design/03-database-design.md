@@ -3,10 +3,10 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-ARC-03` |
-| **Phiên bản (Version)** | `v1.1.1` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-08` |
+| **Phiên bản (Version)** | `v1.1.2` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-14` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-INV-01`, `NFR-TENANT-02`, `NFR-SEC-03`, `3.2.e` (Trang 2, 4, 5) |
-| **Phạm vi áp dụng** | PostgreSQL 16+ Schema (`docs/database/oisms_schema.sql` — 47 bảng) |
+| **Phạm vi áp dụng** | PostgreSQL 16+ Schema (`docs/database/oisms_schema.sql` — 48 bảng) |
 
 ---
 
@@ -17,6 +17,7 @@
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả sơ đồ ERD cốt lõi, quy tắc Sổ cái Append-Only và chiến lược đánh chỉ mục hiệu năng cao. | `INIT-ARC-03` |
 | `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Đồng bộ ERD và chỉ mục với `oisms_schema.sql` hiện hành (43 bảng): tên cột thật, kiểu `numeric(18,3)` cho số lượng, giá vốn nằm ở `inventory_balances.average_cost`. | `OISMS-46` |
 | `v1.1.1` | `2026-11-08` | Nhóm dự án OISMS | Cập nhật số bảng hiện hành lên 44 sau khi bổ sung `payment_accounts`; giữ mốc 43 bảng trong lịch sử v1.1.0. | `CS-05` |
+| `v1.1.2` | `2026-11-14` | Nhóm dự án OISMS | Cập nhật số bảng lên 48 và bổ sung bảng `user_branches` cho phân công chi nhánh nhân viên (`CS-02`). | `OISMS-59-G1B` |
 
 ---
 
@@ -142,6 +143,12 @@ erDiagram
         varchar payment_method_snapshot
         timestamptz issued_at
     }
+    USER_BRANCHES {
+        uuid tenant_id PK,FK
+        uuid user_id PK,FK
+        uuid branch_id PK,FK
+        timestamptz created_at
+    }
 ```
 
 ---
@@ -165,8 +172,9 @@ Mỗi phiếu nhập có thể lưu nhiều hóa đơn lịch sử và tối đa
 | `sales_invoices` | `uq_sales_invoices_2` | `(tenant_id, number)` | Số hóa đơn duy nhất trong tenant. |
 | `sales_invoices` | `uq_sales_invoices_3` | `(tenant_id, order_id)` | Mỗi đơn có tối đa một hóa đơn bán. |
 | `sales_invoices` | `ix_sales_invoices_time` | `(tenant_id, issued_at, id)` | Phân trang hóa đơn theo thời gian xuất. |
+| `user_branches` | `pk_user_branches`, `ix_user_branches_branch` | `(tenant_id, user_id, branch_id)`, `(tenant_id, branch_id)` | Tra cứu phân công chi nhánh theo nhân viên hoặc theo chi nhánh. |
 
-> **Tham chiếu chi tiết DDL:** Xem toàn bộ 47 bảng và trigger bảo vệ Sổ cái tại [`docs/database/oisms_schema.sql`](../database/oisms_schema.sql) và [`docs/database/README.md`](../database/README.md).
+> **Tham chiếu chi tiết DDL:** Xem toàn bộ 48 bảng và trigger bảo vệ Sổ cái tại [`docs/database/oisms_schema.sql`](../database/oisms_schema.sql) và [`docs/database/README.md`](../database/README.md).
 
 ## 3. Quy Tắc Thay Đổi Schema
 

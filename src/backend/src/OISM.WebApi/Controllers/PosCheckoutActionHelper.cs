@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using OISM.Application.Features.Branches.Services;
 using OISM.Application.Features.Orders.Dtos;
 using OISM.Application.Features.Orders.Services;
 using OISM.WebApi.Http;
@@ -14,6 +15,7 @@ public static class PosCheckoutActionHelper
 {
     public static async Task<IActionResult> ExecuteCheckoutAsync(
         ControllerBase controller,
+        IBranchAccessService branchAccessService,
         IPosCheckoutService posCheckoutService,
         PosCheckoutRequestDto dto,
         string? idempotencyKeyHeader,
@@ -43,6 +45,12 @@ public static class PosCheckoutActionHelper
         }
 
         var cashierUserId = controller.User.GetUserId();
+        await branchAccessService.EnsureCashierBranchAllowedAsync(
+            cashierUserId,
+            controller.User.IsInRole("Cashier"),
+            dto.BranchId,
+            ct);
+
         var result = await posCheckoutService.CheckoutPosAsync(dto, cashierUserId, ct);
         return controller.Ok(result);
     }

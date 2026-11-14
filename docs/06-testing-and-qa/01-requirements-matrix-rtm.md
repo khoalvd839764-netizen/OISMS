@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-QA-01` |
-| **Phiên bản (Version)** | `v1.2.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-12` |
+| **Phiên bản (Version)** | `v1.3.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-14` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` (Trang 1 – 6) & Confluence Page ID `5275650` (Version 9) |
 | **Phạm vi áp dụng** | Truy vết từ Yêu cầu Đề bài $\leftrightarrow$ Thành viên phụ trách $\leftrightarrow$ Mã nguồn/Test $\leftrightarrow$ Giai đoạn Sprint |
 
@@ -17,6 +17,7 @@
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | • Thiết lập ma trận RTM đối chiếu toàn bộ FR/NFR với thành phần mã nguồn và bài kiểm thử.<br/>• **Check thay đổi khi đối chiếu Confluence (`Page ID: 5275650`):** Bổ sung Bảng đối chiếu tổng thể theo Mục I của Confluence, cập nhật chính xác cột Thành viên phụ trách và điều chỉnh giai đoạn thực hiện (`FR-SIM-01..03` bắt đầu từ Sprint 3, `FR-AI-01` thực hiện ở Sprint 4, Sprint 5 dành cho Regression Test & Hồ sơ). | `INIT-SYNC-QA-01` |
 | `v1.1.0` | `2026-11-11` | Nhóm dự án OISMS | Thêm mục 4 truy vết các chức năng Sprint 4 về sau (Upgrade 05, 01-A, 03, CS-01..08, FR-AI-01, FR-AI-02, kết nối sàn); sửa ghi chú giao diện U04, U02 đã có. Bảng mục 1 giữ nguyên là mốc sau Sprint 2. | `OISMS-58` |
 | `v1.2.0` | `2026-11-12` | Rà soát mã nguồn | Cập nhật kết quả kiểm thử, nguồn simulator và liên kết checklist theo từng mã yêu cầu. | `DOC-CHK-S2` |
+| `v1.3.0` | `2026-11-14` | Nhóm dự án OISMS | Bổ sung truy vết kiểm thử tự động `NFR-MAINT-01` tới `ArchitectureRulesTests` (`5/5 PASS`) tại mục 4. | `OISMS-59-G1C` |
 
 ---
 
@@ -89,3 +90,4 @@ Ngày 12/11/2026, unit backend 380/380 PASS, POS `npm test` 10/10 file PASS và 
 | `FR-AI-02` — Trợ lý OISMS | `AiChatService`, `LlmRouter`, `AiController`, kho tài liệu RAG | `AiChatServiceTests`, `AiChatToolTests`, `AiChatEndpointTests`, `KnowledgeBaseTests`, `KnowledgeFilesTests`, `OpenAiCompatibleLlmClientTests`, `test-ai-chat-format.mjs` | Unit đạt; gọi model thật phụ thuộc hạn mức gói miễn phí |
 | `FR-SIM-01` — Kết nối sàn, app giả lập | `ShopIntegrationService`, `WebhookService`, [app gửi 1–200 đơn đồng thời](../../src/frontend/marketplace-simulator/src/App.tsx#L245) | `ShopIntegrationServiceTests`, `ShopIntegrationApiIntegrationTests`, `WebhookIdentityTests`, `WebhookCatalogTests`, `test-payload.mjs` | Đã triển khai, test payload PASS. Kịch bản 50 đơn tranh 1 đơn vị tồn trên AWS theo dõi tại `NFR-PERF-02`. |
 | `FR-SIM-03` — Hangfire tổng hợp báo cáo hằng ngày | — | — | Chưa làm (chỉ có job hết hạn giữ chỗ và lịch kiểm kê) |
+| `NFR-MAINT-01` — Kiến trúc 4 tầng Clean Architecture | `IAppDbContext` (ngoại lệ có chủ đích cho Application dùng EF Core, chốt 14/11/2026), `ISqlLockService`, `IUnitOfWork` ở Infrastructure | `ArchitectureRulesTests` (`5/5 PASS`) | Đạt ([báo cáo đối chiếu](../report-after-upgrade/doi-chieu-kien-truc-nfr-maint-01.md)) |

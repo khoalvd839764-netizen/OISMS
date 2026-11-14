@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-API-03` |
-| **Phiên bản (Version)** | `v1.3.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
+| **Phiên bản (Version)** | `v1.4.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-14` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-INV-01..04`, `FR-COST-01`, `FR-RSE-01..03` (Trang 2, 3, 5) |
 | **Phạm vi áp dụng** | `InventoryController`, `GoodsReceiptsController`, `StockTransfersController`, `StocktakesController` |
 
@@ -18,6 +18,7 @@
 | `v1.1.0` | `2026-11-02` | Nhóm dự án OISMS | Thêm API phiếu mua, đổi hợp đồng lập phiếu nhập, thêm hủy phiếu nhập nháp; sửa route phiếu nhập theo code. | `OISMS-47-U01A` |
 | `v1.2.0` | `2026-11-03` | Nhóm dự án OISMS | Bổ sung API lịch kiểm kê (`stock-count-schedules`), kỳ kiểm kê (`stock-count-periods`), quy trình nộp duyệt chênh lệch (`stock-counts`). | `OISMS-47-U03` |
 | `v1.3.0` | `2026-11-06` | Nhóm dự án OISMS | Sửa route chuyển kho thành `/api/stock-transfers`; thêm API tồn theo SKU/chi nhánh, lịch sử xuất kho, ngưỡng đặt hàng lại, alias `/api/inventory-transactions`; sửa quyền xem tồn. | `OISMS-46` |
+| `v1.4.0` | `2026-11-14` | Nhóm dự án OISMS | Che trường `averageCost` (trả `null`) đối với vai trò `Cashier` trên `GET /api/inventory/balances` và `GET /api/inventory/balances/sku/{skuId}/branch/{branchId}`. | `OISMS-59-G1A` |
 
 ---
 
@@ -25,9 +26,9 @@
 
 | Method | Endpoint | Quyền (RBAC) | Mã FR | Mô tả & Quy tắc xử lý |
 | :---: | :--- | :---: | :---: | :--- |
-| `GET` | `/api/inventory/balances` | `Owner, Staff, Cashier` | `FR-INV-01`, `FR-RSE-01` | Tra cứu số dư tồn kho chi tiết (`OnHand`, `Reserved`, `Available = OnHand - Reserved`, `UnitCost` WAC) theo Chi nhánh/Kho/SKU. |
+| `GET` | `/api/inventory/balances` | `Owner, Staff, Cashier` | `FR-INV-01`, `FR-RSE-01` | Tra cứu số dư tồn kho chi tiết (`onHand`, `reserved`, `available = onHand - reserved`, `reorderPoint`, `averageCost` WAC) theo Chi nhánh/Kho/SKU. Với `Cashier`, trường `averageCost` luôn trả `null` trên mọi dòng; `Owner` và `Staff` nhận giá trị WAC đang lưu. |
 | `GET` | `/api/inventory/ledger`<br/>*(Alias: `/api/inventory-transactions`)* | `Owner, Staff` | `FR-INV-01` | Tra cứu lịch sử Sổ cái kho chỉ ghi thêm (`InventoryTransaction`), hỗ trợ lọc theo Chi nhánh, Kho, SKU, Loại giao dịch (`IN`/`OUT`) và Thời gian. Trả kèm `salesInvoiceId` và `salesInvoiceNumber` đối với các dòng xuất bán hàng (Upgrade 02). |
-| `GET` | `/api/inventory/balances/sku/{skuId}/branch/{branchId}` | `Owner, Staff, Cashier` | `FR-INV-01` | Tồn của một SKU tại một chi nhánh (theo đơn vị gốc). |
+| `GET` | `/api/inventory/balances/sku/{skuId}/branch/{branchId}` | `Owner, Staff, Cashier` | `FR-INV-01` | Tồn của một SKU tại một chi nhánh (theo đơn vị gốc). Với `Cashier`, `averageCost` trả `null`; các trường tồn và `reorderPoint` giữ nguyên. |
 | `GET` | `/api/inventory/export-history` | `Owner, Staff` | `FR-AI-01` | Lịch sử xuất kho theo ngày dùng cho biểu đồ và gợi ý nhập hàng. |
 | `PUT` | `/api/inventory/reorder-point` | `Owner, Staff` | `CS-03` | Đặt ngưỡng đặt hàng lại (`reorder_point`) cho một SKU tại chi nhánh. |
 | `PUT` | `/api/inventory/reorder-point/bulk` | `Owner, Staff` | `CS-03` | Đặt ngưỡng cho nhiều SKU một lần. |

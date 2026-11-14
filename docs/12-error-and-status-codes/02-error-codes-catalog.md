@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-ERR-02` |
-| **Phiên bản (Version)** | `v1.2.0` |
-| **Ngày hiệu lực** | `2026-11-06` |
+| **Phiên bản (Version)** | `v1.3.0` |
+| **Ngày hiệu lực** | `2026-11-14` |
 | **Nguồn truy vết thực tế** | Source code Backend C# (`OISM.Application`, `OISM.WebApi`, `OismException.cs`) |
 | **Tài liệu liên quan** | [`01-error-response-spec.md`](./01-error-response-spec.md), [`03-color-system-tokens.md`](./03-color-system-tokens.md) |
 
@@ -35,6 +35,7 @@ Tài liệu này là **từ điển tra cứu danh mục mã lỗi toàn hệ th
 | `AUTH_UNAUTHORIZED` | `401` | Chưa xác thực | *Yêu cầu cần có JWT Token xác thực hợp lệ.* | Không gửi Authorization Header hoặc gửi Token rỗng. | Chuyển hướng người dùng về màn hình `/login`. |
 | `AUTH_TOKEN_EXPIRED` | `401` | Phiên làm việc hết hạn | *Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.* | Access Token đã quá thời hạn sử dụng (`exp`). | Kích hoạt cơ chế làm mới token tự động hoặc mở Modal đăng nhập lại. |
 | `FORBIDDEN_ACCESS` | `403` | Không có quyền truy cập | *Bạn không có quyền thực hiện thao tác này.* | Vai trò hiện tại (Role) không nằm trong danh sách cho phép (RBAC). | Chuyển hướng sang màn hình `/403` (Forbidden Access). |
+| `BRANCH_NOT_ASSIGNED` | `403` | Không được phân công chi nhánh | *Thu ngân không được phân công làm việc tại chi nhánh đã chọn.* | `Cashier` đã có danh sách chi nhánh phân công (`user_branches`) nhưng gọi POS checkout cho chi nhánh ngoài danh sách. | Thông báo rõ cho thu ngân đổi sang chi nhánh được gán hoặc liên hệ Owner cập nhật phân công; không tự ý thử lại (`retry`). |
 | `USER_NOT_FOUND` | `404` | Không tìm thấy nhân viên | *Không tìm thấy thông tin nhân viên.* | ID nhân viên không tồn tại trong Tenant hiện tại. | Tải lại danh sách nhân viên. |
 | `EMAIL_ALREADY_EXISTS` | `409` | Email đã tồn tại | *Email này đã được sử dụng bởi một tài khoản khác.* | Email trùng trên toàn hệ thống. | Dùng email khác. |
 | `PHONE_ALREADY_EXISTS` | `409` | Số điện thoại đã tồn tại | *Số điện thoại này đã được sử dụng bởi một tài khoản khác.* | Số điện thoại sau chuẩn hóa E.164 trùng trên toàn hệ thống. | Dùng số điện thoại khác. |
@@ -89,7 +90,7 @@ Tài liệu này là **từ điển tra cứu danh mục mã lỗi toàn hệ th
 | `INSUFFICIENT_STOCK_FOR_RESERVATION` | `409` | Không thể giữ chỗ | *Tồn khả dụng không đủ để tạo phiếu giữ chỗ tồn kho.* | Lúc bấm đặt hàng, sản phẩm đã bị đơn hàng khác giữ chỗ trước. | Báo cho khách hàng mặt hàng đã tạm thời hết suất. |
 | `LEDGER_IMMUTABLE_VIOLATION` | `400` | Vi phạm tính bất biến | *Hệ thống cấm tuyệt đối chỉnh sửa hoặc xóa giao dịch sổ cái tồn kho.* | Cố ý thực hiện UPDATE hoặc DELETE trên bảng `inventory_transactions`. | Luôn sử dụng cơ chế ghi thêm (Append-Only) bút toán đảo để điều chỉnh. |
 | `DUPLICATE_SKU` | `400` | SKU bị lặp | *Danh sách cấu hình có SKU bị lặp.* | Một SKU xuất hiện nhiều lần trong yêu cầu cập nhật ReorderPoint hàng loạt. | Giữ mỗi SKU một dòng. |
-| `BRANCH_NOT_FOUND` | `404` | Không tìm thấy chi nhánh | *Không tìm thấy thông tin chi nhánh.* | ID chi nhánh không tồn tại trong Tenant hiện tại. | Chọn lại chi nhánh. |
+| `BRANCH_NOT_FOUND` | `404` *(riêng `/api/users` trả `400`)* | Không tìm thấy chi nhánh | *Không tìm thấy thông tin chi nhánh.* | ID chi nhánh không tồn tại trong Tenant hiện tại (hoặc gửi chi nhánh không hợp lệ khi gán chi nhánh nhân viên tại `POST/PUT /api/users`). | Chọn lại chi nhánh hợp lệ. |
 
 ---
 

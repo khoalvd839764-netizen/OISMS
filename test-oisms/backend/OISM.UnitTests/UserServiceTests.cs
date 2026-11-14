@@ -1,6 +1,7 @@
 using Moq;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
+using OISM.Application.Features.Branches.Services;
 using OISM.Application.Features.Users;
 using OISM.Application.Features.Users.Services;
 using OISM.Domain.Entities;
@@ -383,5 +384,56 @@ public class UserServiceTests
         var ex = await Assert.ThrowsAsync<OismException>(() => service.CreateUserAsync(request));
         Assert.Equal("INVALID_PHONE", ex.ErrorCode);
         Assert.False((await new CreateUserValidator().ValidateAsync(request)).IsValid);
+    }
+
+    [Fact]
+    public async Task CreateAndUpdateUser_BranchAssignments_PreserveOnNull_ReplaceOnNonNull()
+    {
+        var (context, tenantMock, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var b1 = Guid.NewGuid();
+        var b2 = Guid.NewGuid();
+        context.Branches.AddRange(
+            new Branch { Id = b1, TenantId = tenantId, Name = "CN1", IsActive = true },
+            new Branch { Id = b2, TenantId = tenantId, Name = "CN2", IsActive = true });
+        await context.SaveChangesAsync();
+
+        var service = new UserService(context, tenantMock.Object, _passwordHasherMock.Object);
+        var created = await service.CreateUserAsync(new CreateUserRequest
+        {
+            DisplayName = "Thu ngân",
+            Email = "c1@example.com",
+            Password = "Password123",
+            Role = "Cashier",
+            BranchIds = [b1]
+        });
+
+        Assert.Equal([b1], created.BranchIds);
+
+        var updatedPreserve = await service.UpdateUserAsync(created.Id, new UpdateUserRequest
+        {
+            DisplayName = "Thu ngân 1",
+            Role = "Cashier",
+            IsActive = true,
+            BranchIds = null
+        }, Guid.NewGuid());
+        Assert.Equal([b1], updatedPreserve.BranchIds);
+
+        var updatedReplace = await service.UpdateUserAsync(created.Id, new UpdateUserRequest
+        {
+            DisplayName = "Thu ngân 2",
+            Role = "Cashier",
+            IsActive = true,
+            BranchIds = [b2]
+        }, Guid.NewGuid());
+        Assert.Equal([b2], updatedReplace.BranchIds);
+
+        var accessService = new BranchAccessService(context);
+        var ex = await Assert.ThrowsAsync<OismException>(
+            () => accessService.EnsureCashierBranchAllowedAsync(created.Id, isCashier: true, branchId: b1));
+        Assert.Equal(403, ex.StatusCode);
+        Assert.Equal("BRANCH_NOT_ASSIGNED", ex.ErrorCode);
+
+        await accessService.EnsureCashierBranchAllowedAsync(created.Id, isCashier: true, branchId: b2);
+        await accessService.EnsureCashierBranchAllowedAsync(created.Id, isCashier: false, branchId: b1);
     }
 }

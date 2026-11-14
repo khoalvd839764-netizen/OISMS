@@ -3,12 +3,12 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-SCR-09` |
-| **Phiên bản (Version)** | `v1.0.0` |
-| **Ngày hiệu lực** | `2026-10-25` |
+| **Phiên bản (Version)** | `v1.1.0` |
+| **Ngày hiệu lực** | `2026-11-14` |
 | **Đường dẫn URL Routes** | `/admin/organization`, `/organization` |
 | **Quyền truy cập (RBAC)** | **Chỉ dành cho Chủ sở hữu (`Owner`)** |
 | **Source code Frontend** | [`OrganizationPage.tsx`](../../src/frontend/admin-dashboard/src/pages/OrganizationPage.tsx) |
-| **Controllers Backend** | [`BranchController.cs`](../../src/backend/src/OISM.WebApi/Controllers/BranchController.cs), [`WarehousesController.cs`](../../src/backend/src/OISM.WebApi/Controllers/WarehousesController.cs), [`SuppliersController.cs`](../../src/backend/src/OISM.WebApi/Controllers/SuppliersController.cs) |
+| **Controllers Backend** | [`BranchController.cs`](../../src/backend/src/OISM.WebApi/Controllers/BranchController.cs), [`WarehousesController.cs`](../../src/backend/src/OISM.WebApi/Controllers/WarehousesController.cs), [`SuppliersController.cs`](../../src/backend/src/OISM.WebApi/Controllers/SuppliersController.cs), [`UsersController.cs`](../../src/backend/src/OISM.WebApi/Controllers/UsersController.cs) |
 
 ---
 
@@ -66,6 +66,11 @@ Màn hình **Quản trị Cơ cấu Tổ chức & Chi nhánh** cung cấp quyề
 * Tên kho hàng (vd: `Kho Tổng`, `Kho Lưu Trữ Tầng Hầm`).
 * Mã kho hàng (viết hoa không dấu, vd: `WH-Q1-MAIN`).
 * Chi nhánh sở hữu: Cố định theo chi nhánh đang chọn.
+* **Phân quyền:** Chỉ hiển thị các nút thêm/sửa/bật-tắt kho với `Owner`.
+
+### 3.3. Tab Nhân Sự & Modal Gán Chi Nhánh (`CS-02`)
+* Bảng danh sách nhân viên hiển thị cột **Chi nhánh phân công**: nếu `branchIds` rỗng (hoặc tài khoản `Owner`) thì hiển thị `"Tất cả chi nhánh"`; nếu có danh sách thì hiển thị tên các chi nhánh tương ứng.
+* Trong Modal **Thêm nhân viên** và **Sửa nhân viên**: khi vai trò là `Staff` hoặc `Cashier`, hiển thị danh sách checkbox chọn một hoặc nhiều chi nhánh (bỏ trống toàn bộ tương đương dùng mọi chi nhánh); phần chọn chi nhánh bị ẩn khi vai trò là `Owner`.
 
 ---
 
@@ -76,6 +81,7 @@ Màn hình **Quản trị Cơ cấu Tổ chức & Chi nhánh** cung cấp quyề
 | `GET` | `/api/branches` | `BranchController.GetBranches` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#2-danh-mục-endpoints-chi-nhánh-kho--nhà-cung-cấp-fr-auth-04) | `AUTH_UNAUTHORIZED` (Xem [`DOC-ERR-02`](../12-error-and-status-codes/02-error-codes-catalog.md)) |
 | `POST` | `/api/branches` | `BranchController.CreateBranch` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#2-danh-mục-endpoints-chi-nhánh-kho--nhà-cung-cấp-fr-auth-04) | `VALIDATION_ERROR`, `FORBIDDEN_ACCESS` |
 | `GET` | `/api/warehouses` | `WarehousesController.GetWarehouses` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#2-danh-mục-endpoints-chi-nhánh-kho--nhà-cung-cấp-fr-auth-04) | `AUTH_UNAUTHORIZED` |
-| `POST` | `/api/warehouses` | `WarehousesController.CreateWarehouse` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#2-danh-mục-endpoints-chi-nhánh-kho--nhà-cung-cấp-fr-auth-04) | `VALIDATION_ERROR`, `BRANCH_INACTIVE_OR_INVALID` |
+| `POST` | `/api/warehouses` | `WarehousesController.CreateWarehouse` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#2-danh-mục-endpoints-chi-nhánh-kho--nhà-cung-cấp-fr-auth-04) | `VALIDATION_ERROR`, `BRANCH_INACTIVE_OR_INVALID`, `FORBIDDEN_ACCESS` |
 | `GET` | `/api/suppliers` | `SuppliersController.GetSuppliers` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#2-danh-mục-endpoints-chi-nhánh-kho--nhà-cung-cấp-fr-auth-04) | `AUTH_UNAUTHORIZED` |
 | `POST` | `/api/suppliers` | `SuppliersController.CreateSupplier` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#2-danh-mục-endpoints-chi-nhánh-kho--nhà-cung-cấp-fr-auth-04) | `VALIDATION_ERROR` |
+| `GET` / `POST` / `PUT` | `/api/users`, `/api/users/{id}` | `UsersController` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#3-danh-mục-endpoints-quản-lý-người-dùng-apiusers) | `VALIDATION_ERROR`, `BRANCH_NOT_FOUND`, `USER_NOT_FOUND`, `FORBIDDEN_ACCESS` |

@@ -16,7 +16,7 @@
 | `NFR-USA-02` | Đối chiếu thanh toán dưới ba lần bấm hoặc qua barcode + Enter. Kiểm tra giao diện trên desktop, tablet và thiết bị POS cầm tay. Ghi đường thao tác đạt hoặc còn lệch. |
 | `NFR-MAINT-02` | Đo coverage unit và integration theo cùng phạm vi cho Ledger, Anti-Oversell Reserve và COGS/WAC. Báo theo module và đối chiếu ngưỡng tối thiểu 80%. |
 
-`NFR-MAINT-01` được xử lý ở [Gói 1](./goi-1-phan-quyen-va-kien-truc.md). `NFR-SEC-02` được xử lý cùng [vòng đời đơn ở Gói 3](./goi-3-vong-doi-don-hang-va-hangfire.md).
+`NFR-MAINT-01` được xử lý ở [Gói 1](../Done/goi-1-phan-quyen-va-kien-truc.md) (đã đóng 14/11/2026). `NFR-SEC-02` được xử lý cùng [vòng đời đơn ở Gói 3](./goi-3-vong-doi-don-hang-va-hangfire.md).
 
 ## Bằng chứng nghiệm thu
 
