@@ -3,6 +3,8 @@ import { getPosAccessToken, getPosGeneration, refreshPosToken } from './posSessi
 
 export type RealtimeStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
 export interface StockChanged { branchId: string; skuId: string; newAvailableStock: number; timestamp: string; }
+export interface BranchOrderItem { skuId: string; skuCode: string; productName: string; quantity: number; unitName?: string; }
+export interface BranchOrderCreated { orderId: string; orderNumber: string; branchId: string; channel: string; createdAt: string; items: BranchOrderItem[]; }
 interface User { id: string; tenantId: string; }
 const HUB_URL = `${(import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').replace(/\/$/, '')}/hubs/notifications`;
 let connection: HubConnection | null = null;
@@ -13,11 +15,13 @@ let activeBranch = '';
 let activeUser: User | null = null;
 let status: RealtimeStatus = 'disconnected';
 const stocks = new Set<(event: StockChanged) => void>();
+const branchOrders = new Set<(event: BranchOrderCreated) => void>();
 const statuses = new Set<(status: RealtimeStatus) => void>();
 const reconnects = new Set<() => void>();
 function setStatus(next: RealtimeStatus) { status = next; for (const cb of statuses) cb(next); }
 export function subscribeRealtimeStatus(cb: (value: RealtimeStatus) => void) { statuses.add(cb); cb(status); return () => { statuses.delete(cb); }; }
 export function subscribeStockLevelChanged(cb: (event: StockChanged) => void) { stocks.add(cb); return () => { stocks.delete(cb); }; }
+export function subscribeBranchOrderCreated(cb: (event: BranchOrderCreated) => void) { branchOrders.add(cb); return () => { branchOrders.delete(cb); }; }
 export function subscribeReconnected(cb: () => void) { reconnects.add(cb); return () => { reconnects.delete(cb); }; }
 
 // Reuses the former client's generation/branch guard and transport lifecycle; no legacy stock cache or UI.
@@ -68,6 +72,40 @@ export async function startRealtimeConnection(user: User, branchId: string) {
     };
     if (!activeBranch || event.branchId.toLowerCase() !== activeBranch.toLowerCase() || !event.skuId || !Number.isFinite(event.newAvailableStock) || event.newAvailableStock < 0 || !Number.isFinite(Date.parse(event.timestamp))) return;
     for (const cb of stocks) cb(event);
+  });
+  conn.on('BranchOrderCreated', raw => {
+    if (!current() || !raw || typeof raw !== 'object') return;
+    const rawItems = Array.isArray(raw.items) ? raw.items : Array.isArray(raw.Items) ? raw.Items : null;
+    if (!rawItems) return;
+    const event: BranchOrderCreated = {
+      orderId: String(raw.orderId || raw.OrderId || '').trim(),
+      orderNumber: String(raw.orderNumber || raw.OrderNumber || '').trim(),
+      branchId: String(raw.branchId || raw.BranchId || '').trim(),
+      channel: String(raw.channel || raw.Channel || '').trim(),
+      createdAt: String(raw.createdAt || raw.CreatedAt || '').trim(),
+      items: rawItems
+        .filter((it: unknown): it is Record<string, unknown> => Boolean(it && typeof it === 'object'))
+        .map((it: Record<string, unknown>) => ({
+          skuId: String(it.skuId || it.SkuId || '').trim(),
+          skuCode: String(it.skuCode || it.SkuCode || '').trim(),
+          productName: String(it.productName || it.ProductName || '').trim(),
+          quantity: Number(it.quantity ?? it.Quantity),
+          unitName: typeof (it.unitName ?? it.UnitName) === 'string' ? String(it.unitName ?? it.UnitName).trim() : undefined,
+        })),
+    };
+    if (
+      !activeBranch ||
+      !event.orderId ||
+      !event.orderNumber ||
+      !event.channel ||
+      event.branchId.toLowerCase() !== activeBranch.toLowerCase() ||
+      !Number.isFinite(Date.parse(event.createdAt)) ||
+      event.items.length === 0 ||
+      event.items.some(i => !i.skuId || !i.skuCode || !Number.isFinite(i.quantity) || i.quantity <= 0)
+    ) {
+      return;
+    }
+    for (const cb of branchOrders) cb(event);
   });
   try {
     await conn.start();

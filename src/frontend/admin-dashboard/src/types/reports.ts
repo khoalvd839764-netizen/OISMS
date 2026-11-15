@@ -146,3 +146,41 @@ export interface DashboardSummary {
   recentOrders: RecentOrder[];
   recentRevenueTrend: DailyRevenueBreakdown[];
 }
+
+export interface DailySalesSummaryMetrics {
+  revenue: number;
+  returnAmount: number;
+  netRevenue: number;
+  costOfGoodsSold: number;
+  grossProfit: number;
+}
+
+export type DailySalesSummaryReconcileStatus = 'Matched' | 'Mismatch' | 'NotSummarized';
+
+export interface DailySalesSummaryDay {
+  date: string;
+  summary: DailySalesSummaryMetrics | null;
+  live: DailySalesSummaryMetrics;
+  matched: boolean;
+  status: DailySalesSummaryReconcileStatus | string;
+  updatedAt: string | null;
+}
+
+export interface DailySalesSummaryComparison {
+  fromDate: string;
+  toDate: string;
+  branchId: string | null;
+  days: DailySalesSummaryDay[];
+}
+
+export interface RebuildDailySummaryRequest {
+  fromDate: string;
+  toDate: string;
+}
+
+export interface RebuildDailySummaryResponse {
+  fromDate: string;
+  toDate: string;
+  daysProcessed: number;
+  rowsWritten: number;
+}

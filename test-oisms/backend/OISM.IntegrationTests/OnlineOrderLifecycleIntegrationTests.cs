@@ -1126,6 +1126,13 @@ public class OnlineOrderLifecycleIntegrationTests : IAsyncLifetime, IClassFixtur
         // SKU 1 có 10 chiếc, SKU 2 có 0 chiếc
         await SeedStockAsync(tenantId, branchId, warehouseId, supplierId, userId, sku1Id, 10, 100000);
 
+        int initialTxCount;
+        var (preVerifyDb, _) = CreatePostgresDbContext(tenantId);
+        await using (preVerifyDb)
+        {
+            initialTxCount = await preVerifyDb.InventoryTransactions.CountAsync(t => t.TenantId == tenantId);
+        }
+
         var request = new CreateOrderRequestDto
         {
             BranchId = branchId,
@@ -1149,9 +1156,20 @@ public class OnlineOrderLifecycleIntegrationTests : IAsyncLifetime, IClassFixtur
         {
             var bBal1 = await verifyDb.InventoryBalances.FirstAsync(b => b.BranchId == branchId && b.SkuId == sku1Id);
             bBal1.Reserved.Should().Be(0);
+            bBal1.OnHand.Should().Be(10);
+
+            var whBal1 = await verifyDb.WarehouseInventoryBalances.FirstAsync(wb => wb.WarehouseId == warehouseId && wb.SkuId == sku1Id);
+            whBal1.Reserved.Should().Be(0);
+            whBal1.OnHand.Should().Be(10);
 
             var orders = await verifyDb.Orders.ToListAsync();
             orders.Should().BeEmpty();
+
+            var reservations = await verifyDb.Reservations.ToListAsync();
+            reservations.Should().BeEmpty();
+
+            var txCount = await verifyDb.InventoryTransactions.CountAsync(t => t.TenantId == tenantId);
+            txCount.Should().Be(initialTxCount, "Sổ kho không được thay đổi khi tạo đơn thất bại.");
         }
     }
 
@@ -1959,6 +1977,7 @@ public class OnlineOrderLifecycleIntegrationTests : IAsyncLifetime, IClassFixtur
 
         // Tạo đơn hàng thành công trước
         Guid orderId;
+        int initialTxCount;
         var (cleanCtx, cleanTenantService) = CreatePostgresDbContext(tenantId);
         await using (cleanCtx)
         {
@@ -1974,6 +1993,7 @@ public class OnlineOrderLifecycleIntegrationTests : IAsyncLifetime, IClassFixtur
                 }
             }, userId);
             orderId = order.Id;
+            initialTxCount = await cleanCtx.InventoryTransactions.CountAsync(t => t.TenantId == tenantId);
         }
 
         // 1. Fault injection khi ConfirmOrder
@@ -1987,12 +2007,13 @@ public class OnlineOrderLifecycleIntegrationTests : IAsyncLifetime, IClassFixtur
             interceptor.SavedChangesCount.Should().BeGreaterThan(0);
         }
 
-        // 2. Xác minh rollback hoàn toàn: Order vẫn Reserved, Reservation vẫn Active, OnHand chưa bị trừ, Ledger OUT = 0
+        // 2. Xác minh rollback hoàn toàn: Order vẫn Reserved, Reservation vẫn Active, OnHand/Reserved/CostPrice/Ledger không đổi
         var (verifyDb, _) = CreatePostgresDbContext(tenantId);
         await using (verifyDb)
         {
-            var dbOrder = await verifyDb.Orders.FirstAsync(o => o.Id == orderId);
+            var dbOrder = await verifyDb.Orders.Include(o => o.Items).FirstAsync(o => o.Id == orderId);
             dbOrder.Status.Should().Be("Reserved", "Order phải giữ nguyên Reserved.");
+            dbOrder.Items.Should().AllSatisfy(i => i.CostPrice.Should().BeNull("OrderItem.CostPrice không được lưu khi confirm rollback."));
 
             var res = await verifyDb.Reservations.FirstAsync(r => r.OrderId == orderId);
             res.Status.Should().Be("Active", "Reservation phải giữ nguyên Active.");
@@ -2001,8 +2022,18 @@ public class OnlineOrderLifecycleIntegrationTests : IAsyncLifetime, IClassFixtur
             bBal.OnHand.Should().Be(10m, "OnHand không được trừ.");
             bBal.Reserved.Should().Be(2m, "Reserved vẫn giữ nguyên.");
 
+            var whBal = await verifyDb.WarehouseInventoryBalances.FirstAsync(wb => wb.WarehouseId == warehouseId && wb.SkuId == skuId);
+            whBal.OnHand.Should().Be(10m, "OnHand kho không được trừ.");
+            whBal.Reserved.Should().Be(2m, "Reserved kho vẫn giữ nguyên.");
+
             var outCount = await verifyDb.InventoryTransactions.CountAsync(t => t.Type == "OUT");
             outCount.Should().Be(0, "Không được để lại bút toán Sổ cái OUT.");
+
+            var totalTxCount = await verifyDb.InventoryTransactions.CountAsync(t => t.TenantId == tenantId);
+            totalTxCount.Should().Be(initialTxCount, "Sổ kho inventory_transactions phải không đổi.");
+
+            var invoiceExists = await verifyDb.SalesInvoices.AnyAsync(si => si.OrderId == orderId);
+            invoiceExists.Should().BeFalse("Không được tạo SalesInvoice khi confirm rollback.");
         }
 
         // 3. Retry Confirm thành công

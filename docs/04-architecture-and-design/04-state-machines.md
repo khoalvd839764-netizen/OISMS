@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-ARC-04` |
-| **Phiên bản (Version)** | `v1.3.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
+| **Phiên bản (Version)** | `v1.5.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-15` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-ORD-02`, `FR-INV-02..03`, `FR-RSE-02..03` (Trang 2, 3) |
 | **Phạm vi áp dụng** | Đơn hàng (`Order`), Giữ chỗ (`Reservation`), Phiếu nhập (`GoodsReceipt`) & Chuyển kho (`StockTransfer`) |
 
@@ -19,6 +19,7 @@
 | `v1.2.0` | `2026-11-03` | Nhóm dự án OISMS | Bổ sung máy trạng thái Đợt kiểm kê (StockCount) và Kỳ kiểm kê (StockCountPeriod). | `OISMS-47-U03` |
 | `v1.3.0` | `2026-11-06` | Nhóm dự án OISMS | Đối chiếu với service: thêm máy trạng thái Giữ chỗ, `PendingApproval → Cancelled` của kiểm kê, kỳ kiểm kê bị hủy khi tắt lịch; ghi chú Hangfire mặc định tắt. | `OISMS-46` |
 | `v1.4.0` | `2026-11-09` | Nhóm dự án OISMS | Bổ sung máy trạng thái Phiếu trả hàng từ khách (`SalesReturn`, CS-01). | `OISMS-58-CS01-P2` |
+| `v1.5.0` | `2026-11-15` | Nhóm dự án OISMS | Bổ sung bảng ranh giới giao dịch theo kênh và ghi chú luồng giữ chỗ kỹ thuật POS (`Draft`). | `OISMS-59-G3A` |
 
 ---
 
@@ -38,7 +39,7 @@ stateDiagram-v2
 
 - POS checkout (`POST /api/pos/checkout`, `POST /api/orders/checkout`) đi thẳng từ giỏ hàng tới `Completed` trong một transaction: trừ `on_hand`, ghi `OUT`, chụp `OrderItem.CostPrice`, lập `SalesInvoice`.
 - `POST /api/orders/{id}/process` (xử lý đóng gói) gọi lại luồng Confirm cho đơn `Reserved`; đơn đã `Confirmed` thì trả nguyên kết quả. Không có trạng thái `Processing` trong DB (CHECK của `orders.status` chỉ có 5 giá trị trên).
-- Hủy đơn `Draft` chỉ áp dụng cho nháp chưa thanh toán; đơn đã `Confirmed`/`Completed` không hủy được, phải xử lý bằng phiếu trả hàng (CS-01, `/api/sales-returns`, PR #41): phiếu trả gắn đơn gốc, không đổi trạng thái đơn.
+- Hủy đơn `Draft` chỉ áp dụng cho nháp chưa thanh toán (luồng giữ chỗ kỹ thuật của `POST /api/inventory/reserve` sinh đơn `POS` ở `Draft` kèm `Reservation` `Active` để thỏa `Order.CanCancel` và `ReservationExpiryJob`); đơn đã `Confirmed`/`Completed` không hủy được, phải xử lý bằng phiếu trả hàng (CS-01, `/api/sales-returns`, PR #41): phiếu trả gắn đơn gốc, không đổi trạng thái đơn.
 - Job hết hạn giữ chỗ (`ReservationExpiryJob`, mỗi phút) chỉ chạy khi `Hangfire:Enabled=true`; cấu hình mặc định và Docker Compose đang tắt.
 
 ### 1.1. Máy Trạng Thái Phiếu Giữ Chỗ (`Reservation`)
@@ -51,6 +52,16 @@ stateDiagram-v2
     Active --> Expired : Hủy đơn / job quét khi expires_at đã qua
 ```
 
+### 1.2. Ranh Giới Giao Dịch Theo Kênh
+
+| Kênh / Thao tác | Giao dịch 1 | Giao dịch 2 |
+| :--- | :--- | :--- |
+| **POS** (`POST /api/pos/checkout`, `POST /api/orders/checkout`) | Tạo đơn + giữ chỗ + trừ tồn `on_hand` + ghi sổ `OUT` + chụp `CostPrice` + lập `SalesInvoice` + `Completed` | — |
+| **Admin, sàn** (`Admin`, `Shopee`, `TikTok`, `Lazada`) | Tạo đơn (đi qua `Draft -> Reserved` trong cùng giao dịch, không lưu `Draft`) + giữ chỗ (`Active`) | Xác nhận (`Confirm`): trừ `OnHand`, giảm `Reserved`, ghi sổ `OUT`, chụp `CostPrice`, lập `SalesInvoice` -> `Confirmed` |
+| **Hủy / hết hạn** (`Cancel`, `ReservationExpiryJob`) | Chỉ giảm `Reserved`, chuyển giữ chỗ sang `Released`/`Expired` và đơn sang `Cancelled`, không ghi bút toán `IN` bù | — |
+
+Đơn online không thể gộp xác nhận vào giao dịch tạo đơn vì `FR-ORD-03` yêu cầu nhân viên duyệt. Mỗi giao dịch tự rollback 100% khi có lỗi.
+
 ---
 
 ## 2. Máy Trạng Thái Phiếu Nhập Kho Nhà Cung Cấp (`FR-INV-02`, `FR-COST-01`)
@@ -62,7 +73,7 @@ stateDiagram-v2
     Draft --> Cancelled : Hủy phiếu nháp
 ```
 
-Từ `OISMS-47-U01A`, xác nhận phiếu nhập yêu cầu phiếu mua còn nhận được và không vượt lượng còn lại.
+Xác nhận phiếu nhập yêu cầu phiếu mua còn nhận được và không vượt lượng còn lại. Từ U01-B, hóa đơn còn hiệu lực ở `Draft` hoặc `PendingApproval` làm xác nhận trả `409 GOODS_RECEIPT_INVOICE_PENDING`. Với `Approved`, mỗi dòng có trên hóa đơn dùng giá trước thuế của hóa đơn. Khi hóa đơn khớp, vắng mặt hoặc thiếu một dòng, dòng nhập tương ứng dùng giá phiếu mua. Tồn và lượng đã nhận luôn theo thực nhận. Từ chối chênh lệch `AtReceipt` hủy phiếu nhập nếu phiếu vẫn `Draft`, trong cùng transaction.
 
 ### 2.1. Máy Trạng Thái Phiếu Mua Hàng (`OISMS-47-U01A`)
 
@@ -80,6 +91,20 @@ stateDiagram-v2
 ```
 
 ---
+
+### 2.2. Máy trạng thái hóa đơn nhà cung cấp và chênh lệch (U01-B)
+
+| Chứng từ | Từ | Đến | Điều kiện |
+| :--- | :--- | :--- | :--- |
+| `SupplierInvoice` | `Draft` | `Matched` | Gửi và mọi chênh lệch giá/lượng đều bằng 0. |
+| `SupplierInvoice` | `Draft` | `PendingApproval` | Gửi và có chênh lệch. Tạo một `PurchaseVariance` ở `Pending`. |
+| `SupplierInvoice` | `PendingApproval` | `Approved` / `Rejected` | Owner quyết định riêng. Từ chối bắt buộc có ghi chú. |
+| `SupplierInvoice` | `Draft`, `Matched`, `Approved` | `Cancelled` | Owner hoặc Staff hủy và ghi lý do. |
+| `PurchaseVariance` | `Pending` | `Approved` / `Rejected` | Cùng transaction với chuyển trạng thái hóa đơn. |
+
+`Rejected` và `Cancelled` là trạng thái kết thúc của hóa đơn. `Approved` và `Rejected` là trạng thái kết thúc của chênh lệch. Hủy hóa đơn đã duyệt giữ quyết định của chênh lệch để truy vết. Khi gửi, loại là `AtReceipt` nếu phiếu nhập còn `Draft`, hoặc `AfterReceipt` nếu đã `Confirmed`. Với `AfterReceipt`, các thao tác hóa đơn chỉ lưu chứng từ.
+
+Trong transaction xác nhận nhập, khóa theo thứ tự phiếu nhập → hóa đơn còn hiệu lực (đọc lại sau khóa) → phiếu mua → SKU. Mọi thao tác ghi hóa đơn khóa phiếu nhập trước hóa đơn.
 
 ## 3. Máy Trạng Thái Chuyển Kho 2 Bước (`FR-INV-03`)
 

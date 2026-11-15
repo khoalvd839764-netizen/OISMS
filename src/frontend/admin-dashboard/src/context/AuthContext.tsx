@@ -140,7 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // [BF-036] Xóa token phiên cũ trước khi đăng nhập để request không mang token của tenant khác
       clearAuthSession();
       const res = await httpClient.post("/api/auth/login", {
-        email: credentials.email,
+        identifier: credentials.email,
         password: credentials.password,
       });
 
@@ -187,8 +187,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       const msg =
         err?.response?.data?.message ||
+        err?.response?.data?.detail ||
         err?.response?.data?.errors?.[0] ||
-        "Đăng nhập thất bại. Vui lòng kiểm tra lại email và mật khẩu.";
+        "Đăng nhập thất bại. Vui lòng kiểm tra lại email/số điện thoại và mật khẩu.";
       return { success: false, error: msg };
     }
   };

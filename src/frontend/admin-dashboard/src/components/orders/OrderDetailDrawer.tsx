@@ -4,11 +4,11 @@ import { ORDER_STATUS_LABEL, ORDER_ACTIONS } from '../../types/ordersCenter';
 import { orderService } from '../../services/orderService';
 import { Printer, RotateCcw } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { ComingSoonBadge } from '../ui';
 import { salesReturnService } from '../../services/salesReturnService';
 import type { ReturnableItem, SalesReturn } from '../../types/salesReturns';
 import { CreateSalesReturnModal } from '../salesReturns/CreateSalesReturnModal';
 import { SalesReturnDetailDrawer } from '../salesReturns/SalesReturnDetailDrawer';
+import { ShippingSlipPrintModal } from './ShippingSlipPrintModal';
 
 interface OrderDetailDrawerProps {
   orderId: string | null;
@@ -36,6 +36,7 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
   const [orderReturns, setOrderReturns] = useState<SalesReturn[]>([]);
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [selectedReturnId, setSelectedReturnId] = useState<string | null>(null);
+  const [showShippingSlip, setShowShippingSlip] = useState(false);
 
   const fetchDetail = useCallback(async (targetOrderId: string) => {
     const reqSeq = ++activeReqRef.current;
@@ -76,6 +77,7 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
     // nhằm vô hiệu hóa ngay lập tức mọi phản hồi muộn / mutation đang chạy từ trước
     const currentSeq = ++activeReqRef.current;
     setShowCancelModal(false);
+    setShowShippingSlip(false);
     setCancelReason('');
     setError(null);
     setDetail(null);
@@ -129,6 +131,20 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
     detail !== null &&
     (detail.status === 'Confirmed' || detail.status === 'Completed') &&
     returnableItems.some((i) => i.returnableQuantity > 0);
+
+  const canPrintShippingSlip =
+    detail !== null &&
+    !loading &&
+    detail.channel !== 'POS' &&
+    (detail.status === 'Confirmed' || detail.status === 'Completed');
+
+  const printSlipTitle = !detail || loading
+    ? 'Đang tải chi tiết đơn hàng...'
+    : detail.channel === 'POS'
+    ? 'Đơn POS dùng chức năng in lại hóa đơn bán hàng.'
+    : detail.status !== 'Confirmed' && detail.status !== 'Completed'
+    ? 'Chỉ in phiếu giao hàng khi đơn ở trạng thái Đã duyệt hoặc Hoàn tất.'
+    : 'In phiếu giao hàng';
 
   const actions = detail ? ORDER_ACTIONS[detail.status] || [] : [];
 
@@ -240,12 +256,14 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
               </button>
             )}
             <button
-              disabled
-              className="px-2.5 py-1 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-100 flex items-center gap-1 shadow-sm"
-              title="Bản in phiếu xuất kho / giao hàng đang hoàn thiện."
+              type="button"
+              disabled={!canPrintShippingSlip}
+              onClick={() => setShowShippingSlip(true)}
+              className="px-2.5 py-1 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 shadow-sm"
+              title={printSlipTitle}
             >
               <Printer className="w-3.5 h-3.5" />
-              In chứng từ <ComingSoonBadge />
+              In chứng từ
             </button>
             <button
               onClick={onClose}
@@ -530,6 +548,14 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
           if (orderId) fetchDetail(orderId);
           onRefresh();
         }}
+      />
+
+      {/* Modal in phiếu giao hàng (G4) */}
+      <ShippingSlipPrintModal
+        isOpen={showShippingSlip}
+        order={detail}
+        tenantName={account?.tenantName}
+        onClose={() => setShowShippingSlip(false)}
       />
     </div>
   );

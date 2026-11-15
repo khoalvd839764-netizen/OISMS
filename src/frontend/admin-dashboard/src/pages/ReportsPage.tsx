@@ -3,9 +3,9 @@ import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { reportService } from '../services/reportService';
 import { apiAdapter } from '../services/apiAdapter';
-import { ComingSoonBadge } from '../components/ui';
 import type {
   RevenueProfitReport,
+  DailySalesSummaryComparison,
   InventoryVelocityReport,
   UnitQuantity,
   StockAlert,
@@ -67,6 +67,14 @@ const UNIT_PREVIEW_COUNT = 4;
 function formatWithUnit(value: number, unitName?: string | null): string {
   const quantity = value.toLocaleString('vi-VN');
   return unitName ? `${quantity} ${unitName}` : quantity;
+}
+
+function formatNullableMoney(val: number | null | undefined): string {
+  return val === null || val === undefined ? '—' : `${val.toLocaleString('vi-VN')} đ`;
+}
+
+function formatNullablePercent(val: number | null | undefined): string {
+  return val === null || val === undefined ? '—' : `${val.toFixed(1)}%`;
 }
 
 interface UnitQuantityListProps {
@@ -161,6 +169,11 @@ export const ReportsPage: React.FC = () => {
 
   // Data states
   const [pnlData, setPnlData] = useState<RevenueProfitReport | null>(null);
+  const [dailySummaryData, setDailySummaryData] = useState<DailySalesSummaryComparison | null>(null);
+  const [dailySummaryError, setDailySummaryError] = useState<string | null>(null);
+  const [rebuildingSummaries, setRebuildingSummaries] = useState(false);
+  const [rebuildError, setRebuildError] = useState<string | null>(null);
+  const [rebuildSuccess, setRebuildSuccess] = useState<string | null>(null);
   const [velocityData, setVelocityData] = useState<InventoryVelocityReport | null>(null);
   const [showAllUnits, setShowAllUnits] = useState(false);
   const [alertsData, setAlertsData] = useState<StockAlert[]>([]);
@@ -168,7 +181,21 @@ export const ReportsPage: React.FC = () => {
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [printedAt, setPrintedAt] = useState<string>('');
   const activeReqRef = useRef(0);
+
+  const handlePrintReport = () => {
+    setPrintedAt(new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Saigon' }));
+    requestAnimationFrame(() => {
+      window.print();
+    });
+  };
+
+  const extractProblemMessage = (err: any, fallback: string): string => {
+    const problem = err?.response?.data;
+    const baseMsg = problem?.detail || problem?.title || err?.detail || err?.message || fallback;
+    return problem?.errorCode ? `[${problem.errorCode}] ${baseMsg}` : baseMsg;
+  };
 
   // Tính ngày theo preset theo múi giờ Việt Nam (BF-011)
   const calculateDates = useCallback(() => {
@@ -223,9 +250,37 @@ export const ReportsPage: React.FC = () => {
 
     try {
       if (activeTab === 'pnl') {
-        const data = await reportService.getRevenueProfit(filter);
+        setDailySummaryError(null);
+        const summaryPromise =
+          startDate && endDate
+            ? reportService
+                .getDailySummaries({
+                  fromDate: startDate,
+                  toDate: endDate,
+                  branchId: selectedBranch || undefined,
+                })
+                .then((res) => ({ ok: true as const, data: res }))
+                .catch((err) => ({ ok: false as const, err }))
+            : Promise.resolve({ ok: true as const, data: null });
+
+        const [data, summaryResult] = await Promise.all([
+          reportService.getRevenueProfit(filter),
+          summaryPromise,
+        ]);
         if (reqSeq !== activeReqRef.current) return;
         setPnlData(data);
+        if (summaryResult.ok) {
+          setDailySummaryData(summaryResult.data);
+          setDailySummaryError(null);
+        } else {
+          setDailySummaryData(null);
+          setDailySummaryError(
+            extractProblemMessage(
+              'err' in summaryResult ? summaryResult.err : null,
+              'Không thể tải dữ liệu tổng hợp theo ngày.'
+            )
+          );
+        }
       } else if (activeTab === 'velocity') {
         const data = await reportService.getInventoryVelocity(filter);
         if (reqSeq !== activeReqRef.current) return;
@@ -239,9 +294,10 @@ export const ReportsPage: React.FC = () => {
       if (reqSeq !== activeReqRef.current) return;
       // [BF-010] Khi lỗi, xóa sạch số liệu cũ để không hiển thị số liệu cũ dưới bộ lọc mới
       setPnlData(null);
+      setDailySummaryData(null);
       setVelocityData(null);
       setAlertsData([]);
-      setErrorMessage(err?.detail || err?.message || 'Không thể tải báo cáo từ máy chủ.');
+      setErrorMessage(extractProblemMessage(err, 'Không thể tải báo cáo từ máy chủ.'));
     } finally {
       if (reqSeq === activeReqRef.current) {
         setLoading(false);
@@ -252,6 +308,52 @@ export const ReportsPage: React.FC = () => {
   useEffect(() => {
     loadReports();
   }, [loadReports]);
+
+  const handleRebuildDailySummaries = async () => {
+    if (!startDate || !endDate || rebuildingSummaries) return;
+    setRebuildingSummaries(true);
+    setRebuildError(null);
+    setRebuildSuccess(null);
+    try {
+      const result = await reportService.rebuildDailySummaries({
+        fromDate: startDate,
+        toDate: endDate,
+      });
+      setRebuildSuccess(
+        `Đã tính lại ${result.daysProcessed} ngày (${result.rowsWritten} dòng tổng hợp).`
+      );
+      await loadReports();
+    } catch (err: any) {
+      setRebuildError(
+        extractProblemMessage(err, 'Không thể tính lại bảng tổng hợp theo ngày.')
+      );
+    } finally {
+      setRebuildingSummaries(false);
+    }
+  };
+
+  const renderSummaryStatusBadge = (status: string) => {
+    switch (status) {
+      case 'Matched':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
+            <CheckCircle2 className="w-3 h-3" /> Khớp
+          </span>
+        );
+      case 'Mismatch':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-100 text-rose-700 border border-rose-200">
+            <XCircle className="w-3 h-3" /> Lệch
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+            <AlertTriangle className="w-3 h-3" /> Chưa tổng hợp
+          </span>
+        );
+    }
+  };
 
   // Alert level styling helper
   const getAlertBadge = (level: string) => {
@@ -286,10 +388,46 @@ export const ReportsPage: React.FC = () => {
     return item.alertLevel === selectedAlertLevel;
   });
 
+  const tabLabels: Record<'pnl' | 'velocity' | 'alerts', string> = {
+    pnl: '1. Doanh thu & Lợi nhuận (P&L)',
+    velocity: '2. Vận tốc kho & Luân chuyển',
+    alerts: '3. Cảnh báo tồn kho tối thiểu',
+  };
+  const selectedBranchName = branches.find((b) => b.id === selectedBranch)?.name || 'Tất cả chi nhánh';
+
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 max-w-7xl mx-auto space-y-6 print:p-0 print:max-w-none print:space-y-4">
+      {/* Khối tiêu đề chỉ hiện khi in (A4) */}
+      <div className="hidden print:block border-b border-gray-300 pb-3 mb-4 text-xs text-gray-800">
+        <div className="flex justify-between items-start">
+          <div>
+            <div className="text-base font-extrabold uppercase text-gray-900">
+              {user?.tenantName || 'OISMS'}
+            </div>
+            <div className="text-sm font-bold text-gray-800 mt-0.5">
+              Báo cáo: {tabLabels[activeTab]}
+            </div>
+          </div>
+          <div className="text-right text-[11px] text-gray-600 space-y-0.5">
+            <div>Người in: <span className="font-semibold text-gray-900">{user?.name || '—'}</span></div>
+            <div>Giờ in: <span className="font-semibold text-gray-900">{printedAt || new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Saigon' })}</span></div>
+          </div>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-[11px] text-gray-700">
+          <div>
+            Khoảng ngày (UTC+07:00):{' '}
+            <span className="font-semibold text-gray-900">
+              {activeTab === 'alerts' ? 'Tức thời' : `${startDate || '—'} → ${endDate || '—'}`}
+            </span>
+          </div>
+          <div>
+            Chi nhánh: <span className="font-semibold text-gray-900">{selectedBranchName}</span>
+          </div>
+        </div>
+      </div>
+
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 print:hidden">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <TrendingUp className="w-7 h-7 text-indigo-600" />
@@ -309,18 +447,18 @@ export const ReportsPage: React.FC = () => {
             Tải lại
           </button>
           <button
-            disabled
-            title="Bản in báo cáo chưa được hoàn thiện."
+            type="button"
+            onClick={handlePrintReport}
             className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm flex items-center gap-1.5"
           >
             <Printer className="w-3.5 h-3.5" />
-            In báo cáo <ComingSoonBadge />
+            In báo cáo
           </button>
         </div>
       </div>
 
       {/* Tabs navigation */}
-      <div className="flex border-b border-gray-200 gap-1 bg-gray-50/50 p-1 rounded-t-lg">
+      <div className="flex border-b border-gray-200 gap-1 bg-gray-50/50 p-1 rounded-t-lg print:hidden">
         <button
           onClick={() => setActiveTab('pnl')}
           className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
@@ -359,7 +497,7 @@ export const ReportsPage: React.FC = () => {
       </div>
 
       {/* Global Filter Bar */}
-      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-wrap items-center gap-3 text-xs">
+      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-wrap items-center gap-3 text-xs print:hidden">
         <div className="flex items-center gap-1.5 font-semibold text-gray-700 uppercase">
           <Filter className="w-4 h-4 text-gray-400" />
           <span>Bộ lọc:</span>
@@ -504,7 +642,7 @@ export const ReportsPage: React.FC = () => {
             <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-xs">
               <div className="text-xs font-semibold text-gray-500 uppercase">Giá vốn thuần (COGS)</div>
               <div className="text-xl font-bold text-gray-900 mt-2">
-                {(pnlData?.netCogs ?? pnlData?.totalCostOfGoodsSold ?? 0).toLocaleString('vi-VN')} đ
+                {formatNullableMoney(pnlData?.netCogs ?? pnlData?.totalCostOfGoodsSold)}
               </div>
               <div className="text-[11px] text-gray-500 mt-1">Đã khấu trừ COGS trả</div>
             </div>
@@ -513,7 +651,7 @@ export const ReportsPage: React.FC = () => {
             <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-xs">
               <div className="text-xs font-semibold text-gray-500 uppercase">Lợi nhuận gộp</div>
               <div className="text-xl font-bold text-emerald-600 mt-2">
-                {(pnlData?.grossProfit ?? pnlData?.totalGrossProfit ?? 0).toLocaleString('vi-VN')} đ
+                {formatNullableMoney(pnlData?.grossProfit ?? pnlData?.totalGrossProfit)}
               </div>
               <div className="text-[11px] text-emerald-700 font-medium mt-1 flex items-center gap-0.5">
                 <ArrowUpRight className="w-3 h-3" />
@@ -525,7 +663,7 @@ export const ReportsPage: React.FC = () => {
             <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-xs">
               <div className="text-xs font-semibold text-gray-500 uppercase">Tỷ suất lãi gộp</div>
               <div className="text-xl font-bold text-indigo-600 mt-2">
-                {(pnlData?.grossMarginPercentage ?? 0).toFixed(1)}%
+                {formatNullablePercent(pnlData?.grossMarginPercentage)}
               </div>
               <div className="text-[11px] text-gray-500 mt-1">Profit / Net Revenue</div>
             </div>
@@ -573,13 +711,13 @@ export const ReportsPage: React.FC = () => {
                             {(ch.netRevenue ?? ch.revenue).toLocaleString('vi-VN')} đ
                           </td>
                           <td className="py-2.5 px-2 text-right text-gray-600">
-                            {(ch.netCogs ?? ch.costOfGoodsSold)?.toLocaleString('vi-VN')} đ
+                            {formatNullableMoney(ch.netCogs ?? ch.costOfGoodsSold)}
                           </td>
                           <td className="py-2.5 px-2 text-right font-bold text-emerald-600">
-                            {ch.grossProfit?.toLocaleString('vi-VN')} đ
+                            {formatNullableMoney(ch.grossProfit)}
                           </td>
                           <td className="py-2.5 px-2 text-right font-semibold text-indigo-600">
-                            {ch.grossMarginPercentage?.toFixed(1)}%
+                            {formatNullablePercent(ch.grossMarginPercentage)}
                           </td>
                         </tr>
                       ))
@@ -629,10 +767,10 @@ export const ReportsPage: React.FC = () => {
                             {(br.netRevenue ?? br.revenue).toLocaleString('vi-VN')} đ
                           </td>
                           <td className="py-2.5 px-2 text-right text-gray-600">
-                            {(br.netCogs ?? br.costOfGoodsSold)?.toLocaleString('vi-VN')} đ
+                            {formatNullableMoney(br.netCogs ?? br.costOfGoodsSold)}
                           </td>
                           <td className="py-2.5 px-2 text-right font-bold text-emerald-600">
-                            {br.grossProfit?.toLocaleString('vi-VN')} đ
+                            {formatNullableMoney(br.grossProfit)}
                           </td>
                           <td className="py-2.5 px-2 text-right text-gray-600">{br.orderCount}</td>
                         </tr>
@@ -650,7 +788,7 @@ export const ReportsPage: React.FC = () => {
               <Calendar className="w-4 h-4 text-indigo-600" />
               Biến động doanh thu &amp; lãi gộp theo ngày
             </div>
-            <div className="overflow-x-auto max-h-72">
+            <div className="overflow-x-auto max-h-72 print:max-h-none print:overflow-visible">
               <table className="w-full text-xs text-left border-collapse">
                 <thead>
                   <tr className="bg-gray-50/70 border-b border-gray-200 text-gray-500 font-semibold">
@@ -684,12 +822,133 @@ export const ReportsPage: React.FC = () => {
                           {(d.netRevenue ?? d.revenue).toLocaleString('vi-VN')} đ
                         </td>
                         <td className="py-2.5 px-3 text-right text-gray-600">
-                          {(d.netCogs ?? d.costOfGoodsSold)?.toLocaleString('vi-VN')} đ
+                          {formatNullableMoney(d.netCogs ?? d.costOfGoodsSold)}
                         </td>
                         <td className="py-2.5 px-3 text-right font-bold text-emerald-600">
-                          {d.grossProfit?.toLocaleString('vi-VN')} đ
+                          {formatNullableMoney(d.grossProfit)}
                         </td>
                         <td className="py-2.5 px-3 text-right text-gray-700">{d.orderCount}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Daily Sales Summary Reconciliation Section (AC-07) */}
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden" data-testid="daily-sales-summary-section">
+            <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="font-semibold text-xs text-gray-800 uppercase flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-indigo-600" />
+                  Tổng hợp theo ngày
+                </div>
+                <p className="text-[11px] text-gray-500 mt-0.5">
+                  Đối soát dữ liệu bảng tổng hợp định kỳ với số liệu tính trực tiếp theo từng ngày (UTC+07)
+                  {selectedChannel ? ' · Lưu ý: Tổng hợp ngày gom tất cả kênh bán.' : ''}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleRebuildDailySummaries}
+                disabled={rebuildingSummaries || loading || !startDate || !endDate}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${rebuildingSummaries ? 'animate-spin' : ''}`} />
+                {rebuildingSummaries ? 'Đang tính lại...' : 'Tính lại'}
+              </button>
+            </div>
+
+            {rebuildError && (
+              <div className="mx-4 mt-3 p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{rebuildError}</span>
+              </div>
+            )}
+
+            {rebuildSuccess && (
+              <div className="mx-4 mt-3 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>{rebuildSuccess}</span>
+              </div>
+            )}
+
+            {dailySummaryError && (
+              <div className="mx-4 mt-3 p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{dailySummaryError}</span>
+              </div>
+            )}
+
+            <div className="overflow-x-auto max-h-96 mt-2">
+              <table className="w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50/70 border-b border-gray-200 text-gray-500 font-semibold">
+                    <th className="py-2.5 px-3">Ngày</th>
+                    <th className="py-2.5 px-3 text-right">Doanh thu (TH / TT)</th>
+                    <th className="py-2.5 px-3 text-right">Hàng trả (TH / TT)</th>
+                    <th className="py-2.5 px-3 text-right">Giá vốn (TH / TT)</th>
+                    <th className="py-2.5 px-3 text-right">Lãi gộp (TH / TT)</th>
+                    <th className="py-2.5 px-3 text-center">Đối soát</th>
+                    <th className="py-2.5 px-3 text-right">Cập nhật lúc</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {(dailySummaryData?.days || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-6 text-center text-gray-400">
+                        Không có dữ liệu tổng hợp hoặc phát sinh trong khoảng thời gian đã chọn
+                      </td>
+                    </tr>
+                  ) : (
+                    dailySummaryData?.days.map((day) => (
+                      <tr key={day.date} className="hover:bg-gray-50">
+                        <td className="py-2.5 px-3 font-mono font-medium text-gray-800 whitespace-nowrap">
+                          {day.date}
+                        </td>
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                          <div className="font-semibold text-gray-900">
+                            {day.summary ? `${day.summary.revenue.toLocaleString('vi-VN')} đ` : '—'}
+                          </div>
+                          <div className="text-[11px] text-gray-500">
+                            TT: {day.live.revenue.toLocaleString('vi-VN')} đ
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                          <div className="font-semibold text-rose-600">
+                            {day.summary ? `${day.summary.returnAmount.toLocaleString('vi-VN')} đ` : '—'}
+                          </div>
+                          <div className="text-[11px] text-gray-500">
+                            TT: {day.live.returnAmount.toLocaleString('vi-VN')} đ
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                          <div className="font-semibold text-gray-700">
+                            {day.summary ? `${day.summary.costOfGoodsSold.toLocaleString('vi-VN')} đ` : '—'}
+                          </div>
+                          <div className="text-[11px] text-gray-500">
+                            TT: {day.live.costOfGoodsSold.toLocaleString('vi-VN')} đ
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                          <div className="font-bold text-emerald-600">
+                            {day.summary ? formatNullableMoney(day.summary.grossProfit) : '—'}
+                          </div>
+                          <div className="text-[11px] text-gray-500">
+                            TT: {formatNullableMoney(day.live.grossProfit)}
+                          </div>
+                        </td>
+                        <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                          {renderSummaryStatusBadge(day.status)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-gray-600 whitespace-nowrap">
+                          {day.updatedAt
+                            ? new Date(day.updatedAt).toLocaleString('vi-VN', {
+                                timeZone: 'Asia/Ho_Chi_Minh',
+                              })
+                            : '—'}
+                        </td>
                       </tr>
                     ))
                   )}

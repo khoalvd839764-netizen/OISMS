@@ -448,8 +448,8 @@ kbd { border: 1px solid #d7dce4; background: #f7f8fa; border-radius: 4px; paddin
 .auth-icon { width: 44px; height: 44px; border-radius: 11px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand); margin-bottom: 18px; }
 .auth-form h2 { font-size: 24px; letter-spacing: -.03em; margin: 0 0 7px; }
 .auth-form > p { color: var(--muted); margin: 0 0 24px; font-size: 11px; }
-.auth-form > label { display: block; margin-bottom: 14px; }
-.auth-form > label > span { display: block; font-size: 10px; font-weight: 600; margin-bottom: 7px; }
+.auth-form > label, .auth-form > form > label { display: block; margin-bottom: 14px; }
+.auth-form > label > span, .auth-form > form > label > span { display: block; font-size: 10px; font-weight: 600; margin-bottom: 7px; }
 .auth-input { display: flex; align-items: center; position: relative; }
 .auth-input > svg:first-child { position: absolute; left: 12px; color: var(--subtle); z-index: 1; }
 .auth-input > svg:last-child:not(:first-child) { position: absolute; right: 12px; color: var(--subtle); }
@@ -460,6 +460,13 @@ kbd { border: 1px solid #d7dce4; background: #f7f8fa; border-radius: 4px; paddin
 .auth-switch .button { color: var(--brand); }
 .auth-forgot { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
 .auth-forgot button { padding: 0; border: 0; background: none; color: var(--muted); font-size: 10px; cursor: not-allowed; }
+.auth-forgot a { color: var(--brand); font-size: 10px; font-weight: 600; text-decoration: none; }
+.auth-forgot a:hover { text-decoration: underline; }
+.auth-notice { display: flex; gap: 8px; align-items: flex-start; border-radius: 8px; padding: 10px 14px; font-size: 12px; margin: 10px 0; }
+.auth-notice svg { flex-shrink: 0; margin-top: 1px; }
+.auth-notice--error { background: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; }
+.auth-notice--success { background: #dcfce7; border: 1px solid #22c55e; color: #166534; }
+.auth-back { display: inline-flex; align-items: center; gap: 6px; margin-top: 16px; color: var(--brand); font-size: 11px; font-weight: 600; text-decoration: none; }
 
 .tabs button { display: inline-flex; align-items: center; gap: 7px; }
 .person-cell { display: flex; align-items: center; gap: 10px; }
@@ -567,20 +574,43 @@ kbd { border: 1px solid #d7dce4; background: #f7f8fa; border-radius: 4px; paddin
 }
 
 /* ==========================================================================
-   PRINT STYLES FOR THERMAL PRINTER (80mm & 58mm)
+   PRINT STYLES (A4 default for reports/slips; modals override for 58/80mm)
    ========================================================================== */
+/* Bản sao vùng in của PrintArea: ẩn trên màn hình, chỉ hiện khi in. */
+.print-portal {
+  display: none;
+}
+
 @media print {
+  /* Đang mở modal in: chỉ in bản sao trong .print-portal, ẩn toàn bộ ứng dụng. */
+  body:has(> .print-portal) > #root {
+    display: none !important;
+  }
+
+  .print-portal {
+    display: block !important;
+  }
+
+  .print-portal,
+  .print-portal * {
+    color: #000000 !important;
+  }
+
   html, body {
     background: #ffffff !important;
     color: #000000 !important;
     margin: 0 !important;
     padding: 0 !important;
-    width: 80mm !important;
+    width: auto !important;
   }
 
-  /* Hide everything except the receipt paper */
+  /* Hide navigation, sidebar, and action chrome */
   .no-print,
   .no-print-bg,
+  aside.sidebar,
+  .sidebar,
+  .ai-assistant,
+  .ai-assistant__toggle,
   header,
   nav,
   footer,
@@ -588,36 +618,18 @@ kbd { border: 1px solid #d7dce4; background: #f7f8fa; border-radius: 4px; paddin
     display: none !important;
   }
 
-  /* Make modal container transparent and top-level */
-  .print-container {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
-    width: 80mm !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    background: transparent !important;
+  tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
-  .receipt-paper {
-    width: 80mm !important;
-    max-width: 80mm !important;
-    margin: 0 !important;
-    padding: 2mm 3mm !important;
-    border: none !important;
-    box-shadow: none !important;
-    font-size: 11px !important;
-    color: #000000 !important;
-    background: #ffffff !important;
-  }
-
-  .receipt-paper * {
-    color: #000000 !important;
+  svg {
+    max-width: 100%;
   }
 
   @page {
-    size: 80mm auto;
-    margin: 0;
+    size: A4 portrait;
+    margin: 12mm;
   }
 }
 

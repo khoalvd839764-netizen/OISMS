@@ -253,10 +253,14 @@ export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{
     const err = await res.json().catch(() => ({}));
     const errorCode = err.errorCode || err.extensions?.errorCode;
     const codeStr = errorCode ? ` [${errorCode}]` : '';
+    const defaultMessage =
+      res.status === 403 && errorCode === 'BRANCH_NOT_ASSIGNED'
+        ? 'Bạn không được phân công làm việc tại chi nhánh này. Vui lòng chọn chi nhánh được phân công.'
+        : `Thanh toán thất bại (Mã lỗi ${res.status}).`;
     return {
       success: false,
       isUnknown: res.status >= 500 || res.status === 408 || res.status === 429,
-      message: (err.detail || err.message || `Thanh toán thất bại (Mã lỗi ${res.status}).`) + codeStr,
+      message: (err.detail || err.message || defaultMessage) + codeStr,
       errorCode,
       currentPrices: err.currentPrices || err.extensions?.currentPrices,
     };

@@ -3,10 +3,10 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-ARC-03` |
-| **Phiên bản (Version)** | `v1.1.1` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-08` |
+| **Phiên bản (Version)** | `v1.1.2` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-14` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-INV-01`, `NFR-TENANT-02`, `NFR-SEC-03`, `3.2.e` (Trang 2, 4, 5) |
-| **Phạm vi áp dụng** | PostgreSQL 16+ Schema (`docs/database/oisms_schema.sql` — 44 bảng) |
+| **Phạm vi áp dụng** | PostgreSQL 16+ Schema (`docs/database/oisms_schema.sql` — 48 bảng) |
 
 ---
 
@@ -17,6 +17,7 @@
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả sơ đồ ERD cốt lõi, quy tắc Sổ cái Append-Only và chiến lược đánh chỉ mục hiệu năng cao. | `INIT-ARC-03` |
 | `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Đồng bộ ERD và chỉ mục với `oisms_schema.sql` hiện hành (43 bảng): tên cột thật, kiểu `numeric(18,3)` cho số lượng, giá vốn nằm ở `inventory_balances.average_cost`. | `OISMS-46` |
 | `v1.1.1` | `2026-11-08` | Nhóm dự án OISMS | Cập nhật số bảng hiện hành lên 44 sau khi bổ sung `payment_accounts`; giữ mốc 43 bảng trong lịch sử v1.1.0. | `CS-05` |
+| `v1.1.2` | `2026-11-14` | Nhóm dự án OISMS | Cập nhật số bảng lên 48 và bổ sung bảng `user_branches` cho phân công chi nhánh nhân viên (`CS-02`). | `OISMS-59-G1B` |
 
 ---
 
@@ -37,7 +38,17 @@ erDiagram
     SKUS ||--o{ INVENTORY_BALANCES : "tồn chi nhánh"
     SKUS ||--o{ WAREHOUSE_INVENTORY_BALANCES : "tồn kho"
     SKUS ||--o{ INVENTORY_TRANSACTIONS : "ghi sổ cái"
+    SUPPLIERS ||--o{ PURCHASE_ORDERS : "nhận đơn mua"
+    PURCHASE_ORDERS ||--o{ PURCHASE_ORDER_ITEMS : "chi tiết đặt"
+    PURCHASE_ORDERS o|--o{ GOODS_RECEIPTS : "giao từng đợt"
+    PURCHASE_ORDER_ITEMS o|--o{ GOODS_RECEIPT_ITEMS : "đối chiếu lượng nhận"
     GOODS_RECEIPTS ||--o{ GOODS_RECEIPT_ITEMS : "chi tiết nhập"
+    SUPPLIERS ||--o{ SUPPLIER_INVOICES : "phát hành"
+    GOODS_RECEIPTS ||--o{ SUPPLIER_INVOICES : "lịch sử hóa đơn"
+    SUPPLIER_INVOICES ||--o{ SUPPLIER_INVOICE_ITEMS : "chi tiết hóa đơn"
+    GOODS_RECEIPT_ITEMS ||--o{ SUPPLIER_INVOICE_ITEMS : "đối chiếu dòng"
+    SUPPLIER_INVOICES ||--o| PURCHASE_VARIANCES : "chênh lệch"
+    GOODS_RECEIPTS ||--o{ PURCHASE_VARIANCES : "chứng từ nhận hàng"
     ORDERS ||--o{ ORDER_ITEMS : "chi tiết đơn"
     ORDER_ITEMS ||--o{ RESERVATIONS : "giữ chỗ"
     ORDERS ||--o| SALES_INVOICES : "tối đa một hóa đơn bán"
@@ -91,6 +102,34 @@ erDiagram
         uuid reference_id "cột sinh từ đúng 1 nguồn chứng từ"
         timestamptz created_at
     }
+    SUPPLIER_INVOICES {
+        uuid id PK
+        uuid tenant_id FK
+        uuid goods_receipt_id FK
+        uuid supplier_id FK
+        text invoice_series
+        text invoice_number
+        text status
+        uuid request_key
+    }
+    SUPPLIER_INVOICE_ITEMS {
+        uuid id PK
+        uuid tenant_id FK
+        uuid invoice_id FK
+        uuid goods_receipt_item_id FK
+        uuid sku_id FK
+        numeric quantity
+        numeric unit_price
+    }
+    PURCHASE_VARIANCES {
+        uuid id PK
+        uuid tenant_id FK
+        uuid invoice_id FK,UK
+        uuid goods_receipt_id FK
+        text variance_type
+        numeric total_amount_diff
+        text status
+    }
     SALES_INVOICES {
         uuid id PK
         uuid tenant_id FK
@@ -104,9 +143,17 @@ erDiagram
         varchar payment_method_snapshot
         timestamptz issued_at
     }
+    USER_BRANCHES {
+        uuid tenant_id PK,FK
+        uuid user_id PK,FK
+        uuid branch_id PK,FK
+        timestamptz created_at
+    }
 ```
 
 ---
+
+Mỗi phiếu nhập có thể lưu nhiều hóa đơn lịch sử và tối đa một hóa đơn còn hiệu lực. Chỉ mục unique `uq_supplier_invoices_active_receipt` loại `Cancelled` và `Rejected`. Dòng hóa đơn đối chiếu với dòng phiếu nhập rồi tới dòng phiếu mua. Các khóa ngoại nghiệp vụ ghép `tenant_id`.
 
 ## 2. Chiến Lược Đánh Chỉ Mục Quy Mô Lớn (`NFR-TENANT-02`)
 
@@ -125,8 +172,9 @@ erDiagram
 | `sales_invoices` | `uq_sales_invoices_2` | `(tenant_id, number)` | Số hóa đơn duy nhất trong tenant. |
 | `sales_invoices` | `uq_sales_invoices_3` | `(tenant_id, order_id)` | Mỗi đơn có tối đa một hóa đơn bán. |
 | `sales_invoices` | `ix_sales_invoices_time` | `(tenant_id, issued_at, id)` | Phân trang hóa đơn theo thời gian xuất. |
+| `user_branches` | `pk_user_branches`, `ix_user_branches_branch` | `(tenant_id, user_id, branch_id)`, `(tenant_id, branch_id)` | Tra cứu phân công chi nhánh theo nhân viên hoặc theo chi nhánh. |
 
-> **Tham chiếu chi tiết DDL:** Xem toàn bộ 44 bảng và trigger bảo vệ Sổ cái tại [`docs/database/oisms_schema.sql`](../database/oisms_schema.sql) và [`docs/database/README.md`](../database/README.md).
+> **Tham chiếu chi tiết DDL:** Xem toàn bộ 48 bảng và trigger bảo vệ Sổ cái tại [`docs/database/oisms_schema.sql`](../database/oisms_schema.sql) và [`docs/database/README.md`](../database/README.md).
 
 ## 3. Quy Tắc Thay Đổi Schema
 

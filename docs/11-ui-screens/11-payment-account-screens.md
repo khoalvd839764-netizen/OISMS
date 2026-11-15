@@ -9,7 +9,7 @@
 | **Quyền truy cập** | Màn quản lý: chỉ `Owner`. Danh sách tài khoản đang dùng (`/active`) cho `Owner`, `Staff`, `Cashier` để POS chọn khi thanh toán QR |
 | **Source code** | `src/frontend/admin-dashboard/src/pages/PaymentAccountsPage.tsx`; POS dùng `src/frontend/pos-app/src/services/paymentAccountSource.ts`, `qrService.ts` |
 | **API** | `GET /api/payment-accounts` (Owner), `GET /api/payment-accounts/active`, `POST /api/payment-accounts`, `PUT /api/payment-accounts/{id}`, `POST /api/payment-accounts/{id}/set-default`, `POST /api/payment-accounts/{id}/deactivate` |
-| **Tài liệu chức năng** | [Kế hoạch 07 VietQR](../Upgrade-recommended/07-thanh-toan-qr-vietqr.md), [review PR 39](../report-after-upgrade/vietqr-cs05-review-pr39.md) |
+| **Tài liệu chức năng** | [Kế hoạch 07 VietQR](../Upgrade-recommended/Done/07-thanh-toan-qr-vietqr.md), [review PR 39](../report-after-upgrade/vietqr-cs05-review-pr39.md) |
 
 ---
 

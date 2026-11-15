@@ -60,10 +60,10 @@ public class WarehousesController : ControllerBase
     }
 
     /// <summary>
-    /// Tạo kho hàng mới gắn với Chi nhánh (Yêu cầu quyền Owner hoặc Staff).
+    /// Tạo kho hàng mới gắn với Chi nhánh (Chỉ Owner - FR-AUTH-04).
     /// </summary>
     [HttpPost]
-    [Authorize(Roles = "Owner,Staff")]
+    [Authorize(Roles = "Owner")]
     [ApiErrorContract(ApiErrorProfile.MessageBadRequest)]
     public async Task<IActionResult> CreateWarehouse([FromBody] CreateWarehouseRequest request, CancellationToken ct)
     {
@@ -79,10 +79,10 @@ public class WarehousesController : ControllerBase
     }
 
     /// <summary>
-    /// Cập nhật thông tin kho hàng (Yêu cầu quyền Owner hoặc Staff - BE2-08, S3-B01-FIX).
+    /// Cập nhật thông tin kho hàng (Chỉ Owner - BE2-08, FR-AUTH-04, S3-B01-FIX).
     /// </summary>
     [HttpPut("{id}")]
-    [Authorize(Roles = "Owner,Staff")]
+    [Authorize(Roles = "Owner")]
     [ApiErrorContract(ApiErrorProfile.WarehouseUpdate)]
     public async Task<IActionResult> UpdateWarehouse(Guid id, [FromBody] UpdateWarehouseRequest request, CancellationToken ct)
     {
@@ -104,10 +104,10 @@ public class WarehousesController : ControllerBase
     }
 
     /// <summary>
-    /// Bật/Tắt trạng thái hoạt động của kho hàng (Yêu cầu quyền Owner hoặc Staff).
+    /// Bật/Tắt trạng thái hoạt động của kho hàng (Chỉ Owner - FR-AUTH-04).
     /// </summary>
     [HttpPut("{id}/toggle-status")]
-    [Authorize(Roles = "Owner,Staff")]
+    [Authorize(Roles = "Owner")]
     public async Task<IActionResult> ToggleStatus(Guid id, CancellationToken ct)
     {
         var tenantId = GetCurrentTenantId();

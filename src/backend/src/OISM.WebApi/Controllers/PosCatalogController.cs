@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using OISM.Application.Features.Branches.Services;
 using OISM.Application.Features.Orders.Dtos;
 using OISM.Application.Features.Orders.Services;
 using OISM.Application.Features.Pos;
@@ -17,11 +18,16 @@ public class PosCatalogController : ControllerBase
 {
     private readonly IPosCatalogService _posCatalogService;
     private readonly IPosCheckoutService _posCheckoutService;
+    private readonly IBranchAccessService _branchAccessService;
 
-    public PosCatalogController(IPosCatalogService posCatalogService, IPosCheckoutService posCheckoutService)
+    public PosCatalogController(
+        IPosCatalogService posCatalogService,
+        IPosCheckoutService posCheckoutService,
+        IBranchAccessService branchAccessService)
     {
         _posCatalogService = posCatalogService;
         _posCheckoutService = posCheckoutService;
+        _branchAccessService = branchAccessService;
     }
 
     /// <summary>
@@ -38,7 +44,8 @@ public class PosCatalogController : ControllerBase
         [FromHeader(Name = "X-Request-Key")] string? xRequestKeyHeader,
         CancellationToken ct)
     {
-        return await PosCheckoutActionHelper.ExecuteCheckoutAsync(this, _posCheckoutService, dto, idempotencyKeyHeader, xRequestKeyHeader, ct);
+        return await PosCheckoutActionHelper.ExecuteCheckoutAsync(
+            this, _branchAccessService, _posCheckoutService, dto, idempotencyKeyHeader, xRequestKeyHeader, ct);
     }
 
     /// <summary>

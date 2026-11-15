@@ -4,11 +4,12 @@ internal static class ApiErrorTitles
 {
     public static string Get(ApiErrorProfile profile, string code) => profile switch
     {
-        ApiErrorProfile.GoodsReceipts or ApiErrorProfile.GoodsReceiptCreate or ApiErrorProfile.GoodsReceiptRead or ApiErrorProfile.PurchaseOrders => GoodsReceipts(code),
+        ApiErrorProfile.GoodsReceipts or ApiErrorProfile.GoodsReceiptCreate or ApiErrorProfile.GoodsReceiptRead or ApiErrorProfile.PurchaseOrders or ApiErrorProfile.SupplierInvoices => GoodsReceipts(code),
         ApiErrorProfile.Orders or ApiErrorProfile.OrderProcess => Orders(code),
         ApiErrorProfile.PosCheckout => PosCheckout(code),
         ApiErrorProfile.PaymentAccounts => PaymentAccounts(code),
         ApiErrorProfile.Pricing => Pricing(code),
+        ApiErrorProfile.Reports => Reports(code),
         ApiErrorProfile.SalesInvoices => SalesInvoices(code),
         ApiErrorProfile.SalesReturns => SalesReturns(code),
         ApiErrorProfile.Ai => Ai(code),
@@ -34,6 +35,11 @@ internal static class ApiErrorTitles
 
     private static string GoodsReceipts(string code) => code switch
     {
+        "SUPPLIER_INVOICE_DUPLICATE" => "Trùng ký hiệu và số hóa đơn nhà cung cấp",
+        "SUPPLIER_INVOICE_INVALID_STATE" => "Trạng thái hóa đơn không hợp lệ",
+        "SUPPLIER_INVOICE_RECEIPT_MISMATCH" => "Hóa đơn không khớp phiếu nhập",
+        "SUPPLIER_INVOICE_ALREADY_EXISTS" => "Phiếu nhập đã có hóa đơn còn hiệu lực",
+        "GOODS_RECEIPT_INVOICE_PENDING" => "Hóa đơn phiếu nhập chưa sẵn sàng",
         "PURCHASE_ORDER_REQUIRED" => "Yêu cầu phiếu mua hàng",
         "PURCHASE_ORDER_NOT_RECEIVABLE" => "Phiếu mua không ở trạng thái nhận hàng",
         "PURCHASE_ORDER_OVER_RECEIPT" => "Vượt số lượng đặt mua",
@@ -59,6 +65,7 @@ internal static class ApiErrorTitles
         "SKU_NOT_FOUND" => "Không tìm thấy mặt hàng",
         "SKU_INACTIVE" => "Mặt hàng ngừng hoạt động",
         "BRANCH_NOT_FOUND" => "Không tìm thấy chi nhánh",
+        "BRANCH_NOT_ASSIGNED" => "Không được phân công chi nhánh",
         "BRANCH_INACTIVE" => "Chi nhánh ngừng hoạt động",
         "NO_ACTIVE_WAREHOUSE" => "Không có kho hàng hoạt động",
         "CHANNEL_NOT_ALLOWED" => "Kênh bán không được phép",
@@ -73,6 +80,7 @@ internal static class ApiErrorTitles
         "IDEMPOTENCY_PAYLOAD_MISMATCH" => "Xung đột khóa Idempotency",
         "VALIDATION_ERROR" => "Lỗi xác thực dữ liệu",
         "BRANCH_INACTIVE_OR_INVALID" => "Chi nhánh không hợp lệ",
+        "BRANCH_NOT_ASSIGNED" => "Không được phân công chi nhánh",
         "SKU_NOT_FOUND" => "Mặt hàng không tồn tại",
         "SKU_INACTIVE" => "Mặt hàng đã ngừng hoạt động",
         "PRICE_MISMATCH" => "Sai lệch đơn giá niêm yết",
@@ -148,6 +156,13 @@ internal static class ApiErrorTitles
         "VALIDATION_ERROR" => "Lỗi xác thực dữ liệu",
         "INVALID_STATE_TRANSITION" => "Chuyển trạng thái không hợp lệ",
         _ => "Lỗi xử lý nghiệp vụ"
+    };
+
+    private static string Reports(string code) => code switch
+    {
+        "VALIDATION_ERROR" => "Lỗi xác thực dữ liệu",
+        "UNAUTHORIZED" => "Chưa xác thực",
+        _ => "Lỗi xử lý báo cáo"
     };
 
     private static string StockCountSchedules(string code) => code switch

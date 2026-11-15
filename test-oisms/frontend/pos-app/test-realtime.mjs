@@ -78,3 +78,43 @@ test('hub: payload thiếu timestamp/sai số tồn bị bỏ qua',async()=>{
 test('hub: token hết hạn dùng refresh của phiên POS mới',async()=>{
   const w=world();w.setToken('x.'+btoa(JSON.stringify({exp:1}))+'.x');await w.api.startRealtimeConnection(user,'A');assert.equal(await w.conns[0].options.accessTokenFactory(),'renewed');assert.equal(w.conns[0].options.transport,7);
 });
+
+const branchOrder=(branchId='A',orderId='ord-1')=>({
+  orderId,orderNumber:'ORD-001',branchId,channel:'Shopee',createdAt:'2026-11-15T10:00:00Z',
+  items:[{skuId:'sku-1',skuCode:'SKU-1',productName:'Áo thun',quantity:2,unitName:'Cái'}]
+});
+
+test('hub: BranchOrderCreated lọc theo chi nhánh và bỏ qua khi logout/đổi generation',async()=>{
+  const w=world(),received=[];w.api.subscribeBranchOrderCreated(v=>received.push(v));
+  await w.api.startRealtimeConnection(user,'A');const c=w.conns[0];
+  c.handlers.BranchOrderCreated(branchOrder('B','ord-b'));
+  c.handlers.BranchOrderCreated(branchOrder('A','ord-a'));
+  assert.equal(received.length,1);assert.equal(received[0].orderId,'ord-a');
+  w.changeAuth();
+  c.handlers.BranchOrderCreated(branchOrder('A','ord-after-auth'));
+  assert.equal(received.length,1);
+});
+
+test('hub: BranchOrderCreated payload lỗi bị bỏ qua',async()=>{
+  const w=world(),received=[];w.api.subscribeBranchOrderCreated(v=>received.push(v));
+  await w.api.startRealtimeConnection(user,'A');const c=w.conns[0];
+  c.handlers.BranchOrderCreated(null);
+  c.handlers.BranchOrderCreated({...branchOrder('A'),orderId:''});
+  c.handlers.BranchOrderCreated({...branchOrder('A'),orderNumber:''});
+  c.handlers.BranchOrderCreated({...branchOrder('A'),channel:''});
+  c.handlers.BranchOrderCreated({...branchOrder('A'),createdAt:'invalid-date'});
+  c.handlers.BranchOrderCreated({...branchOrder('A'),items:[]});
+  c.handlers.BranchOrderCreated({...branchOrder('A'),items:[{skuId:'sku-1',skuCode:'SKU-1',productName:'Áo',quantity:0}]});
+  assert.equal(received.length,0);
+});
+
+test('toast: khử trùng BranchOrderCreated theo orderId',()=>{
+  const toastMod=load('branchOrderToast.ts');
+  const seen=new Set();
+  const first=toastMod.appendUniqueBranchOrderToast([],seen,branchOrder('A','ord-1'));
+  assert.equal(first.added,true);assert.equal(first.next.length,1);
+  const dup=toastMod.appendUniqueBranchOrderToast(first.next,seen,branchOrder('A','ord-1'));
+  assert.equal(dup.added,false);assert.equal(dup.next.length,1);
+  const second=toastMod.appendUniqueBranchOrderToast(dup.next,seen,branchOrder('A','ord-2'));
+  assert.equal(second.added,true);assert.equal(second.next.length,2);
+});

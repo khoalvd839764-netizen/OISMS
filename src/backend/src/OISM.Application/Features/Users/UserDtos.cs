@@ -12,6 +12,7 @@ public class UserResponse
     public string? Phone { get; set; }
     public string Role { get; set; } = string.Empty;
     public bool IsActive { get; set; }
+    public List<Guid> BranchIds { get; set; } = new();
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }
 }
@@ -23,6 +24,7 @@ public class CreateUserRequest
     public string? Phone { get; set; }
     public string Password { get; set; } = string.Empty;
     public string Role { get; set; } = "Staff";
+    public List<Guid>? BranchIds { get; set; }
 }
 
 public class UpdateUserRequest
@@ -31,6 +33,7 @@ public class UpdateUserRequest
     public string? Phone { get; set; }
     public string Role { get; set; } = "Staff";
     public bool IsActive { get; set; } = true;
+    public List<Guid>? BranchIds { get; set; }
 }
 
 public class UpdateUserStatusRequest

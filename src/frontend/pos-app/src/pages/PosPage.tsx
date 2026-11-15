@@ -10,9 +10,22 @@ import { ProductCatalog } from '../components/pos/ProductCatalog';
 import './PosPage.css';
 import { PaymentModal } from '../components/pos/PaymentModal';
 import { ReceiptPrintModal } from '../components/pos/ReceiptPrintModal';
+import { BranchOrderToast } from '../components/pos/BranchOrderToast';
 import { useAuth } from '../context/PosAuthContext';
 import { useBranchStock } from '../context/useBranchStock';
 import { updateCartStock } from '../services/branchStock';
+import {
+  subscribeBranchOrderCreated,
+  subscribeRealtimeStatus,
+  type BranchOrderCreated,
+  type RealtimeStatus,
+} from '../services/realtimeService';
+import {
+  appendUniqueBranchOrderToast,
+  playPosOrderSound,
+  readOrderSoundEnabled,
+  writeOrderSoundEnabled,
+} from '../services/branchOrderToast';
 
 export function PosPage() {
   const { user, logout } = useAuth();
@@ -41,7 +54,13 @@ export function PosPage() {
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [catalogRefresh, setCatalogRefresh] = useState(0);
   const paymentButtonRef = useRef<HTMLButtonElement>(null);
-  const [printedReceipt, setPrintedReceipt] = useState<ReceiptData | null>(null);
+  const [printedReceipt, setPrintedReceipt] = useState<{ receipt: ReceiptData; autoPrint: boolean } | null>(null);
+  const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>('disconnected');
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(() => readOrderSoundEnabled());
+  const soundEnabledRef = useRef(soundEnabled);
+  useLayoutEffect(() => { soundEnabledRef.current = soundEnabled; }, [soundEnabled]);
+  const [orderToasts, setOrderToasts] = useState<BranchOrderCreated[]>([]);
+  const seenOrderIdsRef = useRef<Set<string>>(new Set());
   const stock = useBranchStock(user, selectedBranchId, catalogRefresh, (products) => {
     setCart(previous => updateCartStock(previous, products));
   });
@@ -90,6 +109,30 @@ export function PosPage() {
       window.removeEventListener('pos-auth-expired', handleAuthExpired);
     };
   }, [logout, navigate]);
+
+  // Realtime branch order notifications & connection status
+  useEffect(() => {
+    const timeouts = new Set<number>();
+    const unsubStatus = subscribeRealtimeStatus(setRealtimeStatus);
+    const unsubOrder = subscribeBranchOrderCreated((incoming) => {
+      // Khử trùng ngoài state updater: updater phải thuần (StrictMode gọi hai lần, React có thể gọi trễ).
+      const { added } = appendUniqueBranchOrderToast([], seenOrderIdsRef.current, incoming);
+      if (added) {
+        setOrderToasts((prev) => [incoming, ...prev.filter((item) => item.orderId !== incoming.orderId)].slice(0, 3));
+        if (soundEnabledRef.current) playPosOrderSound();
+        const timer = window.setTimeout(() => {
+          timeouts.delete(timer);
+          setOrderToasts((prev) => prev.filter((item) => item.orderId !== incoming.orderId));
+        }, 8000);
+        timeouts.add(timer);
+      }
+    });
+    return () => {
+      unsubStatus();
+      unsubOrder();
+      for (const timer of timeouts) window.clearTimeout(timer);
+    };
+  }, []);
 
   // Global Keyboard Shortcuts (F2: Search/Barcode, F4: Pay, Esc: Close)
   useEffect(() => {
@@ -312,9 +355,11 @@ export function PosPage() {
     if (cart.length > 0) {
       if (window.confirm('Đổi chi nhánh sẽ làm mới lại giỏ hàng vì tồn kho các chi nhánh là khác nhau. Bạn có muốn tiếp tục?')) {
         setCart([]);
+        setOrderToasts([]);
         setSelectedBranchId(branchId);
       }
     } else {
+      setOrderToasts([]);
       setSelectedBranchId(branchId);
     }
   };
@@ -351,6 +396,13 @@ export function PosPage() {
         isOnline={isOnline}
         isFullscreen={isFullscreen}
         onToggleFullscreen={toggleFullscreen}
+        realtimeStatus={realtimeStatus}
+        soundEnabled={soundEnabled}
+        onToggleSound={() => {
+          const next = !soundEnabled;
+          setSoundEnabled(next);
+          writeOrderSoundEnabled(next);
+        }}
       />
 
       <span className="pos-realtime-state" role="status" aria-label="Trạng thái realtime">{stock.status === 'connected' ? 'Tồn kho trực tiếp' : stock.status === 'connecting' || stock.status === 'reconnecting' ? 'Đang kết nối tồn kho…' : 'Realtime ngắt kết nối · tải lại tồn khi kết nối lại'}</span>
@@ -411,16 +463,23 @@ export function PosPage() {
               tenantName={currentUser?.tenantName || 'CỬA HÀNG OISMS'} cashierName={currentUser?.fullName || 'Thu ngân'}
               currentUser={currentUser}
               onBusyChange={setCheckoutBusy} submitRef={paymentButtonRef}
-              onSuccessAndPrint={(receipt) => {setPrintedReceipt(receipt);setCart([]);setCatalogRefresh((value)=>value+1);}}
-              onPreviewReceipt={setPrintedReceipt} />
+              onSuccessAndPrint={(receipt) => {setPrintedReceipt({ receipt, autoPrint: true });setCart([]);setCatalogRefresh((value)=>value+1);}}
+              onPreviewReceipt={(receipt) => setPrintedReceipt({ receipt, autoPrint: false })} />
           </fieldset>
         </aside>
       </main>
 
       {/* Print Thermal Receipt Modal */}
       <ReceiptPrintModal
-        receipt={printedReceipt}
+        receipt={printedReceipt?.receipt ?? null}
+        autoPrint={printedReceipt?.autoPrint ?? false}
         onClose={() => setPrintedReceipt(null)}
+      />
+
+      {/* Branch Order Toast Notifications */}
+      <BranchOrderToast
+        toasts={orderToasts}
+        onDismiss={(orderId) => setOrderToasts((prev) => prev.filter((item) => item.orderId !== orderId))}
       />
     </div>
   );

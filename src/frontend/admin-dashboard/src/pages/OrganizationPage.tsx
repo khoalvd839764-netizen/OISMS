@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Badge, Button, Input, Modal, PageTitle, Select } from "../components/ui";
 import { apiAdapter } from "../services/apiAdapter";
 import { useAuth } from "../context/AuthContext";
+import { adminResetUserPassword } from "../services/passwordResetService";
 
 export function OrganizationPage() {
   const { user } = useAuth();
@@ -18,7 +19,7 @@ export function OrganizationPage() {
   // Danh sách chi nhánh & kho hàng thật
   const [branches, setBranches] = useState<Array<{ id: string; name: string; address?: string; phone?: string; isActive?: boolean }>>([]);
   const [warehouses, setWarehouses] = useState<Array<{ id: string; name: string; code?: string; address?: string; branchId: string; isActive?: boolean }>>([]);
-  const [users, setUsers] = useState<Array<{ id: string; tenantId: string; email: string; displayName: string; phone?: string; role: string; isActive: boolean; createdAt: string }>>([]);
+  const [users, setUsers] = useState<Array<{ id: string; tenantId: string; email: string; displayName: string; phone?: string; role: string; isActive: boolean; branchIds?: string[]; createdAt: string }>>([]);
 
   // Form Thêm chi nhánh mới
   const [branchName, setBranchName] = useState("");
@@ -31,13 +32,15 @@ export function OrganizationPage() {
   const [userPhone, setUserPhone] = useState("");
   const [userPassword, setUserPassword] = useState("");
   const [userRole, setUserRole] = useState("Staff");
+  const [userBranchIds, setUserBranchIds] = useState<string[]>([]);
 
   // Modal Sửa nhân viên (CS-02)
-  const [editingUser, setEditingUser] = useState<{ id: string; email: string; displayName: string; phone?: string; role: string; isActive: boolean } | null>(null);
+  const [editingUser, setEditingUser] = useState<{ id: string; email: string; displayName: string; phone?: string; role: string; isActive: boolean; branchIds?: string[] } | null>(null);
   const [editDisplayName, setEditDisplayName] = useState("");
   const [editPhone, setEditPhone] = useState("");
   const [editRole, setEditRole] = useState("Staff");
   const [editIsActive, setEditIsActive] = useState(true);
+  const [editBranchIds, setEditBranchIds] = useState<string[]>([]);
 
   const loadOrgData = async () => {
     setLoading(true);
@@ -167,6 +170,7 @@ export function OrganizationPage() {
       phone: userPhone.trim() || undefined,
       password: userPassword,
       role: userRole,
+      branchIds: userRole === "Owner" ? undefined : userBranchIds,
     });
     setLoading(false);
 
@@ -179,17 +183,36 @@ export function OrganizationPage() {
       setUserPhone("");
       setUserPassword("");
       setUserRole("Staff");
+      setUserBranchIds([]);
       loadOrgData();
     }
   };
 
-  const openEditUserModal = (u: { id: string; email: string; displayName: string; phone?: string; role: string; isActive: boolean }) => {
+  const openEditUserModal = (u: { id: string; email: string; displayName: string; phone?: string; role: string; isActive: boolean; branchIds?: string[] }) => {
     setEditingUser(u);
     setEditDisplayName(u.displayName);
     setEditPhone(u.phone || "");
     setEditRole(u.role);
     setEditIsActive(u.isActive);
+    setEditBranchIds(u.role === "Owner" ? [] : (u.branchIds || []));
     setError(null);
+  };
+
+  const toggleBranchSelection = (branchId: string, selectedIds: string[], setSelectedIds: (ids: string[]) => void) => {
+    if (selectedIds.includes(branchId)) {
+      setSelectedIds(selectedIds.filter((id) => id !== branchId));
+    } else {
+      setSelectedIds([...selectedIds, branchId]);
+    }
+  };
+
+  const renderAssignedBranchesLabel = (u: { role: string; branchIds?: string[] }) => {
+    if (u.role === "Owner" || !u.branchIds || u.branchIds.length === 0) {
+      return "Tất cả chi nhánh";
+    }
+    return u.branchIds
+      .map((id) => branches.find((b) => b.id === id)?.name || id.slice(0, 8))
+      .join(", ");
   };
 
   const closeEditUserModal = () => {
@@ -211,6 +234,7 @@ export function OrganizationPage() {
       phone: editPhone.trim() || undefined,
       role: editRole,
       isActive: editIsActive,
+      branchIds: editingUser.role === "Owner" || editRole === "Owner" ? [] : editBranchIds,
     });
     setLoading(false);
 
@@ -219,6 +243,36 @@ export function OrganizationPage() {
     } else {
       setEditingUser(null);
       await loadOrgData();
+    }
+  };
+
+  // Upgrade 10: Owner đặt lại mật khẩu hộ Staff/Cashier
+  const [resetUser, setResetUser] = useState<{ id: string; displayName: string } | null>(null);
+  const [resetPasswordValue, setResetPasswordValue] = useState("");
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resetDone, setResetDone] = useState<string | null>(null);
+
+  const openResetPassword = (target: { id: string; displayName: string }) => {
+    setResetUser(target);
+    setResetPasswordValue("");
+    setResetError(null);
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetUser) return;
+    if (resetPasswordValue.length < 6 || resetPasswordValue.length > 100) {
+      setResetError("Mật khẩu mới phải từ 6 đến 100 ký tự.");
+      return;
+    }
+    setResetError(null);
+    setLoading(true);
+    const res = await adminResetUserPassword(resetUser.id, resetPasswordValue);
+    setLoading(false);
+    if (res.ok) {
+      setResetDone(`Đã đặt lại mật khẩu cho ${resetUser.displayName}. Nhân viên cần đăng nhập lại bằng mật khẩu mới.`);
+      setResetUser(null);
+    } else {
+      setResetError(res.error || "Không đặt lại được mật khẩu.");
     }
   };
 
@@ -296,6 +350,13 @@ export function OrganizationPage() {
           </Select>
         </div>
 
+        {resetDone && (
+          <div role="status" style={{ margin: "16px", padding: "14px 16px", background: "#f0fdf4", border: "1px solid #86efac", borderRadius: "10px", color: "#15803d", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
+            <span>{resetDone}</span>
+            <button type="button" onClick={() => setResetDone(null)} style={{ background: "none", border: "none", color: "inherit", cursor: "pointer", fontWeight: 600 }}>Đóng</button>
+          </div>
+        )}
+
         {error && (
           <div style={{ margin: "16px", padding: "14px 16px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "10px", color: "#b91c1c", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -319,6 +380,7 @@ export function OrganizationPage() {
                 <tr>
                   <th>Nhân viên</th>
                   <th>Vai trò</th>
+                  <th>Chi nhánh phân công</th>
                   <th>Cửa hàng / Doanh nghiệp</th>
                   <th>Trạng thái</th>
                   <th style={{ textAlign: "right" }}>Thao tác</th>
@@ -327,7 +389,7 @@ export function OrganizationPage() {
               <tbody>
                 {filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={5} style={{ textAlign: "center", padding: "28px 0", color: "#64748b" }}>
+                    <td colSpan={6} style={{ textAlign: "center", padding: "28px 0", color: "#64748b" }}>
                       {loading ? "Đang tải danh sách nhân viên..." : "Chưa có nhân viên nào phù hợp bộ lọc."}
                     </td>
                   </tr>
@@ -352,6 +414,11 @@ export function OrganizationPage() {
                           <Badge tone={u.role === "Owner" ? "info" : u.role === "Cashier" ? "warning" : "neutral"}>
                             {u.role}
                           </Badge>
+                        </td>
+                        <td>
+                          <span style={{ fontSize: "12px", color: u.role === "Owner" || !u.branchIds?.length ? "#475569" : "#0f172a" }}>
+                            {renderAssignedBranchesLabel(u)}
+                          </span>
                         </td>
                         <td>{user?.tenantName || "Cửa hàng chính"}</td>
                         <td>
@@ -397,6 +464,25 @@ export function OrganizationPage() {
                                 }}
                               >
                                 {u.isActive ? "Tạm dừng" : "Kích hoạt"}
+                              </button>
+                            )}
+                            {user?.role === "Owner" && !isSelf && u.role !== "Owner" && (
+                              <button
+                                type="button"
+                                onClick={() => openResetPassword({ id: u.id, displayName: u.displayName })}
+                                disabled={loading}
+                                style={{
+                                  background: "#fff7ed",
+                                  border: "1px solid #fdba74",
+                                  color: "#c2410c",
+                                  borderRadius: "6px",
+                                  padding: "4px 8px",
+                                  fontSize: "11px",
+                                  fontWeight: 600,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                Đặt lại mật khẩu
                               </button>
                             )}
                           </div>
@@ -452,13 +538,15 @@ export function OrganizationPage() {
                       <div style={{ marginTop: "12px", borderTop: "1px dashed #cbd5e1", paddingTop: "8px" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                           <small style={{ color: "#64748b", fontWeight: 600 }}>Kho hàng trực thuộc ({whList.length}):</small>
-                          <button
-                            type="button"
-                            onClick={() => { setError(null); setNewWarehouseName(""); setWarehouseModalBranchId(b.id); }}
-                            style={{ background: "none", border: "none", color: "#1769e0", fontSize: "11px", fontWeight: 600, cursor: "pointer" }}
-                          >
-                            + Thêm kho
-                          </button>
+                          {user?.role === "Owner" && (
+                            <button
+                              type="button"
+                              onClick={() => { setError(null); setNewWarehouseName(""); setWarehouseModalBranchId(b.id); }}
+                              style={{ background: "none", border: "none", color: "#1769e0", fontSize: "11px", fontWeight: 600, cursor: "pointer" }}
+                            >
+                              + Thêm kho
+                            </button>
+                          )}
                         </div>
                         {whList.length === 0 ? (
                           <p style={{ fontSize: "12px", color: "#94a3b8", margin: "6px 0 0" }}>Chưa có kho lưu trữ nào thuộc chi nhánh này.</p>
@@ -469,13 +557,16 @@ export function OrganizationPage() {
                                 <span>
                                   {w.name} {w.isActive === false ? <em style={{ color: "#94a3b8" }}>(Tạm ngưng)</em> : null}
                                 </span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleToggleWarehouse(w.id)}
-                                  style={{ background: "none", border: "none", color: "#64748b", fontSize: "11px", cursor: "pointer", textDecoration: "underline" }}
-                                >
-                                  {w.isActive === false ? "Bật" : "Tắt"}
-                                </button>
+                                {user?.role === "Owner" && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleWarehouse(w.id)}
+                                    disabled={loading}
+                                    style={{ background: "none", border: "none", color: "#64748b", fontSize: "11px", cursor: "pointer", textDecoration: "underline" }}
+                                  >
+                                    {w.isActive === false ? "Bật" : "Tắt"}
+                                  </button>
+                                )}
                               </li>
                             ))}
                           </ul>
@@ -556,6 +647,32 @@ export function OrganizationPage() {
                     <option value="Cashier">Thu ngân (Cashier - chỉ truy cập POS)</option>
                   </Select>
                 </label>
+                {userRole !== "Owner" && (
+                  <div className="full-field">
+                    <span style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#334155", marginBottom: "6px" }}>
+                      Chi nhánh phân công ({userBranchIds.length === 0 ? "Tất cả chi nhánh" : `Đã chọn ${userBranchIds.length} chi nhánh`})
+                    </span>
+                    <div style={{ border: "1px solid #cbd5e1", borderRadius: "8px", padding: "10px", maxHeight: "150px", overflowY: "auto", display: "grid", gap: "6px", background: "#f8fafc" }}>
+                      {branches.length === 0 ? (
+                        <span style={{ fontSize: "12px", color: "#64748b" }}>Chưa có chi nhánh nào.</span>
+                      ) : (
+                        branches.map((b) => (
+                          <label key={b.id} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", cursor: "pointer", margin: 0 }}>
+                            <input
+                              type="checkbox"
+                              checked={userBranchIds.includes(b.id)}
+                              onChange={() => toggleBranchSelection(b.id, userBranchIds, setUserBranchIds)}
+                            />
+                            <span>{b.name}{b.isActive === false ? " (Tạm dừng)" : ""}</span>
+                          </label>
+                        ))
+                      )}
+                    </div>
+                    <p style={{ margin: "4px 0 0", fontSize: "11px", color: "#64748b" }}>
+                      Để trống tất cả nếu cho phép nhân viên thao tác ở mọi chi nhánh.
+                    </p>
+                  </div>
+                )}
               </>
             ) : (
               <>
@@ -600,7 +717,7 @@ export function OrganizationPage() {
         </Modal>
       )}
 
-      {warehouseModalBranchId && (
+      {user?.role === "Owner" && warehouseModalBranchId && (
         <Modal title="Thêm Kho hàng mới trực thuộc Chi nhánh" onClose={() => setWarehouseModalBranchId(null)}>
           {error && (
             <div style={{ background: "#fee2e2", border: "1px solid #ef4444", color: "#b91c1c", padding: "10px", borderRadius: "8px", fontSize: "12px", marginBottom: "12px" }}>
@@ -622,6 +739,32 @@ export function OrganizationPage() {
             <Button variant="secondary" onClick={() => setWarehouseModalBranchId(null)}>Hủy</Button>
             <Button onClick={handleCreateWarehouse} disabled={loading}>
               {loading ? "Đang tạo..." : "Tạo kho hàng"}
+            </Button>
+          </div>
+        </Modal>
+      )}
+      {resetUser && (
+        <Modal title={`Đặt lại mật khẩu: ${resetUser.displayName}`} onClose={() => setResetUser(null)}>
+          {resetError && (
+            <div style={{ background: "#fee2e2", border: "1px solid #ef4444", color: "#b91c1c", padding: "10px", borderRadius: "8px", fontSize: "12px", marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+              <AlertCircle size={16} />
+              <span>{resetError}</span>
+            </div>
+          )}
+          <p style={{ fontSize: "12px", color: "var(--muted)", marginTop: 0 }}>
+            Mật khẩu mới có hiệu lực ngay. Các phiên đăng nhập hiện tại của nhân viên sẽ hết hạn trong tối đa 60 phút.
+            Hãy báo mật khẩu mới trực tiếp cho nhân viên.
+          </p>
+          <div className="form-grid">
+            <label>
+              <span>Mật khẩu mới *</span>
+              <Input type="text" autoComplete="new-password" placeholder="Tối thiểu 6 ký tự" value={resetPasswordValue} onChange={(e) => setResetPasswordValue(e.target.value)} autoFocus />
+            </label>
+          </div>
+          <div className="modal-actions">
+            <Button variant="secondary" onClick={() => setResetUser(null)}>Hủy</Button>
+            <Button onClick={handleResetPassword} disabled={loading}>
+              {loading ? "Đang lưu..." : "Đặt lại mật khẩu"}
             </Button>
           </div>
         </Modal>
@@ -683,6 +826,32 @@ export function OrganizationPage() {
                 <option value="false">Tạm dừng tài khoản</option>
               </Select>
             </label>
+            {editingUser.role !== "Owner" && editRole !== "Owner" && (
+              <div className="full-field">
+                <span style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "#334155", marginBottom: "6px" }}>
+                  Chi nhánh phân công ({editBranchIds.length === 0 ? "Tất cả chi nhánh" : `Đã chọn ${editBranchIds.length} chi nhánh`})
+                </span>
+                <div style={{ border: "1px solid #cbd5e1", borderRadius: "8px", padding: "10px", maxHeight: "150px", overflowY: "auto", display: "grid", gap: "6px", background: "#f8fafc" }}>
+                  {branches.length === 0 ? (
+                    <span style={{ fontSize: "12px", color: "#64748b" }}>Chưa có chi nhánh nào.</span>
+                  ) : (
+                    branches.map((b) => (
+                      <label key={b.id} style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", cursor: "pointer", margin: 0 }}>
+                        <input
+                          type="checkbox"
+                          checked={editBranchIds.includes(b.id)}
+                          onChange={() => toggleBranchSelection(b.id, editBranchIds, setEditBranchIds)}
+                        />
+                        <span>{b.name}{b.isActive === false ? " (Tạm dừng)" : ""}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+                <p style={{ margin: "4px 0 0", fontSize: "11px", color: "#64748b" }}>
+                  Bỏ chọn tất cả để cấp quyền truy cập mọi chi nhánh.
+                </p>
+              </div>
+            )}
           </div>
           <div className="modal-actions">
             <Button variant="secondary" onClick={closeEditUserModal}>Hủy</Button>

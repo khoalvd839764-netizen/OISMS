@@ -38,7 +38,8 @@ export function NotificationCenter({ compact = false }: { compact?: boolean }) {
     const unsubscribeEvent = realtimeAdapter.subscribe((event) => {
       setEvents((current) => [event, ...current].slice(0, 15));
       setPopup(event);
-      if (sound) playNotificationSound();
+      const isPosOrder = event.type === "order.created" && event.channel?.toUpperCase() === "POS";
+      if (sound && !isPosOrder) playNotificationSound();
       window.setTimeout(() => setPopup(null), 6000);
     });
 

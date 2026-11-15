@@ -1,85 +1,82 @@
-# KẾ HOẠCH & PHÂN CÔNG CHI TIẾT SPRINT 5 (thực tế 05/11/2026 – 12/11/2026; kế hoạch gốc 28/10/2026 – 01/11/2026 | D19 – D21)
+# KẾ HOẠCH & BÁO CÁO TỔNG KẾT NGHIỆM THU SPRINT 5 (05/11/2026 – 11/11/2026 | D26 – D31)
 
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
-| **Mã tài liệu (Document ID)** | `DOC-SPR-05` |
-| **Phiên bản (Version)** | `v1.1.0` |
-| **Ngày cập nhật** | `2026-11-12` |
-| **Báo cáo nghiệm thu** | [`BAO_CAO_TONG_KET_NGHIEM_THU_SPRINT_5.md`](./BAO_CAO_TONG_KET_NGHIEM_THU_SPRINT_5.md) |
-| **Nguồn truy vết gốc** | `De bai CNPM.pdf` & Confluence Page ID `5275650` (Version 9) — Mục III.5 |
-| **Chủ đề Sprint 5** | **Rà soát (Review), Hồi quy & Chốt Bàn giao (Final Sign-off)** |
+| **Dự án** | Omnichannel Inventory & Sales Management System (OISMS) |
+| **Không gian Confluence** | `MFS` \| **Thư mục:** `Report Sprint` |
+| **Mã tài liệu (Document ID)** | `DOC-REP-SPRINT-05` |
+| **Phiên bản (Version)** | `v1.0.0` |
+| **Nguồn truy vết gốc** | Confluence Page ID `19824685` (`[Sprint 5] Báo Cáo Tổng Kết & Nghiệm Thu Sprint 5`) & Jira Sprint 5 (`OISMS-58`, `OISMS-53..59`) |
+| **Chủ đề Sprint 5** | **Hoàn Thiện Webhook Simulator, API VietQR, Trợ Lý AI RAG, Trả Hàng (CS-01) & Rà Soát Tài Liệu Thiết Kế Chi Tiết SDD** |
+| **Thời gian thực hiện** | `05/11/2026 – 11/11/2026` (D26 – D31, 6 buổi họp chính thức) |
+| **Trạng thái nghiệm thu** | **HOÀN THÀNH XUẤT SẮC 100% MỤC TIÊU KỸ THUẬT (AI, VietQR, Webhook, Trả hàng, Đo tải báo cáo). PHẦN TÀI LIỆU CỦA PHƯƠNG LÊ VÀ PHÚC HỮU CHƯA ĐẠT CHẤT LƯỢNG NGHIỆM THU, DELAY SANG SPRINT KẾ TIẾP.** |
+| **Môi trường Demo Trực Tuyến** | 🌐 **[https://oisms.khoadang.site](https://oisms.khoadang.site)** |
 
 ---
 
-## Lịch sử Phiên bản (Version History)
-
-| Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả nội dung & Chi tiết rà soát thay đổi (Change Check) | Mã tham chiếu |
-| :---: | :---: | :--- | :--- | :--- |
-| `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | • Thiết lập kế hoạch và phân công Sprint 5 (`28/10/2026 – 01/11/2026 \| D19 – D21`).<br/>• **Check thay đổi so với bản nháp ban đầu khi đối chiếu Confluence (`Page ID: 5275650`):**<br/>  1. Loại bỏ việc phát triển tính năng `AI Forecasting` ở Sprint 5 (đã đưa về Sprint 4) và áp dụng quy tắc **Tuyệt đối không mở module mới**.<br/>  2. Tập trung 100% vào Code Review, sửa blocker bugs, kiểm thử hồi quy toàn diện, đóng gói Release Docker/CI-CD, hoàn thiện trọn bộ hồ sơ UML 2.0/RTM/User Guide và diễn tập phân vai bảo vệ đồ án cho cả 5 thành viên. | `INIT-SYNC-SPR-05` |
-| `v1.1.0` | `2026-11-12` | Nhóm dự án OISMS | • Ghi thời gian thực tế `05/11/2026 – 12/11/2026` vì Sprint 4 chốt nghiệm thu ngày 04/11/2026.<br/>• Thêm [báo cáo tổng kết Sprint 5](./BAO_CAO_TONG_KET_NGHIEM_THU_SPRINT_5.md): PR #38 – #43, gồm cả phần làm ngoài kế hoạch (Trợ lý OISMS, giả lập đơn sàn, tách POS, trả hàng CS-01). Bảng phân công mục 2 giữ nguyên là kế hoạch. Phần này chưa đồng bộ lên Confluence. | `NGHIEM-THU-SPR-05` |
+> [!NOTE]
+> Báo cáo tổng kết nghiệm thu chi tiết Sprint 5 đã được đồng bộ 100% lên Confluence tại trang:  
+> 🔗 **[Sprint 5 Báo Cáo Tổng Kết & Nghiệm Thu Sprint 5 (Confluence Page ID: 19824685)](https://khoalevodang301007.atlassian.net/wiki/spaces/MFS/pages/19824685)**  
+> Xem chi tiết tại file: [`BAO_CAO_TONG_KET_NGHIEM_THU_SPRINT_5.md`](./BAO_CAO_TONG_KET_NGHIEM_THU_SPRINT_5.md).
 
 ---
 
-## 1. Mục Tiêu Trọng Tâm Sprint 5
-**Tuyệt đối không mở module mới.** Tập trung rà soát toàn diện (`Review`), kiểm thử hồi quy (`Regression Testing`), sửa các lỗi còn tồn đọng, đóng gói bản phát hành và hoàn thiện trọn vẹn bộ hồ sơ nghiệm thu đồ án.
+## 1. Mục Tiêu Trọng Tâm Sprint 5 (Đối chiếu chuẩn Jira OISMS-58 & OISMS-53..59)
+
+1. **Phát triển & hoàn thiện trọn bộ các tính năng kỹ thuật còn lại (Khoa & Nhựt đảm nhận — Jira `OISMS-58`):**
+   - **Công cụ Giả lập đơn Sàn TMĐT qua Webhook (`FR-SIM-01`):** Cung cấp API quản lý kết nối sàn `/api/shop-integrations`, secret SHA-256, endpoint xác thực `GET /api/webhooks/simulator/whoami`, ứng dụng độc lập `marketplace-simulator` (cổng 5175) hỗ trợ bắn đơn tải đồng thời tới 200 đơn qua reverse proxy Caddy.
+   - **Tích hợp API & Chuỗi thanh toán VietQR chuẩn NAPAS 247 (`CS-05`):** Chuẩn hóa chuỗi EMVCo kèm CRC-16, sinh QuickLink ảnh QR động theo số tiền hóa đơn và tài khoản thụ hưởng tenant (`payment_accounts`), bảo vệ Idempotency chống sinh mã trùng, tích hợp trong ứng dụng `pos-app`. Admin `/pos` chuyển hướng sang ứng dụng này.
+   - **Chức năng Tiếp nhận & Xử lý Trả hàng từ khách gắn Đơn gốc (`CS-01`):** API `/api/sales-returns`, kiểm soát số lượng hợp lệ, tính hoàn tiền `RefundAmount`, hoàn kho qua sổ cái bất biến `InventoryTransaction.IN` đối với hàng nguyên vẹn và xuất hủy phế phẩm đối với hàng lỗi.
+   - **Trợ lý AI Chatbot, Kho tri thức RAG BM25 & Phân quyền AI 2 lớp (`FR-AI-02`):** Xây dựng 57 file tài liệu chuẩn hóa tại `OISM.Infrastructure/Ai/Knowledge`, tìm kiếm BM25 tiếng Việt bỏ dấu < 5ms không phụ thuộc API ngoài, RAG context injection chống bịa đặt, phân quyền AI Guardrails 2 lớp (chặn Staff/Cashier hỏi doanh thu/lợi nhuận, chỉ Owner mới được truy vấn tài chính).
+   - **Đo kiểm tải Báo cáo Doanh thu & Hoàn thiện Hệ thống:** Script sinh tải 5.000 đơn hàng đối soát tốc độ tính toán báo cáo doanh thu, lãi gộp và KPI trên PostgreSQL; kế hoạch Đăng nhập SĐT/Quên mật khẩu; đồng bộ kiến trúc Clean Architecture.
+2. **Kiện toàn Hồ sơ Thiết kế Chi tiết SDD (3 bạn còn lại tập trung viết lại tài liệu — Jira `OISMS-53` → `OISMS-59`):**
+   - Đặc tả Kiến trúc hệ thống và Package Diagrams (Mục 1 SDD).
+   - Thiết kế Cơ sở Dữ liệu 44 bảng nghiệp vụ, Sổ cái bất biến, Indexing và Concurrency Control (Mục 2 SDD).
+   - Đặc tả chi tiết 11 Flow nghiệp vụ cốt lõi từ Mục 3.1 đến Mục 3.11 gồm Class Diagram, Sequence Diagram UML 2.0 và Class Specification bám sát mã nguồn thực tế.
 
 ---
 
-## 2. Bảng Phân Công Chi Tiết 5 Thành Viên & Toàn Nhóm (Đồng bộ 100% Confluence)
+## 2. Tình Hình Nhân Sự & Cơ Cấu Phân Công Sprint 5
 
-| Thành viên | Vai trò | Nhiệm vụ cụ thể trong Sprint 5 | Kết quả bàn giao |
-| :--- | :--- | :--- | :--- |
-| **Đăng Khoa** *(Trưởng nhóm)* | **Backend chính (BE1)** | • Review toàn bộ code và module lõi, sửa các lỗi chặn (`blocker bugs`).<br/>• Xác nhận automated tests, CI build trên GitHub Actions chạy đạt 100%.<br/>• Đóng gói bản phát hành (`Release tag`), kiểm tra Docker Compose, seed data, cấu hình và tài liệu API. | Bản phát hành chính thức trên Git; hướng dẫn kỹ thuật nhất quán; khởi chạy Docker một lệnh trên máy sạch. |
-| **Nhựt** | **Backend phụ (BE2)** | • Review các module mình phụ trách, sửa các bug còn lại.<br/>• Rà soát toàn bộ endpoint auth, catalog, report, AI; hoàn thiện tài liệu backend. | Tài liệu Backend/API docs hoàn chỉnh; các testcase liên quan được retest đạt. |
-| **Phúc Hữu & Nam Nguyễn** | **Frontend Admin** | • Kiểm thử hồi quy và sửa lỗi trên Web Admin.<br/>• Chốt toàn bộ ảnh chụp màn hình (`screenshot`) và hoàn thiện tài liệu hướng dẫn sử dụng (`User Guide`).<br/>• Xây dựng slide trình chiếu phần Web Admin. | Web Admin hoạt động ổn định; tài liệu User Guide và slide trình chiếu chu đáo. |
-| **Phương Lê** | **Frontend POS** | • Kiểm thử hồi quy và sửa lỗi trên Web POS.<br/>• Kiểm tra in ấn, máy di động, cài đặt PWA trên thiết bị thật.<br/>• Hoàn thiện kịch bản trình diễn demo luồng bán hàng POS. | POS hoạt động ổn định tuyệt đối; kịch bản demo trơn tru, hóa đơn in ra chuẩn đẹp. |
-| **Cả nhóm** | **Kiểm thử (QA / Tester)** | • Chạy lại các testcase, Swagger và UI quan trọng; retest các bản sửa lỗi.<br/>• Đối chiếu Ma trận truy vết yêu cầu (`RTM`) lần cuối.<br/>• Kiểm tra độc lập bộ cài đặt trên máy sạch và thu thập bằng chứng. | Báo cáo kiểm thử cuối cùng (`Test Report`) kèm danh sách các hạn chế còn lại; RTM đã kiểm chứng 100%. |
-| **Toàn nhóm** | **All Members** | • Hoàn thiện trọn vẹn bộ hồ sơ nghiệm thu đồ án: `URS/RTM`, `Architecture Design`, `Detailed Design (UML Class, ERD, Sequence)`, `Software Testing Document`, `Installation & User Guide`, `Source Code`, `Docker`, `GitHub Actions CI/CD`.<br/>• Diễn tập phân vai bảo vệ đồ án: trình bày slide và trình diễn kịch bản demo. | Bộ hồ sơ nghiệm thu đồ án hoàn chỉnh 100%, sẵn sàng bảo vệ trước hội đồng chấm thi. |
+- **Nhóm Kỹ thuật (Khoa & Nhựt):** Ở phần này đảm nhận việc hoàn thành toàn bộ các chức năng cần thiết còn lại gồm cả **Backend** và **Frontend** (Jira `OISMS-58`).
+- **Nhóm Biên soạn Tài liệu (3 bạn còn lại: Nam Nguyễn, Phương Lê, Phúc Hữu):** Tập trung viết lại tài liệu thiết kế chi tiết SDD (Mục 1 SDD và Mục 3.1 - 3.11) bám sát mã nguồn thực tế:
+  - **Nam Nguyễn:** Phụ trách Jira `OISMS-56` (Mục 3.1 – 3.3).
+  - **Phúc Hữu:** Phụ trách Jira `OISMS-57` (Mục 3.4 – 3.6).
+  - **Phương Lê:** Phụ trách Jira `OISMS-53` (Mục 1 SDD) và Jira `OISMS-59` (Mục 3.10 – 3.11).
+  - *(Phùng Minh Nhựt hỗ trợ thêm Jira `OISMS-59`: Mục 3.7 – 3.9. Lê Võ Đăng Khoa phụ trách Jira `OISMS-54` & `OISMS-55`: Mục 2 CSDL 44 bảng).*
 
 ---
 
-## 3. Bảng Đánh Giá Đóng Góp Thành Viên & Retrospective Sprint 5 (Đồng bộ Confluence Page ID: 18284569)
+## 3. Báo Cáo Diễn Biến Cuộc Họp Hàng Ngày (Sprint Meetings Summary — Đúng 6 Buổi)
 
-### 3.1. Bảng Đánh Giá Đóng Góp Thành Viên (Contribution Matrix)
-
-| STT | Thành viên | Nhiệm vụ chính phụ trách | Đánh giá hoàn thành | Tinh thần làm việc | Đánh giá của Trưởng nhóm / Ghi chú (Notes) |
-| :---: | :--- | :--- | :---: | :---: | :--- |
-| **1** | **Lê Võ Đăng Khoa** | Rà soát, check, sửa code còn tồn đọng toàn hệ thống, kiến trúc hệ thống, điều phối | Đạt 100% | Rất tốt / Chủ động | Bao quát tốt tiến độ kỹ thuật, trực tiếp giải quyết các vấn đề cốt lõi. |
-| **2** | **Phùng Minh Nhựt** | Rà soát, check, sửa code tồn đọng backend, chuẩn hóa APIs | Đạt 100% | Tích cực | Phối hợp nhịp nhàng với trưởng nhóm trong rà soát và kiểm thử mã nguồn. |
-| **3** | **Phương Lê** | Viết và hoàn thiện tài liệu SRS / SDD, hỗ trợ giao diện | Chưa đạt / Cần làm lại | Thiếu nghiêm túc / Hời hợt | **Lạm dụng AI, không có kiểm chứng, làm bài hời hợt; nội dung sao chép máy móc từ công cụ AI mà không đối chiếu với kiến trúc thực tế và mã nguồn hệ thống OISMS.** |
-| **4** | **Nam Nguyễn** | Viết và chuẩn hóa tài liệu SRS, rà soát ma trận yêu cầu | Đạt tiến độ | Tích cực | Nỗ lực bám sát tiến độ và đảm bảo chất lượng nội dung được phân công. |
-| **5** | **Phúc Hữu** | Viết tài liệu SRS / SDD | Đúng hạn nhưng hời hợt / Kém hiệu quả | Đối phó / Hời hợt | **Nộp bài đúng deadline và nộp sớm nhưng làm việc kém hiệu quả, kết quả hời hợt, không đúng ý nghĩa, sai khái niệm, sơ đồ vẽ sai; không nắm bàn giao và không nắm được sản phẩm bàn giao.** |
-
-### 3.2. Đánh Giá Cải Tiến Quy Trình Scrum (Sprint 5 Retrospective)
-
-#### 🔴 Những Điểm Tồn Tại & Thách Thức (What Went Wrong?)
-- **Lạm dụng AI và chất lượng bàn giao hời hợt:** Thành viên **Phương Lê** lạm dụng công cụ AI để sinh nội dung tài liệu mà không đối chiếu, kiểm chứng với mã nguồn thực tế và kiến trúc hệ thống của OISMS; làm bài hời hợt, nội dung thiếu chính xác, sai lệch bối cảnh so với thiết kế thực tế của dự án.
-- **Hiệu suất làm việc kém hiệu quả:** Thành viên **Phúc Hữu** dù nộp bài sớm nhưng kết quả hời hợt, không đúng ý nghĩa, sai khái niệm chuyên môn, sơ đồ vẽ sai; không nắm được quy trình bàn giao và sản phẩm bàn giao của dự án.
-
-#### 🚀 Kế Hoạch Hành Động Khắc Phục (Action Items)
-- **Yêu cầu Phương Lê nghiêm túc kiểm điểm thái độ làm việc, chấm dứt việc lạm dụng AI tạo nội dung hời hợt không qua kiểm chứng; phải trực tiếp đối chiếu mã nguồn thực tế tại repository OISMS để viết lại và hoàn thiện các phần được giao.**
-- **Yêu cầu Phúc Hữu nghiêm túc chấn chỉnh thái độ làm việc, không làm đối phó/hời hợt, phải chủ động nắm bắt sản phẩm bàn giao để sửa lại các khái niệm và sơ đồ bị sai, không làm ảnh hưởng đến chất lượng chung của toàn đội.**
+| Buổi họp | Thời gian | Trọng tâm thảo luận & Quyết định chính | Đánh giá tiến độ | Ghi chú & Điểm nghẽn (Blockers) | Có mặt |
+| :---: | :---: | :--- | :---: | :--- | :---: |
+| **Buổi 1** | `05/11/2026` | **Khởi động Sprint 5 & Phổ biến mục tiêu, phân chia nhiệm vụ:**<br>• Trưởng nhóm (Khoa) phổ biến mục tiêu Sprint 5.<br>• Phân chia: Khoa & Nhựt ở phần này đảm nhận hoàn thành các chức năng cần thiết còn lại gồm backend và frontend. 3 bạn còn lại (Nam, Phương, Hữu) tập trung viết lại tài liệu. | Đã khởi động & phổ biến rõ ràng | Thống nhất ranh giới trách nhiệm rõ ràng giữa nhóm code và nhóm tài liệu. | Đầy đủ 5/5 |
+| **Buổi 2** | `06/11/2026` | **Báo cáo tiến độ (Webhook Architecture, Chuẩn hóa VietQR & Xây dựng Kho tri thức AI):**<br>• Khoa & Nhựt hoàn tất API `/api/shop-integrations`, chuẩn NAPAS 247 VietQR, 57 file kho tri thức RAG BM25.<br>• Nhóm 3 bạn tài liệu bắt đầu rà soát tài liệu mẫu và phân chia viết các mục trong SDD. | Đạt tiến độ tốt | Nhóm kỹ thuật kiểm soát tốt tiến độ. Nhóm tài liệu đang triển khai. | Đầy đủ 5/5 |
+| **Buổi 3** | `07/11/2026` | **Báo cáo tiến độ (Hoàn thiện Webhook Simulator App, POS VietQR & Tiếp nhận bản thảo SDD):**<br>• Khoa & Nhựt hoàn thiện app simulator 5175, modal VietQR POS, API trả hàng `/api/sales-returns`.<br>• Nam Nguyễn hoàn thành bản thảo 3.1 - 3.3. Phương Lê và Phúc Hữu nộp bản thảo Mục 1, 3.4 - 3.6 và 3.10 - 3.11. | Đạt tiến độ kỹ thuật cao | Nhóm kỹ thuật đối chiếu chi tiết tài liệu và sơ đồ nộp với mã nguồn repo OISMS. | Đầy đủ 5/5 |
+| **Buổi 4** | `08/11/2026` | **Báo cáo tiến độ (Kiểm tra đối chiếu tài liệu và sơ đồ với mã nguồn thực tế):**<br>• Khoa và Nhựt rà soát chi tiết tài liệu do Phương Lê và Phúc Hữu nộp, đối chiếu với code repo OISMS.<br>• **Ghi nhận qua kiểm tra:** Sản phẩm bàn giao chưa đảm bảo đủ chất lượng nghiệm thu (sơ đồ chưa đạt chất lượng, khái niệm và luồng nghiệp vụ chưa chuẩn khớp với code dự án). Các bạn đã có ý thức sửa sau đó, nhưng vì lý do thời gian sprint nên phần này sẽ **delay sang sprint kế tiếp** để tiếp tục hoàn thiện. | Cần tiếp tục hoàn thiện | **Blockers:** Sản phẩm bàn giao chưa đảm bảo đủ chất lượng nghiệm thu, vì lý do thời gian sẽ delay sang sprint kế tiếp. | Đầy đủ 5/5 |
+| **Buổi 5** | `10/11/2026` | **Báo cáo tiến độ (AI Guardrails 2 lớp, Đo tải Báo cáo 5.000 đơn & Rà soát chỉnh sửa tài liệu):**<br>• Khoa & Nhựt tích hợp AI Guardrails 2 lớp (chặn Staff xem tài chính), đo tải 5.000 đơn trên PostgreSQL.<br>• Nam Nguyễn hoàn thiện 3.1 - 3.3. Phương Lê và Phúc Hữu tiếp tục rà soát lại tài liệu và sơ đồ. | Kỹ thuật hoàn tất xuất sắc | Khoa & Nhựt đã gánh vác trọn vẹn toàn bộ chức năng cần thiết backend và frontend. | Đầy đủ 5/5 |
+| **Buổi 6** | `11/11/2026` | **Báo cáo tiến độ & Tổng kết nghiệm thu Sprint 5:**<br>• Nghiệm thu 100% mục tiêu kỹ thuật: Webhook Simulator, VietQR POS, AI Chatbot RAG BM25, Trả hàng CS-01, đo tải báo cáo.<br>• **Kết luận nhân sự & tài liệu:** Khoa và Nhựt hoàn thành xuất sắc chức năng backend và frontend. Về phần tài liệu của Phúc Hữu và Phương Lê, sản phẩm bàn giao chưa đảm bảo đủ chất lượng nghiệm thu; các bạn đã có ý thức sửa sau đó nhưng vì lý do thời gian sprint nên sẽ delay sang sprint kế tiếp để tiếp tục hoàn thiện. Đề nghị chấn chỉnh lại cách làm việc hiệu quả, không để xảy ra chất lượng sản phẩm kém nữa.<br>• Gắn Status Macro cảnh báo từ Mục 3.1 đến 3.11 trên Confluence page 983053 để rà soát ở sprint sau. | Nghiệm thu kỹ thuật 100% | Nhất trí delay phần tài liệu của Phương Lê và Phúc Hữu sang sprint kế tiếp vì lý do thời gian. | Đầy đủ 5/5 |
 
 ---
 
-## 4. Tình Trạng Thẩm Định Tài Liệu Thiết Kế Chi Tiết SDD (Mục 3.1 → 3.11)
+## 4. Bảng Đánh Giá Đóng Góp Thành Viên Sprint 5 (Contribution Matrix)
 
-> 🚨 **CẢNH BÁO TIẾN ĐỘ & KIỂM ĐỊNH TỪ TRƯỞNG NHÓM (SPRINT 5):**  
-> **TOÀN BỘ CÁC PHÂN HỆ TỪ MỤC 3.1 (XÁC THỰC) ĐẾN MỤC 3.11 ĐỀU Ở TRẠNG THÁI: 🔴 CHƯA ĐẠT YÊU CẦU — CHƯA ĐỐI CHIẾU CODE THỰC TẾ.**  
-> *(Nghiêm cấm lạm dụng AI tạo tài liệu đối phó/hời hợt. Toàn bộ sơ đồ Class Diagram, Sequence Diagram UML 2.0 và Bảng Class Specification bắt buộc phải được đối chiếu 100% từng class, method, attribute, entity và controller/service thực tế trong repository trước khi nghiệm thu.)*
+*(Ghi nhận đánh giá thành viên theo đúng tinh thần quản trị Scrum — Không đánh giá mức độ/tỷ lệ %, tập trung vào nhiệm vụ, tinh thần làm việc và nhận xét chuyên môn)*
 
-| Phân hệ Nghiệp vụ SDD | Mã Flow | Người phụ trách | Trạng thái Thẩm định | Đánh giá & Yêu cầu |
-| :--- | :---: | :---: | :---: | :--- |
-| **3.1. Xác thực & Đăng nhập Đa người thuê** | `Flow 3.1` | Nam Nguyễn | 🔴 **CHƯA ĐẠT YÊU CẦU** | Chưa đối chiếu code thực tế |
-| **3.2. Bán hàng Quầy POS & Thanh toán VietQR** | `Flow 3.2` | Nam Nguyễn | 🔴 **CHƯA ĐẠT YÊU CẦU** | Chưa đối chiếu code thực tế |
-| **3.3. Webhook Đơn sàn TMĐT & Giữ chỗ Online** | `Flow 3.3` | Nam Nguyễn | 🔴 **CHƯA ĐẠT YÊU CẦU** | Chưa đối chiếu code thực tế |
-| **3.4. Mua hàng, Nhập kho & Tính Giá vốn WAC** | `Flow 3.4` | Phúc Hữu | 🔴 **CHƯA ĐẠT YÊU CẦU** | Chưa đối chiếu code thực tế (Sai khái niệm/sơ đồ) |
-| **3.5. Chuyển kho Nội bộ 2 Bước** | `Flow 3.5` | Phúc Hữu | 🔴 **CHƯA ĐẠT YÊU CẦU** | Chưa đối chiếu code thực tế (Sai khái niệm/sơ đồ) |
-| **3.6. Kiểm kê Kho Định kỳ 2 Bước & Duyệt Chênh lệch** | `Flow 3.6` | Phúc Hữu | 🔴 **CHƯA ĐẠT YÊU CẦU** | Chưa đối chiếu code thực tế (Sai khái niệm/sơ đồ) |
-| **3.7. Đăng ký Gian hàng SaaS & Onboarding** | `Flow 3.7` | Nhựt Phùng Minh | 🔴 **CHƯA ĐẠT YÊU CẦU** | Chưa đối chiếu code thực tế |
-| **3.8. Quản trị Nhân viên & Phân quyền RBAC** | `Flow 3.8` | Phương Lê | 🔴 **CHƯA ĐẠT YÊU CẦU** | Chưa đối chiếu code thực tế (Lạm dụng AI) |
-| **3.9. Danh mục Sản phẩm & Đa đơn vị tính** | `Flow 3.9` | Nhựt Phùng Minh | 🔴 **CHƯA ĐẠT YÊU CẦU** | Chưa đối chiếu code thực tế |
-| **3.10. Quản lý Đổi trả Hàng Bán lẻ (CS-01)** | `Flow 3.10` | Nhựt Phùng Minh | 🔴 **CHƯA ĐẠT YÊU CẦU** | Chưa đối chiếu code thực tế |
-| **3.11. Báo cáo Doanh thu, Lãi gộp & Cảnh báo Tồn** | `Flow 3.11` | Phương Lê | 🔴 **CHƯA ĐẠT YÊU CẦU** | Chưa đối chiếu code thực tế (Lạm dụng AI) |
+| STT | Thành viên | Vai trò / Nhiệm vụ thực tế trong Sprint 5 | Tinh thần / Thái độ làm việc | Đánh giá & Ghi chú của Trưởng nhóm (Notes) |
+| :---: | :--- | :--- | :---: | :--- |
+| **1** | **Lê Võ Đăng Khoa** | • Cùng Phùng Minh Nhựt đảm nhận hoàn thành các chức năng cần thiết còn lại gồm backend và frontend<br>• Phát triển Webhook Simulator, API VietQR, AI RAG Chatbot, CSDL 44 bảng (OISMS-54, 55), DevOps AWS | Gương mẫu / Chủ động / Trách nhiệm cao | Quán xuyến toàn bộ tiến độ, hoàn thành xuất sắc các phân hệ kỹ thuật cốt lõi, bảo đảm hệ thống vận hành ổn định trên Production. |
+| **2** | **Phùng Minh Nhựt** | • Cùng Lê Võ Đăng Khoa đảm nhận hoàn thành các chức năng cần thiết còn lại gồm backend và frontend<br>• Xây dựng API Trả hàng CS-01, đo tải báo cáo 5.000 đơn, hỗ trợ SDD 3.7 – 3.9 | Tích cực / Trách nhiệm cao | Gánh vác khối lượng công việc lớn, code chắc chắn, phối hợp chặt chẽ cùng Khoa hoàn thành trọn vẹn cả backend và frontend. |
+| **3** | **Nam Nguyễn** | • Thuộc nhóm 3 bạn tập trung viết lại tài liệu (phụ trách Mục 3.1 – 3.3 SDD theo Jira OISMS-56)<br>• Hỗ trợ kiểm thử tích hợp và giao diện QA | Tích cực / Tinh thần đồng đội cao | Nỗ lực bám sát tiến độ, hoàn thành tốt phần tài liệu Mục 3.1 - 3.3 chuẩn khớp với mã nguồn, hỗ trợ đắc lực nhánh kiểm thử. |
+| **4** | **Phương Lê** | • Thuộc nhóm 3 bạn tập trung viết lại tài liệu (phụ trách Mục 1 SDD theo Jira OISMS-53 và Mục 3.10 – 3.11 theo Jira OISMS-59) | Đang tiếp tục hoàn thiện | **Sản phẩm bàn giao chưa đảm bảo đủ chất lượng nghiệm thu; bạn đã có ý thức sửa sau đó nhưng vì lý do thời gian của sprint nên sẽ delay sang sprint kế tiếp để tiếp tục hoàn thiện. Đề nghị chấn chỉnh lại cách làm việc hiệu quả, rà soát sơ đồ chuẩn khớp với code dự án.** |
+| **5** | **Phúc Hữu** | • Thuộc nhóm 3 bạn tập trung viết lại tài liệu (phụ trách Mục 3.4 – 3.6 SDD theo Jira OISMS-57) | Đang tiếp tục hoàn thiện | **Sản phẩm bàn giao chưa đảm bảo đủ chất lượng nghiệm thu; bạn đã có ý thức sửa sau đó nhưng vì lý do thời gian của sprint nên sẽ delay sang sprint kế tiếp để tiếp tục hoàn thiện. Đề nghị chấn chỉnh lại cách làm việc hiệu quả, rà soát sơ đồ chuẩn khớp với code dự án.** |
 
+---
 
+## 5. Kết Luận Nghiệm Thu Sprint 5
+
+Sprint 5 **HOÀN THÀNH TOÀN DIỆN 100% CÁC MỤC TIÊU KỸ THUẬT ĐỀ RA**:
+- Khoa và Nhựt đã đảm nhận và hoàn thành trọn vẹn các chức năng kỹ thuật cần thiết còn lại gồm cả Backend và Frontend: Công cụ Webhook Simulator sàn TMĐT (FR-SIM-01), API & Chuỗi thanh toán VietQR động POS (CS-05), Chức năng Trả hàng từ khách gắn đơn gốc (CS-01), Trợ lý AI Chatbot RAG BM25 kèm phân quyền AI 2 lớp (FR-AI-02), và đo kiểm tải báo cáo doanh thu 5.000 đơn trên PostgreSQL. Toàn bộ hệ thống chạy ổn định tại [https://oisms.khoadang.site](https://oisms.khoadang.site).
+- Về phần tài liệu: Nhóm 3 bạn tập trung viết lại tài liệu SDD; qua kiểm tra, sản phẩm bàn giao (tài liệu và sơ đồ) của **Phúc Hữu** và **Phương Lê** chưa đảm bảo đủ chất lượng nghiệm thu; các bạn đã có ý thức sửa đổi sau đó nhưng vì lý do thời gian của sprint nên sẽ **delay sang sprint kế tiếp** để tiếp tục rà soát, chuẩn khớp sơ đồ với mã nguồn thực tế.
+- Trên Confluence page `983053` (Chương IV SDD), nhóm đã gắn Status Macro cảnh báo từ Mục 3.1 đến Mục 3.11: `CẦN SỬA VÀ RÀ SOÁT Ở SPRINT SAU VÌ CHƯA ĐỦ CHẤT LƯỢNG NGHIỆM THU`.

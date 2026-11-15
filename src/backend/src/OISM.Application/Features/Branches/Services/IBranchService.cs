@@ -10,6 +10,7 @@ public record BranchToggleResult(bool IsActive, string Message);
 public interface IBranchService
 {
     Task<List<BranchResponse>> GetBranchesAsync(CancellationToken ct = default);
+    Task<List<BranchResponse>> GetBranchesAsync(Guid? userId, bool isCashier, CancellationToken ct = default);
     Task<BranchResponse?> GetBranchByIdAsync(Guid id, CancellationToken ct = default);
     Task<bool> ExistsActiveAsync(Guid tenantId, Guid branchId, CancellationToken ct = default);
     Task<BranchResponse> CreateBranchAsync(CreateBranchRequest request, CancellationToken ct = default);

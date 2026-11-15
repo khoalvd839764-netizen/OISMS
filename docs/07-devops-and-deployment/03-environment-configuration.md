@@ -44,9 +44,10 @@
 | `Jwt:Secret` | fallback viết cứng trong `Program.cs` | Khóa ký HMAC-SHA256, tối thiểu 32 ký tự. **Môi trường thật phải đặt**; production compose truyền `Jwt__Secret` từ `JWT_SECRET`. |
 | `Jwt:Issuer`, `Jwt:Audience` | `OISM_WebAPI`, `OISM_Client` | Kiểm tra issuer/audience của token |
 | `Jwt:ExpiryMinutes` | `60` | Thời hạn access token (`NFR-SEC-01`) |
-| `Hangfire:Enabled` | `false` | Bật job hết hạn giữ chỗ và sinh kỳ kiểm kê. Compose truyền từ `HANGFIRE_ENABLED` trong `.env` (mặc định `false`). Khi bật cần schema `hangfire`: volume mới đã có qua `init-oisms.sh`; DB đã có dữ liệu phải chạy `docker/postgres/migrations/20261108_hangfire_schema.sql` bằng tài khoản `postgres` trước. |
+| `Hangfire:Enabled` | `false` | Bật job hết hạn giữ chỗ (`oisms-reservation-expiry`), job sinh kỳ kiểm kê (`oisms-stock-count-periods`) và job tổng hợp báo cáo ngày (`oisms-daily-sales-summary`). Compose truyền từ `HANGFIRE_ENABLED` trong `.env` (mặc định `false`). Khi bật cần schema `hangfire`: volume mới đã có qua `init-oisms.sh`; DB đã có dữ liệu phải chạy `docker/postgres/migrations/20261108_hangfire_schema.sql` bằng tài khoản `postgres` trước. |
 | `Hangfire:WorkerCount` | `min(4, max(2, số CPU))`; Compose: `2` | Số worker Hangfire. Compose truyền từ `HANGFIRE_WORKER_COUNT`. |
 | `ConnectionStrings:HangfireConnection` | — | Không bắt buộc. Không đặt thì Hangfire dùng cùng kết nối với `AppDbContext` (`Database:*` trước, rồi `DefaultConnection`). |
+| `Reports:SummaryRebuildDays` | `7` | Số ngày gần nhất tính từ hôm qua (theo UTC+07) mà job `oisms-daily-sales-summary` tổng hợp lại mỗi đêm (`00:30` UTC+07). |
 
 CORS chỉ cho phép `http(s)://localhost:5173` và `http(s)://localhost:5174`. Trên production mỗi frontend gọi API qua chính domain của nó (Caddy định tuyến `/api`, `/hubs`, `/health`) nên không cần thêm origin.
 

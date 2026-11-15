@@ -13,6 +13,7 @@ public interface IAppDbContext
     ISqlLockService Locks { get; }
     DbSet<Tenant> Tenants { get; }
     DbSet<User> Users { get; }
+    DbSet<UserBranch> UserBranches { get; }
     DbSet<RefreshToken> RefreshTokens { get; }
     DbSet<Branch> Branches { get; }
     DbSet<Warehouse> Warehouses { get; }
@@ -50,10 +51,14 @@ public interface IAppDbContext
     DbSet<SkuUnitPrice> SkuUnitPrices { get; }
     DbSet<PurchaseOrder> PurchaseOrders { get; }
     DbSet<PurchaseOrderItem> PurchaseOrderItems { get; }
+    DbSet<SupplierInvoice> SupplierInvoices { get; }
+    DbSet<SupplierInvoiceItem> SupplierInvoiceItems { get; }
+    DbSet<PurchaseVariance> PurchaseVariances { get; }
     DbSet<SalesInvoice> SalesInvoices { get; }
     DbSet<StockCountSchedule> StockCountSchedules { get; }
     DbSet<StockCountPeriod> StockCountPeriods { get; }
     DbSet<StockCountApproval> StockCountApprovals { get; }
+    DbSet<DailySalesSummary> DailySalesSummaries { get; }
 
     int SaveChanges();
     int SaveChanges(bool acceptAllChangesOnSuccess);

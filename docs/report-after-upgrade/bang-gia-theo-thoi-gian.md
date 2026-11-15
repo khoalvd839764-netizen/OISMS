@@ -4,7 +4,7 @@
 | --- | --- |
 | Task | `OISMS-47-U04` |
 | Ngày kiểm tra | 02/11/2026 |
-| Đặc tả | [Tài liệu 04](../Upgrade-recommended/04-bang-gia-theo-thoi-gian.md) |
+| Đặc tả | [Tài liệu 04](../Upgrade-recommended/Done/04-bang-gia-theo-thoi-gian.md) |
 | Phạm vi | Backend P0–P5 và tài liệu. **Chưa có giao diện.** |
 | Trạng thái | Backend đã kiểm chứng. **Chưa nên đưa lên môi trường đang dùng thật trước khi frontend cập nhật.** |
 
@@ -83,4 +83,4 @@ Cho đến khi xong phần này, nút đổi giá hiện tại trên Admin sẽ 
 - Cột `retail_price`, `wholesale_price`, `sale_price` vẫn còn và vẫn được ghi lúc tạo SKU, đơn vị, nhưng luồng bán không đọc. Việc xóa để sang đợt sau.
 - Trigger chặn sửa `order_items` sau khi xác nhận chưa bao gồm `sku_unit_price_id`, `price_source`; hiện không có đường code nào sửa hai cột này.
 - Bước kiểm tra đầu migration chạy cả khi SQL nhúng chạy lại: nếu có SKU thiếu đơn vị gốc, bước nâng cấp sẽ báo lỗi. Code hiện tại luôn tạo đơn vị gốc cho SKU mới.
-- Câu hỏi cho thầy ở mục [Cần xác nhận](../Upgrade-recommended/04-bang-gia-theo-thoi-gian.md#cần-xác-nhận) chưa có câu trả lời.
+- Câu hỏi cho thầy ở mục [Cần xác nhận](../Upgrade-recommended/Done/04-bang-gia-theo-thoi-gian.md#cần-xác-nhận) chưa có câu trả lời.

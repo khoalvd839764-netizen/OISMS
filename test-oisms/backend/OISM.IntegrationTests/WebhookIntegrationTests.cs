@@ -2418,6 +2418,8 @@ public class WebhookIntegrationTests : IAsyncLifetime, IClassFixture<WebApplicat
             => throw new IOException("Injected notifier failure");
         public Task NotifyLowStockAlertAsync(Guid tenantId, Guid branchId, Guid skuId, string skuCode, decimal available, decimal threshold, CancellationToken ct = default)
             => throw new IOException("Injected notifier failure");
+        public Task NotifyBranchOrderCreatedAsync(Guid tenantId, BranchOrderRealtimeDto order, CancellationToken ct = default)
+            => throw new IOException("Injected notifier failure");
     }
 
     private sealed class ProbeTenant(Guid? value) : ICurrentTenantService
@@ -2449,6 +2451,8 @@ public class WebhookIntegrationTests : IAsyncLifetime, IClassFixture<WebApplicat
             LowStockEvents.Add((branchId, skuId, skuCode, currentAvailable, threshold));
             return Task.CompletedTask;
         }
+
+        public Task NotifyBranchOrderCreatedAsync(Guid tenantId, BranchOrderRealtimeDto order, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class SqlStateDeadlockObserver : DbCommandInterceptor

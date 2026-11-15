@@ -153,8 +153,8 @@ export const apiAdapter = {
         {
           onHand: number;
           reserved: number;
-          totalValue: number;
-          weightedAverageCost: number;
+          totalValue: number | null;
+          weightedAverageCost: number | null;
           branchBalances: BranchStockBreakdown[];
         }
       >();
@@ -162,22 +162,27 @@ export const apiAdapter = {
       rawBalances.forEach((b: any) => {
         const onHand = Number(b.onHand) || 0;
         const reserved = Number(b.reserved) || 0;
-        const avgCost = Number(b.averageCost) || 0;
-        const branchValue = onHand * avgCost;
+        const avgCost = b.averageCost !== null && b.averageCost !== undefined ? Number(b.averageCost) : null;
+        const branchValue = avgCost !== null ? onHand * avgCost : null;
 
         const prev = balanceMap.get(b.skuId) || {
           onHand: 0,
           reserved: 0,
-          totalValue: 0,
-          weightedAverageCost: 0,
+          totalValue: 0 as number | null,
+          weightedAverageCost: null as number | null,
           branchBalances: [],
         };
 
         const nextOnHand = prev.onHand + onHand;
         const nextReserved = prev.reserved + reserved;
-        const nextTotalValue = prev.totalValue + branchValue;
+        const nextTotalValue =
+          branchValue !== null && prev.totalValue !== null ? prev.totalValue + branchValue : null;
         const nextWeightedCost =
-          nextOnHand > 0 ? Math.round(nextTotalValue / nextOnHand) : avgCost || prev.weightedAverageCost;
+          avgCost === null || nextTotalValue === null
+            ? null
+            : nextOnHand > 0
+              ? Math.round(nextTotalValue / nextOnHand)
+              : avgCost ?? prev.weightedAverageCost;
 
         const nextBranches: BranchStockBreakdown[] = [
           ...prev.branchBalances,
@@ -491,7 +496,7 @@ export const apiAdapter = {
 
       const list: Sku[] = result.items.map((b: any) => {
         const onHand = Number(b.onHand) || 0;
-        const avgCost = Number(b.averageCost) || 0;
+        const avgCost = b.averageCost !== null && b.averageCost !== undefined ? Number(b.averageCost) : null;
         return {
           id: b.skuId,
           productId: b.productId || b.skuId,
@@ -512,7 +517,7 @@ export const apiAdapter = {
           branchName: b.branchName || "Chi nhánh chính",
           warehouseId: b.warehouseId || undefined,
           warehouseName: b.warehouseName || "Tất cả các kho",
-          totalInventoryValue: onHand * avgCost,
+          totalInventoryValue: avgCost !== null ? onHand * avgCost : null,
         };
       });
 
@@ -799,7 +804,7 @@ export const apiAdapter = {
     }
   },
 
-  async createUser(payload: { displayName: string; email: string; phone?: string; password: string; role: string }) {
+  async createUser(payload: { displayName: string; email: string; phone?: string; password: string; role: string; branchIds?: string[] }) {
     try {
       const res = await httpClient.post("/api/users", payload);
       return { data: res.data };
@@ -812,7 +817,7 @@ export const apiAdapter = {
     }
   },
 
-  async updateUser(id: string, payload: { displayName: string; phone?: string; role: string; isActive: boolean }) {
+  async updateUser(id: string, payload: { displayName: string; phone?: string; role: string; isActive: boolean; branchIds?: string[] }) {
     try {
       const res = await httpClient.put(`/api/users/${id}`, payload);
       return { data: res.data };

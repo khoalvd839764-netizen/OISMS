@@ -774,6 +774,24 @@ internal sealed class OrderIntakeService(
 
                     pendingNotifications.Add(() => _realtimeNotifier.NotifyNewOrderAsync(tenantId, orderSummary, ct));
 
+                    var branchOrder = new BranchOrderRealtimeDto
+                    {
+                        OrderId = order.Id,
+                        OrderNumber = order.Number,
+                        BranchId = order.BranchId,
+                        Channel = order.Channel,
+                        CreatedAt = order.CreatedAt,
+                        Items = createdOrderItems.Select(i => new BranchOrderItemRealtimeDto
+                        {
+                            SkuId = i.SkuId,
+                            SkuCode = i.SkuCodeSnapshot,
+                            ProductName = i.SkuNameSnapshot,
+                            Quantity = i.Quantity,
+                            UnitName = i.UnitNameSnapshot
+                        }).ToList()
+                    };
+                    pendingNotifications.Add(() => _realtimeNotifier.NotifyBranchOrderCreatedAsync(tenantId, branchOrder, ct));
+
                     foreach (var kv in groupedItems)
                     {
                         var skuId = kv.Key;

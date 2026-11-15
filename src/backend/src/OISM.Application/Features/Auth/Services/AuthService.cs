@@ -143,22 +143,15 @@ public class AuthService : IAuthService
 
     public async Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken ct = default)
     {
-        var emailNormalized = request.Email.Trim().ToLowerInvariant();
+        var identifier = LoginIdentifier.Resolve(request.RawIdentifier);
+        var user = await FindUserByIdentifierAsync(_context, identifier, ct);
 
-        var user = await _context.Users
-            .IgnoreQueryFilters()
-            .Include(u => u.Tenant)
-            .FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == emailNormalized, ct);
-
-        if (user == null)
+        // Không tìm thấy người dùng vẫn chạy BCrypt với hash giả để thời gian phản hồi
+        // không cho biết email hoặc SĐT đã đăng ký hay chưa.
+        bool passwordMatches = _passwordHasher.VerifyPassword(request.Password, user?.PasswordHash ?? GetDummyPasswordHash());
+        if (user == null || !passwordMatches)
         {
-            throw new OismException("INVALID_CREDENTIALS", "Email hoặc mật khẩu không chính xác.", 401);
-        }
-
-        bool passwordMatches = _passwordHasher.VerifyPassword(request.Password, user.PasswordHash);
-        if (!passwordMatches)
-        {
-            throw new OismException("INVALID_CREDENTIALS", "Email hoặc mật khẩu không chính xác.", 401);
+            throw new OismException("INVALID_CREDENTIALS", InvalidCredentialsMessage, 401);
         }
 
         if (!user.IsActive)
@@ -198,6 +191,28 @@ public class AuthService : IAuthService
                 PhoneNumber = user.PhoneNumber,
                 Roles = roles
             }
+        };
+    }
+
+    private const string InvalidCredentialsMessage = "Email/số điện thoại hoặc mật khẩu không chính xác.";
+    private static string? _dummyPasswordHash;
+
+    private string GetDummyPasswordHash() =>
+        _dummyPasswordHash ??= _passwordHasher.HashPassword(Guid.NewGuid().ToString("N"));
+
+    /// <summary>
+    /// Tìm người dùng theo email hoặc SĐT đã chuẩn hóa, bỏ qua query filter tenant
+    /// vì luồng đăng nhập và quên mật khẩu chưa có JWT. Email và SĐT duy nhất toàn hệ thống.
+    /// </summary>
+    internal static Task<User?> FindUserByIdentifierAsync(IAppDbContext context, LoginIdentifier identifier, CancellationToken ct)
+    {
+        var users = context.Users.IgnoreQueryFilters().Include(u => u.Tenant);
+        return identifier.Kind switch
+        {
+            // Giữ so sánh không phân biệt hoa thường như trước Upgrade 10 (dữ liệu nạp ngoài API có thể chưa chuẩn hóa).
+            LoginIdentifierKind.Email => users.FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == identifier.Normalized, ct),
+            LoginIdentifierKind.Phone => users.FirstOrDefaultAsync(u => u.Phone == identifier.Normalized, ct),
+            _ => Task.FromResult<User?>(null)
         };
     }
 

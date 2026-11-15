@@ -3,10 +3,11 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-OVW-03` |
-| **Phiên bản (Version)** | `v1.0.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-10-22` |
+| **Phiên bản (Version)** | `v1.1.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-12` |
 | **Nguồn truy vết (Source Traceability)** | `C:\Users\Jacki Khoa\Documents\De bai CNPM.pdf` (Toàn văn Trang 1 – Trang 6) |
 | **Phạm vi áp dụng** | Chuẩn đối chiếu nghiệm thu cho toàn bộ dự án OISMS |
+| **Tiến độ và bằng chứng** | [Checklist hiện thực, kiểm thử và hồ sơ bàn giao](../../checklist.md) |
 
 ---
 
@@ -14,13 +15,16 @@
 
 | Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả thay đổi | Mã tham chiếu |
 | :---: | :---: | :--- | :--- | :--- |
-| `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Chuẩn hóa bảng tham chiếu toàn bộ 28 Yêu cầu chức năng (FR), 11 Yêu cầu phi chức năng (NFR), 5 Gói công việc và Checklist nghiệm thu từ `De bai CNPM.pdf`. | `INIT-OVW-03` |
+| `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Lập bảng tham chiếu yêu cầu chức năng, phi chức năng và danh mục hồ sơ từ `De bai CNPM.pdf`. | `INIT-OVW-03` |
+| `v1.1.0` | `2026-11-12` | Rà soát mã nguồn | Hiệu chỉnh số lượng theo bảng và liên kết checklist theo từng mã, năm gói công việc và sáu nhóm hồ sơ. | `DOC-CHK-S2` |
 
 ---
 
 ## 1. Bảng Tổng Hợp Truy Vết Yêu Cầu Chức Năng (Functional Requirements Catalog)
 
 > *Truy vết nguồn: Mục 3.2.c - Functional Requirements (Trang 1, 2, 3, 6, `De bai CNPM.pdf`)*
+
+Bảng gồm **30 FR** và **1 mục dự báo nhập hàng** thuộc Gói 5. Dự án dùng mã `FR-AI-01` (CS-08) để truy vết mục dự báo. Trợ lý OISMS có mã `FR-AI-02` và là tính năng bổ sung.
 
 | Nhóm | Mã yêu cầu | Tên yêu cầu (Nguyên gốc tiếng Anh) | Mô tả chi tiết (Chuẩn hóa tiếng Việt) | Trang PDF | Tài liệu đặc tả chi tiết |
 | :---: | :---: | :--- | :--- | :---: | :--- |
@@ -82,9 +86,21 @@
 
 > *Truy vết nguồn: Mục 3.2.e & 3.2.f (Trang 4, 5, `De bai CNPM.pdf`)*
 
-- [ ] **1. User Requirement Specification (URS) & Requirements Traceability Matrix (RTM):** Phân hệ `01-users-and-rbac/`, `02-functional-requirements/`, `03-non-functional-requirements/` và `06-testing-and-qa/01-requirements-matrix-rtm.md`.
-- [ ] **2. Architecture Design Document:** Phân hệ `04-architecture-and-design/01-clean-architecture.md` & `02-multi-tenant-design.md`.
-- [ ] **3. Detailed Design (UML 2.0):** Phân hệ `04-architecture-and-design/03-database-design.md` (ERD), `04-state-machines.md` và `sequence-diagrams/`.
-- [ ] **4. API Specifications (Swagger/Postman):** Phân hệ `05-api-contracts/`.
-- [ ] **5. Software Testing Document (Unit, Integration, Concurrency):** Phân hệ `06-testing-and-qa/`.
-- [ ] **6. System Implementation, Deployment & User Guide:** Phân hệ `07-devops-and-deployment/`, `13-deploy-aws/` (triển khai thực tế trên AWS EC2) và `08-sprints/`.
+1. **URS và RTM.** [RBAC](../01-users-and-rbac/README.md), [FR](../02-functional-requirements/README.md), [NFR](../03-non-functional-requirements/README.md) và [RTM](../06-testing-and-qa/01-requirements-matrix-rtm.md).
+2. **Tài liệu kiến trúc.** [Clean Architecture](../04-architecture-and-design/01-clean-architecture.md) và [thiết kế đa tenant](../04-architecture-and-design/02-multi-tenant-design.md).
+3. **Thiết kế chi tiết UML 2.0.** Class Diagram, [ERD](../04-architecture-and-design/03-database-design.md), [máy trạng thái](../04-architecture-and-design/04-state-machines.md) và [sequence diagrams](../04-architecture-and-design/sequence-diagrams/).
+4. **Đặc tả API qua Swagger/Postman.** [API contracts](../05-api-contracts/README.md).
+5. **Tài liệu kiểm thử unit, integration và concurrency.** [Testing & QA](../06-testing-and-qa/README.md).
+6. **Hiện thực, triển khai và hướng dẫn sử dụng.** Repository mã nguồn, Dockerfiles, Docker Compose, CI và tài liệu cài đặt, triển khai, sử dụng. [DevOps](../07-devops-and-deployment/README.md) · [Triển khai AWS](../13-deploy-aws/README.md) · [Tài liệu UI](../11-ui-screens/README.md).
+
+Xem [checklist bàn giao](../../checklist.md#52-sáu-nhóm-hồ-sơ-nghiệm-thu) để đối chiếu tình trạng từng nhóm hồ sơ.
+
+## 4. Năm gói công việc
+
+1. Nền tảng.
+2. Catalog và sổ cái.
+3. Đơn hàng và chống bán vượt.
+4. Frontend và realtime.
+5. Báo cáo, AI, test và triển khai.
+
+[Nội dung từng gói theo đề](../08-sprints/sprint-2/DE_BAI_OISM.md#5-các-gói-công-việc-trong-pdf-trang-5-6) · [Tiến độ từng gói](../../checklist.md#51-năm-gói-công-việc).

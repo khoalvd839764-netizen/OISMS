@@ -1,7 +1,7 @@
 # Review PR 39: thanh toán QR VietQR (CS-05) và kế hoạch fix để nghiệm thu
 
 > **Đối tượng review:** commit `89e6172` của nhutpm32 trên nhánh `feature/OISMS-48-shop-integrations-api` ([PR 39](https://github.com/khoalvd839764-netizen/OISMS/pull/39)), 47 file, +3623/−180. Phần webhook simulator của PR (commit `d009c36`, `b9e2093`) không nằm trong phạm vi review này.
-> **Đối chiếu với:** [`07-thanh-toan-qr-vietqr.md`](../Upgrade-recommended/07-thanh-toan-qr-vietqr.md) (quyết định §0, giai đoạn a+b, trình tự §5) và quy tắc trong `CLAUDE.md`.
+> **Đối chiếu với:** [`07-thanh-toan-qr-vietqr.md`](../Upgrade-recommended/Done/07-thanh-toan-qr-vietqr.md) (quyết định §0, giai đoạn a+b, trình tự §5) và quy tắc trong `CLAUDE.md`.
 > **Ngày review:** 07/11/2026.
 
 ## 1. Kết luận

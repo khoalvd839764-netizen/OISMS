@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-ARC-01` |
-| **Phiên bản (Version)** | `v1.1.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
+| **Phiên bản (Version)** | `v1.2.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-14` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `3.2.b`, `NFR-MAINT-01`, `3.2.e` (Trang 1, 4, 5) |
 | **Phạm vi áp dụng** | Solution Backend `src/backend/OISM.sln` |
 
@@ -16,6 +16,7 @@
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả kiến trúc Clean Architecture 4 tầng của hệ thống Backend `.NET 8`. | `INIT-ARC-01` |
 | `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Đồng bộ tên project, interface và service theo mã nguồn hiện tại; ghi rõ nợ kỹ thuật đã biết. | `OISMS-46` |
+| `v1.2.0` | `2026-11-14` | Nhóm dự án OISMS | Bổ sung mục **Đối chiếu phụ thuộc bốn tầng (14/11/2026)**, chốt ngoại lệ có chủ đích `Application` dùng EF Core qua `IAppDbContext` và bộ test khóa kiến trúc `ArchitectureRulesTests`. | `OISMS-59-G1C` |
 
 ---
 
@@ -68,8 +69,19 @@ flowchart TD
 
 Checkout đi qua `PosCheckoutService`. `OrderService` điều phối vòng đời đơn và giữ hợp đồng `IOrderService`. `MarketplaceOrderService` dùng chung lõi tạo đơn và giữ chỗ của `OrderIntakeService` với Admin. `OrderQueryService` phụ trách truy vấn và ánh xạ DTO.
 
-## 4. Nợ Kỹ Thuật Đã Biết
+## 4. Đối Chiếu Phụ Thuộc Bốn Tầng (14/11/2026)
 
-- `OISM.Application` vẫn tham chiếu `Microsoft.EntityFrameworkCore` cho truy vấn và lưu entity qua `IAppDbContext`.
-- Rà soát lại ngày 06/11/2026 ghi 8 chỗ lệch còn lại (BF-028..035) và kế hoạch sửa 4 đợt: [CHECKLIST mục E](../bug-fixaffter/CHECKLIST.md#e-kế-hoạch-hoàn-thiện-clean-architecture-bf-028035).
-- Chi tiết rà soát: [Upgrade 06 — Rà soát Clean Architecture](../Upgrade-recommended/06-ra-soat-clean-architecture.md) và [báo cáo sau nâng cấp](../report-after-upgrade/clean-architecture.md).
+### 4.1. Bảng quy tắc phụ thuộc và hiện trạng từng `.csproj`
+
+| Tầng (Project) | Được tham chiếu | Cấm tham chiếu | Hiện trạng `.csproj` (14/11/2026) | Test khóa quy tắc (`ArchitectureRulesTests`) |
+| :--- | :--- | :--- | :--- | :--- |
+| **`OISM.Domain`** | Chỉ BCL (`System.*`, `Microsoft.CSharp`, `netstandard`) | Mọi gói NuGet ngoài BCL, `OISM.Application`, `OISM.Infrastructure`, `OISM.WebApi`, EF Core | Không có `<ProjectReference>`, không có `<PackageReference>` (`net8.0`) | `AC01_Domain_ShouldOnlyReferenceBclAssemblies` |
+| **`OISM.Application`** | `OISM.Domain`, `FluentValidation`, `FluentValidation.DependencyInjectionExtensions`, và **ngoại lệ có chủ đích** `Microsoft.EntityFrameworkCore` (`IAppDbContext`) | `OISM.Infrastructure`, `OISM.WebApi`, `Npgsql*`, `Hangfire*`, `Microsoft.AspNetCore*`, `BCrypt*`, lời gọi EF raw SQL (`ExecuteSqlRaw`, `ExecuteSqlInterpolated`, `FromSqlRaw`, `FromSqlInterpolated`, `SqlQueryRaw`) | `<ProjectReference>` tới `OISM.Domain`; `<PackageReference>` gồm `FluentValidation` (`12.2.0`), `FluentValidation.DependencyInjectionExtensions` (`12.2.0`), `Microsoft.EntityFrameworkCore` (`8.0.11`) | `AC02_Application_ShouldNotReferenceInfrastructureWebApiOrProviderPackages`, `AC05_ApplicationSource_ShouldNotInvokeEfRawSqlMethods` |
+| **`OISM.Infrastructure`** | `OISM.Application`, `OISM.Domain`, driver/adapter (`Npgsql.EntityFrameworkCore.PostgreSQL`, `EFCore.NamingConventions`, `BCrypt.Net-Next`, `Hangfire.*`, `System.IdentityModel.Tokens.Jwt`, `Microsoft.AspNetCore.App`) | `OISM.WebApi` | `<ProjectReference>` tới `OISM.Application` và `OISM.Domain`; `<FrameworkReference>` `Microsoft.AspNetCore.App` | `AC03_Infrastructure_ShouldNotReferenceWebApi` |
+| **`OISM.WebApi`** | `OISM.Application`, `OISM.Infrastructure`, ASP.NET Core / JWT / OpenAPI / Swagger | Controller (`ControllerBase`) giữ tham số constructor hoặc field kiểu `DbContext`, `AppDbContext`, `IAppDbContext`, `IUnitOfWork`, `ISqlLockService` | `<ProjectReference>` tới `OISM.Application` và `OISM.Infrastructure`; `<PackageReference>` JWT Bearer, OpenApi, Swashbuckle | `AC04_WebApiControllers_ShouldNotDependOnDbContextUnitOfWorkOrSqlLockService` |
+
+### 4.2. Ngoại lệ có chủ đích & nơi đặt SQL đặc thù, lock, transaction
+
+- **Ngoại lệ `OISM.Application` dùng EF Core qua `IAppDbContext` (chốt 14/11/2026):** `IAppDbContext` phơi bày `DbSet<...>` và `SaveChangesAsync` để các service `OISM.Application` truy vấn LINQ và lưu entity. Quyết định giữ nguyên mô hình này thay vì tách toàn bộ sang repository vì hiện có khoảng 39 file và ~645 lời gọi EF; refactor rộng lúc này mang rủi ro cao đối với các luồng transaction nguyên tử và giữ chỗ/khóa tồn kho (`OrderService`, `ReservationService`, `GoodsReceiptService`).
+- **Nơi đặt SQL đặc thù, lock và transaction:** toàn bộ khóa advisory/pessimistic PostgreSQL (`FOR UPDATE`, `pg_advisory_xact_lock`, `SET CONSTRAINTS ... IMMEDIATE`) được khai báo sau [`ISqlLockService`](../../src/backend/src/OISM.Application/Common/Interfaces/ISqlLockService.cs) và hiện thực bằng [`SqlLockService`](../../src/backend/src/OISM.Infrastructure/Services/SqlLockService.cs) tại `OISM.Infrastructure`. Giao dịch, retry và commit/rollback đi qua [`IUnitOfWork`](../../src/backend/src/OISM.Application/Common/Interfaces/IUnitOfWork.cs) (`EfUnitOfWork` ở `OISM.Infrastructure`). `OISM.Application` không gọi trực tiếp phương thức raw SQL của EF Core.
+- **Chi tiết rà soát trước đó:** [CHECKLIST mục E](../bug-fixaffter/CHECKLIST.md#e-kế-hoạch-hoàn-thiện-clean-architecture-bf-028035), [Upgrade 06 — Rà soát Clean Architecture](../Upgrade-recommended/Done/06-ra-soat-clean-architecture.md) và [báo cáo sau nâng cấp](../report-after-upgrade/clean-architecture.md).

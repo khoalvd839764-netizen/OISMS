@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using OISM.Application.Common.Exceptions;
+using OISM.Application.Features.Auth.PasswordReset;
 using OISM.Application.Features.Users;
 using OISM.Application.Features.Users.Services;
 using OISM.WebApi.Http;
@@ -100,5 +101,25 @@ public class UsersController : ControllerBase
     {
         var response = await _userService.UpdateUserStatusAsync(id, request.IsActive, User.GetUserId() ?? Guid.Empty, ct);
         return Ok(response);
+    }
+
+    /// <summary>
+    /// Owner đặt lại mật khẩu hộ Staff hoặc Cashier cùng cửa hàng (Upgrade 10). Không áp dụng cho tài khoản Owner.
+    /// Thu hồi mọi refresh token của nhân viên; access token cũ còn hiệu lực tối đa 60 phút.
+    /// </summary>
+    [HttpPost("{id:guid}/reset-password")]
+    public async Task<IActionResult> ResetPassword(
+        [FromRoute] Guid id,
+        [FromBody] AdminResetPasswordRequest request,
+        CancellationToken ct)
+    {
+        var validationResult = await new AdminResetPasswordValidator().ValidateAsync(request, ct);
+        if (!validationResult.IsValid)
+        {
+            throw new OismException("VALIDATION_ERROR", string.Join(" ", validationResult.Errors.Select(e => e.ErrorMessage)), 400);
+        }
+
+        await _userService.ResetPasswordAsync(id, request.NewPassword, ct);
+        return Ok(new { message = "Đã đặt lại mật khẩu. Nhân viên cần đăng nhập lại bằng mật khẩu mới." });
     }
 }

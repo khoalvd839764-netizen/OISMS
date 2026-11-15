@@ -24,4 +24,10 @@ public interface IRealtimeNotifier
     /// Phát cảnh báo Mặt hàng dưới ngưỡng an toàn (Low-stock Alert).
     /// </summary>
     Task NotifyLowStockAlertAsync(Guid tenantId, Guid branchId, Guid skuId, string skuCode, decimal currentAvailable, decimal threshold, CancellationToken ct = default);
+
+    /// <summary>
+    /// Phát sự kiện đơn online mới thuộc chi nhánh tới nhóm tenant_{tenantId}_branch_{branchId} cho POS.
+    /// Sử dụng BranchOrderRealtimeDto tối thiểu, không chứa tổng tiền, tên khách hay giá vốn.
+    /// </summary>
+    Task NotifyBranchOrderCreatedAsync(Guid tenantId, BranchOrderRealtimeDto order, CancellationToken ct = default);
 }
