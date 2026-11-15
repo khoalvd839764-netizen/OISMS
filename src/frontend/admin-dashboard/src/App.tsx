@@ -14,6 +14,7 @@ import { ReportsPage } from "./pages/ReportsPage";
 import { PosRedirectPage } from "./pages/PosRedirectPage";
 import { AccessPage } from "./pages/AccessPage";
 import { AuthPage } from "./pages/AuthPage";
+import { ForgotPasswordPage, ResetPasswordPage } from "./pages/PasswordResetPages";
 import { OrganizationPage } from "./pages/OrganizationPage";
 import { ShopIntegrationsPage } from "./pages/ShopIntegrationsPage";
 import { PaymentAccountsPage } from "./pages/PaymentAccountsPage";
@@ -26,6 +27,8 @@ export default function App() {
         <Routes>
           {/* Public Routes */}
           <Route path="/login" element={<AuthPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/403" element={<AccessPage type="forbidden" />} />
           <Route path="/session-expired" element={<AccessPage type="expired" />} />
 

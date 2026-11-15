@@ -15,7 +15,7 @@
 - [x] Test cho phép và từ chối theo vai trò, gồm gọi API trực tiếp và dữ liệu trả về cho Cashier. Có ca đối chiếu tenant và chi nhánh nếu triển khai phân công.
 - [x] Có bản đối chiếu phụ thuộc bốn tầng, tham chiếu tới code và kết quả test hồi quy ở các luồng được sửa.
 
-Đăng nhập bằng SĐT và quên mật khẩu theo đặc tả riêng. [Upgrade 10](../Pedding/10-quen-mat-khau-dang-nhap-sdt.md) · [Đặc tả phân tầng](../../03-non-functional-requirements/05-maintainability-testing.md)
+Đăng nhập bằng SĐT và quên mật khẩu theo đặc tả riêng. [Upgrade 10](./10-quen-mat-khau-dang-nhap-sdt.md) · [Đặc tả phân tầng](../../03-non-functional-requirements/05-maintainability-testing.md)
 
 ## Kết quả (14/11/2026, OISMS-59-G1)
 

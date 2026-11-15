@@ -448,8 +448,8 @@ kbd { border: 1px solid #d7dce4; background: #f7f8fa; border-radius: 4px; paddin
 .auth-icon { width: 44px; height: 44px; border-radius: 11px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand); margin-bottom: 18px; }
 .auth-form h2 { font-size: 24px; letter-spacing: -.03em; margin: 0 0 7px; }
 .auth-form > p { color: var(--muted); margin: 0 0 24px; font-size: 11px; }
-.auth-form > label { display: block; margin-bottom: 14px; }
-.auth-form > label > span { display: block; font-size: 10px; font-weight: 600; margin-bottom: 7px; }
+.auth-form > label, .auth-form > form > label { display: block; margin-bottom: 14px; }
+.auth-form > label > span, .auth-form > form > label > span { display: block; font-size: 10px; font-weight: 600; margin-bottom: 7px; }
 .auth-input { display: flex; align-items: center; position: relative; }
 .auth-input > svg:first-child { position: absolute; left: 12px; color: var(--subtle); z-index: 1; }
 .auth-input > svg:last-child:not(:first-child) { position: absolute; right: 12px; color: var(--subtle); }
@@ -460,6 +460,13 @@ kbd { border: 1px solid #d7dce4; background: #f7f8fa; border-radius: 4px; paddin
 .auth-switch .button { color: var(--brand); }
 .auth-forgot { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
 .auth-forgot button { padding: 0; border: 0; background: none; color: var(--muted); font-size: 10px; cursor: not-allowed; }
+.auth-forgot a { color: var(--brand); font-size: 10px; font-weight: 600; text-decoration: none; }
+.auth-forgot a:hover { text-decoration: underline; }
+.auth-notice { display: flex; gap: 8px; align-items: flex-start; border-radius: 8px; padding: 10px 14px; font-size: 12px; margin: 10px 0; }
+.auth-notice svg { flex-shrink: 0; margin-top: 1px; }
+.auth-notice--error { background: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; }
+.auth-notice--success { background: #dcfce7; border: 1px solid #22c55e; color: #166534; }
+.auth-back { display: inline-flex; align-items: center; gap: 6px; margin-top: 16px; color: var(--brand); font-size: 11px; font-weight: 600; text-decoration: none; }
 
 .tabs button { display: inline-flex; align-items: center; gap: 7px; }
 .person-cell { display: flex; align-items: center; gap: 10px; }

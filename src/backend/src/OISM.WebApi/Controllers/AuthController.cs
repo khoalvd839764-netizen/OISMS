@@ -2,10 +2,13 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using OISM.Application.Common.Attributes;
 using OISM.Application.Features.Auth.CurrentUser;
+using OISM.Application.Common.Exceptions;
 using OISM.Application.Features.Auth.Login;
+using OISM.Application.Features.Auth.PasswordReset;
 using OISM.Application.Features.Auth.RefreshToken;
 using OISM.Application.Features.Auth.RegisterTenant;
 using OISM.Application.Features.Auth.Services;
+using Microsoft.AspNetCore.RateLimiting;
 using OISM.WebApi.Http;
 
 namespace OISM.WebApi.Controllers;
@@ -15,10 +18,12 @@ namespace OISM.WebApi.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly IPasswordResetService _passwordResetService;
 
-    public AuthController(IAuthService authService)
+    public AuthController(IAuthService authService, IPasswordResetService passwordResetService)
     {
         _authService = authService;
+        _passwordResetService = passwordResetService;
     }
 
     /// <summary>
@@ -41,11 +46,12 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// Đăng nhập hệ thống bằng Email và Mật khẩu (FR-AUTH-02).
+    /// Đăng nhập bằng email hoặc số điện thoại cùng mật khẩu (FR-AUTH-02, Upgrade 10).
     /// Trả về JWT Access Token (hạn 60p) và Refresh Token (hạn 7 ngày).
     /// </summary>
     [HttpPost("login")]
     [IgnoreTenantClaim]
+    [EnableRateLimiting(RateLimitPolicies.AuthLogin)]
     [ApiErrorContract(ApiErrorProfile.Login)]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken ct)
     {
@@ -107,5 +113,51 @@ public class AuthController : ControllerBase
         }
 
         return Ok(response);
+    }
+
+    /// <summary>
+    /// Cho frontend biết tính năng tự đặt lại mật khẩu qua email có đang bật không (Upgrade 10).
+    /// </summary>
+    [HttpGet("password-reset/status")]
+    [IgnoreTenantClaim]
+    public IActionResult GetPasswordResetStatus() =>
+        Ok(new PasswordResetStatusResponse { Enabled = _passwordResetService.IsEnabled });
+
+    /// <summary>
+    /// Yêu cầu link đặt lại mật khẩu qua email. Luôn trả 202 với cùng một thông báo,
+    /// không cho biết email hoặc số điện thoại có tồn tại hay không.
+    /// </summary>
+    [HttpPost("forgot-password")]
+    [IgnoreTenantClaim]
+    [EnableRateLimiting(RateLimitPolicies.AuthForgotPassword)]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request, CancellationToken ct)
+    {
+        Validate(new ForgotPasswordValidator().Validate(request));
+        await _passwordResetService.ForgotPasswordAsync(request, ct);
+        return Accepted(new
+        {
+            message = "Nếu tài khoản tồn tại và có email, chúng tôi đã gửi link đặt lại mật khẩu. Vui lòng kiểm tra hộp thư, kể cả mục Spam."
+        });
+    }
+
+    /// <summary>
+    /// Đặt mật khẩu mới bằng token trong link email. Thành công thì thu hồi mọi refresh token của tài khoản.
+    /// </summary>
+    [HttpPost("reset-password")]
+    [IgnoreTenantClaim]
+    [EnableRateLimiting(RateLimitPolicies.AuthLogin)]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request, CancellationToken ct)
+    {
+        Validate(new ResetPasswordValidator().Validate(request));
+        await _passwordResetService.ResetPasswordAsync(request, ct);
+        return Ok(new { message = "Đặt lại mật khẩu thành công. Vui lòng đăng nhập bằng mật khẩu mới." });
+    }
+
+    private static void Validate(FluentValidation.Results.ValidationResult result)
+    {
+        if (!result.IsValid)
+        {
+            throw new OismException("VALIDATION_ERROR", string.Join(" ", result.Errors.Select(e => e.ErrorMessage)), 400);
+        }
     }
 }

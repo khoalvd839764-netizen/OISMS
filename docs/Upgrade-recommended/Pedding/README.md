@@ -21,7 +21,7 @@ Mục 5.1 của checklist còn **Gói 5**. Gói 1 đã đóng toàn bộ tiêu c
 ## Nâng cấp 10
 
 - **01 — Mua hàng, nhập kho và giá vốn** đã xong cả 01-A và 01-B (12/11/2026), đặc tả chuyển sang [Done](../Done/01-mua-hang-nhap-kho-gia-von.md). Câu hỏi còn treo: giữ WAC hay chuyển FIFO/giá đích danh. [Báo cáo 01-B](../../report-after-upgrade/hoa-don-nha-cung-cap-u01b.md)
-- **10 — Đăng nhập SĐT và quên mật khẩu.** Chưa triển khai hai luồng. [Kế hoạch 10](./10-quen-mat-khau-dang-nhap-sdt.md)
+- **10 — Đăng nhập SĐT và quên mật khẩu** đã xong giai đoạn 1 và 2 (15/11/2026), đặc tả chuyển sang [Done](../Done/10-quen-mat-khau-dang-nhap-sdt.md). Còn treo giai đoạn 3 (OTP SMS, cần nhà cung cấp trả phí). [Báo cáo](../../report-after-upgrade/quen-mat-khau-dang-nhap-sdt-u10.md)
 
 ## Việc liên quan
 

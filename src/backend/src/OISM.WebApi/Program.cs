@@ -71,7 +71,7 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 builder.Services.AddRateLimiter(options =>
 {
-    options.AddPolicy("AiChat", context => RateLimitPartition.GetFixedWindowLimiter(
+    options.AddPolicy(RateLimitPolicies.AiChat, context => RateLimitPartition.GetFixedWindowLimiter(
         context.User.GetUserId().GetValueOrDefault(),
         _ => new FixedWindowRateLimiterOptions
         {
@@ -79,12 +79,22 @@ builder.Services.AddRateLimiter(options =>
             Window = TimeSpan.FromMinutes(1),
             QueueLimit = 0
         }));
+
+    // Upgrade 10: chống dò mật khẩu và spam mail đặt lại, chia theo IP.
+    RateLimitPolicies.AddPerIpPolicy(options, RateLimitPolicies.AuthLogin,
+        builder.Configuration.GetValue("RateLimiting:AuthLoginPerMinute", 10), TimeSpan.FromMinutes(1));
+    RateLimitPolicies.AddPerIpPolicy(options, RateLimitPolicies.AuthForgotPassword,
+        builder.Configuration.GetValue("RateLimiting:ForgotPasswordPer15Minutes", 5), TimeSpan.FromMinutes(15));
+
     options.OnRejected = async (rejection, ct) =>
     {
-        const string code = "AI_RATE_LIMITED";
         var context = rejection.HttpContext;
-        var problem = ApiErrorResponse.CreateProblemDetails(context, code, ApiErrorTitles.Get(ApiErrorProfile.Ai, code),
-            StatusCodes.Status429TooManyRequests, "Bạn hỏi hơi nhanh, thử lại sau ít phút.");
+        var policy = context.GetEndpoint()?.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName;
+        var problem = policy == RateLimitPolicies.AiChat
+            ? ApiErrorResponse.CreateProblemDetails(context, "AI_RATE_LIMITED", ApiErrorTitles.Get(ApiErrorProfile.Ai, "AI_RATE_LIMITED"),
+                StatusCodes.Status429TooManyRequests, "Bạn hỏi hơi nhanh, thử lại sau ít phút.")
+            : ApiErrorResponse.CreateProblemDetails(context, "TOO_MANY_REQUESTS", "Quá nhiều yêu cầu",
+                StatusCodes.Status429TooManyRequests, "Bạn thao tác quá nhiều lần. Vui lòng thử lại sau ít phút.");
         context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
         await context.Response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json", cancellationToken: ct);
     };

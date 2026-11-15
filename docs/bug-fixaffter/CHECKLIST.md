@@ -10,7 +10,7 @@ Chi tiết từng lỗi nằm trong thư mục [`errors/`](./errors/), mỗi l�
 | Nhóm | Đã xong | Cần kiểm chứng / một phần | Chưa làm |
 | :--- | :---: | :---: | :---: |
 | Lỗi `BF-001..036` | 27 | 2 | 7 |
-| Coming Soon `CS-01..08` + Quên mật khẩu | 3 | 3 | 3 |
+| Coming Soon `CS-01..08` + Quên mật khẩu | 4 | 3 | 2 |
 | Upgrade (GVHD) | 6 | 0 | 1 |
 
 ---
@@ -91,7 +91,7 @@ Không phải lỗi: đây là chức năng chưa làm xong, đang có nhãn Com
 | [ ] | CS-06 | In chứng từ giao hàng, in báo cáo | Chưa làm | Bố cục A4/80mm, cô lập vùng in, ẩn giá vốn theo vai trò |
 | [x] | CS-07 | KPI, biểu đồ, đơn gần đây ở Tổng quan | Đã có dữ liệu thật | Số liệu lũy kế, API chưa lọc theo thời gian |
 | [~] | CS-08 | Dự báo, gợi ý nhập hàng (`FR-AI-01`) | Có API `GET /api/ai/reorder-recommendations`; tab Gợi ý nhập hàng đã mở lại (10/11/2026); Trợ lý OISMS trả lời "nên nhập gì" từ cùng dữ liệu | Bằng chứng đánh giá độ chính xác dự báo (đang tính bằng công thức) |
-| [ ] | — | Quên mật khẩu | Nút tắt có nhãn Coming soon ở Admin và POS PWA | API và luồng đặt lại mật khẩu |
+| [x] | — | Quên mật khẩu | Đã làm (Upgrade 10, 15/11/2026): link email ở Admin và POS, Owner đặt lại hộ, đăng nhập bằng SĐT | [Báo cáo Upgrade 10](../report-after-upgrade/quen-mat-khau-dang-nhap-sdt-u10.md) |
 
 ---
 

@@ -5,7 +5,7 @@ interface User { id: string; tenantId: string; name: string; email: string; tena
 const normalize = (u: { id: string; tenantId: string; fullName?: string; email: string; tenantName?: string; roles: string[] }): User => ({
   id: u.id, tenantId: u.tenantId, name: u.fullName || u.email, email: u.email, tenantName: u.tenantName || '', role: u.roles[0],
 });
-const Context = createContext<{ user: User | null; loading: boolean; error: string | null; retry: () => void; login: (email: string, password: string) => Promise<void>; logout: () => Promise<void> } | null>(null);
+const Context = createContext<{ user: User | null; loading: boolean; error: string | null; retry: () => void; login: (identifier: string, password: string) => Promise<void>; logout: () => Promise<void> } | null>(null);
 
 export function PosAuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -34,7 +34,7 @@ export function PosAuthProvider({ children }: { children: ReactNode }) {
     window.addEventListener('storage', changed);
     return () => { window.removeEventListener('pos-auth-expired', ended); window.removeEventListener('pos-session-ended', ended); window.removeEventListener('storage', changed); };
   }, []);
-  const login = useCallback(async (email: string, password: string) => { setUser(null); setError(null); const u = await loginPos(email, password); setUser(normalize(u)); }, []);
+  const login = useCallback(async (identifier: string, password: string) => { setUser(null); setError(null); const u = await loginPos(identifier, password); setUser(normalize(u)); }, []);
   const logout = useCallback(async () => { setUser(null); setError(null); await logoutPos(); }, []);
   return <Context.Provider value={{ user, loading, error, retry: () => { if (!getPosAccessToken()) clearPosSession(); setAttempt(n => n + 1); }, login, logout }}>{children}</Context.Provider>;
 }

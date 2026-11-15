@@ -68,7 +68,7 @@ Các thay đổi sau bảng kết quả trên, cùng nhánh `feature/OISMS-46-fi
 | Form đổi giá nhập nhiều đơn vị và bảng giá một lần | PASS trên giao diện: Owner lưu 2 giá, `POST /api/price-change-requests` trả 201, giá hiệu lực đọc lại đúng 160.000 ₫ |
 | Tab Gợi ý nhập hàng tạm ẩn bằng comment trong `InventoryPage.tsx` | PASS: tab không còn trên giao diện. API và phần xử lý giữ nguyên. **Đã mở lại 10/11/2026** (PR #42) |
 | Bỏ tài khoản mẫu ở đăng nhập Admin và POS PWA | PASS: không còn email và mật khẩu mẫu trong màn hình và source |
-| Nút Quên mật khẩu ở Admin và POS PWA | PASS: nút bị tắt, có nhãn Coming soon; chưa có luồng đặt lại mật khẩu |
+| Nút Quên mật khẩu ở Admin và POS PWA | Đã làm (Upgrade 10, 15/11/2026): link tới trang Quên mật khẩu riêng của từng app, tắt kèm dòng nhắc khi backend chưa cấu hình SMTP. [Báo cáo](./quen-mat-khau-dang-nhap-sdt-u10.md) |
 | Gỡ màn Handoff kỹ thuật và mục menu | Build PASS; đặc tả vẫn giữ tại [07-handoff-screens.md](../11-ui-screens/07-handoff-screens.md) |
 
 **PASS**
@@ -116,7 +116,7 @@ Các thay đổi sau bảng kết quả trên, cùng nhánh `feature/OISMS-46-fi
 - **U01-B:** hóa đơn nhà cung cấp và chênh lệch, cần backend và GVHD chốt cách xử lý.
 - **CS-02:** phân công chi nhánh, cần quyết định làm thêm backend hay bỏ khỏi yêu cầu.
 - **Tìm kiếm:** kết quả phiếu nhập chưa mở đúng phiếu.
-- **Quên mật khẩu:** mới có nút và nhãn Coming soon, chưa có API và luồng đặt lại mật khẩu.
+- **Quên mật khẩu:** đã làm ở Upgrade 10 (15/11/2026), xem [báo cáo](./quen-mat-khau-dang-nhap-sdt-u10.md). Chưa có OTP SMS.
 
 ## Ghi chú đối chiếu
 

@@ -1,6 +1,20 @@
 # 10. Quên mật khẩu và đăng nhập bằng số điện thoại
 
-> Trạng thái: kế hoạch của nhóm, soạn ngày 09/11/2026, **chưa triển khai, các quyết định chưa chốt**. Đây không phải đề xuất của GVHD. Thay thế nút "Quên mật khẩu? Coming soon" hiện có ở Admin và POS.
+> Trạng thái: kế hoạch của nhóm, soạn ngày 09/11/2026. **Đã triển khai giai đoạn 1 và 2 ngày 15/11/2026** theo các quyết định chốt bên dưới; giai đoạn 3 (OTP SMS) chưa làm. Đây không phải đề xuất của GVHD. [Báo cáo triển khai](../../report-after-upgrade/quen-mat-khau-dang-nhap-sdt-u10.md)
+
+## Quyết định đã chốt (15/11/2026)
+
+Các quyết định này **thay thế** đề xuất tương ứng ở phần dưới. Phần còn lại giữ làm lịch sử.
+
+| # | Quyết định |
+| :--- | :--- |
+| Phạm vi | Làm giai đoạn 1 (đăng nhập email/SĐT), 2a (Owner đặt lại hộ), 2b (quên mật khẩu qua email). Không làm SMS. Email vẫn bắt buộc khi tạo tài khoản (Q4, Q5: chưa). |
+| Token (thay B2.1) | **Không thêm bảng `password_reset_tokens`**, schema giữ 48 bảng. Token tự ký HMAC-SHA256 gồm `userId`, hạn dùng và dấu vân tay `password_hash`, hạn 30 phút. Đặt lại xong thì `password_hash` đổi nên mọi link cũ hết hiệu lực. Chấp nhận: yêu cầu lần hai không vô hiệu link lần một cho đến khi một link được dùng; không có lịch sử yêu cầu trong DB. Khi làm OTP SMS mới thêm bảng. |
+| Cấu hình (Q1) | Gmail SMTP cổng 587. Thiếu SMTP, khóa ký `PasswordReset:SigningKey` (≥ 32 ký tự) hoặc `PasswordReset:AdminBaseUrl` thì tắt tính năng, trả `503 PASSWORD_RESET_DISABLED`. Development không có SMTP thì ghi mail ra log và tự sinh khóa tạm. |
+| Owner đặt hộ (Q3) | Chỉ cho `Staff`/`Cashier` cùng cửa hàng; tài khoản `Owner` (kể cả chính mình) trả `403 CANNOT_RESET_OWNER_PASSWORD`. |
+| Phiên cũ (Q2) | Thu hồi mọi refresh token cùng lần ghi mật khẩu. Access token cũ còn tối đa 60 phút. |
+| POS | POS có trang Quên mật khẩu và Đặt mật khẩu mới riêng. Request gửi `app = "pos"`, link quay về `PasswordReset:PosBaseUrl`. |
+| Bổ sung | Link dùng `#token=` thay `?token=` để token không gửi lên server. Mail xếp hàng đợi và gửi nền để thời gian phản hồi không lộ tài khoản. Login không tìm thấy người dùng vẫn chạy BCrypt với hash giả. Rate limit theo IP: đăng nhập và đặt lại 10 lần/phút, quên mật khẩu 5 lần/15 phút. |
 
 ## Mục tiêu
 

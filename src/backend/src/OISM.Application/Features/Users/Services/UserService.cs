@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Helpers;
 using OISM.Application.Common.Interfaces;
+using OISM.Application.Features.Auth.PasswordReset;
 using OISM.Domain.Entities;
 
 namespace OISM.Application.Features.Users.Services;
@@ -318,6 +319,32 @@ public class UserService : IUserService
         await _context.SaveChangesAsync(ct);
 
         return MapToResponse(user, branchIds);
+    }
+
+    public async Task ResetPasswordAsync(Guid id, string newPassword, CancellationToken ct = default)
+    {
+        // Query filter tenant giới hạn trong cửa hàng của Owner: người dùng cửa hàng khác trả 404 như không tồn tại.
+        var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == id, ct);
+        if (user == null)
+        {
+            throw new OismException("USER_NOT_FOUND", "Không tìm thấy thông tin nhân viên.", 404);
+        }
+
+        if (user.Role == "Owner")
+        {
+            throw new OismException(
+                "CANNOT_RESET_OWNER_PASSWORD",
+                "Không thể đặt lại mật khẩu hộ tài khoản Chủ shop. Chủ shop dùng chức năng Quên mật khẩu qua email.",
+                403);
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        user.PasswordHash = _passwordHasher.HashPassword(newPassword);
+        user.UpdatedAt = now;
+        await RefreshTokenRevocation.MarkAllRevokedAsync(_context, user.Id, now, ct);
+
+        // Một lần SaveChanges là một transaction: đổi mật khẩu và thu hồi phiên cùng thành công hoặc cùng thất bại.
+        await _context.SaveChangesAsync(ct);
     }
 
     private async Task<List<Guid>?> ValidateBranchIdsAsync(

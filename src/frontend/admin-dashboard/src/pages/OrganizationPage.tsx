@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Badge, Button, Input, Modal, PageTitle, Select } from "../components/ui";
 import { apiAdapter } from "../services/apiAdapter";
 import { useAuth } from "../context/AuthContext";
+import { adminResetUserPassword } from "../services/passwordResetService";
 
 export function OrganizationPage() {
   const { user } = useAuth();
@@ -245,6 +246,36 @@ export function OrganizationPage() {
     }
   };
 
+  // Upgrade 10: Owner đặt lại mật khẩu hộ Staff/Cashier
+  const [resetUser, setResetUser] = useState<{ id: string; displayName: string } | null>(null);
+  const [resetPasswordValue, setResetPasswordValue] = useState("");
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resetDone, setResetDone] = useState<string | null>(null);
+
+  const openResetPassword = (target: { id: string; displayName: string }) => {
+    setResetUser(target);
+    setResetPasswordValue("");
+    setResetError(null);
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetUser) return;
+    if (resetPasswordValue.length < 6 || resetPasswordValue.length > 100) {
+      setResetError("Mật khẩu mới phải từ 6 đến 100 ký tự.");
+      return;
+    }
+    setResetError(null);
+    setLoading(true);
+    const res = await adminResetUserPassword(resetUser.id, resetPasswordValue);
+    setLoading(false);
+    if (res.ok) {
+      setResetDone(`Đã đặt lại mật khẩu cho ${resetUser.displayName}. Nhân viên cần đăng nhập lại bằng mật khẩu mới.`);
+      setResetUser(null);
+    } else {
+      setResetError(res.error || "Không đặt lại được mật khẩu.");
+    }
+  };
+
   const handleToggleUserStatus = async (userId: string, currentActive: boolean) => {
     setError(null);
     setLoading(true);
@@ -318,6 +349,13 @@ export function OrganizationPage() {
             <option value="inactive">Đã tạm dừng</option>
           </Select>
         </div>
+
+        {resetDone && (
+          <div role="status" style={{ margin: "16px", padding: "14px 16px", background: "#f0fdf4", border: "1px solid #86efac", borderRadius: "10px", color: "#15803d", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
+            <span>{resetDone}</span>
+            <button type="button" onClick={() => setResetDone(null)} style={{ background: "none", border: "none", color: "inherit", cursor: "pointer", fontWeight: 600 }}>Đóng</button>
+          </div>
+        )}
 
         {error && (
           <div style={{ margin: "16px", padding: "14px 16px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "10px", color: "#b91c1c", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -426,6 +464,25 @@ export function OrganizationPage() {
                                 }}
                               >
                                 {u.isActive ? "Tạm dừng" : "Kích hoạt"}
+                              </button>
+                            )}
+                            {user?.role === "Owner" && !isSelf && u.role !== "Owner" && (
+                              <button
+                                type="button"
+                                onClick={() => openResetPassword({ id: u.id, displayName: u.displayName })}
+                                disabled={loading}
+                                style={{
+                                  background: "#fff7ed",
+                                  border: "1px solid #fdba74",
+                                  color: "#c2410c",
+                                  borderRadius: "6px",
+                                  padding: "4px 8px",
+                                  fontSize: "11px",
+                                  fontWeight: 600,
+                                  cursor: "pointer",
+                                }}
+                              >
+                                Đặt lại mật khẩu
                               </button>
                             )}
                           </div>
@@ -682,6 +739,32 @@ export function OrganizationPage() {
             <Button variant="secondary" onClick={() => setWarehouseModalBranchId(null)}>Hủy</Button>
             <Button onClick={handleCreateWarehouse} disabled={loading}>
               {loading ? "Đang tạo..." : "Tạo kho hàng"}
+            </Button>
+          </div>
+        </Modal>
+      )}
+      {resetUser && (
+        <Modal title={`Đặt lại mật khẩu: ${resetUser.displayName}`} onClose={() => setResetUser(null)}>
+          {resetError && (
+            <div style={{ background: "#fee2e2", border: "1px solid #ef4444", color: "#b91c1c", padding: "10px", borderRadius: "8px", fontSize: "12px", marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+              <AlertCircle size={16} />
+              <span>{resetError}</span>
+            </div>
+          )}
+          <p style={{ fontSize: "12px", color: "var(--muted)", marginTop: 0 }}>
+            Mật khẩu mới có hiệu lực ngay. Các phiên đăng nhập hiện tại của nhân viên sẽ hết hạn trong tối đa 60 phút.
+            Hãy báo mật khẩu mới trực tiếp cho nhân viên.
+          </p>
+          <div className="form-grid">
+            <label>
+              <span>Mật khẩu mới *</span>
+              <Input type="text" autoComplete="new-password" placeholder="Tối thiểu 6 ký tự" value={resetPasswordValue} onChange={(e) => setResetPasswordValue(e.target.value)} autoFocus />
+            </label>
+          </div>
+          <div className="modal-actions">
+            <Button variant="secondary" onClick={() => setResetUser(null)}>Hủy</Button>
+            <Button onClick={handleResetPassword} disabled={loading}>
+              {loading ? "Đang lưu..." : "Đặt lại mật khẩu"}
             </Button>
           </div>
         </Modal>

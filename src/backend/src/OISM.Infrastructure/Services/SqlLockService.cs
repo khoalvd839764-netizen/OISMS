@@ -163,6 +163,9 @@ public class SqlLockService : ISqlLockService
         }
     }
 
+    public Task LockUserAsync(Guid userId, CancellationToken ct = default) =>
+        ExecutePostgresCommandAsync("SELECT id FROM users WHERE id = {0} FOR UPDATE;", ct, userId);
+
     public async Task LockWarehouseAsync(Guid warehouseId, Guid tenantId, CancellationToken ct = default)
     {
         if (_context.Database.IsNpgsql())

@@ -45,6 +45,11 @@ public interface ISqlLockService
     Task LockRefreshTokenAsync(string tokenHash, CancellationToken ct = default);
 
     /// <summary>
+    /// Khóa bi quan dòng người dùng (FOR UPDATE) để hai yêu cầu đặt lại mật khẩu cùng lúc không cùng thành công.
+    /// </summary>
+    Task LockUserAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>
     /// Khóa bi quan bản ghi Kho hàng (FOR UPDATE) để chống xung đột đồng thời khi đổi chi nhánh hoặc cập nhật kho.
     /// </summary>
     Task LockWarehouseAsync(Guid warehouseId, Guid tenantId, CancellationToken ct = default);

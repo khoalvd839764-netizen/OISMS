@@ -307,7 +307,7 @@ Dấu tick ở mục này theo các đầu việc được liệt kê cho từng
 - [x] **CS-07 — Tổng quan từ dữ liệu thật.** KPI, biểu đồ và đơn gần đây lấy từ backend. Số liệu hiện theo phạm vi lũy kế của API. [Màn Tổng quan](src/frontend/admin-dashboard/src/pages/DashboardPage.tsx) · [ReportService](src/backend/src/OISM.Application/Features/Reports/Services/ReportService.cs)
 - [ ] **CS-08 — Đánh giá dự báo.** API và tab gợi ý đã triển khai theo `FR-AI-01`. Còn thiếu kết quả đối chiếu dự báo với dữ liệu thực tế và tiêu chí chất lượng. [Đặc tả dự báo](docs/02-functional-requirements/fr-12-ai-forecasting.md) · [Test công thức](test-oisms/backend/OISM.UnitTests/AiForecastingTests.cs)
 - [x] **`FR-AI-02` / Upgrade 09 — Trợ lý OISMS.** Có API và panel hỏi đáp chỉ đọc cho Owner/Staff. Mặc định tắt ở local và đã bật trên bản demo AWS theo báo cáo Sprint 5. [Đặc tả trợ lý](docs/02-functional-requirements/fr-13-ai-assistant.md) · [API](src/backend/src/OISM.WebApi/Controllers/AiController.cs#L26) · [Unit test](test-oisms/backend/OISM.UnitTests/AiChatServiceTests.cs)
-- [ ] **Upgrade 10 — Quên mật khẩu và đăng nhập bằng SĐT.** Còn thiếu luồng đặt lại mật khẩu và đăng nhập SĐT. Trạng thái đăng nhập xem `FR-AUTH-02`. [Kế hoạch](docs/Upgrade-recommended/Pedding/10-quen-mat-khau-dang-nhap-sdt.md)
+- [x] **Upgrade 10 — Quên mật khẩu và đăng nhập bằng SĐT.** Xong 15/11/2026: đăng nhập email hoặc SĐT, quên mật khẩu qua link email (token tự ký, không thêm bảng), Owner đặt lại hộ Staff/Cashier. Chưa làm OTP SMS. [Kế hoạch](docs/Upgrade-recommended/Done/10-quen-mat-khau-dang-nhap-sdt.md) · [Báo cáo](docs/report-after-upgrade/quen-mat-khau-dang-nhap-sdt-u10.md)
 
 ### 6.2. Nâng cấp nghiệp vụ và kiến trúc
 

@@ -1,9 +1,10 @@
 import { ArrowRight, Check, Eye, EyeOff, LockKeyhole, Mail, Monitor, Phone, ShieldCheck, Store, User, AlertCircle } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Button, ComingSoonBadge, Input } from "../components/ui";
+import { Link, useNavigate } from "react-router-dom";
+import { Button, Input } from "../components/ui";
 import { openPosLoginFromAdmin, POS_LOGIN_URL } from "../services/posNavigation";
 import { useAuth } from "../context/AuthContext";
+import { usePasswordResetEnabled } from "../services/passwordResetService";
 
 export function AuthPage() {
   const [register, setRegister] = useState(false);
@@ -19,6 +20,7 @@ export function AuthPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const { login, registerTenant } = useAuth();
+  const passwordResetEnabled = usePasswordResetEnabled();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -30,7 +32,7 @@ export function AuthPage() {
   const handleLogin = async () => {
     setErrorMessage(null);
     if (!email.trim() || !password.trim()) {
-      setErrorMessage("Vui lòng nhập đầy đủ Email và Mật khẩu.");
+      setErrorMessage("Vui lòng nhập đầy đủ email hoặc số điện thoại và mật khẩu.");
       return;
     }
 
@@ -156,12 +158,13 @@ export function AuthPage() {
           )}
 
           <label>
-            <span>{register ? "Email quản trị *" : "Email đăng nhập"}</span>
+            <span>{register ? "Email quản trị *" : "Email hoặc số điện thoại"}</span>
             <div className="auth-input">
               <Mail size={17} />
               <Input
-                type="email"
-                placeholder="owner@cuahang.vn"
+                type={register ? "email" : "text"}
+                autoComplete={register ? "email" : "username"}
+                placeholder={register ? "owner@cuahang.vn" : "owner@cuahang.vn hoặc 0901234567"}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -208,10 +211,13 @@ export function AuthPage() {
 
           {!register && (
             <div className="auth-forgot">
-              <button type="button" disabled title="Tính năng đặt lại mật khẩu chưa được triển khai.">
-                Quên mật khẩu?
-              </button>
-              <ComingSoonBadge />
+              {passwordResetEnabled === false ? (
+                <button type="button" disabled title="Tự đặt lại mật khẩu chưa được bật. Vui lòng liên hệ chủ cửa hàng để được đặt lại.">
+                  Quên mật khẩu? Liên hệ chủ cửa hàng
+                </button>
+              ) : (
+                <Link to="/forgot-password">Quên mật khẩu?</Link>
+              )}
             </div>
           )}
 

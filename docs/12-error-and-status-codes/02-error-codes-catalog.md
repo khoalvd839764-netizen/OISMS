@@ -43,6 +43,10 @@ Tài liệu này là **từ điển tra cứu danh mục mã lỗi toàn hệ th
 | `CANNOT_DEACTIVATE_SELF` | `400` | Không thể tự khóa tài khoản | *Không thể tự vô hiệu hóa tài khoản của chính mình.* | Owner tự khóa tài khoản đang đăng nhập. | Giữ trạng thái hoạt động. |
 | `CANNOT_DEMOTE_SELF` | `400` | Không thể tự hạ quyền | *Không thể tự hạ quyền của chính mình.* | Owner tự đổi vai trò của mình. | Giữ vai trò Owner. |
 | `CANNOT_ASSIGN_OWNER` | `400` | Không thể gán vai trò Chủ shop | *Không thể gán vai trò Chủ shop cho nhân viên.* | Cố nâng nhân viên lên Owner. | Chọn Staff hoặc Cashier. |
+| `RESET_TOKEN_INVALID` | `400` | Link đặt lại không hợp lệ | *Link đặt lại mật khẩu không hợp lệ, đã hết hạn hoặc đã được sử dụng.* | Token sai chữ ký, quá 30 phút, hoặc mật khẩu đã đổi sau khi phát hành link (Upgrade 10). | Hiện lỗi và link "Yêu cầu link mới" về `/forgot-password`. |
+| `PASSWORD_RESET_DISABLED` | `503` | Chưa bật tự đặt lại mật khẩu | *Tính năng tự đặt lại mật khẩu chưa được bật...* | Thiếu SMTP, khóa ký `PasswordReset:SigningKey` hoặc `PasswordReset:AdminBaseUrl`. | Hướng dẫn liên hệ chủ cửa hàng để được đặt lại hộ. |
+| `CANNOT_RESET_OWNER_PASSWORD` | `403` | Không thể đặt lại hộ Chủ shop | *Không thể đặt lại mật khẩu hộ tài khoản Chủ shop...* | Owner gọi `POST /api/users/{id}/reset-password` cho tài khoản Owner. | Chủ shop dùng Quên mật khẩu qua email. |
+| `TOO_MANY_REQUESTS` | `429` | Quá nhiều yêu cầu | *Bạn thao tác quá nhiều lần. Vui lòng thử lại sau ít phút.* | Vượt rate limit theo IP: đăng nhập và đặt lại mật khẩu 10 lần/phút, quên mật khẩu 5 lần/15 phút. | Hiện thông báo, chờ rồi thử lại. |
 
 ---
 
@@ -235,6 +239,7 @@ Quét mọi `new OismException("<MÃ>", ..., <HTTP>)`, `CreateProblemResult("<M�
 | `WAREHOUSE_HAS_DEPENDENCIES`, `FK_VIOLATION` | `409` | `WarehouseService` | Kho đã có tồn/sổ cái hoặc bị tham chiếu |
 | `TARGET_BRANCH_INVALID` | `400` | `WarehouseService` | Chi nhánh đích khi đổi chi nhánh của kho không hợp lệ |
 | `TENANT_INACTIVE`, `USER_INACTIVE`, `INVALID_TOKEN` | `401` | `AuthService` | Cửa hàng/tài khoản bị khóa, refresh token sai hoặc hết hạn |
+| `TENANT_INACTIVE`, `USER_INACTIVE` | `403` | `PasswordResetService` | Đặt lại mật khẩu bằng link khi tài khoản hoặc cửa hàng đang bị khóa (Upgrade 10) |
 | `EMPTY_TOKEN`, `CONSTRAINT_VIOLATION` | `400` | `AuthService` | Thiếu refresh token / vi phạm ràng buộc khi đăng ký |
 | `NOT_FOUND` | `404` | Nhiều controller (`CreateProblemResult`) | Không tìm thấy bản ghi theo ID (phiếu chuyển kho, kiểm kê...) |
 | `UNAUTHORIZED` | `401` | `ExceptionHandlingMiddleware` | Service ném `UnauthorizedAccessException` (thiếu tenant context) |

@@ -35,7 +35,7 @@ Các file `fr-*.md` đặc tả yêu cầu. Xem [checklist theo từng mã](../.
 
 | Mã | Hiện trạng | Ghi chú |
 | :--- | :--- | :--- |
-| `FR-AUTH-01..02` | Đăng ký đã có, đăng nhập một phần | Đăng ký tạo Tenant và Owner. Owner tạo chi nhánh/kho qua màn tổ chức. Đăng nhập hiện dùng email. Còn thiếu đăng nhập SĐT. Quên mật khẩu có nhãn Coming soon. |
+| `FR-AUTH-01..02` | Đã có | Đăng ký tạo Tenant và Owner. Owner tạo chi nhánh/kho qua màn tổ chức. Đăng nhập bằng email hoặc SĐT; quên mật khẩu qua link email và Owner đặt lại hộ nhân viên (Upgrade 10, 15/11/2026). Chưa có OTP SMS. |
 | `FR-AUTH-03` | Đã có, còn lệch | Xem [lệch RBAC](../01-users-and-rbac/02-rbac-matrix.md#21-lệch-giữa-yêu-cầu-và-code-hiện-tại-đối-chiếu-06112026). |
 | `FR-AUTH-04` | Đã có | Phân công người dùng vào chi nhánh (phần của CS-02) chưa có. |
 | `FR-PROD-01..04` | Đã có các luồng chính | Quét barcode đã có tại POS, còn thiếu tại màn kiểm kê. Giá theo bảng giá và phiếu đổi giá (Upgrade 04), có nhiều đơn vị tính (Upgrade 05). |

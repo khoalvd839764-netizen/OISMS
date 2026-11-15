@@ -29,6 +29,10 @@ nano .env.production
 | `OISMS_APP_USER` | `oisms_app` | Tài khoản runtime; không được là `postgres` hay `oisms_runtime` |
 | `OISMS_APP_PASSWORD` | `openssl rand -hex 32` | |
 | `JWT_SECRET` | `openssl rand -hex 32` | Tối thiểu 32 ký tự. Đổi giá trị làm mọi token cũ hết hiệu lực |
+| `PASSWORD_RESET_SIGNING_KEY` | `openssl rand -hex 32` | Khóa ký link quên mật khẩu (Upgrade 10), tối thiểu 32 ký tự, khác `JWT_SECRET`. Thiếu hoặc ngắn thì tính năng quên mật khẩu tắt. Đổi giá trị làm mọi link đang chờ hết hiệu lực |
+| `SMTP_HOST`, `SMTP_PORT` | `smtp.gmail.com`, `587` | Gmail SMTP, STARTTLS. AWS chặn cổng 25, cổng 587 dùng được |
+| `SMTP_USER`, `SMTP_FROM` | địa chỉ Gmail của hệ thống | |
+| `SMTP_PASSWORD` | Gmail App Password 16 ký tự | Tài khoản Gmail phải bật xác thực 2 bước. Không commit. Thiếu SMTP thì nút Quên mật khẩu tắt, Owner vẫn đặt lại hộ được |
 | `PGADMIN_PASSWORD` | bất kỳ | `docker-compose.yml` bắt buộc có, dù production không chạy pgAdmin |
 
 Tạo nhanh giá trị ngẫu nhiên:
