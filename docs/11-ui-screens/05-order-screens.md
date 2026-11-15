@@ -257,4 +257,12 @@ Toàn bộ 9 kịch bản kiểm thử nghiệp vụ giao diện đã được t
 | Thao tác mỗi dòng | **Xem chi tiết**; **In lại** (khổ 80mm hoặc 58mm, dùng dữ liệu đã chụp lúc lập hóa đơn); **Truy vết** |
 | Modal truy vết | Chuỗi Hóa đơn → Đơn hàng → Dòng sổ kho `OUT` (bảng chi tiết bút toán); nếu đơn có trả hàng thì thêm khối Phiếu trả hàng và dòng sổ `IN` (CS-01) |
 
-Giá vốn trong truy vết do backend lọc theo vai trò; trang không tự ẩn trường. In chứng từ giao hàng từ đơn hàng (CS-06) chưa làm, nút trong drawer đơn hàng còn nhãn Coming soon.
+Giá vốn trong truy vết do backend lọc theo vai trò; trang không tự ẩn trường.
+
+---
+
+## 8. In Phiếu Giao Hàng (`CS-06`, `OISMS-59-G4`, 15/11/2026)
+
+- Trong `OrderDetailDrawer`, nút **In chứng từ** đã bỏ `ComingSoonBadge` và mở `ShippingSlipPrintModal`.
+- **Điều kiện bật nút:** Chỉ bật khi `channel !== 'POS'` và `status` là `Confirmed` hoặc `Completed`; các trường hợp khác bị vô hiệu hóa kèm `title` nêu lý do.
+- **Nội dung mẫu in (`ShippingSlipPrintModal`):** Chọn khổ **A4** hoặc **80mm**; hiển thị tên khách, SĐT, địa chỉ giao hàng, dòng hàng (số lượng + tên đơn vị), đơn giá, thành tiền và tổng thu (COD); **không render giá vốn (`costPrice`/`totalCogs`) với mọi vai trò**.

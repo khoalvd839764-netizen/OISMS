@@ -8,6 +8,7 @@ const mod={exports:{}};
 const source=fs.readFileSync(new URL('./src/services/receiptMapper.ts',APP_URL),'utf8');
 vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{module:mod,exports:mod.exports,Date,Math,Number});
 const map=mod.exports.mapServerReceipt;
+const shouldAutoPrint=mod.exports.shouldAutoPrint;
 const receipt=()=>({receiptNumber:'INV-1',orderNumber:'POS-1',createdAt:'2026-11-08T06:00:00Z',paymentMethod:'Cash',totalAmount:200,amountGiven:250,changeDue:50,items:[{skuCode:'A',productName:'Server product',unitName:'Cái',quantity:2,unitPrice:100,subtotal:200}]});
 test('receipt: chỉ dùng snapshot server, không dựng lại từ giỏ hiện tại',()=>{const out=map(receipt(),'Tenant');assert.equal(out.items[0].name,'Server product');assert.equal(out.items[0].quantity,2);assert.equal(out.totalAmount,200);assert.equal(out.changeDue,50);});
 test('receipt: metadata nullable không bịa địa chỉ/điện thoại',()=>{const out=map(receipt(),'Tenant');assert.equal(out.branchPhone,'');assert.equal(out.branchAddress,'');assert.equal(out.customerPhone,undefined);});
@@ -26,4 +27,11 @@ test('print: modal ancestor không nằm trong selector display:none; page size 
   assert.doesNotMatch(print,/[^{}]*\.no-print-bg[^{}]*\{[^}]*display:\s*none/);
   assert.match(print,/\.no-print-bg\s*\{[^}]*display:\s*block/);assert.doesNotMatch(print,/size:\s*80mm auto/);
   const component=fs.readFileSync(new URL('./src/components/pos/ReceiptPrintModal.tsx',APP_URL),'utf8');assert.match(component,/<option value="58">/);assert.match(component,/<option value="80">/);
+});
+test('autoPrint: tự in khi checkout thành công, không tự in phiếu tạm tính hoặc khi thiếu biên nhận',()=>{
+  assert.equal(shouldAutoPrint({isDraft:false},true),true);
+  assert.equal(shouldAutoPrint({isDraft:true},true),false);
+  assert.equal(shouldAutoPrint({isDraft:false},false),false);
+  assert.equal(shouldAutoPrint(null,true),false);
+  assert.equal(shouldAutoPrint(undefined,true),false);
 });

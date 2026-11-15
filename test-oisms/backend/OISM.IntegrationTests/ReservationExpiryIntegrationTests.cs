@@ -2084,6 +2084,7 @@ public class ReservationExpiryIntegrationTests : IAsyncLifetime, IClassFixture<W
 
         public Task NotifyNewOrderAsync(Guid tenantId, OrderSummaryRealtimeDto order, CancellationToken ct = default) => Task.CompletedTask;
         public Task NotifyLowStockAlertAsync(Guid tenantId, Guid branchId, Guid skuId, string skuCode, decimal currentAvailable, decimal threshold, CancellationToken ct = default) => Task.CompletedTask;
+        public Task NotifyBranchOrderCreatedAsync(Guid tenantId, BranchOrderRealtimeDto order, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class ThrowingRealtimeNotifier : IRealtimeNotifier
@@ -2095,6 +2096,7 @@ public class ReservationExpiryIntegrationTests : IAsyncLifetime, IClassFixture<W
 
         public Task NotifyNewOrderAsync(Guid tenantId, OrderSummaryRealtimeDto order, CancellationToken ct = default) => Task.CompletedTask;
         public Task NotifyLowStockAlertAsync(Guid tenantId, Guid branchId, Guid skuId, string skuCode, decimal currentAvailable, decimal threshold, CancellationToken ct = default) => Task.CompletedTask;
+        public Task NotifyBranchOrderCreatedAsync(Guid tenantId, BranchOrderRealtimeDto order, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class BeforeCommitGate : DbCommandInterceptor

@@ -567,20 +567,43 @@ kbd { border: 1px solid #d7dce4; background: #f7f8fa; border-radius: 4px; paddin
 }
 
 /* ==========================================================================
-   PRINT STYLES FOR THERMAL PRINTER (80mm & 58mm)
+   PRINT STYLES (A4 default for reports/slips; modals override for 58/80mm)
    ========================================================================== */
+/* Bản sao vùng in của PrintArea: ẩn trên màn hình, chỉ hiện khi in. */
+.print-portal {
+  display: none;
+}
+
 @media print {
+  /* Đang mở modal in: chỉ in bản sao trong .print-portal, ẩn toàn bộ ứng dụng. */
+  body:has(> .print-portal) > #root {
+    display: none !important;
+  }
+
+  .print-portal {
+    display: block !important;
+  }
+
+  .print-portal,
+  .print-portal * {
+    color: #000000 !important;
+  }
+
   html, body {
     background: #ffffff !important;
     color: #000000 !important;
     margin: 0 !important;
     padding: 0 !important;
-    width: 80mm !important;
+    width: auto !important;
   }
 
-  /* Hide everything except the receipt paper */
+  /* Hide navigation, sidebar, and action chrome */
   .no-print,
   .no-print-bg,
+  aside.sidebar,
+  .sidebar,
+  .ai-assistant,
+  .ai-assistant__toggle,
   header,
   nav,
   footer,
@@ -588,36 +611,18 @@ kbd { border: 1px solid #d7dce4; background: #f7f8fa; border-radius: 4px; paddin
     display: none !important;
   }
 
-  /* Make modal container transparent and top-level */
-  .print-container {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
-    width: 80mm !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    background: transparent !important;
+  tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
-  .receipt-paper {
-    width: 80mm !important;
-    max-width: 80mm !important;
-    margin: 0 !important;
-    padding: 2mm 3mm !important;
-    border: none !important;
-    box-shadow: none !important;
-    font-size: 11px !important;
-    color: #000000 !important;
-    background: #ffffff !important;
-  }
-
-  .receipt-paper * {
-    color: #000000 !important;
+  svg {
+    max-width: 100%;
   }
 
   @page {
-    size: 80mm auto;
-    margin: 0;
+    size: A4 portrait;
+    margin: 12mm;
   }
 }
 

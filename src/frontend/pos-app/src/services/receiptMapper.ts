@@ -25,3 +25,8 @@ export function mapServerReceipt(value: unknown, tenantName: string): ReceiptDat
     receiverBankBin: text(raw.receiverBankBin) || undefined, receiverBankName: text(raw.receiverBankName) || undefined,
     receiverAccountNumber: text(raw.receiverAccountNumber) || undefined, receiverAccountName: text(raw.receiverAccountName) || undefined, transferReference: text(raw.transferReference) || undefined };
 }
+
+/** Auto-print only confirmed receipts when triggered by checkout success (FR-POS-03). */
+export function shouldAutoPrint(receipt: Pick<ReceiptData, 'isDraft'> | null | undefined, autoPrint = false): boolean {
+  return Boolean(autoPrint && receipt && !receipt.isDraft);
+}

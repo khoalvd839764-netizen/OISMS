@@ -88,3 +88,12 @@ Màn hình **Báo Cáo Doanh Thu & Quản Trị Lãi Gộp (P&L Reports)** là p
 | Bảng đối soát | Gồm các cột: `Ngày`, `Doanh thu (TH / TT)`, `Hàng trả (TH / TT)`, `Giá vốn (TH / TT)`, `Lãi gộp (TH / TT)`, `Đối soát`, `Cập nhật lúc` (`Asia/Ho_Chi_Minh`). Khi `summary == null` (chưa tổng hợp), cột tổng hợp hiển thị `—`. |
 | Nhãn trạng thái đối soát | - `Khớp` (`Matched`): số tổng hợp bằng số tính trực tiếp, chỉ chênh do làm tròn (tối đa `0,01 đ` × số dòng tổng hợp của ngày).<br/>- `Lệch` (`Mismatch`): phát sinh đơn/trả mới sau lần tổng hợp gần nhất.<br/>- `Chưa tổng hợp` (`NotSummarized`): có phát sinh trong ngày nhưng chưa có dòng trong `daily_sales_summaries`. |
 | Nút **Tính lại** | Gọi `POST /api/reports/daily-summaries/rebuild` theo khoảng `startDate..endDate` đang chọn (tối đa 31 ngày). Khóa nút và hiển thị trạng thái xoay khi đang chạy hoặc đang tải báo cáo; tự nạp lại bảng đối soát sau khi hoàn tất; lỗi (ví dụ > 31 ngày) hiển thị rõ theo `ProblemDetails` + `errorCode`. Không dùng mock data. |
+
+---
+
+## 6. In Báo Cáo A4 (`OISMS-59-G4`, 15/11/2026)
+
+- Nút **In báo cáo** trên `ReportsPage` kích hoạt `window.print()` cho tab đang xem (`P&L`, `Vận tốc kho` hoặc `Cảnh báo tồn tối thiểu`).
+- Khối tiêu đề chỉ hiện khi in (`hidden print:block`): tên tenant, tab đang xem, khoảng ngày (`UTC+07:00`), chi nhánh, người in và giờ in.
+- CSS `@media print` khổ A4 ẩn sidebar, thanh lọc, tab và nút bấm; ngăn cắt ngang dòng bảng (`break-inside: avoid`) và co biểu đồ vừa khổ giấy.
+- Các trường giá vốn và lãi gộp khi nhận giá trị `null` (như với vai trò `Staff`) hiển thị và in ra ký hiệu `—`.

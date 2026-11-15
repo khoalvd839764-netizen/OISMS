@@ -86,7 +86,7 @@ Các trường định danh bắt buộc bên trong Payload của JWT:
 | **Báo cáo & AI** | Hỏi Trợ lý OISMS (`POST /api/ai/chat`) | `FR-AI-02` | ✅ Mọi số liệu, kể cả doanh thu và lãi gộp | ✅ Nhập/xuất kho, tồn, gợi ý nhập, hướng dẫn. **Không hỏi được doanh thu, lãi gộp, giá vốn** (chốt 10/11/2026) | ❌ Cấm (`403 Forbidden`) |
 | **Cấu hình & Thanh toán** | Quản lý tài khoản ngân hàng thụ hưởng (`/api/payment-accounts`): thêm, sửa, đặt mặc định, ngừng dùng | `CS-05` | ✅ Toàn quyền | 👁️ Chỉ xem tài khoản active | 👁️ Chỉ xem tài khoản active |
 
-> **Phân công chi nhánh (`CS-02`):** `Owner` không gán chi nhánh và luôn dùng mọi chi nhánh. `Staff` và `Cashier` lưu danh sách `branchIds` trong `user_branches` (rỗng = mọi chi nhánh), nhưng hiện tại mới áp dụng lọc `GET /api/branches` và chặn checkout ngoài danh sách cho `Cashier`; `Staff` chưa bị lọc dữ liệu theo chi nhánh.
+> **Phân công chi nhánh (`CS-02`):** `Owner` không gán chi nhánh và luôn dùng mọi chi nhánh. `Staff` và `Cashier` lưu danh sách `branchIds` trong `user_branches` (rỗng = mọi chi nhánh), hiện áp dụng lọc `GET /api/branches`, chặn checkout ngoài danh sách và chặn `NotificationHub.JoinBranchGroup(branchId)` (`HubException`) cho `Cashier` có phân công; `Cashier` không vào nhóm realtime toàn tenant `tenant_{tenantId}` (không nhận `OrderCreated` của mọi chi nhánh); `Cashier` chưa phân công vẫn vào mọi chi nhánh và `Staff` chưa bị lọc dữ liệu theo chi nhánh.
 
 > **Từ Upgrade 04:** không còn đường sửa giá trực tiếp, kể cả với `Owner`. Giá ban đầu trên form tạo SKU hoặc đơn vị cũng đi qua phiếu: của `Owner` có hiệu lực ngay, của `Staff` chờ duyệt. Vai trò lấy từ JWT, client không tự khai được. Xem [tài liệu 04](../Upgrade-recommended/Done/04-bang-gia-theo-thoi-gian.md#phân-quyền).
 

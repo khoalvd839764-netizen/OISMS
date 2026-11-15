@@ -78,8 +78,13 @@ Giao diện **Quầy Thu Ngân Bán Lẻ (POS Counter)** được thiết kế c
 * **Bảo vệ Idempotency:** Hệ thống duy trì `RequestKey` dạng UUID v4 ổn định gắn liền với giỏ hàng và ý định thanh toán. Khi đóng/mở lại modal với cùng giỏ hàng hoặc khi gửi lại yêu cầu lúc kết quả chưa rõ (unknown status), `RequestKey` được giữ nguyên để bảo đảm tính bất biến của nội dung chuyển khoản QR và ngăn chặn trừ kho hai lần. Khi thay đổi giỏ hàng, đổi phương thức hoặc đổi tài khoản nhận tiền, hệ thống mới khởi tạo `RequestKey` mới.
 
 ### 3.2. Modal In Hóa Đơn Nhiệt (Receipt Print Modal)
-* Hỗ trợ chuẩn in nhiệt khổ giấy `58mm` (K80 / K58).
-* Tự động hiển thị: Tên gian hàng, Chi nhánh, Tên thu ngân, Ngày giờ lập, Chi tiết các mặt hàng, Mã đơn hàng, Mã vạch Barcode để khách trả hàng sau này, Mã QR tra cứu hóa đơn điện tử.
+* Hỗ trợ chuẩn in nhiệt khổ giấy `80mm` / `58mm` (K80 / K58).
+* Tự động hiển thị: Tên gian hàng, Chi nhánh, Tên thu ngân, Ngày giờ lập, Chi tiết các mặt hàng, Mã đơn hàng, Mã vạch Barcode để khách trả hàng sau này.
+* **Tự động in (`FR-POS-03`, `OISMS-59-G4`):** Khi checkout thành công, modal tự gọi `window.print()` đúng 1 lần sau khi render (`shouldAutoPrint` + ref chặn lặp), không có công tắc tắt; phiếu tạm tính (`isDraft`), checkout lỗi và trạng thái chưa rõ (`unknown`) không tự in. Nút In lại trên modal vẫn giữ nguyên.
+
+### 3.4. Thông Báo Đơn Online Mới Tại Chi Nhánh (`FR-SIM-02`, `OISMS-59-G4`)
+* `BranchOrderToast` hiển thị toast góc dưới-trái màn hình khi có đơn online mới (`Admin`, `Shopee`, `TikTok`, `Lazada`) thuộc chi nhánh đang chọn (`BranchOrderCreated`); tự ẩn sau 8 giây, khử trùng theo `orderId`, không che giỏ hàng và không chiếm phím tắt; đổi chi nhánh xóa toast cũ.
+* `PosHeader` có nút bật/tắt âm báo đơn mới (mặc định bật, lưu `localStorage`) và hiển thị `"có thể đã bỏ lỡ thông báo"` khi kết nối realtime khác `connected` (không bù thông báo khi nối lại).
 
 ### 3.3. Modal Mở Khóa Ca / Đăng Nhập (Login Modal)
 * Tự động xuất hiện khi phiên làm việc của thu ngân hết hạn (`pos-auth-expired`).

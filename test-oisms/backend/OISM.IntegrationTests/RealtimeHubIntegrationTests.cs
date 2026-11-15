@@ -436,6 +436,11 @@ public class RealtimeHubIntegrationTests : IClassFixture<CustomWebApplicationFac
         {
             throw new InvalidOperationException("Mô phỏng lỗi SignalR khi phát cảnh báo tồn thấp.");
         }
+
+        public Task NotifyBranchOrderCreatedAsync(Guid tenantId, BranchOrderRealtimeDto order, CancellationToken ct = default)
+        {
+            throw new InvalidOperationException("Mô phỏng lỗi SignalR khi phát đơn chi nhánh.");
+        }
     }
 
     [Fact]
@@ -487,6 +492,214 @@ public class RealtimeHubIntegrationTests : IClassFixture<CustomWebApplicationFac
 
         var bBal = await db.InventoryBalances.FirstAsync(b => b.TenantId == tenant.TenantId && b.BranchId == tenant.BranchId && b.SkuId == tenant.SkuId);
         bBal.Reserved.Should().Be(2m, "Giữ chỗ tồn kho phải được commit thành công vào DB dù Notifier lỗi.");
+    }
+
+    #endregion
+
+    #region G4 (AC-3.5): JoinBranchGroup RBAC & BranchOrderCreated Routing
+
+    [Fact]
+    public async Task AC35_JoinBranchGroup_CashierRbac_AssignedAllowed_UnassignedDenied_NoAssignmentsAllowed()
+    {
+        var tenant = await RegisterTestTenantAsync("RB");
+        var password = "Password@123";
+        var suffix = Guid.NewGuid().ToString("N")[..6];
+        var assignedCashierEmail = $"cashier_assigned_{suffix}@test.local";
+        var unassignedCashierEmail = $"cashier_unassigned_{suffix}@test.local";
+
+        Guid branchBId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var tenantService = scope.ServiceProvider.GetRequiredService<ICurrentTenantService>();
+            tenantService.SetTenant(tenant.TenantId);
+            using (db.OpenPrivilegedScope())
+            {
+                var branchB = new Branch
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenant.TenantId,
+                    Name = $"Chi nhánh B {suffix}",
+                    Address = "456 Đường B",
+                    IsActive = true,
+                    CreatedAt = DateTimeOffset.UtcNow
+                };
+                db.Branches.Add(branchB);
+                branchBId = branchB.Id;
+
+                var assignedCashier = new User
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenant.TenantId,
+                    Email = assignedCashierEmail,
+                    DisplayName = "Cashier Assigned A",
+                    Role = "Cashier",
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
+                    IsActive = true,
+                    CreatedAt = DateTimeOffset.UtcNow
+                };
+                db.Users.Add(assignedCashier);
+
+                var unassignedCashier = new User
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenant.TenantId,
+                    Email = unassignedCashierEmail,
+                    DisplayName = "Cashier Unassigned",
+                    Role = "Cashier",
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
+                    IsActive = true,
+                    CreatedAt = DateTimeOffset.UtcNow
+                };
+                db.Users.Add(unassignedCashier);
+
+                db.UserBranches.Add(new UserBranch
+                {
+                    TenantId = tenant.TenantId,
+                    UserId = assignedCashier.Id,
+                    BranchId = tenant.BranchId,
+                    CreatedAt = DateTimeOffset.UtcNow
+                });
+
+                await db.SaveChangesAsync();
+            }
+        }
+
+        async Task<string> LoginTokenAsync(string email)
+        {
+            var res = await _client.PostAsJsonAsync("/api/auth/login", new LoginRequest { Email = email, Password = password });
+            res.StatusCode.Should().Be(HttpStatusCode.OK);
+            var auth = await res.Content.ReadFromJsonAsync<AuthResponse>(_jsonOptions);
+            return auth!.AccessToken;
+        }
+
+        var assignedToken = await LoginTokenAsync(assignedCashierEmail);
+        var unassignedToken = await LoginTokenAsync(unassignedCashierEmail);
+
+        // 1. Cashier được phân công chi nhánh A: join B bị từ chối (HubException), join A thành công
+        await using var assignedHub = CreateHubConnection(assignedToken);
+        await assignedHub.StartAsync();
+
+        Func<Task> joinB = () => assignedHub.InvokeAsync("JoinBranchGroup", branchBId);
+        await joinB.Should().ThrowAsync<HubException>();
+
+        Func<Task> joinA = () => assignedHub.InvokeAsync("JoinBranchGroup", tenant.BranchId);
+        await joinA.Should().NotThrowAsync();
+
+        // 2. Cashier chưa có phân công nào: vào được mọi chi nhánh (A và B)
+        await using var unassignedHub = CreateHubConnection(unassignedToken);
+        await unassignedHub.StartAsync();
+
+        await unassignedHub.InvokeAsync("JoinBranchGroup", tenant.BranchId);
+        await unassignedHub.InvokeAsync("JoinBranchGroup", branchBId);
+    }
+
+    [Fact]
+    public async Task AC35_BranchOrderCreated_RoutedOnlyToTargetBranchAndTenant_WithoutSensitiveFields()
+    {
+        var tenant1 = await RegisterTestTenantAsync("T1");
+        var tenant2 = await RegisterTestTenantAsync("T2");
+
+        Guid branchBId;
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var tenantService = scope.ServiceProvider.GetRequiredService<ICurrentTenantService>();
+            tenantService.SetTenant(tenant1.TenantId);
+            using (db.OpenPrivilegedScope())
+            {
+                var branchB = new Branch
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenant1.TenantId,
+                    Name = "Chi nhánh B",
+                    Address = "789 Đường B",
+                    IsActive = true,
+                    CreatedAt = DateTimeOffset.UtcNow
+                };
+                db.Branches.Add(branchB);
+                branchBId = branchB.Id;
+                await db.SaveChangesAsync();
+            }
+        }
+
+        // POS tại chi nhánh A (Tenant 1)
+        await using var posHubA = CreateHubConnection(tenant1.CashierToken);
+        await posHubA.StartAsync();
+        await posHubA.InvokeAsync("JoinBranchGroup", tenant1.BranchId);
+
+        // POS tại chi nhánh B (Tenant 1)
+        await using var posHubB = CreateHubConnection(tenant1.CashierToken);
+        await posHubB.StartAsync();
+        await posHubB.InvokeAsync("JoinBranchGroup", branchBId);
+
+        // Admin tại Tenant 1
+        await using var adminHub1 = CreateHubConnection(tenant1.OwnerToken);
+        await adminHub1.StartAsync();
+
+        // Tenant 2
+        await using var tenant2Hub = CreateHubConnection(tenant2.OwnerToken);
+        await tenant2Hub.StartAsync();
+        await tenant2Hub.InvokeAsync("JoinBranchGroup", tenant2.BranchId);
+
+        var posAReceived = new List<JsonElement>();
+        var posBReceived = new List<JsonElement>();
+        var admin1Orders = new List<OrderSummaryRealtimeDto>();
+        var tenant2BranchOrders = new List<JsonElement>();
+        var tenant2Orders = new List<OrderSummaryRealtimeDto>();
+        var posAOrderCreated = new List<OrderSummaryRealtimeDto>();
+
+        posHubA.On<JsonElement>("BranchOrderCreated", e => posAReceived.Add(e.Clone()));
+        posHubB.On<JsonElement>("BranchOrderCreated", e => posBReceived.Add(e.Clone()));
+        posHubA.On<OrderSummaryRealtimeDto>("OrderCreated", o => posAOrderCreated.Add(o));
+        adminHub1.On<OrderSummaryRealtimeDto>("OrderCreated", o => admin1Orders.Add(o));
+        tenant2Hub.On<JsonElement>("BranchOrderCreated", e => tenant2BranchOrders.Add(e.Clone()));
+        tenant2Hub.On<OrderSummaryRealtimeDto>("OrderCreated", o => tenant2Orders.Add(o));
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", tenant1.OwnerToken);
+        var createRes = await _client.PostAsJsonAsync("/api/orders", new CreateOrderRequestDto
+        {
+            BranchId = tenant1.BranchId,
+            Channel = "Admin",
+            RequestKey = Guid.NewGuid(),
+            CustomerName = "Khách Bí Mật",
+            Items = new List<OrderItemRequestDto>
+            {
+                new() { SkuId = tenant1.SkuId, SkuCode = tenant1.SkuCode, Quantity = 2m, UnitPrice = tenant1.RetailPrice }
+            }
+        });
+        createRes.StatusCode.Should().Be(HttpStatusCode.Created);
+
+        await Task.Delay(1200);
+
+        // POS tại A nhận đúng 1 BranchOrderCreated với payload Q2b, không có thông tin nhạy cảm
+        posAReceived.Should().ContainSingle();
+        var rawJson = posAReceived[0].GetRawText();
+        rawJson.Should().NotContainEquivalentOf("totalAmount");
+        rawJson.Should().NotContainEquivalentOf("customerName");
+        rawJson.Should().NotContainEquivalentOf("costPrice");
+        rawJson.Should().NotContainEquivalentOf("totalCogs");
+        rawJson.Should().NotContainEquivalentOf("totalCost");
+
+        var dto = posAReceived[0].Deserialize<BranchOrderRealtimeDto>(_jsonOptions);
+        dto.Should().NotBeNull();
+        dto!.BranchId.Should().Be(tenant1.BranchId);
+        dto.Channel.Should().Be("Admin");
+        dto.OrderNumber.Should().NotBeNullOrWhiteSpace();
+        dto.Items.Should().ContainSingle(i => i.SkuId == tenant1.SkuId && i.SkuCode == tenant1.SkuCode && i.Quantity == 2m);
+
+        // POS tại B không nhận
+        posBReceived.Should().BeEmpty();
+
+        // Admin tại Tenant 1 nhận OrderCreated
+        admin1Orders.Should().ContainSingle(o => o.BranchId == tenant1.BranchId && o.Channel == "Admin");
+
+        // Cashier không vào nhóm toàn tenant nên không nhận OrderCreated (có tổng tiền, tên khách)
+        posAOrderCreated.Should().BeEmpty();
+
+        // Tenant 2 không nhận gì
+        tenant2BranchOrders.Should().BeEmpty();
+        tenant2Orders.Should().BeEmpty();
     }
 
     #endregion

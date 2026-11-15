@@ -6,6 +6,9 @@ POS đã có biên nhận và nút **In**. Admin nhận thông báo đơn mới 
 
 ## Việc cần làm
 
+Quyết định đã chốt và các phase: [Plan triển khai Gói 4](./goi-4-plan-trien-khai.md).
+
+
 - [ ] **`FR-POS-03`.** Mở hộp thoại in sau khi checkout thành công và đã có biên nhận. Giữ nút in lại để thu ngân dùng khi trình duyệt chặn hộp thoại hoặc đã đóng hộp thoại.
 - [ ] **`FR-ORD-03` / CS-06.** Cho in phiếu giao hàng từ đơn đang xem và in báo cáo theo bộ lọc đang chọn. Dữ liệu in dùng quyền của người thao tác và giữ quy tắc ẩn giá vốn của màn hình.
 - [ ] **`FR-SIM-02`.** Bổ sung popup hoặc âm thanh đơn mới ở POS qua SignalR. Dùng tenant và phạm vi chi nhánh hiện hành, xử lý kết nối lại và đổi chi nhánh.

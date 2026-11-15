@@ -759,6 +759,22 @@ internal sealed class PosCheckoutService(
 
             if (_realtimeNotifier != null)
             {
+                var tidOrderCapture = tenantId.Value;
+                var orderSummary = new OrderSummaryRealtimeDto
+                {
+                    OrderId = order.Id,
+                    OrderNumber = order.Number,
+                    BranchId = order.BranchId,
+                    BranchName = branch.Name,
+                    Channel = order.Channel,
+                    Status = order.Status,
+                    TotalAmount = order.TotalAmount,
+                    TotalItems = createdOrderItems.Count,
+                    CustomerName = order.CustomerName,
+                    CreatedAt = order.CreatedAt
+                };
+                pendingNotifications.Add(() => _realtimeNotifier.NotifyNewOrderAsync(tidOrderCapture, orderSummary, ct));
+
                 foreach (var kv in groupedItems)
                 {
                     var skuId = kv.Key;

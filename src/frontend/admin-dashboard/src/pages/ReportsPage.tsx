@@ -3,7 +3,6 @@ import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { reportService } from '../services/reportService';
 import { apiAdapter } from '../services/apiAdapter';
-import { ComingSoonBadge } from '../components/ui';
 import type {
   RevenueProfitReport,
   DailySalesSummaryComparison,
@@ -68,6 +67,14 @@ const UNIT_PREVIEW_COUNT = 4;
 function formatWithUnit(value: number, unitName?: string | null): string {
   const quantity = value.toLocaleString('vi-VN');
   return unitName ? `${quantity} ${unitName}` : quantity;
+}
+
+function formatNullableMoney(val: number | null | undefined): string {
+  return val === null || val === undefined ? '—' : `${val.toLocaleString('vi-VN')} đ`;
+}
+
+function formatNullablePercent(val: number | null | undefined): string {
+  return val === null || val === undefined ? '—' : `${val.toFixed(1)}%`;
 }
 
 interface UnitQuantityListProps {
@@ -174,7 +181,15 @@ export const ReportsPage: React.FC = () => {
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [printedAt, setPrintedAt] = useState<string>('');
   const activeReqRef = useRef(0);
+
+  const handlePrintReport = () => {
+    setPrintedAt(new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Saigon' }));
+    requestAnimationFrame(() => {
+      window.print();
+    });
+  };
 
   const extractProblemMessage = (err: any, fallback: string): string => {
     const problem = err?.response?.data;
@@ -373,10 +388,46 @@ export const ReportsPage: React.FC = () => {
     return item.alertLevel === selectedAlertLevel;
   });
 
+  const tabLabels: Record<'pnl' | 'velocity' | 'alerts', string> = {
+    pnl: '1. Doanh thu & Lợi nhuận (P&L)',
+    velocity: '2. Vận tốc kho & Luân chuyển',
+    alerts: '3. Cảnh báo tồn kho tối thiểu',
+  };
+  const selectedBranchName = branches.find((b) => b.id === selectedBranch)?.name || 'Tất cả chi nhánh';
+
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-6 max-w-7xl mx-auto space-y-6 print:p-0 print:max-w-none print:space-y-4">
+      {/* Khối tiêu đề chỉ hiện khi in (A4) */}
+      <div className="hidden print:block border-b border-gray-300 pb-3 mb-4 text-xs text-gray-800">
+        <div className="flex justify-between items-start">
+          <div>
+            <div className="text-base font-extrabold uppercase text-gray-900">
+              {user?.tenantName || 'OISMS'}
+            </div>
+            <div className="text-sm font-bold text-gray-800 mt-0.5">
+              Báo cáo: {tabLabels[activeTab]}
+            </div>
+          </div>
+          <div className="text-right text-[11px] text-gray-600 space-y-0.5">
+            <div>Người in: <span className="font-semibold text-gray-900">{user?.name || '—'}</span></div>
+            <div>Giờ in: <span className="font-semibold text-gray-900">{printedAt || new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Saigon' })}</span></div>
+          </div>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-[11px] text-gray-700">
+          <div>
+            Khoảng ngày (UTC+07:00):{' '}
+            <span className="font-semibold text-gray-900">
+              {activeTab === 'alerts' ? 'Tức thời' : `${startDate || '—'} → ${endDate || '—'}`}
+            </span>
+          </div>
+          <div>
+            Chi nhánh: <span className="font-semibold text-gray-900">{selectedBranchName}</span>
+          </div>
+        </div>
+      </div>
+
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 print:hidden">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <TrendingUp className="w-7 h-7 text-indigo-600" />
@@ -396,18 +447,18 @@ export const ReportsPage: React.FC = () => {
             Tải lại
           </button>
           <button
-            disabled
-            title="Bản in báo cáo chưa được hoàn thiện."
+            type="button"
+            onClick={handlePrintReport}
             className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm flex items-center gap-1.5"
           >
             <Printer className="w-3.5 h-3.5" />
-            In báo cáo <ComingSoonBadge />
+            In báo cáo
           </button>
         </div>
       </div>
 
       {/* Tabs navigation */}
-      <div className="flex border-b border-gray-200 gap-1 bg-gray-50/50 p-1 rounded-t-lg">
+      <div className="flex border-b border-gray-200 gap-1 bg-gray-50/50 p-1 rounded-t-lg print:hidden">
         <button
           onClick={() => setActiveTab('pnl')}
           className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
@@ -446,7 +497,7 @@ export const ReportsPage: React.FC = () => {
       </div>
 
       {/* Global Filter Bar */}
-      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-wrap items-center gap-3 text-xs">
+      <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-wrap items-center gap-3 text-xs print:hidden">
         <div className="flex items-center gap-1.5 font-semibold text-gray-700 uppercase">
           <Filter className="w-4 h-4 text-gray-400" />
           <span>Bộ lọc:</span>
@@ -591,7 +642,7 @@ export const ReportsPage: React.FC = () => {
             <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-xs">
               <div className="text-xs font-semibold text-gray-500 uppercase">Giá vốn thuần (COGS)</div>
               <div className="text-xl font-bold text-gray-900 mt-2">
-                {(pnlData?.netCogs ?? pnlData?.totalCostOfGoodsSold ?? 0).toLocaleString('vi-VN')} đ
+                {formatNullableMoney(pnlData?.netCogs ?? pnlData?.totalCostOfGoodsSold)}
               </div>
               <div className="text-[11px] text-gray-500 mt-1">Đã khấu trừ COGS trả</div>
             </div>
@@ -600,7 +651,7 @@ export const ReportsPage: React.FC = () => {
             <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-xs">
               <div className="text-xs font-semibold text-gray-500 uppercase">Lợi nhuận gộp</div>
               <div className="text-xl font-bold text-emerald-600 mt-2">
-                {(pnlData?.grossProfit ?? pnlData?.totalGrossProfit ?? 0).toLocaleString('vi-VN')} đ
+                {formatNullableMoney(pnlData?.grossProfit ?? pnlData?.totalGrossProfit)}
               </div>
               <div className="text-[11px] text-emerald-700 font-medium mt-1 flex items-center gap-0.5">
                 <ArrowUpRight className="w-3 h-3" />
@@ -612,7 +663,7 @@ export const ReportsPage: React.FC = () => {
             <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-xs">
               <div className="text-xs font-semibold text-gray-500 uppercase">Tỷ suất lãi gộp</div>
               <div className="text-xl font-bold text-indigo-600 mt-2">
-                {(pnlData?.grossMarginPercentage ?? 0).toFixed(1)}%
+                {formatNullablePercent(pnlData?.grossMarginPercentage)}
               </div>
               <div className="text-[11px] text-gray-500 mt-1">Profit / Net Revenue</div>
             </div>
@@ -660,13 +711,13 @@ export const ReportsPage: React.FC = () => {
                             {(ch.netRevenue ?? ch.revenue).toLocaleString('vi-VN')} đ
                           </td>
                           <td className="py-2.5 px-2 text-right text-gray-600">
-                            {(ch.netCogs ?? ch.costOfGoodsSold)?.toLocaleString('vi-VN')} đ
+                            {formatNullableMoney(ch.netCogs ?? ch.costOfGoodsSold)}
                           </td>
                           <td className="py-2.5 px-2 text-right font-bold text-emerald-600">
-                            {ch.grossProfit?.toLocaleString('vi-VN')} đ
+                            {formatNullableMoney(ch.grossProfit)}
                           </td>
                           <td className="py-2.5 px-2 text-right font-semibold text-indigo-600">
-                            {ch.grossMarginPercentage?.toFixed(1)}%
+                            {formatNullablePercent(ch.grossMarginPercentage)}
                           </td>
                         </tr>
                       ))
@@ -716,10 +767,10 @@ export const ReportsPage: React.FC = () => {
                             {(br.netRevenue ?? br.revenue).toLocaleString('vi-VN')} đ
                           </td>
                           <td className="py-2.5 px-2 text-right text-gray-600">
-                            {(br.netCogs ?? br.costOfGoodsSold)?.toLocaleString('vi-VN')} đ
+                            {formatNullableMoney(br.netCogs ?? br.costOfGoodsSold)}
                           </td>
                           <td className="py-2.5 px-2 text-right font-bold text-emerald-600">
-                            {br.grossProfit?.toLocaleString('vi-VN')} đ
+                            {formatNullableMoney(br.grossProfit)}
                           </td>
                           <td className="py-2.5 px-2 text-right text-gray-600">{br.orderCount}</td>
                         </tr>
@@ -737,7 +788,7 @@ export const ReportsPage: React.FC = () => {
               <Calendar className="w-4 h-4 text-indigo-600" />
               Biến động doanh thu &amp; lãi gộp theo ngày
             </div>
-            <div className="overflow-x-auto max-h-72">
+            <div className="overflow-x-auto max-h-72 print:max-h-none print:overflow-visible">
               <table className="w-full text-xs text-left border-collapse">
                 <thead>
                   <tr className="bg-gray-50/70 border-b border-gray-200 text-gray-500 font-semibold">
@@ -771,10 +822,10 @@ export const ReportsPage: React.FC = () => {
                           {(d.netRevenue ?? d.revenue).toLocaleString('vi-VN')} đ
                         </td>
                         <td className="py-2.5 px-3 text-right text-gray-600">
-                          {(d.netCogs ?? d.costOfGoodsSold)?.toLocaleString('vi-VN')} đ
+                          {formatNullableMoney(d.netCogs ?? d.costOfGoodsSold)}
                         </td>
                         <td className="py-2.5 px-3 text-right font-bold text-emerald-600">
-                          {d.grossProfit?.toLocaleString('vi-VN')} đ
+                          {formatNullableMoney(d.grossProfit)}
                         </td>
                         <td className="py-2.5 px-3 text-right text-gray-700">{d.orderCount}</td>
                       </tr>
@@ -882,10 +933,10 @@ export const ReportsPage: React.FC = () => {
                         </td>
                         <td className="py-2.5 px-3 text-right whitespace-nowrap">
                           <div className="font-bold text-emerald-600">
-                            {day.summary ? `${day.summary.grossProfit.toLocaleString('vi-VN')} đ` : '—'}
+                            {day.summary ? formatNullableMoney(day.summary.grossProfit) : '—'}
                           </div>
                           <div className="text-[11px] text-gray-500">
-                            TT: {day.live.grossProfit.toLocaleString('vi-VN')} đ
+                            TT: {formatNullableMoney(day.live.grossProfit)}
                           </div>
                         </td>
                         <td className="py-2.5 px-3 text-center whitespace-nowrap">

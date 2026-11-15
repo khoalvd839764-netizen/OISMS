@@ -1,8 +1,10 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
 using OISM.Application.Features.Branches.Services;
+using OISM.WebApi.Http;
 
 namespace OISM.WebApi.Hubs;
 
@@ -14,23 +16,28 @@ namespace OISM.WebApi.Hubs;
 /// 1. Yêu cầu xác thực JWT Bearer (hỗ trợ query parameter 'access_token' khi kết nối WebSocket/SSE).
 /// 2. Hỗ trợ vai trò: Owner, Staff, Cashier.
 /// 3. Phân nhóm nhận (Group Segregation):
-///    - tenant_{tenantId}: Tự động gia nhập khi kết nối thành công, nhận sự kiện toàn cửa hàng (OrderCreated, LowStockWarning).
-///    - tenant_{tenantId}_branch_{branchId}: Gia nhập qua JoinBranchGroup sau khi server xác thực chi nhánh thuộc Tenant.
+///    - tenant_{tenantId}: Owner/Staff tự động gia nhập khi kết nối, nhận sự kiện toàn cửa hàng (OrderCreated, LowStockWarning).
+///      Cashier không vào nhóm này.
+///    - tenant_{tenantId}_branch_{branchId}: Gia nhập qua JoinBranchGroup sau khi server xác thực chi nhánh thuộc Tenant
+///      và, với Cashier, thuộc chi nhánh được phân công (CS-02). Nhận StockLevelChanged, BranchOrderCreated.
 /// 4. Client tuyệt đối không được phép tự chỉ định chuỗi tên Group bất kỳ.
 /// </summary>
 [Authorize(Roles = "Owner,Staff,Cashier")]
 public class NotificationHub : Hub
 {
     private readonly IBranchService _branchService;
+    private readonly IBranchAccessService _branchAccessService;
     private readonly ICurrentTenantService _currentTenantService;
     private readonly ILogger<NotificationHub> _logger;
 
     public NotificationHub(
         IBranchService branchService,
+        IBranchAccessService branchAccessService,
         ICurrentTenantService currentTenantService,
         ILogger<NotificationHub> logger)
     {
         _branchService = branchService;
+        _branchAccessService = branchAccessService;
         _currentTenantService = currentTenantService;
         _logger = logger;
     }
@@ -47,10 +54,20 @@ public class NotificationHub : Hub
 
         _currentTenantService.SetTenant(tenantId.Value);
 
-        var tenantGroupName = $"tenant_{tenantId.Value}";
-        await Groups.AddToGroupAsync(Context.ConnectionId, tenantGroupName);
-        _logger.LogInformation("Client {ConnectionId} (Tenant: {TenantId}) đã kết nối và tham gia nhóm {Group}.",
-            Context.ConnectionId, tenantId.Value, tenantGroupName);
+        // Cashier không vào nhóm toàn tenant: OrderCreated chứa tổng tiền, tên khách của mọi chi nhánh (CS-02).
+        // POS chỉ nhận sự kiện của chi nhánh qua JoinBranchGroup.
+        if (Context.User?.IsInRole("Cashier") == true)
+        {
+            _logger.LogInformation("Client {ConnectionId} (Tenant: {TenantId}, Cashier) đã kết nối, chỉ nhận sự kiện theo chi nhánh.",
+                Context.ConnectionId, tenantId.Value);
+        }
+        else
+        {
+            var tenantGroupName = $"tenant_{tenantId.Value}";
+            await Groups.AddToGroupAsync(Context.ConnectionId, tenantGroupName);
+            _logger.LogInformation("Client {ConnectionId} (Tenant: {TenantId}) đã kết nối và tham gia nhóm {Group}.",
+                Context.ConnectionId, tenantId.Value, tenantGroupName);
+        }
 
         await base.OnConnectedAsync();
     }
@@ -87,6 +104,30 @@ public class NotificationHub : Hub
             _logger.LogWarning("Client {ConnectionId} thuộc Tenant {TenantId} cố gắng tham gia chi nhánh {BranchId} không hợp lệ hoặc không thuộc quyền.",
                 Context.ConnectionId, tenantId.Value, branchId);
             throw new HubException($"Chi nhánh '{branchId}' không tồn tại, đã ngừng hoạt động hoặc không thuộc Tenant của bạn.");
+        }
+
+        if (Context.User?.IsInRole("Cashier") == true)
+        {
+            var userId = Context.User.GetUserId();
+            if (!userId.HasValue || userId.Value == Guid.Empty)
+            {
+                throw new HubException("Không xác định được danh tính người dùng Cashier.");
+            }
+
+            try
+            {
+                await _branchAccessService.EnsureCashierBranchAllowedAsync(
+                    userId.Value,
+                    isCashier: true,
+                    branchId,
+                    Context.ConnectionAborted);
+            }
+            catch (OismException ex)
+            {
+                _logger.LogWarning("Cashier {UserId} bị từ chối tham gia nhóm chi nhánh {BranchId}: {Reason}",
+                    userId.Value, branchId, ex.Message);
+                throw new HubException(ex.Message);
+            }
         }
 
         var branchGroupName = $"tenant_{tenantId.Value}_branch_{branchId}";

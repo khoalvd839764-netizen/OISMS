@@ -33,3 +33,10 @@
 
 - **Đơn hàng online (`Admin`, `Shopee`, `TikTok`, `Lazada`):** Không có API lưu đơn nháp (`Draft`). `OrderIntakeService` khởi tạo thực thể `Order` ở `Draft`, gọi `Order.Reserve()` để chuyển sang `Reserved` và ghi nhận `Reservation` (`Active`) trong cùng một database transaction, đảm bảo thao tác tạo đơn và giữ chỗ mang tính nguyên tử.
 - **Luồng giữ chỗ kỹ thuật của POS (`POST /api/inventory/reserve`):** Khi gọi `POST /api/inventory/reserve` mà không truyền `OrderId`/`OrderItemId` (endpoint kỹ thuật không có frontend gọi, chủ yếu dùng cho kiểm thử hoặc giữ chỗ theo kho), `ReservationService` tự sinh một đơn `Channel = "POS"` ở trạng thái `Draft` kèm bản ghi `Reservation` ở trạng thái `Active`. Đơn này **giữ nguyên `Draft`** (không chuyển sang `Reserved`) vì `Order.CanCancel` và `Order.CanExpireReservations` của kênh `POS` chỉ cho phép hủy/hết hạn khi đơn ở `Draft` chưa thanh toán; nhờ đó `ReservationExpiryJob` vẫn thu hồi đúng số lượng `Reserved` và chuyển đơn sang `Cancelled` khi quá hạn TTL.
+
+---
+
+## 3. Phiếu Giao Hàng (`FR-ORD-03`, `CS-06`, `OISMS-59-G4`)
+
+- Nút **In chứng từ** trong `OrderDetailDrawer` mở `ShippingSlipPrintModal` (chọn khổ **A4** hoặc **80mm**), hiển thị thông tin người nhận (tên, SĐT, địa chỉ giao), dòng hàng (số lượng + tên đơn vị), đơn giá, thành tiền và tổng thu (COD); **không render giá vốn (`costPrice` / `totalCogs`) với mọi vai trò**.
+- **Điều kiện bật nút:** Chỉ bật với đơn kênh khác `POS` (`Admin`, `Shopee`, `TikTok`, `Lazada`) ở trạng thái `Confirmed` hoặc `Completed`. Đơn `POS` dùng chức năng in lại hóa đơn bán hàng; đơn `Reserved` / `Cancelled` bị vô hiệu hóa kèm `title` giải thích lý do.

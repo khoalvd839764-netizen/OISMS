@@ -41,3 +41,30 @@ public class LowStockAlertRealtimeDto
     public decimal Threshold { get; set; }
     public DateTimeOffset AlertedAt { get; set; } = DateTimeOffset.UtcNow;
 }
+
+/// <summary>
+/// Dòng hàng tối thiểu trong sự kiện BranchOrderCreated gửi tới POS tại chi nhánh.
+/// Tuyệt đối không chứa đơn giá, thành tiền, giá vốn.
+/// </summary>
+public class BranchOrderItemRealtimeDto
+{
+    public Guid SkuId { get; set; }
+    public string SkuCode { get; set; } = string.Empty;
+    public string ProductName { get; set; } = string.Empty;
+    public decimal Quantity { get; set; }
+    public string? UnitName { get; set; }
+}
+
+/// <summary>
+/// DTO sự kiện đơn online mới thuộc chi nhánh gửi tới POS (Q2b).
+/// Tuyệt đối KHÔNG chứa TotalAmount, CustomerName, CostPrice, TotalCogs, TotalCost.
+/// </summary>
+public class BranchOrderRealtimeDto
+{
+    public Guid OrderId { get; set; }
+    public string OrderNumber { get; set; } = string.Empty;
+    public Guid BranchId { get; set; }
+    public string Channel { get; set; } = string.Empty;
+    public DateTimeOffset CreatedAt { get; set; }
+    public List<BranchOrderItemRealtimeDto> Items { get; set; } = new();
+}
