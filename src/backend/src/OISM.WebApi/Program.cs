@@ -85,6 +85,9 @@ builder.Services.AddRateLimiter(options =>
         builder.Configuration.GetValue("RateLimiting:AuthLoginPerMinute", 10), TimeSpan.FromMinutes(1));
     RateLimitPolicies.AddPerIpPolicy(options, RateLimitPolicies.AuthForgotPassword,
         builder.Configuration.GetValue("RateLimiting:ForgotPasswordPer15Minutes", 5), TimeSpan.FromMinutes(15));
+    // Upgrade 11: mỗi lần đăng ký phát sinh một mail chào mừng, giới hạn để không bị lợi dụng gửi thư hàng loạt.
+    RateLimitPolicies.AddPerIpPolicy(options, RateLimitPolicies.AuthRegister,
+        builder.Configuration.GetValue("RateLimiting:RegisterTenantPer15Minutes", 10), TimeSpan.FromMinutes(15));
 
     options.OnRejected = async (rejection, ct) =>
     {

@@ -41,6 +41,7 @@ public static class DependencyInjection
         services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<IReportService, ReportService>();
         services.AddScoped<OISM.Application.Features.Auth.PasswordReset.IPasswordResetService, OISM.Application.Features.Auth.PasswordReset.PasswordResetService>();
+        services.AddScoped<OISM.Application.Features.Auth.Welcome.IOwnerWelcomeNotifier, OISM.Application.Features.Auth.Welcome.OwnerWelcomeNotifier>();
         services.AddScoped<IDailySalesSummaryService, DailySalesSummaryService>();
         services.AddScoped<IAiChatService, AiChatService>();
         services.AddScoped<AiChatToolRunner>();

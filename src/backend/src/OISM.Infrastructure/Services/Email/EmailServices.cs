@@ -38,7 +38,7 @@ public interface IEmailTransport
 
 /// <summary>
 /// Chọn kênh gửi: kênh đăng ký sẵn trong DI (test thay bằng bản giả), rồi SMTP nếu đủ cấu hình,
-/// rồi ghi log nếu là Development. Không có kênh nào thì quên mật khẩu bị tắt.
+/// rồi ghi log nếu là Development. Không có kênh nào thì quên mật khẩu và mail chào mừng bị tắt.
 /// </summary>
 public sealed class EmailTransportResolver
 {
@@ -56,7 +56,7 @@ public sealed class EmailTransportResolver
         if (Transport == null)
         {
             loggerFactory.CreateLogger<EmailTransportResolver>()
-                .LogWarning("Chưa cấu hình SMTP (Email:Host, User, Password, From). Tính năng quên mật khẩu bị tắt.");
+                .LogWarning("Chưa cấu hình SMTP (Email:Host, User, Password, From). Quên mật khẩu và mail chào mừng bị tắt.");
         }
     }
 

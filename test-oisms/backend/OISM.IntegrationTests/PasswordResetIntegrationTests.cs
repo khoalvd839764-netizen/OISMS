@@ -13,6 +13,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using OISM.Application.Common.Interfaces;
 using OISM.Application.Features.Auth.Login;
+using OISM.Application.Features.Auth.PasswordReset;
 using OISM.Application.Features.Auth.RefreshToken;
 using OISM.Application.Features.Auth.RegisterTenant;
 using OISM.Infrastructure.Services.Email;
@@ -33,12 +34,15 @@ public sealed class CapturingEmailTransport : IEmailTransport
         return Task.CompletedTask;
     }
 
-    /// <summary>Chờ thư gửi tới địa chỉ <paramref name="to"/> (thư đi qua hàng đợi nền nên không đến ngay).</summary>
-    public async Task<EmailMessage> WaitForAsync(string to, int skip = 0)
+    /// <summary>
+    /// Chờ thư gửi tới địa chỉ <paramref name="to"/> (thư đi qua hàng đợi nền nên không đến ngay).
+    /// Truyền <paramref name="subject"/> khi địa chỉ đó nhận nhiều loại thư, ví dụ Owner có cả mail chào mừng.
+    /// </summary>
+    public async Task<EmailMessage> WaitForAsync(string to, int skip = 0, string? subject = null)
     {
         for (var i = 0; i < 100; i++)
         {
-            var match = Messages.Where(m => m.To == to).Skip(skip).FirstOrDefault();
+            var match = Messages.Where(m => m.To == to && (subject == null || m.Subject == subject)).Skip(skip).FirstOrDefault();
             if (match != null)
             {
                 return match;
@@ -191,7 +195,7 @@ public class PasswordResetIntegrationTests : IClassFixture<PasswordResetWebAppli
         knownRes.StatusCode.Should().Be(HttpStatusCode.Accepted);
         (await res.Content.ReadAsStringAsync()).Should().Be(await knownRes.Content.ReadAsStringAsync(),
             "phản hồi không được cho biết tài khoản có tồn tại hay không");
-        await _factory.Email.WaitForAsync(known.Email);
+        await _factory.Email.WaitForAsync(known.Email, subject: PasswordResetEmail.Subject);
         _factory.Email.Messages.Skip(before).Should().OnlyContain(m => m.To == known.Email);
     }
 
@@ -204,7 +208,7 @@ public class PasswordResetIntegrationTests : IClassFixture<PasswordResetWebAppli
         var forgot = await _client.PostAsJsonAsync("/api/auth/forgot-password", new { identifier = phone, app = "pos" });
         forgot.StatusCode.Should().Be(HttpStatusCode.Accepted);
 
-        var mail = await _factory.Email.WaitForAsync(email);
+        var mail = await _factory.Email.WaitForAsync(email, subject: PasswordResetEmail.Subject);
         CapturingEmailTransport.ExtractLink(mail).Should().StartWith("http://localhost:5174/reset-password#token=");
         var token = CapturingEmailTransport.ExtractToken(mail);
 
@@ -227,7 +231,7 @@ public class PasswordResetIntegrationTests : IClassFixture<PasswordResetWebAppli
     {
         var (email, _) = await RegisterTenantAsync("U10TAMPER");
         await _client.PostAsJsonAsync("/api/auth/forgot-password", new { identifier = email });
-        var token = CapturingEmailTransport.ExtractToken(await _factory.Email.WaitForAsync(email));
+        var token = CapturingEmailTransport.ExtractToken(await _factory.Email.WaitForAsync(email, subject: PasswordResetEmail.Subject));
 
         var tampered = token[..10] + (token[10] == 'A' ? 'B' : 'A') + token[11..];
         var res = await _client.PostAsJsonAsync("/api/auth/reset-password", new { token = tampered, newPassword = "MatKhauMoi@1" });
