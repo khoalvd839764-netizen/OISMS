@@ -1,6 +1,6 @@
 # Upgrade recommended
 
-Thư mục này lưu đề xuất nâng cấp OISMS của GVHD Nguyễn Văn Chiến và của nhóm dự án. [Done](./Done/) lưu tài liệu đã triển khai theo phạm vi ghi trong bảng. [Công việc còn mở theo đề bài](./Pedding/README.md) lưu kế hoạch Gói 5 và các tiêu chí chi tiết còn mở của Gói 1–4.
+Thư mục này lưu đề xuất nâng cấp OISMS của GVHD Nguyễn Văn Chiến và của nhóm dự án. [Done](./Done/) lưu tài liệu đã triển khai theo phạm vi ghi trong bảng. [Công việc còn mở theo đề bài](./Pedding/README.md) lưu kế hoạch Gói 5 và các tiêu chí chi tiết còn mở của Gói 2.
 
 ## Mục lục
 

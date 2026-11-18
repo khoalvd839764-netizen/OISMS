@@ -142,8 +142,8 @@ Hồ sơ theo sprint và các lỗi chi tiết có tại [báo cáo BE1 Sprint 3
   - **Hiện trạng.** Đã chốt 15/11/2026: đơn đi qua `Draft → Reserved` trong cùng giao dịch tạo đơn, không lưu `Draft` riêng với đơn online (để giữ nguyên tử `tạo đơn → giữ chỗ`). Chuyển trạng thái sai trả `409 INVALID_STATE_TRANSITION`, có test PostgreSQL.
   - **Dẫn chứng.** [Đặc tả FR-ORD-02](docs/02-functional-requirements/fr-06-omnichannel-orders.md) · [Ranh giới giao dịch](docs/04-architecture-and-design/04-state-machines.md#12-ranh-giới-giao-dịch-theo-kênh) · [Test PostgreSQL](test-oisms/backend/OISM.IntegrationTests/PostgresOrderLifecycleAtomicityTests.cs) · [Báo cáo](docs/report-after-upgrade/goi-3-vong-doi-don-hang.md)
 
-- [ ] **`FR-ORD-03` — Xử lý đơn.** Cho nhân viên xem đơn chờ, duyệt đơn, in phiếu giao hàng và hủy đơn.
-  - **Hiện trạng.** API và Admin có danh sách, chi tiết, bộ lọc, duyệt, hoàn tất và hủy. Nút in chứng từ giao hàng còn Coming soon (CS-06).
+- [x] **`FR-ORD-03` — Xử lý đơn.** Cho nhân viên xem đơn chờ, duyệt đơn, in phiếu giao hàng và hủy đơn.
+  - **Hiện trạng.** API và Admin có danh sách, chi tiết, bộ lọc, duyệt, hoàn tất và hủy. In phiếu giao hàng A4/80 mm cho đơn online `Confirmed`/`Completed` (Gói 4, 15/11/2026); còn bản in mẫu trên trình duyệt. [Gói 4](docs/Upgrade-recommended/Done/goi-4-in-chung-tu-va-thong-bao-pos.md)
   - **Dẫn chứng.** [OrdersController](src/backend/src/OISM.WebApi/Controllers/OrdersController.cs) · [Chi tiết đơn](src/frontend/admin-dashboard/src/components/orders/OrderDetailDrawer.tsx#L247)
 
 ### 3.7. POS (`FR-POS`) — Phương Lê, Đăng Khoa
@@ -158,8 +158,8 @@ Hồ sơ theo sprint và các lỗi chi tiết có tại [báo cáo BE1 Sprint 3
   - **Hiện trạng.** Giỏ kiểm tra tồn khả dụng khi thêm/sửa số lượng. Backend khóa và kiểm tra lại trước khi thanh toán.
   - **Dẫn chứng.** [PosPage](src/frontend/pos-app/src/pages/PosPage.tsx) · [PosCheckoutService](src/backend/src/OISM.Application/Features/Orders/Services/PosCheckoutService.cs)
 
-- [ ] **`FR-POS-03` — Thanh toán và in biên nhận.** Thanh toán tiền mặt hoặc chuyển khoản QR và tự mở hộp thoại in biên nhận của trình duyệt.
-  - **Hiện trạng.** Đã có tiền mặt, VietQR xác nhận thủ công và biên nhận 58/80 mm. Sau checkout, POS mở bản xem trước khi chọn in. Hộp thoại trình duyệt mở sau khi thu ngân bấm **In**, còn thiếu bước tự mở theo đề.
+- [x] **`FR-POS-03` — Thanh toán và in biên nhận.** Thanh toán tiền mặt hoặc chuyển khoản QR và tự mở hộp thoại in biên nhận của trình duyệt.
+  - **Hiện trạng.** Đã có tiền mặt, VietQR xác nhận thủ công và biên nhận 58/80 mm. Sau checkout thành công, POS tự mở hộp thoại in (Gói 4, 15/11/2026); không tự in phiếu tạm tính hoặc kết quả chưa rõ.
   - **Dẫn chứng.** [VietQR](docs/report-after-upgrade/vietqr-cs05-review-pr39.md) · [Biên nhận POS](src/frontend/pos-app/src/components/pos/ReceiptPrintModal.tsx#L49)
 
 - [x] **`FR-POS-04` — Checkout nguyên tử.** Giữ chỗ, xác nhận và trừ tồn trong một giao dịch cơ sở dữ liệu khi thanh toán POS.
@@ -174,8 +174,8 @@ Hồ sơ theo sprint và các lỗi chi tiết có tại [báo cáo BE1 Sprint 3
   - **Hiện trạng.** Ứng dụng có chế độ gửi 1–200 đơn đồng thời và nhật ký kết quả HTTP.
   - **Dẫn chứng.** [Code gửi đồng thời](src/frontend/marketplace-simulator/src/App.tsx#L245) · [Hướng dẫn và test simulator](docs/14-webhook-simulator/README.md#5-kịch-bản-kiểm-thử)
 
-- [ ] **`FR-SIM-02` — Thông báo đơn mới thời gian thực.** Dùng SignalR đẩy popup hoặc âm thanh báo đơn mới lên Admin và POS theo thời gian thực.
-  - **Hiện trạng.** Admin nhận `OrderCreated` và có thông báo/âm thanh. POS nhận `StockLevelChanged`, chưa có popup/âm thanh đơn mới.
+- [x] **`FR-SIM-02` — Thông báo đơn mới thời gian thực.** Dùng SignalR đẩy popup hoặc âm thanh báo đơn mới lên Admin và POS theo thời gian thực.
+  - **Hiện trạng.** Admin nhận `OrderCreated` và có thông báo/âm thanh. POS nhận `BranchOrderCreated` theo chi nhánh, hiện toast và âm thanh (Gói 4, 15/11/2026); Cashier chỉ vào nhóm chi nhánh được phân công.
   - **Dẫn chứng.** [Thông báo Admin](src/frontend/admin-dashboard/src/components/NotificationCenter.tsx) · [SignalR POS](src/frontend/pos-app/src/services/realtimeService.ts#L63)
 
 - [x] **`FR-SIM-03` — Tác vụ nền.** Dùng Hangfire tự hủy đơn giữ chỗ quá hạn và tổng hợp báo cáo hằng ngày.
@@ -281,7 +281,7 @@ Dấu tick ở mục này theo các đầu việc được liệt kê cho từng
 - [x] **Gói 1 — Nền tảng.** Đã triển khai cấu trúc bốn tầng, schema PostgreSQL, cô lập tenant, JWT và RBAC. Các điểm lệch về quyền và phân tầng đã đóng ngày 14/11/2026 (`FR-AUTH-03`, `NFR-MAINT-01`); đăng nhập SĐT còn theo dõi tại `FR-AUTH-02` và Upgrade 10. [Kiến trúc backend](docs/04-architecture-and-design/01-clean-architecture.md) · [Schema](docs/database/oisms_schema.sql)
 - [x] **Gói 2 — Catalog và sổ cái.** Có sản phẩm, SKU, mã vạch, bảng giá, phiếu nhập, chuyển kho và WAC. [API catalog](docs/05-api-contracts/02-catalog-endpoints.md) · [Test chuyển kho](test-oisms/backend/OISM.IntegrationTests/StockTransferIntegrationTests.cs)
 - [x] **Gói 3 — Đơn hàng và chống bán vượt.** Đã triển khai mô hình đơn chung, chuyển trạng thái, khóa giữ chỗ, giả lập webhook và Hangfire hết hạn. Đóng các tiêu chí còn lại ngày 15/11/2026: ranh giới giao dịch theo kênh và job tổng hợp báo cáo ngày ([Gói 3](docs/Upgrade-recommended/Done/goi-3-vong-doi-don-hang-va-hangfire.md)). [Test vòng đời đơn](test-oisms/backend/OISM.IntegrationTests/OnlineOrderLifecycleIntegrationTests.cs) · [Test 50 webhook](test-oisms/backend/OISM.IntegrationTests/WebhookIntegrationTests.cs#L1773)
-- [x] **Gói 4 — Frontend và realtime.** Đã triển khai Admin, PWA POS, checkout nguyên tử, in qua trình duyệt và SignalR. Tự mở hộp thoại in và thông báo đơn mới trên POS được theo dõi tại `FR-POS-03` và `FR-SIM-02`. [Test checkout POS](test-oisms/backend/OISM.IntegrationTests/PosCheckoutIntegrationTests.cs) · [SignalR POS](src/frontend/pos-app/src/services/realtimeService.ts#L63)
+- [x] **Gói 4 — Frontend và realtime.** Đã triển khai Admin, PWA POS, checkout nguyên tử, in qua trình duyệt và SignalR. Đóng các tiêu chí còn lại ngày 15/11/2026: tự in sau checkout, phiếu giao hàng, in báo cáo, thông báo đơn mới theo chi nhánh trên POS ([Gói 4](docs/Upgrade-recommended/Done/goi-4-in-chung-tu-va-thong-bao-pos.md)). [Test checkout POS](test-oisms/backend/OISM.IntegrationTests/PosCheckoutIntegrationTests.cs) · [SignalR POS](src/frontend/pos-app/src/services/realtimeService.ts#L63)
 - [ ] **Gói 5 — Báo cáo, AI, test và triển khai.** Có báo cáo, gợi ý nhập hàng, Docker, CI và bộ kiểm thử. Hồ sơ bàn giao ở mục 5.2 còn hạng mục chưa đạt. Lọc theo SKU, đánh giá dự báo và các phép đo NFR còn mở ở mục 3.9, 4 và 6.1. [RTM](docs/06-testing-and-qa/01-requirements-matrix-rtm.md) · [Báo cáo nghiệm thu Sprint 5](docs/08-sprints/sprint-5/BAO_CAO_TONG_KET_NGHIEM_THU_SPRINT_5.md)
 
 ### 5.2. Sáu nhóm hồ sơ nghiệm thu
@@ -303,7 +303,7 @@ Dấu tick ở mục này theo các đầu việc được liệt kê cho từng
 - [x] **CS-04 — Tìm kiếm toàn hệ thống.** Có ô tìm kiếm và API. Điều hướng kết quả phiếu nhập còn được theo dõi ở BF-024. [API tìm kiếm](src/backend/src/OISM.WebApi/Controllers/SearchController.cs) · [BF-024](docs/bug-fixaffter/errors/BF-024-tim-kiem-phieu-nhap-khong-mo-dung-phieu.md)
 - [x] **CS-05 / Upgrade 07 — VietQR ở POS.** Owner quản lý tài khoản nhận tiền, thu ngân xác nhận đã nhận tiền, giao dịch lưu thông tin người nhận. [Đặc tả](docs/Upgrade-recommended/Done/07-thanh-toan-qr-vietqr.md) · [Nghiệm thu VietQR](docs/report-after-upgrade/vietqr-cs05-review-pr39.md)
 - [ ] **Upgrade 07, giai đoạn C — Xác nhận chuyển khoản tự động.** Webhook ngân hàng đang tạm gác. [Kế hoạch VietQR](docs/Upgrade-recommended/Done/07-thanh-toan-qr-vietqr.md)
-- [ ] **CS-06 — In chứng từ giao hàng và in báo cáo.** Hai luồng còn Coming soon. Đã có in biên nhận POS và in lại hóa đơn bán. [Chi tiết đơn](src/frontend/admin-dashboard/src/components/orders/OrderDetailDrawer.tsx#L247) · [Báo cáo Admin](src/frontend/admin-dashboard/src/pages/ReportsPage.tsx) · [Bàn giao hóa đơn](docs/report-after-upgrade/hoa-don-truy-vet-xuat-kho.md)
+- [x] **CS-06 — In chứng từ giao hàng và in báo cáo.** Đã làm 15/11/2026 (Gói 4): phiếu giao hàng, in báo cáo theo tab, cô lập vùng in; còn bản in mẫu trên trình duyệt. Đã có in biên nhận POS và in lại hóa đơn bán. [Chi tiết đơn](src/frontend/admin-dashboard/src/components/orders/OrderDetailDrawer.tsx#L247) · [Báo cáo Admin](src/frontend/admin-dashboard/src/pages/ReportsPage.tsx) · [Bàn giao hóa đơn](docs/report-after-upgrade/hoa-don-truy-vet-xuat-kho.md)
 - [x] **CS-07 — Tổng quan từ dữ liệu thật.** KPI, biểu đồ và đơn gần đây lấy từ backend. Số liệu hiện theo phạm vi lũy kế của API. [Màn Tổng quan](src/frontend/admin-dashboard/src/pages/DashboardPage.tsx) · [ReportService](src/backend/src/OISM.Application/Features/Reports/Services/ReportService.cs)
 - [ ] **CS-08 — Đánh giá dự báo.** API và tab gợi ý đã triển khai theo `FR-AI-01`. Còn thiếu kết quả đối chiếu dự báo với dữ liệu thực tế và tiêu chí chất lượng. [Đặc tả dự báo](docs/02-functional-requirements/fr-12-ai-forecasting.md) · [Test công thức](test-oisms/backend/OISM.UnitTests/AiForecastingTests.cs)
 - [x] **`FR-AI-02` / Upgrade 09 — Trợ lý OISMS.** Có API và panel hỏi đáp chỉ đọc cho Owner/Staff. Mặc định tắt ở local và đã bật trên bản demo AWS theo báo cáo Sprint 5. [Đặc tả trợ lý](docs/02-functional-requirements/fr-13-ai-assistant.md) · [API](src/backend/src/OISM.WebApi/Controllers/AiController.cs#L26) · [Unit test](test-oisms/backend/OISM.UnitTests/AiChatServiceTests.cs)

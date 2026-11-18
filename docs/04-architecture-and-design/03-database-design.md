@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-ARC-03` |
-| **Phiên bản (Version)** | `v1.1.2` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-14` |
+| **Phiên bản (Version)** | `v1.1.3` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-15` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-INV-01`, `NFR-TENANT-02`, `NFR-SEC-03`, `3.2.e` (Trang 2, 4, 5) |
 | **Phạm vi áp dụng** | PostgreSQL 16+ Schema (`docs/database/oisms_schema.sql` — 48 bảng) |
 
@@ -18,8 +18,14 @@
 | `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Đồng bộ ERD và chỉ mục với `oisms_schema.sql` hiện hành (43 bảng): tên cột thật, kiểu `numeric(18,3)` cho số lượng, giá vốn nằm ở `inventory_balances.average_cost`. | `OISMS-46` |
 | `v1.1.1` | `2026-11-08` | Nhóm dự án OISMS | Cập nhật số bảng hiện hành lên 44 sau khi bổ sung `payment_accounts`; giữ mốc 43 bảng trong lịch sử v1.1.0. | `CS-05` |
 | `v1.1.2` | `2026-11-14` | Nhóm dự án OISMS | Cập nhật số bảng lên 48 và bổ sung bảng `user_branches` cho phân công chi nhánh nhân viên (`CS-02`). | `OISMS-59-G1B` |
+| `v1.1.3` | `2026-11-15` | Nhóm dự án OISMS | Thêm liên kết tới sơ đồ draw.io ERD logic và Data Design vật lý, ghi phân vai hai sơ đồ. | `OISMS-59` |
 
 ---
+
+> **Sơ đồ draw.io (đủ 48 bảng, sinh từ `oisms_schema.sql`).** Hai sơ đồ chia vai, không vẽ trùng:
+> - **ERD logic** [`docs/database/erd/oisms-erd.drawio`](../database/erd/oisms-erd.drawio): trang tổng quan và 10 trang phân hệ. Thực thể theo entity C#, quan hệ và bản số (Crow's foot), chỉ PK cùng tối đa 6 thuộc tính nghiệp vụ. Không có kiểu, cột FK, cột kỹ thuật, quan hệ người tạo/duyệt.
+> - **Data Design vật lý** [`docs/database/data-design/oisms-data-design.drawio`](../database/data-design/oisms-data-design.drawio): trang quy ước (tenant_id, khóa kép, query filter, trigger, quyền `oisms_runtime`) và 10 trang phân hệ. Bảng đủ cột và kiểu, PK/FK/UQ, mọi FK kể cả người tạo/duyệt, hộp index/CHECK/trigger theo bảng.
+> - Hai sơ đồ dùng chung 10 phân hệ: tenant–tài khoản–chi nhánh, sản phẩm & đơn vị tính, bảng giá, mua hàng–nhập kho–hóa đơn NCC, tồn kho & sổ cái, chuyển kho, kiểm kê, đơn hàng–POS–thanh toán, trả hàng, báo cáo & tích hợp sàn.
 
 ## 1. Sơ Đồ Thực Thể Liên Kết Cốt Lõi (Core Entity Relationship Diagram)
 

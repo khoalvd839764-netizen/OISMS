@@ -88,7 +88,7 @@ Không phải lỗi: đây là chức năng chưa làm xong, đang có nhãn Com
 | [x] | CS-03 | Ngưỡng cảnh báo tồn (`ReorderPoint`) | Đã có API và UI | Chưa kiểm tra thông báo tồn thấp qua realtime |
 | [x] | CS-04 | Tìm kiếm toàn hệ thống | Đã có `GET /api/search` và ô tìm kiếm | Lỗi mở phiếu nhập: [BF-024](./errors/BF-024-tim-kiem-phieu-nhap-khong-mo-dung-phieu.md) |
 | [x] | CS-05 | Thanh toán QR | VietQR ở POS (`pos-app`; lúc nghiệm thu có cả POS PWA và POS Admin, hai bản đã gộp ngày 08/11), tài khoản nhận tiền theo cửa hàng (Owner quản lý), lưu bản chụp người nhận vào `payments`. Nghiệm thu 07/11/2026: integration 372/372 trên PostgreSQL, kiểm tay toàn luồng ([review PR 39](../report-after-upgrade/vietqr-cs05-review-pr39.md)) | Giai đoạn (c) webhook ngân hàng tạm gác; `test-b03-live.mjs` cần viết lại theo API |
-| [ ] | CS-06 | In chứng từ giao hàng, in báo cáo | Chưa làm | Bố cục A4/80mm, cô lập vùng in, ẩn giá vốn theo vai trò |
+| [x] | CS-06 | In chứng từ giao hàng, in báo cáo | Đã làm 15/11/2026 (Gói 4); còn bản in mẫu | Bố cục A4/80mm, cô lập vùng in, ẩn giá vốn theo vai trò |
 | [x] | CS-07 | KPI, biểu đồ, đơn gần đây ở Tổng quan | Đã có dữ liệu thật | Số liệu lũy kế, API chưa lọc theo thời gian |
 | [~] | CS-08 | Dự báo, gợi ý nhập hàng (`FR-AI-01`) | Có API `GET /api/ai/reorder-recommendations`; tab Gợi ý nhập hàng đã mở lại (10/11/2026); Trợ lý OISMS trả lời "nên nhập gì" từ cùng dữ liệu | Bằng chứng đánh giá độ chính xác dự báo (đang tính bằng công thức) |
 | [x] | — | Quên mật khẩu | Đã làm (Upgrade 10, 15/11/2026): link email ở Admin và POS, Owner đặt lại hộ, đăng nhập bằng SĐT | [Báo cáo Upgrade 10](../report-after-upgrade/quen-mat-khau-dang-nhap-sdt-u10.md) |

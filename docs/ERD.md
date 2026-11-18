@@ -3,10 +3,11 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu** | `DOC-ERD-FULL` |
-| **Phiên bản** | `v2.1.1` |
-| **Ngày hiệu lực** | `2026-11-08` |
+| **Phiên bản** | `v2.1.2` |
+| **Ngày hiệu lực** | `2026-11-15` |
 | **Nguồn** | Đối chiếu với `docs/database/oisms_schema.sql` (cột, kiểu, khóa ngoại) và `OISM.Infrastructure/Persistence/Configurations/*.cs` (ánh xạ entity) |
 | **Liên quan** | [`04-architecture-and-design/03-database-design.md`](./04-architecture-and-design/03-database-design.md) (ERD rút gọn, chỉ mục), [`database/README.md`](./database/README.md) (từ điển dữ liệu, ràng buộc CHECK) |
+| **Sơ đồ draw.io** | ERD logic: [`database/erd/oisms-erd.drawio`](./database/erd/oisms-erd.drawio) (tổng quan + 10 phân hệ); thiết kế dữ liệu vật lý: [`database/data-design/oisms-data-design.drawio`](./database/data-design/oisms-data-design.drawio) (quy ước + 10 phân hệ, đủ cột, index, CHECK, trigger) |
 
 > Bảng cột ở mục 4 được đối chiếu với file schema. Khi đổi schema, cập nhật mục này theo DDL; `oisms_schema.sql` luôn là nguồn đúng nếu có chỗ lệch.
 
@@ -110,7 +111,7 @@ erDiagram
     STOCK_COUNTS ||--o{ STOCK_COUNT_APPROVALS : "stock_count_id"
 ```
 
-## 3. Danh Mục 44 Bảng
+## 3. Danh Mục 48 Bảng
 
 | STT | Bảng | Entity (Domain) | Nhóm |
 | :---: | :--- | :--- | :--- |
@@ -151,20 +152,26 @@ erDiagram
 | 35 | `reservations` | `Reservation` | Bán hàng, POS, hóa đơn (U02) |
 | 36 | `payments` | `Payment` | Bán hàng, POS, hóa đơn (U02) |
 | 37 | `sales_invoices` | `SalesInvoice` | Bán hàng, POS, hóa đơn (U02) |
-| 38 | `sales_returns` | — *(chưa có entity, backend chưa dùng)* | Bán hàng, POS, hóa đơn (U02) |
-| 39 | `sales_return_items` | — *(chưa có entity, backend chưa dùng)* | Bán hàng, POS, hóa đơn (U02) |
+| 38 | `sales_returns` | `SalesReturn` | Bán hàng, POS, hóa đơn (U02) |
+| 39 | `sales_return_items` | `SalesReturnItem` | Bán hàng, POS, hóa đơn (U02) |
 | 40 | `inventory_transactions` | `InventoryTransaction` | Sổ cái |
-| 41 | `daily_sales_summaries` | — *(chưa có entity, backend chưa dùng)* | Báo cáo, AI, tích hợp sàn |
-| 42 | `replenishment_suggestions` | — *(chưa có entity, backend chưa dùng)* | Báo cáo, AI, tích hợp sàn |
+| 41 | `daily_sales_summaries` | `DailySalesSummary` | Báo cáo, AI, tích hợp sàn |
+| 42 | `replenishment_suggestions` | — *(chưa có entity)* | Báo cáo, AI, tích hợp sàn |
 | 43 | `shop_integrations` | `ShopIntegration` | Báo cáo, AI, tích hợp sàn |
 | 44 | `payment_accounts` | `PaymentAccount` | Bán hàng, POS, thanh toán VietQR (CS-05) |
+| 45 | `supplier_invoices` | `SupplierInvoice` | Mua hàng & nhập kho (U01-B) |
+| 46 | `supplier_invoice_items` | `SupplierInvoiceItem` | Mua hàng & nhập kho (U01-B) |
+| 47 | `purchase_variances` | `PurchaseVariance` | Mua hàng & nhập kho (U01-B) |
+| 48 | `user_branches` | `UserBranch` | Tổ chức & xác thực (CS-02) |
 
 Ghi chú:
 - `skus` ánh xạ tới entity `ProductVariant`.
 - `Role`, `UserRole` có trong `OISM.Domain/Entities` nhưng không có bảng; vai trò lưu ở cột `users.role` (`Owner`, `Staff`, `Cashier`).
 - `Tenant.Code` là thuộc tính bỏ qua khi ánh xạ (`Ignore`), không có cột trong `tenants`.
 - `sales_returns`, `sales_return_items` đã có entity và API từ CS-01 trả hàng (PR #41).
-- 2 bảng chưa có entity: `daily_sales_summaries` (báo cáo tính trực tiếp từ đơn), `replenishment_suggestions` (gợi ý nhập tính trực tiếp từ sổ cái, đơn và tồn; Trợ lý OISMS cũng không lưu bảng).
+- `daily_sales_summaries` có entity `DailySalesSummary` (job tổng hợp báo cáo ngày, Gói 3).
+- 1 bảng chưa có entity: `replenishment_suggestions` (gợi ý nhập tính trực tiếp từ sổ cái, đơn và tồn; Trợ lý OISMS cũng không lưu bảng).
+- 4 bảng 45–48 chưa có mục cột ở mục 4; xem cột, kiểu, FK, index và CHECK của chúng trong `oisms_schema.sql` hoặc sơ đồ Data Design.
 
 ## 4. Cột Và Khóa Ngoại Từng Bảng
 
