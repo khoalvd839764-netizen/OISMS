@@ -88,9 +88,29 @@ public sealed class SmtpEmailTransport : IEmailTransport
             IsBodyHtml = false
         };
         mail.To.Add(message.To);
-        mail.AlternateViews.Add(AlternateView.CreateAlternateViewFromString(message.HtmlBody, null, "text/html"));
+        mail.AlternateViews.Add(CreateHtmlView(message));
 
         await client.SendMailAsync(mail, ct);
+    }
+
+    /// <summary>
+    /// Phần HTML kèm ảnh nhúng (multipart/related). Ảnh gắn vào view chứ không vào Attachments
+    /// để ứng dụng mail hiện tại chỗ thẻ img, không hiện thành tệp đính kèm.
+    /// </summary>
+    public static AlternateView CreateHtmlView(EmailMessage message)
+    {
+        var view = AlternateView.CreateAlternateViewFromString(message.HtmlBody, System.Text.Encoding.UTF8, "text/html");
+        foreach (var image in message.InlineImages ?? [])
+        {
+            // MemoryStream thuộc về LinkedResource, được giải phóng cùng MailMessage.
+            view.LinkedResources.Add(new LinkedResource(new MemoryStream(image.Content), image.MediaType)
+            {
+                ContentId = image.ContentId,
+                TransferEncoding = System.Net.Mime.TransferEncoding.Base64
+            });
+        }
+
+        return view;
     }
 }
 

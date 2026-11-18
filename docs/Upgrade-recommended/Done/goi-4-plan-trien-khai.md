@@ -86,7 +86,7 @@ Chỉ frontend `admin-dashboard`.
 - `docs/05-api-contracts/`: hợp đồng sự kiện SignalR mới và lỗi `JoinBranchGroup`.
 - `docs/01-users-and-rbac/02-rbac-matrix.md`: Cashier chỉ vào nhóm realtime của chi nhánh được phân công.
 - `docs/bug-fixaffter/CHECKLIST.md`: đóng CS-06.
-- [goi-4-in-chung-tu-va-thong-bao-pos.md](./goi-4-in-chung-tu-va-thong-bao-pos.md), [Pedding/README.md](./README.md), `checklist.md`: tick tiêu chí, chuyển Gói 4 sang `Done` khi đủ bằng chứng.
+- [goi-4-in-chung-tu-va-thong-bao-pos.md](./goi-4-in-chung-tu-va-thong-bao-pos.md), [Pedding/README.md](../Pedding/README.md), `checklist.md`: tick tiêu chí, chuyển Gói 4 sang `Done` khi đủ bằng chứng.
 
 ## Rủi ro
 

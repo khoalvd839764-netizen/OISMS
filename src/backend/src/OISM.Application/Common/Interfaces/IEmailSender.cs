@@ -1,6 +1,17 @@
 namespace OISM.Application.Common.Interfaces;
 
-public sealed record EmailMessage(string To, string Subject, string HtmlBody, string TextBody);
+/// <summary>
+/// Ảnh nhúng trong thư, HTML tham chiếu bằng <c>src="cid:{ContentId}"</c>.
+/// Nhúng thay vì link ngoài để Gmail hiện được cả khi backend chạy local.
+/// </summary>
+public sealed record EmailInlineImage(string ContentId, string MediaType, byte[] Content);
+
+public sealed record EmailMessage(
+    string To,
+    string Subject,
+    string HtmlBody,
+    string TextBody,
+    IReadOnlyList<EmailInlineImage>? InlineImages = null);
 
 /// <summary>
 /// Gửi email hệ thống (Upgrade 10). Bản cài đặt đưa thư vào hàng đợi và gửi ở nền,

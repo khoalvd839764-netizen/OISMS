@@ -420,6 +420,7 @@ export const SalesReturnsPage: React.FC = () => {
         <SalesInvoiceTraceModal
           invoiceId={traceOrderData.id}
           invoiceNumber={traceOrderData.number}
+          sourceType="order"
           onClose={() => setTraceOrderData(null)}
         />
       )}

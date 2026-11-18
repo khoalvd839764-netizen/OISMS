@@ -43,4 +43,9 @@ export const salesInvoiceService = {
     const res = await httpClient.get<DocumentTrace>(`/api/sales-invoices/${id}/trace`);
     return res.data;
   },
+
+  async traceOrderById(orderId: string): Promise<DocumentTrace> {
+    const res = await httpClient.get<DocumentTrace>(`/api/orders/${orderId}/trace`);
+    return res.data;
+  },
 };

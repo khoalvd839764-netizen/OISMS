@@ -1,4 +1,3 @@
-using System.Net;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -88,7 +87,8 @@ public class PasswordResetService : IPasswordResetService
         // Token nằm sau dấu # nên trình duyệt không gửi lên server: không vào log reverse proxy, không lọt qua Referer.
         var link = $"{ResolveBaseUrl(request.App)}/reset-password#token={token}";
 
-        if (!_emailSender.TryQueue(BuildEmail(user.Email, user.DisplayName, link)))
+        var email = PasswordResetEmail.Build(user.Email, user.DisplayName, link, (int)_tokenService.Lifetime.TotalMinutes);
+        if (!_emailSender.TryQueue(email))
         {
             _logger.LogWarning("Không xếp được mail đặt lại mật khẩu vào hàng đợi cho người dùng {UserId}.", user.Id);
         }
@@ -174,19 +174,4 @@ public class PasswordResetService : IPasswordResetService
 
     private static bool IsAbsoluteHttpUrl(string? value) =>
         Uri.TryCreate(value, UriKind.Absolute, out var uri) && (uri.Scheme == Uri.UriSchemeHttps || uri.Scheme == Uri.UriSchemeHttp);
-
-    private EmailMessage BuildEmail(string to, string displayName, string link)
-    {
-        var minutes = (int)_tokenService.Lifetime.TotalMinutes;
-        var name = WebUtility.HtmlEncode(displayName);
-        var href = WebUtility.HtmlEncode(link);
-        var html = $"""
-            <p>Xin chào {name},</p>
-            <p>OISMS nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn. Bấm vào link dưới đây để đặt mật khẩu mới. Link có hiệu lực trong {minutes} phút và chỉ dùng được một lần.</p>
-            <p><a href="{href}">Đặt lại mật khẩu</a></p>
-            <p>Nếu bạn không yêu cầu, hãy bỏ qua email này. Mật khẩu hiện tại vẫn giữ nguyên.</p>
-            """;
-        var text = $"Xin chào {displayName},\n\nMở link sau để đặt mật khẩu mới (hiệu lực {minutes} phút, dùng một lần):\n{link}\n\nNếu bạn không yêu cầu, hãy bỏ qua email này.";
-        return new EmailMessage(to, "OISMS - Đặt lại mật khẩu", html, text);
-    }
 }

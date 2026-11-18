@@ -22,12 +22,15 @@ import type { DocumentTrace } from '../../types/salesInvoices';
 interface SalesInvoiceTraceModalProps {
   invoiceId: string;
   invoiceNumber: string;
+  /** 'order' khi mã truyền vào là mã đơn hàng, ví dụ mở từ phiếu trả hàng. */
+  sourceType?: 'invoice' | 'order';
   onClose: () => void;
 }
 
 export const SalesInvoiceTraceModal: React.FC<SalesInvoiceTraceModalProps> = ({
   invoiceId,
   invoiceNumber,
+  sourceType = 'invoice',
   onClose,
 }) => {
   const [loading, setLoading] = useState<boolean>(true);
@@ -40,7 +43,9 @@ export const SalesInvoiceTraceModal: React.FC<SalesInvoiceTraceModalProps> = ({
       setLoading(true);
       setError(null);
       try {
-        const data = await salesInvoiceService.traceInvoiceById(invoiceId);
+        const data = sourceType === 'order'
+          ? await salesInvoiceService.traceOrderById(invoiceId)
+          : await salesInvoiceService.traceInvoiceById(invoiceId);
         if (isMounted) {
           setTrace(data);
         }
@@ -63,7 +68,7 @@ export const SalesInvoiceTraceModal: React.FC<SalesInvoiceTraceModalProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [invoiceId]);
+  }, [invoiceId, sourceType]);
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
@@ -83,7 +88,7 @@ export const SalesInvoiceTraceModal: React.FC<SalesInvoiceTraceModalProps> = ({
                 Truy Vết Chứng Từ & Dòng Sổ Kho Xuất (OUT)
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
-                Hóa đơn: <span className="font-mono text-indigo-300 font-bold">{invoiceNumber}</span>
+                {sourceType === 'order' ? 'Đơn hàng' : 'Hóa đơn'}: <span className="font-mono text-indigo-300 font-bold">{invoiceNumber}</span>
               </p>
             </div>
           </div>

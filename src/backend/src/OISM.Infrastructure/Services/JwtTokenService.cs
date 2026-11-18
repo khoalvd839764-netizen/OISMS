@@ -1,7 +1,6 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
-using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using OISM.Application.Common.Interfaces;
@@ -16,20 +15,21 @@ namespace OISM.Infrastructure.Services;
 public class JwtTokenService : IJwtTokenService
 {
     private readonly IConfiguration _configuration;
+    private readonly JwtSigningKey _signingKey;
 
-    public JwtTokenService(IConfiguration configuration)
+    public JwtTokenService(IConfiguration configuration, JwtSigningKey signingKey)
     {
         _configuration = configuration;
+        _signingKey = signingKey;
     }
 
     public string GenerateAccessToken(User user, IEnumerable<string> roles)
     {
-        var secret = _configuration["Jwt:Secret"] ?? "SuperSecretKeyForOISMOmnichannelRetailSystem2026!#";
         var issuer = _configuration["Jwt:Issuer"] ?? "OISM_WebAPI";
         var audience = _configuration["Jwt:Audience"] ?? "OISM_Client";
         var expiryMinutes = int.TryParse(_configuration["Jwt:ExpiryMinutes"], out var mins) ? mins : 60;
 
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
+        var key = new SymmetricSecurityKey(_signingKey.Bytes);
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var claims = new List<Claim>
@@ -79,13 +79,12 @@ public class JwtTokenService : IJwtTokenService
 
     public ClaimsPrincipal? GetPrincipalFromExpiredToken(string token)
     {
-        var secret = _configuration["Jwt:Secret"] ?? "SuperSecretKeyForOISMOmnichannelRetailSystem2026!#";
         var tokenValidationParameters = new TokenValidationParameters
         {
             ValidateAudience = false,
             ValidateIssuer = false,
             ValidateIssuerSigningKey = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret)),
+            IssuerSigningKey = new SymmetricSecurityKey(_signingKey.Bytes),
             ValidateLifetime = false // Không kiểm tra thời gian hết hạn vì đang lấy từ expired token
         };
 

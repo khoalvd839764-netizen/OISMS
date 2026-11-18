@@ -28,7 +28,7 @@ nano .env.production
 | `POSTGRES_DB` | `oisms` | |
 | `OISMS_APP_USER` | `oisms_app` | Tài khoản runtime; không được là `postgres` hay `oisms_runtime` |
 | `OISMS_APP_PASSWORD` | `openssl rand -hex 32` | |
-| `JWT_SECRET` | `openssl rand -hex 32` | Tối thiểu 32 ký tự. Đổi giá trị làm mọi token cũ hết hiệu lực |
+| `JWT_SECRET` | `openssl rand -hex 32` | Tối thiểu 32 byte, không được trùng khóa mẫu cũ, nếu không backend dừng khởi động. Đổi giá trị làm mọi token cũ hết hiệu lực |
 | `PASSWORD_RESET_SIGNING_KEY` | `openssl rand -hex 32` | Khóa ký link quên mật khẩu (Upgrade 10), tối thiểu 32 ký tự, khác `JWT_SECRET`. Thiếu hoặc ngắn thì tính năng quên mật khẩu tắt. Đổi giá trị làm mọi link đang chờ hết hiệu lực |
 | `SMTP_HOST`, `SMTP_PORT` | `smtp.gmail.com`, `587` | Gmail SMTP, STARTTLS. AWS chặn cổng 25, cổng 587 dùng được |
 | `SMTP_USER`, `SMTP_FROM` | địa chỉ Gmail của hệ thống | |
@@ -154,7 +154,7 @@ docker compose --env-file .env.production -f docker-compose.yml -f docker-compos
 ```
 
   rồi cập nhật `OISMS_APP_PASSWORD` cho khớp và tạo lại container backend.
-- `Program.cs` còn secret JWT fallback viết cứng; production không được dựa vào nó, vì vậy compose production bắt buộc `JWT_SECRET`.
+- Backend không còn khóa JWT viết cứng. `JwtSigningKeyPolicy` kiểm tra `Jwt:Secret` lúc khởi động, production thiếu khóa hợp lệ thì container dừng và ghi lý do trong log.
 
 Bước tiếp theo: [deploy và cập nhật](./04-quy-trinh-deploy-va-cap-nhat.md).
 
