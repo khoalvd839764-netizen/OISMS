@@ -28,9 +28,11 @@ public class AuthController : ControllerBase
 
     /// <summary>
     /// Đăng ký Cửa hàng (Tenant) mới kèm tài khoản Chủ shop (Owner) ban đầu (FR-AUTH-01).
+    /// Đăng ký thành công thì xếp một mail chào mừng gửi cho Chủ shop (Upgrade 11).
     /// </summary>
     [HttpPost("register-tenant")]
     [IgnoreTenantClaim]
+    [EnableRateLimiting(RateLimitPolicies.AuthRegister)]
     [ApiErrorContract(ApiErrorProfile.Register)]
     public async Task<IActionResult> RegisterTenant([FromBody] RegisterTenantRequest request, CancellationToken ct)
     {

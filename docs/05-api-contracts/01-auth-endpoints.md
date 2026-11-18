@@ -25,7 +25,7 @@
 
 | Method | Endpoint | Quyền (RBAC) | Mã FR | Mô tả & Quy tắc xử lý |
 | :---: | :--- | :---: | :---: | :--- |
-| `POST` | `/api/auth/register-tenant` | `Public` | `FR-AUTH-01` | Đăng ký cửa hàng mới, chuẩn hóa SĐT `E.164`, tạo Tenant + tài khoản Owner trong 1 transaction (không tạo sẵn chi nhánh/kho). Trả về `201 Created`, `400` hoặc `409`. |
+| `POST` | `/api/auth/register-tenant` | `Public` | `FR-AUTH-01` | Đăng ký cửa hàng mới, chuẩn hóa SĐT `E.164`, tạo Tenant + tài khoản Owner trong 1 transaction (không tạo sẵn chi nhánh/kho). Sau khi commit, xếp một mail chào mừng gửi nền cho Owner (Upgrade 11); thiếu SMTP hoặc gửi lỗi vẫn trả `201`. Rate limit 10 lần/15 phút mỗi IP (`RateLimiting:RegisterTenantPer15Minutes`). Trả về `201 Created`, `400`, `409` hoặc `429 TOO_MANY_REQUESTS`. |
 | `POST` | `/api/auth/login` | `Public` | `FR-AUTH-02` | Đăng nhập bằng `{ identifier, password }`: `identifier` có `@` là email, không có `@` thì chuẩn hóa SĐT sang E.164 (`0901234567` → `+84901234567`). Trường cũ `email` vẫn nhận khi `identifier` rỗng. Sai tài khoản và sai mật khẩu trả cùng `401` với cùng thông báo. Rate limit 10 lần/phút mỗi IP (`429 TOO_MANY_REQUESTS`). Kiểm tra `User.IsActive` và `Tenant.IsActive`. Trả về `accessToken` (60m) + `refreshToken`. |
 | `POST` | `/api/auth/refresh-token` | `Public` | `FR-AUTH-02` | Làm mới JWT với khóa dòng `FOR UPDATE` chống race condition. Kiểm tra trạng thái hoạt động của cả User và Tenant. |
 | `POST` | `/api/auth/logout` | `Authenticated` | `FR-AUTH-02` | Thu hồi (`Revoke`) Refresh Token hiện hành. |

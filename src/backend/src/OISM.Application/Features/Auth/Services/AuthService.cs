@@ -6,6 +6,7 @@ using OISM.Application.Features.Auth.CurrentUser;
 using OISM.Application.Features.Auth.Login;
 using OISM.Application.Features.Auth.RefreshToken;
 using OISM.Application.Features.Auth.RegisterTenant;
+using OISM.Application.Features.Auth.Welcome;
 using OISM.Domain.Entities;
 using RefreshTokenEntity = OISM.Domain.Entities.RefreshToken;
 
@@ -20,17 +21,20 @@ public class AuthService : IAuthService
     private readonly IJwtTokenService _jwtTokenService;
     private readonly IPasswordHasher _passwordHasher;
     private readonly ISqlLockService _lockService;
+    private readonly IOwnerWelcomeNotifier _ownerWelcomeNotifier;
 
     public AuthService(
         IAppDbContext context,
         IJwtTokenService jwtTokenService,
         IPasswordHasher passwordHasher,
-        ISqlLockService lockService)
+        ISqlLockService lockService,
+        IOwnerWelcomeNotifier ownerWelcomeNotifier)
     {
         _context = context;
         _jwtTokenService = jwtTokenService;
         _passwordHasher = passwordHasher;
         _lockService = lockService;
+        _ownerWelcomeNotifier = ownerWelcomeNotifier;
     }
 
     public async Task<RegisterTenantResponse> RegisterTenantAsync(RegisterTenantRequest request, CancellationToken ct = default)
@@ -71,7 +75,7 @@ public class AuthService : IAuthService
 
         try
         {
-            return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
+            var response = await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
             {
                 using var privilegedScope = _context.OpenPrivilegedScope();
                 await using var transaction = await _context.UnitOfWork.BeginTransactionAsync(ct);
@@ -118,6 +122,12 @@ public class AuthService : IAuthService
                     throw;
                 }
             });
+
+            // Gửi sau khi commit và ngoài vòng retry: rollback không phát sinh thư, retry không gửi trùng.
+            _ownerWelcomeNotifier.Notify(new OwnerWelcomeRecipient(
+                response.UserId, response.Email, request.FullName.Trim(), response.TenantName));
+
+            return response;
         }
         catch (DbUpdateException ex)
         {

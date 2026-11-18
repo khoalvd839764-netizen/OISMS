@@ -16,6 +16,7 @@
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả chi tiết nhóm yêu cầu chức năng `FR-AUTH-01` đến `FR-AUTH-04`. | `INIT-FR-01` |
 | `v1.1.0` | `2026-11-14` | Nhóm dự án OISMS | Làm rõ `FR-AUTH-04`: `Staff` chỉ xem danh sách chi nhánh và kho, không được tạo/sửa/bật tắt kho. | `OISMS-59-G1A` |
+| `v1.2.0` | `2026-11-18` | Nhóm dự án OISMS | Bổ sung mail chào mừng Chủ shop sau khi đăng ký cửa hàng và rate limit đăng ký theo IP (Upgrade 11). | `OISMS-66` |
 
 ---
 
@@ -23,7 +24,7 @@
 
 | Mã yêu cầu | Tên yêu cầu | Mô tả nghiệp vụ & Quy tắc kỹ thuật | Tiêu chí nghiệm thu (Acceptance Criteria) |
 | :---: | :--- | :--- | :--- |
-| **`FR-AUTH-01`** | **Tenant Registration** (Đăng ký cửa hàng) | Cho phép tạo mới các Store Tenants với không gian dữ liệu cô lập hoàn toàn được gán một `TenantId` duy nhất. Chuẩn hóa số điện thoại theo chuẩn quốc tế `E.164` (`+84...`). | - Tạo thành công Tenant, Chi nhánh mặc định, Kho mặc định và tài khoản `Owner` trong 1 transaction nguyên tử.<br/>- Từ chối Email/SĐT trùng hoặc sai định dạng với mã `400`/`409` (không phát sinh lỗi `500`). |
+| **`FR-AUTH-01`** | **Tenant Registration** (Đăng ký cửa hàng) | Cho phép tạo mới các Store Tenants với không gian dữ liệu cô lập hoàn toàn được gán một `TenantId` duy nhất. Chuẩn hóa số điện thoại theo chuẩn quốc tế `E.164` (`+84...`). | - Tạo thành công Tenant, Chi nhánh mặc định, Kho mặc định và tài khoản `Owner` trong 1 transaction nguyên tử.<br/>- Từ chối Email/SĐT trùng hoặc sai định dạng với mã `400`/`409` (không phát sinh lỗi `500`).<br/>- Đăng ký thành công thì Chủ shop nhận đúng một mail chào mừng, thư không chứa mật khẩu; lỗi gửi mail không làm hỏng đăng ký. `Staff` và `Cashier` do Owner tạo không nhận thư này (Upgrade 11). |
 | **`FR-AUTH-02`** | **User Authentication** (Xác thực người dùng) | Cung cấp chức năng Đăng nhập (`Login`), Làm mới phiên (`Refresh Token`) và Đăng xuất (`Logout`) bằng Email hoặc Số điện thoại + Mật khẩu. Trả về JWT chứa `TenantId`, `UserId`, `Role`. | - Mật khẩu băm bằng `BCrypt`.<br/>- Access Token có hạn 60 phút.<br/>- Refresh Token xoay vòng nguyên tử (`SELECT ... FOR UPDATE`), chặn dùng lại token cũ (`401`). |
 | **`FR-AUTH-03`** | **Role-Based Access Control (RBAC)** | Cấu hình và kiểm soát quyền truy cập API và màn hình theo 3 vai trò: `Owner` (Toàn quyền), `Staff` (Quản lý kho/đơn hàng), `Cashier` (Chỉ POS). | - `Cashier` gọi API quản trị hoặc mở URL `/admin` bị chặn `403 Forbidden`.<br/>- Tự động điều hướng sau đăng nhập theo đúng `Role` trong JWT. |
 | **`FR-AUTH-04`** | **Branch & Warehouse Management** | Cho phép `Owner` tạo mới, cập nhật thông tin hoặc bật/tắt trạng thái hiển thị (`IsActive`) của các chi nhánh (`Branch`) và kho hàng (`Warehouse`) thuộc sở hữu của mình. `Staff` và `Cashier` chỉ được xem danh sách (`GET`). | - Chỉ `Owner` tạo/sửa/bật tắt được chi nhánh và kho; `Staff` và `Cashier` nhận `403 Forbidden` khi gọi API ghi kho.<br/>- Chặn đổi chi nhánh của kho đã phát sinh lịch sử chứng từ/sổ cái (`409 Conflict`). |

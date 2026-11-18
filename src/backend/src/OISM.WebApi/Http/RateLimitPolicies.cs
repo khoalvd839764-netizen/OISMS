@@ -11,6 +11,7 @@ internal static class RateLimitPolicies
     public const string AiChat = "AiChat";
     public const string AuthLogin = "AuthLogin";
     public const string AuthForgotPassword = "AuthForgotPassword";
+    public const string AuthRegister = "AuthRegister";
 
     /// <summary>
     /// Giới hạn cửa sổ cố định theo IP. Request không có IP (TestServer) không bị giới hạn;
