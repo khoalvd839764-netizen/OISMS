@@ -7,7 +7,7 @@
 | **Ngày hiệu lực** | `2026-11-15` |
 | **Nguồn** | Đối chiếu với `docs/database/oisms_schema.sql` (cột, kiểu, khóa ngoại) và `OISM.Infrastructure/Persistence/Configurations/*.cs` (ánh xạ entity) |
 | **Liên quan** | [`04-architecture-and-design/03-database-design.md`](./04-architecture-and-design/03-database-design.md) (ERD rút gọn, chỉ mục), [`database/README.md`](./database/README.md) (từ điển dữ liệu, ràng buộc CHECK) |
-| **Sơ đồ draw.io** | ERD logic: [`database/erd/oisms-erd.drawio`](./database/erd/oisms-erd.drawio) (tổng quan + 10 phân hệ); thiết kế dữ liệu vật lý: [`database/data-design/oisms-data-design.drawio`](./database/data-design/oisms-data-design.drawio) (quy ước + 10 phân hệ, đủ cột, index, CHECK, trigger) |
+| **Sơ đồ draw.io** | ERD logic: [`database/erd/ERD NEW.drawio`](./database/erd/ERD%20NEW.drawio) (tổng quan + 10 phân hệ); thiết kế dữ liệu vật lý: [`database/data-design/oisms-data-design.drawio`](./database/data-design/oisms-data-design.drawio) (quy ước + 10 phân hệ, đủ cột, index, CHECK, trigger) |
 
 > Bảng cột ở mục 4 được đối chiếu với file schema. Khi đổi schema, cập nhật mục này theo DDL; `oisms_schema.sql` luôn là nguồn đúng nếu có chỗ lệch.
 

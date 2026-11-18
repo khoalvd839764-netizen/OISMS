@@ -23,7 +23,7 @@
 ---
 
 > **Sơ đồ draw.io (đủ 48 bảng, sinh từ `oisms_schema.sql`).** Hai sơ đồ chia vai, không vẽ trùng:
-> - **ERD logic** [`docs/database/erd/oisms-erd.drawio`](../database/erd/oisms-erd.drawio): trang tổng quan và 10 trang phân hệ. Thực thể theo entity C#, quan hệ và bản số (Crow's foot), chỉ PK cùng tối đa 6 thuộc tính nghiệp vụ. Không có kiểu, cột FK, cột kỹ thuật, quan hệ người tạo/duyệt.
+> - **ERD logic** [`docs/database/erd/ERD NEW.drawio`](../database/erd/ERD%20NEW.drawio): trang tổng quan và 10 trang phân hệ. Thực thể theo entity C#, quan hệ và bản số (Crow's foot), chỉ PK cùng tối đa 6 thuộc tính nghiệp vụ. Không có kiểu, cột FK, cột kỹ thuật, quan hệ người tạo/duyệt.
 > - **Data Design vật lý** [`docs/database/data-design/oisms-data-design.drawio`](../database/data-design/oisms-data-design.drawio): trang quy ước (tenant_id, khóa kép, query filter, trigger, quyền `oisms_runtime`) và 10 trang phân hệ. Bảng đủ cột và kiểu, PK/FK/UQ, mọi FK kể cả người tạo/duyệt, hộp index/CHECK/trigger theo bảng.
 > - Hai sơ đồ dùng chung 10 phân hệ: tenant–tài khoản–chi nhánh, sản phẩm & đơn vị tính, bảng giá, mua hàng–nhập kho–hóa đơn NCC, tồn kho & sổ cái, chuyển kho, kiểm kê, đơn hàng–POS–thanh toán, trả hàng, báo cáo & tích hợp sàn.
 
