@@ -3,9 +3,11 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using OISM.Application.Common.Email;
 using OISM.Application.Features.Auth.Login;
 using OISM.Application.Features.Auth.PasswordReset;
 using OISM.Infrastructure.Services;
+using OISM.Infrastructure.Services.Email;
 using Xunit;
 
 namespace OISM.UnitTests;
@@ -103,6 +105,42 @@ public class PasswordResetUnitTests
         CreateService("CHANGE_ME", "Production").IsConfigured.Should().BeFalse();
         CreateService(null, "Development").IsConfigured.Should().BeTrue("máy dev tự sinh khóa tạm");
         CreateService(SigningKey, "Production").IsConfigured.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Email_Build_EmbedsLogoByCid_AndEncodesUserData()
+    {
+        const string link = "https://oisms.example/reset-password#token=abc&x=1";
+
+        var message = PasswordResetEmail.Build("staff@shop.local", "<b>Lan</b> & Co", link, 30);
+
+        message.To.Should().Be("staff@shop.local");
+        message.Subject.Should().Be("OISMS - Đặt lại mật khẩu");
+        message.HtmlBody.Should().Contain($"src=\"cid:{EmailBranding.LogoContentId}\"");
+        message.HtmlBody.Should().Contain("href=\"https://oisms.example/reset-password#token=abc&amp;x=1\"");
+        message.HtmlBody.Should().Contain("&lt;b&gt;Lan&lt;/b&gt; &amp; Co", "tên người dùng phải được mã hóa HTML");
+        message.HtmlBody.Should().NotContain("<b>Lan</b>");
+        message.HtmlBody.Should().Contain("30 phút");
+        message.TextBody.Should().Contain(link, "bản text giữ link gốc để ứng dụng mail thuần chữ vẫn mở được");
+
+        message.InlineImages.Should().ContainSingle();
+        var logo = message.InlineImages![0];
+        logo.ContentId.Should().Be(EmailBranding.LogoContentId);
+        logo.MediaType.Should().Be("image/png");
+        logo.Content.Take(8).Should().Equal(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }, "logo nhúng phải là PNG vì Gmail không hiện SVG");
+    }
+
+    [Fact]
+    public void SmtpHtmlView_AttachesInlineImagesAsLinkedResources()
+    {
+        var message = PasswordResetEmail.Build("staff@shop.local", "Lan", "https://oisms.example/reset-password#token=abc", 30);
+
+        using var view = SmtpEmailTransport.CreateHtmlView(message);
+
+        view.ContentType.MediaType.Should().Be("text/html");
+        view.LinkedResources.Should().ContainSingle();
+        view.LinkedResources[0].ContentId.Should().Be(EmailBranding.LogoContentId);
+        view.LinkedResources[0].ContentType.MediaType.Should().Be("image/png");
     }
 
     private static PasswordResetTokenService CreateService(string? key, string environment) =>
