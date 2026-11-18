@@ -19,7 +19,7 @@ export interface BranchStockBreakdown {
   onHand: number;
   reserved: number;
   available: number;
-  averageCost: number;
+  averageCost: number | null;
   reorderPoint?: number;
 }
 
@@ -32,7 +32,7 @@ export interface Sku {
   barcode: string;
   sellingPrice: number | null;
   wholesalePrice: number | null;
-  averageCost: number;
+  averageCost: number | null;
   onHand: number;
   reserved: number;
   threshold: number;
@@ -54,7 +54,7 @@ export interface Sku {
   baseUnitPriceMissing?: boolean;
   units?: SkuUnit[];
   /** Tổng giá trị tồn kho của SKU cộng dồn theo đúng từng chi nhánh: sum(OnHand_branch * AverageCost_branch) */
-  totalInventoryValue?: number;
+  totalInventoryValue?: number | null;
   /** Số dư chi tiết theo từng Chi nhánh / Kho */
   branchBalances?: BranchStockBreakdown[];
 }

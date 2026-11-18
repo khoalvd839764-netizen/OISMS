@@ -23,6 +23,9 @@ const ANONYMOUS_AUTH_PATHS = [
   '/api/auth/refresh-token',
   '/api/auth/register-tenant',
   '/api/auth/logout',
+  '/api/auth/forgot-password',
+  '/api/auth/reset-password',
+  '/api/auth/password-reset/status',
 ];
 
 export function isAnonymousAuthUrl(url?: string): boolean {

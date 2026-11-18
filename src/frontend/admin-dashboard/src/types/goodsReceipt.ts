@@ -1,3 +1,5 @@
+import type { SupplierInvoiceStatus } from "./supplierInvoice";
+
 export interface CreateGoodsReceiptItemDto {
   purchaseOrderItemId: string;
   quantity: number;
@@ -31,6 +33,8 @@ export interface GoodsReceiptResponse {
   number: string;
   purchaseOrderId?: string | null;
   purchaseOrderNumber?: string | null;
+  invoiceId?: string | null;
+  invoiceStatus?: SupplierInvoiceStatus | null;
   branchId: string;
   branchName: string;
   warehouseId: string;

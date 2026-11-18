@@ -711,14 +711,20 @@ public class InventoryAndGoodsReceiptIntegrationTests : IAsyncLifetime, IClassFi
         var confirmRes = await _client.PostAsync($"/api/goods-receipts/{createdGr!.Id}/confirm", null);
         confirmRes.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        // 6. Cả Chủ shop và Thu ngân đều có thể tra cứu Tồn kho thật (BE1-08)
+        // 6. Cả Chủ shop và Thu ngân đều có thể tra cứu Tồn kho thật (BE1-08); Cashier bị che averageCost (null)
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", cashierToken);
         var balancesRes = await _client.GetAsync($"/api/inventory/balances?branchId={branchId}");
         balancesRes.StatusCode.Should().Be(HttpStatusCode.OK);
         var pagedBalances = await balancesRes.Content.ReadFromJsonAsync<PagedResult<InventoryBalanceDto>>(_jsonOptions);
 
         pagedBalances.Should().NotBeNull();
-        pagedBalances!.Items.Should().Contain(b => b.SkuId == skuId && b.OnHand == 50m && b.Available == 50m && b.AverageCost == 120000m);
+        pagedBalances!.Items.Should().Contain(b => b.SkuId == skuId && b.OnHand == 50m && b.Available == 50m && b.AverageCost == null);
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
+        var ownerBalancesRes = await _client.GetAsync($"/api/inventory/balances?branchId={branchId}");
+        ownerBalancesRes.StatusCode.Should().Be(HttpStatusCode.OK);
+        var ownerPagedBalances = await ownerBalancesRes.Content.ReadFromJsonAsync<PagedResult<InventoryBalanceDto>>(_jsonOptions);
+        ownerPagedBalances!.Items.Should().Contain(b => b.SkuId == skuId && b.OnHand == 50m && b.Available == 50m && b.AverageCost == 120000m);
 
         // 7. Chủ shop xem Sổ cái kho (BE1-06)
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);

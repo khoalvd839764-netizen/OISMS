@@ -18,6 +18,8 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       Jwt__Secret: "${JWT_SECRET:?Error: JWT_SECRET must be set in .env.production}"
+      PasswordReset__AdminBaseUrl: "https://${ADMIN_DOMAIN}"
+      PasswordReset__PosBaseUrl: "https://${POS_DOMAIN}"
     ports: !reset []
 
   admin-dashboard:

@@ -135,7 +135,7 @@ public class DatabaseBaselineValidatorTests
     }
 
     [Fact]
-    public void RequiredTables_MustContainPriceListTables()
+    public void RequiredTables_MustContainAllCurrentBusinessTables()
     {
         DatabaseMigrationService.RequiredTables.Should().Contain([
             "price_lists",
@@ -148,9 +148,13 @@ public class DatabaseBaselineValidatorTests
             "stock_count_schedules",
             "stock_count_periods",
             "stock_count_approvals",
-            "payment_accounts"
+            "payment_accounts",
+            "supplier_invoices",
+            "supplier_invoice_items",
+            "purchase_variances",
+            "user_branches"
         ]);
-        DatabaseMigrationService.RequiredTables.Length.Should().Be(44);
+        DatabaseMigrationService.RequiredTables.Length.Should().Be(48);
     }
 
     [Fact]

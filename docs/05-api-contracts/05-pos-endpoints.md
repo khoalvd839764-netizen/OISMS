@@ -5,8 +5,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-API-05` |
-| **Phiên bản (Version)** | `v1.1.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
+| **Phiên bản (Version)** | `v1.2.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-14` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-POS-01..04`, `NFR-PERF-01` (Trang 3) |
 | **Hợp đồng chi tiết Sprint 3** | [`../08-sprints/sprint-3/01-api-contracts-sprint-3.md`](../08-sprints/sprint-3/01-api-contracts-sprint-3.md) |
 | **Phạm vi áp dụng** | `PosCatalogController`, `OrdersController` & Ứng dụng `src/frontend/pos-app`, `src/frontend/admin-dashboard` |
@@ -17,6 +17,7 @@
 
 | Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả thay đổi | Mã tham chiếu |
 | :---: | :---: | :--- | :--- | :--- |
+| `v1.2.0` | `2026-11-14` | Nhóm dự án OISMS | Kiểm tra phân công chi nhánh (`user_branches`) trước khi checkout cho vai trò `Cashier`; chi nhánh ngoài danh sách trả `403 BRANCH_NOT_ASSIGNED` (`CS-02`). | `OISMS-59-G1B` |
 | `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Sửa route quét mã thành `/api/pos/barcode/{barcode}`; POS checkout không qua bước giữ chỗ, đơn lưu `Completed`; ghi rõ nguồn giá theo đơn vị. | `OISMS-46` |
 | `v1.0.2` | `2026-10-24` | Đăng Khoa (Backend 1) | Tách biệt hoàn toàn dữ liệu phản hồi quầy thu ngân (`PosReceiptDto`), bảo đảm không để lộ `CostPrice` hay `COGS` cho vai trò `Cashier`. Cập nhật link tương đối. | `SEC-POS-RECEIPT` |
 | `v1.0.1` | `2026-10-24` | Đăng Khoa (Backend 1) | Thống nhất cơ chế Dual-Route Mapping cho Checkout POS: Hỗ trợ đồng thời `POST /api/pos/checkout` (chuẩn canonical) và `POST /api/orders/checkout` (alias tương thích ngược cho cả `pos-app` và `admin-dashboard`). Liên kết tới `DOC-CTR-S3-01`. | `SYNC-CHECKOUT-ROUTING` |
@@ -30,7 +31,7 @@
 | :---: | :--- | :---: | :---: | :--- |
 | `GET` | `/api/pos/search` | `Owner, Staff, Cashier` | `FR-POS-01`, `FR-POS-02` | Tìm kiếm nhanh sản phẩm/SKU theo từ khóa (`keyword`) và chi nhánh (`branchId`). Trả về thông tin SKU, Giá bán lẻ/sỉ và số lượng tồn khả dụng thực tế (`Available = Math.Max(0, OnHand - Reserved)`). Độ trễ `p95 < 200ms`. |
 | `GET` | `/api/pos/barcode/{barcode}` | `Owner, Staff, Cashier` | `FR-POS-01`, `FR-POS-02` | Tra cứu chính xác SKU theo mã vạch `EAN-13`/`Code128` kèm tồn khả dụng tại chi nhánh. Độ trễ `p95 < 200ms`. |
-| `POST` | `/api/pos/checkout`<br/>*(Alias: `/api/orders/checkout`)* | `Owner, Staff, Cashier` | `FR-POS-03`, `FR-POS-04`, `FR-COST-02` | **Thanh toán nhanh tại quầy POS:** Khóa tồn, trừ `OnHand` trực tiếp (không tạo `reservations`), ghi Sổ cái `OUT`, lưu đơn `Completed` + `payments` + `sales_invoices` + Chụp `OrderItem.CostPrice` (WAC snapshot) trong **1 giao dịch CSDL nguyên tử duy nhất**. Hỗ trợ cả 2 đường dẫn tương thích 100%. Phản hồi trả về `PosReceiptDto` chuẩn bán lẻ, **tuyệt đối không để lộ giá vốn (CostPrice/COGS)**. Chi tiết xem [`DOC-CTR-S3-01`](../08-sprints/sprint-3/01-api-contracts-sprint-3.md). |
+| `POST` | `/api/pos/checkout`<br/>*(Alias: `/api/orders/checkout`)* | `Owner, Staff, Cashier` | `FR-POS-03`, `FR-POS-04`, `FR-COST-02`, `CS-02` | **Thanh toán nhanh tại quầy POS:** Trước khi mở giao dịch kho, hệ thống kiểm tra quyền chi nhánh cho `Cashier`: nếu `Cashier` đã được gán chi nhánh (`user_branches` khác rỗng) và `branchId` nằm ngoài danh sách được gán thì trả `403 BRANCH_NOT_ASSIGNED` (không tạo đơn, không ghi sổ cái/tồn). Nếu hợp lệ, khóa tồn, trừ `OnHand` trực tiếp (không tạo `reservations`), ghi Sổ cái `OUT`, lưu đơn `Completed` + `payments` + `sales_invoices` + Chụp `OrderItem.CostPrice` (WAC snapshot) trong **1 giao dịch CSDL nguyên tử duy nhất**. Hỗ trợ cả 2 đường dẫn tương thích 100%. Phản hồi trả về `PosReceiptDto` chuẩn bán lẻ, **tuyệt đối không để lộ giá vốn (CostPrice/COGS)**. Chi tiết xem [`DOC-CTR-S3-01`](../08-sprints/sprint-3/01-api-contracts-sprint-3.md). |
 
 **Chuyển khoản VietQR (CS-05):**
 
@@ -64,3 +65,4 @@ Tài khoản của tenant khác luôn trả `404 PAYMENT_ACCOUNT_NOT_FOUND`. Thi
 - **Hóa đơn bán hàng & In lại (Upgrade 02):** `ReceiptNumber` nay chính là số hóa đơn bán hàng `INV-YYYYMMDD-{HEX8}` (thay vì số đơn hàng). Mỗi lần checkout quầy POS thành công sinh duy nhất 1 hóa đơn bán hàng trong cùng giao dịch CSDL với dòng `OUT`. Thu ngân và Quản trị có thể in lại hóa đơn bán lẻ qua `GET /api/sales-invoices/receipt?number={invoiceNumber}` hoặc `GET /api/sales-invoices/{id}/receipt` (không chứa giá vốn, bảo mật RBAC Cashier).
 - **Nguồn giá ở client:** giá theo đơn vị phải lấy từ `/api/pos/search`, `/api/pos/barcode/{barcode}` hoặc `/api/sku-unit-prices/effective`; `salePrice` trong `/api/products` có thể rỗng. Client không tự nhân giá theo hệ số. Logic giỏ nằm ở `posCartUnits.ts` (một bản trong `pos-app`, một bản trong `admin-dashboard`).
 - **Idempotency:** gửi `requestKey` (GUID) trong body; nếu kèm header `Idempotency-Key` hoặc `X-Request-Key` thì phải trùng `requestKey`, không thì `400 VALIDATION_ERROR`. Khi kết quả chưa rõ (mất mạng), client retry giữ nguyên key.
+- **Realtime (`OISMS-59-G4`):** Sau khi checkout POS commit thành công (không phải replay `RequestKey`), server phát `OrderCreated` (`channel = "POS"`) vào nhóm `tenant_{tenantId}` (không phát `BranchOrderCreated`). Khi POS kết nối SignalR và gọi `JoinBranchGroup(branchId)` để nhận `BranchOrderCreated` (từ đơn online) và `StockLevelChanged`, `Cashier` bị từ chối bằng `HubException` nếu chi nhánh nằm ngoài danh sách được phân công (`user_branches` khác rỗng).

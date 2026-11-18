@@ -17,6 +17,7 @@ using OISM.Application.Features.SalesInvoices.Services;
 using OISM.Application.Features.Simulator.Services;
 using OISM.Application.Features.StockCounts.Services;
 using OISM.Application.Features.StockTransfers.Services;
+using OISM.Application.Features.SupplierInvoices;
 using OISM.Application.Features.Suppliers.Services;
 using OISM.Application.Features.Search.Services;
 using OISM.Application.Features.Users.Services;
@@ -39,6 +40,9 @@ public static class DependencyInjection
         services.AddScoped<IPosCheckoutService, PosCheckoutService>();
         services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<IReportService, ReportService>();
+        services.AddScoped<OISM.Application.Features.Auth.PasswordReset.IPasswordResetService, OISM.Application.Features.Auth.PasswordReset.PasswordResetService>();
+        services.AddScoped<OISM.Application.Features.Auth.Welcome.IOwnerWelcomeNotifier, OISM.Application.Features.Auth.Welcome.OwnerWelcomeNotifier>();
+        services.AddScoped<IDailySalesSummaryService, DailySalesSummaryService>();
         services.AddScoped<IAiChatService, AiChatService>();
         services.AddScoped<AiChatToolRunner>();
         services.AddScoped<IAiChatTool, LowStockChatTool>();
@@ -59,6 +63,7 @@ public static class DependencyInjection
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IBrandService, BrandService>();
         services.AddScoped<IBranchService, BranchService>();
+        services.AddScoped<IBranchAccessService, BranchAccessService>();
         services.AddScoped<ICategoryService, CategoryService>();
         services.AddScoped<IProductService, ProductService>();
         services.AddScoped<IUnitService, UnitService>();
@@ -76,6 +81,7 @@ public static class DependencyInjection
 
         // Purchase Order services
         services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
+        services.AddScoped<SupplierInvoiceService>();
 
         // Sales Invoice services
         services.AddScoped<ISalesInvoiceService, SalesInvoiceService>();

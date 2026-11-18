@@ -39,6 +39,7 @@ public static class DependencyInjection
         services.AddSingleton<IDatabaseReadinessService, NpgsqlDatabaseReadinessService>();
         services.AddScoped<ISqlLockService>(provider => provider.GetRequiredService<AppDbContext>().Locks);
         services.AddScoped<IWarehouseBranchReassignmentStore, WarehouseBranchReassignmentStore>();
+        AddPasswordResetServices(services, configuration);
         services.AddOismHangfire(configuration);
         services.AddOptions<AiOptions>()
             .Bind(configuration.GetSection(AiOptions.SectionName))
@@ -62,5 +63,21 @@ public static class DependencyInjection
         services.AddTransient<ILlmModelCatalog>(provider => provider.GetRequiredService<LlmRouter>());
 
         return services;
+    }
+
+    /// <summary>
+    /// Upgrade 10: token đặt lại mật khẩu và gửi email. Kênh gửi do <see cref="Services.Email.EmailTransportResolver"/> chọn.
+    /// </summary>
+    private static void AddPasswordResetServices(IServiceCollection services, IConfiguration configuration)
+    {
+        services.Configure<OISM.Application.Features.Auth.PasswordReset.PasswordResetOptions>(
+            configuration.GetSection(OISM.Application.Features.Auth.PasswordReset.PasswordResetOptions.SectionName));
+        services.Configure<Services.Email.EmailOptions>(configuration.GetSection(Services.Email.EmailOptions.SectionName));
+        services.AddSingleton<IPasswordResetTokenService, PasswordResetTokenService>();
+
+        services.AddSingleton<Services.Email.EmailTransportResolver>();
+        services.AddSingleton<Services.Email.QueuedEmailSender>();
+        services.AddSingleton<IEmailSender>(provider => provider.GetRequiredService<Services.Email.QueuedEmailSender>());
+        services.AddHostedService<Services.Email.EmailDispatchService>();
     }
 }

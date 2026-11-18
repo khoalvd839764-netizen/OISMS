@@ -3,6 +3,8 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using FluentAssertions;
+using Microsoft.AspNetCore.Http.Connections;
+using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using OISM.Application.Common.Interfaces;
@@ -11,6 +13,7 @@ using OISM.Application.Features.Inventory.Dtos;
 using OISM.Application.Features.Inventory.Services;
 using OISM.Application.Features.Orders.Dtos;
 using OISM.Application.Features.Orders.Services;
+using OISM.Application.Features.Realtime.Dtos;
 using OISM.Domain.Entities;
 using OISM.Infrastructure.Persistence;
 using Xunit;
@@ -2411,5 +2414,92 @@ public class PosCheckoutIntegrationTests : IAsyncLifetime, IClassFixture<WebAppl
         replayBoundaryResult!.OrderNumber.Should().Be(boundaryResult.OrderNumber);
         replayBoundaryResult.AmountGiven.Should().Be(maxBoundaryCash);
         replayBoundaryResult.ChangeDue.Should().Be(maxBoundaryCash - retailPrice);
+    }
+
+    // =========================================================================
+    // G4 (AC-3.6): PostgreSQL Realtime Event & Replay Idempotency
+    // =========================================================================
+    [Fact]
+    public async Task AC36_Postgres_Checkout_EmitsSingleOrderCreated_NoBranchOrderCreated_AndReplayEmitsNothing()
+    {
+        await SeedDatabaseAsync();
+
+        var ownerToken = await LoginAsAsync("owner@shopa.local", PostgresTestEnvironment.AppPassword);
+        var cashierToken = await LoginAsAsync("cashier@shopa.local", PostgresTestEnvironment.AppPassword);
+
+        Guid branchId;
+        Guid warehouseId;
+        Guid supplierId;
+        Guid userId;
+        Guid skuId;
+        string skuCode;
+        decimal retailPrice;
+
+        await using (var ctx = CreatePostgresDbContext(OismsDatabaseSeeder.TenantAId).Context)
+        {
+            var branch = await ctx.Branches.FirstAsync(b => b.TenantId == OismsDatabaseSeeder.TenantAId);
+            var warehouse = await ctx.Warehouses.FirstAsync(w => w.TenantId == OismsDatabaseSeeder.TenantAId && w.BranchId == branch.Id);
+            var supplier = await ctx.Suppliers.FirstAsync(s => s.TenantId == OismsDatabaseSeeder.TenantAId);
+            var user = await ctx.Users.FirstAsync(u => u.TenantId == OismsDatabaseSeeder.TenantAId);
+            var sku = await ctx.ProductVariants.FirstAsync(v => v.TenantId == OismsDatabaseSeeder.TenantAId);
+
+            branchId = branch.Id;
+            warehouseId = warehouse.Id;
+            supplierId = supplier.Id;
+            userId = user.Id;
+            skuId = sku.Id;
+            skuCode = sku.SKU;
+            retailPrice = sku.RetailPrice;
+        }
+
+        await SeedStockAsync(OismsDatabaseSeeder.TenantAId, branchId, warehouseId, supplierId, userId, skuId, 10m, 100000m);
+
+        var hubUrl = new Uri(_factory.Server.BaseAddress, $"/hubs/notifications?access_token={ownerToken}");
+        await using var hub = new HubConnectionBuilder()
+            .WithUrl(hubUrl, options =>
+            {
+                options.HttpMessageHandlerFactory = _ => _factory.Server.CreateHandler();
+                options.Transports = HttpTransportType.LongPolling;
+            })
+            .Build();
+        await hub.StartAsync();
+        await hub.InvokeAsync("JoinBranchGroup", branchId);
+
+        var orderCreatedEvents = new List<OrderSummaryRealtimeDto>();
+        var branchOrderCreatedEvents = new List<BranchOrderRealtimeDto>();
+        hub.On<OrderSummaryRealtimeDto>("OrderCreated", o => orderCreatedEvents.Add(o));
+        hub.On<BranchOrderRealtimeDto>("BranchOrderCreated", o => branchOrderCreatedEvents.Add(o));
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", cashierToken);
+        var req = new PosCheckoutRequestDto
+        {
+            BranchId = branchId,
+            Channel = "POS",
+            PaymentMethod = "Cash",
+            AmountGiven = retailPrice,
+            RequestKey = Guid.NewGuid(),
+            Items = new List<OrderItemRequestDto>
+            {
+                new() { SkuId = skuId, SkuCode = skuCode, Quantity = 1m, UnitPrice = retailPrice }
+            }
+        };
+
+        var res1 = await _client.PostAsJsonAsync("/api/pos/checkout", req);
+        res1.StatusCode.Should().Be(HttpStatusCode.OK);
+        var result1 = await res1.Content.ReadFromJsonAsync<PosCheckoutResponseDto>(_jsonOptions);
+
+        await Task.Delay(1000);
+
+        orderCreatedEvents.Should().ContainSingle(o => o.OrderId == result1!.OrderId && o.Channel == "POS");
+        branchOrderCreatedEvents.Should().BeEmpty("Đơn POS không phát BranchOrderCreated.");
+
+        // Replay cùng RequestKey + payload -> không phát thêm sự kiện nào
+        var res2 = await _client.PostAsJsonAsync("/api/pos/checkout", req);
+        res2.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        await Task.Delay(1000);
+
+        orderCreatedEvents.Should().ContainSingle("Replay cùng RequestKey không được phát thêm OrderCreated.");
+        branchOrderCreatedEvents.Should().BeEmpty();
     }
 }

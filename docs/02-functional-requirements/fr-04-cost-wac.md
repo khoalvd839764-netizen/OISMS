@@ -31,6 +31,10 @@
 
 $$\text{NewCost} = \frac{(\text{OldStock} \times \text{OldCost}) + (\text{ImportQty} \times \text{ImportPrice})}{\text{OldStock} + \text{ImportQty}}$$
 
+`ImportQty` là số thực nhận theo đơn vị gốc. `ImportPrice` bằng đơn giá trước thuế chia cho `FactorSnapshot`. Dùng đơn giá phiếu mua, hoặc đơn giá trên dòng hóa đơn kèm hàng nếu Owner đã duyệt chênh lệch trước khi xác nhận nhập. Thuế GTGT và phí vận chuyển chỉ lưu trên hóa đơn.
+
+Hóa đơn đến sau khi phiếu nhập đã xác nhận chỉ bổ sung chứng từ đối chiếu. Gửi, duyệt, từ chối hoặc hủy hóa đơn đến sau không tính lại WAC, ghi sổ kho hay sửa đơn giá đã nhập.
+
 **Ví dụ kiểm chứng:**
 1. **Lô nhập 1:** Tồn đầu `OldStock = 0`, `OldCost = 0`. Nhập `100` sản phẩm với giá `100,000đ` $\rightarrow$ `NewCost = 100,000đ`, `OnHand = 100`.
 2. **Xuất bán 20 sản phẩm:** Tồn còn `OldStock = 80`, giá vốn giữ nguyên `OldCost = 100,000đ`. Dòng đơn hàng lưu `OrderItem.CostPrice = 100,000đ`.

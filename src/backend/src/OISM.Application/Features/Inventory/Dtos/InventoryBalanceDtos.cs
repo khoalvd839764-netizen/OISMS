@@ -29,9 +29,9 @@ public class InventoryBalanceDto
     public decimal Available => Math.Max(0, OnHand - Reserved);
 
     /// <summary>
-    /// Giá vốn bình quân gia quyền (WAC).
+    /// Giá vốn bình quân gia quyền (WAC). Trả về null khi vai trò không được xem giá vốn (Cashier).
     /// </summary>
-    public decimal AverageCost { get; set; }
+    public decimal? AverageCost { get; set; }
 
     /// <summary>
     /// Ngưỡng cảnh báo hết hàng / đặt hàng lại (ReorderPoint - CS-03).

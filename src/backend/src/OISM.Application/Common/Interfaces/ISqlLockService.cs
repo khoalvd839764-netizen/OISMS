@@ -11,6 +11,7 @@ public interface ISqlLockService
     /// </summary>
     Task LockSkuStockAsync(Guid tenantId, Guid branchId, IEnumerable<Guid> skuIds, CancellationToken ct = default);
     Task LockRequestKeyAsync(Guid tenantId, Guid requestKey, CancellationToken ct = default);
+    Task LockSupplierInvoiceAsync(Guid tenantId, Guid invoiceId, CancellationToken ct = default);
     Task LockGoodsReceiptAsync(Guid tenantId, Guid receiptId, CancellationToken ct = default);
     Task LockStockTransferAsync(Guid tenantId, Guid transferId, CancellationToken ct = default);
     Task LockStockTransferNumberAsync(Guid tenantId, CancellationToken ct = default);
@@ -42,6 +43,11 @@ public interface ISqlLockService
     /// Khóa bi quan bản ghi Refresh Token (FOR UPDATE) để đảm bảo token rotation nguyên tử.
     /// </summary>
     Task LockRefreshTokenAsync(string tokenHash, CancellationToken ct = default);
+
+    /// <summary>
+    /// Khóa bi quan dòng người dùng (FOR UPDATE) để hai yêu cầu đặt lại mật khẩu cùng lúc không cùng thành công.
+    /// </summary>
+    Task LockUserAsync(Guid userId, CancellationToken ct = default);
 
     /// <summary>
     /// Khóa bi quan bản ghi Kho hàng (FOR UPDATE) để chống xung đột đồng thời khi đổi chi nhánh hoặc cập nhật kho.
@@ -82,4 +88,9 @@ public interface ISqlLockService
     /// Khóa số phiếu trả hàng bằng advisory lock ({tenant}/sales_return_number) để sinh số phiếu RT-yyyyMMdd-xxxx tuần tự không trùng.
     /// </summary>
     Task LockSalesReturnNumberAsync(Guid tenantId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Khóa tổng hợp báo cáo theo ngày bằng advisory lock ({tenant}/daily_sales_summary/{yyyy-MM-dd}) để tuần tự hóa thao tác xóa và ghi lại theo tenant/ngày.
+    /// </summary>
+    Task LockDailySalesSummaryAsync(Guid tenantId, DateOnly businessDate, CancellationToken ct = default);
 }

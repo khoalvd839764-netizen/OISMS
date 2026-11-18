@@ -2,7 +2,6 @@ using OISM.Application;
 using OISM.Infrastructure;
 using OISM.Infrastructure.Health;
 using OISM.WebApi.Http;
-using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
@@ -29,7 +28,8 @@ builder.Services.AddScoped<OISM.Application.Features.Realtime.IRealtimeNotifier,
 builder.Services.AddSignalR();
 
 // 3. Cấu hình Xác thực JWT Bearer (FR-AUTH-02, NFR-SEC-01)
-var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "SuperSecretKeyForOISMOmnichannelRetailSystem2026!#";
+var jwtSigningKey = JwtSigningKeyPolicy.Resolve(builder.Configuration["Jwt:Secret"], builder.Environment.EnvironmentName);
+builder.Services.AddSingleton(jwtSigningKey);
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "OISM_WebAPI";
 var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "OISM_Client";
 
@@ -50,7 +50,7 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuerSigningKey = true,
         ValidIssuer = jwtIssuer,
         ValidAudience = jwtAudience,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+        IssuerSigningKey = new SymmetricSecurityKey(jwtSigningKey.Bytes),
         ClockSkew = TimeSpan.Zero
     };
     options.Events = new JwtBearerEvents
@@ -71,7 +71,7 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddAuthorization();
 builder.Services.AddRateLimiter(options =>
 {
-    options.AddPolicy("AiChat", context => RateLimitPartition.GetFixedWindowLimiter(
+    options.AddPolicy(RateLimitPolicies.AiChat, context => RateLimitPartition.GetFixedWindowLimiter(
         context.User.GetUserId().GetValueOrDefault(),
         _ => new FixedWindowRateLimiterOptions
         {
@@ -79,12 +79,25 @@ builder.Services.AddRateLimiter(options =>
             Window = TimeSpan.FromMinutes(1),
             QueueLimit = 0
         }));
+
+    // Upgrade 10: chống dò mật khẩu và spam mail đặt lại, chia theo IP.
+    RateLimitPolicies.AddPerIpPolicy(options, RateLimitPolicies.AuthLogin,
+        builder.Configuration.GetValue("RateLimiting:AuthLoginPerMinute", 10), TimeSpan.FromMinutes(1));
+    RateLimitPolicies.AddPerIpPolicy(options, RateLimitPolicies.AuthForgotPassword,
+        builder.Configuration.GetValue("RateLimiting:ForgotPasswordPer15Minutes", 5), TimeSpan.FromMinutes(15));
+    // Upgrade 11: mỗi lần đăng ký phát sinh một mail chào mừng, giới hạn để không bị lợi dụng gửi thư hàng loạt.
+    RateLimitPolicies.AddPerIpPolicy(options, RateLimitPolicies.AuthRegister,
+        builder.Configuration.GetValue("RateLimiting:RegisterTenantPer15Minutes", 10), TimeSpan.FromMinutes(15));
+
     options.OnRejected = async (rejection, ct) =>
     {
-        const string code = "AI_RATE_LIMITED";
         var context = rejection.HttpContext;
-        var problem = ApiErrorResponse.CreateProblemDetails(context, code, ApiErrorTitles.Get(ApiErrorProfile.Ai, code),
-            StatusCodes.Status429TooManyRequests, "Bạn hỏi hơi nhanh, thử lại sau ít phút.");
+        var policy = context.GetEndpoint()?.Metadata.GetMetadata<EnableRateLimitingAttribute>()?.PolicyName;
+        var problem = policy == RateLimitPolicies.AiChat
+            ? ApiErrorResponse.CreateProblemDetails(context, "AI_RATE_LIMITED", ApiErrorTitles.Get(ApiErrorProfile.Ai, "AI_RATE_LIMITED"),
+                StatusCodes.Status429TooManyRequests, "Bạn hỏi hơi nhanh, thử lại sau ít phút.")
+            : ApiErrorResponse.CreateProblemDetails(context, "TOO_MANY_REQUESTS", "Quá nhiều yêu cầu",
+                StatusCodes.Status429TooManyRequests, "Bạn thao tác quá nhiều lần. Vui lòng thử lại sau ít phút.");
         context.Response.StatusCode = StatusCodes.Status429TooManyRequests;
         await context.Response.WriteAsJsonAsync(problem, options: null, contentType: "application/problem+json", cancellationToken: ct);
     };
@@ -168,6 +181,11 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var app = builder.Build();
+
+if (jwtSigningKey.Warning != null)
+{
+    app.Services.GetRequiredService<ILogger<Program>>().LogWarning("{JwtKeyWarning}", jwtSigningKey.Warning);
+}
 
 // 6. Tự động khởi tạo dữ liệu mẫu theo chính sách bảo mật môi trường DemoSeedPolicy:
 // - Chỉ Development và Test được phép seed demo.

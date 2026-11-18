@@ -73,6 +73,8 @@ services:
       Database__Database: ${POSTGRES_DB:-oisms}
       Database__Username: ${OISMS_APP_USER:-oisms_app}
       Database__Password: "${OISMS_APP_PASSWORD:?Error: OISMS_APP_PASSWORD must be set in .env}"
+      # Development để trống thì backend tự sinh khóa tạm; môi trường khác thiếu khóa hợp lệ sẽ không khởi động.
+      Jwt__Secret: "${JWT_SECRET:-}"
       # Job nền (hết hạn giữ chỗ, sinh kỳ kiểm kê). Trước khi bật trên DB đã có dữ liệu phải chạy
       # docker/postgres/migrations/20261108_hangfire_schema.sql; Hangfire dùng chung kết nối Database__*.
       Hangfire__Enabled: ${HANGFIRE_ENABLED:-false}
@@ -90,6 +92,15 @@ services:
       Ai__Providers__gemini__TimeoutSeconds: ${AI_GEMINI_TIMEOUT_SECONDS:-60}
       Ai__TimeoutSeconds: ${AI_TIMEOUT_SECONDS:-30}
       Ai__MaxTokens: ${AI_MAX_TOKENS:-1024}
+      # Quên mật khẩu (Upgrade 10). Thiếu SMTP hoặc khóa ký thì tính năng tắt, riêng Development ghi mail ra log.
+      PasswordReset__SigningKey: ${PASSWORD_RESET_SIGNING_KEY:-}
+      PasswordReset__AdminBaseUrl: ${PASSWORD_RESET_ADMIN_URL:-http://localhost:5173}
+      PasswordReset__PosBaseUrl: ${PASSWORD_RESET_POS_URL:-http://localhost:5174}
+      Email__Host: ${SMTP_HOST:-}
+      Email__Port: ${SMTP_PORT:-587}
+      Email__User: ${SMTP_USER:-}
+      Email__Password: ${SMTP_PASSWORD:-}
+      Email__From: ${SMTP_FROM:-}
     ports:
       - "${BACKEND_PORT:-5000}:8080"
     depends_on:

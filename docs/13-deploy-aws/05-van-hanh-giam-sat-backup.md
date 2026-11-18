@@ -33,7 +33,7 @@ Log container dùng driver `json-file` mặc định và không giới hạn kí
 | Endpoint | Ý nghĩa | Lỗi thường gặp |
 | :--- | :--- | :--- |
 | `/health/live` | Tiến trình backend còn trả lời | Không trả lời → backend chết hoặc Caddy không tới được |
-| `/health/ready` (và `/health`) | Kết nối bằng `oisms_app`, đủ 44 bảng, trigger `ledger_append_only` bật, user không có quyền quản trị | 503 `schema is incomplete` → thiếu migration; 503 `Security alert` → user runtime có quyền quá cao; 503 `timed out` → PostgreSQL không phản hồi |
+| `/health/ready` (và `/health`) | Kết nối bằng `oisms_app`, đủ 47 bảng, trigger `ledger_append_only` bật, user không có quyền quản trị | 503 `schema is incomplete` → thiếu migration; 503 `Security alert` → user runtime có quyền quá cao; 503 `timed out` → PostgreSQL không phản hồi |
 
 Có thể gắn một dịch vụ kiểm tra uptime bên ngoài (UptimeRobot, Route 53 health check, CloudWatch Synthetics) gọi `/health/ready` mỗi vài phút.
 
@@ -91,6 +91,7 @@ File dump chứa dữ liệu nghiệp vụ và hash mật khẩu: không commit,
 | Frontend gọi `http://localhost:5000` | Image frontend build không có `VITE_API_BASE_URL` (quên `-f docker-compose.prod.yml`) | Build lại bằng lệnh production đầy đủ |
 | Gọi API ra `/api/api/...` 404 | `VITE_API_BASE_URL` có đuôi `/api` | Bỏ đuôi `/api`, build lại |
 | Compose báo `JWT_SECRET must be set` hoặc `ADMIN_DOMAIN must be set` | Thiếu biến hoặc quên `--env-file .env.production` | Thêm biến / thêm cờ |
+| Backend restart liên tục, log báo `Jwt:Secret ...` | `JWT_SECRET` ngắn hơn 32 byte hoặc trùng khóa mẫu cũ | Tạo khóa mới bằng `openssl rand -hex 32`, cập nhật `.env.production`, tạo lại container backend |
 | Compose báo lỗi ở `!reset` | Docker Compose cũ hơn v2.24 | Cập nhật Docker |
 | Build bị kill, `exit code 137` | Hết RAM | Thêm swap hoặc tăng loại máy |
 | Đăng nhập xong bị đá ra liên tục | Đổi `JWT_SECRET` làm token cũ vô hiệu, hoặc giờ hệ thống lệch (`ClockSkew = 0`) | Đăng nhập lại; kiểm tra `timedatectl` đồng bộ NTP |

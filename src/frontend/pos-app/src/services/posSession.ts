@@ -3,7 +3,7 @@ export const POS_ACCESS_KEY = 'oisms_pos_v2_access';
 export const POS_REFRESH_KEY = 'oisms_pos_v2_refresh';
 export const POS_TENANT_KEY = 'oisms_pos_v2_tenant';
 export const POS_IDENTITY_KEY = 'oisms_pos_v2_identity';
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').replace(/\/$/, '');
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000').replace(/\/$/, '');
 let generation = 0;
 let refreshFlight: { generation: number; promise: Promise<string> } | null = null;
 let observedIdentity = localStorage.getItem(POS_IDENTITY_KEY);
@@ -43,14 +43,15 @@ export function savePosSession(data: { accessToken: string; refreshToken?: strin
   }
 }
 
-export async function loginPos(email: string, password: string) {
+/** identifier: email hoặc số điện thoại (Upgrade 10). */
+export async function loginPos(identifier: string, password: string) {
   const expected = clearPosSession();
   const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }),
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifier, password }),
   });
   const data = await response.json();
   if (expected !== generation) throw new Error('Phiên đăng nhập đã thay đổi.');
-  if (!response.ok) throw new Error(data.detail || data.message || 'Email hoặc mật khẩu không chính xác.');
+  if (!response.ok) throw new Error(data.detail || data.message || 'Email/số điện thoại hoặc mật khẩu không chính xác.');
   if (!data.user?.id || !data.user?.tenantId || !data.user.roles?.some((r: string) => ['Owner', 'Staff', 'Cashier'].includes(r))) {
     throw new Error('Tài khoản không có quyền sử dụng POS.');
   }

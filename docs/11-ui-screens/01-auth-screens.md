@@ -5,9 +5,9 @@
 | **Mã tài liệu (Document ID)** | `DOC-SCR-01` |
 | **Phiên bản (Version)** | `v1.0.0` |
 | **Ngày hiệu lực** | `2026-10-25` |
-| **Đường dẫn URL Routes** | `/login`, `/403`, `/session-expired` |
+| **Đường dẫn URL Routes** | `/login`, `/forgot-password`, `/reset-password`, `/403`, `/session-expired` |
 | **Quyền truy cập (RBAC)** | Mọi người dùng (Public & Authenticated) |
-| **Source code Frontend** | [`AuthPage.tsx`](../../src/frontend/admin-dashboard/src/pages/AuthPage.tsx), [`AccessPage.tsx`](../../src/frontend/admin-dashboard/src/pages/AccessPage.tsx), [`AuthContext.tsx`](../../src/frontend/admin-dashboard/src/context/AuthContext.tsx) |
+| **Source code Frontend** | [`AuthPage.tsx`](../../src/frontend/admin-dashboard/src/pages/AuthPage.tsx), [`PasswordResetPages.tsx`](../../src/frontend/admin-dashboard/src/pages/PasswordResetPages.tsx), [`AccessPage.tsx`](../../src/frontend/admin-dashboard/src/pages/AccessPage.tsx), [`AuthContext.tsx`](../../src/frontend/admin-dashboard/src/context/AuthContext.tsx) |
 | **Controller Backend** | [`AuthController.cs`](../../src/backend/src/OISM.WebApi/Controllers/AuthController.cs) |
 
 ---
@@ -41,7 +41,7 @@ Màn hình xác thực tập trung hỗ trợ mô hình Multi-tenant SaaS cho to
 │                    │ [ ••••••••••••••••         👁]│                    │
 │                    │                              │                    │
 │                    │ [✓] Ghi nhớ đăng nhập        │                    │
-│                    │ Quên mật khẩu? [Coming soon] │                    │
+│                    │               Quên mật khẩu? │                    │
 │                    │                              │                    │
 │                    │ [    ĐĂNG NHẬP HỆ THỐNG    ] │                    │
 │                    └──────────────────────────────┘                    │
@@ -57,16 +57,27 @@ Màn hình xác thực tập trung hỗ trợ mô hình Multi-tenant SaaS cho to
 | `Username/Email/Phone` | `Input` (Text) | Bắt buộc, chuỗi định dạng Email chuẩn hoặc SĐT chuẩn `E.164`. | Viền đỏ `#c93c48` + Text *"Vui lòng nhập Email hoặc SĐT hợp lệ"* |
 | `Password` | `Input` (Password) | Bắt buộc, tối thiểu 6 ký tự, có nút ẩn/hiện mắt xem mật khẩu. | Viền đỏ `#c93c48` + Text *"Mật khẩu tối thiểu 6 ký tự"* |
 | `RememberMe` | `Checkbox` | Mặc định `true` (lưu Refresh Token trong 30 ngày). | N/A |
-| Nút `Quên mật khẩu?` | `Button` (`disabled`) + nhãn `Coming soon` | Có ở đăng nhập Admin và POS PWA. Chưa có API và luồng đặt lại mật khẩu. | N/A |
+| Link `Quên mật khẩu?` | `Link` tới `/forgot-password` | Có ở đăng nhập Admin và POS PWA (Upgrade 10). Frontend gọi `GET /api/auth/password-reset/status`; nếu `enabled = false` thì thay bằng dòng nhắc liên hệ chủ cửa hàng để được đặt lại hộ. | N/A |
 | Nút `Đăng nhập` | `Button (Primary)` | Hiển thị spinner xoay và vô hiệu hóa (`disabled`) khi đang gửi request. | Chống bấm lặp (Debounce) |
 | Nút `Bạn là thu ngân? Đăng nhập tại quầy POS` | Link dạng `Button (Secondary)` | Chỉ ở chế độ đăng nhập Admin, nằm dưới nút `Đăng nhập`. Mở thẳng `<POS_URL>/login` để thu ngân chỉ đăng nhập một lần tại POS. Không gửi thông tin đăng nhập hay token. | N/A |
 
 Màn đăng nhập không hiển thị tài khoản mẫu và không điền sẵn thông tin đăng nhập.
 
+### 1.3a. Quên mật khẩu và đặt mật khẩu mới (Upgrade 10)
+
+| Màn hình | Route | Nội dung |
+| :--- | :--- | :--- |
+| Quên mật khẩu | Admin `/forgot-password`, POS `/forgot-password` | Một ô "Email hoặc số điện thoại". Gửi xong luôn hiện cùng một thông báo, không cho biết tài khoản có tồn tại hay không. Nếu tính năng tắt: khóa ô nhập và nhắc liên hệ chủ cửa hàng. |
+| Đặt mật khẩu mới | Admin `/reset-password`, POS `/reset-password` | Mở từ link trong mail `.../reset-password#token=...`. Token nằm sau dấu `#` nên không gửi lên server, không vào log reverse proxy; trang đọc token rồi xóa khỏi thanh địa chỉ bằng `history.replaceState`. Hai ô mật khẩu mới và xác nhận (6–100 ký tự). Lỗi `RESET_TOKEN_INVALID` hiện link "Yêu cầu link mới". |
+| Đặt lại hộ nhân viên | Admin `/organization`, tab Nhân viên | Owner thấy nút "Đặt lại mật khẩu" trên dòng `Staff`/`Cashier` (không có trên tài khoản Owner). Modal nhập mật khẩu mới, nhắc phiên cũ hết hạn trong tối đa 60 phút. |
+
+Link trong mail quay về đúng app đã gửi yêu cầu: request từ POS gửi `app = "pos"`, backend chọn URL từ cấu hình `PasswordReset:PosBaseUrl`, không dựng từ header `Host`.
+
 ### 1.4. Bảng Hàm API Backend & Tài Liệu Tham Chiếu
 
 | Method | Endpoint Backend | Hàm xử lý Controller / Service | Tài liệu Hợp đồng API tham chiếu | Mã lỗi liên quan |
 | :---: | :--- | :--- | :--- | :--- |
+| `GET`/`POST` | `/api/auth/password-reset/status`, `/api/auth/forgot-password`, `/api/auth/reset-password` | `AuthController` / `PasswordResetService` | [`DOC-API-01`](../05-api-contracts/01-auth-endpoints.md#1-danh-mục-endpoints-xác-thực-apiauth) | `RESET_TOKEN_INVALID`, `PASSWORD_RESET_DISABLED`, `TOO_MANY_REQUESTS` |
 | `POST` | `/api/auth/login` | `AuthController.Login` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#1-danh-mục-endpoints-xác-thực-apiauth) | `AUTH_INVALID_CREDENTIALS`, `AUTH_TENANT_LOCKED`, `AUTH_USER_LOCKED` (Chi tiết xem [`DOC-ERR-02`](../12-error-and-status-codes/02-error-codes-catalog.md)) |
 | `POST` | `/api/auth/refresh-token` | `AuthController.RefreshToken` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#1-danh-mục-endpoints-xác-thực-apiauth) | `AUTH_TOKEN_EXPIRED`, `AUTH_UNAUTHORIZED` |
 | `GET` | `/api/auth/me` | `AuthController.GetCurrentUser` | [`DOC-API-01 - 01-auth-endpoints.md`](../05-api-contracts/01-auth-endpoints.md#1-danh-mục-endpoints-xác-thực-apiauth) | `AUTH_UNAUTHORIZED` |

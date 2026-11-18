@@ -86,3 +86,26 @@ public static class PriceChangeRequestStatus
     public const string Approved = "Approved";
     public const string Rejected = "Rejected";
 }
+
+public static class SupplierInvoiceStatus
+{
+    public const string Draft = "Draft";
+    public const string Matched = "Matched";
+    public const string PendingApproval = "PendingApproval";
+    public const string Approved = "Approved";
+    public const string Rejected = "Rejected";
+    public const string Cancelled = "Cancelled";
+}
+
+public static class PurchaseVarianceStatus
+{
+    public const string Pending = "Pending";
+    public const string Approved = "Approved";
+    public const string Rejected = "Rejected";
+}
+
+public static class PurchaseVarianceType
+{
+    public const string AtReceipt = "AtReceipt";
+    public const string AfterReceipt = "AfterReceipt";
+}

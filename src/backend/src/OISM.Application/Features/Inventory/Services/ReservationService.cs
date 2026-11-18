@@ -16,6 +16,16 @@ public interface IReservationService
     Task<ReserveStockResponseDto> ReserveStockAsync(ReserveStockRequestDto dto, Guid? userId, CancellationToken ct = default);
 }
 
+/// <summary>
+/// Dịch vụ giữ chỗ tồn kho kỹ thuật qua endpoint <c>POST /api/inventory/reserve</c>.
+/// </summary>
+/// <remarks>
+/// Đây là luồng giữ chỗ kỹ thuật (không được frontend gọi trực tiếp; chủ yếu phục vụ kiểm thử tích hợp và giữ chỗ theo kho cụ thể).
+/// Khi không truyền <c>OrderId</c>/<c>OrderItemId</c>, dịch vụ tự sinh một đơn <c>POS</c> giữ nguyên trạng thái <see cref="OrderStatus.Draft"/>
+/// kèm bản ghi giữ chỗ <see cref="ReservationStatus.Active"/>. Không chuyển đơn sang <see cref="OrderStatus.Reserved"/> vì
+/// <see cref="Order.CanCancel"/> (và <see cref="Order.CanExpireReservations"/>) của kênh <c>POS</c> chỉ cho phép hủy/hết hạn khi đơn ở
+/// trạng thái <see cref="OrderStatus.Draft"/> chưa thanh toán; đổi trạng thái sẽ khiến tác vụ hết hạn không thể giải phóng tồn giữ chỗ này.
+/// </remarks>
 public class ReservationService : IReservationService
 {
     private readonly IAppDbContext _context;
@@ -45,6 +55,14 @@ public class ReservationService : IReservationService
         return tenantId.Value;
     }
 
+    /// <summary>
+    /// Thực hiện giữ chỗ tồn kho nguyên tử tại kho và chi nhánh cho một SKU.
+    /// </summary>
+    /// <remarks>
+    /// Luồng giữ chỗ kỹ thuật cho kênh <c>POS</c>: nếu chưa có <c>OrderId</c>/<c>OrderItemId</c>, tự sinh đơn <c>POS</c> ở trạng thái
+    /// <see cref="OrderStatus.Draft"/> (giữ nguyên <c>Draft</c> để thỏa <see cref="Order.CanCancel"/> và <see cref="Order.CanExpireReservations"/>
+    /// khi hết hạn TTL).
+    /// </remarks>
     public async Task<ReserveStockResponseDto> ReserveStockAsync(ReserveStockRequestDto dto, Guid? userId, CancellationToken ct = default)
     {
         var tenantId = RequireTenantId();
@@ -272,7 +290,7 @@ public class ReservationService : IReservationService
                     throw new OismException("UNIT_PRICE_NOT_CONFIGURED", $"Đơn vị gốc của mặt hàng '{sku.SKU}' chưa được cấu hình giá bán.", 422);
                 }
 
-                // Tự sinh đơn hàng nháp tối thiểu cho luồng giữ chỗ (POS hoặc Test harness)
+                // Luồng giữ chỗ kỹ thuật của POS: tự sinh đơn POS ở trạng thái Draft (giữ Draft vì Order.CanCancel của POS chỉ cho hủy khi Draft chưa thanh toán)
                 var orderNumber = $"ORD-RES-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N")[..4].ToUpperInvariant()}";
                 order = new Order
                 {

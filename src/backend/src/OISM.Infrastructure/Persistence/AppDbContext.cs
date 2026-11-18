@@ -31,6 +31,7 @@ public class AppDbContext : DbContext, IAppDbContext
 
     public DbSet<Tenant> Tenants { get; set; } = null!;
     public DbSet<User> Users { get; set; } = null!;
+    public DbSet<UserBranch> UserBranches { get; set; } = null!;
     public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
     public DbSet<Branch> Branches { get; set; } = null!;
     public DbSet<Warehouse> Warehouses { get; set; } = null!;
@@ -68,10 +69,14 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<SkuUnitPrice> SkuUnitPrices { get; set; } = null!;
     public DbSet<PurchaseOrder> PurchaseOrders { get; set; } = null!;
     public DbSet<PurchaseOrderItem> PurchaseOrderItems { get; set; } = null!;
+    public DbSet<SupplierInvoice> SupplierInvoices { get; set; } = null!;
+    public DbSet<SupplierInvoiceItem> SupplierInvoiceItems { get; set; } = null!;
+    public DbSet<PurchaseVariance> PurchaseVariances { get; set; } = null!;
     public DbSet<SalesInvoice> SalesInvoices { get; set; } = null!;
     public DbSet<StockCountSchedule> StockCountSchedules { get; set; } = null!;
     public DbSet<StockCountPeriod> StockCountPeriods { get; set; } = null!;
     public DbSet<StockCountApproval> StockCountApprovals { get; set; } = null!;
+    public DbSet<DailySalesSummary> DailySalesSummaries { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -86,6 +91,9 @@ public class AppDbContext : DbContext, IAppDbContext
         // Luồng login / register / refresh chưa có JWT phải dùng .IgnoreQueryFilters().
         // =====================================================================
         modelBuilder.Entity<User>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<UserBranch>()
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
 
         modelBuilder.Entity<RefreshToken>()
@@ -196,6 +204,15 @@ public class AppDbContext : DbContext, IAppDbContext
         modelBuilder.Entity<PurchaseOrderItem>()
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
 
+        modelBuilder.Entity<SupplierInvoice>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<SupplierInvoiceItem>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<PurchaseVariance>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
         modelBuilder.Entity<SalesInvoice>()
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
 
@@ -206,6 +223,9 @@ public class AppDbContext : DbContext, IAppDbContext
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
 
         modelBuilder.Entity<StockCountApproval>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<DailySalesSummary>()
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
     }
 

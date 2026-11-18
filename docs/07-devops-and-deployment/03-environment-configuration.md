@@ -30,7 +30,7 @@
 | `PGADMIN_EMAIL`, `PGADMIN_PASSWORD` | `admin@oisms.com`, *(bắt buộc)* | pgAdmin. Compose bắt buộc có mật khẩu kể cả khi production không chạy pgAdmin |
 | `ASPNETCORE_ENVIRONMENT` | `Development` | Môi trường backend. Development mới có Swagger |
 
-`.env.example` còn có `JWT_ISSUER`, `JWT_AUDIENCE`, `JWT_EXPIRY_MINUTES`, `VITE_API_BASE_URL`, `BACKEND_HTTPS_PORT` nhưng `docker-compose.yml` **không** chuyển các biến này vào container. Chỉ `JWT_SECRET` được dùng, và chỉ trong `docker-compose.prod.yml`.
+`.env.example` còn có `JWT_ISSUER`, `JWT_AUDIENCE`, `JWT_EXPIRY_MINUTES`, `VITE_API_BASE_URL`, `BACKEND_HTTPS_PORT` nhưng `docker-compose.yml` **không** chuyển các biến này vào container. `JWT_SECRET` được truyền vào backend qua `Jwt__Secret`; `docker-compose.prod.yml` bắt buộc phải có biến này.
 
 ## 2. Khóa Cấu Hình Backend (.NET)
 
@@ -41,12 +41,13 @@
 | `Database:Host`, `Database:Port`, `Database:Database`, `Database:Username`, `Database:Password` | `localhost`, `5432`, `oisms`, `oisms_app` | Kết nối runtime. Compose truyền qua `Database__*` để an toàn với ký tự đặc biệt. |
 | `ConnectionStrings:DefaultConnection` | — | Cách cấu hình dự phòng bằng một chuỗi kết nối |
 | `Database:SeedDemoData`, `Database:DemoSeedPassword` | `false` | Seed dữ liệu demo, chỉ có hiệu lực ở `Development`/`Test` |
-| `Jwt:Secret` | fallback viết cứng trong `Program.cs` | Khóa ký HMAC-SHA256, tối thiểu 32 ký tự. **Môi trường thật phải đặt**; production compose truyền `Jwt__Secret` từ `JWT_SECRET`. |
+| `Jwt:Secret` | Trống | Khóa ký HMAC-SHA256, tối thiểu 32 byte. Thiếu, quá ngắn hoặc trùng khóa mẫu cũ thì `Development`/`Test` dùng khóa tạm theo tiến trình, các môi trường khác **dừng khởi động**. Compose truyền `Jwt__Secret` từ `JWT_SECRET`. |
 | `Jwt:Issuer`, `Jwt:Audience` | `OISM_WebAPI`, `OISM_Client` | Kiểm tra issuer/audience của token |
 | `Jwt:ExpiryMinutes` | `60` | Thời hạn access token (`NFR-SEC-01`) |
-| `Hangfire:Enabled` | `false` | Bật job hết hạn giữ chỗ và sinh kỳ kiểm kê. Compose truyền từ `HANGFIRE_ENABLED` trong `.env` (mặc định `false`). Khi bật cần schema `hangfire`: volume mới đã có qua `init-oisms.sh`; DB đã có dữ liệu phải chạy `docker/postgres/migrations/20261108_hangfire_schema.sql` bằng tài khoản `postgres` trước. |
+| `Hangfire:Enabled` | `false` | Bật job hết hạn giữ chỗ (`oisms-reservation-expiry`), job sinh kỳ kiểm kê (`oisms-stock-count-periods`) và job tổng hợp báo cáo ngày (`oisms-daily-sales-summary`). Compose truyền từ `HANGFIRE_ENABLED` trong `.env` (mặc định `false`). Khi bật cần schema `hangfire`: volume mới đã có qua `init-oisms.sh`; DB đã có dữ liệu phải chạy `docker/postgres/migrations/20261108_hangfire_schema.sql` bằng tài khoản `postgres` trước. |
 | `Hangfire:WorkerCount` | `min(4, max(2, số CPU))`; Compose: `2` | Số worker Hangfire. Compose truyền từ `HANGFIRE_WORKER_COUNT`. |
 | `ConnectionStrings:HangfireConnection` | — | Không bắt buộc. Không đặt thì Hangfire dùng cùng kết nối với `AppDbContext` (`Database:*` trước, rồi `DefaultConnection`). |
+| `Reports:SummaryRebuildDays` | `7` | Số ngày gần nhất tính từ hôm qua (theo UTC+07) mà job `oisms-daily-sales-summary` tổng hợp lại mỗi đêm (`00:30` UTC+07). |
 
 CORS chỉ cho phép `http(s)://localhost:5173` và `http(s)://localhost:5174`. Trên production mỗi frontend gọi API qua chính domain của nó (Caddy định tuyến `/api`, `/hubs`, `/health`) nên không cần thêm origin.
 

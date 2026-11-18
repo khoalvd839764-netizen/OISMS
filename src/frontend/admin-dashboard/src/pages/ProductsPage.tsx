@@ -580,7 +580,7 @@ export function ProductsPage() {
                         {sku.branchBalances && sku.branchBalances.length > 0 && (
                           <div style={{ fontSize: "11px", color: "#64748b", marginTop: "2px" }}>
                             {sku.branchBalances
-                              .map((b) => `${b.branchName}: KD ${b.available} (WAC ${b.averageCost.toLocaleString("vi-VN")}₫)`)
+                              .map((b) => `${b.branchName}: KD ${b.available} (WAC ${b.averageCost != null ? `${b.averageCost.toLocaleString("vi-VN")}₫` : "—"})`)
                               .join(" · ")}
                           </div>
                         )}
@@ -1243,7 +1243,7 @@ export function ProductsPage() {
               <strong>Quy tắc bảng giá:</strong> Không cho phép sửa trực tiếp giá trên form thông tin SKU. Mọi lần thay đổi giá bán lẻ hoặc giá bán sỉ bắt buộc phải tạo <strong>Phiếu đổi giá (Price Change Request)</strong> để lưu vết và phê duyệt theo quy trình.
             </p>
             <p style={{ margin: "6px 0 0" }}>
-              Giá vốn bình quân hiện tại (WAC): <strong>{editingSku.averageCost.toLocaleString("vi-VN")} ₫</strong>.
+              Giá vốn bình quân hiện tại (WAC): <strong>{editingSku.averageCost != null ? `${editingSku.averageCost.toLocaleString("vi-VN")} ₫` : "—"}</strong>.
             </p>
           </div>
 

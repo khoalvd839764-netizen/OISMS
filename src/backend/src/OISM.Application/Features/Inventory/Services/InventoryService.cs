@@ -8,8 +8,10 @@ namespace OISM.Application.Features.Inventory.Services;
 public interface IInventoryService
 {
     Task<PagedResult<InventoryBalanceDto>> GetBalancesAsync(InventoryBalanceFilterDto filter, CancellationToken ct = default);
+    Task<PagedResult<InventoryBalanceDto>> GetBalancesAsync(InventoryBalanceFilterDto filter, bool canViewCost, CancellationToken ct = default);
     Task<PagedResult<InventoryLedgerDto>> GetLedgerAsync(InventoryLedgerFilterDto filter, CancellationToken ct = default);
     Task<InventoryBalanceDto?> GetSkuBalanceAtBranchAsync(Guid branchId, Guid skuId, CancellationToken ct = default);
+    Task<InventoryBalanceDto?> GetSkuBalanceAtBranchAsync(Guid branchId, Guid skuId, bool canViewCost, CancellationToken ct = default);
     Task<InventoryBalanceDto> UpdateReorderPointAsync(UpdateReorderPointDto request, CancellationToken ct = default);
     Task<int> BulkUpdateReorderPointAsync(BulkUpdateReorderPointDto request, CancellationToken ct = default);
 }
@@ -35,7 +37,10 @@ public class InventoryService : IInventoryService
         return tenantId.Value;
     }
 
-    public async Task<PagedResult<InventoryBalanceDto>> GetBalancesAsync(InventoryBalanceFilterDto filter, CancellationToken ct = default)
+    public Task<PagedResult<InventoryBalanceDto>> GetBalancesAsync(InventoryBalanceFilterDto filter, CancellationToken ct = default)
+        => GetBalancesAsync(filter, canViewCost: true, ct);
+
+    public async Task<PagedResult<InventoryBalanceDto>> GetBalancesAsync(InventoryBalanceFilterDto filter, bool canViewCost, CancellationToken ct = default)
     {
         RequireTenantId();
 
@@ -86,7 +91,7 @@ public class InventoryService : IInventoryService
                     WarehouseName = wb.Warehouse != null ? wb.Warehouse.Name : string.Empty,
                     OnHand = wb.OnHand,
                     Reserved = wb.Reserved,
-                    AverageCost = 0 // WAC được theo dõi ở cấp Chi nhánh
+                    AverageCost = canViewCost ? 0m : null // WAC được theo dõi ở cấp Chi nhánh
                 })
                 .ToListAsync(ct);
 
@@ -107,7 +112,7 @@ public class InventoryService : IInventoryService
                 {
                     if (wacLookup.TryGetValue((item.BranchId, item.SkuId), out var info))
                     {
-                        item.AverageCost = info.AverageCost;
+                        item.AverageCost = canViewCost ? info.AverageCost : null;
                         item.ReorderPoint = info.ReorderPoint;
                     }
                 }
@@ -163,7 +168,7 @@ public class InventoryService : IInventoryService
                     WarehouseName = "Tất cả các kho",
                     OnHand = b.OnHand,
                     Reserved = b.Reserved,
-                    AverageCost = b.AverageCost,
+                    AverageCost = canViewCost ? (decimal?)b.AverageCost : null,
                     ReorderPoint = b.ReorderPoint
                 })
                 .ToListAsync(ct);
@@ -178,7 +183,10 @@ public class InventoryService : IInventoryService
         }
     }
 
-    public async Task<InventoryBalanceDto?> GetSkuBalanceAtBranchAsync(Guid branchId, Guid skuId, CancellationToken ct = default)
+    public Task<InventoryBalanceDto?> GetSkuBalanceAtBranchAsync(Guid branchId, Guid skuId, CancellationToken ct = default)
+        => GetSkuBalanceAtBranchAsync(branchId, skuId, canViewCost: true, ct);
+
+    public async Task<InventoryBalanceDto?> GetSkuBalanceAtBranchAsync(Guid branchId, Guid skuId, bool canViewCost, CancellationToken ct = default)
     {
         RequireTenantId();
 
@@ -203,7 +211,7 @@ public class InventoryService : IInventoryService
             WarehouseName = "Tất cả các kho",
             OnHand = balance.OnHand,
             Reserved = balance.Reserved,
-            AverageCost = balance.AverageCost,
+            AverageCost = canViewCost ? balance.AverageCost : null,
             ReorderPoint = balance.ReorderPoint
         };
     }

@@ -103,6 +103,7 @@ export interface OrderLine {
   skuId: string;
   skuCode: string;
   skuName: string;
+  unitName?: string;
   quantity: number;
   unitPrice: number;
   costPrice: number | null; // null khi chưa Confirmed: hiển thị "Chưa chốt", không hiển thị 0
@@ -136,6 +137,7 @@ function normalizeLine(raw: Raw): OrderLine {
     skuId: str(raw.skuId) ?? '',
     skuCode: str(raw.skuCode) ?? str(raw.skuCodeSnapshot) ?? '',
     skuName: str(raw.skuName) ?? str(raw.skuNameSnapshot) ?? '',
+    unitName: str(raw.unitName) ?? str(raw.unitNameSnapshot),
     quantity: num(raw.quantity) ?? 0,
     unitPrice: num(raw.unitPrice) ?? 0,
     costPrice: num(raw.costPrice) ?? null,

@@ -97,4 +97,22 @@ public class RealtimeNotifier : IRealtimeNotifier
                 tenantId, skuCode);
         }
     }
+
+    public async Task NotifyBranchOrderCreatedAsync(Guid tenantId, BranchOrderRealtimeDto order, CancellationToken ct = default)
+    {
+        if (tenantId == Guid.Empty || order == null || order.BranchId == Guid.Empty) return;
+
+        try
+        {
+            var groupName = $"tenant_{tenantId}_branch_{order.BranchId}";
+            await _hubContext.Clients.Group(groupName).SendAsync("BranchOrderCreated", order, ct);
+            _logger.LogInformation("Đã phát sự kiện BranchOrderCreated tới nhóm {Group} cho Đơn {OrderNumber}.",
+                groupName, order.OrderNumber);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Lỗi khi phát sự kiện BranchOrderCreated cho Tenant {TenantId}, Chi nhánh {BranchId}, Đơn {OrderNumber}.",
+                tenantId, order.BranchId, order.OrderNumber);
+        }
+    }
 }

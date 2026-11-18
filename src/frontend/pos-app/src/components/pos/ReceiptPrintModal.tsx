@@ -1,14 +1,31 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Printer, X, CheckCircle2 } from 'lucide-react';
 import type { ReceiptData } from '../../types/pos';
+import { shouldAutoPrint } from '../../services/receiptMapper';
 
 interface ReceiptPrintModalProps {
   receipt: ReceiptData | null;
+  autoPrint?: boolean;
   onClose: () => void;
 }
 
-export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({ receipt, onClose }) => {
+export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({ receipt, autoPrint = false, onClose }) => {
   const [paper, setPaper] = useState<'58' | '80'>(() => localStorage.getItem('oisms_pos_v2_paper') === '58' ? '58' : '80');
+  const autoPrintedReceiptRef = useRef<ReceiptData | null>(null);
+
+  useEffect(() => {
+    if (!shouldAutoPrint(receipt, autoPrint)) {
+      if (!receipt) autoPrintedReceiptRef.current = null;
+      return;
+    }
+    if (autoPrintedReceiptRef.current === receipt) return;
+    autoPrintedReceiptRef.current = receipt;
+    const frameId = requestAnimationFrame(() => {
+      window.print();
+    });
+    return () => cancelAnimationFrame(frameId);
+  }, [receipt, autoPrint]);
+
   if (!receipt) return null;
 
   const handlePrint = () => {

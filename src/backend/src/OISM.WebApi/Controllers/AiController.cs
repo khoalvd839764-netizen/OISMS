@@ -25,7 +25,7 @@ public class AiController : ControllerBase
 
     [HttpPost("chat")]
     [Authorize(Roles = "Owner,Staff")]
-    [EnableRateLimiting("AiChat")]
+    [EnableRateLimiting(RateLimitPolicies.AiChat)]
     [ApiErrorContract(ApiErrorProfile.Ai)]
     [ProducesResponseType(typeof(AiChatResponse), StatusCodes.Status200OK)]
     public async Task<IActionResult> Chat(

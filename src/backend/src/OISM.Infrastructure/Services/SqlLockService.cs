@@ -33,6 +33,11 @@ public class SqlLockService : ISqlLockService
             "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/request_key/' || {1}::text, 0));",
             ct, tenantId.ToString(), requestKey.ToString());
 
+    public Task LockSupplierInvoiceAsync(Guid tenantId, Guid invoiceId, CancellationToken ct = default) =>
+        ExecutePostgresCommandAsync(
+            "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/supplier_invoice/' || {1}::text, 0));",
+            ct, tenantId.ToString(), invoiceId.ToString());
+
     public Task LockGoodsReceiptAsync(Guid tenantId, Guid receiptId, CancellationToken ct = default) =>
         ExecutePostgresCommandAsync(
             "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/goods_receipt/' || {1}::text, 0));",
@@ -158,6 +163,9 @@ public class SqlLockService : ISqlLockService
         }
     }
 
+    public Task LockUserAsync(Guid userId, CancellationToken ct = default) =>
+        ExecutePostgresCommandAsync("SELECT id FROM users WHERE id = {0} FOR UPDATE;", ct, userId);
+
     public async Task LockWarehouseAsync(Guid warehouseId, Guid tenantId, CancellationToken ct = default)
     {
         if (_context.Database.IsNpgsql())
@@ -231,4 +239,9 @@ public class SqlLockService : ISqlLockService
         ExecutePostgresCommandAsync(
             "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/sales_return_number', 0));",
             ct, tenantId.ToString());
+
+    public Task LockDailySalesSummaryAsync(Guid tenantId, DateOnly businessDate, CancellationToken ct = default) =>
+        ExecutePostgresCommandAsync(
+            "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/daily_sales_summary/' || {1}::text, 0));",
+            ct, tenantId.ToString(), businessDate.ToString("yyyy-MM-dd"));
 }

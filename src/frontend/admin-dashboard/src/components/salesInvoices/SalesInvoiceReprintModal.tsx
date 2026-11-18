@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { CheckCircle2, Loader2, Printer, X, AlertCircle } from 'lucide-react';
 import { salesInvoiceService } from '../../services/salesInvoiceService';
 import type { SalesInvoiceReceipt } from '../../types/salesInvoices';
+import { PrintArea } from '../print/PrintArea';
 
 interface SalesInvoiceReprintModalProps {
   invoiceId?: string;
@@ -64,6 +65,7 @@ export const SalesInvoiceReprintModal: React.FC<SalesInvoiceReprintModalProps> =
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in no-print-bg">
+      <style>{`@media print { html, body { width: ${is58 ? '58' : '80'}mm !important; } .print-container, .receipt-paper { width: ${is58 ? '58' : '80'}mm !important; max-width: ${is58 ? '58' : '80'}mm !important; margin: 0 !important; padding: 2mm 3mm !important; border: none !important; box-shadow: none !important; font-size: ${is58 ? '9' : '11'}px !important; } } @page { size: ${is58 ? '58' : '80'}mm auto; margin: 0; }`}</style>
       <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-lg w-full overflow-hidden flex flex-col max-h-[95vh] no-print-border">
         {/* Header Modal Bar */}
         <div className="px-5 py-3.5 text-white flex items-center justify-between no-print bg-slate-900">
@@ -117,7 +119,7 @@ export const SalesInvoiceReprintModal: React.FC<SalesInvoiceReprintModalProps> =
         </div>
 
         {/* Body content */}
-        <div className="p-6 overflow-y-auto bg-slate-100/50 flex justify-center print-container min-h-[300px]">
+        <div className="p-6 overflow-y-auto bg-slate-100/50 flex justify-center min-h-[300px]">
           {loading && (
             <div className="flex flex-col items-center justify-center p-8 text-slate-500">
               <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mb-2" />
@@ -136,6 +138,7 @@ export const SalesInvoiceReprintModal: React.FC<SalesInvoiceReprintModalProps> =
           )}
 
           {!loading && !error && receipt && (
+            <PrintArea>
             <div
               className={`receipt-paper bg-white p-4 border border-dashed border-slate-300 text-slate-900 font-sans text-xs shadow-sm relative transition-all ${
                 is58 ? 'max-w-[260px] text-[10px]' : 'max-w-[340px]'
@@ -268,6 +271,7 @@ export const SalesInvoiceReprintModal: React.FC<SalesInvoiceReprintModalProps> =
                 </div>
               </div>
             </div>
+            </PrintArea>
           )}
         </div>
       </div>
