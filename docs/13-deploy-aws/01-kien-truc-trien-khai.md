@@ -83,7 +83,7 @@ Volume nằm trên ổ EBS của EC2. Terminate instance (không phải Stop) m�
 | Lệnh | `docker compose up -d` | `docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.prod.yml up -d --build` |
 | File biến | `.env` | `.env.production` |
 | Môi trường backend | `Development` (Swagger bật) | `Production` (không Swagger, không seed) |
-| JWT secret | fallback trong code nếu không đặt | bắt buộc `JWT_SECRET`, thiếu thì Compose dừng |
+| JWT secret | `JWT_SECRET` trong `.env`, để trống thì backend tự sinh khóa tạm | bắt buộc `JWT_SECRET`, thiếu thì Compose dừng, khóa yếu thì backend dừng |
 | URL API frontend | `http://localhost:5000` | `https://<domain của chính frontend>` |
 | HTTPS | không | Caddy + Let's Encrypt |
 | pgAdmin | có | không |

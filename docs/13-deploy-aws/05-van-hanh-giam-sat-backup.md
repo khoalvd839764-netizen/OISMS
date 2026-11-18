@@ -91,6 +91,7 @@ File dump chứa dữ liệu nghiệp vụ và hash mật khẩu: không commit,
 | Frontend gọi `http://localhost:5000` | Image frontend build không có `VITE_API_BASE_URL` (quên `-f docker-compose.prod.yml`) | Build lại bằng lệnh production đầy đủ |
 | Gọi API ra `/api/api/...` 404 | `VITE_API_BASE_URL` có đuôi `/api` | Bỏ đuôi `/api`, build lại |
 | Compose báo `JWT_SECRET must be set` hoặc `ADMIN_DOMAIN must be set` | Thiếu biến hoặc quên `--env-file .env.production` | Thêm biến / thêm cờ |
+| Backend restart liên tục, log báo `Jwt:Secret ...` | `JWT_SECRET` ngắn hơn 32 byte hoặc trùng khóa mẫu cũ | Tạo khóa mới bằng `openssl rand -hex 32`, cập nhật `.env.production`, tạo lại container backend |
 | Compose báo lỗi ở `!reset` | Docker Compose cũ hơn v2.24 | Cập nhật Docker |
 | Build bị kill, `exit code 137` | Hết RAM | Thêm swap hoặc tăng loại máy |
 | Đăng nhập xong bị đá ra liên tục | Đổi `JWT_SECRET` làm token cũ vô hiệu, hoặc giờ hệ thống lệch (`ClockSkew = 0`) | Đăng nhập lại; kiểm tra `timedatectl` đồng bộ NTP |

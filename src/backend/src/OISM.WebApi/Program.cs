@@ -2,7 +2,6 @@ using OISM.Application;
 using OISM.Infrastructure;
 using OISM.Infrastructure.Health;
 using OISM.WebApi.Http;
-using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
@@ -29,7 +28,8 @@ builder.Services.AddScoped<OISM.Application.Features.Realtime.IRealtimeNotifier,
 builder.Services.AddSignalR();
 
 // 3. Cấu hình Xác thực JWT Bearer (FR-AUTH-02, NFR-SEC-01)
-var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "SuperSecretKeyForOISMOmnichannelRetailSystem2026!#";
+var jwtSigningKey = JwtSigningKeyPolicy.Resolve(builder.Configuration["Jwt:Secret"], builder.Environment.EnvironmentName);
+builder.Services.AddSingleton(jwtSigningKey);
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "OISM_WebAPI";
 var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "OISM_Client";
 
@@ -50,7 +50,7 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuerSigningKey = true,
         ValidIssuer = jwtIssuer,
         ValidAudience = jwtAudience,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)),
+        IssuerSigningKey = new SymmetricSecurityKey(jwtSigningKey.Bytes),
         ClockSkew = TimeSpan.Zero
     };
     options.Events = new JwtBearerEvents
@@ -178,6 +178,11 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var app = builder.Build();
+
+if (jwtSigningKey.Warning != null)
+{
+    app.Services.GetRequiredService<ILogger<Program>>().LogWarning("{JwtKeyWarning}", jwtSigningKey.Warning);
+}
 
 // 6. Tự động khởi tạo dữ liệu mẫu theo chính sách bảo mật môi trường DemoSeedPolicy:
 // - Chỉ Development và Test được phép seed demo.

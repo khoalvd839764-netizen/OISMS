@@ -81,7 +81,7 @@ CI chạy khi push hoặc mở PR vào `main`, `master`, `develop`: build và te
 - **Redis:** có container nhưng code backend chưa dùng.
 - **POS đa đơn vị:** `posCartUnits.ts` chỉ còn tại `pos-app`; `test-cart-units.mjs` chạy implementation này. Giá theo đơn vị phải lấy từ `/api/pos/search` hoặc `/api/sku-unit-prices/effective`, vì `salePrice` trong `/api/products` có thể rỗng; không tự tính giá theo hệ số.
 - **Quyền xem:** Staff được xem giá vốn ở truy vết và doanh thu ở Tổng quan theo `docs/01-users-and-rbac/02-rbac-matrix.md`; chỉ lãi gộp là Owner. Riêng Trợ lý OISMS: Staff không hỏi được doanh thu (tool `get_revenue` chỉ Owner, chốt 10/11/2026).
-- **JWT:** `Program.cs` có secret fallback viết cứng. Môi trường thật phải đặt `Jwt:Secret`; không dựa vào fallback.
+- **JWT:** không còn secret viết cứng. `JwtSigningKeyPolicy` bắt buộc `Jwt:Secret` tối thiểu 32 byte ngoài `Development`/`Test`, thiếu thì backend dừng khởi động; `Development`/`Test` dùng khóa tạm theo tiến trình.
 - **Deploy:** frontend nhúng URL API lúc build. `VITE_API_BASE_URL` không thêm đuôi `/api`. Production không có Swagger và không seed demo.
 - **Bí mật:** không đọc, in hay commit `.env`, `.env.production`, file dump.
 
