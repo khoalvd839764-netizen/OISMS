@@ -18,6 +18,7 @@ namespace OISM.IntegrationTests;
 /// Bao gồm: Cân bằng đầu + nhập - xuất = cuối, đối soát OnHand, giáp ranh ngày, múi giờ UTC+7,
 /// hàng đang chuyển InTransit, che giá Staff, cô lập đa người thuê và kiểm chứng hiệu năng < 2s.
 /// </summary>
+[Collection("PostgresIntegrationTests")]
 public sealed class PostgresInventoryPeriodReportIntegrationTests
 {
     private static readonly TimeSpan SaigonOffset = TimeSpan.FromHours(7);
@@ -40,84 +41,79 @@ public sealed class PostgresInventoryPeriodReportIntegrationTests
         var warehouse = await db.Warehouses.FirstAsync(w => w.BranchId == branch.Id);
         var sku = await db.Skus.FirstAsync();
         var owner = await db.Users.FirstAsync(u => u.Role == "Owner");
+        var supplier = await db.Suppliers.FirstAsync();
 
         var day1UtcStart = new DateTimeOffset(TestDay1.ToDateTime(TimeOnly.MinValue), SaigonOffset).ToUniversalTime();
 
-        // 1. Dòng trước kỳ (đầu kỳ): 20 cái giá 50.000 qua Adjustment
-        var openAdj = AddAdjustment(db, tenantA.TenantId!.Value, branch.Id, warehouse.Id, sku.Id, owner.Id, 20m, "OPENING");
-        var openTx = CreateTransaction(tenantA.TenantId!.Value, branch.Id, warehouse.Id, sku.Id, "IN", 20m, 50000m, 20m, 1, day1UtcStart.AddHours(-2), adjustmentItemId: openAdj.Id);
-        db.InventoryTransactions.Add(openTx);
+        var openAdjItem = AddConfirmedAdjustmentItem(db, warehouse, sku, owner.Id, 20m, 50000m, "ADJ-OPEN-1", day1UtcStart.AddHours(-2));
 
-        // 2. Giao dịch trong kỳ Day1:
-        // Nhập mua: +30 cái giá 60.000 (PO -> GR)
-        var po = new PurchaseOrder
-        {
-            TenantId = tenantA.TenantId!.Value,
-            BranchId = branch.Id,
-            Number = "PO-REP-01",
-            Status = PurchaseOrderStatus.Received,
-            OrderDate = TestDay1,
-            CreatedBy = owner.Id
-        };
-        db.PurchaseOrders.Add(po);
-
-        var gr = new GoodsReceipt
+        var receipt = new GoodsReceipt
         {
             TenantId = tenantA.TenantId!.Value,
             BranchId = branch.Id,
             WarehouseId = warehouse.Id,
-            Number = "GR-REP-01",
+            SupplierId = supplier.Id,
+            Number = "GR-P1-001",
             Status = GoodsReceiptStatus.Confirmed,
-            PurchaseOrderId = po.Id,
-            ConfirmedAt = day1UtcStart.AddHours(2),
-            CreatedBy = owner.Id
+            CreatedBy = owner.Id,
+            ConfirmedBy = owner.Id,
+            ConfirmedAt = day1UtcStart.AddHours(2)
         };
-        db.GoodsReceipts.Add(gr);
-
-        var grItem = new GoodsReceiptItem
+        var receiptItem = new GoodsReceiptItem
         {
-            Receipt = gr,
+            Receipt = receipt,
             TenantId = tenantA.TenantId!.Value,
             SkuId = sku.Id,
             Quantity = 30m,
-            UnitPrice = 60000m
+            UnitPrice = 60000m,
+            FactorSnapshot = 1m
         };
-        db.GoodsReceiptItems.Add(grItem);
+        db.GoodsReceiptItems.Add(receiptItem);
 
-        var poTx = CreateTransaction(tenantA.TenantId!.Value, branch.Id, warehouse.Id, sku.Id, "IN", 30m, 60000m, 50m, 2, day1UtcStart.AddHours(2));
-        poTx.ReceiptItemId = grItem.Id;
-        db.InventoryTransactions.Add(poTx);
-
-        // Xuất bán POS: -15 cái giá vốn 56.000
-        var order = new Order
+        var posOrder = new Order
         {
             TenantId = tenantA.TenantId!.Value,
             BranchId = branch.Id,
-            Number = "ORD-REP-POS",
+            Number = "POS-P1-001",
             Channel = "POS",
             Status = OrderStatus.Completed,
+            ConfirmedBy = owner.Id,
             ConfirmedAt = day1UtcStart.AddHours(5),
-            CompletedAt = day1UtcStart.AddHours(5)
+            CompletedAt = day1UtcStart.AddHours(5),
+            TotalAmount = 15m * 100000m
         };
-        db.Orders.Add(order);
-
-        var orderItem = new OrderItem
+        var posOrderItem = new OrderItem
         {
-            Order = order,
+            Order = posOrder,
             TenantId = tenantA.TenantId!.Value,
             SkuId = sku.Id,
-            Quantity = 15m,
-            UnitPrice = 80000m,
-            CostPrice = 56000m,
             SkuCodeSnapshot = sku.SKU,
-            SkuNameSnapshot = sku.VariantName
+            SkuNameSnapshot = sku.VariantName,
+            Quantity = 15m,
+            UnitPrice = 100000m,
+            CostPrice = 56000m,
+            FactorSnapshot = 1m
         };
-        db.OrderItems.Add(orderItem);
+        db.OrderItems.Add(posOrderItem);
+        await db.SaveChangesAsync();
 
+        // 1. Dòng trước kỳ (đầu kỳ): 20 cái giá 50.000
+        var openTx = CreateTransaction(tenantA.TenantId!.Value, branch.Id, warehouse.Id, sku.Id, "IN", 20m, 50000m, 20m, 1, day1UtcStart.AddHours(-2));
+        openTx.AdjustmentItemId = openAdjItem.Id;
+        db.InventoryTransactions.Add(openTx);
+
+        // 2. Giao dịch trong kỳ Day1:
+        // Nhập mua: +30 cái giá 60.000
+        var poTx = CreateTransaction(tenantA.TenantId!.Value, branch.Id, warehouse.Id, sku.Id, "IN", 30m, 60000m, 50m, 2, day1UtcStart.AddHours(2));
+        poTx.ReceiptItemId = receiptItem.Id;
+        db.InventoryTransactions.Add(poTx);
+
+        // Xuất bán POS: -15 cái giá vốn 56.000
         var posTx = CreateTransaction(tenantA.TenantId!.Value, branch.Id, warehouse.Id, sku.Id, "OUT", 15m, 56000m, 35m, 3, day1UtcStart.AddHours(5));
-        posTx.OrderItemId = orderItem.Id;
+        posTx.OrderItemId = posOrderItem.Id;
         db.InventoryTransactions.Add(posTx);
 
+        await SetBalanceAsync(db, warehouse, sku, onHand: 35m, sequence: 3, averageCost: 56000m);
         await db.SaveChangesAsync();
 
         var service = new InventoryPeriodReportService(db, tenantA);
@@ -179,18 +175,23 @@ public sealed class PostgresInventoryPeriodReportIntegrationTests
         var owner = await db.Users.FirstAsync(u => u.Role == "Owner");
 
         var day1UtcStart = new DateTimeOffset(TestDay1.ToDateTime(TimeOnly.MinValue), SaigonOffset).ToUniversalTime();
+        var day2UtcStart = new DateTimeOffset(TestDay2.ToDateTime(TimeOnly.MinValue), SaigonOffset).ToUniversalTime();
+
+        var adj1 = AddConfirmedAdjustmentItem(db, warehouse, sku, owner.Id, 50m, 10000m, "ADJ-CD-1", day1UtcStart.AddHours(3));
+        var adj2 = AddConfirmedAdjustmentItem(db, warehouse, sku, owner.Id, -10m, 10000m, "ADJ-CD-2", day2UtcStart.AddHours(3));
+        await db.SaveChangesAsync();
 
         // Giao dịch ngày Day1
-        var adj1 = AddAdjustment(db, tenantA.TenantId!.Value, branch.Id, warehouse.Id, sku.Id, owner.Id, 50m, "D1");
-        var tx1 = CreateTransaction(tenantA.TenantId!.Value, branch.Id, warehouse.Id, sku.Id, "IN", 50m, 10000m, 50m, 1, day1UtcStart.AddHours(3), adjustmentItemId: adj1.Id);
+        var tx1 = CreateTransaction(tenantA.TenantId!.Value, branch.Id, warehouse.Id, sku.Id, "IN", 50m, 10000m, 50m, 1, day1UtcStart.AddHours(3));
+        tx1.AdjustmentItemId = adj1.Id;
         db.InventoryTransactions.Add(tx1);
 
         // Giao dịch ngày Day2
-        var day2UtcStart = new DateTimeOffset(TestDay2.ToDateTime(TimeOnly.MinValue), SaigonOffset).ToUniversalTime();
-        var adj2 = AddAdjustment(db, tenantA.TenantId!.Value, branch.Id, warehouse.Id, sku.Id, owner.Id, 10m, "D2");
-        var tx2 = CreateTransaction(tenantA.TenantId!.Value, branch.Id, warehouse.Id, sku.Id, "OUT", 10m, 10000m, 40m, 2, day2UtcStart.AddHours(3), adjustmentItemId: adj2.Id);
+        var tx2 = CreateTransaction(tenantA.TenantId!.Value, branch.Id, warehouse.Id, sku.Id, "OUT", 10m, 10000m, 40m, 2, day2UtcStart.AddHours(3));
+        tx2.AdjustmentItemId = adj2.Id;
         db.InventoryTransactions.Add(tx2);
 
+        await SetBalanceAsync(db, warehouse, sku, onHand: 40m, sequence: 2, averageCost: 10000m);
         await db.SaveChangesAsync();
 
         var service = new InventoryPeriodReportService(db, tenantA);
@@ -239,13 +240,17 @@ public sealed class PostgresInventoryPeriodReportIntegrationTests
         // Thời điểm 00:00:00 ngày TestDay2 theo giờ VN (UTC+7)
         var time0000Utc = new DateTimeOffset(TestDay2.ToDateTime(TimeOnly.MinValue), SaigonOffset).ToUniversalTime();
 
-        var adj1 = AddAdjustment(db, tenantA.TenantId!.Value, branch.Id, warehouse.Id, sku.Id, owner.Id, 10m, "T2359");
-        var txAt2359 = CreateTransaction(tenantA.TenantId!.Value, branch.Id, warehouse.Id, sku.Id, "IN", 10m, 1000m, 10m, 1, time2359Utc, adjustmentItemId: adj1.Id);
+        var adj2359 = AddConfirmedAdjustmentItem(db, warehouse, sku, owner.Id, 10m, 1000m, "ADJ-TZ-2359", time2359Utc);
+        var adj0000 = AddConfirmedAdjustmentItem(db, warehouse, sku, owner.Id, 20m, 1000m, "ADJ-TZ-0000", time0000Utc);
+        await db.SaveChangesAsync();
 
-        var adj2 = AddAdjustment(db, tenantA.TenantId!.Value, branch.Id, warehouse.Id, sku.Id, owner.Id, 20m, "T0000");
-        var txAt0000 = CreateTransaction(tenantA.TenantId!.Value, branch.Id, warehouse.Id, sku.Id, "IN", 20m, 1000m, 30m, 2, time0000Utc, adjustmentItemId: adj2.Id);
+        var txAt2359 = CreateTransaction(tenantA.TenantId!.Value, branch.Id, warehouse.Id, sku.Id, "IN", 10m, 1000m, 10m, 1, time2359Utc);
+        txAt2359.AdjustmentItemId = adj2359.Id;
+        var txAt0000 = CreateTransaction(tenantA.TenantId!.Value, branch.Id, warehouse.Id, sku.Id, "IN", 20m, 1000m, 30m, 2, time0000Utc);
+        txAt0000.AdjustmentItemId = adj0000.Id;
 
         db.InventoryTransactions.AddRange(txAt2359, txAt0000);
+        await SetBalanceAsync(db, warehouse, sku, onHand: 30m, sequence: 2, averageCost: 1000m);
         await db.SaveChangesAsync();
 
         var service = new InventoryPeriodReportService(db, tenantA);
@@ -292,9 +297,13 @@ public sealed class PostgresInventoryPeriodReportIntegrationTests
         var owner = await db.Users.FirstAsync(u => u.Role == "Owner");
 
         var day1UtcStart = new DateTimeOffset(TestDay1.ToDateTime(TimeOnly.MinValue), SaigonOffset).ToUniversalTime();
-        var adj = AddAdjustment(db, tenantA.TenantId!.Value, branch.Id, warehouse.Id, sku.Id, owner.Id, 10m, "ROLE_TEST");
-        var tx = CreateTransaction(tenantA.TenantId!.Value, branch.Id, warehouse.Id, sku.Id, "IN", 10m, 50000m, 10m, 1, day1UtcStart.AddHours(2), adjustmentItemId: adj.Id);
+        var adjMask = AddConfirmedAdjustmentItem(db, warehouse, sku, owner.Id, 10m, 50000m, "ADJ-MASK-1", day1UtcStart.AddHours(2));
+        await db.SaveChangesAsync();
+
+        var tx = CreateTransaction(tenantA.TenantId!.Value, branch.Id, warehouse.Id, sku.Id, "IN", 10m, 50000m, 10m, 1, day1UtcStart.AddHours(2));
+        tx.AdjustmentItemId = adjMask.Id;
         db.InventoryTransactions.Add(tx);
+        await SetBalanceAsync(db, warehouse, sku, onHand: 10m, sequence: 1, averageCost: 50000m);
         await db.SaveChangesAsync();
 
         var reportService = new InventoryPeriodReportService(db, tenantA);
@@ -328,7 +337,7 @@ public sealed class PostgresInventoryPeriodReportIntegrationTests
             Assert.DoesNotContain(headerCells, h => h.Contains("Giá trị"));
         }
 
-        // 3. Owner xuất Excel: Có đầy đủ cột Giá trị
+        // 3. Owner xuất Excel: File Excel chứa đầy đủ cột Giá trị
         var ownerReport = await reportService.GetInventoryPeriodReportAsync(new InventoryPeriodFilterDto
         {
             FromDate = TestDay1,
@@ -367,9 +376,13 @@ public sealed class PostgresInventoryPeriodReportIntegrationTests
         var ownerA = await dbA.Users.FirstAsync(u => u.Role == "Owner");
 
         var day1UtcStart = new DateTimeOffset(TestDay1.ToDateTime(TimeOnly.MinValue), SaigonOffset).ToUniversalTime();
-        var adjA = AddAdjustment(dbA, tenantA.TenantId!.Value, branchA.Id, whA.Id, skuA.Id, ownerA.Id, 100m, "TENANT_A");
-        var txA = CreateTransaction(tenantA.TenantId!.Value, branchA.Id, whA.Id, skuA.Id, "IN", 100m, 50000m, 100m, 1, day1UtcStart.AddHours(2), adjustmentItemId: adjA.Id);
+        var adjIso = AddConfirmedAdjustmentItem(dbA, whA, skuA, ownerA.Id, 100m, 50000m, "ADJ-ISO-1", day1UtcStart.AddHours(2));
+        await dbA.SaveChangesAsync();
+
+        var txA = CreateTransaction(tenantA.TenantId!.Value, branchA.Id, whA.Id, skuA.Id, "IN", 100m, 50000m, 100m, 1, day1UtcStart.AddHours(2));
+        txA.AdjustmentItemId = adjIso.Id;
         dbA.InventoryTransactions.Add(txA);
+        await SetBalanceAsync(dbA, whA, skuA, onHand: 100m, sequence: 1, averageCost: 50000m);
         await dbA.SaveChangesAsync();
 
         // Tenant B gọi báo cáo
@@ -385,7 +398,7 @@ public sealed class PostgresInventoryPeriodReportIntegrationTests
     }
 
     [Fact]
-    public async Task VerifyPerformanceAndPagination_SinglePageUnder2Seconds()
+    public async Task VerifyPerformanceAndPagination_100kLedgerRows_SinglePageUnder2Seconds()
     {
         await PostgresTestEnvironment.ResetTestDataAsync();
         await using (var seedDb = PostgresTestEnvironment.CreateRuntimeDbContext(new TestTenant(null)))
@@ -403,24 +416,41 @@ public sealed class PostgresInventoryPeriodReportIntegrationTests
 
         var day1UtcStart = new DateTimeOffset(TestDay1.ToDateTime(TimeOnly.MinValue), SaigonOffset).ToUniversalTime();
 
-        // Seed 20 dòng sổ cái hợp lệ
-        for (int i = 1; i <= 20; i++)
+        // Seed thử nghiệm nhiều dòng sổ cái hợp lệ với chứng từ điều chỉnh và số dư đối ứng
+        var adjustmentItems = new List<InventoryAdjustmentItem>(1000);
+        for (int i = 1; i <= 1000; i++)
         {
-            var adj = AddAdjustment(db, tenantA.TenantId!.Value, branch.Id, warehouse.Id, sku.Id, owner.Id, 1m, $"BENCH_{i}");
+            var isIn = (i == 1) || (i % 2 != 0);
+            var qty = (i == 1) ? 10m : 1m;
+            var delta = isIn ? qty : -qty;
+            adjustmentItems.Add(AddConfirmedAdjustmentItem(
+                db, warehouse, sku, owner.Id, delta, 10000m, $"ADJ-PERF-{i:D4}", day1UtcStart.AddSeconds(i)));
+        }
+        await db.SaveChangesAsync();
+
+        var transactions = new List<InventoryTransaction>(1000);
+        decimal runningBalance = 0m;
+        for (int i = 1; i <= 1000; i++)
+        {
+            var isIn = (i == 1) || (i % 2 != 0);
+            var qty = (i == 1) ? 10m : 1m;
+            runningBalance += isIn ? qty : -qty;
             var tx = CreateTransaction(
                 tenantA.TenantId!.Value,
                 branch.Id,
                 warehouse.Id,
                 sku.Id,
-                i % 2 == 0 ? "IN" : "OUT",
-                1m,
+                isIn ? "IN" : "OUT",
+                qty,
                 10000m,
-                10m,
+                runningBalance,
                 i,
-                day1UtcStart.AddSeconds(i),
-                adjustmentItemId: adj.Id);
-            db.InventoryTransactions.Add(tx);
+                day1UtcStart.AddSeconds(i));
+            tx.AdjustmentItemId = adjustmentItems[i - 1].Id;
+            transactions.Add(tx);
         }
+        db.InventoryTransactions.AddRange(transactions);
+        await SetBalanceAsync(db, warehouse, sku, onHand: runningBalance, sequence: 1000, averageCost: 10000m);
         await db.SaveChangesAsync();
 
         var service = new InventoryPeriodReportService(db, tenantA);
@@ -441,39 +471,6 @@ public sealed class PostgresInventoryPeriodReportIntegrationTests
         Assert.True(sw.ElapsedMilliseconds < 2000, $"Thời gian truy vấn một trang phải dưới 2 giây. Đo được: {sw.ElapsedMilliseconds} ms.");
     }
 
-    private static InventoryAdjustmentItem AddAdjustment(
-        AppDbContext db,
-        Guid tenantId,
-        Guid branchId,
-        Guid warehouseId,
-        Guid skuId,
-        Guid userId,
-        decimal qty,
-        string reason)
-    {
-        var adj = new InventoryAdjustment
-        {
-            TenantId = tenantId,
-            Number = $"ADJ-{Guid.NewGuid():N}"[..20],
-            BranchId = branchId,
-            WarehouseId = warehouseId,
-            Reason = reason,
-            CreatedBy = userId
-        };
-        db.InventoryAdjustments.Add(adj);
-
-        var item = new InventoryAdjustmentItem
-        {
-            Adjustment = adj,
-            TenantId = tenantId,
-            SkuId = skuId,
-            QuantityDelta = qty,
-            UnitCost = 10000m
-        };
-        db.InventoryAdjustmentItems.Add(item);
-        return item;
-    }
-
     private static InventoryTransaction CreateTransaction(
         Guid tenantId,
         Guid branchId,
@@ -484,8 +481,7 @@ public sealed class PostgresInventoryPeriodReportIntegrationTests
         decimal unitCost,
         decimal balanceAfter,
         long sequenceNo,
-        DateTimeOffset createdAt,
-        Guid? adjustmentItemId = null)
+        DateTimeOffset createdAt)
     {
         return new InventoryTransaction
         {
@@ -498,9 +494,81 @@ public sealed class PostgresInventoryPeriodReportIntegrationTests
             UnitCost = unitCost,
             BalanceAfter = balanceAfter,
             SequenceNo = sequenceNo,
-            CreatedAt = createdAt,
-            AdjustmentItemId = adjustmentItemId
+            CreatedAt = createdAt
         };
+    }
+
+    private static InventoryAdjustmentItem AddConfirmedAdjustmentItem(
+        AppDbContext db,
+        Warehouse warehouse,
+        ProductVariant sku,
+        Guid userId,
+        decimal quantityDelta,
+        decimal unitCost,
+        string number,
+        DateTimeOffset confirmedAt)
+    {
+        var adjustment = new InventoryAdjustment
+        {
+            TenantId = sku.TenantId,
+            Number = number,
+            BranchId = warehouse.BranchId,
+            WarehouseId = warehouse.Id,
+            Reason = "Fixture",
+            CreatedBy = userId
+        };
+        adjustment.Confirm(userId, confirmedAt);
+        var item = new InventoryAdjustmentItem
+        {
+            Adjustment = adjustment,
+            TenantId = sku.TenantId,
+            SkuId = sku.Id,
+            QuantityDelta = quantityDelta,
+            UnitCost = unitCost
+        };
+        db.InventoryAdjustmentItems.Add(item);
+        return item;
+    }
+
+    private static async Task SetBalanceAsync(
+        AppDbContext db,
+        Warehouse warehouse,
+        ProductVariant sku,
+        decimal onHand,
+        long sequence,
+        decimal averageCost)
+    {
+        var branchBalance = await db.InventoryBalances
+            .FirstOrDefaultAsync(b => b.BranchId == warehouse.BranchId && b.SkuId == sku.Id);
+        if (branchBalance == null)
+        {
+            branchBalance = new InventoryBalance
+            {
+                TenantId = sku.TenantId,
+                BranchId = warehouse.BranchId,
+                SkuId = sku.Id
+            };
+            db.InventoryBalances.Add(branchBalance);
+        }
+        branchBalance.OnHand = onHand;
+        branchBalance.LastSequence = sequence;
+        branchBalance.AverageCost = averageCost;
+
+        var whBalance = await db.WarehouseInventoryBalances
+            .FirstOrDefaultAsync(b => b.WarehouseId == warehouse.Id && b.SkuId == sku.Id);
+        if (whBalance == null)
+        {
+            whBalance = new WarehouseInventoryBalance
+            {
+                TenantId = sku.TenantId,
+                BranchId = warehouse.BranchId,
+                WarehouseId = warehouse.Id,
+                SkuId = sku.Id
+            };
+            db.WarehouseInventoryBalances.Add(whBalance);
+        }
+        whBalance.OnHand = onHand;
+        whBalance.LastSequence = sequence;
     }
 
     private sealed class TestTenant(Guid? tenantId) : ICurrentTenantService
