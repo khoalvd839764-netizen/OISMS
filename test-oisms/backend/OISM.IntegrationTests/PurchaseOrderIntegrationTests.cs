@@ -298,7 +298,7 @@ public class PurchaseOrderIntegrationTests : IAsyncLifetime, IClassFixture<WebAp
         (await ReadProblemAsync(grBeforeApproveRes)).GetProperty("errorCode").GetString().Should().Be("PURCHASE_ORDER_NOT_RECEIVABLE");
 
         // 3. Owner duyệt phiếu mua
-        var approveRes = await _client.PostAsJsonAsync($"/api/purchase-orders/{updatedPo.Id}/approve", new ApprovePurchaseOrderRequestDto());
+        var approveRes = await _client.PostAsJsonAsync($"/api/purchase-orders/{updatedPo.Id}/approve", new ApprovePurchaseOrderRequestDto { Version = updatedPo.Version });
         approveRes.StatusCode.Should().Be(HttpStatusCode.OK, await approveRes.Content.ReadAsStringAsync());
         var approvedPo = (await approveRes.Content.ReadFromJsonAsync<PurchaseOrderResponseDto>(_jsonOptions))!;
         approvedPo.Status.Should().Be("Approved");
@@ -457,11 +457,11 @@ public class PurchaseOrderIntegrationTests : IAsyncLifetime, IClassFixture<WebAp
         });
         var zeroPo = (await (await _client.SendAsync(zeroPriceMsg)).Content.ReadFromJsonAsync<PurchaseOrderResponseDto>(_jsonOptions))!;
 
-        var approveZeroWithoutConfirm = await _client.PostAsJsonAsync($"/api/purchase-orders/{zeroPo.Id}/approve", new ApprovePurchaseOrderRequestDto { ConfirmZeroPrice = false });
+        var approveZeroWithoutConfirm = await _client.PostAsJsonAsync($"/api/purchase-orders/{zeroPo.Id}/approve", new ApprovePurchaseOrderRequestDto { ConfirmZeroPrice = false, Version = zeroPo.Version });
         approveZeroWithoutConfirm.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         (await ReadProblemAsync(approveZeroWithoutConfirm)).GetProperty("errorCode").GetString().Should().Be("PURCHASE_ORDER_ZERO_PRICE_CONFIRM_REQUIRED");
 
-        var approveZeroWithConfirm = await _client.PostAsJsonAsync($"/api/purchase-orders/{zeroPo.Id}/approve", new ApprovePurchaseOrderRequestDto { ConfirmZeroPrice = true });
+        var approveZeroWithConfirm = await _client.PostAsJsonAsync($"/api/purchase-orders/{zeroPo.Id}/approve", new ApprovePurchaseOrderRequestDto { ConfirmZeroPrice = true, Version = zeroPo.Version });
         approveZeroWithConfirm.StatusCode.Should().Be(HttpStatusCode.OK);
         (await approveZeroWithConfirm.Content.ReadFromJsonAsync<PurchaseOrderResponseDto>(_jsonOptions))!.Status.Should().Be("Approved");
     }
@@ -973,7 +973,7 @@ public class PurchaseOrderIntegrationTests : IAsyncLifetime, IClassFixture<WebAp
         ownerUpdateRes.StatusCode.Should().Be(HttpStatusCode.OK);
         createdPo = (await ownerUpdateRes.Content.ReadFromJsonAsync<PurchaseOrderResponseDto>(_jsonOptions))!;
 
-        var ownerApproveRes = await _client.PostAsJsonAsync($"/api/purchase-orders/{createdPo.Id}/approve", new ApprovePurchaseOrderRequestDto());
+        var ownerApproveRes = await _client.PostAsJsonAsync($"/api/purchase-orders/{createdPo.Id}/approve", new ApprovePurchaseOrderRequestDto { Version = createdPo.Version });
         ownerApproveRes.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // 4. Tenant Isolation: Tenant B truy cập hoặc nhập kho từ PO của Tenant A đều nhận 404 NotFound

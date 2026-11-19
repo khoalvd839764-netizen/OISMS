@@ -44,3 +44,18 @@ File `docker/postgres/migrations/20261119_purchase_order_pending_approval.sql` �
 - Điền `allocated_unit_cost = unit_price` cho các dòng của đơn mua đã duyệt trước đây (`Approved`, `PartiallyReceived`, `Received`, `Closed`).
 - Tự động chuyển các đơn `Draft` cũ đã có `supplier_id IS NOT NULL` và mọi dòng đều có `unit_price IS NOT NULL` sang trạng thái `PendingApproval`. Các đơn `Draft` chưa có NCC hoặc chưa đủ giá giữ nguyên ở `Draft`.
 - Các phiếu nhập `Draft` đang tồn tại sẽ xác nhận theo giá vốn phân bổ của đơn mua; hóa đơn NCC cũ chỉ còn lưu trong DB để tra cứu lịch sử.
+
+---
+
+## 3. Sửa sau review G1 (19/11/2026)
+
+| Mã | Vấn đề | Cách sửa |
+| :--- | :--- | :--- |
+| F-01 | 3 file kiến thức Trợ lý OISMS (`may-trang-thai-phieu-mua-hang.md`, `man-hinh-lap-phieu-mua-hang.md`, `man-hinh-duyet-phieu-mua-hang.md`) còn mô tả luồng cũ | Viết lại theo luồng U12: `Draft` → `PendingApproval` → `Approved`, Trả về kèm lý do, phân bổ phí/chiết khấu, VAT ngoài giá vốn, Staff không thấy giá, đã bỏ hóa đơn NCC |
+| F-02 | `POST /api/purchase-orders/{id}/approve` cho phép bỏ `version`, bỏ qua khóa lạc quan | `version` bắt buộc, thiếu trả `400 VALIDATION_ERROR` |
+| F-03 | `Staff` lọc danh sách theo `supplierId` suy ra được NCC của đơn chưa duyệt | Với `Staff`, lọc theo NCC loại đơn `Draft`/`PendingApproval` |
+| F-04 | Chiết khấu sát tổng tiền hàng làm giá vốn phân bổ dòng cuối âm sau làm tròn, vi phạm CHECK và trả `500` | Chặn trước khi lưu, trả `422 PURCHASE_ORDER_DISCOUNT_EXCEEDS_SUBTOTAL`, transaction rollback |
+
+Test bổ sung: `PostgresPurchaseOrderU12IntegrationTests.ReviewFix_ApproveRequiresVersion_StaffSupplierFilterHidesUnapproved_NegativeLastLineRejected` (PostgreSQL thật). Các test duyệt cũ gửi kèm `version`.
+
+Còn ghi nhận, chưa sửa: `order_date` có `DEFAULT CURRENT_DATE` theo giờ server (ứng dụng luôn tự gán ngày theo UTC+07:00 nên chưa ảnh hưởng); test migration chưa dựng DB từ schema cũ (reviewer đã chạy tay migration 2 lần trên schema trước `a4416e8` có dữ liệu: PASS).

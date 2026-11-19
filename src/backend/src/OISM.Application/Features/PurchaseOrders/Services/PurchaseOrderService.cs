@@ -545,7 +545,13 @@ public class PurchaseOrderService : IPurchaseOrderService
                 throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', chỉ được duyệt phiếu ở trạng thái 'PendingApproval'.", 409);
             }
 
-            if (version.HasValue && version.Value != po.Version)
+            // Duyệt bắt buộc gửi phiên bản để Owner duyệt đúng bản đã kiểm tra (khóa lạc quan, Upgrade 12).
+            if (!version.HasValue)
+            {
+                throw new OismException("VALIDATION_ERROR", "Bắt buộc gửi phiên bản đơn mua (version) khi duyệt.", 400);
+            }
+
+            if (version.Value != po.Version)
             {
                 throw new OismException("PURCHASE_ORDER_VERSION_MISMATCH", $"Phiên bản đơn mua không khớp (hiện tại: {po.Version}, gửi lên: {version.Value}). Vui lòng tải lại trước khi duyệt.", 409);
             }
@@ -635,6 +641,11 @@ public class PurchaseOrderService : IPurchaseOrderService
                 {
                     var lastLineAllocatedTotal = targetAllocatedTotal - allocatedRunningTotal;
                     var lastAllocatedUnitCost = decimal.Round(lastLineAllocatedTotal / item.Quantity, 6, MidpointRounding.AwayFromZero);
+                    if (lastAllocatedUnitCost < 0m)
+                    {
+                        // Chiết khấu sát tổng tiền hàng: phần làm tròn của các dòng trước vượt phần còn lại của dòng cuối.
+                        throw new OismException("PURCHASE_ORDER_DISCOUNT_EXCEEDS_SUBTOTAL", "Chiết khấu thương mại quá sát tổng tiền hàng, giá vốn sau phân bổ của dòng cuối bị âm. Vui lòng giảm chiết khấu.", 422);
+                    }
                     item.AllocatedUnitCost = lastAllocatedUnitCost;
                     item.UpdatedAt = now;
                 }
@@ -779,6 +790,12 @@ public class PurchaseOrderService : IPurchaseOrderService
         if (filter.SupplierId.HasValue)
         {
             query = query.Where(p => p.SupplierId == filter.SupplierId.Value);
+
+            // Staff chỉ thấy NCC từ khi đơn được duyệt: lọc theo NCC không được lộ đơn Draft/PendingApproval (Q9).
+            if (!isOwner)
+            {
+                query = query.Where(p => p.Status != PurchaseOrderStatus.Draft && p.Status != PurchaseOrderStatus.PendingApproval);
+            }
         }
 
         if (filter.BranchId.HasValue)

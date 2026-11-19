@@ -340,7 +340,7 @@ public class PostgresPurchaseOrderU12IntegrationTests : IAsyncLifetime, IClassFi
 
         // 4. Owner duyệt khi chưa có NCC / chưa có giá -> 422 PURCHASE_ORDER_INCOMPLETE_FOR_APPROVAL
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
-        var approveIncompleteRes = await _client.PostAsJsonAsync($"/api/purchase-orders/{pendingPo.Id}/approve", new ApprovePurchaseOrderRequestDto());
+        var approveIncompleteRes = await _client.PostAsJsonAsync($"/api/purchase-orders/{pendingPo.Id}/approve", new ApprovePurchaseOrderRequestDto { Version = pendingPo.Version });
         approveIncompleteRes.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         (await ReadProblemAsync(approveIncompleteRes)).GetProperty("errorCode").GetString().Should().Be("PURCHASE_ORDER_INCOMPLETE_FOR_APPROVAL");
 
@@ -526,7 +526,7 @@ public class PostgresPurchaseOrderU12IntegrationTests : IAsyncLifetime, IClassFi
             }
         });
         var discountPo = (await (await _client.SendAsync(discountExceedMsg)).Content.ReadFromJsonAsync<PurchaseOrderResponseDto>(_jsonOptions))!;
-        var approveDiscountExceedRes = await _client.PostAsJsonAsync($"/api/purchase-orders/{discountPo.Id}/approve", new ApprovePurchaseOrderRequestDto());
+        var approveDiscountExceedRes = await _client.PostAsJsonAsync($"/api/purchase-orders/{discountPo.Id}/approve", new ApprovePurchaseOrderRequestDto { Version = discountPo.Version });
         approveDiscountExceedRes.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity);
         (await ReadProblemAsync(approveDiscountExceedRes)).GetProperty("errorCode").GetString().Should().Be("PURCHASE_ORDER_DISCOUNT_EXCEEDS_SUBTOTAL");
 
@@ -626,6 +626,119 @@ public class PostgresPurchaseOrderU12IntegrationTests : IAsyncLifetime, IClassFi
         suggestion.FactorToBase.Should().Be(10m);
         suggestion.CurrentBaseWac.Should().Be(expectedBaseWacA);
         suggestion.CurrentUnitWac.Should().Be(decimal.Round(expectedBaseWacA * 10m, 6, MidpointRounding.AwayFromZero));
+    }
+
+    // =========================================================================
+    // SỬA SAU REVIEW G1: DUYỆT BẮT BUỘC VERSION (F-02), STAFF LỌC THEO NCC
+    // KHÔNG LỘ ĐƠN CHƯA DUYỆT (F-03), GIÁ VỐN DÒNG CUỐI ÂM DO LÀM TRÒN -> 422 (F-04)
+    // =========================================================================
+    [Fact]
+    public async Task ReviewFix_ApproveRequiresVersion_StaffSupplierFilterHidesUnapproved_NegativeLastLineRejected()
+    {
+        await SeedDatabaseAsync();
+        var tenantId = OismsDatabaseSeeder.TenantAId;
+        var ownerToken = await LoginAsAsync("owner@shopa.local", PostgresTestEnvironment.AppPassword);
+        var staffToken = await LoginAsAsync("staff@shopa.local", PostgresTestEnvironment.AppPassword);
+
+        Guid branchId, supplierId;
+        await using (var ctx = CreatePostgresDbContext(tenantId).Context)
+        {
+            branchId = (await ctx.Branches.FirstAsync(b => b.TenantId == tenantId)).Id;
+            supplierId = (await ctx.Suppliers.FirstAsync(s => s.TenantId == tenantId)).Id;
+        }
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
+
+        // Tạo 1 sản phẩm 4 biến thể SKU (seed chỉ có 1 SKU), mỗi đơn mua mỗi SKU chỉ một dòng
+        var units = (await _client.GetFromJsonAsync<List<UnitResponse>>("/api/units", _jsonOptions))!;
+        var pieceId = units.Single(u => u.Code == "piece").Id;
+        var runCode = Guid.NewGuid().ToString("N")[..6].ToUpperInvariant();
+        var createProdRes = await _client.PostAsJsonAsync("/api/products", new CreateProductRequest
+        {
+            Name = $"SP Review U12 {runCode}",
+            Variants = Enumerable.Range(1, 4).Select(n => new CreateVariantRequest
+            {
+                SKU = $"U12-R{n}-{runCode}",
+                VariantName = $"Biến thể {n}",
+                BaseUnitId = pieceId,
+                Unit = "piece",
+                RetailPrice = 10000m,
+                WholesalePrice = 9000m
+            }).ToList()
+        });
+        createProdRes.StatusCode.Should().Be(HttpStatusCode.Created, await createProdRes.Content.ReadAsStringAsync());
+        var prodId = (await createProdRes.Content.ReadFromJsonAsync<JsonElement>(_jsonOptions)).GetProperty("productId").GetGuid();
+        var prod = (await _client.GetFromJsonAsync<ProductResponse>($"/api/products/{prodId}", _jsonOptions))!;
+        var skuIds = prod.Variants.OrderBy(v => v.SKU).Select(v => v.Id).ToList();
+        skuIds.Should().HaveCount(4);
+
+        // F-02: Owner tạo đơn PendingApproval có NCC + giá, duyệt không gửi version -> 400 VALIDATION_ERROR
+        using var pendingMsg = CreatePostWithKey("/api/purchase-orders", new CreatePurchaseOrderDto
+        {
+            BranchId = branchId,
+            SupplierId = supplierId,
+            Items = new List<CreatePurchaseOrderItemDto> { new() { SkuId = skuIds[0], Quantity = 2m, UnitPrice = 1000m } }
+        });
+        var pendingRes = await _client.SendAsync(pendingMsg);
+        pendingRes.StatusCode.Should().Be(HttpStatusCode.Created);
+        var pendingPo = (await pendingRes.Content.ReadFromJsonAsync<PurchaseOrderResponseDto>(_jsonOptions))!;
+        pendingPo.Status.Should().Be("PendingApproval");
+
+        var noVersionRes = await _client.PostAsJsonAsync($"/api/purchase-orders/{pendingPo.Id}/approve", new ApprovePurchaseOrderRequestDto());
+        noVersionRes.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        (await ReadProblemAsync(noVersionRes)).GetProperty("errorCode").GetString().Should().Be("VALIDATION_ERROR");
+        await using (var ctx = CreatePostgresDbContext(tenantId).Context)
+        {
+            (await ctx.PurchaseOrders.FirstAsync(p => p.Id == pendingPo.Id)).Status.Should().Be("PendingApproval");
+        }
+
+        // F-03: Staff lọc theo NCC không thấy đơn PendingApproval; Owner vẫn thấy
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", staffToken);
+        var staffFiltered = await _client.GetFromJsonAsync<JsonElement>($"/api/purchase-orders?supplierId={supplierId}&pageSize=100", _jsonOptions);
+        staffFiltered.GetProperty("items").EnumerateArray()
+            .Select(e => e.GetProperty("id").GetGuid())
+            .Should().NotContain(pendingPo.Id);
+        staffFiltered.GetProperty("items").EnumerateArray()
+            .Select(e => e.GetProperty("status").GetString())
+            .Should().NotContain(new[] { "Draft", "PendingApproval" });
+
+        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", ownerToken);
+        var ownerFiltered = await _client.GetFromJsonAsync<JsonElement>($"/api/purchase-orders?supplierId={supplierId}&pageSize=100", _jsonOptions);
+        ownerFiltered.GetProperty("items").EnumerateArray()
+            .Select(e => e.GetProperty("id").GetGuid())
+            .Should().Contain(pendingPo.Id);
+
+        // F-04: 4 dòng giống nhau (SL 1, giá 1), chiết khấu 3.999998 (< tổng 4) -> tổng phân bổ 0.000002.
+        // 3 dòng đầu mỗi dòng 0.0000005 làm tròn lên 0.000001 -> dòng cuối = 0.000002 - 0.000003 < 0
+        // -> 422, không phải lỗi CHECK 500. Các dòng giống nhau nên không phụ thuộc thứ tự dòng.
+        using var roundingMsg = CreatePostWithKey("/api/purchase-orders", new CreatePurchaseOrderDto
+        {
+            BranchId = branchId,
+            SupplierId = supplierId,
+            DiscountAmount = 3.999998m,
+            Items = new List<CreatePurchaseOrderItemDto>
+            {
+                new() { SkuId = skuIds[0], Quantity = 1m, UnitPrice = 1m },
+                new() { SkuId = skuIds[1], Quantity = 1m, UnitPrice = 1m },
+                new() { SkuId = skuIds[2], Quantity = 1m, UnitPrice = 1m },
+                new() { SkuId = skuIds[3], Quantity = 1m, UnitPrice = 1m }
+            }
+        });
+        var roundingRes = await _client.SendAsync(roundingMsg);
+        roundingRes.StatusCode.Should().Be(HttpStatusCode.Created);
+        var roundingPo = (await roundingRes.Content.ReadFromJsonAsync<PurchaseOrderResponseDto>(_jsonOptions))!;
+
+        var roundingApproveRes = await _client.PostAsJsonAsync($"/api/purchase-orders/{roundingPo.Id}/approve",
+            new ApprovePurchaseOrderRequestDto { Version = roundingPo.Version });
+        roundingApproveRes.StatusCode.Should().Be(HttpStatusCode.UnprocessableEntity, await roundingApproveRes.Content.ReadAsStringAsync());
+        (await ReadProblemAsync(roundingApproveRes)).GetProperty("errorCode").GetString().Should().Be("PURCHASE_ORDER_DISCOUNT_EXCEEDS_SUBTOTAL");
+
+        await using (var ctx = CreatePostgresDbContext(tenantId).Context)
+        {
+            var dbPo = await ctx.PurchaseOrders.Include(p => p.Items).FirstAsync(p => p.Id == roundingPo.Id);
+            dbPo.Status.Should().Be("PendingApproval");
+            dbPo.Items.Should().OnlyContain(i => i.AllocatedUnitCost == null, "transaction duyệt lỗi phải rollback toàn bộ");
+        }
     }
 }
 
