@@ -32,13 +32,17 @@ import { CreateSalesReturnModal } from "../components/salesReturns/CreateSalesRe
 import { purchaseOrderService } from "../services/purchaseOrderService";
 import type { PurchaseOrderResponse } from "../types/purchaseOrder";
 import { goodsReceiptService } from "../services/goodsReceiptService";
-import { readSupplierInvoiceError, receiptInvoicePendingMessage } from "../services/supplierInvoiceService";
 import type { GoodsReceiptResponse } from "../types/goodsReceipt";
-import type { SupplierInvoice } from "../types/supplierInvoice";
-import { PendingSupplierInvoices } from "../components/supplierInvoices/PendingSupplierInvoices";
-import { SupplierInvoiceHistory } from "../components/supplierInvoices/SupplierInvoiceHistory";
 import { GoodsReceiptDetailView } from "../components/GoodsReceiptDetailView";
-import { SupplierInvoicePanel } from "../components/supplierInvoices/SupplierInvoicePanel";
+
+function readReceiptError(error: any, fallback: string): string {
+  return (
+    error?.response?.data?.detail ||
+    error?.response?.data?.message ||
+    error?.message ||
+    fallback
+  );
+}
 
 // [F1] Cấu trúc lưu tạm phiếu nhập nháp đang chờ xác nhận qua các lần đóng/mở form hoặc refresh
 interface PendingReceiptState {
@@ -59,7 +63,7 @@ interface PendingReceiptState {
     orderedQuantity?: number;
     remainingQuantity?: number;
     quantity: number;
-    unitPrice: number;
+    unitPrice: number | null;
   }>;
 }
 
@@ -126,7 +130,6 @@ export function InventoryPage() {
   const { account } = useAuth();
   const currentTenantId = account?.tenantId;
   const isOwner = account?.role === "Owner";
-  const canManageInvoices = isOwner || account?.role === "Staff";
 
   const [tab, setTab] = useState<"balance" | "ledger" | "ai-reorder">("balance");
   const [loading, setLoading] = useState(false);
@@ -192,12 +195,7 @@ export function InventoryPage() {
   // Modals
   const [receiptModal, setReceiptModal] = useState(false);
   const [receiptListOpen, setReceiptListOpen] = useState(false);
-  const [invoiceQueueOpen, setInvoiceQueueOpen] = useState(false);
-  const [invoiceHistoryOpen, setInvoiceHistoryOpen] = useState(false);
   const [savedReceipt, setSavedReceipt] = useState<GoodsReceiptResponse | null>(null);
-  const [invoiceBusy, setInvoiceBusy] = useState(false);
-  const receiptInvoiceStatus = savedReceipt?.invoiceStatus;
-  const invoiceBlocksConfirm = receiptInvoiceStatus === "Draft" || receiptInvoiceStatus === "PendingApproval";
   const [receiptReady, setReceiptReady] = useState(false);
   const [receiptNumber, setReceiptNumber] = useState("");
   const receiptReadSeq = useRef(0);
@@ -273,7 +271,7 @@ export function InventoryPage() {
       orderedQuantity?: number;
       remainingQuantity?: number;
       quantity: number;
-      unitPrice: number;
+      unitPrice: number | null;
     }>
   >([]);
   const [receiptError, setReceiptError] = useState<string | null>(null);
@@ -683,7 +681,7 @@ export function InventoryPage() {
       const po = await purchaseOrderService.getPurchaseOrderById(poId);
       setSelectedPoDetail(po);
       setSelectedBranch(po.branchId);
-      setSelectedSupplier(po.supplierId);
+      setSelectedSupplier(po.supplierId ?? "");
       const branchWhs = warehouses.filter((w) => w.branchId === po.branchId);
       if (!selectedWarehouse || !branchWhs.some((w) => w.id === selectedWarehouse)) {
         setSelectedWarehouse(branchWhs[0]?.id || "");
@@ -701,7 +699,7 @@ export function InventoryPage() {
           orderedQuantity: it.quantity,
           remainingQuantity: it.remainingQuantity,
           quantity: it.remainingQuantity,
-          unitPrice: it.unitPrice, // KHÓA ĐƠN GIÁ THEO ĐƠN MUA
+          unitPrice: it.allocatedUnitCost ?? it.unitPrice ?? null,
         }));
       setReceiptItems(lines);
     } catch (err: any) {
@@ -728,7 +726,7 @@ export function InventoryPage() {
   }, [selectedPoDetail, warehouses, selectedBranch, selectedWarehouse, createdReceiptId]);
 
   const closeReceiptModal = () => {
-    if (isConfirmingReceiptRef.current || invoiceBusy) return;
+    if (isConfirmingReceiptRef.current) return;
     receiptReadSeq.current++;
     setVerifyingPendingReceipt(false);
     setReceiptModal(false);
@@ -743,7 +741,7 @@ export function InventoryPage() {
       unitName: item.unitName,
       factorSnapshot: item.factorSnapshot,
       quantity: item.quantity,
-      unitPrice: item.unitPrice,
+      unitPrice: item.unitPrice ?? null,
     }));
     const isDraft = receipt.status === "Draft";
     setSavedReceipt(receipt);
@@ -776,8 +774,6 @@ export function InventoryPage() {
 
   const openSavedReceipt = async (id: string) => {
     const seq = ++receiptReadSeq.current;
-    setInvoiceQueueOpen(false);
-    setInvoiceHistoryOpen(false);
     setReceiptListOpen(false);
     setReceiptModal(true);
     setConfirmedSuccess(false);
@@ -793,37 +789,10 @@ export function InventoryPage() {
       applyReceiptSnapshot(receipt, true);
     } catch (error) {
       if (seq === receiptReadSeq.current && receiptActorRef.current === receiptActor) {
-        setReceiptError(readSupplierInvoiceError(error, "Không thể tải phiếu nhập.").message);
+        setReceiptError(readReceiptError(error, "Không thể tải phiếu nhập."));
       }
     } finally {
       if (seq === receiptReadSeq.current && receiptActorRef.current === receiptActor) setVerifyingPendingReceipt(false);
-    }
-  };
-
-  const refreshReceiptAfterInvoice = async (updated?: SupplierInvoice) => {
-    if (!savedReceipt || receiptActorRef.current !== receiptActor) return;
-    const seq = receiptReadSeq.current;
-    const id = savedReceipt.id;
-    const isCurrent = () => seq === receiptReadSeq.current && receiptActorRef.current === receiptActor;
-    setReceiptError(null);
-    if (updated) {
-      const active = updated.status !== "Cancelled" && updated.status !== "Rejected";
-      const cancelledReceipt = updated.status === "Rejected" && updated.variance?.varianceType === "AtReceipt"
-        && savedReceipt.status === "Draft";
-      const snapshot: GoodsReceiptResponse = {
-        ...savedReceipt,
-        status: cancelledReceipt ? "Cancelled" : savedReceipt.status,
-        invoiceId: active ? updated.id : null,
-        invoiceStatus: active ? updated.status : null,
-      };
-      if (cancelledReceipt) applyReceiptSnapshot(snapshot);
-      else setSavedReceipt(snapshot);
-    }
-    try {
-      const receipt = await goodsReceiptService.getGoodsReceiptById(id);
-      if (isCurrent()) applyReceiptSnapshot(receipt);
-    } catch (error) {
-      if (isCurrent()) setReceiptError(readSupplierInvoiceError(error, "Không thể tải lại phiếu nhập.").message);
     }
   };
 
@@ -1035,7 +1004,7 @@ export function InventoryPage() {
   };
 
   const handleConfirmReceipt = async () => {
-    if (isConfirmingReceiptRef.current || !createdReceiptId || !receiptReady || invoiceBusy || invoiceBlocksConfirm) return;
+    if (isConfirmingReceiptRef.current || !createdReceiptId || !receiptReady) return;
     const id = createdReceiptId;
     const actor = receiptActor;
     isConfirmingReceiptRef.current = true;
@@ -1050,21 +1019,19 @@ export function InventoryPage() {
           setReceiptError("Chỉ có thể xác nhận phiếu nháp.");
           return;
         }
-        if (receipt.invoiceStatus === "Draft" || receipt.invoiceStatus === "PendingApproval") {
-          setReceiptError(receiptInvoicePendingMessage);
-          return;
-        }
         try {
           receipt = await goodsReceiptService.confirmGoodsReceipt(id);
         } catch (error) {
           if (receiptActorRef.current !== actor) return;
-          const failure = readSupplierInvoiceError(error, "Chưa xác minh được kết quả. Phiếu được giữ lại để kiểm tra và thử xác nhận lại.");
-          // Lost response or competing action: reconcile against the server before offering retry.
+          const failureMsg = readReceiptError(
+            error,
+            "Chưa xác minh được kết quả. Phiếu được giữ lại để kiểm tra và thử xác nhận lại."
+          );
           const after = await goodsReceiptService.getGoodsReceiptById(id).catch(() => null);
           if (receiptActorRef.current !== actor) return;
           if (after) applyReceiptSnapshot(after);
           if (after?.status !== "Confirmed") {
-            setReceiptError(failure.message);
+            setReceiptError(failureMsg);
             return;
           }
           receipt = after;
@@ -1076,7 +1043,7 @@ export function InventoryPage() {
       await Promise.all([loadBalances(), loadLedger()]);
     } catch (error) {
       if (receiptActorRef.current === actor) {
-        setReceiptError(readSupplierInvoiceError(error, "Không thể xác nhận phiếu nhập.").message);
+        setReceiptError(readReceiptError(error, "Không thể xác nhận phiếu nhập."));
       }
     } finally {
       isConfirmingReceiptRef.current = false;
@@ -1297,12 +1264,6 @@ export function InventoryPage() {
             <Button variant="secondary" onClick={() => openReserveModal()}>
               <Lock size={17} />Giữ chỗ theo kho
             </Button>
-            {isOwner && (
-              <Button variant="secondary" onClick={() => setInvoiceQueueOpen(true)}>Chênh lệch chờ duyệt</Button>
-            )}
-            {canManageInvoices && (
-              <Button variant="secondary" onClick={() => setInvoiceHistoryOpen(true)}>Lịch sử hóa đơn NCC</Button>
-            )}
             <Button variant="secondary" onClick={() => setReceiptListOpen(true)}>Phiếu nhập đã lưu</Button>
             <Button onClick={openReceiptModal}>
               <Plus size={17} />Lập phiếu nhập
@@ -2172,21 +2133,6 @@ export function InventoryPage() {
         </Modal>
       )}
 
-      {canManageInvoices && invoiceHistoryOpen && (
-        <SupplierInvoiceHistory
-          suppliers={suppliers}
-          onOpenReceipt={openSavedReceipt}
-          onClose={() => setInvoiceHistoryOpen(false)}
-        />
-      )}
-
-      {isOwner && invoiceQueueOpen && (
-        <PendingSupplierInvoices
-          onOpenReceipt={openSavedReceipt}
-          onClose={() => setInvoiceQueueOpen(false)}
-        />
-      )}
-
       {/* MODAL LẬP PHIẾU NHẬP KHO NHIỀU DÒNG (GOODS RECEIPT DIALOG) */}
       {receiptModal && (
         <Modal
@@ -2216,10 +2162,12 @@ export function InventoryPage() {
               {receiptError && <p role="alert" className="supplier-invoice__error">{receiptError}</p>}
               <p>Đã nhập {totalReceiptQuantity} sản phẩm vào kho lưu trữ.</p>
               <div className="cost-result">
-                <span>
-                  Tổng giá trị phiếu nhập:{" "}
-                  <strong>{totalReceiptAmount.toLocaleString("vi-VN")} ₫</strong>
-                </span>
+                {isOwner && (
+                  <span>
+                    Tổng giá trị phiếu nhập:{" "}
+                    <strong>{totalReceiptAmount.toLocaleString("vi-VN")} ₫</strong>
+                  </span>
+                )}
                 <span>
                   Bút toán: <strong>Đã ghi nhận Append-Only Ledger</strong>
                 </span>
@@ -2539,7 +2487,7 @@ export function InventoryPage() {
                             borderRadius: "8px",
                             padding: "10px",
                             display: "grid",
-                            gridTemplateColumns: "1.8fr 1.1fr 1fr 1.3fr 1.2fr auto",
+                            gridTemplateColumns: isOwner ? "1.8fr 1.1fr 1fr 1.3fr 1.2fr auto" : "2fr 1.2fr 1.2fr 1.4fr auto",
                             gap: "8px",
                             alignItems: "center",
                           }}
@@ -2605,17 +2553,19 @@ export function InventoryPage() {
                             ) : null}
                           </div>
 
-                          <div>
-                            <span style={{ fontSize: "11px", color: "#64748b", display: "block" }}>
-                              Đơn giá mua (Đã chốt)
-                            </span>
-                            <div style={{ fontWeight: 600, fontSize: "12px" }}>
-                              {item.unitPrice.toLocaleString("vi-VN")} ₫
+                          {isOwner && (
+                            <div>
+                              <span style={{ fontSize: "11px", color: "#64748b", display: "block" }}>
+                                Giá vốn đơn vị (Sau phân bổ)
+                              </span>
+                              <div style={{ fontWeight: 600, fontSize: "12px" }}>
+                                {item.unitPrice != null ? `${item.unitPrice.toLocaleString("vi-VN")} ₫` : "—"}
+                              </div>
+                              <div style={{ fontSize: "10px", color: "#059669" }}>
+                                Giá đã chốt trên đơn mua
+                              </div>
                             </div>
-                            <div style={{ fontSize: "10px", color: "#059669" }}>
-                              Giá trên phiếu mua
-                            </div>
-                          </div>
+                          )}
 
                           <Button
                             variant="ghost"
@@ -2647,45 +2597,31 @@ export function InventoryPage() {
                 <span>
                   Tổng số lượng thực nhận: <strong>{totalReceiptQuantity}</strong> (theo đơn vị mua)
                 </span>
-                <span style={{ fontSize: "15px" }}>
-                  Tổng giá trị phiếu nhập:{" "}
-                  <strong style={{ color: "#16a34a" }}>
-                    {totalReceiptAmount.toLocaleString("vi-VN")} ₫
-                  </strong>
-                </span>
+                {isOwner && (
+                  <span style={{ fontSize: "15px" }}>
+                    Tổng giá trị phiếu nhập:{" "}
+                    <strong style={{ color: "#16a34a" }}>
+                      {totalReceiptAmount.toLocaleString("vi-VN")} ₫
+                    </strong>
+                  </span>
+                )}
               </div>
 
               {/* Tác động WAC */}
-              <div className="impact-box" style={{ marginTop: "12px" }}>
-                <strong>Đơn giá dùng khi xác nhận nhập</strong>
-                <p>Giá theo phiếu mua. Các dòng có trên hóa đơn kèm hàng đã được duyệt dùng đơn giá trước thuế của hóa đơn.</p>
-              </div>
+              {isOwner && (
+                <div className="impact-box" style={{ marginTop: "12px" }}>
+                  <strong>Đơn giá dùng khi xác nhận nhập</strong>
+                  <p>Giá nhập tính WAC = Giá vốn đơn vị sau phân bổ trên đơn mua đã duyệt chia hệ số quy đổi.</p>
+                </div>
+              )}
 
             </>
           )}
 
-          {canManageInvoices && savedReceipt && (
-            <SupplierInvoicePanel
-              key={`${receiptActor}:${savedReceipt.id}`}
-              receipt={savedReceipt}
-              actor={receiptActor}
-              isOwner={isOwner}
-              receiptBusy={loading || verifyingPendingReceipt}
-              onBusyChange={setInvoiceBusy}
-              onRefreshReceipt={refreshReceiptAfterInvoice}
-            />
-          )}
-
           {!confirmedSuccess && savedReceipt?.status !== "Cancelled" && (
             <>
-              {createdReceiptId && invoiceBlocksConfirm && (
-                <p id="receipt-invoice-confirm-reason" className="supplier-invoice__notice" style={{ padding: "0 18px" }}>
-                  {receiptInvoiceStatus === "Draft" ? "Hãy gửi đối chiếu hóa đơn NCC trước khi xác nhận nhập kho."
-                    : "Hóa đơn NCC đang chờ Owner duyệt chênh lệch."}
-                </p>
-              )}
               <div className="modal-actions">
-                <Button variant="secondary" disabled={loading || invoiceBusy} onClick={closeReceiptModal}>
+                <Button variant="secondary" disabled={loading} onClick={closeReceiptModal}>
                   Đóng
                 </Button>
                 {createdReceiptId && (
@@ -2693,7 +2629,7 @@ export function InventoryPage() {
                     <Button
                       variant="danger"
                       onClick={handleCancelDraftReceipt}
-                      disabled={loading || verifyingPendingReceipt || invoiceBusy || !savedReceipt}
+                      disabled={loading || verifyingPendingReceipt || !savedReceipt}
                       title="Hủy hoàn toàn phiếu nhập nháp này trên máy chủ OISM"
                     >
                       Hủy phiếu nháp này
@@ -2701,7 +2637,7 @@ export function InventoryPage() {
                     <Button
                       variant="secondary"
                       onClick={handleDiscardPendingReceipt}
-                      disabled={loading || verifyingPendingReceipt || invoiceBusy}
+                      disabled={loading || verifyingPendingReceipt}
                       title="Bỏ theo dõi phiếu này trên giao diện và tạo phiếu mới (phiếu cũ vẫn lưu ở trạng thái Draft trên máy chủ)"
                     >
                       Tạo phiếu khác
@@ -2710,13 +2646,11 @@ export function InventoryPage() {
                 )}
                 <Button
                   onClick={createdReceiptId ? handleConfirmReceipt : handleSaveReceipt}
-                  aria-describedby={invoiceBlocksConfirm ? "receipt-invoice-confirm-reason" : undefined}
                   disabled={
                     loading ||
                     verifyingPendingReceipt ||
-                    invoiceBusy ||
                     (createdReceiptId
-                      ? !receiptReady || invoiceBlocksConfirm
+                      ? !receiptReady
                       : !selectedPurchaseOrderId || receiptItems.length === 0 || loadingModalWhStock || Boolean(modalWhError))
                   }
                 >

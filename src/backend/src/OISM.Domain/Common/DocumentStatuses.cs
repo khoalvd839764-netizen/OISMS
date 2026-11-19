@@ -27,6 +27,7 @@ public static class GoodsReceiptStatus
 public static class PurchaseOrderStatus
 {
     public const string Draft = "Draft";
+    public const string PendingApproval = "PendingApproval";
     public const string Approved = "Approved";
     public const string PartiallyReceived = "PartiallyReceived";
     public const string Received = "Received";

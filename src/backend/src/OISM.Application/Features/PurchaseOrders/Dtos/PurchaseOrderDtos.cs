@@ -5,8 +5,12 @@ namespace OISM.Application.Features.PurchaseOrders.Dtos;
 
 public class CreatePurchaseOrderDto
 {
-    public Guid SupplierId { get; set; }
+    public Guid? SupplierId { get; set; }
     public Guid BranchId { get; set; }
+    public DateOnly? OrderDate { get; set; }
+    public decimal? ShippingFee { get; set; }
+    public decimal? DiscountAmount { get; set; }
+    public decimal? VatAmount { get; set; }
 
     [MaxLength(50)]
     public string? Number { get; set; }
@@ -19,8 +23,13 @@ public class CreatePurchaseOrderDto
 
 public class UpdatePurchaseOrderDraftDto
 {
-    public Guid SupplierId { get; set; }
+    public Guid? SupplierId { get; set; }
     public Guid BranchId { get; set; }
+    public DateOnly? OrderDate { get; set; }
+    public decimal? ShippingFee { get; set; }
+    public decimal? DiscountAmount { get; set; }
+    public decimal? VatAmount { get; set; }
+    public int? Version { get; set; }
 
     [MaxLength(50)]
     public string? Number { get; set; }
@@ -36,12 +45,18 @@ public class CreatePurchaseOrderItemDto
     public Guid SkuId { get; set; }
     public Guid? UnitId { get; set; }
     public decimal Quantity { get; set; }
-    public decimal UnitPrice { get; set; }
+    public decimal? UnitPrice { get; set; }
 }
 
 public class ApprovePurchaseOrderRequestDto
 {
     public bool ConfirmZeroPrice { get; set; }
+    public int? Version { get; set; }
+}
+
+public class ReturnPurchaseOrderRequestDto
+{
+    public string? Reason { get; set; }
 }
 
 public class ClosePurchaseOrderRequestDto
@@ -49,11 +64,39 @@ public class ClosePurchaseOrderRequestDto
     public string? Reason { get; set; }
 }
 
+public class PurchaseOrderPriceSuggestionQueryDto
+{
+    public Guid? SupplierId { get; set; }
+    public Guid BranchId { get; set; }
+    public Guid SkuId { get; set; }
+    public Guid? UnitId { get; set; }
+}
+
+public class PurchaseOrderPriceSuggestionDto
+{
+    public Guid? SupplierId { get; set; }
+    public Guid BranchId { get; set; }
+    public Guid SkuId { get; set; }
+    public Guid? UnitId { get; set; }
+    public string UnitName { get; set; } = string.Empty;
+    public decimal FactorToBase { get; set; } = 1m;
+    public decimal? SuggestedUnitPrice { get; set; }
+    public decimal? LastAllocatedUnitCost { get; set; }
+    public Guid? LastPurchaseOrderId { get; set; }
+    public string? LastPurchaseOrderNumber { get; set; }
+    public DateOnly? LastOrderDate { get; set; }
+    public DateTimeOffset? LastApprovedAt { get; set; }
+    public decimal CurrentBaseWac { get; set; }
+    public decimal CurrentUnitWac { get; set; }
+}
+
 public class PurchaseOrderFilterDto
 {
     public string? Status { get; set; }
     public Guid? SupplierId { get; set; }
     public Guid? BranchId { get; set; }
+    public DateTimeOffset? FromDate { get; set; }
+    public DateTimeOffset? ToDate { get; set; }
     public int Page { get; set; } = 1;
     public int PageIndex { get; set; } = 1;
     public int PageSize { get; set; } = 20;
@@ -64,18 +107,29 @@ public class PurchaseOrderResponseDto
     public Guid Id { get; set; }
     public string Number { get; set; } = string.Empty;
     public Guid RequestKey { get; set; }
-    public Guid SupplierId { get; set; }
-    public string SupplierName { get; set; } = string.Empty;
+    public Guid? SupplierId { get; set; }
+    public string? SupplierName { get; set; }
     public Guid BranchId { get; set; }
     public string BranchName { get; set; } = string.Empty;
+    public DateOnly OrderDate { get; set; }
     public string Status { get; set; } = string.Empty;
     public string? Note { get; set; }
-    public decimal TotalAmount { get; set; }
+    public decimal? Subtotal { get; set; }
+    public decimal? ShippingFee { get; set; }
+    public decimal? DiscountAmount { get; set; }
+    public decimal? VatAmount { get; set; }
+    public decimal? TotalAllocatedCost { get; set; }
+    public decimal? TotalAmount { get; set; }
+    public int Version { get; set; }
     public Guid CreatedBy { get; set; }
     public string? CreatedByName { get; set; }
     public Guid? ApprovedBy { get; set; }
     public string? ApprovedByName { get; set; }
     public DateTimeOffset? ApprovedAt { get; set; }
+    public Guid? ReturnedBy { get; set; }
+    public string? ReturnedByName { get; set; }
+    public DateTimeOffset? ReturnedAt { get; set; }
+    public string? ReturnReason { get; set; }
     public Guid? ClosedBy { get; set; }
     public string? ClosedByName { get; set; }
     public DateTimeOffset? ClosedAt { get; set; }
@@ -102,9 +156,12 @@ public class PurchaseOrderItemResponseDto
     public short QuantityDecimalPlaces { get; set; }
     public decimal Quantity { get; set; }
     public decimal OrderedBaseQuantity { get; set; }
-    public decimal UnitPrice { get; set; }
+    public decimal? UnitPrice { get; set; }
+    public decimal? AllocatedUnitCost { get; set; }
     public decimal ReceivedBaseQuantity { get; set; }
     public decimal RemainingBaseQuantity { get; set; }
+    public decimal ReceivedQuantity { get; set; }
     public decimal RemainingQuantity { get; set; }
-    public decimal LineTotal => Quantity * UnitPrice;
+    public decimal? LineTotal => UnitPrice.HasValue ? Quantity * UnitPrice.Value : null;
+    public decimal? AllocatedLineTotal => AllocatedUnitCost.HasValue ? Quantity * AllocatedUnitCost.Value : null;
 }

@@ -291,6 +291,7 @@ Khi container khởi động lại hoặc khi volume `postgres_data` đã tồn 
    | `20261103_stock_count_schedules.sql` | Upgrade 03: `stock_count_schedules`, `stock_count_periods`, `stock_count_approvals` |
    | `20261112_supplier_invoices.sql` | Upgrade 01-B: `supplier_invoices`, `supplier_invoice_items`, `purchase_variances` |
    | `20261114_user_branches.sql` | CS-02: `user_branches` (phân công chi nhánh cho nhân viên) |
+   | `20261119_purchase_order_pending_approval.sql` | Upgrade 12 (Gói 1): trạng thái `PendingApproval`, nullable + CHECK `supplier_id`/`unit_price`, `order_date`, phí/CK/VAT, trả về, `allocated_unit_cost`, `version`, thu hồi quyền ghi trên bảng hóa đơn NCC |
 
    Các file được viết để chạy lại an toàn; mỗi khối nằm trong transaction.
 3. **Thực thi script bằng tài khoản quản trị `postgres`:**
@@ -1667,5 +1668,18 @@ Bảng gán nhân viên vào một hoặc nhiều chi nhánh (CS-02). Quyền ru
 - `stock_transfers.dispatched_by uuid NULL` → `users(tenant_id, id)`
 - `oisms_protect_order`: Chặn đổi `confirmed_by` sau khi đơn đã xác nhận.
 - `oisms_protect_order_item`: Chặn đổi `sku_code_snapshot`, `sku_name_snapshot` trên đơn đã xác nhận.
+
+### Cột Upgrade 12 (Gói 1) trên `purchase_orders`, `purchase_order_items` & phân quyền `supplier_invoices`
+- `purchase_orders`:
+  - `supplier_id uuid NULL` ở `Draft`/`PendingApproval`/`Cancelled`; CHECK `ck_purchase_orders_supplier_required` bắt buộc `supplier_id IS NOT NULL` khi từ `Approved` trở đi.
+  - `status`: mở rộng `ck_purchase_orders_status` gồm `'Draft'`, `'PendingApproval'`, `'Approved'`, `'PartiallyReceived'`, `'Received'`, `'Closed'`, `'Cancelled'`.
+  - `order_date date NOT NULL DEFAULT CURRENT_DATE`.
+  - `shipping_fee numeric(20,6) NOT NULL DEFAULT 0`, `discount_amount numeric(20,6) NOT NULL DEFAULT 0`, `vat_amount numeric(20,6) NOT NULL DEFAULT 0` (CHECK `ck_purchase_orders_fees_nonnegative >= 0`).
+  - `returned_by uuid NULL`, `returned_at timestamptz NULL`, `return_reason varchar(500) NULL` (FK `fk_purchase_orders_returned_by`, CHECK `ck_purchase_orders_returned`).
+  - `version integer NOT NULL DEFAULT 1` (CHECK `ck_purchase_orders_version_positive >= 1`).
+- `purchase_order_items`:
+  - `unit_price numeric(20,6) NULL` ở `Draft`/`PendingApproval`; trigger `oisms_purchase_order_guard` bắt buộc mọi dòng có `unit_price` và `allocated_unit_cost` khác NULL khi duyệt sang `Approved`.
+  - `allocated_unit_cost numeric(20,6) NULL` (CHECK `ck_purchase_order_items_allocated_unit_cost >= 0`).
+- `supplier_invoices`, `supplier_invoice_items`, `purchase_variances`: giữ nguyên 3 bảng (đủ 48 bảng), thu hồi quyền `INSERT, UPDATE, DELETE, TRUNCATE` khỏi `oisms_runtime` / `oisms_app`, chỉ giữ quyền `SELECT` để đọc lịch sử.
 
 <!-- DATABASE_DICTIONARY_END -->

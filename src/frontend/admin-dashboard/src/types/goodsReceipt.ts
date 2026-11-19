@@ -1,4 +1,4 @@
-import type { SupplierInvoiceStatus } from "./supplierInvoice";
+export type GoodsReceiptStatus = 'Draft' | 'Confirmed' | 'Cancelled';
 
 export interface CreateGoodsReceiptItemDto {
   purchaseOrderItemId: string;
@@ -24,8 +24,8 @@ export interface GoodsReceiptItemResponse {
   factorSnapshot: number;
   baseQuantity: number;
   quantity: number;
-  unitPrice: number;
-  lineTotal: number;
+  unitPrice: number | null;
+  lineTotal: number | null;
 }
 
 export interface GoodsReceiptResponse {
@@ -34,16 +34,16 @@ export interface GoodsReceiptResponse {
   purchaseOrderId?: string | null;
   purchaseOrderNumber?: string | null;
   invoiceId?: string | null;
-  invoiceStatus?: SupplierInvoiceStatus | null;
+  invoiceStatus?: string | null;
   branchId: string;
   branchName: string;
   warehouseId: string;
   warehouseName: string;
   supplierId: string;
   supplierName: string;
-  status: 'Draft' | 'Confirmed' | 'Cancelled';
+  status: GoodsReceiptStatus;
   note?: string | null;
-  totalAmount: number;
+  totalAmount: number | null;
   createdBy: string;
   createdByName?: string | null;
   confirmedAt?: string | null;

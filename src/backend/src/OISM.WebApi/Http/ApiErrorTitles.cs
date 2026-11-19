@@ -35,16 +35,17 @@ internal static class ApiErrorTitles
 
     private static string GoodsReceipts(string code) => code switch
     {
-        "SUPPLIER_INVOICE_DUPLICATE" => "Trùng ký hiệu và số hóa đơn nhà cung cấp",
-        "SUPPLIER_INVOICE_INVALID_STATE" => "Trạng thái hóa đơn không hợp lệ",
-        "SUPPLIER_INVOICE_RECEIPT_MISMATCH" => "Hóa đơn không khớp phiếu nhập",
-        "SUPPLIER_INVOICE_ALREADY_EXISTS" => "Phiếu nhập đã có hóa đơn còn hiệu lực",
-        "GOODS_RECEIPT_INVOICE_PENDING" => "Hóa đơn phiếu nhập chưa sẵn sàng",
         "PURCHASE_ORDER_REQUIRED" => "Yêu cầu phiếu mua hàng",
         "PURCHASE_ORDER_NOT_RECEIVABLE" => "Phiếu mua không ở trạng thái nhận hàng",
         "PURCHASE_ORDER_OVER_RECEIPT" => "Vượt số lượng đặt mua",
         "PURCHASE_ORDER_ITEM_MISMATCH" => "Dòng hàng không khớp phiếu mua",
         "PURCHASE_ORDER_ZERO_PRICE_CONFIRM_REQUIRED" => "Yêu cầu xác nhận đơn giá 0",
+        "PURCHASE_ORDER_INCOMPLETE_FOR_APPROVAL" => "Đơn mua chưa đủ thông tin để duyệt",
+        "PURCHASE_ORDER_DISCOUNT_EXCEEDS_SUBTOTAL" => "Chiết khấu vượt tổng tiền hàng",
+        "PURCHASE_ORDER_RETURN_REASON_REQUIRED" => "Bắt buộc nhập lý do trả về",
+        "PURCHASE_ORDER_VERSION_MISMATCH" => "Xung đột phiên bản đơn mua",
+        "CONCURRENCY_CONFLICT" => "Xung đột dữ liệu đồng thời",
+        "FORBIDDEN_ACCESS" => "Không có quyền truy cập",
         "UNIT_NOT_ALLOWED" => "Đơn vị tính không hợp lệ",
         "INVALID_UNIT_QUANTITY" => "Số lượng đơn vị không hợp lệ",
         "IDEMPOTENCY_PAYLOAD_MISMATCH" => "Xung đột khóa Idempotency",

@@ -1,38 +1,42 @@
 import React, { useState } from 'react';
-import { Badge, Button, Modal } from '../ui';
+import { Badge, Button, Input, Modal } from '../ui';
 import { purchaseOrderService } from '../../services/purchaseOrderService';
 import type { PurchaseOrderResponse, PurchaseOrderStatus } from '../../types/purchaseOrder';
 import { ClosePurchaseOrderModal } from './ClosePurchaseOrderModal';
-import { PurchaseOrderInvoices } from '../supplierInvoices/PurchaseOrderInvoices';
 
 interface PurchaseOrderDetailModalProps {
   po: PurchaseOrderResponse;
   userRole?: string;
+  currentUserId?: string;
   onClose: () => void;
   onRefresh: () => void;
   onEdit: (po: PurchaseOrderResponse) => void;
   onCreateReceipt: (po: PurchaseOrderResponse) => void;
-  onOpenReceipt?: (receiptId: string) => void;
 }
 
 export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> = ({
   po,
   userRole,
+  currentUserId,
   onClose,
   onRefresh,
   onEdit,
   onCreateReceipt,
-  onOpenReceipt,
 }) => {
   const isOwner = userRole === 'Owner';
+  const isCreator = !currentUserId || po.createdBy === currentUserId;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCloseModal, setShowCloseModal] = useState(false);
+  const [showReturnBox, setShowReturnBox] = useState(false);
+  const [returnReason, setReturnReason] = useState('');
 
   const getStatusBadge = (status: PurchaseOrderStatus) => {
     switch (status) {
       case 'Draft':
-        return <Badge tone="warning">Bản nháp (Draft)</Badge>;
+        return <Badge tone="warning">Đề nghị mua (Draft)</Badge>;
+      case 'PendingApproval':
+        return <Badge tone="warning">Chờ duyệt giá (PendingApproval)</Badge>;
       case 'Approved':
         return <Badge tone="info">Đã duyệt (Approved)</Badge>;
       case 'PartiallyReceived':
@@ -48,7 +52,54 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
     }
   };
 
+  const handleSubmitOrder = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await purchaseOrderService.submitPurchaseOrder(po.id);
+      onRefresh();
+    } catch (err: any) {
+      setError(
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        'Không thể gửi đơn đề nghị mua.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReturnOrder = async () => {
+    if (!returnReason.trim()) {
+      setError('Bắt buộc nhập lý do trả về đơn mua cho nhân viên.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      await purchaseOrderService.returnPurchaseOrder(po.id, returnReason.trim());
+      onRefresh();
+    } catch (err: any) {
+      setError(
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        'Không thể trả về đơn mua hàng.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleApprove = async () => {
+    if (!po.supplierId) {
+      setError('Đơn mua chưa chọn nhà cung cấp. Vui lòng bấm "Cập nhật giá & NCC" trước khi duyệt.');
+      return;
+    }
+    if (po.items.some((i) => i.unitPrice === null || i.unitPrice === undefined)) {
+      setError('Còn mặt hàng chưa nhập đơn giá mua. Vui lòng cập nhật đầy đủ đơn giá trước khi duyệt.');
+      return;
+    }
+
     const hasZeroPrice = po.items.some((i) => Number(i.unitPrice) === 0);
     let confirmZero = false;
     if (hasZeroPrice) {
@@ -62,7 +113,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
     setLoading(true);
     setError(null);
     try {
-      await purchaseOrderService.approvePurchaseOrder(po.id, confirmZero);
+      await purchaseOrderService.approvePurchaseOrder(po.id, confirmZero, po.version);
       onRefresh();
     } catch (err: any) {
       setError(
@@ -102,7 +153,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
 
   return (
     <>
-      <Modal title={`Chi tiết đơn mua hàng: ${po.number}`} onClose={onClose}>
+      <Modal wide title={`Chi tiết đơn mua hàng: ${po.number} (v${po.version})`} onClose={onClose}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {error && (
             <div
@@ -116,6 +167,27 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
               }}
             >
               {error}
+            </div>
+          )}
+
+          {po.returnReason && (
+            <div
+              style={{
+                padding: 12,
+                borderRadius: 6,
+                background: '#fef3c7',
+                border: '1px solid #f59e0b',
+                color: '#92400e',
+                fontSize: 13,
+              }}
+            >
+              <strong>Lý do trả về gần nhất:</strong> {po.returnReason}
+              {po.returnedByName && (
+                <span>
+                  {' '}
+                  — Bởi {po.returnedByName} ({po.returnedAt ? new Date(po.returnedAt).toLocaleString('vi-VN') : ''})
+                </span>
+              )}
             </div>
           )}
 
@@ -137,11 +209,26 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
             </div>
             <div>
               <span style={{ color: 'var(--text-muted, #64748b)' }}>Nhà cung cấp: </span>
-              <strong>{po.supplierName}</strong>
+              <div>
+                <strong>{po.supplierName || 'Chưa chọn / Ẩn với nhân viên'}</strong>
+              </div>
             </div>
             <div>
               <span style={{ color: 'var(--text-muted, #64748b)' }}>Chi nhánh: </span>
-              <strong>{po.branchName}</strong>
+              <div>
+                <strong>{po.branchName}</strong>
+              </div>
+            </div>
+
+            <div>
+              <span style={{ color: 'var(--text-muted, #64748b)' }}>Ngày đặt hàng: </span>
+              <div>
+                <strong>
+                  {po.orderDate
+                    ? new Date(po.orderDate).toLocaleDateString('vi-VN')
+                    : new Date(po.createdAt).toLocaleDateString('vi-VN')}
+                </strong>
+              </div>
             </div>
 
             <div>
@@ -191,8 +278,9 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                     <th>Mặt hàng</th>
                     <th>Đơn vị</th>
                     <th>Số lượng đặt</th>
-                    <th>Đơn giá mua</th>
-                    <th>Thành tiền</th>
+                    {isOwner && <th>Đơn giá mua</th>}
+                    {isOwner && <th>Giá vốn sau phân bổ</th>}
+                    {isOwner && <th>Thành tiền</th>}
                     <th>Đã nhận (gốc)</th>
                     <th>Còn lại (đơn vị mua)</th>
                   </tr>
@@ -215,8 +303,25 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                         )}
                       </td>
                       <td>{it.quantity}</td>
-                      <td>{it.unitPrice.toLocaleString('vi-VN')} ₫</td>
-                      <td><strong>{it.lineTotal.toLocaleString('vi-VN')} ₫</strong></td>
+                      {isOwner && (
+                        <td>
+                          {it.unitPrice != null ? `${it.unitPrice.toLocaleString('vi-VN')} ₫` : 'Chưa nhập'}
+                        </td>
+                      )}
+                      {isOwner && (
+                        <td>
+                          {it.allocatedUnitCost != null
+                            ? `${it.allocatedUnitCost.toLocaleString('vi-VN')} ₫`
+                            : '—'}
+                        </td>
+                      )}
+                      {isOwner && (
+                        <td>
+                          <strong>
+                            {it.lineTotal != null ? `${it.lineTotal.toLocaleString('vi-VN')} ₫` : '—'}
+                          </strong>
+                        </td>
+                      )}
                       <td>
                         {it.receivedBaseQuantity} / {it.orderedBaseQuantity}
                       </td>
@@ -239,8 +344,11 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
               style={{
                 display: 'flex',
                 justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 12,
                 marginTop: 8,
-                padding: '8px 12px',
+                padding: '10px 14px',
                 background: 'var(--surface-subtle, #f8fafc)',
                 borderRadius: 6,
                 fontSize: 13,
@@ -249,53 +357,105 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
               <div>
                 Tiến độ nhận hàng: <strong>{totalReceivedBase}</strong> / {totalOrderedBase} (đơn vị gốc)
               </div>
-              <div>
-                Tổng giá trị đơn mua: <strong style={{ fontSize: 15, color: '#0284c7' }}>
-                  {po.totalAmount.toLocaleString('vi-VN')} ₫
-                </strong>
-              </div>
+              {isOwner && (
+                <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <span>
+                    Tiền hàng: <strong>{(po.subtotal ?? 0).toLocaleString('vi-VN')} ₫</strong>
+                  </span>
+                  <span>
+                    Phí VC: <strong>+{(po.shippingFee ?? 0).toLocaleString('vi-VN')} ₫</strong>
+                  </span>
+                  <span>
+                    Chiết khấu: <strong>−{(po.discountAmount ?? 0).toLocaleString('vi-VN')} ₫</strong>
+                  </span>
+                  <span>
+                    Giá vốn phân bổ: <strong>{(po.totalAllocatedCost ?? 0).toLocaleString('vi-VN')} ₫</strong>
+                  </span>
+                  <span>
+                    VAT: <strong>+{(po.vatAmount ?? 0).toLocaleString('vi-VN')} ₫</strong>
+                  </span>
+                  <span>
+                    Tổng thanh toán:{' '}
+                    <strong style={{ fontSize: 15, color: '#0284c7' }}>
+                      {(po.totalAmount ?? 0).toLocaleString('vi-VN')} ₫
+                    </strong>
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Phiếu nhập và hóa đơn NCC của đơn mua (đối chiếu ba bên) */}
-          {po.status !== 'Draft' && onOpenReceipt && (
-            <PurchaseOrderInvoices purchaseOrderId={po.id} onOpenReceipt={onOpenReceipt} />
+          {showReturnBox && isOwner && po.status === 'PendingApproval' && (
+            <div
+              style={{
+                padding: 12,
+                background: '#fffbeb',
+                border: '1px solid #f59e0b',
+                borderRadius: 8,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}
+            >
+              <label style={{ fontWeight: 600, fontSize: 13 }}>
+                Lý do trả về đơn mua về trạng thái Draft cho nhân viên sửa *
+              </label>
+              <Input
+                value={returnReason}
+                onChange={(e) => setReturnReason(e.target.value)}
+                placeholder="Nhập lý do trả về (tối đa 500 ký tự)..."
+                maxLength={500}
+                disabled={loading}
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <Button variant="secondary" onClick={() => setShowReturnBox(false)} disabled={loading}>
+                  Đóng
+                </Button>
+                <Button variant="primary" onClick={handleReturnOrder} disabled={loading || !returnReason.trim()}>
+                  {loading ? 'Đang trả về...' : 'Xác nhận trả về'}
+                </Button>
+              </div>
+            </div>
           )}
 
           {/* Actions */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
             <Button variant="secondary" onClick={onClose} disabled={loading}>
               Đóng
             </Button>
 
-            {/* Các hành động theo trạng thái */}
-            {po.status === 'Draft' && (
+            {po.status === 'Draft' && (isOwner || isCreator) && (
               <>
+                <Button variant="secondary" onClick={() => onEdit(po)} disabled={loading}>
+                  Sửa đề nghị nháp
+                </Button>
+                <Button variant="danger" onClick={handleCancel} disabled={loading}>
+                  Hủy đơn
+                </Button>
+                <Button variant="primary" onClick={handleSubmitOrder} disabled={loading}>
+                  {loading ? 'Đang gửi...' : 'Gửi duyệt'}
+                </Button>
+              </>
+            )}
+
+            {po.status === 'PendingApproval' && isOwner && (
+              <>
+                <Button variant="secondary" onClick={() => onEdit(po)} disabled={loading}>
+                  Lưu / Sửa NCC & Giá
+                </Button>
                 <Button
                   variant="secondary"
-                  onClick={() => onEdit(po)}
+                  onClick={() => setShowReturnBox((open) => !open)}
                   disabled={loading}
                 >
-                  Sửa bản nháp
+                  Trả về Draft
                 </Button>
-                {isOwner && (
-                  <>
-                    <Button
-                      variant="danger"
-                      onClick={handleCancel}
-                      disabled={loading}
-                    >
-                      Hủy đơn
-                    </Button>
-                    <Button
-                      variant="primary"
-                      onClick={handleApprove}
-                      disabled={loading}
-                    >
-                      {loading ? 'Đang duyệt...' : 'Duyệt đơn mua'}
-                    </Button>
-                  </>
-                )}
+                <Button variant="danger" onClick={handleCancel} disabled={loading}>
+                  Hủy đơn
+                </Button>
+                <Button variant="primary" onClick={handleApprove} disabled={loading}>
+                  {loading ? 'Đang duyệt...' : 'Duyệt đơn mua'}
+                </Button>
               </>
             )}
 

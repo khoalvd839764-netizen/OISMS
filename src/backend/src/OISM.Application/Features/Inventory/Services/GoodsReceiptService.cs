@@ -12,11 +12,11 @@ namespace OISM.Application.Features.Inventory.Services;
 
 public interface IGoodsReceiptService
 {
-    Task<GoodsReceiptResponseDto> CreateReceiptAsync(CreateGoodsReceiptDto dto, Guid userId, CancellationToken ct = default);
-    Task<PagedResult<GoodsReceiptResponseDto>> GetReceiptsAsync(GoodsReceiptFilterDto filter, CancellationToken ct = default);
-    Task<GoodsReceiptResponseDto?> GetReceiptByIdAsync(Guid id, CancellationToken ct = default);
-    Task<GoodsReceiptResponseDto> ConfirmReceiptAsync(Guid id, Guid userId, CancellationToken ct = default);
-    Task<GoodsReceiptResponseDto> CancelReceiptAsync(Guid id, Guid userId, CancellationToken ct = default);
+    Task<GoodsReceiptResponseDto> CreateReceiptAsync(CreateGoodsReceiptDto dto, Guid userId, CancellationToken ct = default, bool isOwner = true);
+    Task<PagedResult<GoodsReceiptResponseDto>> GetReceiptsAsync(GoodsReceiptFilterDto filter, CancellationToken ct = default, bool isOwner = true);
+    Task<GoodsReceiptResponseDto?> GetReceiptByIdAsync(Guid id, CancellationToken ct = default, bool isOwner = true);
+    Task<GoodsReceiptResponseDto> ConfirmReceiptAsync(Guid id, Guid userId, CancellationToken ct = default, bool isOwner = true);
+    Task<GoodsReceiptResponseDto> CancelReceiptAsync(Guid id, Guid userId, CancellationToken ct = default, bool isOwner = true);
 }
 
 public class GoodsReceiptService : IGoodsReceiptService
@@ -51,7 +51,7 @@ public class GoodsReceiptService : IGoodsReceiptService
         return tenantId.Value;
     }
 
-    public async Task<GoodsReceiptResponseDto> CreateReceiptAsync(CreateGoodsReceiptDto dto, Guid userId, CancellationToken ct = default)
+    public async Task<GoodsReceiptResponseDto> CreateReceiptAsync(CreateGoodsReceiptDto dto, Guid userId, CancellationToken ct = default, bool isOwner = true)
     {
         var tenantId = RequireTenantId();
 
@@ -77,7 +77,7 @@ public class GoodsReceiptService : IGoodsReceiptService
             throw new KeyNotFoundException($"Không tìm thấy Phiếu mua hàng với ID '{dto.PurchaseOrderId}'.");
         }
 
-        if (!po.CanReceive)
+        if (!po.CanReceive || !po.SupplierId.HasValue)
         {
             throw new PurchaseOrderNotReceivableException(
                 $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', chỉ cho phép lập phiếu nhập khi ở 'Approved' hoặc 'PartiallyReceived'.");
@@ -137,7 +137,7 @@ public class GoodsReceiptService : IGoodsReceiptService
             PurchaseOrderId = po.Id,
             BranchId = po.BranchId,
             WarehouseId = dto.WarehouseId,
-            SupplierId = po.SupplierId,
+            SupplierId = po.SupplierId.Value,
             Status = GoodsReceiptStatus.Draft,
             Note = dto.Note,
             CreatedBy = userId,
@@ -173,6 +173,8 @@ public class GoodsReceiptService : IGoodsReceiptService
                     $"Số lượng quy đổi {baseQuantity:G29} vượt lượng còn được nhận ({remainingBase:G29}) của dòng phiếu mua.");
             }
 
+            var effectiveUnitCost = poItem.AllocatedUnitCost ?? poItem.UnitPrice ?? 0m;
+
             receipt.Items.Add(new GoodsReceiptItem
             {
                 TenantId = tenantId,
@@ -182,7 +184,7 @@ public class GoodsReceiptService : IGoodsReceiptService
                 UnitNameSnapshot = poItem.UnitNameSnapshot,
                 FactorSnapshot = poItem.FactorSnapshot,
                 Quantity = itemDto.Quantity,
-                UnitPrice = poItem.UnitPrice,
+                UnitPrice = effectiveUnitCost,
                 CreatedAt = now
             });
         }
@@ -197,13 +199,13 @@ public class GoodsReceiptService : IGoodsReceiptService
             throw DuplicateReceiptNumber(number);
         }
 
-        return await MapToResponseDtoAsync(receipt.Id, ct);
+        return await MapToResponseDtoAsync(receipt.Id, isOwner, ct);
     }
 
     private static OismException DuplicateReceiptNumber(string number) =>
         new("VALIDATION_ERROR", $"Mã phiếu nhập '{number}' đã tồn tại trong gian hàng.", 409);
 
-    public async Task<PagedResult<GoodsReceiptResponseDto>> GetReceiptsAsync(GoodsReceiptFilterDto filter, CancellationToken ct = default)
+    public async Task<PagedResult<GoodsReceiptResponseDto>> GetReceiptsAsync(GoodsReceiptFilterDto filter, CancellationToken ct = default, bool isOwner = true)
     {
         RequireTenantId();
 
@@ -251,11 +253,7 @@ public class GoodsReceiptService : IGoodsReceiptService
             .Take(pageSize)
             .ToListAsync(ct);
 
-        var receiptIds = receipts.Select(r => r.Id).ToList();
-        var invoices = await ActiveInvoices().AsNoTracking()
-            .Where(i => receiptIds.Contains(i.GoodsReceiptId))
-            .ToDictionaryAsync(i => i.GoodsReceiptId, ct);
-        var items = receipts.Select(r => MapReceiptToDto(r, invoices.GetValueOrDefault(r.Id))).ToList();
+        var items = receipts.Select(r => MapReceiptToDto(r, isOwner)).ToList();
 
         return new PagedResult<GoodsReceiptResponseDto>
         {
@@ -266,13 +264,13 @@ public class GoodsReceiptService : IGoodsReceiptService
         };
     }
 
-    public async Task<GoodsReceiptResponseDto?> GetReceiptByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<GoodsReceiptResponseDto?> GetReceiptByIdAsync(Guid id, CancellationToken ct = default, bool isOwner = true)
     {
         RequireTenantId();
-        return await MapToResponseDtoAsync(id, ct);
+        return await MapToResponseDtoAsync(id, isOwner, ct);
     }
 
-    public async Task<GoodsReceiptResponseDto> ConfirmReceiptAsync(Guid id, Guid userId, CancellationToken ct = default)
+    public async Task<GoodsReceiptResponseDto> ConfirmReceiptAsync(Guid id, Guid userId, CancellationToken ct = default, bool isOwner = true)
     {
         var tenantId = RequireTenantId();
 
@@ -313,22 +311,6 @@ public class GoodsReceiptService : IGoodsReceiptService
                     throw new InvalidOperationException("Phiếu nhập không có dòng hàng nào để xác nhận.");
                 }
 
-                // Khóa hóa đơn sau phiếu nhập, trước phiếu mua và SKU.
-                var invoiceId = await ActiveInvoices().Where(i => i.GoodsReceiptId == id)
-                    .Select(i => (Guid?)i.Id).SingleOrDefaultAsync(ct);
-                SupplierInvoice? invoice = null;
-                if (invoiceId is { } activeInvoiceId)
-                {
-                    await _sqlLockService.LockSupplierInvoiceAsync(tenantId, activeInvoiceId, ct);
-                    invoice = await ActiveInvoices().AsNoTracking().Include(i => i.Items)
-                        .SingleOrDefaultAsync(i => i.GoodsReceiptId == id && i.Id == activeInvoiceId, ct);
-                    if (invoice?.Status is SupplierInvoiceStatus.Draft or SupplierInvoiceStatus.PendingApproval)
-                    {
-                        throw new OismException("GOODS_RECEIPT_INVOICE_PENDING",
-                            "Hóa đơn cần được gửi đối chiếu hoặc duyệt trước khi xác nhận phiếu nhập.", 409);
-                    }
-                }
-
                 // 3. PurchaseOrderId hoặc bất kỳ PurchaseOrderItemId nào trống thì trả PURCHASE_ORDER_REQUIRED
                 if (!receipt.PurchaseOrderId.HasValue || receipt.PurchaseOrderId.Value == Guid.Empty ||
                     receipt.Items.Any(i => !i.PurchaseOrderItemId.HasValue || i.PurchaseOrderItemId.Value == Guid.Empty))
@@ -338,7 +320,7 @@ public class GoodsReceiptService : IGoodsReceiptService
 
                 var poId = receipt.PurchaseOrderId.Value;
 
-                // 4. LockPurchaseOrderAsync (đúng thứ tự: phiếu nhập -> hóa đơn -> phiếu mua -> SKU)
+                // 4. LockPurchaseOrderAsync (đúng thứ tự: phiếu nhập -> phiếu mua -> SKU)
                 await _sqlLockService.LockPurchaseOrderAsync(tenantId, poId, ct);
 
                 // 5. Tải phiếu mua và các dòng SAU KHÓA
@@ -373,11 +355,12 @@ public class GoodsReceiptService : IGoodsReceiptService
                         throw new PurchaseOrderItemMismatchException($"Dòng nhập không khớp với dòng phiếu mua '{poItemId}'.");
                     }
 
+                    var expectedUnitCost = poItem.AllocatedUnitCost ?? poItem.UnitPrice ?? 0m;
                     if (poItem.SkuId != item.SkuId ||
                         poItem.UnitId != item.UnitId ||
                         poItem.UnitNameSnapshot != item.UnitNameSnapshot ||
                         poItem.FactorSnapshot != item.FactorSnapshot ||
-                        poItem.UnitPrice != item.UnitPrice)
+                        (expectedUnitCost != item.UnitPrice && poItem.UnitPrice != item.UnitPrice))
                     {
                         throw new PurchaseOrderItemMismatchException("Thông tin SKU, đơn vị, hệ số quy đổi hoặc đơn giá của dòng nhập không khớp với dòng phiếu mua.");
                     }
@@ -399,21 +382,7 @@ public class GoodsReceiptService : IGoodsReceiptService
 
                 await _sqlLockService.LockSkuStockAsync(tenantId, receipt.BranchId, skuIds, ct);
 
-                if (invoice?.Status == SupplierInvoiceStatus.Approved)
-                {
-                    var approvedPrices = invoice.Items.ToDictionary(i => i.GoodsReceiptItemId, i => i.UnitPrice);
-                    foreach (var item in sortedItems)
-                    {
-                        if (approvedPrices.TryGetValue(item.Id, out var approvedPrice))
-                            item.UnitPrice = approvedPrice;
-                    }
-
-                    // Trigger bảo vệ dòng phiếu nhập đã xác nhận. Lưu giá khi phiếu còn Draft,
-                    // cùng transaction với xác nhận, cập nhật tồn và ghi sổ.
-                    await _context.SaveChangesAsync(ct);
-                }
-
-                // 8. Tải tồn kho hiện tại cấp Chi nhánh và cấp Kho, cộng tồn, tính WAC, ghi sổ kho
+                // 8. Tải tồn kho hiện tại cấp Chi nhánh và cấp Kho, cộng tồn, tính WAC theo allocated_unit_cost / FactorSnapshot, ghi sổ kho
                 var branchBalances = await _context.InventoryBalances
                     .Where(b => b.BranchId == receipt.BranchId && skuIds.Contains(b.SkuId))
                     .ToDictionaryAsync(b => b.SkuId, ct);
@@ -460,10 +429,13 @@ public class GoodsReceiptService : IGoodsReceiptService
                         warehouseBalances[item.SkuId] = warehouseBalance;
                     }
 
+                    var poItem = poItemsById[item.PurchaseOrderItemId!.Value];
+                    var effectiveAllocatedUnitCost = poItem.AllocatedUnitCost ?? poItem.UnitPrice ?? item.UnitPrice;
+
                     var oldOnHand = branchBalance.OnHand;
                     var oldWac = branchBalance.AverageCost;
                     var baseQuantity = item.BaseQuantity;
-                    var baseUnitCost = item.UnitPrice / item.FactorSnapshot;
+                    var baseUnitCost = effectiveAllocatedUnitCost / item.FactorSnapshot;
                     var newWac = _wacCalculator.CalculateWac(oldOnHand, oldWac, baseQuantity, baseUnitCost);
 
                     var newSequence = branchBalance.LastSequence + 1;
@@ -495,7 +467,6 @@ public class GoodsReceiptService : IGoodsReceiptService
                     _context.InventoryTransactions.Add(ledgerEntry);
 
                     // 9. Cộng lượng đã nhận trên dòng phiếu mua
-                    var poItem = poItemsById[item.PurchaseOrderItemId!.Value];
                     poItem.ReceivedBaseQuantity += baseQuantity;
                     poItem.UpdatedAt = now;
                 }
@@ -527,7 +498,7 @@ public class GoodsReceiptService : IGoodsReceiptService
                     }
                 }
 
-                return await MapToResponseDtoAsync(receipt.Id, ct);
+                return await MapToResponseDtoAsync(receipt.Id, isOwner, ct);
             }
             catch (DbUpdateException dbEx) when (_context.DatabaseErrors.IsCheckViolation(dbEx, "ck_purchase_order_items_received_range"))
             {
@@ -569,7 +540,7 @@ public class GoodsReceiptService : IGoodsReceiptService
         return result;
     }
 
-    public async Task<GoodsReceiptResponseDto> CancelReceiptAsync(Guid id, Guid userId, CancellationToken ct = default)
+    public async Task<GoodsReceiptResponseDto> CancelReceiptAsync(Guid id, Guid userId, CancellationToken ct = default, bool isOwner = true)
     {
         var tenantId = RequireTenantId();
 
@@ -580,7 +551,6 @@ public class GoodsReceiptService : IGoodsReceiptService
 
             try
             {
-                // Cùng khóa phiếu nhập với xác nhận
                 await _sqlLockService.LockGoodsReceiptAsync(tenantId, id, ct);
 
                 var receipt = await _context.GoodsReceipts
@@ -602,7 +572,7 @@ public class GoodsReceiptService : IGoodsReceiptService
                 await _context.SaveChangesAsync(ct);
                 await transaction.CommitAsync(ct);
 
-                return await MapToResponseDtoAsync(receipt.Id, ct);
+                return await MapToResponseDtoAsync(receipt.Id, isOwner, ct);
             }
             catch
             {
@@ -612,7 +582,7 @@ public class GoodsReceiptService : IGoodsReceiptService
         });
     }
 
-    private async Task<GoodsReceiptResponseDto> MapToResponseDtoAsync(Guid id, CancellationToken ct)
+    private async Task<GoodsReceiptResponseDto> MapToResponseDtoAsync(Guid id, bool isOwner, CancellationToken ct)
     {
         var receipt = await _context.GoodsReceipts
             .Include(r => r.PurchaseOrder)
@@ -632,16 +602,10 @@ public class GoodsReceiptService : IGoodsReceiptService
             throw new KeyNotFoundException($"Không tìm thấy Phiếu nhập kho với ID '{id}'.");
         }
 
-        var invoice = await ActiveInvoices().AsNoTracking()
-            .SingleOrDefaultAsync(i => i.GoodsReceiptId == id, ct);
-        return MapReceiptToDto(receipt, invoice);
+        return MapReceiptToDto(receipt, isOwner);
     }
 
-    private IQueryable<SupplierInvoice> ActiveInvoices() =>
-        _context.SupplierInvoices.Where(i =>
-            i.Status != SupplierInvoiceStatus.Cancelled && i.Status != SupplierInvoiceStatus.Rejected);
-
-    private static GoodsReceiptResponseDto MapReceiptToDto(GoodsReceipt receipt, SupplierInvoice? invoice)
+    private static GoodsReceiptResponseDto MapReceiptToDto(GoodsReceipt receipt, bool isOwner)
     {
         return new GoodsReceiptResponseDto
         {
@@ -649,8 +613,8 @@ public class GoodsReceiptService : IGoodsReceiptService
             Number = receipt.Number,
             PurchaseOrderId = receipt.PurchaseOrderId,
             PurchaseOrderNumber = receipt.PurchaseOrder?.Number,
-            InvoiceId = invoice?.Id,
-            InvoiceStatus = invoice?.Status,
+            InvoiceId = null,
+            InvoiceStatus = null,
             BranchId = receipt.BranchId,
             BranchName = receipt.Branch?.Name ?? string.Empty,
             WarehouseId = receipt.WarehouseId,
@@ -659,7 +623,7 @@ public class GoodsReceiptService : IGoodsReceiptService
             SupplierName = receipt.Supplier?.Name ?? string.Empty,
             Status = receipt.Status,
             Note = receipt.Note,
-            TotalAmount = receipt.Items.Sum(i => i.Quantity * i.UnitPrice),
+            TotalAmount = isOwner ? receipt.Items.Sum(i => i.Quantity * i.UnitPrice) : null,
             CreatedBy = receipt.CreatedBy,
             CreatedByName = receipt.CreatedByUser?.FullName,
             ConfirmedAt = receipt.ConfirmedAt,
@@ -679,7 +643,7 @@ public class GoodsReceiptService : IGoodsReceiptService
                 FactorSnapshot = i.FactorSnapshot,
                 BaseQuantity = i.BaseQuantity,
                 Quantity = i.Quantity,
-                UnitPrice = i.UnitPrice
+                UnitPrice = isOwner ? i.UnitPrice : null
             }).ToList()
         };
     }

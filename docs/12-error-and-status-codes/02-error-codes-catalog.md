@@ -98,28 +98,26 @@ Tài liệu này là **từ điển tra cứu danh mục mã lỗi toàn hệ th
 
 ---
 
-### 2.3a. Phân Hệ Phiếu Mua Hàng (`PURCHASE_ORDER`, `OISMS-47-U01A`)
+### 2.3a. Phân Hệ Phiếu Mua Hàng (`PURCHASE_ORDER`, `OISMS-47-U01A`, `OISMS-66-L2-G1`)
 *Liên kết hợp đồng API:* [`../05-api-contracts/03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md)
 
 | Mã lỗi (`ErrorCode`) | HTTP Status | Tiêu đề lỗi | Thông báo chi tiết mẫu | Nguyên nhân phát sinh | Hướng dẫn khắc phục trên UI |
 | :--- | :---: | :--- | :--- | :--- | :--- |
 | `PURCHASE_ORDER_REQUIRED` | `422` | Yêu cầu phiếu mua hàng | *Phiếu nhập chưa gắn với phiếu mua hàng hợp lệ.* | Lập phiếu thiếu phiếu mua, hoặc xác nhận phiếu nháp cũ. | Chọn phiếu mua đã duyệt; hủy phiếu nháp cũ rồi lập lại. |
-| `PURCHASE_ORDER_NOT_RECEIVABLE` | `409` | Phiếu mua không ở trạng thái nhận hàng | *Phiếu mua đang ở trạng thái '{status}', không thể xác nhận nhập kho.* | Phiếu chưa duyệt, đã đóng hoặc đã hủy. | Tải lại phiếu mua; cần thì lập phiếu mua mới. |
+| `PURCHASE_ORDER_NOT_RECEIVABLE` | `409` | Phiếu mua không ở trạng thái nhận hàng | *Phiếu mua đang ở trạng thái '{status}', không thể xác nhận nhập kho.* | Phiếu chưa duyệt (`Draft`/`PendingApproval`), đã đóng hoặc đã hủy. | Tải lại phiếu mua; cần thì lập phiếu mua mới. |
 | `PURCHASE_ORDER_OVER_RECEIPT` | `409` | Vượt số lượng đặt mua | *Số lượng nhận vượt quá số lượng còn được nhận trên dòng phiếu mua.* | Nhập dư, hoặc phiếu khác đã nhận hết phần còn lại. | Tải lại lượng còn lại; hàng dư thì lập phiếu mua bổ sung. |
 | `PURCHASE_ORDER_ITEM_MISMATCH` | `422` | Dòng hàng không khớp phiếu mua | *Dòng phiếu mua không thuộc phiếu mua đã chọn.* | Dòng không thuộc phiếu, bị trùng, hoặc lệch dữ liệu phiếu mua. | Tải lại phiếu mua và chọn lại dòng. |
+| `PURCHASE_ORDER_INCOMPLETE_FOR_APPROVAL` | `422` | Đơn mua chưa đủ thông tin để duyệt | *Đơn mua chưa chọn nhà cung cấp hoặc còn dòng hàng chưa nhập đơn giá mua.* | Owner bấm duyệt khi `supplierId == null` hoặc còn dòng `unitPrice == null`. | Chọn nhà cung cấp và nhập đầy đủ đơn giá cho các dòng trước khi duyệt. |
+| `PURCHASE_ORDER_DISCOUNT_EXCEEDS_SUBTOTAL` | `422` | Chiết khấu vượt tổng tiền hàng | *Chiết khấu thương mại không được lớn hơn tổng tiền hàng.* | `discountAmount > subtotal` khi duyệt phân bổ chi phí mua hàng. | Điều chỉnh chiết khấu thương mại nhỏ hơn hoặc bằng tổng tiền hàng. |
+| `PURCHASE_ORDER_RETURN_REASON_REQUIRED` | `422` | Bắt buộc nhập lý do trả về | *Bắt buộc nhập lý do trả về đơn mua hàng.* | Owner trả đơn mua từ `PendingApproval` về `Draft` mà không nhập lý do. | Nhập lý do trả về để nhân viên biết nội dung cần chỉnh sửa. |
+| `PURCHASE_ORDER_VERSION_MISMATCH` | `409` | Xung đột phiên bản đơn mua | *Phiên bản đơn mua không khớp. Vui lòng tải lại trước khi duyệt.* | Đơn mua đã được tab hoặc người dùng khác cập nhật làm tăng `version`. | Tải lại chi tiết đơn mua để kiểm tra số liệu mới nhất rồi duyệt lại. |
 | `PURCHASE_ORDER_ZERO_PRICE_CONFIRM_REQUIRED` | `422` | Yêu cầu xác nhận đơn giá 0 | *Phiếu mua có dòng giá 0, cần xác nhận trước khi duyệt.* | Duyệt phiếu có giá 0 với `confirmZeroPrice = false`. | Hỏi Owner xác nhận rồi gửi lại với `confirmZeroPrice = true`. |
 
 ---
 
-### 2.3b. Hóa đơn nhà cung cấp (U01-B)
+### 2.3b. Hóa đơn nhà cung cấp (`U01-B` -> Ngừng sử dụng từ `Upgrade 12`)
 
-| Mã | HTTP | Tiêu đề | Khi trả về |
-| :--- | :---: | :--- | :--- |
-| `SUPPLIER_INVOICE_DUPLICATE` | `409` | Trùng ký hiệu và số hóa đơn nhà cung cấp | Cùng nhà cung cấp có hóa đơn chưa hủy trùng ký hiệu và số. |
-| `SUPPLIER_INVOICE_INVALID_STATE` | `409` | Trạng thái hóa đơn không hợp lệ | Hóa đơn sai trạng thái cho thao tác, hoặc lập, sửa, gửi trên phiếu nhập đã hủy. |
-| `SUPPLIER_INVOICE_RECEIPT_MISMATCH` | `422` | Hóa đơn không khớp phiếu nhập | Nhà cung cấp hoặc dòng hàng không thuộc phiếu nhập, hoặc phiếu nhập thiếu liên kết hợp lệ đến dòng phiếu mua. |
-| `SUPPLIER_INVOICE_ALREADY_EXISTS` | `409` | Phiếu nhập đã có hóa đơn còn hiệu lực | Phiếu nhập đã có hóa đơn khác ngoài `Cancelled` hoặc `Rejected`. |
-| `GOODS_RECEIPT_INVOICE_PENDING` | `409` | Hóa đơn phiếu nhập chưa sẵn sàng | Xác nhận phiếu nhập khi hóa đơn còn `Draft` hoặc `PendingApproval`. |
+Từ `Upgrade 12` (`OISMS-66-L2-G1`), các API `/api/supplier-invoices*` và bước chặn xác nhận phiếu nhập theo hóa đơn NCC đã được gỡ bỏ; các mã lỗi `SUPPLIER_INVOICE_*` và `GOODS_RECEIPT_INVOICE_PENDING` không còn phát sinh ở runtime.
 
 ### 2.4. Phân Hệ Chuyển Kho 2 Bước (`TRANSFER`)
 *Liên kết hợp đồng API:* [`../05-api-contracts/03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md)  

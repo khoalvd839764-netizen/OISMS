@@ -8,7 +8,7 @@ using OISM.WebApi.Http;
 namespace OISM.WebApi.Controllers;
 
 /// <summary>
-/// Controller điều phối nghiệp vụ Phiếu mua hàng từ Nhà cung cấp (OISMS-47-U01A).
+/// Controller điều phối nghiệp vụ Phiếu mua hàng từ Nhà cung cấp (OISMS-47-U01A / U12).
 /// </summary>
 [ApiController]
 [Route("api/purchase-orders")]
@@ -22,6 +22,8 @@ public class PurchaseOrdersController : ControllerBase
         _purchaseOrderService = purchaseOrderService;
     }
 
+    private bool IsOwner => User.IsInRole("Owner");
+
     /// <summary>
     /// Danh sách phiếu mua hàng có phân trang và lọc theo trạng thái, nhà cung cấp, chi nhánh.
     /// </summary>
@@ -29,7 +31,19 @@ public class PurchaseOrdersController : ControllerBase
     [Authorize(Roles = "Owner,Staff")]
     public async Task<IActionResult> GetList([FromQuery] PurchaseOrderFilterDto filter, CancellationToken ct)
     {
-        var result = await _purchaseOrderService.GetPurchaseOrdersAsync(filter, ct);
+        var result = await _purchaseOrderService.GetPurchaseOrdersAsync(filter, ct, IsOwner);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Gợi ý đơn giá mua gần nhất theo Nhà cung cấp + SKU + Đơn vị kèm WAC chi nhánh hiện tại (chỉ Owner).
+    /// </summary>
+    [HttpGet("price-suggestion")]
+    [Authorize(Roles = "Owner")]
+    [ApiErrorContract(ApiErrorProfile.PurchaseOrders)]
+    public async Task<IActionResult> GetPriceSuggestion([FromQuery] PurchaseOrderPriceSuggestionQueryDto query, CancellationToken ct)
+    {
+        var result = await _purchaseOrderService.GetPriceSuggestionAsync(query, ct);
         return Ok(result);
     }
 
@@ -45,7 +59,7 @@ public class PurchaseOrdersController : ControllerBase
             return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.PurchaseOrders, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã phiếu mua không được để trống.");
         }
 
-        var po = await _purchaseOrderService.GetPurchaseOrderByIdAsync(id, ct);
+        var po = await _purchaseOrderService.GetPurchaseOrderByIdAsync(id, ct, IsOwner);
         if (po == null)
         {
             return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.PurchaseOrders, "NOT_FOUND", "Không tìm thấy dữ liệu", StatusCodes.Status404NotFound, $"Không tìm thấy phiếu mua hàng với ID '{id}'.");
@@ -55,7 +69,7 @@ public class PurchaseOrdersController : ControllerBase
     }
 
     /// <summary>
-    /// Khởi tạo phiếu mua hàng mới ở trạng thái Draft (idempotent theo Idempotency-Key / X-Request-Key).
+    /// Khởi tạo phiếu mua hàng mới (Staff tạo vào Draft; Owner tạo vào thẳng PendingApproval).
     /// </summary>
     [HttpPost]
     [Authorize(Roles = "Owner,Staff")]
@@ -83,7 +97,7 @@ public class PurchaseOrdersController : ControllerBase
         }
 
         var userId = RequireUserId();
-        var result = await _purchaseOrderService.CreateAsync(dto, requestKey, userId, ct);
+        var result = await _purchaseOrderService.CreateAsync(dto, requestKey, userId, ct, IsOwner);
         if (result.IsReplay)
         {
             return Ok(result);
@@ -93,7 +107,7 @@ public class PurchaseOrdersController : ControllerBase
     }
 
     /// <summary>
-    /// Cập nhật bản nháp phiếu mua hàng (chỉ khi ở trạng thái Draft).
+    /// Cập nhật phiếu mua hàng (Staff sửa Draft của mình; Owner sửa ở PendingApproval hoặc Draft).
     /// </summary>
     [HttpPut("{id:guid}")]
     [Authorize(Roles = "Owner,Staff")]
@@ -114,12 +128,53 @@ public class PurchaseOrdersController : ControllerBase
         }
 
         var userId = RequireUserId();
-        var result = await _purchaseOrderService.UpdateDraftAsync(id, dto, userId, ct);
+        var result = await _purchaseOrderService.UpdateDraftAsync(id, dto, userId, ct, IsOwner);
         return Ok(result);
     }
 
     /// <summary>
-    /// Phê duyệt phiếu mua hàng (chỉ Owner).
+    /// Nhân viên (hoặc Owner) gửi đơn đề nghị mua từ Draft sang PendingApproval.
+    /// </summary>
+    [HttpPost("{id:guid}/submit")]
+    [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.PurchaseOrders)]
+    public async Task<IActionResult> Submit(
+        Guid id,
+        CancellationToken ct)
+    {
+        if (id == Guid.Empty)
+        {
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.PurchaseOrders, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã phiếu mua không được để trống.");
+        }
+
+        var userId = RequireUserId();
+        var result = await _purchaseOrderService.SubmitAsync(id, userId, ct, IsOwner);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Owner trả đơn mua từ PendingApproval về Draft (bắt buộc nhập lý do).
+    /// </summary>
+    [HttpPost("{id:guid}/return")]
+    [Authorize(Roles = "Owner")]
+    [ApiErrorContract(ApiErrorProfile.PurchaseOrders)]
+    public async Task<IActionResult> ReturnToDraft(
+        Guid id,
+        [FromBody] ReturnPurchaseOrderRequestDto? dto,
+        CancellationToken ct)
+    {
+        if (id == Guid.Empty)
+        {
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.PurchaseOrders, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã phiếu mua không được để trống.");
+        }
+
+        var userId = RequireUserId();
+        var result = await _purchaseOrderService.ReturnAsync(id, dto?.Reason, userId, ct);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Duyệt phiếu mua hàng từ PendingApproval sang Approved, chốt phân bổ chi phí mua (chỉ Owner).
     /// </summary>
     [HttpPost("{id:guid}/approve")]
     [Authorize(Roles = "Owner")]
@@ -135,13 +190,12 @@ public class PurchaseOrdersController : ControllerBase
         }
 
         var userId = RequireUserId();
-        var confirmZeroPrice = dto?.ConfirmZeroPrice ?? false;
-        var result = await _purchaseOrderService.ApproveAsync(id, confirmZeroPrice, userId, ct);
+        var result = await _purchaseOrderService.ApproveAsync(id, dto?.ConfirmZeroPrice ?? false, userId, ct, dto?.Version);
         return Ok(result);
     }
 
     /// <summary>
-    /// Đóng phần chưa nhận của phiếu mua hàng (chỉ Owner, bắt buộc lý do).
+    /// Đóng phiếu mua hàng khi không nhận tiếp phần hàng còn lại (chỉ Owner, bắt buộc có lý do).
     /// </summary>
     [HttpPost("{id:guid}/close")]
     [Authorize(Roles = "Owner")]
@@ -162,10 +216,10 @@ public class PurchaseOrdersController : ControllerBase
     }
 
     /// <summary>
-    /// Hủy phiếu mua hàng khi chưa phát sinh hàng nhận (chỉ Owner).
+    /// Hủy phiếu mua hàng (Staff hủy Draft của mình; Owner hủy Draft, PendingApproval hoặc Approved chưa nhận hàng).
     /// </summary>
     [HttpPost("{id:guid}/cancel")]
-    [Authorize(Roles = "Owner")]
+    [Authorize(Roles = "Owner,Staff")]
     [ApiErrorContract(ApiErrorProfile.PurchaseOrders)]
     public async Task<IActionResult> Cancel(Guid id, CancellationToken ct)
     {
@@ -175,7 +229,7 @@ public class PurchaseOrdersController : ControllerBase
         }
 
         var userId = RequireUserId();
-        var result = await _purchaseOrderService.CancelAsync(id, userId, ct);
+        var result = await _purchaseOrderService.CancelAsync(id, userId, ct, IsOwner);
         return Ok(result);
     }
 

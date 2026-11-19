@@ -103,8 +103,11 @@ public class DocumentStateTests
     public void PurchaseOrder_UsesBaseQuantityToDetermineReceivingStatus()
     {
         var line = new PurchaseOrderItem { Quantity = 2m, FactorSnapshot = 10m };
-        var order = new PurchaseOrder { Items = [line] };
+        var order = new PurchaseOrder { SupplierId = Guid.NewGuid(), Items = [line] };
         Assert.Throws<InvalidStateTransitionException>(() => order.UpdateReceivingStatus(Now));
+        Assert.Throws<InvalidStateTransitionException>(() => order.Approve(Actor, Now));
+        order.Submit(Now);
+        Assert.Equal(PurchaseOrderStatus.PendingApproval, order.Status);
         order.Approve(Actor, Now);
         line.ReceivedBaseQuantity = 10m;
         order.UpdateReceivingStatus(Now);
@@ -119,7 +122,15 @@ public class DocumentStateTests
     [Fact]
     public void PurchaseOrder_ClosesWithReasonOrCancelsBeforeReceiving()
     {
-        var closed = new PurchaseOrder();
+        var closed = new PurchaseOrder { SupplierId = Guid.NewGuid() };
+        closed.Submit(Now);
+        Assert.Throws<InvalidStateTransitionException>(() => closed.ReturnToDraft(Actor, " ", Now));
+        closed.ReturnToDraft(Actor, "Cần kiểm tra lại số lượng", Now);
+        Assert.Equal(PurchaseOrderStatus.Draft, closed.Status);
+        Assert.Equal("Cần kiểm tra lại số lượng", closed.ReturnReason);
+        Assert.Equal(Actor, closed.ReturnedBy);
+
+        closed.Submit(Now);
         closed.Approve(Actor, Now);
         Assert.Throws<InvalidStateTransitionException>(() => closed.Close(Actor, " ", Now));
         closed.Close(Actor, "Supplier unavailable", Now);
@@ -127,7 +138,8 @@ public class DocumentStateTests
         Assert.Equal("Supplier unavailable", closed.CloseReason);
         Assert.Equal(Actor, closed.ClosedBy);
 
-        var cancelled = new PurchaseOrder();
+        var cancelled = new PurchaseOrder { SupplierId = Guid.NewGuid() };
+        cancelled.Submit(Now);
         cancelled.Approve(Actor, Now);
         cancelled.Cancel(Actor, Now);
         Assert.Equal(PurchaseOrderStatus.Cancelled, cancelled.Status);

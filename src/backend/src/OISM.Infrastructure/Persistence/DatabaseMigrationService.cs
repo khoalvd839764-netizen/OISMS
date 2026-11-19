@@ -271,6 +271,7 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         new("fk_purchase_orders_branch_id", "purchase_orders", ["tenant_id", "branch_id"], "branches", ["tenant_id", "id"]),
         new("fk_purchase_orders_created_by", "purchase_orders", ["tenant_id", "created_by"], "users", ["tenant_id", "id"]),
         new("fk_purchase_orders_approved_by", "purchase_orders", ["tenant_id", "approved_by"], "users", ["tenant_id", "id"]),
+        new("fk_purchase_orders_returned_by", "purchase_orders", ["tenant_id", "returned_by"], "users", ["tenant_id", "id"]),
         new("fk_purchase_orders_closed_by", "purchase_orders", ["tenant_id", "closed_by"], "users", ["tenant_id", "id"]),
         new("fk_purchase_orders_cancelled_by", "purchase_orders", ["tenant_id", "cancelled_by"], "users", ["tenant_id", "id"]),
         new("fk_purchase_order_items_tenant_id", "purchase_order_items", ["tenant_id"], "tenants", ["id"]),
@@ -436,10 +437,14 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         new("uq_purchase_orders_1", 'u', "purchase_orders", Columns: ["tenant_id", "id"]),
         new("uq_purchase_orders_2", 'u', "purchase_orders", Columns: ["tenant_id", "number"]),
         new("uq_purchase_orders_3", 'u', "purchase_orders", Columns: ["tenant_id", "request_key"]),
-        new("ck_purchase_orders_status", 'c', "purchase_orders", ExpectedNormalizedExpression: "((status)::text = ANY ((ARRAY['Draft'::character varying, 'Approved'::character varying, 'PartiallyReceived'::character varying, 'Received'::character varying, 'Closed'::character varying, 'Cancelled'::character varying])::text[]))"),
+        new("ck_purchase_orders_status", 'c', "purchase_orders", ExpectedNormalizedExpression: "((status)::text = ANY ((ARRAY['Draft'::character varying, 'PendingApproval'::character varying, 'Approved'::character varying, 'PartiallyReceived'::character varying, 'Received'::character varying, 'Closed'::character varying, 'Cancelled'::character varying])::text[]))"),
+        new("ck_purchase_orders_supplier_required", 'c', "purchase_orders", ExpectedNormalizedExpression: "(((status)::text = ANY ((ARRAY['Draft'::character varying, 'PendingApproval'::character varying, 'Cancelled'::character varying])::text[])) OR (supplier_id IS NOT NULL))"),
+        new("ck_purchase_orders_fees_nonnegative", 'c', "purchase_orders", ExpectedNormalizedExpression: "((shipping_fee >= (0)::numeric) AND (discount_amount >= (0)::numeric) AND (vat_amount >= (0)::numeric))"),
         new("ck_purchase_orders_approved", 'c', "purchase_orders", ExpectedNormalizedExpression: "(((approved_at IS NULL) = (approved_by IS NULL)) AND (((status)::text <> ALL ((ARRAY['Approved'::character varying, 'PartiallyReceived'::character varying, 'Received'::character varying, 'Closed'::character varying])::text[])) OR (approved_at IS NOT NULL)))"),
+        new("ck_purchase_orders_returned", 'c', "purchase_orders", ExpectedNormalizedExpression: "(((returned_at IS NULL) = (returned_by IS NULL)) AND ((returned_at IS NULL) = (return_reason IS NULL)) AND ((return_reason IS NULL) OR (btrim((return_reason)::text) <> ''::text)))"),
         new("ck_purchase_orders_closed", 'c', "purchase_orders", ExpectedNormalizedExpression: "((((status)::text = 'Closed'::text) = (closed_at IS NOT NULL)) AND ((closed_at IS NULL) = (closed_by IS NULL)) AND ((closed_at IS NULL) OR (btrim((close_reason)::text) <> ''::text)))"),
         new("ck_purchase_orders_cancelled", 'c', "purchase_orders", ExpectedNormalizedExpression: "((((status)::text = 'Cancelled'::text) = (cancelled_at IS NOT NULL)) AND ((cancelled_at IS NULL) = (cancelled_by IS NULL)))"),
+        new("ck_purchase_orders_version_positive", 'c', "purchase_orders", ExpectedNormalizedExpression: "(version >= 1)"),
 
         // purchase_order_items
         new("uq_purchase_order_items_1", 'u', "purchase_order_items", Columns: ["tenant_id", "id"]),
@@ -447,7 +452,8 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         new("uq_purchase_order_items_3", 'u', "purchase_order_items", Columns: ["tenant_id", "id", "sku_id"]),
         new("ck_purchase_order_items_factor_snapshot", 'c', "purchase_order_items", ExpectedNormalizedExpression: "(factor_snapshot > (0)::numeric)"),
         new("ck_purchase_order_items_quantity", 'c', "purchase_order_items", ExpectedNormalizedExpression: "(quantity > (0)::numeric)"),
-        new("ck_purchase_order_items_unit_price", 'c', "purchase_order_items", ExpectedNormalizedExpression: "(unit_price >= (0)::numeric)"),
+        new("ck_purchase_order_items_unit_price", 'c', "purchase_order_items", ExpectedNormalizedExpression: "((unit_price IS NULL) OR (unit_price >= (0)::numeric))"),
+        new("ck_purchase_order_items_allocated_unit_cost", 'c', "purchase_order_items", ExpectedNormalizedExpression: "((allocated_unit_cost IS NULL) OR (allocated_unit_cost >= (0)::numeric))"),
         new("ck_purchase_order_items_decimal_places", 'c', "purchase_order_items", ExpectedNormalizedExpression: "((quantity_decimal_places >= 0) AND (quantity_decimal_places <= 3))"),
         new("ck_purchase_order_items_received_range", 'c', "purchase_order_items", ExpectedNormalizedExpression: "((received_base_quantity >= (0)::numeric) AND (received_base_quantity <= (quantity * factor_snapshot)))"),
 
@@ -1452,34 +1458,88 @@ CREATE TABLE IF NOT EXISTS public.purchase_orders (
     tenant_id uuid NOT NULL,
     number varchar(50) NOT NULL,
     request_key uuid NOT NULL,
-    supplier_id uuid NOT NULL,
+    supplier_id uuid NULL,
     branch_id uuid NOT NULL,
+    order_date date NOT NULL DEFAULT CURRENT_DATE,
+    shipping_fee numeric(20,6) NOT NULL DEFAULT 0,
+    discount_amount numeric(20,6) NOT NULL DEFAULT 0,
+    vat_amount numeric(20,6) NOT NULL DEFAULT 0,
     status varchar(20) NOT NULL,
     note varchar(1000) NULL,
     created_by uuid NOT NULL,
     approved_by uuid NULL,
     approved_at timestamptz NULL,
+    returned_by uuid NULL,
+    returned_at timestamptz NULL,
+    return_reason varchar(500) NULL,
     closed_by uuid NULL,
     closed_at timestamptz NULL,
     close_reason varchar(500) NULL,
     cancelled_by uuid NULL,
     cancelled_at timestamptz NULL,
+    version integer NOT NULL DEFAULT 1,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NULL,
     CONSTRAINT uq_purchase_orders_1 UNIQUE (tenant_id, id),
     CONSTRAINT uq_purchase_orders_2 UNIQUE (tenant_id, number),
     CONSTRAINT uq_purchase_orders_3 UNIQUE (tenant_id, request_key),
-    CONSTRAINT ck_purchase_orders_status CHECK (status IN ('Draft','Approved','PartiallyReceived','Received','Closed','Cancelled')),
+    CONSTRAINT ck_purchase_orders_status CHECK (status IN ('Draft','PendingApproval','Approved','PartiallyReceived','Received','Closed','Cancelled')),
+    CONSTRAINT ck_purchase_orders_supplier_required CHECK (status IN ('Draft','PendingApproval','Cancelled') OR supplier_id IS NOT NULL),
+    CONSTRAINT ck_purchase_orders_fees_nonnegative CHECK (shipping_fee >= 0 AND discount_amount >= 0 AND vat_amount >= 0),
     CONSTRAINT ck_purchase_orders_approved CHECK ((approved_at IS NULL) = (approved_by IS NULL) AND (status NOT IN ('Approved','PartiallyReceived','Received','Closed') OR approved_at IS NOT NULL)),
+    CONSTRAINT ck_purchase_orders_returned CHECK ((returned_at IS NULL) = (returned_by IS NULL) AND (returned_at IS NULL) = (return_reason IS NULL) AND (return_reason IS NULL OR btrim(return_reason) <> '')),
     CONSTRAINT ck_purchase_orders_closed CHECK ((status = 'Closed') = (closed_at IS NOT NULL) AND (closed_at IS NULL) = (closed_by IS NULL) AND (closed_at IS NULL OR btrim(close_reason) <> '')),
-    CONSTRAINT ck_purchase_orders_cancelled CHECK ((status = 'Cancelled') = (cancelled_at IS NOT NULL) AND (cancelled_at IS NULL) = (cancelled_by IS NULL))
+    CONSTRAINT ck_purchase_orders_cancelled CHECK ((status = 'Cancelled') = (cancelled_at IS NOT NULL) AND (cancelled_at IS NULL) = (cancelled_by IS NULL)),
+    CONSTRAINT ck_purchase_orders_version_positive CHECK (version >= 1)
 );
+
+ALTER TABLE public.purchase_orders ALTER COLUMN supplier_id DROP NOT NULL;
+ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS order_date date NULL;
+UPDATE public.purchase_orders
+SET order_date = COALESCE(order_date, (created_at AT TIME ZONE 'Asia/Saigon')::date)
+WHERE order_date IS NULL;
+ALTER TABLE public.purchase_orders ALTER COLUMN order_date SET DEFAULT CURRENT_DATE;
+ALTER TABLE public.purchase_orders ALTER COLUMN order_date SET NOT NULL;
+
+ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS shipping_fee numeric(20,6) NOT NULL DEFAULT 0;
+ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS discount_amount numeric(20,6) NOT NULL DEFAULT 0;
+ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS vat_amount numeric(20,6) NOT NULL DEFAULT 0;
+ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS return_reason varchar(500) NULL;
+ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS returned_by uuid NULL;
+ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS returned_at timestamptz NULL;
+ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1;
 
 CREATE INDEX IF NOT EXISTS ix_purchase_orders_status_time
 ON public.purchase_orders (tenant_id, status, created_at, id);
 
 DO $$
 BEGIN
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_purchase_orders_status') THEN
+        ALTER TABLE public.purchase_orders DROP CONSTRAINT ck_purchase_orders_status;
+    END IF;
+    ALTER TABLE public.purchase_orders ADD CONSTRAINT ck_purchase_orders_status
+        CHECK (status IN ('Draft','PendingApproval','Approved','PartiallyReceived','Received','Closed','Cancelled'));
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_purchase_orders_supplier_required') THEN
+        ALTER TABLE public.purchase_orders ADD CONSTRAINT ck_purchase_orders_supplier_required
+            CHECK (status IN ('Draft','PendingApproval','Cancelled') OR supplier_id IS NOT NULL);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_purchase_orders_fees_nonnegative') THEN
+        ALTER TABLE public.purchase_orders ADD CONSTRAINT ck_purchase_orders_fees_nonnegative
+            CHECK (shipping_fee >= 0 AND discount_amount >= 0 AND vat_amount >= 0);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_purchase_orders_returned') THEN
+        ALTER TABLE public.purchase_orders ADD CONSTRAINT ck_purchase_orders_returned
+            CHECK ((returned_at IS NULL) = (returned_by IS NULL) AND (returned_at IS NULL) = (return_reason IS NULL) AND (return_reason IS NULL OR btrim(return_reason) <> ''));
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_purchase_orders_version_positive') THEN
+        ALTER TABLE public.purchase_orders ADD CONSTRAINT ck_purchase_orders_version_positive
+            CHECK (version >= 1);
+    END IF;
+
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_purchase_orders_tenant_id') THEN
         ALTER TABLE public.purchase_orders ADD CONSTRAINT fk_purchase_orders_tenant_id
         FOREIGN KEY (tenant_id) REFERENCES public.tenants (id) ON DELETE RESTRICT ON UPDATE NO ACTION;
@@ -1505,6 +1565,11 @@ BEGIN
         FOREIGN KEY (tenant_id, approved_by) REFERENCES public.users (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
     END IF;
 
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_purchase_orders_returned_by') THEN
+        ALTER TABLE public.purchase_orders ADD CONSTRAINT fk_purchase_orders_returned_by
+        FOREIGN KEY (tenant_id, returned_by) REFERENCES public.users (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_purchase_orders_closed_by') THEN
         ALTER TABLE public.purchase_orders ADD CONSTRAINT fk_purchase_orders_closed_by
         FOREIGN KEY (tenant_id, closed_by) REFERENCES public.users (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
@@ -1527,7 +1592,8 @@ CREATE TABLE IF NOT EXISTS public.purchase_order_items (
     quantity_decimal_places smallint NOT NULL DEFAULT 3,
     quantity numeric(18,3) NOT NULL,
     ordered_base_quantity numeric(18,3) GENERATED ALWAYS AS (quantity * factor_snapshot) STORED,
-    unit_price numeric(20,6) NOT NULL,
+    unit_price numeric(20,6) NULL,
+    allocated_unit_cost numeric(20,6) NULL,
     received_base_quantity numeric(18,3) NOT NULL DEFAULT 0,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NULL,
@@ -1536,13 +1602,37 @@ CREATE TABLE IF NOT EXISTS public.purchase_order_items (
     CONSTRAINT uq_purchase_order_items_3 UNIQUE (tenant_id, id, sku_id),
     CONSTRAINT ck_purchase_order_items_factor_snapshot CHECK (factor_snapshot > 0),
     CONSTRAINT ck_purchase_order_items_quantity CHECK (quantity > 0),
-    CONSTRAINT ck_purchase_order_items_unit_price CHECK (unit_price >= 0),
+    CONSTRAINT ck_purchase_order_items_unit_price CHECK (unit_price IS NULL OR unit_price >= 0),
+    CONSTRAINT ck_purchase_order_items_allocated_unit_cost CHECK (allocated_unit_cost IS NULL OR allocated_unit_cost >= 0),
     CONSTRAINT ck_purchase_order_items_decimal_places CHECK (quantity_decimal_places BETWEEN 0 AND 3),
     CONSTRAINT ck_purchase_order_items_received_range CHECK (received_base_quantity >= 0 AND received_base_quantity <= quantity * factor_snapshot)
 );
 
+ALTER TABLE public.purchase_order_items ALTER COLUMN unit_price DROP NOT NULL;
+ALTER TABLE public.purchase_order_items ADD COLUMN IF NOT EXISTS allocated_unit_cost numeric(20,6) NULL;
+
+UPDATE public.purchase_order_items poi
+SET allocated_unit_cost = poi.unit_price
+FROM public.purchase_orders po
+WHERE po.tenant_id = poi.tenant_id
+  AND po.id = poi.purchase_order_id
+  AND po.status IN ('Approved', 'PartiallyReceived', 'Received', 'Closed')
+  AND poi.allocated_unit_cost IS NULL
+  AND poi.unit_price IS NOT NULL;
+
 DO $$
 BEGIN
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_purchase_order_items_unit_price') THEN
+        ALTER TABLE public.purchase_order_items DROP CONSTRAINT ck_purchase_order_items_unit_price;
+    END IF;
+    ALTER TABLE public.purchase_order_items ADD CONSTRAINT ck_purchase_order_items_unit_price
+        CHECK (unit_price IS NULL OR unit_price >= 0);
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_purchase_order_items_allocated_unit_cost') THEN
+        ALTER TABLE public.purchase_order_items ADD CONSTRAINT ck_purchase_order_items_allocated_unit_cost
+            CHECK (allocated_unit_cost IS NULL OR allocated_unit_cost >= 0);
+    END IF;
+
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_purchase_order_items_tenant_id') THEN
         ALTER TABLE public.purchase_order_items ADD CONSTRAINT fk_purchase_order_items_tenant_id
         FOREIGN KEY (tenant_id) REFERENCES public.tenants (id) ON DELETE RESTRICT ON UPDATE NO ACTION;
@@ -1590,19 +1680,54 @@ CREATE OR REPLACE FUNCTION public.oisms_purchase_order_guard() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
 BEGIN
   IF OLD.status = 'Draft' THEN
-    IF NEW.status NOT IN ('Draft', 'Approved', 'Cancelled') THEN
+    IF NEW.status NOT IN ('Draft', 'PendingApproval', 'Cancelled') THEN
       RAISE EXCEPTION 'Invalid purchase order state transition from % to %', OLD.status, NEW.status USING ERRCODE = '23514';
     END IF;
-    IF (NEW.tenant_id, NEW.id, NEW.created_at) IS DISTINCT FROM (OLD.tenant_id, OLD.id, OLD.created_at) THEN
+    IF (NEW.tenant_id, NEW.id, NEW.number, NEW.request_key, NEW.created_by, NEW.created_at)
+       IS DISTINCT FROM
+       (OLD.tenant_id, OLD.id, OLD.number, OLD.request_key, OLD.created_by, OLD.created_at) THEN
       RAISE EXCEPTION 'Purchase order identity is immutable' USING ERRCODE = '23514';
     END IF;
     RETURN NEW;
   END IF;
 
-  IF (NEW.tenant_id, NEW.id, NEW.number, NEW.request_key, NEW.supplier_id, NEW.branch_id, NEW.note, NEW.created_by, NEW.created_at, NEW.approved_by, NEW.approved_at)
+  IF OLD.status = 'PendingApproval' THEN
+    IF NEW.status NOT IN ('PendingApproval', 'Draft', 'Approved', 'Cancelled') THEN
+      RAISE EXCEPTION 'Invalid purchase order state transition from % to %', OLD.status, NEW.status USING ERRCODE = '23514';
+    END IF;
+    IF (NEW.tenant_id, NEW.id, NEW.number, NEW.request_key, NEW.created_by, NEW.created_at)
+       IS DISTINCT FROM
+       (OLD.tenant_id, OLD.id, OLD.number, OLD.request_key, OLD.created_by, OLD.created_at) THEN
+      RAISE EXCEPTION 'Purchase order identity is immutable' USING ERRCODE = '23514';
+    END IF;
+    IF NEW.status = 'Draft' AND (NEW.returned_at IS NULL OR NEW.returned_by IS NULL OR NEW.return_reason IS NULL OR btrim(NEW.return_reason) = '') THEN
+      RAISE EXCEPTION 'Returning purchase order to Draft requires returned_by, returned_at, and return_reason' USING ERRCODE = '23514';
+    END IF;
+    IF NEW.status = 'Approved' THEN
+      IF NEW.supplier_id IS NULL THEN
+        RAISE EXCEPTION 'Approved purchase order requires supplier_id' USING ERRCODE = '23514';
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM public.purchase_order_items poi
+        WHERE poi.tenant_id = NEW.tenant_id AND poi.purchase_order_id = NEW.id
+      ) THEN
+        RAISE EXCEPTION 'Approved purchase order requires at least one item' USING ERRCODE = '23514';
+      END IF;
+      IF EXISTS (
+        SELECT 1 FROM public.purchase_order_items poi
+        WHERE poi.tenant_id = NEW.tenant_id AND poi.purchase_order_id = NEW.id
+          AND (poi.unit_price IS NULL OR poi.allocated_unit_cost IS NULL)
+      ) THEN
+        RAISE EXCEPTION 'Approved purchase order requires unit_price and allocated_unit_cost on all items' USING ERRCODE = '23514';
+      END IF;
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF (NEW.tenant_id, NEW.id, NEW.number, NEW.request_key, NEW.supplier_id, NEW.branch_id, NEW.order_date, NEW.shipping_fee, NEW.discount_amount, NEW.vat_amount, NEW.note, NEW.created_by, NEW.created_at, NEW.approved_by, NEW.approved_at, NEW.returned_by, NEW.returned_at, NEW.return_reason)
      IS DISTINCT FROM
-     (OLD.tenant_id, OLD.id, OLD.number, OLD.request_key, OLD.supplier_id, OLD.branch_id, OLD.note, OLD.created_by, OLD.created_at, OLD.approved_by, OLD.approved_at) THEN
-    RAISE EXCEPTION 'Purchase order header attributes are immutable outside Draft' USING ERRCODE = '23514';
+     (OLD.tenant_id, OLD.id, OLD.number, OLD.request_key, OLD.supplier_id, OLD.branch_id, OLD.order_date, OLD.shipping_fee, OLD.discount_amount, OLD.vat_amount, OLD.note, OLD.created_by, OLD.created_at, OLD.approved_by, OLD.approved_at, OLD.returned_by, OLD.returned_at, OLD.return_reason) THEN
+    RAISE EXCEPTION 'Purchase order header attributes are immutable outside Draft and PendingApproval' USING ERRCODE = '23514';
   END IF;
 
   IF OLD.status = 'Approved' THEN
@@ -1652,7 +1777,7 @@ BEGIN
     SELECT status INTO v_po_status FROM public.purchase_orders
     WHERE id = NEW.purchase_order_id AND tenant_id = NEW.tenant_id FOR UPDATE;
 
-    IF v_po_status IS DISTINCT FROM 'Draft' THEN
+    IF v_po_status IS NULL OR v_po_status NOT IN ('Draft', 'PendingApproval') THEN
       RAISE EXCEPTION 'Cannot insert purchase order item when purchase order is in state %', v_po_status USING ERRCODE = '23514';
     END IF;
     RETURN NEW;
@@ -1662,24 +1787,24 @@ BEGIN
   WHERE id = OLD.purchase_order_id AND tenant_id = OLD.tenant_id FOR UPDATE;
 
   IF TG_OP = 'DELETE' THEN
-    IF v_po_status IS DISTINCT FROM 'Draft' THEN
+    IF v_po_status IS NULL OR v_po_status NOT IN ('Draft', 'PendingApproval') THEN
       RAISE EXCEPTION 'Cannot delete purchase order item when purchase order is in state %', v_po_status USING ERRCODE = '23514';
     END IF;
     RETURN OLD;
   END IF;
 
   IF TG_OP = 'UPDATE' THEN
-    IF v_po_status = 'Draft' THEN
+    IF v_po_status IN ('Draft', 'PendingApproval') THEN
       IF (NEW.tenant_id, NEW.id, NEW.purchase_order_id, NEW.created_at) IS DISTINCT FROM (OLD.tenant_id, OLD.id, OLD.purchase_order_id, OLD.created_at) THEN
         RAISE EXCEPTION 'Purchase order item identity is immutable' USING ERRCODE = '23514';
       END IF;
       RETURN NEW;
     END IF;
 
-    IF (NEW.tenant_id, NEW.id, NEW.purchase_order_id, NEW.sku_id, NEW.unit_id, NEW.unit_name_snapshot, NEW.factor_snapshot, NEW.quantity_decimal_places, NEW.quantity, NEW.unit_price, NEW.created_at)
+    IF (NEW.tenant_id, NEW.id, NEW.purchase_order_id, NEW.sku_id, NEW.unit_id, NEW.unit_name_snapshot, NEW.factor_snapshot, NEW.quantity_decimal_places, NEW.quantity, NEW.unit_price, NEW.allocated_unit_cost, NEW.created_at)
        IS DISTINCT FROM
-       (OLD.tenant_id, OLD.id, OLD.purchase_order_id, OLD.sku_id, OLD.unit_id, OLD.unit_name_snapshot, OLD.factor_snapshot, OLD.quantity_decimal_places, OLD.quantity, OLD.unit_price, OLD.created_at) THEN
-      RAISE EXCEPTION 'Purchase order item attributes other than received_base_quantity and updated_at are immutable outside Draft' USING ERRCODE = '23514';
+       (OLD.tenant_id, OLD.id, OLD.purchase_order_id, OLD.sku_id, OLD.unit_id, OLD.unit_name_snapshot, OLD.factor_snapshot, OLD.quantity_decimal_places, OLD.quantity, OLD.unit_price, OLD.allocated_unit_cost, OLD.created_at) THEN
+      RAISE EXCEPTION 'Purchase order item attributes other than received_base_quantity and updated_at are immutable outside Draft and PendingApproval' USING ERRCODE = '23514';
     END IF;
 
     IF NEW.received_base_quantity < OLD.received_base_quantity THEN
@@ -1695,6 +1820,25 @@ BEGIN
 
   RETURN NULL;
 END $$;
+
+UPDATE public.purchase_orders po
+SET status = 'PendingApproval',
+    updated_at = COALESCE(po.updated_at, now())
+WHERE po.status = 'Draft'
+  AND po.supplier_id IS NOT NULL
+  AND EXISTS (
+      SELECT 1
+      FROM public.purchase_order_items poi
+      WHERE poi.tenant_id = po.tenant_id
+        AND poi.purchase_order_id = po.id
+  )
+  AND NOT EXISTS (
+      SELECT 1
+      FROM public.purchase_order_items poi
+      WHERE poi.tenant_id = po.tenant_id
+        AND poi.purchase_order_id = po.id
+        AND poi.unit_price IS NULL
+  );
 
 DO $$
 BEGIN
@@ -2851,8 +2995,10 @@ WHERE table_schema = 'public';";
             "price_lists.code", "price_change_requests.status", "price_change_requests.request_key",
             "price_change_request_items.new_price",
             "sku_unit_prices.price", "sku_unit_prices.valid_from",
-            "purchase_orders.number", "purchase_orders.request_key", "purchase_orders.status",
-            "purchase_order_items.ordered_base_quantity", "purchase_order_items.received_base_quantity", "purchase_order_items.unit_price",
+            "purchase_orders.number", "purchase_orders.request_key", "purchase_orders.status", "purchase_orders.order_date",
+            "purchase_orders.shipping_fee", "purchase_orders.discount_amount", "purchase_orders.vat_amount",
+            "purchase_orders.return_reason", "purchase_orders.returned_by", "purchase_orders.returned_at", "purchase_orders.version",
+            "purchase_order_items.ordered_base_quantity", "purchase_order_items.received_base_quantity", "purchase_order_items.unit_price", "purchase_order_items.allocated_unit_cost",
             "sales_invoices.number", "sales_invoices.order_id", "sales_invoices.branch_id", "sales_invoices.total_amount", "sales_invoices.issued_at",
             "orders.confirmed_by", "stock_transfers.dispatched_by",
             "stock_count_schedules.warehouse_id", "stock_count_schedules.period_type", "stock_count_schedules.assignee_user_id",

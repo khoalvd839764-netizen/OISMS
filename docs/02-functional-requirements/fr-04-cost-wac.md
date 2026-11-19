@@ -15,6 +15,7 @@
 | Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả thay đổi | Mã tham chiếu |
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả chi tiết công thức tính Giá vốn bình quân (WAC) và cơ chế chụp giá vốn khi xuất kho/bán hàng. | `INIT-FR-04` |
+| `v1.1.0` | `2026-11-19` | Nhóm dự án OISMS | Phân bổ phí vận chuyển và chiết khấu thương mại vào giá vốn đơn mua theo VAS 02, không đưa VAT vào giá vốn, và bỏ cơ chế ghi đè giá từ hóa đơn nhà cung cấp (`U01-B`). | `OISMS-66-L2-G1` |
 
 ---
 
@@ -31,9 +32,17 @@
 
 $$\text{NewCost} = \frac{(\text{OldStock} \times \text{OldCost}) + (\text{ImportQty} \times \text{ImportPrice})}{\text{OldStock} + \text{ImportQty}}$$
 
-`ImportQty` là số thực nhận theo đơn vị gốc. `ImportPrice` bằng đơn giá trước thuế chia cho `FactorSnapshot`. Dùng đơn giá phiếu mua, hoặc đơn giá trên dòng hóa đơn kèm hàng nếu Owner đã duyệt chênh lệch trước khi xác nhận nhập. Thuế GTGT và phí vận chuyển chỉ lưu trên hóa đơn.
-
-Hóa đơn đến sau khi phiếu nhập đã xác nhận chỉ bổ sung chứng từ đối chiếu. Gửi, duyệt, từ chối hoặc hủy hóa đơn đến sau không tính lại WAC, ghi sổ kho hay sửa đơn giá đã nhập.
+- `ImportQty` là số lượng thực nhận quy đổi về đơn vị gốc ($\text{Quantity} \times \text{FactorSnapshot}$).
+- `ImportPrice` là giá vốn nhập trên mỗi đơn vị gốc, được tính cố định từ **giá vốn đơn vị sau phân bổ** trên dòng đơn mua đã duyệt:
+  $$\text{ImportPrice} = \frac{\text{AllocatedUnitCost}}{\text{FactorSnapshot}}$$
+- **Phân bổ chi phí mua hàng theo VAS 02 (chốt lúc Owner duyệt đơn mua — `Upgrade 12`):**
+  - Ở đầu đơn mua có: phí vận chuyển (`shipping_fee` $\ge 0$), chiết khấu thương mại (`discount_amount` $\ge 0$, không vượt tổng tiền hàng `subtotal`), và thuế GTGT đầu vào (`vat_amount` $\ge 0$).
+  - Phí vận chuyển được cộng vào giá vốn, chiết khấu thương mại được trừ khỏi giá vốn, phân bổ cho từng dòng theo tỷ lệ giá trị dòng ($\text{LineTotal}_i = \text{Quantity}_i \times \text{UnitPrice}_i$):
+    $$\text{AllocatedLineTotal}_i = \text{LineTotal}_i + (\text{ShippingFee} - \text{DiscountAmount}) \times \frac{\text{LineTotal}_i}{\sum \text{LineTotal}}$$
+    $$\text{AllocatedUnitCost}_i = \text{Round}\left(\frac{\text{AllocatedLineTotal}_i}{\text{Quantity}_i}, 6\right)$$
+  - Dòng cuối cùng nhận phần chênh lệch làm tròn để tổng giá trị phân bổ của các dòng khớp đúng $\sum \text{LineTotal} + \text{ShippingFee} - \text{DiscountAmount}$.
+  - **Thuế VAT đầu vào (`vat_amount`):** giả định cửa hàng khấu trừ thuế nên VAT **không tính vào giá vốn** (`AllocatedUnitCost`), chỉ cộng vào tổng tiền thanh toán (`TotalAmount`) trên đơn mua.
+  - **Bỏ ghi đè từ hóa đơn nhà cung cấp (`U01-B`):** giá trên đơn mua đã duyệt là giá cam kết với nhà cung cấp; hệ thống không còn bước áp giá từ hóa đơn NCC khi xác nhận phiếu nhập. Nếu đơn mua bị Đóng (`Closed`) khi chưa giao đủ, phần phí và chiết khấu gắn với lượng hàng chưa nhận không đi vào giá vốn tồn kho.
 
 **Ví dụ kiểm chứng:**
 1. **Lô nhập 1:** Tồn đầu `OldStock = 0`, `OldCost = 0`. Nhập `100` sản phẩm với giá `100,000đ` $\rightarrow$ `NewCost = 100,000đ`, `OnHand = 100`.

@@ -19,6 +19,7 @@
 | `v1.1.1` | `2026-11-08` | Nhóm dự án OISMS | Cập nhật số bảng hiện hành lên 44 sau khi bổ sung `payment_accounts`; giữ mốc 43 bảng trong lịch sử v1.1.0. | `CS-05` |
 | `v1.1.2` | `2026-11-14` | Nhóm dự án OISMS | Cập nhật số bảng lên 48 và bổ sung bảng `user_branches` cho phân công chi nhánh nhân viên (`CS-02`). | `OISMS-59-G1B` |
 | `v1.1.3` | `2026-11-15` | Nhóm dự án OISMS | Thêm liên kết tới sơ đồ draw.io ERD logic và Data Design vật lý, ghi phân vai hai sơ đồ. | `OISMS-59` |
+| `v1.1.4` | `2026-11-19` | Nhóm dự án OISMS | Mở rộng `purchase_orders` và `purchase_order_items` cho luồng `PendingApproval` và phân bổ giá vốn (`allocated_unit_cost`), thu hồi quyền ghi trên 3 bảng `supplier_invoices*` (giữ chỉ đọc). | `OISMS-66-L2-G1` |
 
 ---
 
@@ -159,7 +160,7 @@ erDiagram
 
 ---
 
-Mỗi phiếu nhập có thể lưu nhiều hóa đơn lịch sử và tối đa một hóa đơn còn hiệu lực. Chỉ mục unique `uq_supplier_invoices_active_receipt` loại `Cancelled` và `Rejected`. Dòng hóa đơn đối chiếu với dòng phiếu nhập rồi tới dòng phiếu mua. Các khóa ngoại nghiệp vụ ghép `tenant_id`.
+Từ `Upgrade 12` (`OISMS-66-L2-G1`), `purchase_orders` hỗ trợ trạng thái `PendingApproval` (`supplier_id` và `purchase_order_items.unit_price` được `NULL` khi ở `Draft`/`PendingApproval`, bắt buộc khác `NULL` từ `Approved` trở đi), bổ sung `order_date`, `shipping_fee`, `discount_amount`, `vat_amount`, `return_reason`/`returned_by`/`returned_at`, `version` và `purchase_order_items.allocated_unit_cost`. Ba bảng `supplier_invoices`, `supplier_invoice_items`, `purchase_variances` vẫn giữ trong schema (đủ 48 bảng) nhưng chỉ còn quyền `SELECT` đối với `oisms_runtime`/`oisms_app` để lưu trữ chứng từ lịch sử. Các khóa ngoại nghiệp vụ ghép `tenant_id`.
 
 ## 2. Chiến Lược Đánh Chỉ Mục Quy Mô Lớn (`NFR-TENANT-02`)
 

@@ -19,6 +19,7 @@
 | `v1.2.0` | `2026-11-03` | Nhóm dự án OISMS | Bổ sung API lịch kiểm kê (`stock-count-schedules`), kỳ kiểm kê (`stock-count-periods`), quy trình nộp duyệt chênh lệch (`stock-counts`). | `OISMS-47-U03` |
 | `v1.3.0` | `2026-11-06` | Nhóm dự án OISMS | Sửa route chuyển kho thành `/api/stock-transfers`; thêm API tồn theo SKU/chi nhánh, lịch sử xuất kho, ngưỡng đặt hàng lại, alias `/api/inventory-transactions`; sửa quyền xem tồn. | `OISMS-46` |
 | `v1.4.0` | `2026-11-14` | Nhóm dự án OISMS | Che trường `averageCost` (trả `null`) đối với vai trò `Cashier` trên `GET /api/inventory/balances` và `GET /api/inventory/balances/sku/{skuId}/branch/{branchId}`. | `OISMS-59-G1A` |
+| `v1.5.0` | `2026-11-19` | Nhóm dự án OISMS | Nâng cấp hợp đồng Đơn mua hàng (`PendingApproval`, `submit`, `return`, `price-suggestion`, phân bổ phí/chiết khấu, khóa `version`), gỡ toàn bộ `/api/supplier-invoices*`, và che giá với `Staff` trên đơn mua & phiếu nhập. | `OISMS-66-L2-G1` |
 
 ---
 
@@ -34,8 +35,8 @@
 | `PUT` | `/api/inventory/reorder-point/bulk` | `Owner, Staff` | `CS-03` | Đặt ngưỡng cho nhiều SKU một lần. |
 | `GET` | `/api/inventory/ledger/{id}/trace` | `Owner, Staff` | `OISMS-47-U02` | Truy vết chuỗi chứng từ nguồn và các dòng sổ kho liên quan bắt đầu từ một dòng sổ cái kho (`DocumentTraceDto`). |
 | `POST` | `/api/goods-receipts` | `Owner, Staff` | `FR-INV-02`, `OISMS-47-U01A` | Lập phiếu nhập `Draft` từ phiếu mua đã duyệt. Xem mục 1.1. |
-| `GET` | `/api/goods-receipts`, `/api/goods-receipts/{id}` | `Owner, Staff` | `FR-INV-02` | Danh sách và chi tiết phiếu nhập. Lọc thêm được theo `purchaseOrderId`. |
-| `POST` | `/api/goods-receipts/{id}/confirm` | `Owner, Staff` | `FR-INV-02`, `FR-COST-01` | Xác nhận phiếu nhập nguyên tử: kiểm tra phiếu mua và lượng còn được nhận, ghi Sổ cái `IN`, tăng `OnHand`, tính lại `WAC`. Xác nhận lặp trả `409 INVALID_STATE_TRANSITION`. Hóa đơn `Draft` hoặc `PendingApproval` trả `409 GOODS_RECEIPT_INVOICE_PENDING`. |
+| `GET` | `/api/goods-receipts`, `/api/goods-receipts/{id}` | `Owner, Staff` | `FR-INV-02` | Danh sách và chi tiết phiếu nhập. Lọc thêm được theo `purchaseOrderId`. Với `Staff`, các trường `totalAmount`, `items[].unitPrice`, `items[].lineTotal` đều trả `null`. |
+| `POST` | `/api/goods-receipts/{id}/confirm` | `Owner, Staff` | `FR-INV-02`, `FR-COST-01` | Xác nhận phiếu nhập nguyên tử: kiểm tra phiếu mua và lượng còn được nhận, ghi Sổ cái `IN`, tăng `OnHand`, tính lại `WAC` từ `allocatedUnitCost / factorSnapshot`. Xác nhận lặp trả `409 INVALID_STATE_TRANSITION`. |
 | `POST` | `/api/goods-receipts/{id}/cancel` | `Owner, Staff` | `OISMS-47-U01A` | Hủy phiếu `Draft`; không đổi tồn, sổ cái hay lượng đã nhận. |
 | `POST` | `/api/inventory/reserve` | `Owner, Staff, Cashier` | `FR-RSE-02` | Giữ chỗ tồn kho chống bán vượt với khóa dòng CSDL và `Idempotency-Key` / `RequestKey`. |
 
@@ -43,12 +44,12 @@
 
 - Dòng **phiếu mua** nhận `unitId` tùy chọn; để trống là đơn vị gốc. Đơn vị không cho mua trả `422 UNIT_NOT_ALLOWED`; số lượng sai số lẻ trả `400 INVALID_UNIT_QUANTITY`.
 - Đơn vị và hệ số được chụp khi lập phiếu mua; phiếu nhập chép từ dòng phiếu mua, đổi hệ số SKU sau đó không ảnh hưởng.
-- Khi xác nhận: tồn và sổ cái tăng theo `baseQuantity`; giá vốn đưa vào WAC là `unitPrice / factorSnapshot`.
+- Khi xác nhận: tồn và sổ cái tăng theo `baseQuantity`; giá vốn đưa vào WAC là `allocatedUnitCost / factorSnapshot`.
 - Chuyển kho, kiểm kê, sổ cái và số dư chỉ dùng đơn vị gốc.
 
-### 1.1. Phiếu nhập từ phiếu mua (`OISMS-47-U01A`)
+### 1.1. Phiếu nhập từ phiếu mua (`OISMS-47-U01A`, `OISMS-66-L2-G1`)
 
-**Thay đổi phá vỡ tương thích:** `POST /api/goods-receipts` không còn nhận `branchId`, `supplierId`, `items[].skuId`, `items[].unitId`, `items[].unitPrice`. Các trường này nếu client vẫn gửi sẽ bị bỏ qua; chi nhánh, nhà cung cấp, SKU, đơn vị, hệ số và giá lấy từ phiếu mua.
+**Thay đổi phá vỡ tương thích:** `POST /api/goods-receipts` không còn nhận `branchId`, `supplierId`, `items[].skuId`, `items[].unitId`, `items[].unitPrice`. Các trường này nếu client vẫn gửi sẽ bị bỏ qua; chi nhánh, nhà cung cấp, SKU, đơn vị, hệ số và giá vốn phân bổ lấy từ phiếu mua.
 
 ```json
 {
@@ -63,57 +64,48 @@
 - `quantity` là số thực nhận theo **đơn vị của dòng phiếu mua**. Được bỏ bớt dòng để nhận một phần.
 - Trả `201` với `GoodsReceiptResponseDto`, có thêm `purchaseOrderId`, `purchaseOrderNumber`, và `items[].purchaseOrderItemId`.
 - Phiếu nháp không giữ lượng. Lúc lập chỉ kiểm tra để báo sớm; kết luận cuối cùng là lúc xác nhận.
-- `GoodsReceiptResponseDto` gồm `invoiceId` và `invoiceStatus` của hóa đơn còn hiệu lực; hai trường là `null` khi không có hóa đơn còn hiệu lực.
+- Với tài khoản `Staff`, mọi phản hồi phiếu nhập đều che giá (`totalAmount = null`, `items[].unitPrice = null`, `items[].lineTotal = null`).
 - Phiếu nháp cũ không gắn phiếu mua: xác nhận trả `422 PURCHASE_ORDER_REQUIRED`, vẫn hủy được.
 
-### 1.2. Hóa đơn nhà cung cấp và đối chiếu ba bên (U01-B)
+### 1.2. Gỡ API Hóa đơn nhà cung cấp (`U01-B` -> Thay bởi `Upgrade 12`)
 
-| Method | Endpoint | Quyền | Kết quả |
-| :---: | :--- | :--- | :--- |
-| `GET` | `/api/supplier-invoices` | Owner, Staff | Phân trang và lọc theo `supplierId`, `status`, `fromDate`, `toDate`, `goodsReceiptId`, `purchaseOrderId` (mọi hóa đơn của các phiếu nhập thuộc phiếu mua), `pendingOnly`, `pageIndex`, `pageSize`. Hai mốc ngày hóa đơn gồm cả ngày biên. |
-| `GET` | `/api/supplier-invoices/{id}` | Owner, Staff | Chi tiết hóa đơn, bảng `comparison` và `variance` nếu có. |
-| `POST` | `/api/supplier-invoices` | Owner, Staff | Tạo `Draft`. Header `Idempotency-Key` là GUID bắt buộc. Tạo mới trả `201`; gửi lại nội dung gốc trả `200` với cùng ID và `isReplay: true`; đổi nội dung với cùng key trả `409 IDEMPOTENCY_PAYLOAD_MISMATCH`. |
-| `PUT` | `/api/supplier-invoices/{id}` | Owner, Staff | Thay nội dung và các dòng khi còn `Draft`. Liên kết phiếu nhập và nhà cung cấp cố định. |
-| `POST` | `/api/supplier-invoices/{id}/submit` | Owner, Staff | Gửi `Draft`, tự chuyển `Matched` hoặc `PendingApproval`. |
-| `POST` | `/api/supplier-invoices/{id}/approve` | Owner | Duyệt `PendingApproval`. Có thể gửi `{ "decisionNote": "..." }`. |
-| `POST` | `/api/supplier-invoices/{id}/reject` | Owner | Từ chối `PendingApproval`, bắt buộc `{ "decisionNote": "..." }`. Nếu loại `AtReceipt`, phiếu nhập còn nháp được hủy cùng transaction. |
-| `POST` | `/api/supplier-invoices/{id}/cancel` | Owner, Staff | Hủy `Draft`, `Matched` hoặc `Approved`; bắt buộc `{ "reason": "..." }`. |
+Từ `Upgrade 12` (`OISMS-66-L2-G1`), toàn bộ nhóm endpoint `/api/supplier-invoices*` (`SupplierInvoicesController`, `SupplierInvoiceService`) đã bị gỡ bỏ khỏi WebApi và DI container (gọi vào trả `404 NotFound`). Dữ liệu lịch sử trong 3 bảng `supplier_invoices`, `supplier_invoice_items`, `purchase_variances` được giữ lại ở chế độ chỉ đọc trong CSDL.
 
-Mọi phản hồi hóa đơn có thêm các trường chỉ đọc `supplierName`, `goodsReceiptNumber`, `goodsReceiptStatus`, `purchaseOrderId`, `purchaseOrderNumber` để hiển thị danh sách và lịch sử.
-
-Body tạo mới gồm `goodsReceiptId`, `supplierId`, `invoiceSeries`, `invoiceNumber`, `invoiceDate` (YYYY-MM-DD), `vatAmount`, `shippingFee` và `items` với `goodsReceiptItemId`, `quantity`, `unitPrice`. Body sửa dùng các trường nội dung và dòng. Ký hiệu và số tối đa 50 ký tự, lý do/ghi chú quyết định tối đa 500 ký tự. Đơn giá trước thuế theo đơn vị mua, tiền hàng là tổng lượng nhân đơn giá, tổng thanh toán trên chứng từ cộng thuế và phí vận chuyển.
-
-Mỗi dòng `comparison` có ba cột `purchaseOrder`, `goodsReceipt`, `invoice`, cùng `expectedQuantity`, `expectedUnitPrice`, `quantityDiff`, `priceDiff` và `amountDiff`. Dòng thực nhận thiếu trên hóa đơn có cột `invoice: null` và chênh lệch lượng âm khi gửi. Chênh lệch tiền bằng tiền hàng hóa đơn trừ thực nhận nhân giá phiếu mua. Thuế và phí vận chuyển được loại khỏi đối chiếu. `variance` trả loại `AtReceipt` hoặc `AfterReceipt`, tổng chênh lệch và thông tin quyết định.
-
-Cashier nhận `403` trên mọi API hóa đơn. Với ID thuộc tenant khác, API chi tiết hoặc ghi trả `404`. Lỗi nghiệp vụ trả `ProblemDetails` với `errorCode`: `SUPPLIER_INVOICE_DUPLICATE` (409), `SUPPLIER_INVOICE_INVALID_STATE` (409), `SUPPLIER_INVOICE_RECEIPT_MISMATCH` (422), `SUPPLIER_INVOICE_ALREADY_EXISTS` (409). Xác nhận phiếu nhập trả `GOODS_RECEIPT_INVOICE_PENDING` (409) nếu hóa đơn còn chờ gửi hoặc duyệt.
-
-### 1.3. Phiếu mua hàng (`OISMS-47-U01A`)
+### 1.3. Phiếu mua hàng (`OISMS-47-U01A`, `OISMS-66-L2-G1`)
 
 | Method | Endpoint | Quyền (RBAC) | Mô tả & Quy tắc xử lý |
 | :---: | :--- | :---: | :--- |
-| `GET` | `/api/purchase-orders?status=&supplierId=&branchId=&pageIndex=&pageSize=` | `Owner, Staff` | Danh sách phân trang: `items`, `pageIndex`, `pageSize`, `totalCount`. |
-| `GET` | `/api/purchase-orders/{id}` | `Owner, Staff` | Chi tiết kèm các dòng. Tenant khác trả `404`. |
-| `POST` | `/api/purchase-orders` | `Owner, Staff` | Tạo phiếu `Draft`. Bắt buộc header `Idempotency-Key` hoặc `X-Request-Key` (GUID). Tạo mới trả `201`; gửi lại cùng key, cùng nội dung trả `200` với `isReplay = true`; cùng key, khác nội dung trả `409 IDEMPOTENCY_PAYLOAD_MISMATCH`. |
-| `PUT` | `/api/purchase-orders/{id}` | `Owner, Staff` | Chỉ khi `Draft`. Cùng body với `POST`, thay toàn bộ dòng và chụp lại đơn vị. |
-| `POST` | `/api/purchase-orders/{id}/approve` | `Owner` | Body `{ "confirmZeroPrice": false }`. Phiếu có dòng giá 0 phải gửi `true`. Sau khi duyệt không sửa được. |
+| `GET` | `/api/purchase-orders?status=&supplierId=&branchId=&pageIndex=&pageSize=` | `Owner, Staff` | Danh sách phân trang: `items`, `pageIndex`, `pageSize`, `totalCount`. Với `Staff`: mọi trường giá/phí/tổng tiền là `null`; `supplierId`/`supplierName` là `null` khi đơn ở `Draft` hoặc `PendingApproval`. |
+| `GET` | `/api/purchase-orders/{id}` | `Owner, Staff` | Chi tiết kèm các dòng. Tenant khác trả `404`. Áp dụng quy tắc che giá và NCC với `Staff` như trên. |
+| `GET` | `/api/purchase-orders/price-suggestion?branchId=&supplierId=&skuId=&unitId=` | `Owner` | Gợi ý giá mua từ đơn đã duyệt gần nhất cùng NCC + SKU + đơn vị (`suggestedUnitPrice`, `lastAllocatedUnitCost`, `lastPurchaseOrderNumber`, `lastOrderDate`), kèm `currentBaseWac` và `currentUnitWac` của chi nhánh. |
+| `POST` | `/api/purchase-orders` | `Owner, Staff` | `Staff` tạo đề nghị mua ở `Draft` (mọi trường `supplierId`, `unitPrice`, phí gửi lên bị bỏ qua). `Owner` tạo đơn vào thẳng `PendingApproval`. Bắt buộc header `Idempotency-Key` hoặc `X-Request-Key` (GUID). Tạo mới trả `201`; gửi lại cùng key, cùng nội dung trả `200` với `isReplay = true`; cùng key, khác nội dung trả `409 IDEMPOTENCY_PAYLOAD_MISMATCH`. |
+| `PUT` | `/api/purchase-orders/{id}` | `Owner, Staff` | `Staff` chỉ sửa được `Draft` do chính mình tạo (đã `Submit` sang `PendingApproval` thì trả `409`). `Owner` sửa được ở `PendingApproval` và `Draft` (chọn NCC, `orderDate <= hôm nay`, sửa giá, phí, chiết khấu, VAT, số lượng, bỏ dòng). Mỗi lần lưu tăng `version`. |
+| `POST` | `/api/purchase-orders/{id}/submit` | `Owner, Staff` | Chuyển đơn từ `Draft` sang `PendingApproval`. `Staff` chỉ được gửi đơn do mình tạo. |
+| `POST` | `/api/purchase-orders/{id}/return` | `Owner` | Body `{ "reason": "bắt buộc, tối đa 500 ký tự" }`. Trả đơn từ `PendingApproval` về `Draft` cho `Staff` chỉnh sửa. Thiếu lý do trả `422 PURCHASE_ORDER_RETURN_REASON_REQUIRED`. |
+| `POST` | `/api/purchase-orders/{id}/approve` | `Owner` | Body `{ "confirmZeroPrice": false, "version": 1 }`. Chỉ duyệt từ `PendingApproval`. Thiếu `supplierId` hoặc còn dòng `unitPrice == null` trả `422 PURCHASE_ORDER_INCOMPLETE_FOR_APPROVAL`. Chiết khấu > tổng tiền hàng trả `422 PURCHASE_ORDER_DISCOUNT_EXCEEDS_SUBTOTAL`. Lệch `version` trả `409 PURCHASE_ORDER_VERSION_MISMATCH`. Có dòng giá 0 phải gửi `confirmZeroPrice = true`. Khi duyệt, hệ thống tính và chốt cố định `allocatedUnitCost` cho từng dòng. |
 | `POST` | `/api/purchase-orders/{id}/close` | `Owner` | Body `{ "reason": "bắt buộc, tối đa 500 ký tự" }`. Đóng phần chưa nhận từ `Approved` hoặc `PartiallyReceived`. |
-| `POST` | `/api/purchase-orders/{id}/cancel` | `Owner` | Hủy từ `Draft` hoặc `Approved` chưa nhận hàng. |
+| `POST` | `/api/purchase-orders/{id}/cancel` | `Owner, Staff` | `Staff` chỉ hủy được `Draft` của mình (`PendingApproval` trả `409`). `Owner` hủy được từ `Draft`, `PendingApproval` hoặc `Approved` chưa nhận hàng. |
 
 Body tạo hoặc sửa phiếu:
 
 ```json
 {
-  "supplierId": "GUID",
-  "branchId": "GUID",
+  "supplierId": "GUID hoặc null (bắt buộc khi Owner duyệt)",
+  "branchId": "GUID, bắt buộc",
+  "orderDate": "YYYY-MM-DD, tùy chọn (mặc định hôm nay, không lớn hơn hôm nay)",
+  "shippingFee": 0,
+  "discountAmount": 0,
+  "vatAmount": 0,
+  "version": 1,
   "number": "tùy chọn, tối đa 50 ký tự; trống thì tự sinh PO-yyyyMMdd-XXXXXX",
   "note": "tùy chọn, tối đa 1000 ký tự",
   "items": [{ "skuId": "GUID", "unitId": "GUID hoặc null", "quantity": 100, "unitPrice": 12000 }]
 }
 ```
 
-- Mỗi SKU một dòng. `unitPrice` là giá thực mua sau chiết khấu theo đơn vị mua, tối đa 6 chữ số lẻ.
+- Mỗi SKU một dòng. `unitPrice` là đơn giá mua theo đơn vị mua (nullable khi ở `Draft`/`PendingApproval`), tối đa 6 chữ số lẻ.
 
-Response phiếu mua có: `id`, `number`, `requestKey`, `supplierId`, `supplierName`, `branchId`, `branchName`, `status`, `note`, `totalAmount`, `createdBy`, `createdByName`, `approvedBy`, `approvedByName`, `approvedAt`, `closedBy`, `closedByName`, `closedAt`, `closeReason`, `cancelledBy`, `cancelledByName`, `cancelledAt`, `createdAt`, `updatedAt`, `isReplay`, `items`.
+Response phiếu mua có: `id`, `number`, `requestKey`, `supplierId`, `supplierName`, `branchId`, `branchName`, `orderDate`, `status`, `note`, `subtotal`, `shippingFee`, `discountAmount`, `vatAmount`, `totalAllocatedCost`, `totalAmount`, `version`, `createdBy`, `createdByName`, `approvedBy`, `approvedByName`, `approvedAt`, `returnedBy`, `returnedByName`, `returnedAt`, `returnReason`, `closedBy`, `closedByName`, `closedAt`, `closeReason`, `cancelledBy`, `cancelledByName`, `cancelledAt`, `createdAt`, `updatedAt`, `isReplay`, `items`.
 
 Mỗi dòng trong `items` có:
 
@@ -122,7 +114,7 @@ Mỗi dòng trong `items` có:
 | `id` | Dùng làm `purchaseOrderItemId` khi lập phiếu nhập |
 | `skuId`, `skuCode`, `productName` | Mặt hàng |
 | `unitId`, `unitName`, `factorSnapshot`, `quantityDecimalPlaces` | Đơn vị đã chụp và số chữ số lẻ được phép nhập |
-| `quantity`, `unitPrice`, `lineTotal` | Lượng đặt và giá theo đơn vị mua |
+| `quantity`, `unitPrice`, `allocatedUnitCost`, `lineTotal`, `allocatedLineTotal` | Lượng đặt, đơn giá mua, giá vốn đơn vị sau phân bổ và thành tiền theo đơn vị mua (`null` với `Staff`) |
 | `orderedBaseQuantity`, `receivedBaseQuantity`, `remainingBaseQuantity` | Lượng đặt, đã nhận, còn lại theo đơn vị gốc |
 | `remainingQuantity` | Lượng còn lại theo đơn vị mua, làm tròn 3 chữ số lẻ, dùng để hiển thị |
 
@@ -131,9 +123,13 @@ Mỗi dòng trong `items` có:
 | Mã | HTTP | Khi nào |
 | :--- | :---: | :--- |
 | `PURCHASE_ORDER_REQUIRED` | `422` | Thiếu phiếu mua khi lập phiếu nhập, hoặc xác nhận phiếu nháp cũ |
-| `PURCHASE_ORDER_NOT_RECEIVABLE` | `409` | Phiếu mua không ở trạng thái nhận được, gồm `Draft`, `Closed`, `Cancelled`; lúc lập phiếu nhập còn gồm `Received` |
+| `PURCHASE_ORDER_NOT_RECEIVABLE` | `409` | Phiếu mua không ở trạng thái nhận được, gồm `Draft`, `PendingApproval`, `Closed`, `Cancelled`; lúc lập phiếu nhập còn gồm `Received` |
 | `PURCHASE_ORDER_OVER_RECEIPT` | `409` | Vượt lượng còn được nhận, kể cả xác nhận khi phiếu mua đã `Received` |
 | `PURCHASE_ORDER_ITEM_MISMATCH` | `422` | Dòng nhập không thuộc phiếu mua, bị trùng, hoặc không khớp phiếu mua |
+| `PURCHASE_ORDER_INCOMPLETE_FOR_APPROVAL` | `422` | Duyệt đơn mua khi thiếu `supplierId`, không có dòng hàng, hoặc còn dòng có `unitPrice == null` |
+| `PURCHASE_ORDER_DISCOUNT_EXCEEDS_SUBTOTAL` | `422` | Chiết khấu thương mại (`discountAmount`) lớn hơn tổng tiền hàng (`subtotal`) |
+| `PURCHASE_ORDER_RETURN_REASON_REQUIRED` | `422` | Owner trả đơn mua về `Draft` mà không nhập lý do |
+| `PURCHASE_ORDER_VERSION_MISMATCH` | `409` | Phiên bản đơn mua gửi lên không khớp với `version` hiện tại trong DB |
 | `PURCHASE_ORDER_ZERO_PRICE_CONFIRM_REQUIRED` | `422` | Duyệt phiếu có giá 0 mà chưa xác nhận |
 | `INVALID_STATE_TRANSITION` | `409` | Sai chuyển trạng thái phiếu mua hoặc phiếu nhập |
 | `IDEMPOTENCY_PAYLOAD_MISMATCH` | `409` | Cùng key nhưng khác nội dung |

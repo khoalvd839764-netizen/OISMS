@@ -61,11 +61,10 @@ Các trường định danh bắt buộc bên trong Payload của JWT:
 | **Danh mục & Sản phẩm** | Đọc bảng giá và giá hiệu lực | `OISMS-47-U04` | ✅ Mọi thời điểm | ✅ Mọi thời điểm | 👁️ Chỉ giá hiện tại |
 | **Danh mục & Sản phẩm** | Quản lý Đơn vị tính (`Unit`) & Quy cách SKU (`SkuUnit`) | `OISMS-47-U05` | ✅ Toàn quyền | ✅ Toàn quyền | 👁️ Chỉ xem (`GET`), trừ lịch sử hệ số |
 | **Kho & Sổ cái** | Xem lịch sử Sổ cái kho (`InventoryTransaction`) & Số dư tồn kho | `FR-INV-01` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm sổ cái (Chỉ xem tồn khả dụng POS, `averageCost = null`) |
-| **Kho & Sổ cái** | Tạo, Xác nhận & Hủy nháp Phiếu nhập hàng từ Nhà cung cấp (`Goods Receipt`) | `FR-INV-02`, `OISMS-47-U01A` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |
-| **Kho & Sổ cái** | Xem, lập và sửa nháp Phiếu mua hàng (`Purchase Order`) | `OISMS-47-U01A` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |
-| **Kho & Sổ cái** | Duyệt, đóng và hủy Phiếu mua hàng | `OISMS-47-U01A` | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) | ❌ Cấm (`403 Forbidden`) |
-| **Kho & Sổ cái** | Xem, nhập, sửa nháp, gửi đối chiếu và hủy hóa đơn nhà cung cấp | `OISMS-47-U01B` | ✅ Cho phép | ✅ Cho phép | ❌ Cấm (`403 Forbidden`) |
-| **Kho & Sổ cái** | Duyệt hoặc từ chối chênh lệch hóa đơn nhà cung cấp | `OISMS-47-U01B` | ✅ Cho phép, gọi riêng sau khi gửi | ❌ Cấm (`403 Forbidden`) | ❌ Cấm (`403 Forbidden`) |
+| **Kho & Sổ cái** | Tạo, Xác nhận & Hủy nháp Phiếu nhập hàng từ Nhà cung cấp (`Goods Receipt`) | `FR-INV-02`, `OISMS-47-U01A`, `OISMS-66-L2-G1` | ✅ Toàn quyền | ✅ Tạo, xác nhận, hủy nháp (mọi trường giá & tổng tiền trả `null`) | ❌ Cấm (`403 Forbidden`) |
+| **Kho & Sổ cái** | Xem, lập, sửa và gửi duyệt Phiếu mua hàng (`Purchase Order`) | `OISMS-47-U01A`, `OISMS-66-L2-G1` | ✅ Toàn quyền (tạo thẳng `PendingApproval`, sửa NCC/giá/phí/SL, tra gợi ý giá) | ✅ Tạo/sửa/hủy/gửi `Draft` của mình (ẩn toàn bộ giá/phí/VAT; ẩn NCC khi `Draft`/`PendingApproval`) | ❌ Cấm (`403 Forbidden`) |
+| **Kho & Sổ cái** | Duyệt (`Approve`), trả về (`Return`), đóng (`Close`) và hủy (`Cancel` từ `PendingApproval`/`Approved`) Phiếu mua hàng | `OISMS-47-U01A`, `OISMS-66-L2-G1` | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden` / `409` khi hủy ngoài `Draft`) | ❌ Cấm (`403 Forbidden`) |
+| **Kho & Sổ cái** | Hóa đơn nhà cung cấp (`U01-B` -> đã gỡ tại `Upgrade 12`) | `OISMS-66-L2-G1` | — *(Đã gỡ API `/api/supplier-invoices*`, bảng giữ chỉ đọc)* | — *(Đã gỡ API)* | ❌ Cấm |
 | **Kho & Sổ cái** | Thực hiện Chuyển kho 2 bước (Xuất đi & Xác nhận nhập) | `FR-INV-03` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |
 | **Kho & Sổ cái** | Thiết lập cấu hình Lịch kiểm kê định kỳ (`StockCountSchedule`) | `OISMS-47-U03` | ✅ Toàn quyền (`POST`, `PUT`) | 👁️ Chỉ xem (`GET`) | ❌ Cấm (`403 Forbidden`) |
 | **Kho & Sổ cái** | Xem danh sách Kỳ kiểm kê & Bắt đầu đếm kỳ (`StockCountPeriod`) | `OISMS-47-U03` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |

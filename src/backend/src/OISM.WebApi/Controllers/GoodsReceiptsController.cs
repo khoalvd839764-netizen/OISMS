@@ -7,7 +7,7 @@ using OISM.WebApi.Http;
 namespace OISM.WebApi.Controllers;
 
 /// <summary>
-/// API Quản lý Phiếu nhập kho từ Nhà cung cấp (BE1-04, BE1-05, BE1-07, U01-A).
+/// API Quản lý Phiếu nhập kho từ Nhà cung cấp (BE1-04, BE1-05, BE1-07, U01-A, U12).
 /// Áp dụng cho vai trò Chủ shop (Owner) và Nhân viên kho (Staff).
 /// Nhân viên thu ngân (Cashier) bị từ chối truy cập (403 Forbidden).
 /// </summary>
@@ -23,6 +23,8 @@ public class GoodsReceiptsController : ControllerBase
         _goodsReceiptService = goodsReceiptService;
     }
 
+    private bool IsOwner => User.IsInRole("Owner");
+
     /// <summary>
     /// Lập phiếu nhập kho mới ở trạng thái Nháp (Draft) từ Phiếu mua hàng đã duyệt.
     /// </summary>
@@ -36,7 +38,7 @@ public class GoodsReceiptsController : ControllerBase
         }
 
         var userId = RequireUserId();
-        var result = await _goodsReceiptService.CreateReceiptAsync(dto, userId, ct);
+        var result = await _goodsReceiptService.CreateReceiptAsync(dto, userId, ct, IsOwner);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
@@ -46,7 +48,7 @@ public class GoodsReceiptsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetList([FromQuery] GoodsReceiptFilterDto filter, CancellationToken ct)
     {
-        var result = await _goodsReceiptService.GetReceiptsAsync(filter, ct);
+        var result = await _goodsReceiptService.GetReceiptsAsync(filter, ct, IsOwner);
         return Ok(result);
     }
 
@@ -57,7 +59,7 @@ public class GoodsReceiptsController : ControllerBase
     [ApiErrorContract(ApiErrorProfile.GoodsReceiptRead)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
-        var receipt = await _goodsReceiptService.GetReceiptByIdAsync(id, ct);
+        var receipt = await _goodsReceiptService.GetReceiptByIdAsync(id, ct, IsOwner);
         if (receipt == null)
         {
             return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.GoodsReceipts, "NOT_FOUND", "Không tìm thấy dữ liệu", StatusCodes.Status404NotFound, $"Không tìm thấy Phiếu nhập kho với ID '{id}'.");
@@ -66,14 +68,14 @@ public class GoodsReceiptsController : ControllerBase
     }
 
     /// <summary>
-    /// Xác nhận nhập kho nguyên tử (Atomic Confirm - BE1-05, U01-A).
+    /// Xác nhận nhập kho nguyên tử (Atomic Confirm - BE1-05, U01-A, U12).
     /// </summary>
     [HttpPost("{id}/confirm")]
     [ApiErrorContract(ApiErrorProfile.GoodsReceipts)]
     public async Task<IActionResult> Confirm(Guid id, CancellationToken ct)
     {
         var userId = RequireUserId();
-        var result = await _goodsReceiptService.ConfirmReceiptAsync(id, userId, ct);
+        var result = await _goodsReceiptService.ConfirmReceiptAsync(id, userId, ct, IsOwner);
         return Ok(result);
     }
 
@@ -85,7 +87,7 @@ public class GoodsReceiptsController : ControllerBase
     public async Task<IActionResult> Cancel(Guid id, CancellationToken ct)
     {
         var userId = RequireUserId();
-        var result = await _goodsReceiptService.CancelReceiptAsync(id, userId, ct);
+        var result = await _goodsReceiptService.CancelReceiptAsync(id, userId, ct, IsOwner);
         return Ok(result);
     }
 

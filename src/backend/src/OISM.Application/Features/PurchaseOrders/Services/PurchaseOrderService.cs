@@ -13,7 +13,9 @@ public class PurchaseOrderService : IPurchaseOrderService
 {
     private const decimal MaxUnitPrice = 999_999_999_999_999.999999m;
     private const int MaxCloseReasonLength = 500;
+    private const int MaxReturnReasonLength = 500;
     private const int MaxNoteLength = 1000;
+    private static readonly TimeSpan VietnamOffset = TimeSpan.FromHours(7);
 
     private readonly IAppDbContext _context;
     private readonly ICurrentTenantService _currentTenantService;
@@ -39,11 +41,18 @@ public class PurchaseOrderService : IPurchaseOrderService
         return tenantId.Value;
     }
 
+    private static DateOnly GetTodayVietnam()
+    {
+        var nowVn = DateTimeOffset.UtcNow.ToOffset(VietnamOffset);
+        return DateOnly.FromDateTime(nowVn.DateTime);
+    }
+
     public async Task<PurchaseOrderResponseDto> CreateAsync(
         CreatePurchaseOrderDto dto,
         Guid requestKey,
         Guid userId,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        bool isOwner = true)
     {
         if (dto == null)
         {
@@ -56,7 +65,37 @@ public class PurchaseOrderService : IPurchaseOrderService
         }
 
         var tenantId = RequireTenantId();
-        ValidateHeaderAndItemsBasic(dto.SupplierId, dto.BranchId, dto.Number, dto.Note, dto.Items);
+        ValidateHeaderAndItemsBasic(dto.BranchId, dto.Number, dto.Note, dto.Items, isOwner);
+
+        var todayVn = GetTodayVietnam();
+        var orderDate = todayVn;
+        var shippingFee = 0m;
+        var discountAmount = 0m;
+        var vatAmount = 0m;
+        Guid? supplierId = null;
+
+        if (isOwner)
+        {
+            if (dto.OrderDate.HasValue)
+            {
+                if (dto.OrderDate.Value > todayVn)
+                {
+                    throw new OismException("VALIDATION_ERROR", "Ngày đặt hàng không được lớn hơn ngày hiện tại.", 422);
+                }
+                orderDate = dto.OrderDate.Value;
+            }
+
+            shippingFee = dto.ShippingFee ?? 0m;
+            discountAmount = dto.DiscountAmount ?? 0m;
+            vatAmount = dto.VatAmount ?? 0m;
+
+            ValidateFees(shippingFee, discountAmount, vatAmount);
+
+            if (dto.SupplierId.HasValue && dto.SupplierId.Value != Guid.Empty)
+            {
+                supplierId = dto.SupplierId.Value;
+            }
+        }
 
         return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
@@ -68,12 +107,12 @@ public class PurchaseOrderService : IPurchaseOrderService
 
             if (existing != null)
             {
-                if (!PayloadMatches(existing, dto))
+                if (!PayloadMatches(existing, dto, isOwner))
                 {
                     throw new IdempotencyPayloadMismatchException("RequestKey đã tồn tại nhưng nội dung phiếu mua hàng không khớp.");
                 }
 
-                var replayDto = MapToResponseDto(existing);
+                var replayDto = MapToResponseDto(existing, isOwner);
                 replayDto.IsReplay = true;
                 return replayDto;
             }
@@ -84,10 +123,13 @@ public class PurchaseOrderService : IPurchaseOrderService
                 throw new OismException("NOT_FOUND", $"Không tìm thấy Chi nhánh với ID '{dto.BranchId}'.", 404);
             }
 
-            var supplier = await _context.Suppliers.FirstOrDefaultAsync(s => s.Id == dto.SupplierId, ct);
-            if (supplier == null)
+            if (isOwner && supplierId.HasValue)
             {
-                throw new OismException("NOT_FOUND", $"Không tìm thấy Nhà cung cấp với ID '{dto.SupplierId}'.", 404);
+                var supplier = await _context.Suppliers.FirstOrDefaultAsync(s => s.Id == supplierId.Value, ct);
+                if (supplier == null)
+                {
+                    throw new OismException("NOT_FOUND", $"Không tìm thấy Nhà cung cấp với ID '{supplierId.Value}'.", 404);
+                }
             }
 
             var skuIds = dto.Items.Select(i => i.SkuId).Distinct().ToList();
@@ -121,10 +163,15 @@ public class PurchaseOrderService : IPurchaseOrderService
                 TenantId = tenantId,
                 Number = number,
                 RequestKey = requestKey,
-                SupplierId = dto.SupplierId,
+                SupplierId = isOwner ? supplierId : null,
                 BranchId = dto.BranchId,
-                Status = PurchaseOrderStatus.Draft,
+                OrderDate = orderDate,
+                ShippingFee = shippingFee,
+                DiscountAmount = discountAmount,
+                VatAmount = vatAmount,
+                Status = isOwner ? PurchaseOrderStatus.PendingApproval : PurchaseOrderStatus.Draft,
                 Note = string.IsNullOrWhiteSpace(dto.Note) ? null : dto.Note.Trim(),
+                Version = 1,
                 CreatedBy = userId,
                 CreatedAt = now
             };
@@ -146,7 +193,8 @@ public class PurchaseOrderService : IPurchaseOrderService
                     FactorSnapshot = resolvedUnit.Factor,
                     QuantityDecimalPlaces = (short)resolvedUnit.DecimalPlaces,
                     Quantity = itemDto.Quantity,
-                    UnitPrice = itemDto.UnitPrice,
+                    UnitPrice = isOwner ? itemDto.UnitPrice : null,
+                    AllocatedUnitCost = null,
                     ReceivedBaseQuantity = 0m,
                     CreatedAt = now
                 });
@@ -169,12 +217,12 @@ public class PurchaseOrderService : IPurchaseOrderService
 
                 if (reloaded != null)
                 {
-                    if (!PayloadMatches(reloaded, dto))
+                    if (!PayloadMatches(reloaded, dto, isOwner))
                     {
                         throw new IdempotencyPayloadMismatchException("RequestKey đã tồn tại nhưng nội dung phiếu mua hàng không khớp.");
                     }
 
-                    var replayDto = MapToResponseDto(reloaded);
+                    var replayDto = MapToResponseDto(reloaded, isOwner);
                     replayDto.IsReplay = true;
                     return replayDto;
                 }
@@ -187,7 +235,7 @@ public class PurchaseOrderService : IPurchaseOrderService
                 throw new OismException("VALIDATION_ERROR", $"Mã phiếu mua '{number}' đã tồn tại trong gian hàng.", 409);
             }
 
-            return await LoadAndMapResponseAsync(po.Id, ct);
+            return await LoadAndMapResponseAsync(po.Id, isOwner, ct);
         });
     }
 
@@ -195,7 +243,8 @@ public class PurchaseOrderService : IPurchaseOrderService
         Guid id,
         UpdatePurchaseOrderDraftDto dto,
         Guid userId,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        bool isOwner = true)
     {
         if (dto == null)
         {
@@ -203,7 +252,18 @@ public class PurchaseOrderService : IPurchaseOrderService
         }
 
         var tenantId = RequireTenantId();
-        ValidateHeaderAndItemsBasic(dto.SupplierId, dto.BranchId, dto.Number, dto.Note, dto.Items);
+        ValidateHeaderAndItemsBasic(dto.BranchId, dto.Number, dto.Note, dto.Items, isOwner);
+
+        var todayVn = GetTodayVietnam();
+        if (isOwner)
+        {
+            if (dto.OrderDate.HasValue && dto.OrderDate.Value > todayVn)
+            {
+                throw new OismException("VALIDATION_ERROR", "Ngày đặt hàng không được lớn hơn ngày hiện tại.", 422);
+            }
+
+            ValidateFees(dto.ShippingFee ?? 0m, dto.DiscountAmount ?? 0m, dto.VatAmount ?? 0m);
+        }
 
         return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
         {
@@ -221,9 +281,29 @@ public class PurchaseOrderService : IPurchaseOrderService
                 throw new OismException("NOT_FOUND", $"Không tìm thấy phiếu mua hàng với ID '{id}'.", 404);
             }
 
-            if (!po.IsDraft)
+            if (!isOwner)
             {
-                throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', chỉ được sửa khi ở trạng thái 'Draft'.", 409);
+                if (!po.IsDraft)
+                {
+                    throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', nhân viên chỉ được sửa khi ở trạng thái 'Draft'.", 409);
+                }
+
+                if (po.CreatedBy != userId)
+                {
+                    throw new OismException("FORBIDDEN_ACCESS", "Nhân viên chỉ được chỉnh sửa đơn đề nghị mua nháp do chính mình tạo.", 403);
+                }
+            }
+            else
+            {
+                if (!po.IsPendingApproval && !po.IsDraft)
+                {
+                    throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', chỉ được sửa khi ở trạng thái 'Draft' hoặc 'PendingApproval'.", 409);
+                }
+            }
+
+            if (dto.Version.HasValue && dto.Version.Value != po.Version)
+            {
+                throw new OismException("PURCHASE_ORDER_VERSION_MISMATCH", $"Phiên bản đơn mua không khớp (hiện tại: {po.Version}, gửi lên: {dto.Version.Value}). Vui lòng tải lại.", 409);
             }
 
             var branch = await _context.Branches.FirstOrDefaultAsync(b => b.Id == dto.BranchId, ct);
@@ -232,10 +312,15 @@ public class PurchaseOrderService : IPurchaseOrderService
                 throw new OismException("NOT_FOUND", $"Không tìm thấy Chi nhánh với ID '{dto.BranchId}'.", 404);
             }
 
-            var supplier = await _context.Suppliers.FirstOrDefaultAsync(s => s.Id == dto.SupplierId, ct);
-            if (supplier == null)
+            Guid? supplierId = null;
+            if (isOwner && dto.SupplierId.HasValue && dto.SupplierId.Value != Guid.Empty)
             {
-                throw new OismException("NOT_FOUND", $"Không tìm thấy Nhà cung cấp với ID '{dto.SupplierId}'.", 404);
+                var supplier = await _context.Suppliers.FirstOrDefaultAsync(s => s.Id == dto.SupplierId.Value, ct);
+                if (supplier == null)
+                {
+                    throw new OismException("NOT_FOUND", $"Không tìm thấy Nhà cung cấp với ID '{dto.SupplierId.Value}'.", 404);
+                }
+                supplierId = dto.SupplierId.Value;
             }
 
             var skuIds = dto.Items.Select(i => i.SkuId).Distinct().ToList();
@@ -264,9 +349,29 @@ public class PurchaseOrderService : IPurchaseOrderService
             }
 
             var now = DateTimeOffset.UtcNow;
-            po.SupplierId = dto.SupplierId;
+            po.SupplierId = isOwner ? supplierId : null;
             po.BranchId = dto.BranchId;
+            if (isOwner)
+            {
+                if (dto.OrderDate.HasValue)
+                {
+                    po.OrderDate = dto.OrderDate.Value;
+                }
+                if (dto.ShippingFee.HasValue)
+                {
+                    po.ShippingFee = dto.ShippingFee.Value;
+                }
+                if (dto.DiscountAmount.HasValue)
+                {
+                    po.DiscountAmount = dto.DiscountAmount.Value;
+                }
+                if (dto.VatAmount.HasValue)
+                {
+                    po.VatAmount = dto.VatAmount.Value;
+                }
+            }
             po.Note = string.IsNullOrWhiteSpace(dto.Note) ? null : dto.Note.Trim();
+            po.Version++;
             po.UpdatedAt = now;
 
             // Xóa toàn bộ dòng cũ và chụp lại dòng mới
@@ -296,7 +401,8 @@ public class PurchaseOrderService : IPurchaseOrderService
                     FactorSnapshot = resolvedUnit.Factor,
                     QuantityDecimalPlaces = (short)resolvedUnit.DecimalPlaces,
                     Quantity = itemDto.Quantity,
-                    UnitPrice = itemDto.UnitPrice,
+                    UnitPrice = isOwner ? itemDto.UnitPrice : null,
+                    AllocatedUnitCost = null,
                     ReceivedBaseQuantity = 0m,
                     CreatedAt = now
                 };
@@ -306,15 +412,15 @@ public class PurchaseOrderService : IPurchaseOrderService
             await _context.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
 
-            return await LoadAndMapResponseAsync(po.Id, ct);
+            return await LoadAndMapResponseAsync(po.Id, isOwner, ct);
         });
     }
 
-    public async Task<PurchaseOrderResponseDto> ApproveAsync(
+    public async Task<PurchaseOrderResponseDto> SubmitAsync(
         Guid id,
-        bool confirmZeroPrice,
         Guid userId,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        bool isOwner = false)
     {
         var tenantId = RequireTenantId();
 
@@ -336,26 +442,213 @@ public class PurchaseOrderService : IPurchaseOrderService
 
             if (!po.IsDraft)
             {
-                throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', chỉ được duyệt phiếu ở trạng thái 'Draft'.", 409);
+                throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', chỉ được gửi duyệt khi ở trạng thái 'Draft'.", 409);
+            }
+
+            if (!isOwner && po.CreatedBy != userId)
+            {
+                throw new OismException("FORBIDDEN_ACCESS", "Nhân viên chỉ được gửi duyệt đơn đề nghị mua nháp do chính mình tạo.", 403);
             }
 
             if (po.Items.Count == 0)
             {
-                throw new OismException("VALIDATION_ERROR", "Phiếu mua hàng phải có ít nhất 1 dòng mặt hàng trước khi duyệt.", 400);
+                throw new OismException("VALIDATION_ERROR", "Phiếu mua hàng phải có ít nhất 1 dòng mặt hàng trước khi gửi duyệt.", 400);
             }
 
-            if (po.Items.Any(i => i.UnitPrice == 0m) && !confirmZeroPrice)
+            var now = DateTimeOffset.UtcNow;
+            po.Submit(now);
+
+            await _context.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+
+            return await LoadAndMapResponseAsync(po.Id, isOwner, ct);
+        });
+    }
+
+    public async Task<PurchaseOrderResponseDto> ReturnAsync(
+        Guid id,
+        string? reason,
+        Guid userId,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new OismException("PURCHASE_ORDER_RETURN_REASON_REQUIRED", "Bắt buộc nhập lý do trả về đơn mua hàng.", 422);
+        }
+
+        var trimmedReason = reason.Trim();
+        if (trimmedReason.Length > MaxReturnReasonLength)
+        {
+            throw new OismException("VALIDATION_ERROR", $"Lý do trả về đơn mua tối đa {MaxReturnReasonLength} ký tự.", 422);
+        }
+
+        var tenantId = RequireTenantId();
+
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
+        {
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
+
+            await _sqlLockService.LockPurchaseOrderAsync(tenantId, id, ct);
+
+            var po = await _context.PurchaseOrders
+                .Include(p => p.Items)
+                .FirstOrDefaultAsync(p => p.Id == id, ct);
+
+            if (po == null)
+            {
+                throw new OismException("NOT_FOUND", $"Không tìm thấy phiếu mua hàng với ID '{id}'.", 404);
+            }
+
+            if (!po.IsPendingApproval)
+            {
+                throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', chỉ được trả về khi ở trạng thái 'PendingApproval'.", 409);
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            po.ReturnToDraft(userId, trimmedReason, now);
+
+            await _context.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+
+            return await LoadAndMapResponseAsync(po.Id, isOwner: true, ct);
+        });
+    }
+
+    public async Task<PurchaseOrderResponseDto> ApproveAsync(
+        Guid id,
+        bool confirmZeroPrice,
+        Guid userId,
+        CancellationToken ct = default,
+        int? version = null)
+    {
+        var tenantId = RequireTenantId();
+
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
+        {
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
+
+            await _sqlLockService.LockPurchaseOrderAsync(tenantId, id, ct);
+
+            var po = await _context.PurchaseOrders
+                .Include(p => p.Items)
+                .FirstOrDefaultAsync(p => p.Id == id, ct);
+
+            if (po == null)
+            {
+                throw new OismException("NOT_FOUND", $"Không tìm thấy phiếu mua hàng với ID '{id}'.", 404);
+            }
+
+            if (!po.IsPendingApproval)
+            {
+                throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', chỉ được duyệt phiếu ở trạng thái 'PendingApproval'.", 409);
+            }
+
+            if (version.HasValue && version.Value != po.Version)
+            {
+                throw new OismException("PURCHASE_ORDER_VERSION_MISMATCH", $"Phiên bản đơn mua không khớp (hiện tại: {po.Version}, gửi lên: {version.Value}). Vui lòng tải lại trước khi duyệt.", 409);
+            }
+
+            if (po.Items.Count == 0)
+            {
+                throw new OismException("PURCHASE_ORDER_INCOMPLETE_FOR_APPROVAL", "Phiếu mua hàng phải có ít nhất 1 dòng mặt hàng trước khi duyệt.", 422);
+            }
+
+            if (!po.SupplierId.HasValue || po.SupplierId.Value == Guid.Empty)
+            {
+                throw new OismException("PURCHASE_ORDER_INCOMPLETE_FOR_APPROVAL", "Đơn mua chưa chọn nhà cung cấp, không thể duyệt.", 422);
+            }
+
+            var supplier = await _context.Suppliers.FirstOrDefaultAsync(s => s.Id == po.SupplierId.Value, ct);
+            if (supplier == null)
+            {
+                throw new OismException("NOT_FOUND", $"Không tìm thấy Nhà cung cấp với ID '{po.SupplierId.Value}'.", 404);
+            }
+
+            if (po.OrderDate > GetTodayVietnam())
+            {
+                throw new OismException("VALIDATION_ERROR", "Ngày đặt hàng không được lớn hơn ngày hiện tại.", 422);
+            }
+
+            if (po.Items.Any(i => !i.UnitPrice.HasValue))
+            {
+                throw new OismException("PURCHASE_ORDER_INCOMPLETE_FOR_APPROVAL", "Còn dòng hàng chưa nhập đơn giá mua, không thể duyệt.", 422);
+            }
+
+            if (po.Items.Any(i => i.UnitPrice!.Value < 0m))
+            {
+                throw new OismException("VALIDATION_ERROR", "Đơn giá mua không được âm.", 422);
+            }
+
+            if (po.Items.Any(i => i.UnitPrice!.Value == 0m) && !confirmZeroPrice)
             {
                 throw new PurchaseOrderZeroPriceConfirmRequiredException();
             }
 
+            if (po.ShippingFee < 0m || po.DiscountAmount < 0m || po.VatAmount < 0m)
+            {
+                throw new OismException("VALIDATION_ERROR", "Phí vận chuyển, chiết khấu và thuế VAT không được âm.", 422);
+            }
+
+            var orderedItems = po.Items
+                .OrderBy(i => i.CreatedAt)
+                .ThenBy(i => i.Id)
+                .ToList();
+
+            var subtotal = orderedItems.Sum(i => decimal.Round(i.Quantity * i.UnitPrice!.Value, 6, MidpointRounding.AwayFromZero));
+
+            if (po.DiscountAmount > subtotal)
+            {
+                throw new OismException("PURCHASE_ORDER_DISCOUNT_EXCEEDS_SUBTOTAL", "Chiết khấu thương mại không được lớn hơn tổng tiền hàng.", 422);
+            }
+
             var now = DateTimeOffset.UtcNow;
+            var targetAllocatedTotal = subtotal + po.ShippingFee - po.DiscountAmount;
+            var netAdjustment = po.ShippingFee - po.DiscountAmount;
+            var totalQuantity = orderedItems.Sum(i => i.Quantity);
+            var allocatedRunningTotal = 0m;
+
+            for (var idx = 0; idx < orderedItems.Count; idx++)
+            {
+                var item = orderedItems[idx];
+                var lineTotal = decimal.Round(item.Quantity * item.UnitPrice!.Value, 6, MidpointRounding.AwayFromZero);
+
+                if (idx < orderedItems.Count - 1)
+                {
+                    decimal rawLineAllocated;
+                    if (subtotal > 0m)
+                    {
+                        rawLineAllocated = lineTotal + (netAdjustment * lineTotal / subtotal);
+                    }
+                    else
+                    {
+                        rawLineAllocated = totalQuantity > 0m ? (po.ShippingFee * item.Quantity / totalQuantity) : 0m;
+                    }
+
+                    var allocatedUnitCost = decimal.Round(rawLineAllocated / item.Quantity, 6, MidpointRounding.AwayFromZero);
+                    item.AllocatedUnitCost = allocatedUnitCost;
+                    item.UpdatedAt = now;
+                    allocatedRunningTotal += decimal.Round(allocatedUnitCost * item.Quantity, 6, MidpointRounding.AwayFromZero);
+                }
+                else
+                {
+                    var lastLineAllocatedTotal = targetAllocatedTotal - allocatedRunningTotal;
+                    var lastAllocatedUnitCost = decimal.Round(lastLineAllocatedTotal / item.Quantity, 6, MidpointRounding.AwayFromZero);
+                    item.AllocatedUnitCost = lastAllocatedUnitCost;
+                    item.UpdatedAt = now;
+                }
+            }
+
+            // Lưu allocated_unit_cost trước khi chuyển trạng thái sang Approved để thỏa mãn trigger bảo vệ
+            await _context.SaveChangesAsync(ct);
+
             po.Approve(userId, now);
 
             await _context.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
 
-            return await LoadAndMapResponseAsync(po.Id, ct);
+            return await LoadAndMapResponseAsync(po.Id, isOwner: true, ct);
         });
     }
 
@@ -405,14 +698,15 @@ public class PurchaseOrderService : IPurchaseOrderService
             await _context.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
 
-            return await LoadAndMapResponseAsync(po.Id, ct);
+            return await LoadAndMapResponseAsync(po.Id, isOwner: true, ct);
         });
     }
 
     public async Task<PurchaseOrderResponseDto> CancelAsync(
         Guid id,
         Guid userId,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        bool isOwner = true)
     {
         var tenantId = RequireTenantId();
 
@@ -432,9 +726,24 @@ public class PurchaseOrderService : IPurchaseOrderService
                 throw new OismException("NOT_FOUND", $"Không tìm thấy phiếu mua hàng với ID '{id}'.", 404);
             }
 
-            if (!po.IsCancellableStatus)
+            if (!isOwner)
             {
-                throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', chỉ được hủy khi ở trạng thái 'Draft' hoặc 'Approved' chưa nhận hàng.", 409);
+                if (!po.IsDraft)
+                {
+                    throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', nhân viên chỉ được hủy khi ở trạng thái 'Draft'.", 409);
+                }
+
+                if (po.CreatedBy != userId)
+                {
+                    throw new OismException("FORBIDDEN_ACCESS", "Nhân viên chỉ được hủy đơn đề nghị mua nháp do chính mình tạo.", 403);
+                }
+            }
+            else
+            {
+                if (!po.IsCancellableStatus)
+                {
+                    throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', chỉ được hủy khi ở trạng thái 'Draft', 'PendingApproval' hoặc 'Approved' chưa nhận hàng.", 409);
+                }
             }
 
             if (po.HasReceivedItems)
@@ -448,13 +757,14 @@ public class PurchaseOrderService : IPurchaseOrderService
             await _context.SaveChangesAsync(ct);
             await tx.CommitAsync(ct);
 
-            return await LoadAndMapResponseAsync(po.Id, ct);
+            return await LoadAndMapResponseAsync(po.Id, isOwner, ct);
         });
     }
 
     public async Task<PagedResult<PurchaseOrderResponseDto>> GetPurchaseOrdersAsync(
         PurchaseOrderFilterDto filter,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        bool isOwner = true)
     {
         RequireTenantId();
 
@@ -476,6 +786,16 @@ public class PurchaseOrderService : IPurchaseOrderService
             query = query.Where(p => p.BranchId == filter.BranchId.Value);
         }
 
+        if (filter.FromDate.HasValue)
+        {
+            query = query.Where(p => p.CreatedAt >= filter.FromDate.Value);
+        }
+
+        if (filter.ToDate.HasValue)
+        {
+            query = query.Where(p => p.CreatedAt <= filter.ToDate.Value);
+        }
+
         var totalCount = await query.CountAsync(ct);
 
         var requestedPage = filter.Page > 1 ? filter.Page : filter.PageIndex;
@@ -491,14 +811,14 @@ public class PurchaseOrderService : IPurchaseOrderService
 
         return new PagedResult<PurchaseOrderResponseDto>
         {
-            Items = orders.Select(MapToResponseDto).ToList(),
+            Items = orders.Select(po => MapToResponseDto(po, isOwner)).ToList(),
             PageIndex = pageIndex,
             PageSize = pageSize,
             TotalCount = totalCount
         };
     }
 
-    public async Task<PurchaseOrderResponseDto?> GetPurchaseOrderByIdAsync(Guid id, CancellationToken ct = default)
+    public async Task<PurchaseOrderResponseDto?> GetPurchaseOrderByIdAsync(Guid id, CancellationToken ct = default, bool isOwner = true)
     {
         RequireTenantId();
 
@@ -506,7 +826,92 @@ public class PurchaseOrderService : IPurchaseOrderService
             .AsNoTracking()
             .FirstOrDefaultAsync(p => p.Id == id, ct);
 
-        return po == null ? null : MapToResponseDto(po);
+        return po == null ? null : MapToResponseDto(po, isOwner);
+    }
+
+    public async Task<PurchaseOrderPriceSuggestionDto> GetPriceSuggestionAsync(
+        PurchaseOrderPriceSuggestionQueryDto query,
+        CancellationToken ct = default)
+    {
+        var tenantId = RequireTenantId();
+
+        if (query == null || query.BranchId == Guid.Empty || query.SkuId == Guid.Empty)
+        {
+            throw new OismException("VALIDATION_ERROR", "Bắt buộc truyền branchId và skuId hợp lệ để tra cứu gợi ý giá mua.", 400);
+        }
+
+        var sku = await _context.ProductVariants
+            .AsNoTracking()
+            .Include(v => v.Product)
+            .Include(v => v.SkuUnits)
+                .ThenInclude(u => u.Unit)
+            .FirstOrDefaultAsync(v => v.Id == query.SkuId, ct);
+
+        if (sku == null)
+        {
+            throw new OismException("NOT_FOUND", $"Không tìm thấy mặt hàng SKU với ID '{query.SkuId}'.", 404);
+        }
+
+        var resolvedUnit = SkuUnitResolver.ResolveForPurchase(sku, sku.SkuUnits, query.UnitId);
+
+        var balance = await _context.InventoryBalances
+            .AsNoTracking()
+            .FirstOrDefaultAsync(b => b.TenantId == tenantId && b.BranchId == query.BranchId && b.SkuId == query.SkuId, ct);
+
+        var currentBaseWac = balance?.AverageCost ?? 0m;
+        var currentUnitWac = decimal.Round(currentBaseWac * resolvedUnit.Factor, 6, MidpointRounding.AwayFromZero);
+
+        var result = new PurchaseOrderPriceSuggestionDto
+        {
+            SupplierId = query.SupplierId,
+            BranchId = query.BranchId,
+            SkuId = query.SkuId,
+            UnitId = resolvedUnit.UnitId,
+            UnitName = resolvedUnit.UnitName,
+            FactorToBase = resolvedUnit.Factor,
+            CurrentBaseWac = currentBaseWac,
+            CurrentUnitWac = currentUnitWac
+        };
+
+        if (query.SupplierId.HasValue && query.SupplierId.Value != Guid.Empty)
+        {
+            var approvedStatuses = new[]
+            {
+                PurchaseOrderStatus.Approved,
+                PurchaseOrderStatus.PartiallyReceived,
+                PurchaseOrderStatus.Received,
+                PurchaseOrderStatus.Closed
+            };
+
+            var latestApprovedItem = await _context.PurchaseOrderItems
+                .AsNoTracking()
+                .Include(i => i.PurchaseOrder)
+                .Where(i => i.TenantId == tenantId
+                            && i.SkuId == query.SkuId
+                            && i.UnitPrice != null
+                            && (resolvedUnit.UnitId == null
+                                ? (i.UnitId == null || i.FactorSnapshot == 1m)
+                                : i.UnitId == resolvedUnit.UnitId)
+                            && i.PurchaseOrder != null
+                            && i.PurchaseOrder.SupplierId == query.SupplierId.Value
+                            && approvedStatuses.Contains(i.PurchaseOrder.Status))
+                .OrderByDescending(i => i.PurchaseOrder!.ApprovedAt)
+                .ThenByDescending(i => i.PurchaseOrder!.OrderDate)
+                .ThenByDescending(i => i.PurchaseOrder!.CreatedAt)
+                .FirstOrDefaultAsync(ct);
+
+            if (latestApprovedItem?.PurchaseOrder != null)
+            {
+                result.SuggestedUnitPrice = latestApprovedItem.UnitPrice;
+                result.LastAllocatedUnitCost = latestApprovedItem.AllocatedUnitCost;
+                result.LastPurchaseOrderId = latestApprovedItem.PurchaseOrderId;
+                result.LastPurchaseOrderNumber = latestApprovedItem.PurchaseOrder.Number;
+                result.LastOrderDate = latestApprovedItem.PurchaseOrder.OrderDate;
+                result.LastApprovedAt = latestApprovedItem.PurchaseOrder.ApprovedAt;
+            }
+        }
+
+        return result;
     }
 
     private IQueryable<PurchaseOrder> LoadPurchaseOrderGraphQuery()
@@ -516,6 +921,7 @@ public class PurchaseOrderService : IPurchaseOrderService
             .Include(p => p.Branch)
             .Include(p => p.CreatedByUser)
             .Include(p => p.ApprovedByUser)
+            .Include(p => p.ReturnedByUser)
             .Include(p => p.ClosedByUser)
             .Include(p => p.CancelledByUser)
             .Include(p => p.Items)
@@ -523,7 +929,7 @@ public class PurchaseOrderService : IPurchaseOrderService
                     .ThenInclude(s => s!.Product);
     }
 
-    private async Task<PurchaseOrderResponseDto> LoadAndMapResponseAsync(Guid id, CancellationToken ct)
+    private async Task<PurchaseOrderResponseDto> LoadAndMapResponseAsync(Guid id, bool isOwner, CancellationToken ct)
     {
         var po = await LoadPurchaseOrderGraphQuery()
             .AsNoTracking()
@@ -534,21 +940,36 @@ public class PurchaseOrderService : IPurchaseOrderService
             throw new OismException("NOT_FOUND", $"Không tìm thấy phiếu mua hàng với ID '{id}'.", 404);
         }
 
-        return MapToResponseDto(po);
+        return MapToResponseDto(po, isOwner);
+    }
+
+    private static void ValidateFees(decimal shippingFee, decimal discountAmount, decimal vatAmount)
+    {
+        if (shippingFee < 0m || discountAmount < 0m || vatAmount < 0m)
+        {
+            throw new OismException("VALIDATION_ERROR", "Phí vận chuyển, chiết khấu thương mại và thuế VAT không được âm.", 400);
+        }
+
+        if (shippingFee > MaxUnitPrice || discountAmount > MaxUnitPrice || vatAmount > MaxUnitPrice)
+        {
+            throw new OismException("VALIDATION_ERROR", "Phí vận chuyển, chiết khấu hoặc thuế VAT vượt quá giới hạn cho phép.", 400);
+        }
+
+        if (decimal.Round(shippingFee, 6) != shippingFee ||
+            decimal.Round(discountAmount, 6) != discountAmount ||
+            decimal.Round(vatAmount, 6) != vatAmount)
+        {
+            throw new OismException("VALIDATION_ERROR", "Phí vận chuyển, chiết khấu và thuế VAT tối đa 6 chữ số thập phân.", 400);
+        }
     }
 
     private static void ValidateHeaderAndItemsBasic(
-        Guid supplierId,
         Guid branchId,
         string? number,
         string? note,
-        List<CreatePurchaseOrderItemDto>? items)
+        List<CreatePurchaseOrderItemDto>? items,
+        bool isOwner)
     {
-        if (supplierId == Guid.Empty)
-        {
-            throw new OismException("VALIDATION_ERROR", "Nhà cung cấp là bắt buộc.", 400);
-        }
-
         if (branchId == Guid.Empty)
         {
             throw new OismException("VALIDATION_ERROR", "Chi nhánh là bắt buộc.", 400);
@@ -592,27 +1013,39 @@ public class PurchaseOrderService : IPurchaseOrderService
                 throw new OismException("VALIDATION_ERROR", "Số lượng đặt mua phải lớn hơn 0.", 400);
             }
 
-            if (item.UnitPrice < 0m)
+            if (isOwner && item.UnitPrice.HasValue)
             {
-                throw new OismException("VALIDATION_ERROR", "Đơn giá mua không được âm.", 400);
-            }
+                if (item.UnitPrice.Value < 0m)
+                {
+                    throw new OismException("VALIDATION_ERROR", "Đơn giá mua không được âm.", 400);
+                }
 
-            if (item.UnitPrice > MaxUnitPrice)
-            {
-                throw new OismException("VALIDATION_ERROR", "Đơn giá mua vượt quá giới hạn cho phép.", 400);
-            }
+                if (item.UnitPrice.Value > MaxUnitPrice)
+                {
+                    throw new OismException("VALIDATION_ERROR", "Đơn giá mua vượt quá giới hạn cho phép.", 400);
+                }
 
-            if (decimal.Round(item.UnitPrice, 6) != item.UnitPrice)
-            {
-                throw new OismException("VALIDATION_ERROR", "Đơn giá mua tối đa 6 chữ số thập phân.", 400);
+                if (decimal.Round(item.UnitPrice.Value, 6) != item.UnitPrice.Value)
+                {
+                    throw new OismException("VALIDATION_ERROR", "Đơn giá mua tối đa 6 chữ số thập phân.", 400);
+                }
             }
         }
     }
 
-    private static bool PayloadMatches(PurchaseOrder existing, CreatePurchaseOrderDto incoming)
+    private static bool PayloadMatches(PurchaseOrder existing, CreatePurchaseOrderDto incoming, bool isOwner)
     {
-        if (existing.SupplierId != incoming.SupplierId) return false;
         if (existing.BranchId != incoming.BranchId) return false;
+
+        if (isOwner)
+        {
+            var incomingSupplierId = incoming.SupplierId.HasValue && incoming.SupplierId.Value != Guid.Empty ? incoming.SupplierId : null;
+            if (existing.SupplierId != incomingSupplierId) return false;
+            if (incoming.OrderDate.HasValue && existing.OrderDate != incoming.OrderDate.Value) return false;
+            if (existing.ShippingFee != (incoming.ShippingFee ?? 0m)) return false;
+            if (existing.DiscountAmount != (incoming.DiscountAmount ?? 0m)) return false;
+            if (existing.VatAmount != (incoming.VatAmount ?? 0m)) return false;
+        }
 
         var incomingNote = string.IsNullOrWhiteSpace(incoming.Note) ? null : incoming.Note.Trim();
         if (!string.Equals(existing.Note, incomingNote, StringComparison.Ordinal)) return false;
@@ -627,10 +1060,11 @@ public class PurchaseOrderService : IPurchaseOrderService
 
         foreach (var incItem in incoming.Items)
         {
+            var expectedUnitPrice = isOwner ? incItem.UnitPrice : null;
             var match = existing.Items.FirstOrDefault(e =>
                 e.SkuId == incItem.SkuId &&
                 e.Quantity == incItem.Quantity &&
-                e.UnitPrice == incItem.UnitPrice &&
+                (!isOwner || e.UnitPrice == expectedUnitPrice) &&
                 (incItem.UnitId == null
                     ? (e.UnitId == null || (e.Sku != null && e.UnitId == e.Sku.BaseUnitId) || e.FactorSnapshot == 1m)
                     : e.UnitId == incItem.UnitId));
@@ -641,7 +1075,7 @@ public class PurchaseOrderService : IPurchaseOrderService
         return true;
     }
 
-    private static PurchaseOrderResponseDto MapToResponseDto(PurchaseOrder po)
+    private static PurchaseOrderResponseDto MapToResponseDto(PurchaseOrder po, bool isOwner)
     {
         var items = po.Items
             .OrderBy(i => i.CreatedAt)
@@ -650,6 +1084,9 @@ public class PurchaseOrderService : IPurchaseOrderService
             {
                 var orderedBase = i.Quantity * i.FactorSnapshot;
                 var remainingBase = Math.Max(0m, orderedBase - i.ReceivedBaseQuantity);
+                var receivedUnitQty = i.FactorSnapshot > 0m
+                    ? decimal.Round(i.ReceivedBaseQuantity / i.FactorSnapshot, 3, MidpointRounding.AwayFromZero)
+                    : 0m;
                 var remainingUnitQty = i.FactorSnapshot > 0m
                     ? decimal.Round(remainingBase / i.FactorSnapshot, 3, MidpointRounding.AwayFromZero)
                     : 0m;
@@ -666,31 +1103,69 @@ public class PurchaseOrderService : IPurchaseOrderService
                     QuantityDecimalPlaces = i.QuantityDecimalPlaces,
                     Quantity = i.Quantity,
                     OrderedBaseQuantity = orderedBase,
-                    UnitPrice = i.UnitPrice,
+                    UnitPrice = isOwner ? i.UnitPrice : null,
+                    AllocatedUnitCost = isOwner ? i.AllocatedUnitCost : null,
                     ReceivedBaseQuantity = i.ReceivedBaseQuantity,
                     RemainingBaseQuantity = remainingBase,
+                    ReceivedQuantity = receivedUnitQty,
                     RemainingQuantity = remainingUnitQty
                 };
             })
             .ToList();
+
+        var hideSupplier = !isOwner && (po.Status == PurchaseOrderStatus.Draft || po.Status == PurchaseOrderStatus.PendingApproval);
+        var supplierId = hideSupplier ? null : po.SupplierId;
+        var supplierName = hideSupplier ? null : po.Supplier?.Name;
+
+        decimal? subtotal = null;
+        decimal? shippingFee = null;
+        decimal? discountAmount = null;
+        decimal? vatAmount = null;
+        decimal? totalAllocatedCost = null;
+        decimal? totalAmount = null;
+
+        if (isOwner)
+        {
+            var rawSubtotal = po.Items
+                .Where(i => i.UnitPrice.HasValue)
+                .Sum(i => decimal.Round(i.Quantity * i.UnitPrice!.Value, 6, MidpointRounding.AwayFromZero));
+
+            subtotal = rawSubtotal;
+            shippingFee = po.ShippingFee;
+            discountAmount = po.DiscountAmount;
+            vatAmount = po.VatAmount;
+            totalAllocatedCost = Math.Max(0m, rawSubtotal + po.ShippingFee - po.DiscountAmount);
+            totalAmount = Math.Max(0m, rawSubtotal + po.ShippingFee - po.DiscountAmount + po.VatAmount);
+        }
 
         return new PurchaseOrderResponseDto
         {
             Id = po.Id,
             Number = po.Number,
             RequestKey = po.RequestKey,
-            SupplierId = po.SupplierId,
-            SupplierName = po.Supplier?.Name ?? string.Empty,
+            SupplierId = supplierId,
+            SupplierName = supplierName,
             BranchId = po.BranchId,
             BranchName = po.Branch?.Name ?? string.Empty,
+            OrderDate = po.OrderDate,
             Status = po.Status,
             Note = po.Note,
-            TotalAmount = po.Items.Sum(i => i.Quantity * i.UnitPrice),
+            Subtotal = subtotal,
+            ShippingFee = shippingFee,
+            DiscountAmount = discountAmount,
+            VatAmount = vatAmount,
+            TotalAllocatedCost = totalAllocatedCost,
+            TotalAmount = totalAmount,
+            Version = po.Version,
             CreatedBy = po.CreatedBy,
             CreatedByName = po.CreatedByUser?.FullName,
             ApprovedBy = po.ApprovedBy,
             ApprovedByName = po.ApprovedByUser?.FullName,
             ApprovedAt = po.ApprovedAt,
+            ReturnedBy = po.ReturnedBy,
+            ReturnedByName = po.ReturnedByUser?.FullName,
+            ReturnedAt = po.ReturnedAt,
+            ReturnReason = po.ReturnReason,
             ClosedBy = po.ClosedBy,
             ClosedByName = po.ClosedByUser?.FullName,
             ClosedAt = po.ClosedAt,
