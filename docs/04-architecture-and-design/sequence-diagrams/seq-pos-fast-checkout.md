@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-SEQ-01` |
-| **Phiên bản (Version)** | `v1.1.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
+| **Phiên bản (Version)** | `v1.2.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-19` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-POS-04`, `FR-COST-02`, `NFR-SEC-02`, `3.2.e` (Trang 2, 3, 4, 5) |
 | **Phạm vi áp dụng** | Luồng thanh toán đơn hàng tại quầy POS (`Reserve -> Confirm -> Deduct`) |
 
@@ -15,8 +15,8 @@
 | Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả thay đổi | Mã tham chiếu |
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Thiết kế Sequence Diagram chuẩn UML 2.0 cho luồng thanh toán nhanh nguyên tử tại quầy POS. | `INIT-SEQ-01` |
-
 | `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Sửa controller thành `PosCatalogController`/`OrdersController`, header `Idempotency-Key`, đơn POS lưu trạng thái `Completed`. | `OISMS-46` |
+| `v1.2.0` | `2026-11-19` | Nhóm dự án OISMS | Lập chứng từ Phiếu xuất kho 02-VT (`GoodsIssue` + `GoodsIssueItem`) trong cùng transaction ngay sau bước lập `SalesInvoice`. | `OISMS-66-L2-G3` |
 ---
 
 ## Sơ Đồ Trình Tự (`Reserve -> Confirm -> Deduct` in Single Atomic Transaction)
@@ -45,6 +45,7 @@ sequenceDiagram
         Svc->>DB: 2. Trừ on_hand tại kho bán của chi nhánh (không qua bước giữ chỗ)
         Svc->>DB: 3. INSERT InventoryTransaction (Type = OUT, Quantity, BalanceAfter, OrderItemId)
         Svc->>DB: 4. INSERT SalesInvoice (số INV-, dữ liệu chụp) cùng giao dịch với dòng OUT
+        Svc->>DB: 5. INSERT GoodsIssue (số PXK-<số hóa đơn>) & GoodsIssueItem (gắn 1-1 với từng dòng OUT)
         Svc->>DB: INSERT Payment (Cash/BankTransfer, Succeeded)
         Svc->>DB: COMMIT TRANSACTION, sau đó phát SignalR cập nhật tồn
         API-->>POS: HTTP 200 OK (ReceiptNumber = số hóa đơn INV-, kèm số dư mới)

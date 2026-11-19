@@ -1,4 +1,4 @@
-import { AlertCircle, Plus, RefreshCw, ShoppingBag } from "lucide-react";
+import { AlertCircle, FileSpreadsheet, FileText, Plus, Printer, RefreshCw, ShoppingBag } from "lucide-react";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { pricingService } from "../services/pricingService";
@@ -12,6 +12,8 @@ import { orderService } from "../services/orderService";
 import { OrdersTable } from "../components/orders/OrdersTable";
 import { OrdersFilter } from "../components/orders/OrdersFilter";
 import { OrderDetailDrawer } from "../components/orders/OrderDetailDrawer";
+import { GoodsIssuePrintModal } from "../components/orders/GoodsIssuePrintModal";
+import { PosDailyGoodsIssueSummaryModal } from "../components/orders/PosDailyGoodsIssueSummaryModal";
 
 export interface PendingOrderSnapshot {
   ownerTenantId: string;
@@ -85,6 +87,13 @@ export function OrdersPage() {
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+
+  // Phiếu xuất kho 02-VT & Bảng kê xuất bán POS theo ngày (Upgrade 13 - FE-13.3)
+  const [selectedIssueOrderIds, setSelectedIssueOrderIds] = useState<string[]>([]);
+  const [printIssueOrderIds, setPrintIssueOrderIds] = useState<string[]>([]);
+  const [showGoodsIssuePrintModal, setShowGoodsIssuePrintModal] = useState(false);
+  const [showPosDailySummaryModal, setShowPosDailySummaryModal] = useState(false);
+  const isOwner = account?.role === "Owner";
 
   const [filter, setFilter] = useState<OrderFilter>({
     pageIndex: 1,
@@ -514,7 +523,15 @@ export function OrdersPage() {
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setShowPosDailySummaryModal(true)}
+            className="px-3 py-2 text-xs font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 shadow-sm flex items-center gap-1.5"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            Bảng kê xuất bán POS theo ngày
+          </button>
           <button
             onClick={loadOrders}
             className="px-3 py-2 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 shadow-sm flex items-center gap-1.5"
@@ -546,6 +563,105 @@ export function OrdersPage() {
         onReset={() => setFilter({ pageIndex: 1, pageSize: 10 })}
       />
 
+      {/* Khu vực In Phiếu Xuất Kho 02-VT & Chọn nhiều đơn in hàng loạt (Upgrade 13 - FE-13.3) */}
+      {(() => {
+        const confirmedOrders = orders.filter(
+          (o) => o.status === "Confirmed" || o.status === "Completed" || o.status === "Processing"
+        );
+        if (confirmedOrders.length === 0) return null;
+
+        const allConfirmedIds = confirmedOrders.map((o) => o.id);
+        const selectedOnPage = selectedIssueOrderIds.filter((id) => allConfirmedIds.includes(id));
+        const allSelected =
+          allConfirmedIds.length > 0 && selectedOnPage.length === allConfirmedIds.length;
+
+        const toggleSelectOrder = (orderId: string) => {
+          setSelectedIssueOrderIds((prev) =>
+            prev.includes(orderId) ? prev.filter((id) => id !== orderId) : [...prev, orderId]
+          );
+        };
+
+        const toggleSelectAllOnPage = () => {
+          if (allSelected) {
+            setSelectedIssueOrderIds((prev) => prev.filter((id) => !allConfirmedIds.includes(id)));
+          } else {
+            setSelectedIssueOrderIds((prev) => Array.from(new Set([...prev, ...allConfirmedIds])));
+          }
+        };
+
+        return (
+          <div className="bg-white rounded-lg border border-indigo-200 shadow-sm p-3.5 space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <FileSpreadsheet className="w-4 h-4 text-indigo-600" />
+                <span className="text-xs font-bold text-slate-800">
+                  Phiếu xuất kho 02-VT ({confirmedOrders.length} đơn đã xác nhận/hoàn tất trên trang)
+                </span>
+                <button
+                  type="button"
+                  onClick={toggleSelectAllOnPage}
+                  className="text-xs text-indigo-600 hover:underline font-semibold ml-1"
+                >
+                  {allSelected ? "Bỏ chọn tất cả" : "Chọn tất cả"}
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={selectedIssueOrderIds.length === 0}
+                  onClick={() => {
+                    setPrintIssueOrderIds(selectedIssueOrderIds);
+                    setShowGoodsIssuePrintModal(true);
+                  }}
+                  className="px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-lg shadow-xs flex items-center gap-1.5"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>In phiếu xuất kho hàng loạt ({selectedIssueOrderIds.length} đơn)</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {confirmedOrders.map((ord) => {
+                const checked = selectedIssueOrderIds.includes(ord.id);
+                return (
+                  <div
+                    key={ord.id}
+                    className={`inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs ${
+                      checked
+                        ? "bg-indigo-50 border-indigo-300 text-indigo-900"
+                        : "bg-slate-50 border-slate-200 text-slate-700"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleSelectOrder(ord.id)}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      aria-label={`Chọn đơn ${ord.number} để in phiếu xuất kho`}
+                    />
+                    <span className="font-mono font-semibold">{ord.number}</span>
+                    <span className="text-[11px] text-slate-500">({ord.channel})</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPrintIssueOrderIds([ord.id]);
+                        setShowGoodsIssuePrintModal(true);
+                      }}
+                      className="px-2 py-0.5 text-[11px] font-semibold text-indigo-700 bg-white border border-indigo-200 rounded hover:bg-indigo-100 flex items-center gap-1"
+                    >
+                      <Printer className="w-3 h-3" />
+                      In phiếu xuất kho
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Bảng danh sách đơn hàng có phân trang server-side */}
       <OrdersTable
         orders={orders}
@@ -562,6 +678,24 @@ export function OrdersPage() {
         orderId={selectedOrderId}
         onClose={() => setSelectedOrderId(null)}
         onRefresh={loadOrders}
+      />
+
+      {/* Modal In Phiếu Xuất Kho 02-VT (1 đơn hoặc in hàng loạt nhiều đơn) */}
+      <GoodsIssuePrintModal
+        isOpen={showGoodsIssuePrintModal}
+        orderIds={printIssueOrderIds}
+        tenantName={account?.tenantName}
+        isOwner={isOwner}
+        onClose={() => setShowGoodsIssuePrintModal(false)}
+      />
+
+      {/* Modal Bảng Kê Xuất Bán POS Theo Ngày */}
+      <PosDailyGoodsIssueSummaryModal
+        isOpen={showPosDailySummaryModal}
+        branches={branches}
+        tenantName={account?.tenantName}
+        isOwner={isOwner}
+        onClose={() => setShowPosDailySummaryModal(false)}
       />
 
       {/* Modal Tạo đơn & Giữ chỗ tồn kho (Sprint 2) */}

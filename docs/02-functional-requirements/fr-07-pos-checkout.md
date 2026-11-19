@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-FR-07` |
-| **Phiên bản (Version)** | `v1.1.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
+| **Phiên bản (Version)** | `v1.2.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-19` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-POS-01..04`, `NFR-USA-02`, `NFR-PERF-01` (Trang 3, 4) |
 | **Gói công việc (Task Package)** | Task Package 4 — POS Front-end & Real-time Integration |
 
@@ -16,6 +16,7 @@
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả chi tiết giao diện bán hàng PWA POS, kiểm soát tồn khả dụng tại quầy, in hóa đơn nhiệt và luồng Fast Checkout nguyên tử. | `INIT-FR-07` |
 | `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Ghi chú cách hiện thực FR-POS-04: một transaction trừ tồn trực tiếp, không tạo bản ghi giữ chỗ. | `OISMS-46` |
+| `v1.2.0` | `2026-11-19` | Nhóm dự án OISMS | Lập Phiếu xuất kho 02-VT (`goods_issues`, `goods_issue_items`) trong cùng transaction POS checkout và hỗ trợ Bảng kê xuất bán POS theo ngày (`UTC+07:00`). | `OISMS-66-L2-G3` |
 
 ---
 
@@ -28,6 +29,8 @@
 | **`FR-POS-03`** | **Checkout & Receipt Printing** | Hỗ trợ phương thức thanh toán Tiền mặt (tự tính tiền thừa trả khách) và Chuyển khoản QR Code; tự động kích hoạt hộp thoại in hóa đơn của trình duyệt qua `Browser Print API` (`window.print()`). | - Bản in hóa đơn nhiệt được định dạng chuẩn khổ giấy `80mm`/`58mm` qua CSS `@media print`. |
 | **`FR-POS-04`** | **Fast Checkout Workflow** | Thực thi chuỗi `Reserve -> Confirm -> Deduct` (Giữ chỗ $\rightarrow$ Xác nhận $\rightarrow$ Trừ tồn & Ghi sổ cái + Chụp `CostPrice`) trong **một giao dịch cơ sở dữ liệu nguyên tử duy nhất (Single Atomic Database Transaction)** ngay khi thanh toán POS. | - Nếu bất kỳ dòng hàng nào trong giỏ không đủ tồn kho tại thời điểm bấm thanh toán, toàn bộ giao dịch được rollback 100%. |
 
-> **Hiện thực FR-POS-04 (06/11/2026):** `POST /api/pos/checkout` (alias `/api/orders/checkout`) gộp `Reserve -> Confirm -> Deduct` thành một transaction: khóa tồn theo SKU, kiểm `available`, trừ `on_hand` trực tiếp, ghi `OUT`, chụp `CostPrice`, lưu đơn `Completed`, `payments`, `sales_invoices`. Không tạo dòng trong `reservations` vì giữ chỗ và tiêu thụ xảy ra trong cùng transaction; kết quả nghiệp vụ tương đương yêu cầu. Có hai giao diện POS: POS PWA riêng (`pos-app`) và POS tích hợp trong Admin (`/pos`).
+> **Hiện thực FR-POS-04 (06/11/2026, cập nhật 19/11/2026 `OISMS-66-L2-G3`):** `POST /api/pos/checkout` (alias `/api/orders/checkout`) gộp `Reserve -> Confirm -> Deduct` thành một transaction: khóa tồn theo SKU, kiểm `available`, trừ `on_hand` trực tiếp, ghi `OUT`, chụp `CostPrice`, lưu đơn `Completed`, `payments`, `sales_invoices`, đồng thời lập luôn chứng từ **Phiếu xuất kho 02-VT** (`goods_issues` mang số `PXK-<số hóa đơn>` hoặc `PXK-<số hóa đơn>-<k>` theo kho xuất, và `goods_issue_items` gắn 1–1 với từng dòng `inventory_transactions` `OUT`). Không tạo dòng trong `reservations` vì giữ chỗ và tiêu thụ xảy ra trong cùng transaction; kết quả nghiệp vụ tương đương yêu cầu.
 
 > **Hiện thực FR-POS-03 (15/11/2026, `OISMS-59-G4`):** Khi checkout thành công, `PosPage` mở `ReceiptPrintModal` với `autoPrint = true`; component tự gọi `window.print()` đúng 1 lần sau khi render (`requestAnimationFrame` + ref chặn gọi lặp), không có công tắc tắt. Phiếu tạm tính (`isDraft = true`), checkout lỗi hoặc trạng thái chưa rõ (`unknown` trong `PaymentModal`) không tự in (`shouldAutoPrint`). Nút In lại trên modal vẫn giữ nguyên làm đường dự phòng.
+
+> **Bảng kê xuất bán POS theo ngày (`Upgrade 13`, `OISMS-66-L2-G3`):** Tại quầy POS chỉ tự động in hóa đơn bán lẻ nhiệt cho khách, không bắt thu ngân ký từng tờ phiếu xuất kho 02-VT lẻ. Chứng từ `goods_issues` của đơn POS vẫn được lưu tự động trong DB cho mỗi lần checkout; cuối ngày thủ kho/chủ cửa hàng xem và in **Bảng kê xuất bán POS theo ngày** (`GET /api/goods-issues/pos-daily-summary?date=YYYY-MM-DD&branchId=...`, tính theo múi giờ `UTC+07:00`) gồm bảng tổng hợp số lượng + giá trị xuất vốn theo SKU và danh sách các phiếu xuất/hóa đơn POS trong ngày (với `Staff`, các cột đơn giá vốn và thành tiền vốn được ẩn `null`).

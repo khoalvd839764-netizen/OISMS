@@ -127,6 +127,8 @@ internal static class ApiErrorTitles
     private static string SalesInvoices(string code) => code switch
     {
         "SALES_INVOICE_NOT_FOUND" => "Không tìm thấy hóa đơn bán hàng",
+        "GOODS_ISSUE_NOT_FOUND" => "Không tìm thấy phiếu xuất kho",
+        "BRANCH_NOT_FOUND" => "Không tìm thấy chi nhánh",
         "ORDER_NOT_FOUND" => "Không tìm thấy đơn hàng",
         "LEDGER_ENTRY_NOT_FOUND" => "Không tìm thấy dòng sổ kho",
         "VALIDATION_ERROR" => "Lỗi xác thực dữ liệu",

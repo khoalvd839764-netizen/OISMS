@@ -85,6 +85,9 @@ public static class DependencyInjection
         // Sales Invoice services
         services.AddScoped<ISalesInvoiceService, SalesInvoiceService>();
 
+        // Goods Issue services (U13 - Phiếu xuất kho 02-VT)
+        services.AddScoped<OISM.Application.Features.GoodsIssues.Services.IGoodsIssueService, OISM.Application.Features.GoodsIssues.Services.GoodsIssueService>();
+
         // Payment Accounts services (CS-05 VietQR)
         services.AddScoped<OISM.Application.Features.PaymentAccounts.Services.IPaymentAccountService, OISM.Application.Features.PaymentAccounts.Services.PaymentAccountService>();
 

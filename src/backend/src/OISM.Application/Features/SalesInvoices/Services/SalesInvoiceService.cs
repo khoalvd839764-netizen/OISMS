@@ -314,8 +314,37 @@ public class SalesInvoiceService : ISalesInvoiceService
                 .OrderBy(t => t.SequenceNo)
                 .ToListAsync(ct);
 
+            var txIds = transactions.Select(t => t.Id).ToList();
+            var goodsIssuesByTxId = new Dictionary<Guid, (Guid Id, string Number)>();
+            if (txIds.Count > 0)
+            {
+                var issueLinks = await _context.GoodsIssueItems
+                    .AsNoTracking()
+                    .Where(gii => gii.TenantId == tenantId && txIds.Contains(gii.InventoryTransactionId))
+                    .Select(gii => new
+                    {
+                        gii.InventoryTransactionId,
+                        gii.GoodsIssueId,
+                        Number = gii.GoodsIssue != null ? gii.GoodsIssue.Number : string.Empty
+                    })
+                    .ToListAsync(ct);
+
+                foreach (var link in issueLinks)
+                {
+                    goodsIssuesByTxId[link.InventoryTransactionId] = (link.GoodsIssueId, link.Number);
+                }
+            }
+
             trace.Lines = transactions
-                .Select(t => MapLine(t, orderItemMap.GetValueOrDefault(t.OrderItemId!.Value)))
+                .Select(t =>
+                {
+                    goodsIssuesByTxId.TryGetValue(t.Id, out var gi);
+                    return MapLine(
+                        t,
+                        orderItemMap.GetValueOrDefault(t.OrderItemId!.Value),
+                        goodsIssueId: gi.Id != Guid.Empty ? gi.Id : null,
+                        goodsIssueNumber: !string.IsNullOrWhiteSpace(gi.Number) ? gi.Number : null);
+                })
                 .ToList();
         }
 
@@ -545,7 +574,12 @@ public class SalesInvoiceService : ISalesInvoiceService
             Lines = lines.Select(t => MapLine(t)).ToList()
         };
 
-    private static DocumentTraceLineDto MapLine(InventoryTransaction t, OrderItem? orderItem = null, decimal? itemQuantity = null) => new()
+    private static DocumentTraceLineDto MapLine(
+        InventoryTransaction t,
+        OrderItem? orderItem = null,
+        decimal? itemQuantity = null,
+        Guid? goodsIssueId = null,
+        string? goodsIssueNumber = null) => new()
     {
         LedgerId = t.Id,
         Type = t.Type,
@@ -561,6 +595,8 @@ public class SalesInvoiceService : ISalesInvoiceService
         OrderItemId = t.OrderItemId,
         SalesReturnItemId = t.SalesReturnItemId,
         UnitName = orderItem?.UnitNameSnapshot,
-        OrderItemQuantity = itemQuantity ?? orderItem?.Quantity
+        OrderItemQuantity = itemQuantity ?? orderItem?.Quantity,
+        GoodsIssueId = goodsIssueId,
+        GoodsIssueNumber = goodsIssueNumber
     };
 }

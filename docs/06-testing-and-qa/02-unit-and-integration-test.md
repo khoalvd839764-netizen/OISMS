@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-QA-02` |
-| **Phiên bản (Version)** | `v1.2.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-11` |
+| **Phiên bản (Version)** | `v1.3.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-19` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `NFR-MAINT-02`, `3.2.e` (Trang 4, 5) |
 | **Phạm vi áp dụng** | `test-oisms/backend/OISM.UnitTests` & `test-oisms/backend/OISM.IntegrationTests` |
 
@@ -17,6 +17,7 @@
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả phương pháp kiểm thử tự động trên PostgreSQL thật và hướng dẫn đo độ phủ mã nguồn (`Code Coverage`). | `INIT-QA-02` |
 | `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Cập nhật số lượng test theo hiện trạng (unit 221/221 PASS, integration 364/365 ở lần chạy gần nhất), biến `OISM_TEST_*`, ghi rõ số coverage là mốc Sprint 2. | `OISMS-46` |
 | `v1.2.0` | `2026-11-11` | Nhóm dự án OISMS | Cập nhật quy mô test sau CS-01, CS-05, Trợ lý AI và gộp POS: unit 380/380 PASS, POS 89/89 PASS (chạy 11/11/2026); integration chưa chạy lại. Thêm test app giả lập và Admin. | `OISMS-58` |
+| `v1.3.0` | `2026-11-19` | Nhóm dự án OISMS | Bổ sung bộ test tích hợp PostgreSQL thật `PostgresGoodsIssueIntegrationTests` cho Phiếu xuất kho 02-VT (`goods_issues`, `goods_issue_items`) và cập nhật baseline 50 bảng (`DatabaseBaselineValidatorTests`, `PostgresTenantIsolationTests`). | `OISMS-66-L2-G3` |
 
 ---
 

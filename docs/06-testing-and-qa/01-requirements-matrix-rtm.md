@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-QA-01` |
-| **Phiên bản (Version)** | `v1.3.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-14` |
+| **Phiên bản (Version)** | `v1.4.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-19` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` (Trang 1 – 6) & Confluence Page ID `5275650` (Version 9) |
 | **Phạm vi áp dụng** | Truy vết từ Yêu cầu Đề bài $\leftrightarrow$ Thành viên phụ trách $\leftrightarrow$ Mã nguồn/Test $\leftrightarrow$ Giai đoạn Sprint |
 
@@ -18,6 +18,7 @@
 | `v1.1.0` | `2026-11-11` | Nhóm dự án OISMS | Thêm mục 4 truy vết các chức năng Sprint 4 về sau (Upgrade 05, 01-A, 03, CS-01..08, FR-AI-01, FR-AI-02, kết nối sàn); sửa ghi chú giao diện U04, U02 đã có. Bảng mục 1 giữ nguyên là mốc sau Sprint 2. | `OISMS-58` |
 | `v1.2.0` | `2026-11-12` | Rà soát mã nguồn | Cập nhật kết quả kiểm thử, nguồn simulator và liên kết checklist theo từng mã yêu cầu. | `DOC-CHK-S2` |
 | `v1.3.0` | `2026-11-14` | Nhóm dự án OISMS | Bổ sung truy vết kiểm thử tự động `NFR-MAINT-01` tới `ArchitectureRulesTests` (`5/5 PASS`) tại mục 4. | `OISMS-59-G1C` |
+| `v1.4.0` | `2026-11-19` | Nhóm dự án OISMS | Bổ sung truy vết Upgrade 13 Gói 3 — Phiếu xuất kho 02-VT lưu kèm dòng sổ `OUT` và Bảng kê xuất bán POS theo ngày (`PostgresGoodsIssueIntegrationTests`). | `OISMS-66-L2-G3` |
 
 ---
 
@@ -79,6 +80,7 @@ Ngày 12/11/2026, unit backend 380/380 PASS, POS `npm test` 10/10 file PASS và 
 | Upgrade 01-A — Phiếu mua, nhập kho từ phiếu mua | `PurchaseOrderService`, `PurchaseOrdersController`, `GoodsReceiptService` | `PurchaseOrderIntegrationTests` | Đạt |
 | Upgrade 01-B — Hóa đơn NCC, chênh lệch | — (đã gỡ ở Upgrade 12) | — | Thay bởi Upgrade 12 (19/11/2026) |
 | Upgrade 12 Gói 1 — Đơn mua `PendingApproval`, phân bổ phí VAS 02, che giá Staff | `PurchaseOrderService`, `PurchaseOrdersController`, `GoodsReceiptService`, migration `20261119_purchase_order_pending_approval.sql` | `PostgresPurchaseOrderU12IntegrationTests`, `PurchaseOrderIntegrationTests` (PostgreSQL thật, lọc `PurchaseOrder\|GoodsReceipt` 32/32 ngày 19/11/2026) | Đạt |
+| Upgrade 13 Gói 3 — Phiếu xuất kho 02-VT lưu kèm dòng sổ `OUT`, in hàng loạt & bảng kê POS theo ngày | `GoodsIssueFactory`, `GoodsIssueService`, `GoodsIssuesController`, `PosCheckoutService`, `OrderService`, `InventoryService`, `SalesInvoiceService`, migration `20261119_goods_issues.sql`; FE `GoodsIssuePrintModal.tsx`, `PosDailyGoodsIssueSummaryModal.tsx`, `OrdersPage.tsx` | `PostgresGoodsIssueIntegrationTests`, `DatabaseBaselineValidatorTests` | Đạt ([báo cáo sau nâng cấp](../report-after-upgrade/phieu-xuat-kho-u13.md)) |
 | Upgrade 03 — Lịch kiểm kê, duyệt chênh lệch | `StockCountService`, `StockCountPeriodJob`, `StockCountSchedulesController` | `StockCountU03IntegrationTests`, `StockCountPeriodCalculatorTests` | Đạt |
 | CS-01 — Trả hàng từ khách | `SalesReturnService`, `SalesReturnsController` | `SalesReturnServiceTests`, `PostgresSalesReturnIntegrationTests`, `test-oisms/api-python/test_sales_return_api.py` | Unit đạt; integration chưa chạy lại |
 | CS-02 — Nhân viên, phân quyền | `UserService`, `UsersController` | `UserServiceTests` | Đạt một phần: chưa có phân công chi nhánh |

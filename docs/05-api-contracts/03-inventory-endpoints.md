@@ -3,10 +3,10 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-API-03` |
-| **Phiên bản (Version)** | `v1.6.0` |
+| **Phiên bản (Version)** | `v1.6.1` |
 | **Ngày hiệu lực (Effective Date)** | `2026-11-19` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-INV-01..04`, `FR-COST-01`, `FR-RSE-01..03` (Trang 2, 3, 5); `Upgrade 13 / OISMS-66` |
-| **Phạm vi áp dụng** | `InventoryController`, `GoodsReceiptsController`, `StockTransfersController`, `StocktakesController`, `ReportsController` |
+| **Phạm vi áp dụng** | `InventoryController`, `GoodsReceiptsController`, `GoodsIssuesController`, `StockTransfersController`, `StocktakesController`, `ReportsController` |
 
 ---
 
@@ -22,6 +22,7 @@
 | `v1.5.0` | `2026-11-19` | Nhóm dự án OISMS | Nâng cấp hợp đồng Đơn mua hàng (`PendingApproval`, `submit`, `return`, `price-suggestion`, phân bổ phí/chiết khấu, khóa `version`), gỡ toàn bộ `/api/supplier-invoices*`, và che giá với `Staff` trên đơn mua & phiếu nhập. | `OISMS-66-L2-G1` |
 | `v1.5.1` | `2026-11-19` | Nhóm dự án OISMS | Sửa sau review Gói 1: `version` bắt buộc khi duyệt đơn mua; `Staff` lọc theo `supplierId` không thấy đơn chưa duyệt; giá vốn phân bổ dòng cuối âm trả `422`. | `OISMS-66-L2-G1` |
 | `v1.6.0` | `2026-11-19` | Nhóm dự án OISMS | Bổ sung hợp đồng API Báo cáo Tồn kho theo kỳ (NXT) và Thẻ kho S12/S10 kèm xuất file Excel `.xlsx` (Upgrade 13 / OISMS-66-G2). Quy định phân quyền xem giá trị cho `Owner`, che giá đối với `Staff`, từ chối `403` đối với `Cashier`. | `OISMS-66-G2` |
+| `v1.6.1` | `2026-11-19` | Nhóm dự án OISMS | DTO sổ cái và truy vết trả thêm `goodsIssueId`, `goodsIssueNumber` cho dòng `OUT` bán hàng; bổ sung nhóm API `/api/goods-issues*` (Phiếu xuất kho 02-VT và bảng kê POS theo ngày). | `OISMS-66-L2-G3` |
 
 ---
 
@@ -30,12 +31,12 @@
 | Method | Endpoint | Quyền (RBAC) | Mã FR | Mô tả & Quy tắc xử lý |
 | :---: | :--- | :---: | :---: | :--- |
 | `GET` | `/api/inventory/balances` | `Owner, Staff, Cashier` | `FR-INV-01`, `FR-RSE-01` | Tra cứu số dư tồn kho chi tiết (`onHand`, `reserved`, `available = onHand - reserved`, `reorderPoint`, `averageCost` WAC) theo Chi nhánh/Kho/SKU. Với `Cashier`, trường `averageCost` luôn trả `null` trên mọi dòng; `Owner` và `Staff` nhận giá trị WAC đang lưu. |
-| `GET` | `/api/inventory/ledger`<br/>*(Alias: `/api/inventory-transactions`)* | `Owner, Staff` | `FR-INV-01` | Tra cứu lịch sử Sổ cái kho chỉ ghi thêm (`InventoryTransaction`), hỗ trợ lọc theo Chi nhánh, Kho, SKU, Loại giao dịch (`IN`/`OUT`) và Thời gian. Trả kèm `salesInvoiceId` và `salesInvoiceNumber` đối với các dòng xuất bán hàng (Upgrade 02). |
+| `GET` | `/api/inventory/ledger`<br/>*(Alias: `/api/inventory-transactions`)* | `Owner, Staff` | `FR-INV-01` | Tra cứu lịch sử Sổ cái kho chỉ ghi thêm (`InventoryTransaction`), hỗ trợ lọc theo Chi nhánh, Kho, SKU, Loại giao dịch (`IN`/`OUT`) và Thời gian. Trả kèm `salesInvoiceId`, `salesInvoiceNumber`, `goodsIssueId` và `goodsIssueNumber` đối với các dòng xuất bán hàng (`Upgrade 02`, `Upgrade 13`). |
 | `GET` | `/api/inventory/balances/sku/{skuId}/branch/{branchId}` | `Owner, Staff, Cashier` | `FR-INV-01` | Tồn của một SKU tại một chi nhánh (theo đơn vị gốc). Với `Cashier`, `averageCost` trả `null`; các trường tồn và `reorderPoint` giữ nguyên. |
 | `GET` | `/api/inventory/export-history` | `Owner, Staff` | `FR-AI-01` | Lịch sử xuất kho theo ngày dùng cho biểu đồ và gợi ý nhập hàng. |
 | `PUT` | `/api/inventory/reorder-point` | `Owner, Staff` | `CS-03` | Đặt ngưỡng đặt hàng lại (`reorder_point`) cho một SKU tại chi nhánh. |
 | `PUT` | `/api/inventory/reorder-point/bulk` | `Owner, Staff` | `CS-03` | Đặt ngưỡng cho nhiều SKU một lần. |
-| `GET` | `/api/inventory/ledger/{id}/trace` | `Owner, Staff` | `OISMS-47-U02` | Truy vết chuỗi chứng từ nguồn và các dòng sổ kho liên quan bắt đầu từ một dòng sổ cái kho (`DocumentTraceDto`). |
+| `GET` | `/api/inventory/ledger/{id}/trace`<br/>*(Alias: `/api/inventory/transactions/{id}/trace`)* | `Owner, Staff` | `OISMS-47-U02`, `OISMS-66-L2-G3` | Truy vết chuỗi chứng từ nguồn và các dòng sổ kho liên quan bắt đầu từ một dòng sổ cái kho (`DocumentTraceDto`); dòng `OUT` bán hàng có `goodsIssueId` và `goodsIssueNumber`. |
 | `POST` | `/api/goods-receipts` | `Owner, Staff` | `FR-INV-02`, `OISMS-47-U01A` | Lập phiếu nhập `Draft` từ phiếu mua đã duyệt. Xem mục 1.1. |
 | `GET` | `/api/goods-receipts`, `/api/goods-receipts/{id}` | `Owner, Staff` | `FR-INV-02` | Danh sách và chi tiết phiếu nhập. Lọc thêm được theo `purchaseOrderId`. Với `Staff`, các trường `totalAmount`, `items[].unitPrice`, `items[].lineTotal` đều trả `null`. |
 | `POST` | `/api/goods-receipts/{id}/confirm` | `Owner, Staff` | `FR-INV-02`, `FR-COST-01` | Xác nhận phiếu nhập nguyên tử: kiểm tra phiếu mua và lượng còn được nhận, ghi Sổ cái `IN`, tăng `OnHand`, tính lại `WAC` từ `allocatedUnitCost / factorSnapshot`. Xác nhận lặp trả `409 INVALID_STATE_TRANSITION`. |

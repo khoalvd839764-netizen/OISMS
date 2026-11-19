@@ -9,7 +9,7 @@
 
 Kiểm tra lại kết nối: `Invoke-RestMethod http://localhost:5000/health/ready`.
 
-Tài liệu chuẩn chung cho Khoa (Backend 1), TV2 (Backend 2) và các thành viên tích hợp. PostgreSQL 16+, **48 bảng nghiệp vụ** (bản bàn giao gốc v0.5 có 29 bảng, 94 khóa ngoại, 86 CHECK; Sprint 3 thêm `shop_integrations`, Upgrade 05 thêm `units`, `sku_units`, `sku_unit_factor_history`, Upgrade 04 thêm `price_lists`, `price_change_requests`, `price_change_request_items`, `sku_unit_prices`, Upgrade 01-A thêm `purchase_orders`, `purchase_order_items`, Upgrade 02 thêm `sales_invoices`, Upgrade 03 thêm `stock_count_schedules`, `stock_count_periods`, `stock_count_approvals`, CS-05 thêm `payment_accounts`, Upgrade 01-B thêm `supplier_invoices`, `supplier_invoice_items`, `purchase_variances`, CS-02 thêm `user_branches`), cùng UNIQUE/index và trigger. Việc gom file không thay đổi mô hình nghiệp vụ v0.5.
+Tài liệu chuẩn chung cho Khoa (Backend 1), TV2 (Backend 2) và các thành viên tích hợp. PostgreSQL 16+, **50 bảng nghiệp vụ** (bản bàn giao gốc v0.5 có 29 bảng, 94 khóa ngoại, 86 CHECK; Sprint 3 thêm `shop_integrations`, Upgrade 05 thêm `units`, `sku_units`, `sku_unit_factor_history`, Upgrade 04 thêm `price_lists`, `price_change_requests`, `price_change_request_items`, `sku_unit_prices`, Upgrade 01-A thêm `purchase_orders`, `purchase_order_items`, Upgrade 02 thêm `sales_invoices`, Upgrade 03 thêm `stock_count_schedules`, `stock_count_periods`, `stock_count_approvals`, CS-05 thêm `payment_accounts`, Upgrade 01-B thêm `supplier_invoices`, `supplier_invoice_items`, `purchase_variances`, CS-02 thêm `user_branches`, Upgrade 13 Gói 3 thêm `goods_issues`, `goods_issue_items`), cùng UNIQUE/index và trigger. Việc gom file không thay đổi mô hình nghiệp vụ v0.5.
 
 ## Bộ file bàn giao
 
@@ -37,7 +37,7 @@ Script database duy nhất được giữ trong `scripts` là `scripts/test-data
 
 Không chạy `oisms_schema.sql` lên database đã có dữ liệu. Không sửa file migration đã có: mỗi thay đổi schema tạo file mới, đồng thời cập nhật `oisms_schema.sql`.
 
-DB đã có đủ 47 bảng của baseline U01-B chạy `docker/postgres/migrations/20261114_user_branches.sql` để lên 48 bảng (baseline 44 bảng cần chạy cả `20261112_supplier_invoices.sql` rồi tới `20261114_user_branches.sql`). DB đã có 48 bảng chạy tiếp `20261119_purchase_order_pending_approval.sql` (Upgrade 12 Gói 1, không thêm bảng). Chạy file bằng tài khoản quản trị schema với `psql -v ON_ERROR_STOP=1` sau khi sao lưu.
+DB đã có đủ 47 bảng của baseline U01-B chạy `docker/postgres/migrations/20261114_user_branches.sql` để lên 48 bảng (baseline 44 bảng cần chạy cả `20261112_supplier_invoices.sql` rồi tới `20261114_user_branches.sql`). DB đã có 48 bảng chạy tiếp `20261119_purchase_order_pending_approval.sql` (Upgrade 12 Gói 1, không thêm bảng) và `20261119_goods_issues.sql` (Upgrade 13 Gói 3, nâng lên **50 bảng** với `goods_issues` và `goods_issue_items`; nếu DB đã có dòng `inventory_transactions` xuất bán có `order_item_id IS NOT NULL` chưa gắn dòng phiếu xuất thì script chặn `RAISE EXCEPTION` và hướng dẫn reset + seed lại DB). Chạy file bằng tài khoản quản trị schema với `psql -v ON_ERROR_STOP=1` sau khi sao lưu.
 
 Git Bash, Linux, macOS (chạy ở thư mục gốc repo):
 
@@ -66,7 +66,7 @@ foreach ($f in Get-ChildItem docker/postgres/migrations/*.sql | Sort-Object Name
 docker compose up -d --build
 ```
 
-File `oisms_backup.dump` chứa dữ liệu thật, không commit lên Git. Nâng cấp xong, `/health/ready` phải trả 200 với `tablesCount: 48`. Gặp lỗi thì dừng lại và báo nhóm; mỗi file chạy trong một giao dịch nên file lỗi tự hoàn tác phần của nó, các file đã chạy xong trước đó vẫn giữ nguyên.
+File `oisms_backup.dump` chứa dữ liệu thật, không commit lên Git. Nâng cấp xong, `/health/ready` phải trả 200 với `tablesCount: 50`. Gặp lỗi thì dừng lại và báo nhóm; mỗi file chạy trong một giao dịch nên file lỗi tự hoàn tác phần của nó, các file đã chạy xong trước đó vẫn giữ nguyên.
 
 Khôi phục từ backup khi cần (xóa dữ liệu hiện tại của database `oisms`):
 
@@ -152,7 +152,7 @@ Cơ chế khởi tạo tự động hoạt động dựa trên cơ chế entrypo
 1. Khi volume `postgres_data` còn trống, PostgreSQL chạy script initdb.
 2. Script phát hiện database `oisms` đã được tạo sẵn qua biến `POSTGRES_DB=oisms`.
 3. Script xử lý việc file `oisms_schema.sql` có chứa `CREATE DATABASE oisms` và `\connect oisms` bằng cách bóc tách an toàn phần cài đặt DDL từ `-- OISMS_SCHEMA_BEGIN`, rồi thực thi trực tiếp vào database `oisms`.
-4. Nếu bảng nghiệp vụ đã tồn tại (≥48 bảng), script bỏ qua DDL để bảo toàn dữ liệu. Nếu phát hiện số bảng thấp hơn (1–47 bảng, tức database cũ chưa nâng cấp), script báo lỗi, yêu cầu chạy migration và không tự ý ghi đè hay xóa bảng. Cuối script kiểm tra đủ 48 bảng có tên trong danh sách và đúng 1 trigger `ledger_append_only` đang bật.
+4. Nếu bảng nghiệp vụ đã tồn tại (≥50 bảng), script bỏ qua DDL để bảo toàn dữ liệu. Nếu phát hiện số bảng thấp hơn (1–49 bảng, tức database cũ chưa nâng cấp), script báo lỗi, yêu cầu chạy migration và không tự ý ghi đè hay xóa bảng. Cuối script kiểm tra đủ 50 bảng có tên trong danh sách và đúng 1 trigger `ledger_append_only` đang bật.
 5. Tạo nhóm quyền `oisms_runtime` (NOLOGIN), sau đó cấu hình tài khoản runtime backend `oisms_app`:
    - Sử dụng cơ chế truyền biến `\getenv` của psql và hàm `format('%I', ...)` / `format('%L', ...)` trong khối PL/pgSQL; tuyệt đối **không nội suy chuỗi SQL**.
    - Hỗ trợ mật khẩu có dấu nháy và ký tự đặc biệt, không bao giờ in mật khẩu ra log.
@@ -217,7 +217,7 @@ Kiểm tra trạng thái sẵn sàng của Backend qua Readiness Endpoint:
 ```powershell
 curl http://localhost:5000/health/ready
 ```
-Endpoint `/health/ready` thực hiện mở kết nối PostgreSQL bằng tài khoản runtime `oisms_app`, kiểm tra đủ 48 bảng (`DatabaseMigrationService.RequiredTables` trong Infrastructure), trigger bất biến sổ cái và quyền hạn trước khi trả về HTTP 200 `Healthy` (trả về HTTP 503 `Unhealthy` nếu thất bại, không để lộ connection string hoặc mật khẩu).
+Endpoint `/health/ready` thực hiện mở kết nối PostgreSQL bằng tài khoản runtime `oisms_app`, kiểm tra đủ 50 bảng (`DatabaseMigrationService.RequiredTables` trong Infrastructure), trigger bất biến sổ cái và quyền hạn trước khi trả về HTTP 200 `Healthy` (trả về HTTP 503 `Unhealthy` nếu thất bại, không để lộ connection string hoặc mật khẩu).
 
 ### Xem log cơ sở dữ liệu
 
@@ -292,6 +292,7 @@ Khi container khởi động lại hoặc khi volume `postgres_data` đã tồn 
    | `20261112_supplier_invoices.sql` | Upgrade 01-B: `supplier_invoices`, `supplier_invoice_items`, `purchase_variances` |
    | `20261114_user_branches.sql` | CS-02: `user_branches` (phân công chi nhánh cho nhân viên) |
    | `20261119_purchase_order_pending_approval.sql` | Upgrade 12 (Gói 1): trạng thái `PendingApproval`, nullable + CHECK `supplier_id`/`unit_price`, `order_date`, phí/CK/VAT, trả về, `allocated_unit_cost`, `version`, thu hồi quyền ghi trên bảng hóa đơn NCC |
+   | `20261119_goods_issues.sql` | Upgrade 13 (Gói 3): `goods_issues`, `goods_issue_items` (phiếu xuất kho 02-VT bất biến lưu kèm dòng sổ `OUT` bán hàng; chặn nâng cấp nếu DB đã có dòng `OUT` bán hàng cũ chưa gắn phiếu) |
 
    Các file được viết để chạy lại an toàn; mỗi khối nằm trong transaction.
 3. **Thực thi script bằng tài khoản quản trị `postgres`:**
@@ -1650,6 +1651,60 @@ Bảng gán nhân viên vào một hoặc nhiều chi nhánh (CS-02). Quyền ru
 **PK:** `pk_user_branches (tenant_id, user_id, branch_id)`.
 **INDEX:** `ix_user_branches_branch (tenant_id, branch_id)`.
 **Quan hệ FK:** `(tenant_id)` → `tenants(id)` `ON DELETE RESTRICT`; `(tenant_id, user_id)` → `users(tenant_id, id)` `ON DELETE CASCADE`; `(tenant_id, branch_id)` → `branches(tenant_id, id)` `ON DELETE RESTRICT`.
+
+### 49. `goods_issues`
+
+Chứng từ **Phiếu xuất kho bán hàng (Mẫu 02-VT)** lập trong cùng giao dịch khi thanh toán POS hoặc xác nhận đơn hàng (`OrderService.ConfirmOrderAsync`, `PosCheckoutService.CheckoutAsync`). Bất biến sau khi lập: quyền runtime `oisms_runtime` chỉ có `SELECT, INSERT` (thu hồi `UPDATE, DELETE, TRUNCATE`), trigger `goods_issues_append_only` chặn sửa/xóa. Mỗi kho xuất của đơn tạo một phiếu xuất riêng: đơn xuất từ 1 kho mang số `PXK-<số hóa đơn>`, đơn xuất nhiều kho mang số `PXK-<số hóa đơn>-1`, `PXK-<số hóa đơn>-2`, ... theo thứ tự `warehouse_id` tăng dần.
+
+| Cột | Kiểu PostgreSQL | Bắt buộc | Mặc định / cách ghi |
+|---|---|---|---|
+| `id` (PK) | `uuid` | Có | `gen_random_uuid()` |
+| `tenant_id` | `uuid` | Có | Lấy từ JWT |
+| `branch_id` | `uuid` | Có | Chi nhánh của đơn bán |
+| `warehouse_id` | `uuid` | Có | Kho xuất thực tế của nhóm dòng xuất |
+| `order_id` | `uuid` | Có | Đơn hàng nguồn (`orders`) |
+| `sales_invoice_id` | `uuid` | Không | Hóa đơn bán tương ứng (`sales_invoices`) |
+| `number` | `varchar(80)` | Có | `PXK-<số hóa đơn>` hoặc `PXK-<số hóa đơn>-<k>` |
+| `status` | `varchar(20)` | Có | `'Confirmed'` |
+| `issued_at` | `timestamptz` | Có | Thời điểm xuất kho (`confirmed_at`) |
+| `issued_by` | `uuid` | Không | Người xác nhận / thu ngân |
+| `branch_name_snapshot` | `varchar(200)` | Có | Tên chi nhánh chụp lúc xuất |
+| `warehouse_name_snapshot` | `varchar(200)` | Có | Tên kho chụp lúc xuất |
+| `customer_name_snapshot` | `varchar(200)` | Không | Tên khách hàng chụp lúc xuất |
+| `customer_phone_snapshot` | `varchar(30)` | Không | Số điện thoại khách hàng |
+| `shipping_address_snapshot` | `varchar(500)` | Không | Địa chỉ nhận hàng |
+| `reason` | `varchar(500)` | Có | Lý do xuất kho (mặc định `Xuất bán theo đơn ...`) |
+| `created_at` | `timestamptz` | Có | `now()` |
+
+**UNIQUE:** `uq_goods_issues_tenant_id (tenant_id, id)`; `uq_goods_issues_tenant_number (tenant_id, number)`; `uq_goods_issues_tenant_order_warehouse (tenant_id, order_id, warehouse_id)`.
+**INDEX:** `ix_goods_issues_tenant_order (tenant_id, order_id)`; `ix_goods_issues_tenant_branch_issued_at (tenant_id, branch_id, issued_at DESC)`.
+**Quan hệ FK:** ghép `tenant_id` tới `tenants`, `branches`, `warehouses`, `orders`, `sales_invoices`, `users` (`ON DELETE RESTRICT`).
+
+### 50. `goods_issue_items`
+
+Chi tiết dòng **Phiếu xuất kho bán hàng (Mẫu 02-VT)** gắn 1–1 với từng dòng sổ cái `inventory_transactions` xuất bán (`type = 'OUT'` và `order_item_id IS NOT NULL`). Bất biến sau khi lập (`SELECT, INSERT`, trigger `goods_issue_items_append_only`).
+
+| Cột | Kiểu PostgreSQL | Bắt buộc | Mặc định / cách ghi |
+|---|---|---|---|
+| `id` (PK) | `uuid` | Có | `gen_random_uuid()` |
+| `tenant_id` | `uuid` | Có | Lấy từ JWT |
+| `goods_issue_id` | `uuid` | Có | Phiếu xuất cha (`goods_issues`) |
+| `order_item_id` | `uuid` | Có | Dòng đơn hàng nguồn (`order_items`) |
+| `inventory_transaction_id` | `uuid` | Có | Dòng sổ cái `OUT` tương ứng (`inventory_transactions`) |
+| `sku_id` | `uuid` | Có | SKU xuất kho |
+| `sku_code_snapshot` | `varchar(64)` | Có | Mã SKU chụp lúc xuất |
+| `sku_name_snapshot` | `varchar(300)` | Có | Tên hàng hóa chụp lúc xuất |
+| `unit_id` | `uuid` | Không | Đơn vị giao dịch trên dòng đơn |
+| `unit_name_snapshot` | `varchar(50)` | Không | Tên đơn vị tính chụp lúc xuất |
+| `factor_snapshot` | `numeric(18,6)` | Có | Hệ số quy đổi về đơn vị gốc (`> 0`) |
+| `quantity` | `numeric(18,3)` | Có | Số lượng xuất theo đơn vị dòng đơn (`> 0`) |
+| `base_quantity` | `numeric(18,3)` | Có | Số lượng xuất theo đơn vị gốc, khớp `inventory_transactions.quantity` (`> 0`) |
+| `unit_cost` | `numeric(20,6)` | Có | Đơn giá vốn WAC theo đơn vị gốc, khớp `inventory_transactions.unit_cost` (`>= 0`) |
+| `created_at` | `timestamptz` | Có | `now()` |
+
+**UNIQUE:** `uq_goods_issue_items_tenant_id (tenant_id, id)`; `uq_goods_issue_items_tenant_inventory_tx (tenant_id, inventory_transaction_id)`.
+**INDEX:** `ix_goods_issue_items_tenant_issue (tenant_id, goods_issue_id)`; `ix_goods_issue_items_tenant_order_item (tenant_id, order_item_id)`.
+**Quan hệ FK:** ghép `tenant_id` tới `goods_issues`, `order_items`, `inventory_transactions`, `skus`, `units` (`ON DELETE RESTRICT`).
 
 ### Cột Upgrade 03 trên bảng có sẵn
 - `stock_counts.count_type varchar(20) NOT NULL DEFAULT 'AdHoc'`

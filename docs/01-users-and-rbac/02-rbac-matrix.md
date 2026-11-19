@@ -79,6 +79,7 @@ Các trường định danh bắt buộc bên trong Payload của JWT:
 | **Hóa đơn & Truy vết** | Tra cứu danh sách và chi tiết hóa đơn bán hàng (`Sales Invoices`) | `OISMS-47-U02` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |
 | **Hóa đơn & Truy vết** | In lại hóa đơn bán lẻ theo ID hoặc số hóa đơn (dữ liệu che giấu giá vốn) | `OISMS-47-U02` | ✅ Cho phép | ✅ Cho phép | ✅ Cho phép (in lại tại POS) |
 | **Hóa đơn & Truy vết** | Truy vết chuỗi chứng từ xuất kho theo Hóa đơn, Đơn hàng, hoặc Dòng sổ kho | `OISMS-47-U02` | ✅ Toàn quyền | ✅ Toàn quyền (xem giá vốn dòng) | ❌ Cấm (`403 Forbidden`) |
+| **Hóa đơn & Truy vết** | Xem, in Phiếu xuất kho 02-VT, in hàng loạt & Bảng kê xuất bán POS theo ngày (`/api/orders/{id}/goods-issues`, `/api/goods-issues*`) | `OISMS-66-L2-G3` | ✅ Toàn quyền (có đơn giá vốn & thành tiền vốn) | ✅ Xem & in số lượng xuất (ẩn đơn giá vốn & thành tiền vốn = `null`) | ❌ Cấm (`403 Forbidden`) |
 | **Trả hàng từ khách** | Lập phiếu trả, tra cứu dòng trả được, xác nhận và hủy phiếu trả (`/api/sales-returns`, `/api/orders/{id}/returnable-items`) | `CS-01` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |
 | **Báo cáo & AI** | Báo cáo Doanh thu thuần, Tổng giá vốn (`COGS`), Lợi nhuận gộp | `FR-REP-01` | ✅ Toàn quyền | 👁️ Chỉ xem doanh thu/hàng trả (ẩn lãi gộp & giá vốn) | ❌ Cấm (`403 Forbidden`) |
 | **Báo cáo & AI** | Đối soát & tính lại bảng tổng hợp báo cáo ngày (`/api/reports/daily-summaries`, `/api/reports/daily-summaries/rebuild`) | `FR-REP-01`, `FR-SIM-03` | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) | ❌ Cấm (`403 Forbidden`) |

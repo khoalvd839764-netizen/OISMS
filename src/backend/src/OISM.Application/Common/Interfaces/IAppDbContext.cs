@@ -55,6 +55,8 @@ public interface IAppDbContext
     DbSet<SupplierInvoiceItem> SupplierInvoiceItems { get; }
     DbSet<PurchaseVariance> PurchaseVariances { get; }
     DbSet<SalesInvoice> SalesInvoices { get; }
+    DbSet<GoodsIssue> GoodsIssues { get; }
+    DbSet<GoodsIssueItem> GoodsIssueItems { get; }
     DbSet<StockCountSchedule> StockCountSchedules { get; }
     DbSet<StockCountPeriod> StockCountPeriods { get; }
     DbSet<StockCountApproval> StockCountApprovals { get; }

@@ -434,6 +434,28 @@ public class InventoryService : IInventoryService
             }
         }
 
+        var salesOutTxIds = transactions
+            .Where(t => t.OrderItemId.HasValue)
+            .Select(t => t.Id)
+            .ToArray();
+        var goodsIssuesByTxId = new Dictionary<Guid, (Guid Id, string Number)>();
+        if (salesOutTxIds.Length > 0)
+        {
+            var issueItems = await _context.GoodsIssueItems.AsNoTracking()
+                .Where(gii => salesOutTxIds.Contains(gii.InventoryTransactionId))
+                .Select(gii => new
+                {
+                    gii.InventoryTransactionId,
+                    gii.GoodsIssueId,
+                    Number = gii.GoodsIssue != null ? gii.GoodsIssue.Number : string.Empty
+                })
+                .ToListAsync(ct);
+            foreach (var gi in issueItems)
+            {
+                goodsIssuesByTxId[gi.InventoryTransactionId] = (gi.GoodsIssueId, gi.Number);
+            }
+        }
+
         var items = transactions.Select(t =>
         {
             var sourceKey = t.TransferItemId ?? t.AdjustmentItemId ?? t.StockCountItemId ?? Guid.Empty;
@@ -445,6 +467,13 @@ public class InventoryService : IInventoryService
             {
                 salesInvoiceId = inv.Id;
                 salesInvoiceNumber = inv.Number;
+            }
+            Guid? goodsIssueId = null;
+            string? goodsIssueNumber = null;
+            if (goodsIssuesByTxId.TryGetValue(t.Id, out var gi))
+            {
+                goodsIssueId = gi.Id;
+                goodsIssueNumber = gi.Number;
             }
             return new InventoryLedgerDto
         {
@@ -468,6 +497,8 @@ public class InventoryService : IInventoryService
             DocumentNumber = hasSource ? source.Number : t.ReceiptItem?.Receipt?.Number ?? t.OrderItem?.Order?.Number,
             SalesInvoiceId = salesInvoiceId,
             SalesInvoiceNumber = salesInvoiceNumber,
+            GoodsIssueId = goodsIssueId,
+            GoodsIssueNumber = goodsIssueNumber,
             ReferenceId = t.ReferenceId,
             CreatedAt = t.CreatedAt
         };

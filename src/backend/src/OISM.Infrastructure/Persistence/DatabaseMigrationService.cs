@@ -106,7 +106,9 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         "supplier_invoices",
         "supplier_invoice_items",
         "purchase_variances",
-        "user_branches"
+        "user_branches",
+        "goods_issues",
+        "goods_issue_items"
     ];
 
     public static readonly ExpectedTrigger[] ExpectedTriggers =
@@ -169,7 +171,11 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         new("sales_invoices", "sales_invoice_append_only", "oisms_deny_mutation", "public", "BEFORE", false, HasUpdate: true, HasDelete: true, HasTruncate: true),
 
         // stock_count_approvals (U03)
-        new("stock_count_approvals", "stock_count_approval_append_only", "oisms_deny_mutation", "public", "BEFORE", false, HasUpdate: true, HasDelete: true, HasTruncate: true)
+        new("stock_count_approvals", "stock_count_approval_append_only", "oisms_deny_mutation", "public", "BEFORE", false, HasUpdate: true, HasDelete: true, HasTruncate: true),
+
+        // goods_issues & goods_issue_items (U13)
+        new("goods_issues", "goods_issue_append_only", "oisms_deny_mutation", "public", "BEFORE", false, HasUpdate: true, HasDelete: true, HasTruncate: true),
+        new("goods_issue_items", "goods_issue_item_append_only", "oisms_deny_mutation", "public", "BEFORE", false, HasUpdate: true, HasDelete: true, HasTruncate: true)
     ];
 
     public static readonly ExpectedForeignKey[] ExpectedForeignKeys =
@@ -314,7 +320,21 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         // CS-02: phân công chi nhánh cho nhân viên
         new("fk_user_branches_tenant", "user_branches", ["tenant_id"], "tenants", ["id"]),
         new("fk_user_branches_user", "user_branches", ["tenant_id", "user_id"], "users", ["tenant_id", "id"], OnDelete: 'c'),
-        new("fk_user_branches_branch", "user_branches", ["tenant_id", "branch_id"], "branches", ["tenant_id", "id"])
+        new("fk_user_branches_branch", "user_branches", ["tenant_id", "branch_id"], "branches", ["tenant_id", "id"]),
+
+        // U13: phiếu xuất kho 02-VT (goods_issues, goods_issue_items)
+        new("fk_goods_issues_tenant_id", "goods_issues", ["tenant_id"], "tenants", ["id"]),
+        new("fk_goods_issues_order_branch", "goods_issues", ["tenant_id", "order_id", "branch_id"], "orders", ["tenant_id", "id", "branch_id"]),
+        new("fk_goods_issues_sales_invoice", "goods_issues", ["tenant_id", "sales_invoice_id"], "sales_invoices", ["tenant_id", "id"]),
+        new("fk_goods_issues_branch_id", "goods_issues", ["tenant_id", "branch_id"], "branches", ["tenant_id", "id"]),
+        new("fk_goods_issues_warehouse_branch", "goods_issues", ["tenant_id", "warehouse_id", "branch_id"], "warehouses", ["tenant_id", "id", "branch_id"]),
+        new("fk_goods_issues_issued_by", "goods_issues", ["tenant_id", "issued_by"], "users", ["tenant_id", "id"]),
+        new("fk_goods_issue_items_tenant_id", "goods_issue_items", ["tenant_id"], "tenants", ["id"]),
+        new("fk_goods_issue_items_goods_issue_id", "goods_issue_items", ["tenant_id", "goods_issue_id"], "goods_issues", ["tenant_id", "id"]),
+        new("fk_goods_issue_items_inventory_tx", "goods_issue_items", ["tenant_id", "inventory_transaction_id"], "inventory_transactions", ["tenant_id", "id"]),
+        new("fk_goods_issue_items_order_item", "goods_issue_items", ["tenant_id", "order_item_id"], "order_items", ["tenant_id", "id"]),
+        new("fk_goods_issue_items_sku_id", "goods_issue_items", ["tenant_id", "sku_id"], "skus", ["tenant_id", "id"]),
+        new("fk_goods_issue_items_unit_id", "goods_issue_items", ["tenant_id", "unit_id"], "units", ["tenant_id", "id"])
     ];
 
     public static readonly ExpectedConstraint[] ExpectedCriticalConstraints =
@@ -494,7 +514,19 @@ public class DatabaseMigrationService : IDatabaseMigrationService
 
         // CS-01: sales_returns request_key và total_refund_amount
         new("uq_sales_returns_4", 'u', "sales_returns", Columns: ["tenant_id", "request_key"]),
-        new("ck_sales_returns_total_refund_amount_nonnegative", 'c', "sales_returns", ExpectedNormalizedExpression: "(total_refund_amount >= (0)::numeric)")
+        new("ck_sales_returns_total_refund_amount_nonnegative", 'c', "sales_returns", ExpectedNormalizedExpression: "(total_refund_amount >= (0)::numeric)"),
+
+        // U13: goods_issues & goods_issue_items
+        new("uq_goods_issues_1", 'u', "goods_issues", Columns: ["tenant_id", "id"]),
+        new("uq_goods_issues_2", 'u', "goods_issues", Columns: ["tenant_id", "number"]),
+        new("uq_goods_issues_3", 'u', "goods_issues", Columns: ["tenant_id", "order_id", "warehouse_id"]),
+        new("ck_goods_issues_channel_values", 'c', "goods_issues", ExpectedNormalizedExpression: "((channel)::text = ANY ((ARRAY['POS'::character varying, 'Admin'::character varying, 'Shopee'::character varying, 'TikTok'::character varying, 'Lazada'::character varying])::text[]))"),
+        new("uq_goods_issue_items_1", 'u', "goods_issue_items", Columns: ["tenant_id", "id"]),
+        new("uq_goods_issue_items_2", 'u', "goods_issue_items", Columns: ["tenant_id", "inventory_transaction_id"]),
+        new("ck_goods_issue_items_quantity_positive", 'c', "goods_issue_items", ExpectedNormalizedExpression: "(quantity > (0)::numeric)"),
+        new("ck_goods_issue_items_base_quantity_positive", 'c', "goods_issue_items", ExpectedNormalizedExpression: "(base_quantity > (0)::numeric)"),
+        new("ck_goods_issue_items_factor_snapshot_positive", 'c', "goods_issue_items", ExpectedNormalizedExpression: "(factor_snapshot > (0)::numeric)"),
+        new("ck_goods_issue_items_unit_cost_nonnegative", 'c', "goods_issue_items", ExpectedNormalizedExpression: "(unit_cost >= (0)::numeric)")
     ];
 
 
@@ -2024,7 +2056,7 @@ BEGIN
     END IF;
 END $$;
 ";
-            await using (var salesInvoiceCmd = new NpgsqlCommand(salesInvoiceUpgradeSql, connection, tx))
+            await using (var salesInvoiceCmd = new NpgsqlCommand(CleanDdlForConnectedDatabase(salesInvoiceUpgradeSql), connection, tx))
             {
                 await salesInvoiceCmd.ExecuteNonQueryAsync(cancellationToken);
             }
@@ -2448,13 +2480,26 @@ END $$;
                 await userBranchesCmd.ExecuteNonQueryAsync(cancellationToken);
             }
 
+            const string goodsIssuesStart = "-- OISMS_GOODS_ISSUES_BEGIN";
+            const string goodsIssuesEnd = "-- OISMS_GOODS_ISSUES_END";
+            var giStart = schema.IndexOf(goodsIssuesStart, StringComparison.Ordinal);
+            var giEnd = schema.IndexOf(goodsIssuesEnd, StringComparison.Ordinal);
+            if (giStart < 0 || giEnd <= giStart + goodsIssuesStart.Length)
+                throw new InvalidOperationException("Không tìm thấy DDL phiếu xuất kho (goods_issues) trong oisms_schema.sql.");
+
+            var goodsIssuesSql = CleanDdlForConnectedDatabase(schema[(giStart + goodsIssuesStart.Length)..giEnd]);
+            await using (var goodsIssuesCmd = new NpgsqlCommand(goodsIssuesSql, connection, tx))
+            {
+                await goodsIssuesCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
             await tx.CommitAsync(cancellationToken);
             return new MigrationExecutionResult(
                 Success: true,
                 IsFreshInstall: false,
                 IsBaselineAdopted: false,
                 TableCount: RequiredTables.Length,
-                Message: "Nâng cấp schema v0.5 stock_transfers, shop_integrations, multi_unit, price_lists, purchase_orders, sales_invoices, stock_count_schedules, payment_accounts, sales_returns, supplier_invoices và user_branches thành công.");
+                Message: "Nâng cấp schema v0.5 stock_transfers, shop_integrations, multi_unit, price_lists, purchase_orders, sales_invoices, stock_count_schedules, payment_accounts, sales_returns, supplier_invoices, user_branches và goods_issues thành công.");
         }
         catch (Exception ex)
         {
@@ -3007,7 +3052,9 @@ WHERE table_schema = 'public';";
             "stock_counts.count_type", "stock_counts.period_id", "stock_counts.submitted_by", "stock_counts.submitted_at",
             "stock_count_items.counted_by", "stock_count_items.counted_at", "stock_count_items.snapshot_at",
             "sales_returns.request_key", "sales_returns.total_refund_amount", "sales_returns.note",
-            "user_branches.tenant_id", "user_branches.user_id", "user_branches.branch_id", "user_branches.created_at"
+            "user_branches.tenant_id", "user_branches.user_id", "user_branches.branch_id", "user_branches.created_at",
+            "goods_issues.number", "goods_issues.order_id", "goods_issues.sales_invoice_id", "goods_issues.warehouse_id", "goods_issues.issued_at",
+            "goods_issue_items.goods_issue_id", "goods_issue_items.inventory_transaction_id", "goods_issue_items.order_item_id", "goods_issue_items.quantity", "goods_issue_items.base_quantity", "goods_issue_items.unit_cost"
         ];
         foreach (var col in crucialColumns)
         {
@@ -3230,13 +3277,13 @@ WHERE grantee = 'oisms_runtime'
             }
         }
 
-        // Kiểm tra oisms_runtime KHÔNG có quyền UPDATE hoặc DELETE hoặc TRUNCATE trên sales_invoices và stock_count_approvals
+        // Kiểm tra oisms_runtime KHÔNG có quyền UPDATE hoặc DELETE hoặc TRUNCATE trên sales_invoices, stock_count_approvals, goods_issues và goods_issue_items
         const string checkSalesInvoicePrivilegesSql = @"
 SELECT table_name, privilege_type 
 FROM information_schema.role_table_grants 
 WHERE grantee = 'oisms_runtime' 
   AND table_schema = 'public' 
-  AND table_name IN ('sales_invoices', 'stock_count_approvals') 
+  AND table_name IN ('sales_invoices', 'stock_count_approvals', 'goods_issues', 'goods_issue_items') 
   AND privilege_type IN ('UPDATE', 'DELETE', 'TRUNCATE');";
 
         await using (var cmdSalesInv = new NpgsqlCommand(checkSalesInvoicePrivilegesSql, connection, tx))

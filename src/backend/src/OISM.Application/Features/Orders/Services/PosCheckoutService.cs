@@ -9,6 +9,7 @@ using OISM.Application.Features.Pricing.Dtos;
 using OISM.Application.Features.Pricing.Services;
 using OISM.Application.Features.Realtime;
 using OISM.Application.Features.Realtime.Dtos;
+using OISM.Application.Features.GoodsIssues.Services;
 using OISM.Application.Features.SalesInvoices.Services;
 using OISM.Domain.Common;
 using OISM.Domain.Entities;
@@ -642,6 +643,7 @@ internal sealed class PosCheckoutService(
             _context.Orders.Add(order);
 
             var createdOrderItems = new List<OrderItem>();
+            var createdOutEntries = new List<(InventoryTransaction Transaction, OrderItem OrderItem, Warehouse? Warehouse)>();
 
             foreach (var line in orderLines)
             {
@@ -714,6 +716,7 @@ internal sealed class PosCheckoutService(
                         CreatedAt = now
                     };
                     _context.InventoryTransactions.Add(ledger);
+                    createdOutEntries.Add((ledger, orderItem, alloc.Warehouse));
 
                     // Cập nhật số dư lũy kế tại chi nhánh
                     bBal.OnHand -= alloc.Quantity;
@@ -747,6 +750,16 @@ internal sealed class PosCheckoutService(
 
             var invoice = SalesInvoiceFactory.Create(order, branch, cashierUser, normalizedMethod, now);
             _context.SalesInvoices.Add(invoice);
+
+            var goodsIssues = GoodsIssueFactory.CreateForSalesOut(order, invoice, branch, cashierUser, createdOutEntries, now);
+            foreach (var gi in goodsIssues)
+            {
+                _context.GoodsIssues.Add(gi);
+                foreach (var gii in gi.Items)
+                {
+                    _context.GoodsIssueItems.Add(gii);
+                }
+            }
 
             // 16. Lưu xuống DB
             await _context.SaveChangesAsync(ct);

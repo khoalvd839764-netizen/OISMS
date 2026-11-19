@@ -3,7 +3,7 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-FR-03` |
-| **Phiên bản (Version)** | `v1.1.0` |
+| **Phiên bản (Version)** | `v1.2.0` |
 | **Ngày hiệu lực (Effective Date)** | `2026-11-19` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-INV-01..04`, `NFR-SEC-03` (Trang 2, 4); `Upgrade 13 / OISMS-66` |
 | **Gói công việc (Task Package)** | Task Package 2 — Product Catalog & Append-Only Inventory Ledger |
@@ -16,6 +16,7 @@
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả chi tiết nhóm yêu cầu chức năng `FR-INV-01` đến `FR-INV-04` và quy tắc bất biến Sổ cái. | `INIT-FR-03` |
 | `v1.1.0` | `2026-11-19` | Nhóm dự án OISMS | Bổ sung quy tắc đọc sổ cái cho Báo cáo Tồn kho theo kỳ (NXT) và Thẻ kho S12/S10 (Upgrade 13 / OISMS-66-G2). Quy định số dư đầu/cuối, bóc tách giao dịch, hàng đang chuyển và che giá theo vai trò. | `OISMS-66-G2` |
+| `v1.2.0` | `2026-11-19` | Nhóm dự án OISMS | Mỗi dòng sổ cái `OUT` bán hàng có 1 dòng chứng từ `goods_issue_items` bất biến; DTO sổ cái và truy vết trả kèm `goodsIssueId`, `goodsIssueNumber`. | `OISMS-66-L2-G3` |
 
 ---
 
@@ -61,3 +62,11 @@ Bảng sổ cái `inventory_transactions` là nguồn chân lý duy nhất (sing
 4. **Hiệu năng & Tối ưu hóa truy vấn:**
    - Bắt buộc thực hiện phân trang trên danh mục SKU (`Skus`) trước (kèm bộ lọc danh mục/tìm kiếm), sau đó mới tổng hợp số liệu sổ cái cho tập SKU của trang (ví dụ 50 SKU).
    - Tận dụng triệt để index `ix_inventory_transactions_sku_history` `(tenant_id, sku_id, branch_id, created_at, sequence_no)`.
+
+---
+
+## 4. Chứng từ Phiếu xuất kho 02-VT gắn với dòng sổ cái `OUT` bán hàng (`Upgrade 13`, `OISMS-66-L2-G3`)
+
+- Cấu trúc bảng `inventory_transactions` giữ nguyên bất biến (chỉ `INSERT`, `order_item_id` tiếp tục là nguồn chứng từ của dòng `OUT` bán hàng).
+- Mỗi khi ghi dòng `inventory_transactions` loại `OUT` từ bán hàng (`order_item_id IS NOT NULL`), trong cùng database transaction hệ thống tạo kèm chứng từ `goods_issues` và dòng `goods_issue_items` tham chiếu `inventory_transaction_id` (`UNIQUE (tenant_id, inventory_transaction_id)`), lưu `base_quantity = inventory_transactions.quantity` và `unit_cost = inventory_transactions.unit_cost`.
+- Khi truy vấn sổ cái (`GET /api/inventory/ledger`) hoặc truy vết chứng từ xuất kho (`GET /api/inventory/transactions/{id}/trace`), các dòng `OUT` bán hàng trả thêm `goodsIssueId` và `goodsIssueNumber` (`PXK-<số hóa đơn>` hoặc `PXK-<số hóa đơn>-<k>`).

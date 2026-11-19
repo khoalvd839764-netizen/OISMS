@@ -111,4 +111,6 @@ public class DocumentTraceLineDto
     public Guid? SalesReturnItemId { get; set; }
     public string? UnitName { get; set; }
     public decimal? OrderItemQuantity { get; set; }
+    public Guid? GoodsIssueId { get; set; }
+    public string? GoodsIssueNumber { get; set; }
 }

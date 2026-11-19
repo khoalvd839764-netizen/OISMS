@@ -139,6 +139,8 @@ public class SalesInvoiceTraceIntegrationTests : IAsyncLifetime, IClassFixture<W
     public async Task AC01_UpgradeFromPreU02Schema_TwiceIdempotent_MatchesFreshSchemaExactly()
     {
         const string downgradeSql = @"
+DROP TABLE IF EXISTS public.goods_issue_items;
+DROP TABLE IF EXISTS public.goods_issues;
 DROP TABLE public.sales_invoices;
 ALTER TABLE public.orders DROP COLUMN confirmed_by;
 ALTER TABLE public.stock_transfers DROP COLUMN dispatched_by;

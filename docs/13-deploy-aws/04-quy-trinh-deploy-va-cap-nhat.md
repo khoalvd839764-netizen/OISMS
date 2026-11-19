@@ -30,7 +30,7 @@ dcp ps
 Chuyện gì xảy ra:
 
 1. Build 4 image: backend (.NET SDK → ASP.NET runtime), admin, POS và giả lập đơn sàn (Node 22 → nginx). Lần đầu mất vài phút.
-2. `postgres` khởi động với volume trống, chạy `init-oisms.sh`: nạp `oisms_schema.sql` (48 bảng, trigger `ledger_append_only`), tạo nhóm `oisms_runtime` và login `oisms_app`, kiểm tra đủ 48 bảng. Lỗi ở bước này thì container dừng; xem `dcp logs postgres`.
+2. `postgres` khởi động với volume trống, chạy `init-oisms.sh`: nạp `oisms_schema.sql` (50 bảng, trigger `ledger_append_only`), tạo nhóm `oisms_runtime` và login `oisms_app`, kiểm tra đủ 50 bảng. Lỗi ở bước này thì container dừng; xem `dcp logs postgres`.
 3. `backend` chờ `postgres` healthy rồi chạy. Production không seed demo.
 4. `caddy` xin chứng chỉ cho `ADMIN_DOMAIN`, `POS_DOMAIN` và `SIM_DOMAIN`. Xem tiến trình: `dcp logs -f caddy`.
 
@@ -42,7 +42,7 @@ curl -sI https://<POS_DOMAIN>/ | head -1
 curl -sI https://<SIM_DOMAIN>/ | head -1
 ```
 
-`/health/ready` phải trả HTTP 200, `status: "Healthy"`, `tablesCount: 48`, `triggerVerified: true`.
+`/health/ready` phải trả HTTP 200, `status: "Healthy"`, `tablesCount: 50`, `triggerVerified: true`.
 
 ## 2. Tạo Dữ Liệu Ban Đầu
 
@@ -94,7 +94,22 @@ dcp exec -T postgres sh -c 'psql -X -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_
   < docker/postgres/migrations/20261119_purchase_order_pending_approval.sql
 ```
 
-DB ở baseline cũ hơn cần chạy đủ các migration còn thiếu theo thứ tự tên file (gồm cả `20261112_supplier_invoices.sql` nếu đang ở 44 bảng, `20261114_user_branches.sql` và `20261119_purchase_order_pending_approval.sql`). Sau cập nhật, kiểm tra `/health/ready` trả HTTP 200 và `tablesCount: 48`.
+Tiếp theo, để nâng từ 48 bảng lên **50 bảng** với chứng từ Phiếu xuất kho 02-VT (`goods_issues`, `goods_issue_items` — Upgrade 13 Gói 3), chạy `20261119_goods_issues.sql`:
+
+```bash
+dcp exec -T postgres sh -c 'psql -X -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' \
+  < docker/postgres/migrations/20261119_goods_issues.sql
+```
+
+> **Lưu ý reset DB demo khi DB đã có dòng sổ `OUT` bán hàng cũ:** Vì nguyên tắc bất biến mỗi dòng `inventory_transactions` có `order_item_id IS NOT NULL` phải gắn đúng 1 dòng `goods_issue_items` (và không làm backfill giả tạo chứng từ lịch sử), nếu DB demo đã có giao dịch xuất bán cũ thì `20261119_goods_issues.sql` sẽ chủ động dừng với `RAISE EXCEPTION` hướng dẫn reset & seed lại DB. Với môi trường demo cần reset sạch về schema 50 bảng:
+> ```bash
+> # Sau khi đã backup file dump ở bước 1 nếu cần lưu đối chiếu:
+> dcp down -v
+> dcp up -d --build
+> ```
+> (Hoặc DROP/CREATE lại database `oisms` từ `docs/database/oisms_schema.sql` rồi tạo/seed lại dữ liệu demo). Nếu DB chưa phát sinh dòng `OUT` bán hàng (`order_item_id IS NOT NULL`), migration chạy thẳng qua và chạy lại nhiều lần không lỗi.
+
+DB ở baseline cũ hơn cần chạy đủ các migration còn thiếu theo thứ tự tên file (gồm cả `20261112_supplier_invoices.sql` nếu đang ở 44 bảng, `20261114_user_branches.sql`, `20261119_purchase_order_pending_approval.sql` và `20261119_goods_issues.sql`). Sau cập nhật, kiểm tra `/health/ready` trả HTTP 200 và `tablesCount: 50`.
 
 Backend không tự nâng cấp schema, và `init-oisms.sh` không chạy lại trên volume đã có dữ liệu. Nếu chỉ rebuild, `/health/ready` sẽ trả 503 `Database schema is incomplete`.
 
@@ -162,7 +177,7 @@ dcp up -d --build
 
 | Kiểm tra | Kỳ vọng |
 | :--- | :--- |
-| `https://<ADMIN_DOMAIN>/health/ready` | 200, `Healthy`, 48 bảng |
+| `https://<ADMIN_DOMAIN>/health/ready` | 200, `Healthy`, 50 bảng |
 | `https://<ADMIN_DOMAIN>/swagger` | Không mở được (production không có Swagger; SPA trả trang chuyển về `/admin`) |
 | `http://<ADMIN_DOMAIN>` | Chuyển hướng sang `https://` |
 | Đăng nhập Admin, mở Sản phẩm, Tồn kho | Có dữ liệu, không lỗi mạng |
