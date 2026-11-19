@@ -16,6 +16,14 @@ public interface IInventoryPeriodReportService
         CancellationToken ct = default);
 
     /// <summary>
+    /// Lấy toàn bộ SKU khớp bộ lọc (bỏ qua phân trang của người gọi) để xuất Excel; dòng tổng cộng tính trên mọi dòng.
+    /// </summary>
+    Task<InventoryPeriodReportDto> GetInventoryPeriodReportForExportAsync(
+        InventoryPeriodFilterDto filter,
+        bool isOwner,
+        CancellationToken ct = default);
+
+    /// <summary>
     /// Lấy Thẻ kho (S12-DN) hoặc Sổ chi tiết hàng hóa (S10-DN) cho một SKU tại một Chi nhánh trong kỳ.
     /// </summary>
     Task<StockCardReportDto> GetStockCardReportAsync(

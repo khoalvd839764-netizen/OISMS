@@ -102,10 +102,20 @@ public class InventoryPeriodItemDto
     public decimal OpeningInTransitQuantity { get; set; }
 
     /// <summary>
+    /// Giá trị hàng đang chuyển đầu kỳ theo giá vốn chụp lúc gửi (chỉ Owner, Staff nhận null).
+    /// </summary>
+    public decimal? OpeningInTransitValue { get; set; }
+
+    /// <summary>
     /// Chế độ Tất cả: Hàng đang chuyển cuối kỳ.
     /// Chế độ Một chi nhánh: Hàng đang chuyển đến chi nhánh này tại thời điểm cuối kỳ.
     /// </summary>
     public decimal ClosingInTransitQuantity { get; set; }
+
+    /// <summary>
+    /// Giá trị hàng đang chuyển cuối kỳ theo giá vốn chụp lúc gửi (chỉ Owner, Staff nhận null).
+    /// </summary>
+    public decimal? ClosingInTransitValue { get; set; }
 
     public InventoryPeriodInBreakdownDto InBreakdown { get; set; } = new();
     public InventoryPeriodOutBreakdownDto OutBreakdown { get; set; } = new();
@@ -129,7 +139,9 @@ public class InventoryPeriodSummaryDto
     public decimal? TotalClosingValue { get; set; }
 
     public decimal TotalOpeningInTransitQuantity { get; set; }
+    public decimal? TotalOpeningInTransitValue { get; set; }
     public decimal TotalClosingInTransitQuantity { get; set; }
+    public decimal? TotalClosingInTransitValue { get; set; }
 }
 
 /// <summary>
@@ -181,6 +193,13 @@ public class StockCardEntryDto
     public string Type { get; set; } = string.Empty; // "IN" hoặc "OUT"
     public string SourceType { get; set; } = string.Empty; // "Nhập mua", "Xuất bán POS", "Xuất bán Shopee", "Khách trả", "Chuyển kho đến", "Chuyển kho đi", "Kiểm kê"...
     public string DocumentNumber { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Phiếu xuất kho 02-VT của dòng OUT bán hàng (null với các dòng khác).
+    /// </summary>
+    public Guid? GoodsIssueId { get; set; }
+    public string? GoodsIssueNumber { get; set; }
+
     public Guid? ReferenceId { get; set; }
 
     public decimal InQuantity { get; set; }

@@ -104,19 +104,7 @@ public class InventoryPeriodReportService : IInventoryPeriodReportService
         }
 
         // 4. Tính dòng tổng cộng cho trang báo cáo
-        var summary = new InventoryPeriodSummaryDto
-        {
-            TotalOpeningQuantity = items.Sum(i => i.OpeningQuantity),
-            TotalOpeningValue = isOwner ? items.Sum(i => i.OpeningValue ?? 0m) : null,
-            TotalInQuantity = items.Sum(i => i.InQuantity),
-            TotalInValue = isOwner ? items.Sum(i => i.InValue ?? 0m) : null,
-            TotalOutQuantity = items.Sum(i => i.OutQuantity),
-            TotalOutValue = isOwner ? items.Sum(i => i.OutValue ?? 0m) : null,
-            TotalClosingQuantity = items.Sum(i => i.ClosingQuantity),
-            TotalClosingValue = isOwner ? items.Sum(i => i.ClosingValue ?? 0m) : null,
-            TotalOpeningInTransitQuantity = items.Sum(i => i.OpeningInTransitQuantity),
-            TotalClosingInTransitQuantity = items.Sum(i => i.ClosingInTransitQuantity)
-        };
+        var summary = BuildSummary(items, isOwner);
 
         return new InventoryPeriodReportDto
         {
@@ -132,6 +120,50 @@ public class InventoryPeriodReportService : IInventoryPeriodReportService
             Page = pageIndex,
             PageSize = pageSize
         };
+    }
+
+    /// <inheritdoc />
+    public async Task<InventoryPeriodReportDto> GetInventoryPeriodReportForExportAsync(
+        InventoryPeriodFilterDto filter,
+        bool isOwner,
+        CancellationToken ct = default)
+    {
+        // Xuất Excel lấy toàn bộ SKU khớp bộ lọc: đi lần lượt từng trang 100 SKU (giữ nguyên cách tính
+        // phân trang SKU trước rồi mới tổng hợp sổ cái), dòng tổng cộng tính trên toàn bộ dòng đã xuất.
+        const int batchSize = 100;
+        var allItems = new List<InventoryPeriodItemDto>();
+        InventoryPeriodReportDto? firstPage = null;
+        var page = 1;
+
+        while (true)
+        {
+            var pageReport = await GetInventoryPeriodReportAsync(new InventoryPeriodFilterDto
+            {
+                FromDate = filter.FromDate,
+                ToDate = filter.ToDate,
+                BranchId = filter.BranchId,
+                SearchTerm = filter.SearchTerm,
+                CategoryId = filter.CategoryId,
+                Page = page,
+                PageSize = batchSize
+            }, isOwner, ct);
+
+            firstPage ??= pageReport;
+            allItems.AddRange(pageReport.Items);
+
+            if (pageReport.Items.Count < batchSize || allItems.Count >= pageReport.TotalCount)
+            {
+                break;
+            }
+            page++;
+        }
+
+        firstPage.Items = allItems;
+        firstPage.Summary = BuildSummary(allItems, isOwner);
+        firstPage.Page = 1;
+        firstPage.PageSize = Math.Max(1, allItems.Count);
+        firstPage.TotalCount = allItems.Count;
+        return firstPage;
     }
 
     /// <inheritdoc />
@@ -186,16 +218,13 @@ public class InventoryPeriodReportService : IInventoryPeriodReportService
         decimal openingValue = 0m;
         if (isOwner)
         {
-            var preTransactions = await _context.InventoryTransactions
+            openingValue = await _context.InventoryTransactions
                 .AsNoTracking()
                 .Where(t => t.TenantId == tenantId &&
                             t.BranchId == filter.BranchId &&
                             t.SkuId == filter.SkuId &&
                             t.CreatedAt < startBoundaryUtc)
-                .Select(t => new { t.Type, t.Quantity, t.UnitCost })
-                .ToListAsync(ct);
-
-            openingValue = preTransactions.Sum(t => t.Type == "IN" ? t.Quantity * t.UnitCost : -(t.Quantity * t.UnitCost));
+                .SumAsync(t => t.Type == "IN" ? t.Quantity * t.UnitCost : -(t.Quantity * t.UnitCost), ct);
         }
 
         // 3. Lấy tất cả dòng sổ trong kỳ [startBoundaryUtc, endBoundaryUtc)
@@ -213,6 +242,22 @@ public class InventoryPeriodReportService : IInventoryPeriodReportService
 
         // Nạp thông tin chứng từ cho các dòng trong kỳ
         var documentMap = await ResolveDocumentNumbersAsync(tenantId, periodTxs, ct);
+
+        // Số phiếu xuất kho 02-VT của các dòng OUT bán hàng (Upgrade 13 - P1, đối chiếu trên thẻ kho)
+        var salesOutTxIds = periodTxs.Where(t => t.OrderItemId.HasValue).Select(t => t.Id).ToList();
+        var goodsIssuesByTxId = new Dictionary<Guid, (Guid Id, string Number)>();
+        if (salesOutTxIds.Count > 0)
+        {
+            var issueLinks = await _context.GoodsIssueItems
+                .AsNoTracking()
+                .Where(gii => gii.TenantId == tenantId && salesOutTxIds.Contains(gii.InventoryTransactionId))
+                .Select(gii => new { gii.InventoryTransactionId, gii.GoodsIssueId, Number = gii.GoodsIssue!.Number })
+                .ToListAsync(ct);
+            foreach (var link in issueLinks)
+            {
+                goodsIssuesByTxId[link.InventoryTransactionId] = (link.GoodsIssueId, link.Number);
+            }
+        }
 
         // 4. Duyệt từng dòng phát sinh
         var entries = new List<StockCardEntryDto>();
@@ -293,6 +338,8 @@ public class InventoryPeriodReportService : IInventoryPeriodReportService
                 Type = tx.Type,
                 SourceType = sourceType,
                 DocumentNumber = docNumber,
+                GoodsIssueId = goodsIssuesByTxId.TryGetValue(tx.Id, out var gi) ? gi.Id : null,
+                GoodsIssueNumber = goodsIssuesByTxId.TryGetValue(tx.Id, out var giNum) ? giNum.Number : null,
                 ReferenceId = tx.ReferenceId,
                 InQuantity = inQty,
                 InUnitPrice = inUnitCost,
@@ -374,6 +421,10 @@ public class InventoryPeriodReportService : IInventoryPeriodReportService
 
     /// <summary>
     /// Tính toán các chỉ số tồn kho cho danh sách SKU trong trang hiện tại.
+    /// Mọi tổng hợp sổ cái chạy ở PostgreSQL (GROUP BY), không nạp từng dòng sổ lên bộ nhớ (Q12).
+    /// Đầu kỳ và cuối kỳ lấy trực tiếp từ sổ cái tại mốc (balance_after dòng cuối trước mốc, giá trị Σ IN − Σ OUT trước mốc).
+    /// Chế độ Tất cả: bỏ chuyển nội bộ khỏi nhập/xuất, nên đối chiếu là
+    /// (đầu kỳ + đang chuyển đầu kỳ) + nhập − xuất = (cuối kỳ + đang chuyển cuối kỳ) (Q9).
     /// </summary>
     private async Task<List<InventoryPeriodItemDto>> ComputePeriodItemsAsync(
         Guid tenantId,
@@ -386,86 +437,13 @@ public class InventoryPeriodReportService : IInventoryPeriodReportService
     {
         var skuIds = skus.Select(s => s.Id).ToList();
         var isAllBranches = !branchId.HasValue || branchId.Value == Guid.Empty;
+        Guid? scopedBranchId = isAllBranches ? null : branchId!.Value;
 
-        // A. Lấy số dư đầu kỳ cho từng SKU
-        // Query các dòng sổ có CreatedAt < startBoundaryUtc của các SKU trong trang
-        var preTxQuery = _context.InventoryTransactions
-            .AsNoTracking()
-            .Where(t => t.TenantId == tenantId && skuIds.Contains(t.SkuId) && t.CreatedAt < startBoundaryUtc);
+        // A. Đầu kỳ và cuối kỳ theo sổ cái tại mốc
+        var opening = await LoadLedgerBalancesBeforeAsync(tenantId, skuIds, scopedBranchId, startBoundaryUtc, ct);
+        var closing = await LoadLedgerBalancesBeforeAsync(tenantId, skuIds, scopedBranchId, endBoundaryUtc, ct);
 
-        if (!isAllBranches)
-        {
-            preTxQuery = preTxQuery.Where(t => t.BranchId == branchId!.Value);
-        }
-
-        var preTransactions = await preTxQuery
-            .Select(t => new
-            {
-                t.SkuId,
-                t.BranchId,
-                t.Type,
-                t.Quantity,
-                t.UnitCost,
-                t.BalanceAfter,
-                t.CreatedAt,
-                t.SequenceNo,
-                t.Id
-            })
-            .ToListAsync(ct);
-
-        // Tính tồn đầu kỳ số lượng (balance_after của dòng cuối cùng trước mốc theo từng chi nhánh)
-        var openingQtyBySku = new Dictionary<Guid, decimal>();
-        var openingValBySku = new Dictionary<Guid, decimal>();
-
-        if (isAllBranches)
-        {
-            // Nhóm theo SkuId và BranchId để lấy balance_after mới nhất của từng chi nhánh
-            var latestByBranchAndSku = preTransactions
-                .GroupBy(t => new { t.SkuId, t.BranchId })
-                .Select(g => g.OrderByDescending(t => t.CreatedAt)
-                              .ThenByDescending(t => t.SequenceNo)
-                              .ThenByDescending(t => t.Id)
-                              .First())
-                .ToList();
-
-            foreach (var g in latestByBranchAndSku.GroupBy(x => x.SkuId))
-            {
-                openingQtyBySku[g.Key] = g.Sum(x => x.BalanceAfter);
-            }
-
-            if (isOwner)
-            {
-                foreach (var g in preTransactions.GroupBy(x => x.SkuId))
-                {
-                    openingValBySku[g.Key] = g.Sum(x => x.Type == "IN" ? x.Quantity * x.UnitCost : -(x.Quantity * x.UnitCost));
-                }
-            }
-        }
-        else
-        {
-            var latestBySku = preTransactions
-                .GroupBy(t => t.SkuId)
-                .Select(g => g.OrderByDescending(t => t.CreatedAt)
-                              .ThenByDescending(t => t.SequenceNo)
-                              .ThenByDescending(t => t.Id)
-                              .First())
-                .ToList();
-
-            foreach (var item in latestBySku)
-            {
-                openingQtyBySku[item.SkuId] = item.BalanceAfter;
-            }
-
-            if (isOwner)
-            {
-                foreach (var g in preTransactions.GroupBy(x => x.SkuId))
-                {
-                    openingValBySku[g.Key] = g.Sum(x => x.Type == "IN" ? x.Quantity * x.UnitCost : -(x.Quantity * x.UnitCost));
-                }
-            }
-        }
-
-        // B. Lấy các giao dịch phát sinh trong kỳ [startBoundaryUtc, endBoundaryUtc)
+        // B. Phát sinh trong kỳ [startBoundaryUtc, endBoundaryUtc), gom theo SKU × loại × nguồn × kênh
         var periodTxQuery = _context.InventoryTransactions
             .AsNoTracking()
             .Where(t => t.TenantId == tenantId &&
@@ -473,198 +451,149 @@ public class InventoryPeriodReportService : IInventoryPeriodReportService
                         t.CreatedAt >= startBoundaryUtc &&
                         t.CreatedAt < endBoundaryUtc);
 
-        if (!isAllBranches)
+        if (scopedBranchId.HasValue)
         {
-            periodTxQuery = periodTxQuery.Where(t => t.BranchId == branchId!.Value);
+            periodTxQuery = periodTxQuery.Where(t => t.BranchId == scopedBranchId.Value);
         }
 
-        var periodTxs = await periodTxQuery
+        var periodRows = await periodTxQuery
             .Select(t => new
             {
                 t.SkuId,
-                t.BranchId,
                 t.Type,
+                Kind = t.ReceiptItemId != null ? 1
+                    : t.SalesReturnItemId != null ? 2
+                    : t.TransferItemId != null ? 3
+                    : t.OrderItemId != null ? 4
+                    : 0,
+                Channel = t.OrderItemId != null ? t.OrderItem!.Order!.Channel : null,
                 t.Quantity,
-                t.UnitCost,
-                t.ReceiptItemId,
-                t.OrderItemId,
-                t.TransferItemId,
-                t.StockCountItemId,
-                t.SalesReturnItemId,
-                t.AdjustmentItemId
+                Value = t.Quantity * t.UnitCost
+            })
+            .GroupBy(x => new { x.SkuId, x.Type, x.Kind, x.Channel })
+            .Select(g => new
+            {
+                g.Key.SkuId,
+                g.Key.Type,
+                g.Key.Kind,
+                g.Key.Channel,
+                Quantity = g.Sum(x => x.Quantity),
+                Value = g.Sum(x => x.Value)
             })
             .ToListAsync(ct);
 
-        // Lấy danh sách kênh bán hàng cho các order_item_id trong kỳ
-        var orderItemIds = periodTxs
-            .Where(t => t.OrderItemId.HasValue)
-            .Select(t => t.OrderItemId!.Value)
-            .Distinct()
-            .ToList();
-
-        var orderChannels = new Dictionary<Guid, string>();
-        if (orderItemIds.Count > 0)
-        {
-            var orderItemData = await _context.OrderItems
-                .AsNoTracking()
-                .Where(oi => orderItemIds.Contains(oi.Id))
-                .Select(oi => new { oi.Id, Channel = oi.Order != null ? oi.Order.Channel : "POS" })
-                .ToListAsync(ct);
-            foreach (var oi in orderItemData)
-            {
-                orderChannels[oi.Id] = oi.Channel ?? "POS";
-            }
-        }
-
-        // C. Tính toán hàng đang chuyển (InTransit - AC-03 / Q9)
-        // Chế độ Tất cả: Hàng chuyển xuất trước mốc mà chưa nhập trước mốc
-        var openingInTransitBySku = new Dictionary<Guid, decimal>();
-        var closingInTransitBySku = new Dictionary<Guid, decimal>();
-
+        // C. Hàng đang chuyển (Q9)
+        Dictionary<Guid, (decimal Quantity, decimal Value)> openingInTransit;
+        Dictionary<Guid, (decimal Quantity, decimal Value)> closingInTransit;
         if (isAllBranches)
         {
-            // Hàng đang chuyển đầu kỳ: DispatchedAt < startBoundaryUtc && (ReceivedAt == null || ReceivedAt >= startBoundaryUtc)
-            var openingTransfers = await _context.StockTransferItems
-                .AsNoTracking()
-                .Where(i => i.TenantId == tenantId &&
-                            skuIds.Contains(i.SkuId) &&
-                            i.Transfer!.DispatchedAt != null &&
-                            i.Transfer.DispatchedAt < startBoundaryUtc &&
-                            (i.Transfer.ReceivedAt == null || i.Transfer.ReceivedAt >= startBoundaryUtc))
-                .GroupBy(i => i.SkuId)
-                .Select(g => new { SkuId = g.Key, Quantity = g.Sum(i => i.Quantity) })
-                .ToListAsync(ct);
-
-            foreach (var t in openingTransfers) openingInTransitBySku[t.SkuId] = t.Quantity;
-
-            // Hàng đang chuyển cuối kỳ: DispatchedAt < endBoundaryUtc && (ReceivedAt == null || ReceivedAt >= endBoundaryUtc)
-            var closingTransfers = await _context.StockTransferItems
-                .AsNoTracking()
-                .Where(i => i.TenantId == tenantId &&
-                            skuIds.Contains(i.SkuId) &&
-                            i.Transfer!.DispatchedAt != null &&
-                            i.Transfer.DispatchedAt < endBoundaryUtc &&
-                            (i.Transfer.ReceivedAt == null || i.Transfer.ReceivedAt >= endBoundaryUtc))
-                .GroupBy(i => i.SkuId)
-                .Select(g => new { SkuId = g.Key, Quantity = g.Sum(i => i.Quantity) })
-                .ToListAsync(ct);
-
-            foreach (var t in closingTransfers) closingInTransitBySku[t.SkuId] = t.Quantity;
+            // Phiếu đã gửi trước mốc mà chưa nhận trước mốc
+            openingInTransit = await LoadInTransitAsync(tenantId, skuIds, null, startBoundaryUtc, ct);
+            closingInTransit = await LoadInTransitAsync(tenantId, skuIds, null, endBoundaryUtc, ct);
         }
         else
         {
-            // Chế độ Một chi nhánh: "Đang chuyển đến" tại cuối kỳ
-            var incomingTransfers = await _context.StockTransferItems
-                .AsNoTracking()
-                .Where(i => i.TenantId == tenantId &&
-                            i.Transfer!.ToBranchId == branchId!.Value &&
-                            skuIds.Contains(i.SkuId) &&
-                            i.Transfer.DispatchedAt != null &&
-                            i.Transfer.DispatchedAt < endBoundaryUtc &&
-                            (i.Transfer.ReceivedAt == null || i.Transfer.ReceivedAt >= endBoundaryUtc))
-                .GroupBy(i => i.SkuId)
-                .Select(g => new { SkuId = g.Key, Quantity = g.Sum(i => i.Quantity) })
-                .ToListAsync(ct);
-
-            foreach (var t in incomingTransfers) closingInTransitBySku[t.SkuId] = t.Quantity;
+            // Một chi nhánh: chỉ cột "Đang chuyển đến" tại cuối kỳ để tham khảo
+            openingInTransit = new Dictionary<Guid, (decimal Quantity, decimal Value)>();
+            closingInTransit = await LoadInTransitAsync(tenantId, skuIds, scopedBranchId, endBoundaryUtc, ct);
         }
 
         // D. Tổng hợp dữ liệu cho từng SKU
         var result = new List<InventoryPeriodItemDto>();
-        var txBySku = periodTxs.GroupBy(t => t.SkuId).ToDictionary(g => g.Key, g => g.ToList());
+        var rowsBySku = periodRows.GroupBy(r => r.SkuId).ToDictionary(g => g.Key, g => g.ToList());
 
         foreach (var sku in skus)
         {
             var skuId = sku.Id;
-            var openQty = openingQtyBySku.GetValueOrDefault(skuId, 0m);
-            var openVal = isOwner ? openingValBySku.GetValueOrDefault(skuId, 0m) : (decimal?)null;
+            var open = opening.GetValueOrDefault(skuId);
+            var close = closing.GetValueOrDefault(skuId);
 
             var inBreakdown = new InventoryPeriodInBreakdownDto();
             var outBreakdown = new InventoryPeriodOutBreakdownDto();
 
             decimal totalInQty = 0m;
-            decimal? totalInVal = isOwner ? 0m : null;
+            decimal totalInVal = 0m;
             decimal totalOutQty = 0m;
-            decimal? totalOutVal = isOwner ? 0m : null;
+            decimal totalOutVal = 0m;
 
-            if (txBySku.TryGetValue(skuId, out var skuTxs))
+            if (rowsBySku.TryGetValue(skuId, out var skuRows))
             {
-                foreach (var tx in skuTxs)
+                foreach (var row in skuRows)
                 {
                     // Ở chế độ Tất cả: bỏ qua chuyển nội bộ khỏi Nhập và Xuất (AC-03 / Q9)
-                    if (isAllBranches && tx.TransferItemId.HasValue)
+                    if (isAllBranches && row.Kind == 3)
                     {
                         continue;
                     }
 
-                    var val = tx.Quantity * tx.UnitCost;
+                    var qty = row.Quantity;
+                    var val = row.Value;
 
-                    if (tx.Type == "IN")
+                    if (row.Type == "IN")
                     {
-                        totalInQty += tx.Quantity;
-                        if (isOwner) totalInVal = (totalInVal ?? 0m) + val;
+                        totalInQty += qty;
+                        totalInVal += val;
 
-                        if (tx.ReceiptItemId.HasValue)
+                        switch (row.Kind)
                         {
-                            inBreakdown.PurchaseQuantity += tx.Quantity;
-                            if (isOwner) inBreakdown.PurchaseValue = (inBreakdown.PurchaseValue ?? 0m) + val;
-                        }
-                        else if (tx.SalesReturnItemId.HasValue)
-                        {
-                            inBreakdown.ReturnQuantity += tx.Quantity;
-                            if (isOwner) inBreakdown.ReturnValue = (inBreakdown.ReturnValue ?? 0m) + val;
-                        }
-                        else if (tx.TransferItemId.HasValue)
-                        {
-                            inBreakdown.TransferInQuantity += tx.Quantity;
-                            if (isOwner) inBreakdown.TransferInValue = (inBreakdown.TransferInValue ?? 0m) + val;
-                        }
-                        else // Kiểm kê hoặc điều chỉnh
-                        {
-                            inBreakdown.AdjustmentInQuantity += tx.Quantity;
-                            if (isOwner) inBreakdown.AdjustmentInValue = (inBreakdown.AdjustmentInValue ?? 0m) + val;
+                            case 1:
+                                inBreakdown.PurchaseQuantity += qty;
+                                if (isOwner) inBreakdown.PurchaseValue = (inBreakdown.PurchaseValue ?? 0m) + val;
+                                break;
+                            case 2:
+                                inBreakdown.ReturnQuantity += qty;
+                                if (isOwner) inBreakdown.ReturnValue = (inBreakdown.ReturnValue ?? 0m) + val;
+                                break;
+                            case 3:
+                                inBreakdown.TransferInQuantity += qty;
+                                if (isOwner) inBreakdown.TransferInValue = (inBreakdown.TransferInValue ?? 0m) + val;
+                                break;
+                            default: // Kiểm kê hoặc điều chỉnh
+                                inBreakdown.AdjustmentInQuantity += qty;
+                                if (isOwner) inBreakdown.AdjustmentInValue = (inBreakdown.AdjustmentInValue ?? 0m) + val;
+                                break;
                         }
                     }
-                    else if (tx.Type == "OUT")
+                    else if (row.Type == "OUT")
                     {
-                        totalOutQty += tx.Quantity;
-                        if (isOwner) totalOutVal = (totalOutVal ?? 0m) + val;
+                        totalOutQty += qty;
+                        totalOutVal += val;
 
-                        if (tx.OrderItemId.HasValue)
+                        if (row.Kind == 4)
                         {
-                            var ch = orderChannels.GetValueOrDefault(tx.OrderItemId.Value, "POS").ToUpperInvariant();
+                            var ch = (row.Channel ?? "POS").ToUpperInvariant();
                             if (ch.Contains("SHOPEE") || ch.Contains("TIKTOK") || ch.Contains("LAZADA"))
                             {
-                                outBreakdown.EcommerceQuantity += tx.Quantity;
+                                outBreakdown.EcommerceQuantity += qty;
                                 if (isOwner) outBreakdown.EcommerceValue = (outBreakdown.EcommerceValue ?? 0m) + val;
                             }
                             else if (ch == "ADMIN")
                             {
-                                outBreakdown.AdminQuantity += tx.Quantity;
+                                outBreakdown.AdminQuantity += qty;
                                 if (isOwner) outBreakdown.AdminValue = (outBreakdown.AdminValue ?? 0m) + val;
                             }
                             else
                             {
-                                outBreakdown.PosQuantity += tx.Quantity;
+                                outBreakdown.PosQuantity += qty;
                                 if (isOwner) outBreakdown.PosValue = (outBreakdown.PosValue ?? 0m) + val;
                             }
                         }
-                        else if (tx.TransferItemId.HasValue)
+                        else if (row.Kind == 3)
                         {
-                            outBreakdown.TransferOutQuantity += tx.Quantity;
+                            outBreakdown.TransferOutQuantity += qty;
                             if (isOwner) outBreakdown.TransferOutValue = (outBreakdown.TransferOutValue ?? 0m) + val;
                         }
                         else // Kiểm kê hoặc điều chỉnh
                         {
-                            outBreakdown.AdjustmentOutQuantity += tx.Quantity;
+                            outBreakdown.AdjustmentOutQuantity += qty;
                             if (isOwner) outBreakdown.AdjustmentOutValue = (outBreakdown.AdjustmentOutValue ?? 0m) + val;
                         }
                     }
                 }
             }
 
-            var closeQty = openQty + totalInQty - totalOutQty;
-            var closeVal = isOwner ? (openVal ?? 0m) + (totalInVal ?? 0m) - (totalOutVal ?? 0m) : (decimal?)null;
+            var openTransit = openingInTransit.GetValueOrDefault(skuId);
+            var closeTransit = closingInTransit.GetValueOrDefault(skuId);
 
             result.Add(new InventoryPeriodItemDto
             {
@@ -675,16 +604,18 @@ public class InventoryPeriodReportService : IInventoryPeriodReportService
                 VariantName = sku.VariantName,
                 CategoryName = sku.Product?.Category?.Name,
                 UnitName = !string.IsNullOrWhiteSpace(sku.Unit) ? sku.Unit : "Cái",
-                OpeningQuantity = openQty,
-                OpeningValue = openVal,
+                OpeningQuantity = open.Quantity,
+                OpeningValue = isOwner ? open.Value : null,
                 InQuantity = totalInQty,
-                InValue = totalInVal,
+                InValue = isOwner ? totalInVal : null,
                 OutQuantity = totalOutQty,
-                OutValue = totalOutVal,
-                ClosingQuantity = closeQty,
-                ClosingValue = closeVal,
-                OpeningInTransitQuantity = openingInTransitBySku.GetValueOrDefault(skuId, 0m),
-                ClosingInTransitQuantity = closingInTransitBySku.GetValueOrDefault(skuId, 0m),
+                OutValue = isOwner ? totalOutVal : null,
+                ClosingQuantity = close.Quantity,
+                ClosingValue = isOwner ? close.Value : null,
+                OpeningInTransitQuantity = openTransit.Quantity,
+                OpeningInTransitValue = isOwner ? openTransit.Value : null,
+                ClosingInTransitQuantity = closeTransit.Quantity,
+                ClosingInTransitValue = isOwner ? closeTransit.Value : null,
                 InBreakdown = inBreakdown,
                 OutBreakdown = outBreakdown
             });
@@ -692,6 +623,99 @@ public class InventoryPeriodReportService : IInventoryPeriodReportService
 
         return result;
     }
+
+    /// <summary>
+    /// Số lượng và giá trị tồn theo sổ cái ngay trước mốc, gom theo SKU (cộng các chi nhánh khi không lọc chi nhánh).
+    /// Số lượng = balance_after của dòng cuối trước mốc tại từng chi nhánh; giá trị = Σ IN − Σ OUT (quantity × unit_cost).
+    /// </summary>
+    private async Task<Dictionary<Guid, (decimal Quantity, decimal Value)>> LoadLedgerBalancesBeforeAsync(
+        Guid tenantId,
+        List<Guid> skuIds,
+        Guid? branchId,
+        DateTimeOffset boundaryUtc,
+        CancellationToken ct)
+    {
+        var query = _context.InventoryTransactions
+            .AsNoTracking()
+            .Where(t => t.TenantId == tenantId && skuIds.Contains(t.SkuId) && t.CreatedAt < boundaryUtc);
+
+        if (branchId.HasValue)
+        {
+            query = query.Where(t => t.BranchId == branchId.Value);
+        }
+
+        var rows = await query
+            .GroupBy(t => new { t.SkuId, t.BranchId })
+            .Select(g => new
+            {
+                g.Key.SkuId,
+                Quantity = g
+                    .OrderByDescending(t => t.CreatedAt)
+                    .ThenByDescending(t => t.SequenceNo)
+                    .ThenByDescending(t => t.Id)
+                    .Select(t => t.BalanceAfter)
+                    .FirstOrDefault(),
+                Value = g.Sum(t => t.Type == "IN" ? t.Quantity * t.UnitCost : -(t.Quantity * t.UnitCost))
+            })
+            .ToListAsync(ct);
+
+        return rows
+            .GroupBy(r => r.SkuId)
+            .ToDictionary(g => g.Key, g => (g.Sum(x => x.Quantity), g.Sum(x => x.Value)));
+    }
+
+    /// <summary>
+    /// Hàng đang chuyển tại mốc: phiếu đã gửi (ghi OUT) trước mốc nhưng chưa nhận (chưa ghi IN) trước mốc.
+    /// Giá trị theo giá vốn chụp lúc gửi (stock_transfer_items.unit_cost), cùng giá với dòng sổ OUT/IN của phiếu.
+    /// </summary>
+    private async Task<Dictionary<Guid, (decimal Quantity, decimal Value)>> LoadInTransitAsync(
+        Guid tenantId,
+        List<Guid> skuIds,
+        Guid? toBranchId,
+        DateTimeOffset boundaryUtc,
+        CancellationToken ct)
+    {
+        var query = _context.StockTransferItems
+            .AsNoTracking()
+            .Where(i => i.TenantId == tenantId &&
+                        skuIds.Contains(i.SkuId) &&
+                        i.Transfer!.DispatchedAt != null &&
+                        i.Transfer.DispatchedAt < boundaryUtc &&
+                        (i.Transfer.ReceivedAt == null || i.Transfer.ReceivedAt >= boundaryUtc));
+
+        if (toBranchId.HasValue)
+        {
+            query = query.Where(i => i.Transfer!.ToBranchId == toBranchId.Value);
+        }
+
+        var rows = await query
+            .GroupBy(i => i.SkuId)
+            .Select(g => new
+            {
+                SkuId = g.Key,
+                Quantity = g.Sum(i => i.Quantity),
+                Value = g.Sum(i => i.Quantity * (i.UnitCost ?? 0m))
+            })
+            .ToListAsync(ct);
+
+        return rows.ToDictionary(r => r.SkuId, r => (r.Quantity, r.Value));
+    }
+
+    private static InventoryPeriodSummaryDto BuildSummary(IReadOnlyCollection<InventoryPeriodItemDto> items, bool isOwner) => new()
+    {
+        TotalOpeningQuantity = items.Sum(i => i.OpeningQuantity),
+        TotalOpeningValue = isOwner ? items.Sum(i => i.OpeningValue ?? 0m) : null,
+        TotalInQuantity = items.Sum(i => i.InQuantity),
+        TotalInValue = isOwner ? items.Sum(i => i.InValue ?? 0m) : null,
+        TotalOutQuantity = items.Sum(i => i.OutQuantity),
+        TotalOutValue = isOwner ? items.Sum(i => i.OutValue ?? 0m) : null,
+        TotalClosingQuantity = items.Sum(i => i.ClosingQuantity),
+        TotalClosingValue = isOwner ? items.Sum(i => i.ClosingValue ?? 0m) : null,
+        TotalOpeningInTransitQuantity = items.Sum(i => i.OpeningInTransitQuantity),
+        TotalOpeningInTransitValue = isOwner ? items.Sum(i => i.OpeningInTransitValue ?? 0m) : null,
+        TotalClosingInTransitQuantity = items.Sum(i => i.ClosingInTransitQuantity),
+        TotalClosingInTransitValue = isOwner ? items.Sum(i => i.ClosingInTransitValue ?? 0m) : null
+    };
 
     /// <summary>
     /// Nạp số hiệu chứng từ tương ứng cho các dòng sổ cái.

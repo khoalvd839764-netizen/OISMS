@@ -42,6 +42,8 @@ export interface InventoryPeriodItem {
   closingValue: number | null;
   openingInTransitQuantity: number;
   closingInTransitQuantity: number;
+  openingInTransitValue?: number | null;
+  closingInTransitValue?: number | null;
   inBreakdown: InventoryPeriodInBreakdown;
   outBreakdown: InventoryPeriodOutBreakdown;
 }
@@ -57,6 +59,8 @@ export interface InventoryPeriodSummary {
   totalClosingValue: number | null;
   totalOpeningInTransitQuantity: number;
   totalClosingInTransitQuantity: number;
+  totalOpeningInTransitValue?: number | null;
+  totalClosingInTransitValue?: number | null;
 }
 
 export interface InventoryPeriodReport {
@@ -97,6 +101,8 @@ export interface StockCardEntry {
   type: string;
   sourceType: string;
   documentNumber: string;
+  goodsIssueId?: string | null;
+  goodsIssueNumber?: string | null;
   referenceId: string | null;
   inQuantity: number;
   inUnitPrice: number | null;

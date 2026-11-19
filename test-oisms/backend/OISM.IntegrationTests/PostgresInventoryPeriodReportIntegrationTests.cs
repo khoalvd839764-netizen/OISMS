@@ -1,9 +1,13 @@
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
 using OISM.Application.Common.Exceptions;
+using OISM.Application.Common.Helpers;
 using OISM.Application.Common.Interfaces;
 using OISM.Application.Features.Reports.Dtos;
 using OISM.Application.Features.Reports.Services;
+using OISM.Application.Features.Inventory.Services;
+using OISM.Application.Features.StockTransfers.Dtos;
+using OISM.Application.Features.StockTransfers.Services;
 using OISM.Domain.Common;
 using OISM.Domain.Entities;
 using OISM.Infrastructure.Persistence;
@@ -416,42 +420,14 @@ public sealed class PostgresInventoryPeriodReportIntegrationTests
 
         var day1UtcStart = new DateTimeOffset(TestDay1.ToDateTime(TimeOnly.MinValue), SaigonOffset).ToUniversalTime();
 
-        // Seed thử nghiệm nhiều dòng sổ cái hợp lệ với chứng từ điều chỉnh và số dư đối ứng
-        var adjustmentItems = new List<InventoryAdjustmentItem>(1000);
-        for (int i = 1; i <= 1000; i++)
-        {
-            var isIn = (i == 1) || (i % 2 != 0);
-            var qty = (i == 1) ? 10m : 1m;
-            var delta = isIn ? qty : -qty;
-            adjustmentItems.Add(AddConfirmedAdjustmentItem(
-                db, warehouse, sku, owner.Id, delta, 10000m, $"ADJ-PERF-{i:D4}", day1UtcStart.AddSeconds(i)));
-        }
+        // Seed 100.000 dòng sổ cái (Q12): 50.000 dòng trước kỳ và 50.000 dòng trong kỳ Day1, mỗi dòng trỏ tới một
+        // dòng phiếu điều chỉnh thật (FK hợp lệ). Sau đó đồng bộ số dư bằng EF để trigger oisms_check_stock kiểm tra
+        // toàn bộ sổ cái một lần khi commit.
+        const int ledgerRows = 100_000;
+        await InsertBulkLedgerAsync(tenantA.TenantId!.Value, branch.Id, warehouse.Id, sku.Id, owner.Id, ledgerRows, day1UtcStart);
+        await SetBalanceAsync(db, warehouse, sku, onHand: 0m, sequence: ledgerRows, averageCost: 10000m);
         await db.SaveChangesAsync();
-
-        var transactions = new List<InventoryTransaction>(1000);
-        decimal runningBalance = 0m;
-        for (int i = 1; i <= 1000; i++)
-        {
-            var isIn = (i == 1) || (i % 2 != 0);
-            var qty = (i == 1) ? 10m : 1m;
-            runningBalance += isIn ? qty : -qty;
-            var tx = CreateTransaction(
-                tenantA.TenantId!.Value,
-                branch.Id,
-                warehouse.Id,
-                sku.Id,
-                isIn ? "IN" : "OUT",
-                qty,
-                10000m,
-                runningBalance,
-                i,
-                day1UtcStart.AddSeconds(i));
-            tx.AdjustmentItemId = adjustmentItems[i - 1].Id;
-            transactions.Add(tx);
-        }
-        db.InventoryTransactions.AddRange(transactions);
-        await SetBalanceAsync(db, warehouse, sku, onHand: runningBalance, sequence: 1000, averageCost: 10000m);
-        await db.SaveChangesAsync();
+        Assert.Equal(ledgerRows, await db.InventoryTransactions.CountAsync(t => t.SkuId == sku.Id));
 
         var service = new InventoryPeriodReportService(db, tenantA);
 
@@ -469,6 +445,242 @@ public sealed class PostgresInventoryPeriodReportIntegrationTests
 
         Assert.NotNull(report);
         Assert.True(sw.ElapsedMilliseconds < 2000, $"Thời gian truy vấn một trang phải dưới 2 giây. Đo được: {sw.ElapsedMilliseconds} ms.");
+    }
+
+    [Fact]
+    public async Task VerifyAllBranchesInTransit_ClosingFromLedger_BranchesPlusInTransitEqualsStoreTotal()
+    {
+        // Luồng thật: nhập mua ở chi nhánh A, gửi phiếu chuyển A → B (InTransit, A đã ghi OUT, B chưa ghi IN).
+        await PostgresTestEnvironment.ResetTestDataAsync();
+        await using (var seedDb = PostgresTestEnvironment.CreateRuntimeDbContext(new TestTenant(null)))
+        {
+            await OismsDatabaseSeeder.SeedAsync(seedDb, PostgresTestEnvironment.AppPassword);
+        }
+
+        var tenantA = new TestTenant(OismsDatabaseSeeder.TenantAId);
+        var tenantId = OismsDatabaseSeeder.TenantAId;
+        Guid branchAId, warehouseAId, branchBId, warehouseBId, supplierId, ownerId, skuId;
+        await using (var setupDb = PostgresTestEnvironment.CreateRuntimeDbContext(tenantA))
+        {
+            var branchA = await setupDb.Branches.FirstAsync();
+            branchAId = branchA.Id;
+            warehouseAId = (await setupDb.Warehouses.FirstAsync(w => w.BranchId == branchAId)).Id;
+            supplierId = (await setupDb.Suppliers.FirstAsync()).Id;
+            ownerId = (await setupDb.Users.FirstAsync(u => u.Role == "Owner")).Id;
+            skuId = (await setupDb.ProductVariants.FirstAsync(v => v.IsActive)).Id;
+
+            var branchB = new Branch
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                Name = "Chi nhánh Quận 3 (G2 in-transit)",
+                Address = "456 CMT8, Quận 3, TP.HCM",
+                IsActive = true,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+            var warehouseB = new Warehouse
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                BranchId = branchB.Id,
+                Name = "Kho Tổng Quận 3 (G2 in-transit)",
+                IsActive = true,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+            setupDb.Branches.Add(branchB);
+            setupDb.Warehouses.Add(warehouseB);
+            await setupDb.SaveChangesAsync();
+            branchBId = branchB.Id;
+            warehouseBId = warehouseB.Id;
+        }
+
+        await using (var receiveDb = PostgresTestEnvironment.CreateRuntimeDbContext(tenantA))
+        {
+            await PurchaseOrderSeed.ReceiveStockAsync(receiveDb, tenantA, branchAId, warehouseAId, supplierId, ownerId, (skuId, 50m, 20000m));
+        }
+
+        await using (var transferDb = PostgresTestEnvironment.CreateRuntimeDbContext(tenantA))
+        {
+            var transferService = new StockTransferService(
+                transferDb,
+                tenantA,
+                new WacCalculator(),
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<StockTransferService>.Instance);
+            var transfer = await transferService.CreateTransferAsync(new CreateStockTransferRequestDto
+            {
+                RequestKey = Guid.NewGuid(),
+                FromBranchId = branchAId,
+                ToBranchId = branchBId,
+                FromWarehouseId = warehouseAId,
+                ToWarehouseId = warehouseBId,
+                Items = new List<StockTransferItemRequestDto> { new() { SkuId = skuId, Quantity = 10m } }
+            }, ownerId);
+            await transferService.DispatchTransferAsync(transfer.Id, new DispatchStockTransferRequestDto(), ownerId);
+        }
+
+        await using var db = PostgresTestEnvironment.CreateRuntimeDbContext(tenantA);
+        var service = new InventoryPeriodReportService(db, tenantA);
+        var today = ReportTimeHelper.ToLocalDate(DateTimeOffset.UtcNow);
+        var branchBalanceSum = await db.InventoryBalances.Where(b => b.SkuId == skuId).SumAsync(b => b.OnHand);
+
+        // 1. Chế độ Tất cả: chuyển nội bộ không vào nhập/xuất; cuối kỳ = Σ tồn chi nhánh theo sổ cái
+        var all = await service.GetInventoryPeriodReportAsync(new InventoryPeriodFilterDto
+        {
+            FromDate = today,
+            ToDate = today,
+            Page = 1,
+            PageSize = 100
+        }, isOwner: true);
+        var allItem = all.Items.Single(i => i.SkuId == skuId);
+
+        Assert.Equal(0m, allItem.OpeningQuantity);
+        Assert.Equal(0m, allItem.OpeningInTransitQuantity);
+        Assert.Equal(50m, allItem.InQuantity);
+        Assert.Equal(0m, allItem.OutQuantity);
+        Assert.Equal(0m, allItem.InBreakdown.TransferInQuantity);
+        Assert.Equal(0m, allItem.OutBreakdown.TransferOutQuantity);
+        Assert.Equal(40m, allItem.ClosingQuantity);
+        Assert.Equal(branchBalanceSum, allItem.ClosingQuantity);
+        Assert.Equal(10m, allItem.ClosingInTransitQuantity);
+        // Đối chiếu Q9: (đầu kỳ + đang chuyển đầu) + nhập − xuất = (cuối kỳ + đang chuyển cuối) = tổng cửa hàng
+        Assert.Equal(
+            allItem.OpeningQuantity + allItem.OpeningInTransitQuantity + allItem.InQuantity - allItem.OutQuantity,
+            allItem.ClosingQuantity + allItem.ClosingInTransitQuantity);
+        Assert.Equal(
+            allItem.OpeningValue + allItem.OpeningInTransitValue + allItem.InValue - allItem.OutValue,
+            allItem.ClosingValue + allItem.ClosingInTransitValue);
+        Assert.Equal(200000m, allItem.ClosingInTransitValue);
+
+        // 2. Một chi nhánh A: giữ chuyển đi trong xuất, đầu + nhập − xuất = cuối
+        var branchA_ = await service.GetInventoryPeriodReportAsync(new InventoryPeriodFilterDto
+        {
+            FromDate = today,
+            ToDate = today,
+            BranchId = branchAId,
+            Page = 1,
+            PageSize = 100
+        }, isOwner: true);
+        var aItem = branchA_.Items.Single(i => i.SkuId == skuId);
+        Assert.Equal(10m, aItem.OutBreakdown.TransferOutQuantity);
+        Assert.Equal(40m, aItem.ClosingQuantity);
+        Assert.Equal(aItem.OpeningQuantity + aItem.InQuantity - aItem.OutQuantity, aItem.ClosingQuantity);
+        Assert.Equal(aItem.OpeningValue + aItem.InValue - aItem.OutValue, aItem.ClosingValue);
+
+        // 3. Một chi nhánh B: chưa nhận nên tồn 0, cột "Đang chuyển đến" = 10
+        var branchB_ = await service.GetInventoryPeriodReportAsync(new InventoryPeriodFilterDto
+        {
+            FromDate = today,
+            ToDate = today,
+            BranchId = branchBId,
+            Page = 1,
+            PageSize = 100
+        }, isOwner: false);
+        var bItem = branchB_.Items.Single(i => i.SkuId == skuId);
+        Assert.Equal(0m, bItem.ClosingQuantity);
+        Assert.Equal(10m, bItem.ClosingInTransitQuantity);
+        Assert.Null(bItem.ClosingInTransitValue);
+    }
+
+    [Fact]
+    public async Task VerifyExcelExport_ContainsEverySkuBeyondFirstPage()
+    {
+        await PostgresTestEnvironment.ResetTestDataAsync();
+        await using (var seedDb = PostgresTestEnvironment.CreateRuntimeDbContext(new TestTenant(null)))
+        {
+            await OismsDatabaseSeeder.SeedAsync(seedDb, PostgresTestEnvironment.AppPassword);
+        }
+
+        var tenantA = new TestTenant(OismsDatabaseSeeder.TenantAId);
+        await using var db = PostgresTestEnvironment.CreateRuntimeDbContext(tenantA);
+        var product = await db.Products.FirstAsync();
+        for (var i = 0; i < 130; i++)
+        {
+            db.ProductVariants.Add(new ProductVariant
+            {
+                Id = Guid.NewGuid(),
+                TenantId = OismsDatabaseSeeder.TenantAId,
+                ProductId = product.Id,
+                Code = $"G2-EXPORT-{i:D3}",
+                SKU = $"G2-EXPORT-{i:D3}",
+                RetailPrice = 1000m,
+                WholesalePrice = 900m,
+                Unit = "piece",
+                IsActive = true
+            });
+        }
+        await db.SaveChangesAsync();
+        var totalSkus = await db.Skus.CountAsync();
+        Assert.True(totalSkus > 100);
+
+        var service = new InventoryPeriodReportService(db, tenantA);
+        var filter = new InventoryPeriodFilterDto { FromDate = TestDay1, ToDate = TestDay1, Page = 1, PageSize = 10000 };
+
+        var onePage = await service.GetInventoryPeriodReportAsync(filter, isOwner: false);
+        Assert.Equal(100, onePage.Items.Count);
+
+        var export = await service.GetInventoryPeriodReportForExportAsync(filter, isOwner: false);
+        Assert.Equal(totalSkus, export.Items.Count);
+        Assert.Equal(totalSkus, export.Items.Select(i => i.SkuId).Distinct().Count());
+
+        var bytes = new ClosedXmlExcelExportService().ExportInventoryPeriodReport(export, isOwner: false);
+        using var ms = new MemoryStream(bytes);
+        using var workbook = new XLWorkbook(ms);
+        var sheetText = string.Join("\n", workbook.Worksheet(1).CellsUsed().Select(c => c.GetString()));
+        Assert.Contains("G2-EXPORT-129", sheetText);
+    }
+
+    /// <summary>
+    /// Chèn nhanh <paramref name="rowCount"/> dòng sổ (một nửa trước mốc, một nửa sau mốc) bằng generate_series.
+    /// Mỗi dòng sổ trỏ tới một dòng của phiếu điều chỉnh Confirmed riêng nên FK và CHECK đều thỏa.
+    /// Chỉ bỏ trigger theo dòng (session_replication_role = replica) vì trigger tồn kho chạy lại toàn bộ tổng sổ cái
+    /// cho từng dòng (O(n²)); người gọi đồng bộ số dư sau đó để trigger kiểm tra một lần.
+    /// </summary>
+    private static async Task InsertBulkLedgerAsync(
+        Guid tenantId, Guid branchId, Guid warehouseId, Guid skuId, Guid userId, int rowCount, DateTimeOffset pivotUtc)
+    {
+        await using var conn = new Npgsql.NpgsqlConnection(PostgresTestEnvironment.AdminDatabaseConnectionString);
+        await conn.OpenAsync();
+        await using var tx = await conn.BeginTransactionAsync();
+        await using (var role = new Npgsql.NpgsqlCommand("SET LOCAL session_replication_role = replica", conn, tx))
+        {
+            await role.ExecuteNonQueryAsync();
+        }
+
+        var seed = Guid.NewGuid().ToString("N");
+        await using var cmd = new Npgsql.NpgsqlCommand(
+            """
+            INSERT INTO public.inventory_adjustments
+                (id, tenant_id, number, branch_id, warehouse_id, reason, status, created_by, confirmed_by, confirmed_at)
+            SELECT md5('adj' || @seed || g)::uuid, @tenant, 'ADJ-PERF-' || g, @branch, @warehouse, 'Fixture hiệu năng',
+                   'Confirmed', @user, @user, @pivot + ((g - @half) * interval '1 second')
+            FROM generate_series(1, @rows) AS g;
+
+            INSERT INTO public.inventory_adjustment_items (id, tenant_id, adjustment_id, sku_id, quantity_delta, unit_cost)
+            SELECT md5(@seed || g)::uuid, @tenant, md5('adj' || @seed || g)::uuid, @sku, CASE WHEN g % 2 = 0 THEN -1 ELSE 1 END, 10000
+            FROM generate_series(1, @rows) AS g;
+
+            INSERT INTO public.inventory_transactions
+                (id, tenant_id, branch_id, warehouse_id, sku_id, type, quantity, unit_cost, balance_after, sequence_no, adjustment_item_id, created_at)
+            SELECT gen_random_uuid(), @tenant, @branch, @warehouse, @sku,
+                   CASE WHEN g % 2 = 0 THEN 'OUT' ELSE 'IN' END,
+                   1, 10000, g % 2, g, md5(@seed || g)::uuid,
+                   @pivot + ((g - @half) * interval '1 second')
+            FROM generate_series(1, @rows) AS g;
+
+            ANALYZE public.inventory_transactions;
+            """, conn, tx);
+        cmd.CommandTimeout = 300;
+        cmd.Parameters.AddWithValue("tenant", tenantId);
+        cmd.Parameters.AddWithValue("branch", branchId);
+        cmd.Parameters.AddWithValue("warehouse", warehouseId);
+        cmd.Parameters.AddWithValue("sku", skuId);
+        cmd.Parameters.AddWithValue("user", userId);
+        cmd.Parameters.AddWithValue("seed", seed);
+        cmd.Parameters.AddWithValue("pivot", pivotUtc.ToUniversalTime());
+        cmd.Parameters.AddWithValue("half", rowCount / 2);
+        cmd.Parameters.AddWithValue("rows", rowCount);
+        await cmd.ExecuteNonQueryAsync();
+        await tx.CommitAsync();
     }
 
     private static InventoryTransaction CreateTransaction(

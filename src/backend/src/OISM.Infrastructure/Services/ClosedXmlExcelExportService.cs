@@ -417,7 +417,9 @@ public class ClosedXmlExcelExportService : IExcelExportService
             cCol = 1;
             ws.Cell(currentRow, cCol++).SetValue(stt++);
             ws.Cell(currentRow, cCol++).SetValue(entry.CreatedAt.ToOffset(TimeSpan.FromHours(7)).ToString("dd/MM/yyyy HH:mm"));
-            ws.Cell(currentRow, cCol++).SetValue(entry.DocumentNumber);
+            ws.Cell(currentRow, cCol++).SetValue(string.IsNullOrWhiteSpace(entry.GoodsIssueNumber)
+                ? entry.DocumentNumber
+                : $"{entry.DocumentNumber} / {entry.GoodsIssueNumber}");
             ws.Cell(currentRow, cCol++).SetValue(entry.SourceType);
 
             // Nhập

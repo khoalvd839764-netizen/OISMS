@@ -11,6 +11,7 @@ namespace OISM.Application.Features.GoodsIssues.Services;
 public class GoodsIssueService : IGoodsIssueService
 {
     private static readonly TimeSpan VietnamOffset = TimeSpan.FromHours(7);
+    private const int MaxBulkOrderIds = 100;
     private readonly IAppDbContext _context;
     private readonly ICurrentTenantService _tenantService;
 
@@ -172,6 +173,11 @@ public class GoodsIssueService : IGoodsIssueService
         if (distinctIds.Count == 0)
         {
             throw new OismException("VALIDATION_ERROR", "Danh sách mã đơn hàng không hợp lệ.", 400);
+        }
+
+        if (distinctIds.Count > MaxBulkOrderIds)
+        {
+            throw new OismException("VALIDATION_ERROR", $"Mỗi lần in hàng loạt tối đa {MaxBulkOrderIds} đơn hàng.", 400);
         }
 
         var entities = await _context.GoodsIssues

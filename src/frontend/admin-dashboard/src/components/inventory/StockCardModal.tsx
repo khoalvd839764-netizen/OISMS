@@ -219,6 +219,11 @@ export function StockCardModal({ filter, onClose, onOpenTrace }: StockCardModalP
                           ) : (
                             entry.documentNumber || "—"
                           )}
+                          {entry.goodsIssueNumber && (
+                            <div style={{ fontSize: "11px", color: "#64748b" }} title="Phiếu xuất kho 02-VT">
+                              {entry.goodsIssueNumber}
+                            </div>
+                          )}
                         </td>
                         <td style={{ padding: "7px 10px" }}>{entry.sourceType}</td>
 

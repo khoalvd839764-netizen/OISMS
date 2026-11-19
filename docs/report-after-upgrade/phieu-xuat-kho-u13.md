@@ -41,3 +41,9 @@
 | `dotnet test test-oisms/backend/OISM.IntegrationTests/OISM.IntegrationTests.csproj --filter "FullyQualifiedName~PostgresGoodsIssueIntegrationTests"` | PostgreSQL 16 thật (`oism_postgres`) | **PASS 4/4** |
 | `dotnet test test-oisms/backend/OISM.IntegrationTests/OISM.IntegrationTests.csproj --filter "FullyQualifiedName~PosCheckout\|FullyQualifiedName~SalesInvoice\|FullyQualifiedName~OrderLifecycle\|FullyQualifiedName~Concurrency"` | PostgreSQL 16 thật (`oism_postgres`) | **PASS 93/93** |
 | `npm run build` (`src/frontend/admin-dashboard`) | Vite / TypeScript | **PASS** |
+
+## 3. Sửa sau review (19/11/2026)
+
+- Thẻ kho S12/S10 (`GET /api/reports/stock-card`) hiện số phiếu xuất kho (`goodsIssueNumber`) cho dòng `OUT` bán hàng, cùng với sổ cái và truy vết, theo mục Đối chiếu của đặc tả.
+- `POST`/`GET /api/goods-issues/by-orders` chặn quá 100 đơn một lần (`400 VALIDATION_ERROR`), khớp hợp đồng API đã ghi.
+- Review trên PostgreSQL 16 thật: toàn bộ integration test PASS trừ 6 test G2 (đã sửa riêng), gồm 4/4 test phiếu xuất kho, checkout POS, xác nhận đơn và test đồng thời.

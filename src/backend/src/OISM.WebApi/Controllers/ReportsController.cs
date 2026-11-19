@@ -141,7 +141,7 @@ public class ReportsController : ControllerBase
     public async Task<IActionResult> ExportInventoryPeriodExcel([FromQuery] InventoryPeriodFilterDto filter, CancellationToken ct)
     {
         var isOwner = User.IsInRole("Owner");
-        var report = await _inventoryPeriodReportService.GetInventoryPeriodReportAsync(filter, isOwner, ct);
+        var report = await _inventoryPeriodReportService.GetInventoryPeriodReportForExportAsync(filter, isOwner, ct);
         var bytes = _excelExportService.ExportInventoryPeriodReport(report, isOwner);
         var fileName = $"BaoCaoTonTheoKy_{filter.FromDate:yyyyMMdd}_{filter.ToDate:yyyyMMdd}.xlsx";
         return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);

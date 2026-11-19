@@ -21,7 +21,8 @@
      - **Xuất kho (`OUT`):** Bóc tách thành Bán POS, Bán Sàn TMĐT (Shopee, TikTok, Lazada), Bán Admin (phân định qua `OrderItem -> Order.Channel`), Chuyển kho đi (`TransferOut`), và Kiểm kê / Điều chỉnh thiếu (`AdjustmentOut`).
    - **Quy tắc xem Toàn hệ thống:** Tự động loại trừ các giao dịch chuyển kho nội bộ (`transfer_item_id != null`) khỏi cột Nhập và Xuất để không phóng đại quy mô doanh nghiệp; theo dõi riêng cột **Hàng đang chuyển (`InTransit`)** tại đầu kỳ và cuối kỳ. Công thức bảo toàn:
      $$\sum \text{Tồn các chi nhánh} + \text{Hàng đang chuyển} = \text{Tổng tồn hệ thống}$$
-     $$\text{Đầu kỳ} + \text{Nhập} - \text{Xuất} = \text{Cuối kỳ}$$
+     $$(\text{Đầu kỳ} + \text{Đang chuyển đầu kỳ}) + \text{Nhập} - \text{Xuất} = \text{Cuối kỳ} + \text{Đang chuyển cuối kỳ}$$
+     Khi xem một chi nhánh, chuyển kho nằm trong nhập/xuất nên công thức giữ dạng Đầu kỳ + Nhập − Xuất = Cuối kỳ.
    - **Hiển thị đầy đủ mọi SKU:** Luôn hiển thị đầy đủ SKU có trong danh mục (kể cả số dư và biến động bằng 0), hỗ trợ tìm kiếm theo mã/tên/barcode và lọc danh mục.
    - **Tối ưu hóa hiệu năng (< 2 giây/trang):** Phân trang danh mục SKU (`Skus`) trước (50 SKU/trang), sau đó mới truy vấn và tổng hợp sổ cái cho 50 SKU đó, tận dụng chỉ mục `ix_inventory_transactions_sku_history`.
 
@@ -81,3 +82,19 @@
 - `docs/01-users-and-rbac/02-rbac-matrix.md`: Bổ sung dòng ma trận phân quyền cho Báo cáo kỳ & Thẻ kho.
 - `docs/11-ui-screens/04-inventory-screens.md`: Đặc tả màn hình tab Tồn theo kỳ và Modal Thẻ kho.
 - `docs/03-non-functional-requirements/01-performance-and-load.md`: Đặc tả SLA < 2 giây/trang và mô hình phân trang SKU trước.
+
+---
+
+## 3. Sửa sau review (19/11/2026)
+
+Review commit `cebf9f3` trên PostgreSQL 16 thật phát hiện và đã sửa:
+
+| # | Vấn đề | Cách sửa |
+| --- | --- | --- |
+| 1 | Chế độ "Tất cả" có phiếu chuyển `InTransit` trong kỳ: cuối kỳ tính bằng `đầu kỳ + nhập − xuất` (đã bỏ chuyển nội bộ) nên lệch khỏi Σ tồn chi nhánh đúng bằng lượng đang chuyển; cộng thêm cột đang chuyển thì đếm trùng | Cuối kỳ lấy từ sổ cái tại mốc như đầu kỳ. Đối chiếu "Tất cả": `(đầu kỳ + đang chuyển đầu) + nhập − xuất = cuối kỳ + đang chuyển cuối`. Thêm `openingInTransitValue`, `closingInTransitValue` (chỉ Owner) để giá trị cũng khớp |
+| 2 | Xuất Excel chỉ có trang đầu: frontend gửi `pageSize=10000` nhưng service giới hạn 100 | Endpoint xuất gọi `GetInventoryPeriodReportForExportAsync`, đi hết các trang 100 SKU, dòng tổng tính trên toàn bộ |
+| 3 | Đầu kỳ và phát sinh nạp từng dòng sổ lên bộ nhớ rồi mới cộng | Gom nhóm trên PostgreSQL (`GROUP BY` SKU × chi nhánh, SKU × loại × nguồn × kênh) |
+| 4 | 6/6 test cũ FAIL trên PostgreSQL thật (dòng sổ không có nguồn hoặc nguồn giả vi phạm `ck_inventory_transactions_one_source` và FK); test "100k" chỉ chèn 1.000 dòng; không có test hàng đang chuyển | Fixture dùng chứng từ thật và đồng bộ số dư cho trigger `oisms_check_stock` (commit `bfda870`, `d979f40` của nhóm). Test hiệu năng chèn đúng 100.000 dòng sổ, mỗi dòng trỏ tới phiếu điều chỉnh thật, rồi đồng bộ số dư để trigger kiểm tra toàn bộ sổ một lần. Thêm test hàng đang chuyển chạy luồng nhập mua và gửi phiếu chuyển thật, thêm test Excel > 100 SKU |
+| 5 | Thẻ kho chưa hiện số phiếu xuất kho cho dòng `OUT` bán hàng (đặc tả mục 5, Đối chiếu) | Dòng thẻ kho trả `goodsIssueId`, `goodsIssueNumber`; modal và file Excel hiện số `PXK-...` |
+
+Kiểm chứng: `PostgresInventoryPeriodReportIntegrationTests` PASS 8/8 trên PostgreSQL 16 (trước khi sửa: FAIL 6/6), test 100.000 dòng sổ dưới 2 giây/trang.
