@@ -19,6 +19,16 @@ Mục 5.1 của checklist còn **Gói 5**. Gói 1 đã đóng toàn bộ tiêu c
 | --- | --- |
 | [Gói 2 — Quét mã vạch khi kiểm kê](./goi-2-quet-ma-vach-kiem-ke.md) | `FR-PROD-03`, bằng chứng E2E kho |
 
+## Upgrade 12 — Đơn mua và cấu hình giá (feedback 19/11/2026)
+
+[Đặc tả đã chốt](./12-don-mua-va-cau-hinh-gia.md): bỏ hóa đơn NCC, thêm trạng thái `PendingApproval` cho đơn mua, ẩn giá mua và giá vốn với Staff, cấu hình giá bán (giữ giá cũ / WAC + lãi / giá mới) áp dụng khi nhập kho. Chưa triển khai.
+
+## Upgrade 13 — Tồn kho theo kỳ (feedback 19/11/2026)
+
+[Đặc tả đã chốt](./13-ton-kho-theo-ky.md): tab "Tồn theo kỳ" (ngày, tháng, khoảng tùy chọn) với đầu kỳ, nhập, xuất, cuối kỳ theo chi nhánh; thẻ kho; xuất Excel; Staff chỉ xem số lượng; phiếu xuất kho bán hàng theo mẫu 02-VT, lưu thành chứng từ gắn với từng dòng sổ `OUT` (thêm 2 bảng, lập cùng transaction checkout/confirm), bảng kê POS theo ngày, in hàng loạt đơn TMĐT. Chưa triển khai.
+
+**Phân công triển khai Upgrade 12 + 13:** [OISMS-66-lan2-phan-cong.md](./OISMS-66-lan2-phan-cong.md) (5 gói G1–G5, 3 người, lịch theo đợt).
+
 ## Nâng cấp 10
 
 - **01 — Mua hàng, nhập kho và giá vốn** đã xong cả 01-A và 01-B (12/11/2026), đặc tả chuyển sang [Done](../Done/01-mua-hang-nhap-kho-gia-von.md). Câu hỏi còn treo: giữ WAC hay chuyển FIFO/giá đích danh. [Báo cáo 01-B](../../report-after-upgrade/hoa-don-nha-cung-cap-u01b.md)
