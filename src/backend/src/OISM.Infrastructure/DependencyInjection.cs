@@ -38,6 +38,7 @@ public static class DependencyInjection
         services.AddScoped<IDatabaseMigrationService, DatabaseMigrationService>();
         services.AddSingleton<IDatabaseReadinessService, NpgsqlDatabaseReadinessService>();
         services.AddScoped<ISqlLockService>(provider => provider.GetRequiredService<AppDbContext>().Locks);
+        services.AddScoped<IExcelExportService, ClosedXmlExcelExportService>();
         services.AddScoped<IWarehouseBranchReassignmentStore, WarehouseBranchReassignmentStore>();
         AddPasswordResetServices(services, configuration);
         services.AddOismHangfire(configuration);

@@ -3,12 +3,12 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-SCR-04` |
-| **Phiên bản (Version)** | `v1.1.0` |
-| **Ngày hiệu lực** | `2026-11-06` |
+| **Phiên bản (Version)** | `v1.2.0` |
+| **Ngày hiệu lực** | `2026-11-19` |
 | **Đường dẫn URL Routes** | `/admin/inventory`, `/inventory` |
 | **Quyền truy cập (RBAC)** | `Owner`, `Staff` |
-| **Source code Frontend** | [`InventoryPage.tsx`](../../src/frontend/admin-dashboard/src/pages/InventoryPage.tsx) |
-| **Controllers Backend** | [`InventoryController.cs`](../../src/backend/src/OISM.WebApi/Controllers/InventoryController.cs), [`GoodsReceiptsController.cs`](../../src/backend/src/OISM.WebApi/Controllers/GoodsReceiptsController.cs), [`StockTransfersController.cs`](../../src/backend/src/OISM.WebApi/Controllers/StockTransfersController.cs), [`StockCountsController.cs`](../../src/backend/src/OISM.WebApi/Controllers/StockCountsController.cs) |
+| **Source code Frontend** | [`InventoryPage.tsx`](../../src/frontend/admin-dashboard/src/pages/InventoryPage.tsx), [`InventoryPeriodTab.tsx`](../../src/frontend/admin-dashboard/src/components/inventory/InventoryPeriodTab.tsx), [`StockCardModal.tsx`](../../src/frontend/admin-dashboard/src/components/inventory/StockCardModal.tsx) |
+| **Controllers Backend** | [`InventoryController.cs`](../../src/backend/src/OISM.WebApi/Controllers/InventoryController.cs), [`GoodsReceiptsController.cs`](../../src/backend/src/OISM.WebApi/Controllers/GoodsReceiptsController.cs), [`StockTransfersController.cs`](../../src/backend/src/OISM.WebApi/Controllers/StockTransfersController.cs), [`StockCountsController.cs`](../../src/backend/src/OISM.WebApi/Controllers/StockCountsController.cs), [`ReportsController.cs`](../../src/backend/src/OISM.WebApi/Controllers/ReportsController.cs) |
 
 ---
 
@@ -31,9 +31,9 @@ Màn hình **Quản lý Kho & Sổ cái** là trái tim vận hành kho vận c�
 │ Quản Lý Kho & Biến Động Tồn Kho             [+ Nhập kho NCC] [ Chuyển kho ] [ Phiên kiểm kê ]  │
 ├────────────────────────────────────────────────────────────────────────────────────────────────┤
 │ CHỌN TAB NGHIỆP VỤ:                                                                            │
-│ ┌───────────────────────────────┬───────────────────────────────┐                              │
-│ │ [✓] SỐ DƯ TỒN KHO KHẢ DỤNG    │ [ ] SỔ CÁI TỒN KHO BẤT BIẾN   │                              │
-│ └───────────────────────────────┴───────────────────────────────┘                              │
+│ ┌───────────────────────────────┬───────────────────────────────┬───────────────────────────────┐ │
+│ │ [✓] SỐ DƯ TỒN KHO KHẢ DỤNG    │ [ ] SỔ CÁI TỒN KHO BẤT BIẾN   │ [ ] TỒN KHO THEO KỲ (NXT)     │ │
+│ └───────────────────────────────┴───────────────────────────────┴───────────────────────────────┘ │
 ├────────────────────────────────────────────────────────────────────────────────────────────────┤
 │ THANH TÌM KIẾM & BỘ LỌC KHO:                                                                   │
 │ [ 🔍 Tìm mã SKU, Barcode... ] [ Chi nhánh: Q.1 ▼ ] [ Kho: Kho Tổng ▼ ] [ Lọc: Dưới định mức ▼ ]│
@@ -82,6 +82,29 @@ Màn hình **Quản lý Kho & Sổ cái** là trái tim vận hành kho vận c�
 * Nhân viên nhập danh sách số đếm thực tế (`ActualQuantity`).
 * Khi bấm `[Chốt kiểm kê]`: Hệ thống tự động so khớp tồn phần mềm tại thời điểm mở phiếu với tồn hiện tại. Nếu có giao dịch bán phát sinh làm thay đổi tồn, hệ thống từ chối và báo lỗi `STOCK_COUNT_DRIFT_DETECTED`. Nếu hợp lệ, hệ thống tự động sinh các dòng bút toán điều chỉnh cân bằng kho.
 
+### 3.4. Tab Tồn Kho Theo Kỳ (NXT) & Modal Thẻ Kho S12/S10 (`FE-13.1, FE-13.2`)
+* **Thanh công cụ lọc:**
+  * Bộ chọn mốc thời gian nhanh: `Hôm nay`, `Hôm qua`, `7 ngày qua`, `30 ngày qua`, `Tháng này`, `Tháng trước`, hoặc tùy chọn khoảng ngày `Từ ngày - Đến ngày` (giới hạn tối đa 366 ngày, không cho chọn ngày tương lai).
+  * Bộ chọn Chi nhánh: Hỗ trợ chọn từng chi nhánh cụ thể hoặc `Tất cả chi nhánh`.
+  * Bộ lọc Danh mục sản phẩm và Ô tìm kiếm SKU theo mã/tên.
+  * Nút chức năng: `[Xuất Excel]` (tải về file `.xlsx` báo cáo NXT định dạng chuẩn kế toán) và `[Làm mới]`.
+* **Bảng dữ liệu Nhập - Xuất - Tồn:**
+  * Cột thông tin: Mã SKU, Tên sản phẩm, Đơn vị tính cơ sở.
+  * Số dư đầu kỳ (Số lượng; và Thành tiền nếu là `Owner`).
+  * Nhóm Nhập kho: Tổng số lượng nhập (và Thành tiền nếu là `Owner`). Nút bấm `[+]` mở rộng chi tiết phân rã: Mua NCC, Khách trả, Chuyển đến, Kiểm kê/Điều chỉnh thừa.
+  * Nhóm Xuất kho: Tổng số lượng xuất (và Thành tiền nếu là `Owner`). Nút bấm `[+]` mở rộng chi tiết phân rã: Bán POS, Bán Shopee, Bán TikTok, Bán Lazada, Bán Admin, Chuyển đi, Kiểm kê/Điều chỉnh thiếu.
+  * Số dư cuối kỳ: Số lượng; và Thành tiền nếu là `Owner`.
+  * Cột Hàng đang chuyển (`InTransit`): Hiển thị khi xem chế độ `Tất cả chi nhánh`.
+  * Cột Thao tác: Nút `[Thẻ kho]` mở modal lịch sử chi tiết cho từng mặt hàng.
+  * Hàng Tổng cộng ở cuối bảng: Tổng hợp toàn bộ số lượng và giá trị (cho Owner).
+  * Phân quyền hiển thị: Nhân viên (`Staff`) hoàn toàn không nhìn thấy các cột Thành tiền (cột tự động ẩn trên bảng và file Excel).
+* **Modal Thẻ Kho S12/S10:**
+  * Tiêu đề chuẩn hóa: Mẫu S10-DN (khi `Owner` xem, có cột Đơn giá & Thành tiền) hoặc Mẫu S12-DN (khi `Staff` xem, chỉ có cột Số lượng).
+  * Danh sách biến động gồm: Dòng Số dư đầu kỳ, các dòng giao dịch sổ cái chi tiết (Thời gian, Mã chứng từ, Loại biến động, Nhập, Xuất, Tồn sau giao dịch), dòng Số dư cuối kỳ.
+  * Dòng Chênh lệch làm tròn WAC (`RoundDiff`): Chỉ hiển thị cho `Owner` khi kỳ báo cáo kéo dài đến ngày hiện tại để phản ánh chênh lệch giữa lũy kế giá trị sổ cái và giá trị theo đơn giá WAC hiện hành.
+  * Nút `[In Thẻ Kho]`: Mở hộp thoại in trình duyệt với CSS chuyên dụng cho in ấn kế toán.
+  * Nút `[Xuất Excel]`: Tải file `.xlsx` mẫu thẻ kho chi tiết dạng stream.
+
 ---
 
 ## 4. Bảng Hàm API Backend & Tài Liệu Tham Chiếu
@@ -97,5 +120,7 @@ Màn hình **Quản lý Kho & Sổ cái** là trái tim vận hành kho vận c�
 | `POST` | `/api/stock-transfers/{id}/receive` | `StockTransfersController.Receive` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#2-danh-mục-endpoints-chuyển-kho-2-bước--kiểm-kê-fr-inv-0304) | `INVALID_STATE_TRANSITION` |
 | `POST` | `/api/stock-counts` | `StockCountsController.Create` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#2-danh-mục-endpoints-chuyển-kho-2-bước--kiểm-kê-fr-inv-0304) | `VALIDATION_ERROR`, `NO_ACTIVE_WAREHOUSE` |
 | `POST` | `/api/stock-counts/{id}/confirm` | `StockCountsController.Confirm` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#2-danh-mục-endpoints-chuyển-kho-2-bước--kiểm-kê-fr-inv-0304) | `STOCK_COUNT_DRIFT_DETECTED`, `INCOMPLETE_STOCK_COUNT`, `ADJUSTMENT_COST_REQUIRED` |
+| `GET` | `/api/reports/inventory-period` | `ReportsController.GetInventoryPeriodReport` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#3-báo-cáo-tồn-kho-theo-kỳ-nxt--thẻ-kho-s12s10-upgrade-13--oisms-66-g2) | `VALIDATION_ERROR`, `AUTH_FORBIDDEN` |
+| `GET` | `/api/reports/stock-card` | `ReportsController.GetStockCardReport` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#3-báo-cáo-tồn-kho-theo-kỳ-nxt--thẻ-kho-s12s10-upgrade-13--oisms-66-g2) | `VALIDATION_ERROR`, `AUTH_FORBIDDEN` |
 
 Route đầy đủ (phiếu mua, lịch/kỳ kiểm kê, `record`, `submit`, `recount`, `request-recount`, `cancel`, ngưỡng đặt hàng lại) xem [DOC-API-03](../05-api-contracts/03-inventory-endpoints.md). Màn Chuyển kho ở `/inventory/transfers`, Kiểm kê ở `/inventory/counts`, Đơn mua ở `/purchase-orders`.

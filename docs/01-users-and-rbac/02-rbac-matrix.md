@@ -22,6 +22,7 @@
 | `v1.5.0` | `2026-11-14` | Nhóm dự án OISMS | Bổ sung phân công chi nhánh cho nhân viên (`CS-02`): `Owner` gán `branchIds` qua `/api/users`; `Cashier` có gán chỉ thấy chi nhánh được gán ở `GET /api/branches` và chỉ checkout POS ở chi nhánh được gán (`403 BRANCH_NOT_ASSIGNED`). | `OISMS-59-G1B` |
 | `v1.6.0` | `2026-11-15` | Nhóm dự án OISMS | Bổ sung quyền `Owner`-only cho hai endpoint tổng hợp báo cáo ngày (`GET /api/reports/daily-summaries`, `POST /api/reports/daily-summaries/rebuild`); `Staff` và `Cashier` nhận `403`. | `OISMS-59-G3B` |
 | `v1.7.0` | `2026-11-19` | Nhóm dự án OISMS | Upgrade 12 Gói 1: `Staff` đề nghị mua ở `Draft` và gửi duyệt; `Owner` chốt NCC/giá/phí, duyệt, trả về, hủy; `Staff` không thấy giá trên đơn mua và phiếu nhập, thấy NCC từ khi duyệt; gỡ quyền hóa đơn NCC. | `OISMS-66-L2-G1` |
+| `v1.8.0` | `2026-11-19` | Nhóm dự án OISMS | Bổ sung phân quyền Báo cáo tồn kho theo kỳ (NXT) và Thẻ kho S12/S10 (Upgrade 13 / OISMS-66-G2): `Owner` xem đủ lượng & giá; `Staff` xem lượng, che giá (`null`); `Cashier` cấm (`403`). | `OISMS-66-G2` |
 
 ---
 
@@ -82,6 +83,7 @@ Các trường định danh bắt buộc bên trong Payload của JWT:
 | **Báo cáo & AI** | Báo cáo Doanh thu thuần, Tổng giá vốn (`COGS`), Lợi nhuận gộp | `FR-REP-01` | ✅ Toàn quyền | 👁️ Chỉ xem doanh thu/hàng trả (ẩn lãi gộp & giá vốn) | ❌ Cấm (`403 Forbidden`) |
 | **Báo cáo & AI** | Đối soát & tính lại bảng tổng hợp báo cáo ngày (`/api/reports/daily-summaries`, `/api/reports/daily-summaries/rebuild`) | `FR-REP-01`, `FR-SIM-03` | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) | ❌ Cấm (`403 Forbidden`) |
 | **Báo cáo & AI** | Báo cáo Giá trị tồn kho, Hàng bán chạy/chậm & Cảnh báo tồn tối thiểu | `FR-REP-02..03` | ✅ Toàn quyền | ✅ Xem cảnh báo kho | ❌ Cấm (`403 Forbidden`) |
+| **Báo cáo & Kho** | Báo cáo Tồn kho theo kỳ (NXT) & Thẻ kho S12/S10 (`/api/reports/inventory-period`, `/api/reports/stock-card`, xuất Excel) | `Upgrade 13 / OISMS-66-G2` | ✅ Toàn quyền (xem số lượng & giá trị, xuất Excel S10) | 👁️ Chỉ xem số lượng (ẩn toàn bộ giá trị `null`, xuất Excel S12) | ❌ Cấm (`403 Forbidden`) |
 | **Báo cáo & AI** | Xem dự báo nhu cầu AI & Gợi ý nhập lại hàng | `FR-AI-01` | ✅ Toàn quyền | ✅ Xem gợi ý nhập | ❌ Cấm (`403 Forbidden`) |
 | **Báo cáo & AI** | Hỏi Trợ lý OISMS (`POST /api/ai/chat`) | `FR-AI-02` | ✅ Mọi số liệu, kể cả doanh thu và lãi gộp | ✅ Nhập/xuất kho, tồn, gợi ý nhập, hướng dẫn. **Không hỏi được doanh thu, lãi gộp, giá vốn** (chốt 10/11/2026) | ❌ Cấm (`403 Forbidden`) |
 | **Cấu hình & Thanh toán** | Quản lý tài khoản ngân hàng thụ hưởng (`/api/payment-accounts`): thêm, sửa, đặt mặc định, ngừng dùng | `CS-05` | ✅ Toàn quyền | 👁️ Chỉ xem tài khoản active | 👁️ Chỉ xem tài khoản active |

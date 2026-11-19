@@ -3,10 +3,10 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-API-03` |
-| **Phiên bản (Version)** | `v1.5.1` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-14` |
-| **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-INV-01..04`, `FR-COST-01`, `FR-RSE-01..03` (Trang 2, 3, 5) |
-| **Phạm vi áp dụng** | `InventoryController`, `GoodsReceiptsController`, `StockTransfersController`, `StocktakesController` |
+| **Phiên bản (Version)** | `v1.6.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-19` |
+| **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-INV-01..04`, `FR-COST-01`, `FR-RSE-01..03` (Trang 2, 3, 5); `Upgrade 13 / OISMS-66` |
+| **Phạm vi áp dụng** | `InventoryController`, `GoodsReceiptsController`, `StockTransfersController`, `StocktakesController`, `ReportsController` |
 
 ---
 
@@ -21,6 +21,7 @@
 | `v1.4.0` | `2026-11-14` | Nhóm dự án OISMS | Che trường `averageCost` (trả `null`) đối với vai trò `Cashier` trên `GET /api/inventory/balances` và `GET /api/inventory/balances/sku/{skuId}/branch/{branchId}`. | `OISMS-59-G1A` |
 | `v1.5.0` | `2026-11-19` | Nhóm dự án OISMS | Nâng cấp hợp đồng Đơn mua hàng (`PendingApproval`, `submit`, `return`, `price-suggestion`, phân bổ phí/chiết khấu, khóa `version`), gỡ toàn bộ `/api/supplier-invoices*`, và che giá với `Staff` trên đơn mua & phiếu nhập. | `OISMS-66-L2-G1` |
 | `v1.5.1` | `2026-11-19` | Nhóm dự án OISMS | Sửa sau review Gói 1: `version` bắt buộc khi duyệt đơn mua; `Staff` lọc theo `supplierId` không thấy đơn chưa duyệt; giá vốn phân bổ dòng cuối âm trả `422`. | `OISMS-66-L2-G1` |
+| `v1.6.0` | `2026-11-19` | Nhóm dự án OISMS | Bổ sung hợp đồng API Báo cáo Tồn kho theo kỳ (NXT) và Thẻ kho S12/S10 kèm xuất file Excel `.xlsx` (Upgrade 13 / OISMS-66-G2). Quy định phân quyền xem giá trị cho `Owner`, che giá đối với `Staff`, từ chối `403` đối với `Cashier`. | `OISMS-66-G2` |
 
 ---
 
@@ -181,3 +182,16 @@ Trạng thái phiếu mua: xem [máy trạng thái](../04-architecture-and-desig
 | `POST` | `/api/stock-counts/{id}/request-recount` | `Owner` | Owner yêu cầu đếm lại các SKU khi ở `PendingApproval`. Bắt buộc `reason`. Chuyển về `Counting`, xóa `submitted_by`, `submitted_at`, ghi approval `RecountRequested`. |
 | `POST` | `/api/stock-counts/{id}/confirm` | **Owner** | Phê duyệt chốt kiểm kê (`PendingApproval` -> `Confirmed`). **Chặn tự duyệt:** Người duyệt trùng người đếm của bất kỳ dòng nào và tenant còn Owner khác -> trả `409 STOCK_COUNT_SELF_APPROVAL`. Nếu là Owner duy nhất -> bắt buộc `Note` không rỗng giải trình lý do duyệt, thiếu trả `422 STOCK_COUNT_APPROVAL_REASON_REQUIRED`. Trong cùng transaction: đối soát sequence drift, tạo phiếu điều chỉnh, ghi sổ kho `IN`/`OUT`, cập nhật kỳ `Completed`, ghi approval `Approved`. |
 | `POST` | `/api/stock-counts/{id}/cancel` | `Owner, Staff` | Hủy đợt kiểm kê chưa chốt (`Draft`/`Counting` -> `Cancelled`). Ghi approval `Cancelled`. Nếu gắn với kỳ định kỳ thì đưa kỳ về `Planned`. |
+
+---
+
+## 3. Báo Cáo Tồn Kho Theo Kỳ (NXT) & Thẻ Kho S12/S10 (`Upgrade 13 / OISMS-66-G2`)
+
+### 3.1. Bảng Endpoints Báo Cáo Tồn Kho Theo Kỳ & Thẻ Kho (`/api/reports/...`)
+
+| Method | Endpoint | Quyền (RBAC) | Mô tả & Quy tắc xử lý |
+| :---: | :--- | :---: | :--- |
+| `GET` | `/api/reports/inventory-period` | `Owner, Staff` | Báo cáo Nhập - Xuất - Tồn theo kỳ (nửa mở UTC+07). Lọc theo `fromDate`, `toDate` (DateOnly, tối đa 366 ngày, không cho phép ngày tương lai), `branchId` (tùy chọn, để trống = toàn hệ thống), `categoryId`, `search`, `page`, `pageSize`. Phân trang SKU trước rồi mới tổng hợp sổ cái. Với `Staff`, các trường giá trị (`openingValue`, `inValue`, `outValue`, `closingValue`, `totalOpeningValue`, `totalInValue`, `totalOutValue`, `totalClosingValue`) luôn trả về `null`. Với `Cashier`, trả `403 Forbidden`. |
+| `GET` | `/api/reports/inventory-period/export-excel` | `Owner, Staff` | Xuất file Excel `.xlsx` báo cáo NXT dạng stream sử dụng ClosedXML. Tự động ẩn các cột giá trị tiền nếu tài khoản là `Staff`. `Cashier` trả `403 Forbidden`. |
+| `GET` | `/api/reports/stock-card` | `Owner, Staff` | Thẻ kho chi tiết cho một SKU tại một chi nhánh: `skuId` (bắt buộc), `branchId` (bắt buộc), `fromDate`, `toDate`. Trả về dòng Số dư đầu kỳ (`Opening`), danh sách các dòng giao dịch sổ cái (`Transaction`) kèm mã chứng từ và `referenceId` để truy vết, dòng Số dư cuối kỳ (`Closing`), và dòng Điều chỉnh chênh lệch làm tròn WAC (`RoundDiff` - chỉ hiển thị cho `Owner` khi kỳ kết thúc ở hiện tại). `Staff` nhận `unitPrice` và `lineTotal` bằng `null`. `Cashier` trả `403 Forbidden`. |
+| `GET` | `/api/reports/stock-card/export-excel` | `Owner, Staff` | Xuất file Excel `.xlsx` thẻ kho mẫu S10-DN (cho `Owner`, có giá) hoặc S12-DN (cho `Staff`, chỉ có lượng) dạng stream sử dụng ClosedXML. `Cashier` trả `403 Forbidden`. |

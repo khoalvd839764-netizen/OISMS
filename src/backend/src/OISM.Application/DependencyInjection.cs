@@ -39,6 +39,7 @@ public static class DependencyInjection
         services.AddScoped<IPosCheckoutService, PosCheckoutService>();
         services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<IReportService, ReportService>();
+        services.AddScoped<IInventoryPeriodReportService, InventoryPeriodReportService>();
         services.AddScoped<OISM.Application.Features.Auth.PasswordReset.IPasswordResetService, OISM.Application.Features.Auth.PasswordReset.PasswordResetService>();
         services.AddScoped<OISM.Application.Features.Auth.Welcome.IOwnerWelcomeNotifier, OISM.Application.Features.Auth.Welcome.OwnerWelcomeNotifier>();
         services.AddScoped<IDailySalesSummaryService, DailySalesSummaryService>();

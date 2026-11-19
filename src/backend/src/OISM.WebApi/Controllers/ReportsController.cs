@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using OISM.Application.Common.Interfaces;
 using OISM.Application.Features.Reports.Dtos;
 using OISM.Application.Features.Reports.Services;
 using OISM.WebApi.Http;
@@ -7,7 +8,7 @@ using OISM.WebApi.Http;
 namespace OISM.WebApi.Controllers;
 
 /// <summary>
-/// API Báo cáo Doanh thu, Lợi nhuận gộp, Vận tốc luân chuyển kho và Cảnh báo tồn thấp (FR-REP-01, FR-REP-02, FR-REP-03).
+/// API Báo cáo Doanh thu, Lợi nhuận gộp, Vận tốc luân chuyển kho, Cảnh báo tồn thấp và Tồn kho theo kỳ / Thẻ kho (Upgrade 13).
 /// Dành cho Chủ shop (Owner) và Quản lý/Nhân viên được phân quyền (Staff).
 /// </summary>
 [ApiController]
@@ -17,11 +18,19 @@ public class ReportsController : ControllerBase
 {
     private readonly IReportService _reportService;
     private readonly IDailySalesSummaryService _dailySalesSummaryService;
+    private readonly IInventoryPeriodReportService _inventoryPeriodReportService;
+    private readonly IExcelExportService _excelExportService;
 
-    public ReportsController(IReportService reportService, IDailySalesSummaryService dailySalesSummaryService)
+    public ReportsController(
+        IReportService reportService,
+        IDailySalesSummaryService dailySalesSummaryService,
+        IInventoryPeriodReportService inventoryPeriodReportService,
+        IExcelExportService excelExportService)
     {
         _reportService = reportService;
         _dailySalesSummaryService = dailySalesSummaryService;
+        _inventoryPeriodReportService = inventoryPeriodReportService;
+        _excelExportService = excelExportService;
     }
 
     /// <summary>
@@ -110,5 +119,57 @@ public class ReportsController : ControllerBase
 
         var result = await _dailySalesSummaryService.RebuildRangeAsync(request.FromDate, request.ToDate, ct);
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Báo cáo Tồn kho theo kỳ (Đầu kỳ, Nhập, Xuất, Cuối kỳ, Hàng đang chuyển - Upgrade 13 / BE-13.1).
+    /// </summary>
+    [HttpGet("inventory-period")]
+    [ApiErrorContract(ApiErrorProfile.Reports)]
+    public async Task<IActionResult> GetInventoryPeriod([FromQuery] InventoryPeriodFilterDto filter, CancellationToken ct)
+    {
+        var isOwner = User.IsInRole("Owner");
+        var result = await _inventoryPeriodReportService.GetInventoryPeriodReportAsync(filter, isOwner, ct);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Xuất file Excel (.xlsx) báo cáo Tồn kho theo kỳ (ClosedXML - Upgrade 13 / BE-13.3).
+    /// </summary>
+    [HttpGet("inventory-period/export-excel")]
+    [ApiErrorContract(ApiErrorProfile.Reports)]
+    public async Task<IActionResult> ExportInventoryPeriodExcel([FromQuery] InventoryPeriodFilterDto filter, CancellationToken ct)
+    {
+        var isOwner = User.IsInRole("Owner");
+        var report = await _inventoryPeriodReportService.GetInventoryPeriodReportAsync(filter, isOwner, ct);
+        var bytes = _excelExportService.ExportInventoryPeriodReport(report, isOwner);
+        var fileName = $"BaoCaoTonTheoKy_{filter.FromDate:yyyyMMdd}_{filter.ToDate:yyyyMMdd}.xlsx";
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+    }
+
+    /// <summary>
+    /// Thẻ kho S12-DN (Staff) hoặc Sổ chi tiết hàng hóa S10-DN (Owner) cho một SKU tại một chi nhánh (Upgrade 13 / BE-13.2).
+    /// </summary>
+    [HttpGet("stock-card")]
+    [ApiErrorContract(ApiErrorProfile.Reports)]
+    public async Task<IActionResult> GetStockCard([FromQuery] StockCardFilterDto filter, CancellationToken ct)
+    {
+        var isOwner = User.IsInRole("Owner");
+        var result = await _inventoryPeriodReportService.GetStockCardReportAsync(filter, isOwner, ct);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Xuất file Excel (.xlsx) Thẻ kho S12-DN hoặc Sổ chi tiết hàng hóa S10-DN (ClosedXML - Upgrade 13 / BE-13.3).
+    /// </summary>
+    [HttpGet("stock-card/export-excel")]
+    [ApiErrorContract(ApiErrorProfile.Reports)]
+    public async Task<IActionResult> ExportStockCardExcel([FromQuery] StockCardFilterDto filter, CancellationToken ct)
+    {
+        var isOwner = User.IsInRole("Owner");
+        var report = await _inventoryPeriodReportService.GetStockCardReportAsync(filter, isOwner, ct);
+        var bytes = _excelExportService.ExportStockCardReport(report, isOwner);
+        var fileName = $"TheKho_{report.SkuCode}_{filter.FromDate:yyyyMMdd}_{filter.ToDate:yyyyMMdd}.xlsx";
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
     }
 }

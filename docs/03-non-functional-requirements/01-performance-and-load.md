@@ -3,9 +3,9 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-NFR-01` |
-| **Phiên bản (Version)** | `v1.1.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
-| **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `NFR-PERF-01`, `NFR-PERF-02` (Trang 3, 4) |
+| **Phiên bản (Version)** | `v1.2.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-19` |
+| **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `NFR-PERF-01`, `NFR-PERF-02` (Trang 3, 4); `Upgrade 13 / OISMS-66` |
 | **Phạm vi áp dụng** | Toàn bộ REST APIs, Database Locking & Flash Sale Concurrency |
 
 ---
@@ -16,6 +16,7 @@
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả chỉ tiêu thời gian phản hồi API (`p95`) và kịch bản chịu tải đồng thời Flash Sale (`50 reqs / 1 SKU`). | `INIT-NFR-01` |
 | `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Ghi chú hiện thực: hệ thống dùng khóa bi quan, không dùng khóa lạc quan. | `OISMS-46` |
+| `v1.2.0` | `2026-11-19` | Nhóm dự án OISMS | Bổ sung chỉ tiêu thời gian phản hồi cho Báo cáo Tồn kho theo kỳ và Thẻ kho (< 2 giây/trang với sổ kho > 100.000 dòng). Mô hình phân trang SKU trước khi tổng hợp sổ. | `OISMS-66-G2` |
 
 ---
 
@@ -26,6 +27,7 @@
 | **1. Tìm kiếm SKU / Quét Barcode tại POS** (`GET /api/pos/search`, `GET /api/pos/barcode/{code}`) | **`p95 < 200 ms`** | Truy vấn theo chỉ mục `(TenantId, Barcode)` và `(TenantId, SkuCode)`. |
 | **2. Tạo đơn hàng / Giao dịch ghi Sổ cái** (`POST /api/inventory/reserve`, `POST /api/pos/checkout`) | **`< 500 ms`** | Bao gồm thời gian mở Transaction, khóa dòng và ghi bản ghi `InventoryTransaction`. |
 | **3. Báo cáo doanh thu & lợi nhuận tổng hợp** (`GET /api/reports/revenue-profit`) | **`< 2 giây`** | Trên tập dữ liệu dưới `100,000` bản ghi đơn hàng/sổ cái. |
+| **4. Báo cáo Tồn kho theo kỳ (NXT) & Thẻ kho** (`GET /api/reports/inventory-period`, `GET /api/reports/stock-card`) | **`< 2 giây / trang`** | Tập dữ liệu trên `100,000` bản ghi sổ cái; phân trang 50 SKU trước rồi mới tổng hợp sổ cái thông qua chỉ mục `ix_inventory_transactions_sku_history`. |
 
 ---
 

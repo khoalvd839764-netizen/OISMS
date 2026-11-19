@@ -34,6 +34,7 @@ import type { PurchaseOrderResponse } from "../types/purchaseOrder";
 import { goodsReceiptService } from "../services/goodsReceiptService";
 import type { GoodsReceiptResponse } from "../types/goodsReceipt";
 import { GoodsReceiptDetailView } from "../components/GoodsReceiptDetailView";
+import { InventoryPeriodTab } from "../components/inventory/InventoryPeriodTab";
 
 function readReceiptError(error: any, fallback: string): string {
   return (
@@ -131,7 +132,7 @@ export function InventoryPage() {
   const currentTenantId = account?.tenantId;
   const isOwner = account?.role === "Owner";
 
-  const [tab, setTab] = useState<"balance" | "ledger" | "ai-reorder">("balance");
+  const [tab, setTab] = useState<"balance" | "period" | "ledger" | "ai-reorder">("balance");
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -1357,6 +1358,11 @@ export function InventoryPage() {
           <button className={tab === "balance" ? "active" : ""} onClick={() => setTab("balance")}>
             Bảng Tồn kho ({filteredSkus.length})
           </button>
+          {account?.role !== "Cashier" && (
+            <button className={tab === "period" ? "active" : ""} onClick={() => setTab("period")}>
+              Tồn theo kỳ
+            </button>
+          )}
           <button className={tab === "ledger" ? "active" : ""} onClick={() => { setTab("ledger"); void loadLedger(); }}>
             Sổ kho bất biến — Append-Only ({filteredLedger.length})
           </button>
@@ -1647,6 +1653,13 @@ export function InventoryPage() {
               </div>
             </div>
           </>
+        ) : tab === "period" ? (
+          <div style={{ padding: "16px 20px" }}>
+            <InventoryPeriodTab
+              branchId={branchFilter !== "all" ? branchFilter : undefined}
+              branches={branches}
+            />
+          </div>
         ) : tab === "ledger" ? (
           <>
             <div className="toolbar ledger-filters">
