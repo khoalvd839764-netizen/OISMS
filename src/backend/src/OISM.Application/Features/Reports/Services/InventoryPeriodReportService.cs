@@ -58,12 +58,12 @@ public class InventoryPeriodReportService : IInventoryPeriodReportService
         var skuQuery = _context.Skus
             .AsNoTracking()
             .Include(s => s.Product)
-                .ThenInclude(p => p.Category)
+                .ThenInclude(p => p!.Category)
             .Where(s => s.TenantId == tenantId);
 
         if (filter.CategoryId.HasValue && filter.CategoryId.Value != Guid.Empty)
         {
-            skuQuery = skuQuery.Where(s => s.Product.CategoryId == filter.CategoryId.Value);
+            skuQuery = skuQuery.Where(s => s.Product != null && s.Product.CategoryId == filter.CategoryId.Value);
         }
 
         if (!string.IsNullOrWhiteSpace(filter.SearchTerm))
@@ -72,7 +72,7 @@ public class InventoryPeriodReportService : IInventoryPeriodReportService
             skuQuery = skuQuery.Where(s =>
                 s.SKU.ToLower().Contains(term) ||
                 (s.Barcode != null && s.Barcode.ToLower().Contains(term)) ||
-                s.Product.Name.ToLower().Contains(term));
+                (s.Product != null && s.Product.Name.ToLower().Contains(term)));
         }
 
         var totalCount = await skuQuery.CountAsync(ct);
@@ -81,7 +81,7 @@ public class InventoryPeriodReportService : IInventoryPeriodReportService
         var pageSize = Math.Max(1, Math.Min(100, filter.PageSize));
 
         var pagedSkus = await skuQuery
-            .OrderBy(s => s.Product.Name)
+            .OrderBy(s => s.Product != null ? s.Product.Name : "")
             .ThenBy(s => s.SKU)
             .Skip((pageIndex - 1) * pageSize)
             .Take(pageSize)
@@ -508,7 +508,7 @@ public class InventoryPeriodReportService : IInventoryPeriodReportService
             var orderItemData = await _context.OrderItems
                 .AsNoTracking()
                 .Where(oi => orderItemIds.Contains(oi.Id))
-                .Select(oi => new { oi.Id, oi.Order.Channel })
+                .Select(oi => new { oi.Id, Channel = oi.Order != null ? oi.Order.Channel : "POS" })
                 .ToListAsync(ct);
             foreach (var oi in orderItemData)
             {
@@ -710,7 +710,7 @@ public class InventoryPeriodReportService : IInventoryPeriodReportService
             var receiptDocs = await _context.GoodsReceiptItems
                 .AsNoTracking()
                 .Where(ri => receiptItemIds.Contains(ri.Id))
-                .Select(ri => new { ri.Id, ri.Receipt.Number })
+                .Select(ri => new { ri.Id, Number = ri.Receipt != null ? ri.Receipt.Number : "" })
                 .ToDictionaryAsync(x => x.Id, x => x.Number, ct);
 
             foreach (var tx in transactions.Where(t => t.ReceiptItemId.HasValue))
@@ -729,7 +729,7 @@ public class InventoryPeriodReportService : IInventoryPeriodReportService
             var orderDocs = await _context.OrderItems
                 .AsNoTracking()
                 .Where(oi => orderItemIds.Contains(oi.Id))
-                .Select(oi => new { oi.Id, oi.Order.Number, oi.Order.Channel })
+                .Select(oi => new { oi.Id, Number = oi.Order != null ? oi.Order.Number : "", Channel = oi.Order != null ? oi.Order.Channel : (string?)null })
                 .ToDictionaryAsync(x => x.Id, x => new { x.Number, x.Channel }, ct);
 
             foreach (var tx in transactions.Where(t => t.OrderItemId.HasValue))
@@ -748,7 +748,7 @@ public class InventoryPeriodReportService : IInventoryPeriodReportService
             var transferDocs = await _context.StockTransferItems
                 .AsNoTracking()
                 .Where(ti => transferItemIds.Contains(ti.Id))
-                .Select(ti => new { ti.Id, ti.Transfer!.Number })
+                .Select(ti => new { ti.Id, Number = ti.Transfer != null ? ti.Transfer.Number : "" })
                 .ToDictionaryAsync(x => x.Id, x => x.Number, ct);
 
             foreach (var tx in transactions.Where(t => t.TransferItemId.HasValue))
@@ -767,7 +767,7 @@ public class InventoryPeriodReportService : IInventoryPeriodReportService
             var returnDocs = await _context.SalesReturnItems
                 .AsNoTracking()
                 .Where(ri => returnItemIds.Contains(ri.Id))
-                .Select(ri => new { ri.Id, ri.SalesReturn.Number })
+                .Select(ri => new { ri.Id, Number = ri.SalesReturn != null ? ri.SalesReturn.Number : "" })
                 .ToDictionaryAsync(x => x.Id, x => x.Number, ct);
 
             foreach (var tx in transactions.Where(t => t.SalesReturnItemId.HasValue))
@@ -786,7 +786,7 @@ public class InventoryPeriodReportService : IInventoryPeriodReportService
             var countDocs = await _context.StockCountItems
                 .AsNoTracking()
                 .Where(ci => countItemIds.Contains(ci.Id))
-                .Select(ci => new { ci.Id, ci.StockCount.Number })
+                .Select(ci => new { ci.Id, Number = ci.StockCount != null ? ci.StockCount.Number : "" })
                 .ToDictionaryAsync(x => x.Id, x => x.Number, ct);
 
             foreach (var tx in transactions.Where(t => t.StockCountItemId.HasValue))
