@@ -21,7 +21,7 @@ Mục 5.1 của checklist còn **Gói 5**. Gói 1 đã đóng toàn bộ tiêu c
 
 ## Upgrade 12 — Đơn mua và cấu hình giá (feedback 19/11/2026)
 
-[Đặc tả đã chốt](./12-don-mua-va-cau-hinh-gia.md): bỏ hóa đơn NCC, thêm trạng thái `PendingApproval` cho đơn mua, ẩn giá mua và giá vốn với Staff, cấu hình giá bán (giữ giá cũ / WAC + lãi / giá mới) áp dụng khi nhập kho. Chưa triển khai.
+[Đặc tả đã chốt](./12-don-mua-va-cau-hinh-gia.md): bỏ hóa đơn NCC, thêm trạng thái `PendingApproval` cho đơn mua, ẩn giá mua và giá vốn với Staff, cấu hình giá bán (giữ giá cũ / WAC + lãi / giá mới) áp dụng khi nhập kho. **Gói 1 đã xong (19/11/2026):** đơn mua `PendingApproval`, phân bổ phí và chiết khấu vào giá vốn, che giá với Staff trên đơn mua và phiếu nhập, gỡ hóa đơn NCC ([báo cáo](../../report-after-upgrade/don-mua-pending-approval-u12.md)). Gói 4 (cấu hình giá bán) và Gói 5 (che giá dùng chung) chưa làm.
 
 ## Upgrade 13 — Tồn kho theo kỳ (feedback 19/11/2026)
 
@@ -31,7 +31,7 @@ Mục 5.1 của checklist còn **Gói 5**. Gói 1 đã đóng toàn bộ tiêu c
 
 ## Nâng cấp 10
 
-- **01 — Mua hàng, nhập kho và giá vốn** đã xong cả 01-A và 01-B (12/11/2026), đặc tả chuyển sang [Done](../Done/01-mua-hang-nhap-kho-gia-von.md). Câu hỏi còn treo: giữ WAC hay chuyển FIFO/giá đích danh. [Báo cáo 01-B](../../report-after-upgrade/hoa-don-nha-cung-cap-u01b.md)
+- **01 — Mua hàng, nhập kho và giá vốn** đã xong cả 01-A và 01-B (12/11/2026), đặc tả chuyển sang [Done](../Done/01-mua-hang-nhap-kho-gia-von.md). Câu hỏi còn treo: giữ WAC hay chuyển FIFO/giá đích danh. [Báo cáo 01-B](../../report-after-upgrade/hoa-don-nha-cung-cap-u01b.md). Phần 01-B đã bị Upgrade 12 thay thế ngày 19/11/2026.
 - **10 — Đăng nhập SĐT và quên mật khẩu** đã xong giai đoạn 1 và 2 (15/11/2026), đặc tả chuyển sang [Done](../Done/10-quen-mat-khau-dang-nhap-sdt.md). Còn treo giai đoạn 3 (OTP SMS, cần nhà cung cấp trả phí). [Báo cáo](../../report-after-upgrade/quen-mat-khau-dang-nhap-sdt-u10.md)
 
 ## Việc liên quan

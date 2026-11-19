@@ -3,7 +3,7 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-ARC-04` |
-| **Phiên bản (Version)** | `v1.5.0` |
+| **Phiên bản (Version)** | `v1.6.0` |
 | **Ngày hiệu lực (Effective Date)** | `2026-11-15` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-ORD-02`, `FR-INV-02..03`, `FR-RSE-02..03` (Trang 2, 3) |
 | **Phạm vi áp dụng** | Đơn hàng (`Order`), Giữ chỗ (`Reservation`), Phiếu nhập (`GoodsReceipt`) & Chuyển kho (`StockTransfer`) |
@@ -98,7 +98,7 @@ stateDiagram-v2
 - **Tách vai trò đề nghị và chốt giá:**
   - `Staff` tạo đơn mua ở trạng thái `Draft` (mọi trường `supplierId`, `unitPrice`, phí gửi lên đều bị bỏ qua); chỉ được sửa, hủy hoặc bấm `Submit` (`Draft -> PendingApproval`) đối với đơn nháp do chính mình tạo. Khi đơn đã sang `PendingApproval`, `Staff` không thể sửa hay hủy (`409 INVALID_STATE_TRANSITION`).
   - `Owner` tạo đơn mua thì vào thẳng `PendingApproval`. Ở `PendingApproval`, `Owner` chọn Nhà cung cấp, ngày đặt hàng (`order_date <= hôm nay`), nhập đơn giá từng dòng, phí vận chuyển (`shipping_fee`), chiết khấu thương mại (`discount_amount`), thuế VAT (`vat_amount`), sửa số lượng hoặc bỏ dòng và lưu nhiều lần.
-  - Khi `Owner` bấm `Approve` (`PendingApproval -> Approved`): kiểm tra khớp `version` (`409 PURCHASE_ORDER_VERSION_MISMATCH`), bắt buộc có `supplier_id` và đủ `unit_price` trên mọi dòng (`422 PURCHASE_ORDER_INCOMPLETE_FOR_APPROVAL`), kiểm tra `discount_amount <= subtotal` (`422 PURCHASE_ORDER_DISCOUNT_EXCEEDS_SUBTOTAL`), xác nhận nếu có dòng giá `0`, và tính cố định `allocated_unit_cost` cho từng dòng. Từ `Approved` trở đi, giá mua và giá vốn phân bổ không bao giờ thay đổi.
+  - Khi `Owner` bấm `Approve` (`PendingApproval -> Approved`): bắt buộc gửi `version` (thiếu trả `400 VALIDATION_ERROR`) và kiểm tra khớp (`409 PURCHASE_ORDER_VERSION_MISMATCH`), bắt buộc có `supplier_id` và đủ `unit_price` trên mọi dòng (`422 PURCHASE_ORDER_INCOMPLETE_FOR_APPROVAL`), kiểm tra `discount_amount <= subtotal` (`422 PURCHASE_ORDER_DISCOUNT_EXCEEDS_SUBTOTAL`), xác nhận nếu có dòng giá `0`, và tính cố định `allocated_unit_cost` cho từng dòng. Từ `Approved` trở đi, giá mua và giá vốn phân bổ không bao giờ thay đổi.
 
 ---
 

@@ -6,7 +6,7 @@ Chốt ngày 19/11/2026 qua phiên grill-me, theo feedback:
 2. Ẩn giá tiền khi nhập kho đối với Staff. Giá mua cấu hình trên đơn mua.
 3. Đơn mua mang theo giá bán lẻ và giá bán sỉ. Owner chọn cách đổi giá bán khi hàng nhập kho.
 
-Trạng thái: **đã chốt nghiệp vụ, chưa triển khai.** Tài liệu này thay đổi yêu cầu U01-B ([Done/01](../Done/01-mua-hang-nhap-kho-gia-von.md), [báo cáo 01-B](../../report-after-upgrade/hoa-don-nha-cung-cap-u01b.md)) và ma trận RBAC ([02-rbac-matrix.md](../../01-users-and-rbac/02-rbac-matrix.md)).
+Trạng thái: **đã chốt nghiệp vụ. Gói 1 (BE-12.1→12.6, FE-12.1, FE-12.2) đã triển khai 19/11/2026** ([báo cáo](../../report-after-upgrade/don-mua-pending-approval-u12.md)); Gói 4 và Gói 5 chưa triển khai. Tài liệu này thay đổi yêu cầu U01-B ([Done/01](../Done/01-mua-hang-nhap-kho-gia-von.md), [báo cáo 01-B](../../report-after-upgrade/hoa-don-nha-cung-cap-u01b.md)) và ma trận RBAC ([02-rbac-matrix.md](../../01-users-and-rbac/02-rbac-matrix.md)).
 
 Phần tồn kho theo kỳ (ngày, tháng, khoảng tùy chọn) chưa bàn, sẽ ghi ở tài liệu riêng.
 

@@ -10,7 +10,7 @@ Lập ngày 19/11/2026. Ba người (Phúc Hữu: phần nhiều code nhất; Ph
 
 | Người | Gói | Nội dung | Khi nào làm | Phụ thuộc | Trạng thái |
 | --- | --- | --- | --- | --- | --- |
-| **Phúc Hữu** | **G1** | Đơn mua `PendingApproval` (Staff đề nghị, Owner chọn NCC + giá rồi duyệt), phân bổ phí/chiết khấu vào giá vốn, bỏ hóa đơn NCC, Staff không thấy giá trên đơn mua và phiếu nhập | **Đợt 1 — bắt đầu ngay** | Không | Chưa bắt đầu |
+| **Phúc Hữu** | **G1** | Đơn mua `PendingApproval` (Staff đề nghị, Owner chọn NCC + giá rồi duyệt), phân bổ phí/chiết khấu vào giá vốn, bỏ hóa đơn NCC, Staff không thấy giá trên đơn mua và phiếu nhập | **Đợt 1 — bắt đầu ngay** | Không | `VERIFIED` 19/11/2026 (commit `a4416e8`, sửa sau review `f029c83`; gate PostgreSQL thật PASS, chờ CI backend) | |
 | **Nam Nguyễn** | **G2** | Tồn kho theo kỳ (đầu kỳ, nhập, xuất, cuối kỳ; ngày/tháng/khoảng), hàng đang chuyển, thẻ kho S12/S10, xuất Excel. Chỉ đọc, không đổi DB | **Đợt 1 — bắt đầu ngay** | Không | Chưa bắt đầu |
 | **Phương Lê** | **G3** | Phiếu xuất kho 02-VT lưu kèm dòng sổ `OUT` (2 bảng mới, lập cùng transaction checkout/xác nhận đơn), in phiếu, in hàng loạt, bảng kê POS theo ngày | **Đợt 1 — bắt đầu ngay** | Không | Chưa bắt đầu |
 | Phúc Hữu | G4 | Cấu hình giá bán khi nhập kho (Giữ cũ / WAC + lãi / Giá mới, áp ngay / từ ngày), lý do bắt buộc trên phiếu đổi giá, hộp thoại xung đột giá (Q19), khóa giá | **Đợt 2** — sau khi G1 `VERIFIED` | G1 | Chưa có prompt |

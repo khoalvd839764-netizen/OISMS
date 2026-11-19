@@ -3,7 +3,7 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-API-03` |
-| **Phiên bản (Version)** | `v1.4.0` |
+| **Phiên bản (Version)** | `v1.5.1` |
 | **Ngày hiệu lực (Effective Date)** | `2026-11-14` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-INV-01..04`, `FR-COST-01`, `FR-RSE-01..03` (Trang 2, 3, 5) |
 | **Phạm vi áp dụng** | `InventoryController`, `GoodsReceiptsController`, `StockTransfersController`, `StocktakesController` |
@@ -20,6 +20,7 @@
 | `v1.3.0` | `2026-11-06` | Nhóm dự án OISMS | Sửa route chuyển kho thành `/api/stock-transfers`; thêm API tồn theo SKU/chi nhánh, lịch sử xuất kho, ngưỡng đặt hàng lại, alias `/api/inventory-transactions`; sửa quyền xem tồn. | `OISMS-46` |
 | `v1.4.0` | `2026-11-14` | Nhóm dự án OISMS | Che trường `averageCost` (trả `null`) đối với vai trò `Cashier` trên `GET /api/inventory/balances` và `GET /api/inventory/balances/sku/{skuId}/branch/{branchId}`. | `OISMS-59-G1A` |
 | `v1.5.0` | `2026-11-19` | Nhóm dự án OISMS | Nâng cấp hợp đồng Đơn mua hàng (`PendingApproval`, `submit`, `return`, `price-suggestion`, phân bổ phí/chiết khấu, khóa `version`), gỡ toàn bộ `/api/supplier-invoices*`, và che giá với `Staff` trên đơn mua & phiếu nhập. | `OISMS-66-L2-G1` |
+| `v1.5.1` | `2026-11-19` | Nhóm dự án OISMS | Sửa sau review Gói 1: `version` bắt buộc khi duyệt đơn mua; `Staff` lọc theo `supplierId` không thấy đơn chưa duyệt; giá vốn phân bổ dòng cuối âm trả `422`. | `OISMS-66-L2-G1` |
 
 ---
 

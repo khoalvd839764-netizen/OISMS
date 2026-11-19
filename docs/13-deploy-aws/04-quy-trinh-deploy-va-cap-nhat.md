@@ -87,7 +87,14 @@ dcp exec -T postgres sh -c 'psql -X -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_
   < docker/postgres/migrations/20261114_user_branches.sql
 ```
 
-DB ở baseline cũ hơn cần chạy đủ các migration còn thiếu theo thứ tự tên file (gồm cả `20261112_supplier_invoices.sql` nếu đang ở 44 bảng và `20261114_user_branches.sql`). Sau cập nhật, kiểm tra `/health/ready` trả HTTP 200 và `tablesCount: 48`.
+DB đã ở 48 bảng (sau CS-02) cần chạy thêm migration Upgrade 12 Gói 1 trước khi cập nhật backend có luồng đơn mua `PendingApproval`. Migration không thêm bảng (vẫn 48), đổi cột và CHECK của `purchase_orders`, `purchase_order_items`, chuyển đơn `Draft` cũ đủ NCC và giá sang `PendingApproval`, thu quyền ghi bảng hóa đơn NCC. Chạy lại nhiều lần không lỗi.
+
+```bash
+dcp exec -T postgres sh -c 'psql -X -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' \
+  < docker/postgres/migrations/20261119_purchase_order_pending_approval.sql
+```
+
+DB ở baseline cũ hơn cần chạy đủ các migration còn thiếu theo thứ tự tên file (gồm cả `20261112_supplier_invoices.sql` nếu đang ở 44 bảng, `20261114_user_branches.sql` và `20261119_purchase_order_pending_approval.sql`). Sau cập nhật, kiểm tra `/health/ready` trả HTTP 200 và `tablesCount: 48`.
 
 Backend không tự nâng cấp schema, và `init-oisms.sh` không chạy lại trên volume đã có dữ liệu. Nếu chỉ rebuild, `/health/ready` sẽ trả 503 `Database schema is incomplete`.
 

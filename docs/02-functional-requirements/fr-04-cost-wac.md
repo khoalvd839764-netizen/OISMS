@@ -3,7 +3,7 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-FR-04` |
-| **Phiên bản (Version)** | `v1.0.0` |
+| **Phiên bản (Version)** | `v1.1.0` |
 | **Ngày hiệu lực (Effective Date)** | `2026-10-22` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-COST-01`, `FR-COST-02` (Trang 2) |
 | **Gói công việc (Task Package)** | Task Package 2 — Product Catalog & Append-Only Inventory Ledger |

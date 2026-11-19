@@ -37,7 +37,7 @@ Script database duy nhất được giữ trong `scripts` là `scripts/test-data
 
 Không chạy `oisms_schema.sql` lên database đã có dữ liệu. Không sửa file migration đã có: mỗi thay đổi schema tạo file mới, đồng thời cập nhật `oisms_schema.sql`.
 
-DB đã có đủ 47 bảng của baseline U01-B chỉ cần chạy `docker/postgres/migrations/20261114_user_branches.sql` để lên 48 bảng (baseline 44 bảng cần chạy cả `20261112_supplier_invoices.sql` rồi tới `20261114_user_branches.sql`). Chạy file bằng tài khoản quản trị schema với `psql -v ON_ERROR_STOP=1` sau khi sao lưu.
+DB đã có đủ 47 bảng của baseline U01-B chạy `docker/postgres/migrations/20261114_user_branches.sql` để lên 48 bảng (baseline 44 bảng cần chạy cả `20261112_supplier_invoices.sql` rồi tới `20261114_user_branches.sql`). DB đã có 48 bảng chạy tiếp `20261119_purchase_order_pending_approval.sql` (Upgrade 12 Gói 1, không thêm bảng). Chạy file bằng tài khoản quản trị schema với `psql -v ON_ERROR_STOP=1` sau khi sao lưu.
 
 Git Bash, Linux, macOS (chạy ở thư mục gốc repo):
 

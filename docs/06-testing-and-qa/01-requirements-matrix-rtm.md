@@ -77,7 +77,8 @@ Ngày 12/11/2026, unit backend 380/380 PASS, POS `npm test` 10/10 file PASS và 
 | :--- | :--- | :--- | :--- |
 | Upgrade 05 — Đa đơn vị tính | `SkuUnitResolver`, `UnitService`, `UnitsController`; POS `posCartUnits.ts` | `MultiUnitIntegrationTests`, `MultiUnitFlowIntegrationTests`, `SkuUnitResolverTests`, `test-cart-units.mjs` | Đạt |
 | Upgrade 01-A — Phiếu mua, nhập kho từ phiếu mua | `PurchaseOrderService`, `PurchaseOrdersController`, `GoodsReceiptService` | `PurchaseOrderIntegrationTests` | Đạt |
-| Upgrade 01-B — Hóa đơn NCC, chênh lệch | — | — | Chưa làm |
+| Upgrade 01-B — Hóa đơn NCC, chênh lệch | — (đã gỡ ở Upgrade 12) | — | Thay bởi Upgrade 12 (19/11/2026) |
+| Upgrade 12 Gói 1 — Đơn mua `PendingApproval`, phân bổ phí VAS 02, che giá Staff | `PurchaseOrderService`, `PurchaseOrdersController`, `GoodsReceiptService`, migration `20261119_purchase_order_pending_approval.sql` | `PostgresPurchaseOrderU12IntegrationTests`, `PurchaseOrderIntegrationTests` (PostgreSQL thật, lọc `PurchaseOrder\|GoodsReceipt` 32/32 ngày 19/11/2026) | Đạt |
 | Upgrade 03 — Lịch kiểm kê, duyệt chênh lệch | `StockCountService`, `StockCountPeriodJob`, `StockCountSchedulesController` | `StockCountU03IntegrationTests`, `StockCountPeriodCalculatorTests` | Đạt |
 | CS-01 — Trả hàng từ khách | `SalesReturnService`, `SalesReturnsController` | `SalesReturnServiceTests`, `PostgresSalesReturnIntegrationTests`, `test-oisms/api-python/test_sales_return_api.py` | Unit đạt; integration chưa chạy lại |
 | CS-02 — Nhân viên, phân quyền | `UserService`, `UsersController` | `UserServiceTests` | Đạt một phần: chưa có phân công chi nhánh |

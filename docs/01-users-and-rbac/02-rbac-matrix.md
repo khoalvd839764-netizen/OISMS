@@ -3,7 +3,7 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-USR-02` |
-| **Phiên bản (Version)** | `v1.6.0` |
+| **Phiên bản (Version)** | `v1.7.0` |
 | **Ngày hiệu lực (Effective Date)** | `2026-11-15` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-AUTH-02`, `FR-AUTH-03`, `FR-AUTH-04`, `NFR-SEC-01` (Trang 1, 4) |
 | **Phạm vi áp dụng** | Middleware Ủy quyền Backend (`[Authorize(Roles = ...)]`) & Route Guard trên Web Admin / POS |
@@ -21,6 +21,7 @@
 | `v1.4.0` | `2026-11-14` | Nhóm dự án OISMS | Che `averageCost` (`null`) với `Cashier` trên hai API số dư tồn kho; siết `POST/PUT /api/warehouses` và `toggle-status` chỉ còn `Owner`; chốt yêu cầu xóa danh mục/thương hiệu/sản phẩm chỉ `Owner`; cập nhật bảng đối chiếu mục 2.1. | `OISMS-59-G1A` |
 | `v1.5.0` | `2026-11-14` | Nhóm dự án OISMS | Bổ sung phân công chi nhánh cho nhân viên (`CS-02`): `Owner` gán `branchIds` qua `/api/users`; `Cashier` có gán chỉ thấy chi nhánh được gán ở `GET /api/branches` và chỉ checkout POS ở chi nhánh được gán (`403 BRANCH_NOT_ASSIGNED`). | `OISMS-59-G1B` |
 | `v1.6.0` | `2026-11-15` | Nhóm dự án OISMS | Bổ sung quyền `Owner`-only cho hai endpoint tổng hợp báo cáo ngày (`GET /api/reports/daily-summaries`, `POST /api/reports/daily-summaries/rebuild`); `Staff` và `Cashier` nhận `403`. | `OISMS-59-G3B` |
+| `v1.7.0` | `2026-11-19` | Nhóm dự án OISMS | Upgrade 12 Gói 1: `Staff` đề nghị mua ở `Draft` và gửi duyệt; `Owner` chốt NCC/giá/phí, duyệt, trả về, hủy; `Staff` không thấy giá trên đơn mua và phiếu nhập, thấy NCC từ khi duyệt; gỡ quyền hóa đơn NCC. | `OISMS-66-L2-G1` |
 
 ---
 

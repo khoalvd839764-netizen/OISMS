@@ -105,7 +105,8 @@ Không phải lỗi: đây là chức năng chưa làm xong, đang có nhãn Com
 | [x] | Upgrade 05 | Nhiều đơn vị tính: `units`, `sku_units`, `BaseQuantity = Quantity × FactorSnapshot`, WAC theo đơn vị gốc | ✅ | ✅ | [frontend-coming-soon-va-upgrade.md](../report-after-upgrade/frontend-coming-soon-va-upgrade.md) |
 | [x] | Upgrade 04 | Bảng giá theo thời gian, phiếu đổi giá, đóng API sửa giá trực tiếp | ✅ | ✅ | [bang-gia-theo-thoi-gian.md](../report-after-upgrade/bang-gia-theo-thoi-gian.md) |
 | [x] | Upgrade 01-A | Phiếu mua hàng, phiếu nhập bắt buộc gắn phiếu mua đã duyệt, chặn nhập vượt | ✅ | ✅ | [mua-hang-nhap-kho.md](../report-after-upgrade/mua-hang-nhap-kho.md) |
-| [x] | Upgrade 01-B | Hóa đơn nhà cung cấp (`supplier_invoices`) và chứng từ chênh lệch (`purchase_variances`) | ✅ | ✅ | Nhóm tự chốt 12/11/2026, nghiệm thu PostgreSQL thật. [Báo cáo](../report-after-upgrade/hoa-don-nha-cung-cap-u01b.md) |
+| [x] | Upgrade 01-B | Hóa đơn nhà cung cấp (`supplier_invoices`) và chứng từ chênh lệch (`purchase_variances`) | ✅ | ✅ | Nhóm tự chốt 12/11/2026, nghiệm thu PostgreSQL thật. [Báo cáo](../report-after-upgrade/hoa-don-nha-cung-cap-u01b.md). **Thay bởi Upgrade 12 từ 19/11/2026:** đã gỡ API và màn hình, bảng giữ chỉ đọc |
+| [x] | Upgrade 12 — Gói 1 | Đơn mua `PendingApproval` (Staff đề nghị, Owner chốt NCC/giá/phí rồi duyệt), phân bổ phí và chiết khấu vào giá vốn theo VAS 02, VAT ngoài giá vốn, che giá với Staff trên đơn mua và phiếu nhập, gỡ hóa đơn NCC | ✅ | ✅ | Nghiệm thu PostgreSQL thật 19/11/2026. [don-mua-pending-approval-u12.md](../report-after-upgrade/don-mua-pending-approval-u12.md) |
 | [x] | Upgrade 02 | Hóa đơn bán, in lại, truy vết đến dòng sổ `OUT` | ✅ | ✅ | [hoa-don-truy-vet-xuat-kho.md](../report-after-upgrade/hoa-don-truy-vet-xuat-kho.md) |
 | [x] | Upgrade 03 | Lịch kiểm kê, kỳ kiểm kê, duyệt chênh lệch (`PendingApproval`) | ✅ | ✅ | [lich-kiem-ke-duyet-chenh-lech.md](../report-after-upgrade/lich-kiem-ke-duyet-chenh-lech.md) |
 

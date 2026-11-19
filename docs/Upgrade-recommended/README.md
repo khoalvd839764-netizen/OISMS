@@ -6,7 +6,7 @@ Thư mục này lưu đề xuất nâng cấp OISMS của GVHD Nguyễn Văn Chi
 
 | Tài liệu | Trạng thái và dẫn chứng |
 | :--- | :--- |
-| [01. Mua hàng, nhập kho và giá vốn](./Done/01-mua-hang-nhap-kho-gia-von.md) | **Đã làm.** 01-A: phiếu mua, nhập kho và WAC. 01-B: hóa đơn nhà cung cấp, đối chiếu ba bên, chênh lệch có duyệt; không gồm công nợ NCC. [Báo cáo 01-A](../report-after-upgrade/mua-hang-nhap-kho.md) · [Báo cáo 01-B](../report-after-upgrade/hoa-don-nha-cung-cap-u01b.md) |
+| [01. Mua hàng, nhập kho và giá vốn](./Done/01-mua-hang-nhap-kho-gia-von.md) | **Đã làm.** 01-A: phiếu mua, nhập kho và WAC. 01-B: hóa đơn nhà cung cấp, đối chiếu ba bên, chênh lệch có duyệt; không gồm công nợ NCC. **01-B bị Upgrade 12 thay thế từ 19/11/2026** ([báo cáo U12](../report-after-upgrade/don-mua-pending-approval-u12.md)). [Báo cáo 01-A](../report-after-upgrade/mua-hang-nhap-kho.md) · [Báo cáo 01-B](../report-after-upgrade/hoa-don-nha-cung-cap-u01b.md) |
 | [02. Truy vết chứng từ xuất kho](./Done/02-truy-vet-chung-tu-xuat-kho.md) | **Đã làm.** Có chứng từ nguồn, hóa đơn bán, truy vết và in lại trong Admin. [Báo cáo 02](../report-after-upgrade/hoa-don-truy-vet-xuat-kho.md) |
 | [03. Quy định kiểm kê](./Done/03-quy-dinh-kiem-ke.md) | **Đã làm.** Có lịch giữa tháng, cuối tháng, kiểm kê đột xuất và duyệt chênh lệch. [Báo cáo 03](../report-after-upgrade/lich-kiem-ke-duyet-chenh-lech.md) |
 | [04. Bảng giá theo thời gian hiệu lực](./Done/04-bang-gia-theo-thoi-gian.md) | **Đã làm.** Có phiếu đổi giá, phê duyệt, lịch sử và giá chụp vào đơn. [Báo cáo 04](../report-after-upgrade/bang-gia-theo-thoi-gian.md) |
