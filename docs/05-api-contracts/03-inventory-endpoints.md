@@ -203,3 +203,24 @@ Trạng thái phiếu mua: xem [máy trạng thái](../04-architecture-and-desig
 | `GET` | `/api/reports/inventory-period/export-excel` | `Owner, Staff` | Xuất file Excel `.xlsx` báo cáo NXT bằng ClosedXML. File chứa **mọi SKU khớp bộ lọc** (bỏ qua `page`, `pageSize`; backend đi lần lượt từng trang 100 SKU), dòng tổng cộng tính trên toàn bộ dòng. Tự động ẩn các cột giá trị tiền nếu tài khoản là `Staff`. `Cashier` trả `403 Forbidden`. |
 | `GET` | `/api/reports/stock-card` | `Owner, Staff` | Thẻ kho chi tiết cho một SKU tại một chi nhánh: `skuId` (bắt buộc), `branchId` (bắt buộc), `fromDate`, `toDate`. Trả về dòng Số dư đầu kỳ (`Opening`), danh sách các dòng giao dịch sổ cái (`Transaction`) kèm mã chứng từ, `referenceId` để truy vết và `goodsIssueId`, `goodsIssueNumber` (số phiếu xuất kho 02-VT của dòng `OUT` bán hàng, `null` với dòng khác), dòng Số dư cuối kỳ (`Closing`), và dòng Điều chỉnh chênh lệch làm tròn WAC (`RoundDiff` - chỉ hiển thị cho `Owner` khi kỳ kết thúc ở hiện tại). `Staff` nhận `unitPrice` và `lineTotal` bằng `null`. `Cashier` trả `403 Forbidden`. |
 | `GET` | `/api/reports/stock-card/export-excel` | `Owner, Staff` | Xuất file Excel `.xlsx` thẻ kho mẫu S10-DN (cho `Owner`, có giá) hoặc S12-DN (cho `Staff`, chỉ có lượng) dạng stream sử dụng ClosedXML. `Cashier` trả `403 Forbidden`. |
+
+---
+
+## Phiếu điều chỉnh kho & Bổ sung trường in chứng từ (Upgrade 14 — U14-A)
+
+### 1. Chi tiết phiếu điều chỉnh cân bằng kho
+
+- **Endpoint:** `GET /api/inventory/adjustments/{id}`
+- **Quyền:** `[Authorize(Roles = "Owner,Staff")]` (`Cashier` nhận `403 Forbidden`)
+- **Cô lập Tenant:** Theo JWT (`ICurrentTenantService`) + Global Query Filter; không tồn tại hoặc thuộc Tenant khác trả `404 Not Found` (`errorCode = "ADJUSTMENT_NOT_FOUND"`).
+- **Che giá (`ICostVisibilityService`):** `Staff` nhận `totalCost = null`, `items[].unitCost = null`, `items[].totalCost = null`. `Owner` nhận đủ.
+- **Response (`200 OK` — `InventoryAdjustmentDto`):**
+  - Header: `id`, `number`, `branchId`, `branchName`, `warehouseId`, `warehouseName`, `reason`, `status`, `direction` (`"IN"` / `"OUT"` / `"MIXED"`), `stockCountId`, `stockCountNumber`, `createdBy`, `createdByName`, `confirmedBy`, `confirmedByName`, `confirmedAt`, `createdAt`, `updatedAt`, `totalQuantityDelta`, `totalCost`.
+  - Dòng (`items[]`): `id`, `adjustmentId`, `skuId`, `skuCode`, `skuName`, `baseUnitName`, `quantityDelta`, `direction` (`"IN"` / `"OUT"`), `unitCost`, `totalCost`, `originalTransactionId`.
+
+### 2. Trường in bổ sung trên các API chi tiết sẵn có (không đổi nghĩa trường cũ)
+
+- **Phiếu nhập (`GET /api/goods-receipts/{id}`):** Thêm `items[].baseUnitName`; `Staff` nhận `totalAmount = null`, `items[].unitPrice = null`, `items[].lineTotal = null`.
+- **Phiếu chuyển kho (`GET /api/stock-transfers/{id}`):** Thêm `createdByName`, `dispatchedByName`, `receivedByName`, `items[].baseUnitName`; `Staff` nhận `items[].unitCost = null`.
+- **Biên bản kiểm kê (`GET /api/stock-counts/{id}`):** Thêm `createdByName`, `submittedByName`, `confirmedByName`, `generatedAdjustmentNumber`, `items[].baseUnitName`, `items[].countedByName`; `Staff` nhận `items[].adjustmentUnitCost = null`.
+- **Phiếu trả hàng (`GET /api/sales-returns/{id}`):** Thêm `customerName`, `items[].baseUnitName`; `Staff` nhận `items[].originalUnitCost = null`.

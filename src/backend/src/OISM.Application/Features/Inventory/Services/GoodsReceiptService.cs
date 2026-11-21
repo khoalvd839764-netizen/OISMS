@@ -225,6 +225,9 @@ public class GoodsReceiptService : IGoodsReceiptService
             .Include(r => r.Items)
                 .ThenInclude(i => i.Sku)
                     .ThenInclude(s => s!.Product)
+            .Include(r => r.Items)
+                .ThenInclude(i => i.Sku)
+                    .ThenInclude(s => s!.BaseUnit)
             .AsNoTracking();
 
         if (filter.BranchId.HasValue)
@@ -708,6 +711,9 @@ public class GoodsReceiptService : IGoodsReceiptService
             .Include(r => r.Items)
                 .ThenInclude(i => i.Sku)
                     .ThenInclude(s => s!.Product)
+            .Include(r => r.Items)
+                .ThenInclude(i => i.Sku)
+                    .ThenInclude(s => s!.BaseUnit)
             .AsNoTracking()
             .FirstOrDefaultAsync(r => r.Id == id, ct);
 
@@ -754,6 +760,7 @@ public class GoodsReceiptService : IGoodsReceiptService
                 ProductName = i.Sku?.Product?.Name ?? string.Empty,
                 UnitId = i.UnitId,
                 UnitName = i.UnitNameSnapshot,
+                BaseUnitName = i.Sku?.BaseUnit?.Name ?? i.Sku?.Unit ?? i.UnitNameSnapshot,
                 FactorSnapshot = i.FactorSnapshot,
                 BaseQuantity = i.BaseQuantity,
                 Quantity = i.Quantity,

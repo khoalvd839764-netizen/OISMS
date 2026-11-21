@@ -207,7 +207,6 @@ export function AdminShell() {
             >
               <item.icon size={19} />
               <span>{item.label}</span>
-              {item.label === "Kho & sổ kho" && <i>3</i>}
             </NavLink>
           ))}
         </nav>

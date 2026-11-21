@@ -65,7 +65,29 @@ Chạy không cần Docker cho backend/frontend: `scripts/run-backend.ps1`, `scr
 - Backend **không** chạy EF migrations và không tự tạo bảng. Nếu `/health/ready` trả `503` với thông điệp `Database schema is incomplete`, phải chạy các file còn thiếu trong `docker/postgres/migrations/` theo [hướng dẫn nâng cấp](../database/README.md#nâng-cấp-database-đã-có-dữ-liệu-cả-nhóm-đọc-khi-kéo-code-mới).
 - Không chạy `oisms_schema.sql` lên DB đã có dữ liệu. Không dùng `docker compose down -v` trừ khi chủ động xóa sạch dữ liệu local.
 - Đổi mật khẩu trong `.env` không đổi mật khẩu role trên volume cũ; dùng `ALTER ROLE` bằng tài khoản `postgres`.
-- Seed dữ liệu demo chỉ chạy khi môi trường là `Development` hoặc `Test`, `Database:SeedDemoData=true` và có `Database:DemoSeedPassword` (`DemoSeedPolicy`). Compose không đặt hai biến này nên mặc định không seed; `appsettings.Development.json` bật seed khi chạy bằng `dotnet run`.
+- Seed dữ liệu demo chỉ chạy khi môi trường là `Development` hoặc `Test`, `Database:SeedDemoData=true` và có `Database:DemoSeedPassword` (`DemoSeedPolicy`). Compose không đặt hai biến này nên mặc định không seed; `appsettings.Development.json` bật seed khi chạy bằng `dotnet run`. Khi seed chạy, `OismsDatabaseSeeder` tạo danh mục nền và `OismsDocumentSeeder` tạo bộ chứng từ mẫu cho cả 2 tenant qua Application service thật (đơn mua duyệt → phiếu nhập xác nhận, POS checkout, đơn online confirm, chuyển kho 2 bước, kiểm kê có thừa & thiếu được duyệt, trả hàng một phần).
+
+### 3.1. Runbook Reset DB Local và Seed Lại Chứng Từ Mẫu (`Upgrade 14`, `Q11–Q12`)
+
+> **Cảnh báo:** Chỉ chạy trên môi trường **local Development**. Tuyệt đối không chạy `docker compose down -v` trên Production/AWS.
+
+1. Xóa container và volume DB local cũ (người dùng tự chạy):
+   ```bash
+   docker compose down -v
+   ```
+2. Build lại image và khởi chạy stack (bật seed tạm thời nếu muốn compose tự seed ở Development):
+   ```bash
+   docker compose up -d --build
+   ```
+3. Kiểm tra `/health/ready` trả `200 OK` và log backend có dòng *"Đã khởi tạo thành công dữ liệu mẫu cho môi trường Development"*:
+   ```bash
+   curl -i http://localhost:5000/health/ready
+   docker compose logs backend --tail 100
+   ```
+4. Tài khoản demo (`OismsDatabaseSeeder`):
+   - **Tenant A:** `owner@shopa.local`, `staff@shopa.local`, `cashier@shopa.local`
+   - **Tenant B:** `owner@shopb.local`, `staff@shopb.local`, `cashier@shopb.local`
+   - Mật khẩu theo cấu hình `Database:DemoSeedPassword` trong `.env` / `appsettings.Development.json`.
 
 ---
 

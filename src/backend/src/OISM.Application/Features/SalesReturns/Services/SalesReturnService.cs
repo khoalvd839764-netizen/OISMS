@@ -633,6 +633,7 @@ public class SalesReturnService : ISalesReturnService
                 .ThenInclude(i => i.OrderItem)
             .Include(r => r.Items)
                 .ThenInclude(i => i.Sku)
+                    .ThenInclude(s => s!.BaseUnit)
             .Include(r => r.Creator)
             .Include(r => r.Confirmer)
             .Where(r => r.TenantId == tenantId);
@@ -699,6 +700,7 @@ public class SalesReturnService : ISalesReturnService
                 .ThenInclude(i => i.OrderItem)
             .Include(r => r.Items)
                 .ThenInclude(i => i.Sku)
+                    .ThenInclude(s => s!.BaseUnit)
             .Include(r => r.Creator)
             .Include(r => r.Confirmer)
             .FirstOrDefaultAsync(r => r.Id == id && r.TenantId == tenantId, ct);
@@ -721,6 +723,7 @@ public class SalesReturnService : ISalesReturnService
             OrderId = r.OrderId,
             OrderNumber = r.Order?.Number ?? string.Empty,
             OrderChannel = r.Order?.Channel ?? string.Empty,
+            CustomerName = r.Order?.CustomerName,
             BranchId = r.BranchId,
             BranchName = r.Branch?.Name ?? string.Empty,
             WarehouseId = r.WarehouseId,
@@ -752,6 +755,7 @@ public class SalesReturnService : ISalesReturnService
                     SkuName = i.OrderItem?.SkuNameSnapshot ?? string.Empty,
                     UnitId = i.OrderItem?.UnitId,
                     UnitName = i.OrderItem?.UnitNameSnapshot ?? string.Empty,
+                    BaseUnitName = i.Sku?.BaseUnit?.Name ?? i.Sku?.Unit ?? i.OrderItem?.UnitNameSnapshot ?? string.Empty,
                     FactorSnapshot = factor,
                     Quantity = i.Quantity,
                     BaseQuantity = i.Quantity * factor,

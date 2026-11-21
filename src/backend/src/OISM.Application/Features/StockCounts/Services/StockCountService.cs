@@ -1542,9 +1542,13 @@ public class StockCountService : IStockCountService
         var count = await _context.StockCounts
             .Include(c => c.Branch)
             .Include(c => c.Warehouse)
+            .Include(c => c.GeneratedAdjustment)
             .Include(c => c.Items)
                 .ThenInclude(i => i.Sku)
                     .ThenInclude(s => s!.Product)
+            .Include(c => c.Items)
+                .ThenInclude(i => i.Sku)
+                    .ThenInclude(s => s!.BaseUnit)
             .Include(c => c.Approvals)
                 .ThenInclude(a => a.ActorUser)
             .AsNoTracking()
@@ -1562,7 +1566,8 @@ public class StockCountService : IStockCountService
             .AsNoTracking()
             .ToDictionaryAsync(w => w.SkuId, ct);
 
-        var dto = MapToResponseDto(count, false);
+        var userNames = await LoadStockCountUserNamesAsync(tenantId.Value, new[] { count }, ct);
+        var dto = MapToResponseDto(count, false, userNames);
         foreach (var itemDto in dto.Items)
         {
             whBalances.TryGetValue(itemDto.SkuId, out var whBal);
@@ -1649,9 +1654,10 @@ public class StockCountService : IStockCountService
             .Take(pageSize)
             .ToListAsync(ct);
 
+        var userNames = await LoadStockCountUserNamesAsync(tenantId.Value, items, ct);
         return new PagedResultDto<StockCountResponseDto>
         {
-            Items = items.Select(c => MapToResponseDto(c, false)).ToList(),
+            Items = items.Select(c => MapToResponseDto(c, false, userNames)).ToList(),
             TotalCount = totalCount,
             PageNumber = pageNumber,
             PageSize = pageSize
@@ -1680,8 +1686,38 @@ public class StockCountService : IStockCountService
         return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
-    private StockCountResponseDto MapToResponseDto(StockCount count, bool isReplay)
+    private async Task<Dictionary<Guid, string>> LoadStockCountUserNamesAsync(
+        Guid tenantId,
+        IEnumerable<StockCount> counts,
+        CancellationToken ct)
     {
+        var userIds = counts
+            .SelectMany(c => new Guid?[] { c.CreatedBy, c.SubmittedBy, c.ConfirmedBy }
+                .Concat(c.Items.Select(i => i.CountedBy)))
+            .Where(id => id.HasValue && id.Value != Guid.Empty)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToList();
+
+        if (userIds.Count == 0)
+        {
+            return new Dictionary<Guid, string>();
+        }
+
+        return await _context.Users
+            .AsNoTracking()
+            .Where(u => u.TenantId == tenantId && userIds.Contains(u.Id))
+            .ToDictionaryAsync(u => u.Id, u => u.DisplayName, ct);
+    }
+
+    private StockCountResponseDto MapToResponseDto(
+        StockCount count,
+        bool isReplay,
+        IReadOnlyDictionary<Guid, string>? userNames = null)
+    {
+        string? ResolveName(Guid? id, string? fallback) =>
+            id.HasValue && userNames != null && userNames.TryGetValue(id.Value, out var name) ? name : fallback;
+
         return new StockCountResponseDto
         {
             Id = count.Id,
@@ -1696,13 +1732,17 @@ public class StockCountService : IStockCountService
             AdHocReason = count.AdHocReason,
             PeriodId = count.PeriodId,
             SubmittedBy = count.SubmittedBy,
+            SubmittedByName = ResolveName(count.SubmittedBy, count.SubmittedByUser?.DisplayName),
             SubmittedAt = count.SubmittedAt,
             CreatedBy = count.CreatedBy,
+            CreatedByName = ResolveName(count.CreatedBy, count.CreatedByUser?.DisplayName),
             ConfirmedBy = count.ConfirmedBy,
+            ConfirmedByName = ResolveName(count.ConfirmedBy, count.ConfirmedByUser?.DisplayName),
             ConfirmedAt = count.ConfirmedAt,
             Note = count.Note,
             CreatedAt = count.CreatedAt,
             GeneratedAdjustmentId = count.GeneratedAdjustmentId,
+            GeneratedAdjustmentNumber = count.GeneratedAdjustment?.Number,
             IsReplay = isReplay,
             Items = count.Items.Select(i => new StockCountItemResponseDto
             {
@@ -1710,11 +1750,13 @@ public class StockCountService : IStockCountService
                 SkuId = i.SkuId,
                 SkuCode = i.Sku?.Code ?? string.Empty,
                 ProductName = i.Sku?.Product?.Name ?? string.Empty,
+                BaseUnitName = i.Sku?.BaseUnit?.Name ?? i.Sku?.Unit ?? string.Empty,
                 ExpectedQuantity = i.ExpectedQuantity,
                 CountedQuantity = i.CountedQuantity,
                 BalanceSequenceAtSnapshot = i.BalanceSequenceAtSnapshot,
                 AdjustmentUnitCost = _costVisibilityService.CanViewCost ? i.AdjustmentUnitCost : null,
                 CountedBy = i.CountedBy,
+                CountedByName = ResolveName(i.CountedBy, i.CountedByUser?.DisplayName),
                 CountedAt = i.CountedAt,
                 SnapshotAt = i.SnapshotAt,
                 IsDrifted = false

@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Printer, X, CheckCircle2 } from 'lucide-react';
+import { Printer, X, CheckCircle2, FileSpreadsheet } from 'lucide-react';
 import type { ReceiptData } from '../../types/pos';
 import { shouldAutoPrint } from '../../services/receiptMapper';
+import { canPrintGoodsIssue } from '../../services/goodsIssuePrint';
+import { GoodsIssuePrintModal } from './GoodsIssuePrintModal';
 
 interface ReceiptPrintModalProps {
   receipt: ReceiptData | null;
@@ -11,6 +13,7 @@ interface ReceiptPrintModalProps {
 
 export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({ receipt, autoPrint = false, onClose }) => {
   const [paper, setPaper] = useState<'58' | '80'>(() => localStorage.getItem('oisms_pos_v2_paper') === '58' ? '58' : '80');
+  const [showGoodsIssueModal, setShowGoodsIssueModal] = useState(false);
   const autoPrintedReceiptRef = useRef<ReceiptData | null>(null);
 
   useEffect(() => {
@@ -36,10 +39,17 @@ export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({ receipt, a
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
   };
 
+  const showGoodsIssueButton = canPrintGoodsIssue(receipt);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in no-print-bg">
-      <style>{'.receipt-paper[data-paper="58"] table { font-size: 9px; table-layout: fixed; width: 100%; } .receipt-paper[data-paper="58"] th:first-child { width: 38%; } .receipt-paper[data-paper="58"] th:nth-child(2) { width: 12%; } .receipt-paper[data-paper="58"] th:nth-child(3), .receipt-paper[data-paper="58"] th:nth-child(4) { width: 25%; } .receipt-paper[data-paper="58"] td { white-space: normal !important; overflow-wrap: anywhere; padding-right: 2px; } .receipt-paper[data-paper="58"] td div { font-size: 9px; }'}</style>
-      <style>{`@media print { html, body { width: ${paper}mm !important; } .print-container, .receipt-paper { width: ${paper}mm !important; max-width: ${paper}mm !important; } .receipt-paper { font-size: ${paper === '58' ? '9' : '11'}px !important; } .receipt-paper table { font-size: ${paper === '58' ? '9' : '11'}px !important; table-layout: fixed; } .receipt-paper td { overflow-wrap: anywhere; white-space: normal !important; } } @page { size: ${paper}mm 200mm; margin: 0; }`}</style>
+    <>
+    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in no-print-bg ${showGoodsIssueModal ? 'no-print' : ''}`}>
+      {!showGoodsIssueModal && (
+        <>
+          <style>{'.receipt-paper[data-paper="58"] table { font-size: 9px; table-layout: fixed; width: 100%; } .receipt-paper[data-paper="58"] th:first-child { width: 38%; } .receipt-paper[data-paper="58"] th:nth-child(2) { width: 12%; } .receipt-paper[data-paper="58"] th:nth-child(3), .receipt-paper[data-paper="58"] th:nth-child(4) { width: 25%; } .receipt-paper[data-paper="58"] td { white-space: normal !important; overflow-wrap: anywhere; padding-right: 2px; } .receipt-paper[data-paper="58"] td div { font-size: 9px; }'}</style>
+          <style>{`@media print { html, body { width: ${paper}mm !important; } .print-container, .receipt-paper { width: ${paper}mm !important; max-width: ${paper}mm !important; } .receipt-paper { font-size: ${paper === '58' ? '9' : '11'}px !important; } .receipt-paper table { font-size: ${paper === '58' ? '9' : '11'}px !important; table-layout: fixed; } .receipt-paper td { overflow-wrap: anywhere; white-space: normal !important; } } @page { size: ${paper}mm 200mm; margin: 0; }`}</style>
+        </>
+      )}
       <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 max-w-md w-full overflow-hidden flex flex-col max-h-[95vh] no-print-border">
         {/* Header Modal Bar (hidden on print) */}
         <div className={`px-5 py-3.5 text-white flex items-center justify-between no-print ${receipt.isDraft ? 'bg-amber-900' : 'bg-slate-900'}`}>
@@ -64,14 +74,26 @@ export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({ receipt, a
           <span className={`text-xs font-semibold ${receipt.isDraft ? 'text-amber-900' : 'text-indigo-900'}`}>
             {receipt.isDraft ? 'Bản in tạm tính - Đơn hàng chưa ghi nhận thanh toán' : 'Bản in hóa đơn chính thức'}
           </span>
-          <button
-            type="button"
-            onClick={handlePrint}
-            className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-white rounded-xl font-bold text-xs shadow-md transition-all ${receipt.isDraft ? 'bg-amber-700 hover:bg-amber-800' : 'bg-indigo-600 hover:bg-indigo-700'}`}
-          >
-            <Printer className="w-4 h-4" />
-            <span>In Phiếu (Ctrl + P)</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {showGoodsIssueButton && (
+              <button
+                type="button"
+                onClick={() => setShowGoodsIssueModal(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-indigo-700 bg-white hover:bg-indigo-100 border border-indigo-200 rounded-xl font-bold text-xs shadow-xs transition-all"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>In phiếu xuất kho</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handlePrint}
+              className={`inline-flex items-center gap-1.5 px-4 py-1.5 text-white rounded-xl font-bold text-xs shadow-md transition-all ${receipt.isDraft ? 'bg-amber-700 hover:bg-amber-800' : 'bg-indigo-600 hover:bg-indigo-700'}`}
+            >
+              <Printer className="w-4 h-4" />
+              <span>In hóa đơn</span>
+            </button>
+          </div>
         </div>
 
         {/* Printable Receipt Paper Container */}
@@ -270,5 +292,13 @@ export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({ receipt, a
         </div>
       </div>
     </div>
+    <GoodsIssuePrintModal
+      isOpen={showGoodsIssueModal}
+      orderId={receipt.orderId}
+      tenantName={receipt.tenantName}
+      printedByName={receipt.cashierName}
+      onClose={() => setShowGoodsIssueModal(false)}
+    />
+    </>
   );
 };

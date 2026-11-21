@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
-import { Download, Printer, RefreshCw } from "lucide-react";
+import { Download, FileText, Printer, RefreshCw } from "lucide-react";
 import { Button, Modal } from "../ui";
+import { useAuth } from "../../context/AuthContext";
+import { apiAdapter } from "../../services/apiAdapter";
+import type { LedgerDocumentInput } from "../../utils/resolveLedgerDocument";
+import { DocumentPrintModal } from "../print/DocumentPrintModal";
 import {
   inventoryPeriodService,
+  type StockCardEntry,
   type StockCardFilter,
   type StockCardReport,
 } from "../../services/inventoryPeriodService";
@@ -14,10 +19,49 @@ interface StockCardModalProps {
 }
 
 export function StockCardModal({ filter, onClose, onOpenTrace }: StockCardModalProps) {
+  const { account } = useAuth();
   const [report, setReport] = useState<StockCardReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [resolvingDocId, setResolvingDocId] = useState<string | null>(null);
+  const [printDocInput, setPrintDocInput] = useState<LedgerDocumentInput | null>(null);
+  const [docResolveError, setDocResolveError] = useState<string | null>(null);
+
+  const handleOpenDocument = async (entry: StockCardEntry) => {
+    setDocResolveError(null);
+    if (entry.goodsIssueId) {
+      setPrintDocInput({
+        id: entry.id,
+        direction: entry.type === "IN" ? "IN" : "OUT",
+        documentType: "Order",
+        documentId: entry.referenceId,
+        documentNumber: entry.goodsIssueNumber || entry.documentNumber,
+        goodsIssueId: entry.goodsIssueId,
+        skuId: report?.skuId,
+      });
+      return;
+    }
+
+    if (!report) return;
+    setResolvingDocId(entry.id);
+    try {
+      const res = await apiAdapter.getLedger({
+        skuId: report.skuId,
+        branchId: report.branchId,
+      });
+      const matched = res.data?.find((l) => l.id === entry.id);
+      if (matched) {
+        setPrintDocInput(matched);
+      } else {
+        setDocResolveError("Không xác định được chứng từ nguồn cho dòng thẻ kho này.");
+      }
+    } catch {
+      setDocResolveError("Không thể tải thông tin chứng từ nguồn.");
+    } finally {
+      setResolvingDocId(null);
+    }
+  };
 
   useEffect(() => {
     let active = true;
@@ -224,6 +268,37 @@ export function StockCardModal({ filter, onClose, onOpenTrace }: StockCardModalP
                               {entry.goodsIssueNumber}
                             </div>
                           )}
+                          {(() => {
+                            const isUnknown =
+                              !entry.sourceType ||
+                              entry.sourceType === "Không xác định" ||
+                              (!entry.goodsIssueId && !entry.documentNumber && !entry.referenceId);
+                            return (
+                              <div className="no-print" style={{ marginTop: "4px" }}>
+                                <button
+                                  type="button"
+                                  disabled={isUnknown || resolvingDocId === entry.id}
+                                  title={isUnknown ? "Không xác định được chứng từ nguồn" : "Xem và in chứng từ nguồn"}
+                                  onClick={() => handleOpenDocument(entry)}
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: "4px",
+                                    fontSize: "11px",
+                                    padding: "2px 7px",
+                                    borderRadius: "4px",
+                                    border: "1px solid #cbd5e1",
+                                    background: isUnknown ? "#f1f5f9" : "#ffffff",
+                                    color: isUnknown ? "#94a3b8" : "#1e293b",
+                                    cursor: isUnknown ? "not-allowed" : "pointer",
+                                  }}
+                                >
+                                  <FileText size={11} />
+                                  <span>{resolvingDocId === entry.id ? "Đang tải..." : "Chứng từ"}</span>
+                                </button>
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td style={{ padding: "7px 10px" }}>{entry.sourceType}</td>
 
@@ -379,6 +454,29 @@ export function StockCardModal({ filter, onClose, onOpenTrace }: StockCardModalP
           }
         }
       `}</style>
+      {docResolveError && (
+        <div
+          className="no-print"
+          style={{
+            marginTop: "8px",
+            padding: "8px 12px",
+            background: "#fef2f2",
+            border: "1px solid #fecaca",
+            borderRadius: "6px",
+            color: "#b91c1c",
+            fontSize: "12px",
+          }}
+        >
+          {docResolveError}
+        </div>
+      )}
+      <DocumentPrintModal
+        isOpen={Boolean(printDocInput)}
+        entry={printDocInput}
+        tenantName={account?.tenantName}
+        printedByName={account?.name || account?.email}
+        onClose={() => setPrintDocInput(null)}
+      />
     </Modal>
   );
 }

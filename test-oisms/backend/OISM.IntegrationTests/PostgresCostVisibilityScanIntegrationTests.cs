@@ -117,6 +117,7 @@ public class PostgresCostVisibilityScanIntegrationTests : IAsyncLifetime, IClass
     private Guid _stockCountId;
     private Guid _purchaseOrderId;
     private Guid _goodsReceiptId;
+    private Guid _adjustmentId;
 
     public async Task InitializeAsync()
     {
@@ -360,6 +361,13 @@ public class PostgresCostVisibilityScanIntegrationTests : IAsyncLifetime, IClass
                     }
                 }
             });
+            await _client.PostAsJsonAsync($"/api/stock-counts/{_stockCountId}/submit", new SubmitStockCountRequestDto());
+            var confirmScRes = await _client.PostAsJsonAsync($"/api/stock-counts/{_stockCountId}/confirm", new ConfirmStockCountRequestDto { Note = "Duyệt kiểm kê test G5" });
+            if (confirmScRes.IsSuccessStatusCode)
+            {
+                var confirmedSc = await confirmScRes.Content.ReadFromJsonAsync<StockCountResponseDto>(_jsonOptions);
+                _adjustmentId = confirmedSc?.GeneratedAdjustmentId ?? Guid.Empty;
+            }
         }
     }
 
@@ -480,6 +488,7 @@ public class PostgresCostVisibilityScanIntegrationTests : IAsyncLifetime, IClass
             ["api/inventory/ledger"] = "/api/inventory/ledger",
             ["api/inventory-transactions"] = "/api/inventory-transactions",
             ["api/inventory/ledger/{id:guid}/trace"] = $"/api/inventory/ledger/{ledgerId}/trace",
+            ["api/inventory/adjustments/{id:guid}"] = $"/api/inventory/adjustments/{_adjustmentId}",
             ["api/orders"] = "/api/orders",
             ["api/orders/{id:guid}"] = $"/api/orders/{_orderId}",
             ["api/orders/{id:guid}/trace"] = $"/api/orders/{_orderId}/trace",
@@ -488,6 +497,7 @@ public class PostgresCostVisibilityScanIntegrationTests : IAsyncLifetime, IClass
             ["api/payment-accounts/active"] = "/api/payment-accounts/active",
             ["api/pos/search"] = $"/api/pos/search?query={_skuCode}&branchId={b}",
             ["api/pos/barcode/{barcode}"] = $"/api/pos/barcode/{Uri.EscapeDataString(barcode)}",
+            ["api/pos/orders/{orderId:guid}/goods-issues"] = $"/api/pos/orders/{_orderId}/goods-issues",
             ["api/price-lists"] = "/api/price-lists",
             ["api/price-change-requests"] = "/api/price-change-requests",
             ["api/price-change-requests/{id:guid}"] = $"/api/price-change-requests/{priceChangeRequestId}",

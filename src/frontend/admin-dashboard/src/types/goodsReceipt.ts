@@ -21,6 +21,7 @@ export interface GoodsReceiptItemResponse {
   productName: string;
   unitId?: string | null;
   unitName: string;
+  baseUnitName?: string;
   factorSnapshot: number;
   baseQuantity: number;
   quantity: number;

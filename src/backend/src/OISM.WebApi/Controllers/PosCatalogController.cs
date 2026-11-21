@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using OISM.Application.Features.Branches.Services;
+using OISM.Application.Features.GoodsIssues.Services;
 using OISM.Application.Features.Orders.Dtos;
 using OISM.Application.Features.Orders.Services;
 using OISM.Application.Features.Pos;
@@ -19,15 +20,18 @@ public class PosCatalogController : ControllerBase
     private readonly IPosCatalogService _posCatalogService;
     private readonly IPosCheckoutService _posCheckoutService;
     private readonly IBranchAccessService _branchAccessService;
+    private readonly IGoodsIssueService _goodsIssueService;
 
     public PosCatalogController(
         IPosCatalogService posCatalogService,
         IPosCheckoutService posCheckoutService,
-        IBranchAccessService branchAccessService)
+        IBranchAccessService branchAccessService,
+        IGoodsIssueService goodsIssueService)
     {
         _posCatalogService = posCatalogService;
         _posCheckoutService = posCheckoutService;
         _branchAccessService = branchAccessService;
+        _goodsIssueService = goodsIssueService;
     }
 
     /// <summary>
@@ -73,6 +77,30 @@ public class PosCatalogController : ControllerBase
             return NotFound(new { message = $"Không tìm thấy sản phẩm nào khớp với mã vạch '{barcode}'." });
         }
 
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Lấy danh sách phiếu xuất kho 02-VT của một đơn hàng cho màn hình POS (Upgrade 14 - Q2, Q3).
+    /// Cashier chỉ xem được phiếu xuất của đơn do chính mình tạo; giá vốn luôn bị che (null).
+    /// </summary>
+    [HttpGet("orders/{orderId:guid}/goods-issues")]
+    [Authorize(Roles = "Owner,Staff,Cashier")]
+    [ApiErrorContract(ApiErrorProfile.SalesInvoices)]
+    public async Task<IActionResult> GetOrderGoodsIssues(Guid orderId, CancellationToken ct)
+    {
+        if (orderId == Guid.Empty)
+        {
+            return ApiErrorResponse.Problem(
+                HttpContext,
+                ApiErrorProfile.SalesInvoices,
+                "VALIDATION_ERROR",
+                "Lỗi xác thực dữ liệu",
+                StatusCodes.Status400BadRequest,
+                "Mã đơn hàng không được để trống.");
+        }
+
+        var result = await _goodsIssueService.GetByOrderIdForPosAsync(orderId, ct);
         return Ok(result);
     }
 }

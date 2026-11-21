@@ -552,5 +552,39 @@ public class PostgresPurchaseOrderG6IntegrationTests : IAsyncLifetime, IClassFix
         var projectedWac = config50.ProjectedUnitWac;
         var expectedPrice = Math.Ceiling((projectedWac / (1m - 0.50m)) / 1000m) * 1000m;
         config50.ProjectedPrice.Should().Be(expectedPrice);
+
+        // 7. Sửa giá mua (PUT đơn, không gửi salePriceConfigs) không được làm mất cấu hình giá bán đã lưu
+        var keepCfgRes = await _client.PutAsJsonAsync($"/api/purchase-orders/{po.Id}", new UpdatePurchaseOrderDraftDto
+        {
+            BranchId = branchId,
+            SupplierId = supplierId,
+            Version = poMargin50.Version,
+            Items = new List<CreatePurchaseOrderItemDto>
+            {
+                new() { SkuId = skuId, Quantity = 10m, UnitPrice = 12000m, UnitId = caiId }
+            }
+        });
+        keepCfgRes.StatusCode.Should().Be(HttpStatusCode.OK, await keepCfgRes.Content.ReadAsStringAsync());
+        var poAfterPriceEdit = (await keepCfgRes.Content.ReadFromJsonAsync<PurchaseOrderResponseDto>(_jsonOptions))!;
+        poAfterPriceEdit.Items[0].UnitPrice.Should().Be(12000m);
+        var keptCfg = poAfterPriceEdit.Items[0].SalePriceConfigs!.First(c => c.PriceListId == retailListId);
+        keptCfg.Mode.Should().Be("WAC_MARGIN", "sửa giá mua không được xóa cấu hình giá bán");
+        keptCfg.MarginPercent.Should().Be(50m);
+        keptCfg.Id.Should().NotBe(Guid.Empty);
+
+        // 8. Gửi salePriceConfigs rỗng = Owner chủ động bỏ cấu hình (về Giữ giá cũ)
+        var clearCfgRes = await _client.PutAsJsonAsync($"/api/purchase-orders/{po.Id}", new UpdatePurchaseOrderDraftDto
+        {
+            BranchId = branchId,
+            SupplierId = supplierId,
+            Version = poAfterPriceEdit.Version,
+            Items = new List<CreatePurchaseOrderItemDto>
+            {
+                new() { SkuId = skuId, Quantity = 10m, UnitPrice = 12000m, UnitId = caiId, SalePriceConfigs = new List<PurchaseOrderSalePriceConfigInputDto>() }
+            }
+        });
+        clearCfgRes.StatusCode.Should().Be(HttpStatusCode.OK, await clearCfgRes.Content.ReadAsStringAsync());
+        var poCleared = (await clearCfgRes.Content.ReadFromJsonAsync<PurchaseOrderResponseDto>(_jsonOptions))!;
+        poCleared.Items[0].SalePriceConfigs!.First(c => c.PriceListId == retailListId).Mode.Should().Be("KEEP");
     }
 }

@@ -368,3 +368,91 @@ BÀN GIAO: một comment PR (`gh pr comment --body-file <file>`), mẫu:
 | # | Kịch bản | Kết quả | Ghi chú/bằng chứng |
 Lỗi tìm thấy: <danh sách, mỗi lỗi: bước tái hiện, kỳ vọng → thực tế, mức P1–P3>
 ```
+
+---
+
+## Đợt 3 (lập 21/11/2026) — G6: Quyền đơn nháp, thiết lập trước khi duyệt, % lãi
+
+Nguồn: feedback người dùng khi thử trên docker ngày 21/11/2026 (Owner gửi duyệt hộ đơn nháp của Staff; nút Duyệt bấm được khi thiếu NCC/giá, lỗi hiện khuất ở đầu hộp thoại; nhập lãi 100% ra giá như 0%).
+Dán kèm "Luật chung" ở đầu file (một phiên Anti duy nhất, mục "FILE CHUNG" vẫn áp dụng).
+
+```text
+Đọc skills/claude-to-antigravity/references/antigravity.md rồi làm task sau.
+
+TASK: OISMS-66-L2-G6 — Chỉ người tạo gửi duyệt, Owner phải thiết lập đơn mua trước khi duyệt, % lãi gộp | Mức: CRITICAL (RBAC + chuyển trạng thái) | Prompt 1/1
+BASELINE: branch feature/OISMS-66-ra-soat-tong-du-an-phat-trien-tinh-nang-con-thieu-lan-2, commit mới nhất khi bắt đầu (`git log -1 --format=%h`).
+
+HIỆN TRẠNG ĐÃ KIỂM (21/11/2026):
+- SubmitAsync/UpdateDraftAsync (PurchaseOrderService.cs) bỏ qua kiểm tra người tạo khi người gọi là Owner → Owner sửa và gửi duyệt hộ đơn nháp của Staff. Lệch Q11 (Staff gửi; Owner chỉ Duyệt/Trả về/Hủy).
+- PurchaseOrderDetailModal.tsx: Draft hiện nút Sửa/Gửi duyệt cho `isOwner || isCreator`; PendingApproval luôn hiện nút "Duyệt đơn mua" bấm được; handleApprove chặn thiếu NCC/giá nhưng setError hiện ở ĐẦU hộp thoại (người dùng đang ở cuối, tưởng không có gì xảy ra); thông báo nhắc nút "Cập nhật giá & NCC" trong khi nút thật là "Lưu / Sửa NCC & Giá"; giá 0đ dùng window.confirm, bán lỗ dùng modal bật ra SAU khi gọi API.
+- Backend ApproveAsync đã chặn thiếu NCC/giá (422), giá 0 và bán lỗ cần xác nhận, khớp version. Staff sửa đơn nháp thì backend xóa NCC và giá (UpdateDraftAsync gán null) → đơn Staff gửi lên luôn thiếu NCC/giá, nên KHÔNG cần thêm cột/migration để "bắt Owner thiết lập".
+- SalePriceConfigTable.tsx: % lãi = lãi gộp trên giá bán (Q16: giá = WAC ÷ (1 − %)). Nhập ≥ 100 thì FE lặng lẽ lấy giá = WAC (trông như 0%), backend trả 400 khi lưu. Backend đang cho % âm.
+
+MỤC TIÊU (đã chốt với người dùng):
+1. Đơn nháp (Draft) chỉ người tạo được sửa và gửi duyệt. Owner xem đơn nháp của người khác ở chế độ chỉ đọc, vẫn được Hủy (Q11).
+2. Owner phải đi qua "Thiết lập đơn mua" trước khi duyệt: checklist + trình hướng dẫn 3 bước, nút Duyệt chỉ ở bước cuối.
+3. % lãi: GIỮ công thức Q16 (lãi gộp trên giá bán), chặn 0 ≤ % < 100 ở cả FE và BE, có chế độ nhập "% cộng thêm trên giá vốn" để người dùng gõ 100% = bán gấp đôi (quy đổi sang lãi gộp trước khi lưu, KHÔNG đổi công thức, KHÔNG đổi DB).
+
+NGUỒN CẦN ĐỌC:
+- docs/Upgrade-recommended/Pedding/12-don-mua-va-cau-hinh-gia.md: Tóm tắt luồng A, B; Q3, Q4, Q5, Q11; mục 4 (Q15, Q16); mục 7 FE-12.1, FE-12.3
+- docs/04-architecture-and-design/04-state-machines.md (đơn mua), docs/01-users-and-rbac/02-rbac-matrix.md (đơn mua)
+- Code: Features/PurchaseOrders/Services/PurchaseOrderService.cs (CreateAsync, UpdateDraftAsync, SubmitAsync, ApproveAsync, MapToResponseDtoAsync, ValidateConfigDto),
+  Features/PurchaseOrders/Dtos/PurchaseOrderDtos.cs, Domain/Entities/PurchaseOrder.cs, WebApi/Controllers/PurchaseOrdersController.cs,
+  FE components/purchase/PurchaseOrderDetailModal.tsx, CreatePurchaseOrderModal.tsx (form "Cập nhật đơn mua"), SalePriceConfigTable.tsx, pages/PurchaseOrdersPage.tsx,
+  services/purchaseOrderService.ts, types/purchaseOrder.ts, components/ui (NumberField, Button)
+- Test mẫu: test-oisms/backend/OISM.IntegrationTests/PostgresPurchaseOrderU12IntegrationTests.cs, PostgresPurchaseOrderSalePriceIntegrationTests.cs, PurchaseOrderIntegrationTests.cs
+- Skill: skills/csharp-pro/SKILL.md, skills/postgresql/SKILL.md
+
+ĐƯỢC SỬA: các file code ở NGUỒN CẦN ĐỌC (BE PurchaseOrders + FE purchase), ApiErrorTitles.cs nếu thêm mã lỗi, test mới/sửa test đơn mua, docs liệt kê ở mục DOCS.
+KHÔNG ĐƯỢC SỬA: GoodsReceiptService, Pricing (trừ khi chỉ đọc), Inventory/Reports/Orders; KHÔNG thêm migration, KHÔNG đổi schema.
+
+ACCEPTANCE CRITERIA:
+A. Quyền đơn nháp
+- AC-01 (BE): SubmitAsync chỉ cho `po.CreatedBy == userId` (mọi vai trò). Người khác (kể cả Owner) → 403 mã `PURCHASE_ORDER_NOT_CREATOR`
+  (thêm vào ApiErrorTitles + catalog). UpdateDraftAsync với đơn Draft: chỉ người tạo sửa được, người khác → 403 cùng mã.
+  Owner vẫn sửa được đơn PendingApproval (Q4) và Hủy được Draft của bất kỳ ai (Q11). Đơn do Owner tạo, bị Trả về thành Draft thì Owner là người tạo → sửa/gửi bình thường.
+- AC-02 (FE): Draft của người khác: Owner thấy nhãn "Staff đang soạn — chỉ xem", KHÔNG có nút Sửa/Gửi duyệt, chỉ có Hủy và Đóng. Người tạo thấy Sửa/Gửi duyệt/Hủy như cũ.
+B. Thiết lập trước khi duyệt
+- AC-03 (BE): PurchaseOrderResponseDto thêm `approvalReadiness` (chỉ Owner, Staff = null):
+  { isReady, missing: ["ITEMS"|"SUPPLIER"|"UNIT_PRICE"|"ORDER_DATE"], hasZeroPrice, hasLossPrice }.
+  Tính bằng MỘT hàm dùng chung với ApproveAsync (tách hàm kiểm tra điều kiện duyệt; ApproveAsync gọi lại hàm này) để FE và BE không lệch luật.
+  Hành vi ApproveAsync giữ nguyên (422/409/xác nhận giá 0, bán lỗ, version).
+- AC-04 (FE): Đơn PendingApproval, vai trò Owner: đầu hộp thoại có checklist ✓/✗: NCC, giá mua đủ mọi dòng, ngày đặt hợp lệ, đã xem cấu hình giá bán.
+  Nút chính "Thiết lập đơn mua". Nút "Duyệt đơn mua" ở màn chi tiết bị khóa (disabled + dòng lý do ngay cạnh nút) cho tới khi `approvalReadiness.isReady`.
+- AC-05 (FE): "Thiết lập đơn mua" mở trình hướng dẫn 3 bước:
+  B1 NCC, ngày đặt, giá từng dòng (giá gợi ý + WAC), phí/chiết khấu/VAT → "Tiếp" = lưu (PUT, gửi version) rồi mới sang B2; lỗi hiện tại bước.
+  B2 cấu hình giá bán (SalePriceConfigTable) → "Tiếp" = lưu cấu hình; đánh dấu "đã xem cấu hình giá bán" (trạng thái FE trong phiên, không lưu DB).
+  B3 Xác nhận: tóm tắt tổng tiền hàng, phí, chiết khấu, VAT, giá vốn sau phân bổ từng dòng; nếu hasZeroPrice/hasLossPrice thì hiện ô tích xác nhận NGAY trên màn
+  (bỏ window.confirm và modal bật ra sau); nút "Duyệt đơn mua" chỉ bật khi đã tích đủ → gọi approve với confirmZeroPrice/confirmLossPrice/version.
+  Đóng giữa chừng không mất dữ liệu đã lưu ở bước trước. Bị 409 version → báo "Đơn vừa được sửa ở nơi khác, tải lại" và tải lại.
+- AC-06 (FE): Mọi thông báo lỗi của hộp thoại chi tiết hiện ngay trên thanh nút (hoặc cuộn tới chỗ lỗi); sửa tên nút trong thông báo cho khớp nút thật.
+C. % lãi gộp
+- AC-07 (BE): ValidateConfigDto: WAC_MARGIN bắt buộc 0 ≤ marginPercent < 100, ngoài khoảng → 400 thông điệp rõ "Lãi gộp tính trên giá bán, phải từ 0% đến dưới 100%".
+  (Muốn bán dưới giá vốn thì dùng "Giá mới" — cảnh báo bán lỗ vẫn như cũ.) Kiểm tra test G4 hiện có không dùng % âm; nếu có thì báo lại, không tự nới.
+- AC-08 (FE): Ô WAC + lãi có công tắc "Nhập theo: Lãi gộp trên giá bán | Cộng thêm trên giá vốn".
+  Chế độ cộng thêm: người dùng nhập k (k ≥ 0, cho phép > 100), FE quy đổi lãi gộp m = k ÷ (100 + k) × 100 (làm tròn 4 chữ số) để lưu; ví dụ 100% cộng thêm → 50% lãi gộp → giá = WAC × 2 (trước làm tròn lên 1.000đ).
+  Chế độ lãi gộp: chặn ≥ 100 và < 0 ngay trên ô (viền đỏ + dòng lỗi), KHÔNG tính giá, ô giá dự kiến hiện "—", nút lưu bị khóa.
+  Dưới ô luôn hiện dòng quy đổi: "Lãi gộp m% = cộng thêm k% trên giá vốn" (k = m ÷ (100 − m) × 100).
+  Giá dự kiến trên FE phải khớp giá BE tính (cùng công thức, làm tròn lên 1.000đ).
+
+INVARIANT: không đổi công thức giá Q16, không đổi DB/migration, không đổi luồng nhập kho/sinh giá của G4, tenant từ JWT, Staff vẫn không thấy giá (G5), version/khóa đơn mua giữ nguyên.
+
+DOCS PHẢI CẬP NHẬT: 12-don-mua-va-cau-hinh-gia.md (thêm Q27 quyền đơn nháp, Q28 thiết lập trước khi duyệt, Q29 % lãi + chế độ cộng thêm; sửa Tóm tắt luồng A, B);
+04-state-machines.md (Submit chỉ người tạo); 02-rbac-matrix.md (Owner xem Draft của người khác chỉ đọc); 05-api-contracts đơn mua (approvalReadiness, 403 PURCHASE_ORDER_NOT_CREATOR, khoảng margin);
+12-error-and-status-codes/02-error-codes-catalog.md; 11-ui-screens màn đơn mua (checklist + 3 bước); báo cáo mới docs/report-after-upgrade/thiet-lap-duyet-don-mua-u12-g6.md.
+
+GATE:
+- dotnet build src/backend/OISM.sln; UnitTests PASS.
+- Test mới PostgresPurchaseOrderG6IntegrationTests trên PostgreSQL thật:
+  (1) Owner gửi duyệt/sửa Draft của Staff → 403 PURCHASE_ORDER_NOT_CREATOR, đơn không đổi; Owner Hủy Draft của Staff → OK; Staff gửi đơn của mình → OK;
+  (2) đơn Owner tạo, Trả về, Owner sửa/gửi lại → OK;
+  (3) approvalReadiness: đơn Staff vừa gửi → isReady=false, missing có SUPPLIER, UNIT_PRICE; Owner lưu đủ → isReady=true; có giá 0 → hasZeroPrice; cấu hình lỗ → hasLossPrice; Staff nhận null;
+  (4) approve khi isReady=false → 422 (giữ hành vi cũ);
+  (5) margin -1, 100, 150 → 400; 0 và 99,99 → lưu được; 50 → giá = ceil(WAC ÷ 0,5 / 1000) × 1000.
+- **Chạy TOÀN BỘ IntegrationTests (khoảng 22 phút) trên DB PostgreSQL mới** — đợt 2 CI đỏ vì chỉ chạy filter. Có test cũ kỳ vọng Owner gửi hộ đơn nháp thì sửa theo Q11/AC-01 và ghi rõ trong báo cáo, không xóa test.
+- npm run build admin-dashboard.
+- Thử tay trên docker local (docker compose up -d --build, KHÔNG down -v): Staff tạo + gửi; Owner mở đơn nháp Staff thấy chỉ xem; Owner đi 3 bước và duyệt; nhập 100% ở chế độ cộng thêm ra giá gấp đôi WAC; nhập 100 ở chế độ lãi gộp bị chặn. Ghi kết quả vào báo cáo PR.
+
+GIỚI HẠN: không thêm dependency; chỉ commit/push theo mục "KHI LÀM XONG"; một lỗi tối đa 2 lần thử rồi BLOCKED; không nới assertion, không skip test.
+BÀN GIAO: làm theo mục "KHI LÀM XONG", rồi trả bàn giao trong chat theo skills/claude-to-antigravity/assets/handoff.md kèm link comment PR.
+```

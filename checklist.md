@@ -7,11 +7,11 @@ File này dùng để tra cứu yêu cầu OISMS theo mã, xem tiến độ tri�
 | Thông tin | Chi tiết |
 | --- | --- |
 | Mã tài liệu | `DOC-CHK-S2` |
-| Phiên bản | `v1.8.0` |
-| Ngày cập nhật | 14/11/2026 (Asia/Saigon) |
-| Mốc rà soát mã nguồn | 12/11/2026 trên nhánh `feature/OISMS-58-nghiem-thu-sprint-5` |
+| Phiên bản | `v1.9.0` |
+| Ngày cập nhật | 21/11/2026 (Asia/Saigon) |
+| Mốc rà soát mã nguồn | 21/11/2026 trên nhánh `feature/OISMS-66-ra-soat-tong-du-an-phat-trien-tinh-nang-con-thieu-lan-2` |
 | Phạm vi đề bài | 30 FR, 1 mục dự báo nhập hàng, 11 NFR, 5 gói công việc và 6 nhóm hồ sơ. [Bản đối chiếu đề bài](docs/00-overview/03-de-bai-cnpm-reference.md) |
-| Tiến độ tại mốc rà soát | 22/31 mục chức năng đã triển khai, 4/11 NFR đã đánh dấu đạt theo bằng chứng ghi ở từng mục. |
+| Tiến độ tại mốc rà soát | 29/31 mục ở phần 3 đã triển khai (28/30 FR + 1 mục dự báo; còn thiếu `FR-PROD-03` quét barcode kiểm kê, `FR-REP-01` lọc SKU và test E2E chuyển kho/kiểm kê), 6/11 NFR đã đánh dấu đạt theo bằng chứng ghi ở từng mục. |
 | Kết quả kiểm thử tại mốc rà soát | Backend unit 380/380, integration PostgreSQL chọn lọc 7/7, POS 10/10 file và simulator 1/1 file đều pass. Mốc integration toàn bộ 372/372 pass ngày 07/11/2026. [RTM và kết quả](docs/06-testing-and-qa/01-requirements-matrix-rtm.md) |
 
 - `[x]` Đã triển khai chức năng hoặc có bằng chứng đáp ứng tiêu chí ghi tại mục đó.
@@ -37,6 +37,7 @@ Hồ sơ theo sprint và các lỗi chi tiết có tại [báo cáo BE1 Sprint 3
 | `v1.7.1` | `2026-11-12` | Rà soát tài liệu | Cập nhật dấu tick theo phạm vi năm gói công việc trong đề bài. | `DOC-CHK-S2` |
 | `v1.7.2` | `2026-11-12` | Rà soát tài liệu | Liên kết kế hoạch Gói 5 và các tiêu chí còn mở của Gói 1–4. | `DOC-CHK-S2` |
 | `v1.8.0` | `2026-11-14` | Rà soát nghiệm thu | Đóng tiêu chí mở của Gói 1: `FR-AUTH-03` (che giá vốn với Cashier, ghi kho chỉ Owner), CS-02 (phân công chi nhánh, bảng `user_branches`), `NFR-MAINT-01` (test kiến trúc). | `OISMS-59-G1` |
+| `v1.9.0` | `2026-11-21` | Rà soát mã nguồn | Đồng bộ tiến độ mục 3 & 4 theo code hiện tại (`29/31` mục 3, `6/11` NFR) và đóng `FR-AUTH-02` (đã hỗ trợ đăng nhập Email hoặc SĐT theo Upgrade 10). | `OISMS-66` |
 
 ## 3. Yêu cầu chức năng (Functional Requirements)
 
@@ -48,9 +49,9 @@ Hồ sơ theo sprint và các lỗi chi tiết có tại [báo cáo BE1 Sprint 3
   - **Hiện trạng.** API tạo Tenant và tài khoản Owner trong một giao dịch. Owner tạo chi nhánh và kho qua luồng quản lý tổ chức.
   - **Dẫn chứng.** [AuthService](src/backend/src/OISM.Application/Features/Auth/Services/AuthService.cs#L74)
 
-- [ ] **`FR-AUTH-02` — Đăng nhập và đăng xuất.** Đăng nhập bằng email hoặc SĐT và mật khẩu, có đăng xuất. JWT mang định danh tenant, người dùng và vai trò.
-  - **Hiện trạng.** Đã có đăng nhập bằng email, JWT, làm mới token, đăng xuất và kiểm tra trạng thái Tenant/User. API và hai màn hình đăng nhập hiện nhận email. Còn thiếu đăng nhập bằng SĐT.
-  - **Dẫn chứng.** [AuthService](src/backend/src/OISM.Application/Features/Auth/Services/AuthService.cs#L144) · [Auth Admin](src/frontend/admin-dashboard/src/pages/AuthPage.tsx#L163) · [Auth POS](src/frontend/pos-app/src/pages/LoginPage.tsx#L21)
+- [x] **`FR-AUTH-02` — Đăng nhập và đăng xuất.** Đăng nhập bằng email hoặc SĐT và mật khẩu, có đăng xuất. JWT mang định danh tenant, người dùng và vai trò.
+  - **Hiện trạng.** Đã có đăng nhập bằng email hoặc SĐT (`FindUserByIdentifierAsync`), JWT, làm mới token xoay vòng, đăng xuất và kiểm tra trạng thái Tenant/User trên cả Admin và POS (hoàn tất từ Upgrade 10, 15/11/2026).
+  - **Dẫn chứng.** [AuthService](src/backend/src/OISM.Application/Features/Auth/Services/AuthService.cs#L154) · [AuthController](src/backend/src/OISM.WebApi/Controllers/AuthController.cs#L54) · [Auth Admin](src/frontend/admin-dashboard/src/pages/AuthPage.tsx#L163) · [PosAuthContext](src/frontend/pos-app/src/context/PosAuthContext.tsx#L8)
 
 - [x] **`FR-AUTH-03` — RBAC theo API và màn hình.** Phân quyền trên API và giao diện. Owner có toàn quyền, Staff quản lý kho và đơn, Cashier chỉ dùng POS.
   - **Hiện trạng.** Có ba vai trò và định tuyến POS riêng. Từ 14/11/2026 API số dư tồn trả `averageCost = null` cho Cashier; ghi kho chỉ Owner; xóa danh mục, thương hiệu, sản phẩm chỉ Owner (đã chốt). Cashier được phân công chi nhánh chỉ thấy và checkout tại chi nhánh đó.
@@ -314,6 +315,7 @@ Dấu tick ở mục này theo các đầu việc được liệt kê cho từng
 - [x] **Upgrade 01-A — Phiếu mua và nhập kho.** Có duyệt phiếu mua, gắn phiếu nhập, chặn nhập vượt và lấy giá từ phiếu mua. [Báo cáo](docs/report-after-upgrade/mua-hang-nhap-kho.md) · [Integration test](test-oisms/backend/OISM.IntegrationTests/PurchaseOrderIntegrationTests.cs)
 - [x] **Upgrade 01-B — Hóa đơn nhà cung cấp và chênh lệch.** Có hóa đơn NCC gắn phiếu nhập, đối chiếu ba bên, chênh lệch Owner duyệt; hóa đơn kèm hàng đã duyệt quyết định giá nhập, hóa đơn đến sau chỉ lưu bằng chứng. Không gồm công nợ, thanh toán NCC. Nghiệm thu 12/11/2026 trên PostgreSQL thật, chưa chạy trên bản demo AWS. [Đặc tả](docs/Upgrade-recommended/Done/01-mua-hang-nhap-kho-gia-von.md) · [Báo cáo](docs/report-after-upgrade/hoa-don-nha-cung-cap-u01b.md) **Thay bởi Upgrade 12 từ 19/11/2026:** đã gỡ API và màn hình hóa đơn NCC, bảng giữ chỉ đọc.
 - [x] **Upgrade 12 Gói 1 — Đơn mua `PendingApproval` và phân bổ phí.** Staff đề nghị mua không có giá, Owner chọn NCC, giá, phí, chiết khấu, VAT rồi duyệt (bắt buộc `version`); phí và chiết khấu phân bổ vào giá vốn theo VAS 02, VAT ngoài giá vốn; Staff không thấy giá trên đơn mua và phiếu nhập. Nghiệm thu 19/11/2026 trên PostgreSQL thật, chưa chạy trên bản demo AWS. [Báo cáo](docs/report-after-upgrade/don-mua-pending-approval-u12.md) · [Integration test](test-oisms/backend/OISM.IntegrationTests/PostgresPurchaseOrderU12IntegrationTests.cs)
+- [x] **Upgrade 14 — In chứng từ từ sổ kho, truy vết và POS.** Thu ngân in phiếu xuất kho 02-VT của đơn mình (giá vốn `null`); mỗi dòng Sổ kho và Thẻ kho có nút Chứng từ mở mẫu in theo nguồn; truy vết có Xem/In và In tất cả; Staff không thấy giá trên API in; seed chứng từ demo qua service thật. Nghiệm thu 21/11/2026 trên PostgreSQL thật và Docker local; chưa chụp bản in trên trình duyệt, chưa chạy trên bản demo AWS. [Nghiệm thu](docs/report-after-upgrade/nghiem-thu-in-chung-tu-u14.md) · [Integration test](test-oisms/backend/OISM.IntegrationTests/PostgresU14PrintDocumentApiIntegrationTests.cs)
 - [x] **Upgrade 02 — Truy vết xuất kho.** Có chứng từ nguồn cho dòng OUT, hóa đơn bán, màn xem và in lại. [Báo cáo](docs/report-after-upgrade/hoa-don-truy-vet-xuat-kho.md) · [Integration test](test-oisms/backend/OISM.IntegrationTests/SalesInvoiceTraceIntegrationTests.cs)
 - [x] **Upgrade 03 — Lịch kiểm kê và duyệt chênh lệch.** Có lịch giữa tháng, cuối tháng, kiểm kê đột xuất và duyệt chênh lệch. Hangfire sinh kỳ tự động khi bật. [Báo cáo](docs/report-after-upgrade/lich-kiem-ke-duyet-chenh-lech.md) · [Integration test](test-oisms/backend/OISM.IntegrationTests/StockCountU03IntegrationTests.cs)
 - [x] **Upgrade 04 — Bảng giá theo hiệu lực.** Có phiếu đổi giá, phê duyệt, lịch sử và snapshot giá vào dòng đơn. [Báo cáo](docs/report-after-upgrade/bang-gia-theo-thoi-gian.md) · [RTM bảng giá](docs/06-testing-and-qa/01-requirements-matrix-rtm.md#2-truy-vết-upgrade-04--bảng-giá-theo-thời-gian-oisms-47-u04)

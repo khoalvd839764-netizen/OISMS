@@ -67,6 +67,7 @@ public class GoodsReceiptItemResponseDto
     public string ProductName { get; set; } = string.Empty;
     public Guid? UnitId { get; set; }
     public string UnitName { get; set; } = string.Empty;
+    public string BaseUnitName { get; set; } = string.Empty;
     public decimal FactorSnapshot { get; set; }
     public decimal BaseQuantity { get; set; }
     public decimal Quantity { get; set; }

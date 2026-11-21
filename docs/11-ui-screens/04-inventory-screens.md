@@ -73,17 +73,19 @@ Màn hình **Quản lý Kho & Sổ cái** là trái tim vận hành kho vận c�
 * **Vai trò `Staff`:** Bấm `+ Đề nghị mua hàng` chỉ chọn Chi nhánh, SKU, Đơn vị mua và Số lượng (không có ô Nhà cung cấp, không có ô giá hay phí). Khi đơn ở `Draft`, **chỉ người tạo mới có nút Sửa đề nghị nháp và Gửi duyệt** (`Draft -> PendingApproval`) và **Hủy đơn**. Người dùng khác (kể cả Owner) xem đơn `Draft` ở chế độ chỉ đọc với nhãn *"Staff đang soạn — chỉ xem"*. Nếu đơn bị `Owner` trả về, hệ thống hiển thị rõ hộp cảnh báo **Lý do trả về từ Owner**. Staff không thấy thông tin cấu hình giá bán, giá dự kiến, margin trên đơn mua (`null`).
 * **Vai trò `Owner`:**
   * Xem đơn `Draft` do người khác tạo ở chế độ chỉ đọc, có nút **Hủy đơn** (Q11). Đơn do Owner tự tạo nếu bị trả về thì Owner là người tạo nên sửa và gửi duyệt bình thường.
-  * Với đơn `PendingApproval`: Đầu modal có **Checklist điều kiện duyệt (Owner Checklist)**: NCC (✓/✗), Đơn giá mua đủ mọi dòng (✓/✗), Ngày đặt hợp lệ (✓/✗), Đã xem cấu hình giá bán (✓/✗). Nút "Duyệt đơn mua" ở màn chi tiết bị khóa (disabled + hiển thị lý do bên cạnh) cho tới khi thỏa mãn `approvalReadiness.isReady`.
-  * Nút chính **"Thiết lập đơn mua"** mở Trình hướng dẫn 3 bước:
-    * **Bước 1 (NCC & Đơn giá mua):** Chọn Nhà cung cấp, Ngày đặt hàng (`orderDate <= hôm nay`), nhập đơn giá từng dòng (gợi ý giá gần nhất + WAC), Phí VC, Chiết khấu, Thuế VAT. Bấm "Tiếp" gọi PUT lưu đơn vào CSDL rồi mới sang Bước 2.
-    * **Bước 2 (Cấu hình giá bán):** Bảng cấu hình giá bán (`SalePriceConfigTable`) hỗ trợ công tắc **Nhập theo: Lãi gộp trên giá bán | Cộng thêm trên giá vốn**. Bấm "Tiếp" lưu cấu hình giá bán vào CSDL và đánh dấu đã xem.
-    * **Bước 3 (Xác nhận & Duyệt):** Tóm tắt tài chính và giá vốn sau phân bổ từng dòng. Nếu có mặt hàng giá 0đ hoặc bán lỗ thì hiển thị ô tích xác nhận trực tiếp trên giao diện; nút "Duyệt đơn mua" chỉ bật khi tích đủ.
+  * Với đơn `PendingApproval`: Đầu modal có **Checklist điều kiện duyệt (Owner Checklist)**: NCC (✓/✗), Đơn giá mua đủ mọi dòng (✓/✗), Ngày đặt hợp lệ (✓/✗), Đã xem cấu hình giá bán (✓/✗). Màn chi tiết **không có nút Duyệt**, bảng cấu hình giá bán chỉ để xem (ghi chú "Sửa ở Thiết lập đơn mua → bước Giá bán").
+  * Nút chính **"Thiết lập đơn mua"** mở Trình hướng dẫn 4 bước:
+    * **Bước 1 (Nhà cung cấp):** Chọn NCC hoặc bấm **`+ Thêm NCC`** để tạo NCC mới ngay trong bước (tự chọn NCC vừa tạo), chọn Ngày đặt hàng (`orderDate <= hôm nay`). Bấm "Tiếp tục: Nhập giá mua" (chưa lưu).
+    * **Bước 2 (Giá mua):** Nhập đơn giá từng dòng (gợi ý giá gần nhất + WAC), Phí VC, Chiết khấu, Thuế VAT, xem giá vốn dự kiến. Bấm "Lưu & tiếp tục: Giá bán" gọi PUT lưu đơn (giữ nguyên cấu hình giá bán đã có).
+    * **Bước 3 (Giá bán):** Bảng `SalePriceConfigTable` với công tắc **Nhập theo: Lãi gộp trên giá bán | Cộng thêm trên giá vốn**. Ô nhập sai (lãi gộp ≥ 100% hoặc < 0) thì khóa nút "Lưu & xem lại đơn mua".
+    * **Bước 4 (Xem lại & duyệt):** Tóm tắt NCC, ngày đặt, giá mua, giá vốn dự kiến từng dòng, tổng tiền và giá bán sẽ áp khi nhập kho. Có giá 0đ hoặc bán lỗ thì hiện ô tích xác nhận; nút "Duyệt đơn mua" chỉ bật khi tích đủ.
+    * Lưu ở bước giữa không đóng trình hướng dẫn; đóng trình hướng dẫn thì danh sách đơn mua mới được làm mới.
   * Mọi thông báo lỗi của modal chi tiết hiển thị trực tiếp ngay trên thanh nút hành động.
 * **Bảng cấu hình giá bán lẻ/sỉ (`SalePriceConfigTable` - `FE-12.3`, `U12-G6`):** Ở trạng thái `PendingApproval`, Owner cấu hình giá bán lẻ và giá bán sỉ cho từng đơn vị bán (`canSell`) của SKU trên từng dòng đơn mua:
   * Chế độ giá: Giữ giá cũ (`KEEP`), Lãi gộp trên WAC (`WAC_MARGIN`: $\text{Giá} = \text{WAC}_{\text{dự kiến}} \div (1 - \% \text{lãi})$, tự động làm tròn lên bội 1.000đ; bắt buộc $0 \le \text{margin} < 100\%$; hỗ trợ công tắc nhập cộng thêm trên giá vốn $m = k \div (100 + k) \times 100$), hoặc Giá cố định (`FIXED`, nguồn giá `OWNER` hoặc `SUPPLIER`).
   * Chế độ áp dụng: Khi nhập kho (`ON_RECEIPT`) hoặc Từ ngày chỉ định (`FROM_DATE`).
   * Cảnh báo bán lỗ: Tự động cảnh báo nhãn đỏ khi giá dự kiến nhỏ hơn WAC dự kiến.
-* **Xác nhận bán lỗ và giá 0đ khi duyệt (`FE-12.4`, `U12-G6`):** Xác nhận trực tiếp qua checkbox trên màn hình Bước 3 của Wizard trước khi duyệt đơn mua. Thiếu xác nhận sẽ không cho bấm Duyệt (ở tầng API trả `422 PURCHASE_ORDER_LOSS_PRICE_CONFIRM_REQUIRED` hoặc `PURCHASE_ORDER_ZERO_PRICE_CONFIRM_REQUIRED`).
+* **Xác nhận bán lỗ và giá 0đ khi duyệt (`FE-12.4`, `U12-G6`):** Xác nhận trực tiếp qua checkbox trên màn hình Bước 4 (Xem lại & duyệt) của Wizard trước khi duyệt đơn mua. Thiếu xác nhận sẽ không cho bấm Duyệt (ở tầng API trả `422 PURCHASE_ORDER_LOSS_PRICE_CONFIRM_REQUIRED` hoặc `PURCHASE_ORDER_ZERO_PRICE_CONFIRM_REQUIRED`).
 * **Tự động sinh giá khi nhập kho:** Khi xác nhận phiếu nhập kho đầu tiên của dòng, hệ thống tự động sinh phiếu đổi giá và áp dụng giá bán mới ngay trong transaction nhập kho.
 * **Gỡ giao diện Hóa đơn nhà cung cấp (`FE-12.2`):** Đã gỡ hoàn toàn các nút `Chênh lệch chờ duyệt`, `Lịch sử hóa đơn NCC` trên trang Kho cũng như `SupplierInvoicePanel` và `PurchaseOrderInvoices` trong chi tiết phiếu nhập / đơn mua.
 
@@ -137,3 +139,16 @@ Màn hình **Quản lý Kho & Sổ cái** là trái tim vận hành kho vận c�
 | `GET` | `/api/reports/stock-card` | `ReportsController.GetStockCardReport` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#3-báo-cáo-tồn-kho-theo-kỳ-nxt--thẻ-kho-s12s10-upgrade-13--oisms-66-g2) | `VALIDATION_ERROR`, `AUTH_FORBIDDEN` |
 
 Route đầy đủ (phiếu mua, lịch/kỳ kiểm kê, `record`, `submit`, `recount`, `request-recount`, `cancel`, ngưỡng đặt hàng lại) xem [DOC-API-03](../05-api-contracts/03-inventory-endpoints.md). Màn Chuyển kho ở `/inventory/transfers`, Kiểm kê ở `/inventory/counts`, Đơn mua ở `/purchase-orders`.
+
+---
+
+## 5. Nút "Chứng từ" ở Tab Sổ Kho và Thẻ Kho (`Upgrade 14`, `OISMS-66-U14-B`, 21/11/2026)
+
+| Thành phần | Chi tiết |
+| :--- | :--- |
+| **Source** | [`InventoryPage.tsx`](../../src/frontend/admin-dashboard/src/pages/InventoryPage.tsx), [`StockCardModal.tsx`](../../src/frontend/admin-dashboard/src/components/inventory/StockCardModal.tsx), [`DocumentPrintModal.tsx`](../../src/frontend/admin-dashboard/src/components/print/DocumentPrintModal.tsx), [`resolveLedgerDocument.ts`](../../src/frontend/admin-dashboard/src/utils/resolveLedgerDocument.ts) |
+| **Mẫu in (`components/print/`)** | `GoodsReceiptPrintPaper.tsx` (01-VT, có link đơn mua), `GoodsIssuePrintPaper.tsx` (02-VT), `LegacyOrderPrintPaper.tsx` (đơn/hóa đơn cũ thiếu phiếu 02-VT), `StockTransferOutPrintPaper.tsx`, `StockTransferInPrintPaper.tsx`, `StockCountPrintPaper.tsx` (05-VT, tô nổi SKU đang bấm), `SalesReturnPrintPaper.tsx`, `InventoryAdjustmentPrintPaper.tsx` |
+
+- **Tab Sổ kho & Thẻ kho:** Mỗi dòng có nút **Chứng từ** dùng chung bộ chọn `resolveLedgerDocument(entry)`. Dòng `Unknown` bị vô hiệu với tooltip *"Không xác định được chứng từ nguồn"*.
+- **Xem trước & In (`DocumentPrintModal`):** Cô lập vùng in qua `PrintArea`; xử lý trạng thái tải và lỗi 403/404; tự động ẩn cột giá nhập/giá vốn khi API trả `null` (`Staff`); chân trang hiển thị **Ngày in (`UTC+07:00`)** và **Người in** (`PrintDocumentFooter`).
+- **API bổ sung:** `GET /api/inventory/adjustments/{id}` qua [`inventoryAdjustmentService.ts`](../../src/frontend/admin-dashboard/src/services/inventoryAdjustmentService.ts).

@@ -113,3 +113,16 @@
 5. `docs/12-error-and-status-codes/02-error-codes-catalog.md` (FILE CHUNG): Bổ sung mã lỗi `PURCHASE_ORDER_NOT_CREATOR`.
 6. `docs/11-ui-screens/04-inventory-screens.md`: Cập nhật đặc tả giao diện màn hình Đơn mua hàng (checklist Owner, wizard 3 bước thiết lập, công tắc chế độ nhập lãi gộp/cộng thêm).
 7. `docs/report-after-upgrade/thiet-lap-duyet-don-mua-u12-g6.md`: Báo cáo chi tiết gói công việc G6.
+
+## Cải tiến và sửa sau nghiệm thu (21/11/2026)
+
+Theo góp ý người dùng khi thử trên docker: Owner thêm được NCC ngay trong thiết lập, đưa cấu hình giá bán vào luồng thiết lập, đi theo thứ tự chọn NCC → nhập giá → xem lại → duyệt.
+
+| # | Nội dung | Thay đổi |
+| --- | --- | --- |
+| 1 | Luồng thiết lập | Wizard từ 3 thành **4 bước**: Nhà cung cấp (có `+ Thêm NCC`) → Giá mua → Giá bán → Xem lại & duyệt. Màn chi tiết bỏ nút Duyệt và bảng giá bán chỉ để xem; duyệt chỉ ở bước cuối. Bước xem lại có bảng giá bán sẽ áp và giá vốn dự kiến từng dòng |
+| 2 | Lỗi: lưu một bước làm đóng cả wizard và hộp thoại chi tiết (trang cha đóng chi tiết khi làm mới) | Giữa các bước chỉ ghi nhận đã lưu; làm mới danh sách khi đóng wizard |
+| 3 | Lỗi: cờ hợp lệ của bảng giá bán bị đảo (`onValidationChange` trả "có lỗi" nhưng gán vào "hợp lệ") — cấu hình đúng thì khóa nút, cấu hình sai (lãi 100%) lại cho lưu | Đảo lại đúng nghĩa |
+| 4 | Lỗi dữ liệu: lưu lại giá mua (PUT đơn) **xóa mất cấu hình giá bán** đã lưu, vì backend xóa rồi tạo lại dòng hàng | Backend `UpdateDraftAsync`: request không gửi `salePriceConfigs` cho dòng thì giữ cấu hình cũ cùng SKU + đơn vị (gửi mảng rỗng = chủ động bỏ). Wizard gửi kèm cấu hình hiện có. Test `Gate05_...` bước 7–8 |
+| 5 | Ngày đặt mặc định lấy theo UTC (sau 0h–7h sáng giờ VN ra ngày hôm trước) | Lấy theo ngày giờ máy |
+

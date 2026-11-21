@@ -314,7 +314,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         clearPendingCheckout(activeUser, branchId);
         clearPosQrIntent(activeUser, branchId);
         setPendingAttempt(null);
-        onSuccessAndPrint(mapServerReceipt(result.receipt, tenantName || 'CỬA HÀNG OISMS'));
+        onSuccessAndPrint(mapServerReceipt(result.receipt, tenantName || 'CỬA HÀNG OISMS', result.orderId));
         onClose();
       } else if (result.errorCode !== 'BRANCH_NOT_ASSIGNED' && (result.isAuthExpired || result.isUnknown || isRetryActive)) {
         // Kết quả chưa rõ: giữ nguyên RequestKey và payload để thử lại, không sinh khóa mới.

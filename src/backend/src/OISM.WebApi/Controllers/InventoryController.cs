@@ -166,4 +166,27 @@ public class InventoryController : ControllerBase
         var trace = await _salesInvoiceService.TraceByLedgerIdAsync(id, ct);
         return Ok(trace);
     }
+
+    /// <summary>
+    /// Xem chi tiết một phiếu điều chỉnh cân bằng kho theo ID (Upgrade 14 - Q9).
+    /// </summary>
+    [HttpGet("adjustments/{id:guid}")]
+    [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.InventoryTrace)]
+    public async Task<IActionResult> GetAdjustmentById(Guid id, CancellationToken ct)
+    {
+        if (id == Guid.Empty)
+        {
+            return ApiErrorResponse.Problem(
+                HttpContext,
+                ApiErrorProfile.InventoryTrace,
+                "VALIDATION_ERROR",
+                "Lỗi xác thực dữ liệu",
+                StatusCodes.Status400BadRequest,
+                "Mã phiếu điều chỉnh không được để trống.");
+        }
+
+        var result = await _inventoryService.GetAdjustmentByIdAsync(id, ct);
+        return Ok(result);
+    }
 }

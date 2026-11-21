@@ -16,6 +16,7 @@ public interface IInventoryService
     Task<InventoryBalanceDto?> GetSkuBalanceAtBranchAsync(Guid branchId, Guid skuId, bool canViewCost, CancellationToken ct = default);
     Task<InventoryBalanceDto> UpdateReorderPointAsync(UpdateReorderPointDto request, CancellationToken ct = default);
     Task<int> BulkUpdateReorderPointAsync(BulkUpdateReorderPointDto request, CancellationToken ct = default);
+    Task<InventoryAdjustmentDto> GetAdjustmentByIdAsync(Guid id, CancellationToken ct = default);
 }
 
 public class InventoryService : IInventoryService
@@ -430,6 +431,16 @@ public class InventoryService : IInventoryService
             foreach (var item in counts) sources[item.Id] = ("StockCount", item.StockCountId, item.Number);
         }
 
+        // Upgrade 14: dòng IN trả hàng cần DocumentId của phiếu trả để mở mẫu in.
+        var returnItemIds = transactions.Where(t => t.SalesReturnItemId.HasValue).Select(t => t.SalesReturnItemId!.Value).ToArray();
+        if (returnItemIds.Length > 0)
+        {
+            var returns = await _context.SalesReturnItems.AsNoTracking()
+                .Where(i => returnItemIds.Contains(i.Id))
+                .Select(i => new { i.Id, i.SalesReturnId, i.SalesReturn!.Number }).ToListAsync(ct);
+            foreach (var item in returns) sources[item.Id] = ("SalesReturn", item.SalesReturnId, item.Number);
+        }
+
         var orderIds = transactions.Where(t => t.OrderItem != null).Select(t => t.OrderItem!.OrderId).Distinct().ToArray();
         var invoicesByOrderId = new Dictionary<Guid, (Guid Id, string Number)>();
         if (orderIds.Length > 0)
@@ -468,7 +479,7 @@ public class InventoryService : IInventoryService
 
         var items = transactions.Select(t =>
         {
-            var sourceKey = t.TransferItemId ?? t.AdjustmentItemId ?? t.StockCountItemId ?? Guid.Empty;
+            var sourceKey = t.TransferItemId ?? t.AdjustmentItemId ?? t.StockCountItemId ?? t.SalesReturnItemId ?? Guid.Empty;
             var hasSource = sources.TryGetValue(sourceKey, out var source);
             var orderId = t.OrderItem?.OrderId;
             Guid? salesInvoiceId = null;
@@ -520,6 +531,96 @@ public class InventoryService : IInventoryService
             PageIndex = pageIndex,
             PageSize = pageSize,
             TotalCount = totalCount
+        };
+    }
+
+    public async Task<InventoryAdjustmentDto> GetAdjustmentByIdAsync(Guid id, CancellationToken ct = default)
+    {
+        var tenantId = RequireTenantId();
+        var canViewCost = _costVisibilityService.CanViewCost;
+
+        var adjustment = await _context.InventoryAdjustments
+            .AsNoTracking()
+            .Include(a => a.Branch)
+            .Include(a => a.Warehouse)
+            .Include(a => a.CreatedByUser)
+            .Include(a => a.ConfirmedByUser)
+            .Include(a => a.Items)
+                .ThenInclude(i => i.Sku)
+                    .ThenInclude(s => s!.Product)
+            .Include(a => a.Items)
+                .ThenInclude(i => i.Sku)
+                    .ThenInclude(s => s!.BaseUnit)
+            .FirstOrDefaultAsync(a => a.TenantId == tenantId && a.Id == id, ct);
+
+        if (adjustment == null)
+        {
+            throw new OismException("ADJUSTMENT_NOT_FOUND", $"Không tìm thấy phiếu điều chỉnh kho với mã '{id}'.", 404);
+        }
+
+        var stockCount = await _context.StockCounts
+            .AsNoTracking()
+            .Where(c => c.TenantId == tenantId && c.GeneratedAdjustmentId == id)
+            .Select(c => new { c.Id, c.Number })
+            .FirstOrDefaultAsync(ct);
+
+        var itemList = adjustment.Items
+            .OrderBy(i => i.Sku?.SKU ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(i => i.Id)
+            .Select(i =>
+            {
+                var absQty = Math.Abs(i.QuantityDelta);
+                var itemTotalCost = i.UnitCost.HasValue
+                    ? Math.Round(absQty * i.UnitCost.Value, 6, MidpointRounding.AwayFromZero)
+                    : (decimal?)null;
+
+                return new InventoryAdjustmentItemDto
+                {
+                    Id = i.Id,
+                    AdjustmentId = i.AdjustmentId,
+                    SkuId = i.SkuId,
+                    SkuCode = i.Sku?.SKU ?? string.Empty,
+                    SkuName = i.Sku?.Product?.Name ?? string.Empty,
+                    BaseUnitName = i.Sku?.BaseUnit?.Name ?? i.Sku?.Unit ?? string.Empty,
+                    QuantityDelta = i.QuantityDelta,
+                    Direction = i.QuantityDelta >= 0 ? "IN" : "OUT",
+                    UnitCost = canViewCost ? i.UnitCost : null,
+                    TotalCost = canViewCost ? itemTotalCost : null,
+                    OriginalTransactionId = i.OriginalTransactionId
+                };
+            })
+            .ToList();
+
+        var hasIn = itemList.Any(i => i.QuantityDelta > 0);
+        var hasOut = itemList.Any(i => i.QuantityDelta < 0);
+        var direction = (hasIn && hasOut) ? "MIXED" : (hasOut ? "OUT" : "IN");
+
+        var rawTotalCost = adjustment.Items
+            .Sum(i => Math.Abs(i.QuantityDelta) * (i.UnitCost ?? 0m));
+
+        return new InventoryAdjustmentDto
+        {
+            Id = adjustment.Id,
+            Number = adjustment.Number,
+            BranchId = adjustment.BranchId,
+            BranchName = adjustment.Branch?.Name ?? string.Empty,
+            WarehouseId = adjustment.WarehouseId,
+            WarehouseName = adjustment.Warehouse?.Name ?? string.Empty,
+            Reason = adjustment.Reason,
+            Status = adjustment.Status,
+            Direction = direction,
+            StockCountId = stockCount?.Id,
+            StockCountNumber = stockCount?.Number,
+            CreatedBy = adjustment.CreatedBy,
+            CreatedByName = adjustment.CreatedByUser?.DisplayName,
+            ConfirmedBy = adjustment.ConfirmedBy,
+            ConfirmedByName = adjustment.ConfirmedByUser?.DisplayName,
+            ConfirmedAt = adjustment.ConfirmedAt,
+            CreatedAt = adjustment.CreatedAt,
+            UpdatedAt = adjustment.UpdatedAt,
+            TotalQuantityDelta = itemList.Sum(i => i.QuantityDelta),
+            TotalCost = canViewCost ? Math.Round(rawTotalCost, 6, MidpointRounding.AwayFromZero) : null,
+            Items = itemList
         };
     }
 }

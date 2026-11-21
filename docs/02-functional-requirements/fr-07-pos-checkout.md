@@ -17,6 +17,7 @@
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả chi tiết giao diện bán hàng PWA POS, kiểm soát tồn khả dụng tại quầy, in hóa đơn nhiệt và luồng Fast Checkout nguyên tử. | `INIT-FR-07` |
 | `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Ghi chú cách hiện thực FR-POS-04: một transaction trừ tồn trực tiếp, không tạo bản ghi giữ chỗ. | `OISMS-46` |
 | `v1.2.0` | `2026-11-19` | Nhóm dự án OISMS | Lập Phiếu xuất kho 02-VT (`goods_issues`, `goods_issue_items`) trong cùng transaction POS checkout và hỗ trợ Bảng kê xuất bán POS theo ngày (`UTC+07:00`). | `OISMS-66-L2-G3` |
+| `v1.3.0` | `2026-11-21` | Nhóm dự án OISMS | Cho phép thu ngân bấm nút **In phiếu xuất kho** (khổ A4/A5 mẫu 02-VT, không có cột giá vốn, mỗi kho một trang) ngay tại màn hình sau checkout thành công qua `GET /api/pos/orders/{orderId}/goods-issues`. | `OISMS-66-U14-C` |
 
 ---
 
@@ -34,3 +35,5 @@
 > **Hiện thực FR-POS-03 (15/11/2026, `OISMS-59-G4`):** Khi checkout thành công, `PosPage` mở `ReceiptPrintModal` với `autoPrint = true`; component tự gọi `window.print()` đúng 1 lần sau khi render (`requestAnimationFrame` + ref chặn gọi lặp), không có công tắc tắt. Phiếu tạm tính (`isDraft = true`), checkout lỗi hoặc trạng thái chưa rõ (`unknown` trong `PaymentModal`) không tự in (`shouldAutoPrint`). Nút In lại trên modal vẫn giữ nguyên làm đường dự phòng.
 
 > **Bảng kê xuất bán POS theo ngày (`Upgrade 13`, `OISMS-66-L2-G3`):** Tại quầy POS chỉ tự động in hóa đơn bán lẻ nhiệt cho khách, không bắt thu ngân ký từng tờ phiếu xuất kho 02-VT lẻ. Chứng từ `goods_issues` của đơn POS vẫn được lưu tự động trong DB cho mỗi lần checkout; cuối ngày thủ kho/chủ cửa hàng xem và in **Bảng kê xuất bán POS theo ngày** (`GET /api/goods-issues/pos-daily-summary?date=YYYY-MM-DD&branchId=...`, tính theo múi giờ `UTC+07:00`) gồm bảng tổng hợp số lượng + giá trị xuất vốn theo SKU và danh sách các phiếu xuất/hóa đơn POS trong ngày (với `Staff`, các cột đơn giá vốn và thành tiền vốn được ẩn `null`).
+
+> **Thu ngân in phiếu xuất kho 02-VT sau checkout (`Upgrade 14`, `OISMS-66-U14-C`):** Trên `ReceiptPrintModal`, khi checkout thành công (`!isDraft` và có `orderId`), hiển thị nút **In phiếu xuất kho** cạnh **In hóa đơn** (không hiện ở phiếu tạm tính, lỗi hoặc trạng thái chưa rõ; giữ nguyên hành vi tự in biên nhận 1 lần qua `shouldAutoPrint`). Khi bấm, `GoodsIssuePrintModal` gọi `GET /api/pos/orders/{orderId}/goods-issues`, hiển thị mẫu **02-VT** khổ **A4/A5**, không có cột giá vốn; nếu đơn xuất từ nhiều kho thì tách mỗi kho một trang (`pos-gi-page-break`) để in một lần. Khi gặp `404`, hiển thị *"Không tìm thấy phiếu xuất kho của đơn này"*; khi lỗi mạng, cho phép bấm **Thử lại** mà không gọi lại checkout.

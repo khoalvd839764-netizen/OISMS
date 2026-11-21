@@ -35,6 +35,8 @@ import { goodsReceiptService } from "../services/goodsReceiptService";
 import type { GoodsReceiptResponse } from "../types/goodsReceipt";
 import { GoodsReceiptDetailView } from "../components/GoodsReceiptDetailView";
 import { InventoryPeriodTab } from "../components/inventory/InventoryPeriodTab";
+import { DocumentPrintModal } from "../components/print/DocumentPrintModal";
+import { resolveLedgerDocument } from "../utils/resolveLedgerDocument";
 
 function readReceiptError(error: any, fallback: string): string {
   return (
@@ -189,6 +191,7 @@ export function InventoryPage() {
   const [warehouseBalances, setWarehouseBalances] = useState<Sku[]>([]);
   const [availableSkus, setAvailableSkus] = useState<Sku[]>([]);
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
+  const [printLedgerEntry, setPrintLedgerEntry] = useState<LedgerEntry | null>(null);
   const [suppliers, setSuppliers] = useState<Array<{ id: string; name: string }>>([]);
   const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([]);
   const [warehouses, setWarehouses] = useState<Array<{ id: string; name: string; branchId: string }>>([]);
@@ -1744,13 +1747,14 @@ export function InventoryPage() {
                     <th>Số lượng (theo đơn vị gốc)</th>
                     <th>Số dư sau (theo đơn vị gốc)</th>
                     <th>Mã chứng từ</th>
+                    <th>Chứng từ</th>
                   </tr>
                 </thead>
                 <tbody>
                   {/* [F4] Tách biệt trạng thái tải, trạng thái lỗi sổ kho và trạng thái rỗng */}
                   {loadingLedger || (loading && ledger.length === 0) ? (
                     <tr>
-                      <td colSpan={8} style={{ textAlign: "center", padding: "32px 0", color: "#64748b" }}>
+                      <td colSpan={9} style={{ textAlign: "center", padding: "32px 0", color: "#64748b" }}>
                         <div
                           style={{
                             display: "inline-block",
@@ -1769,7 +1773,7 @@ export function InventoryPage() {
                     </tr>
                   ) : ledgerError ? (
                     <tr>
-                      <td colSpan={8} style={{ textAlign: "center", padding: "32px 0" }}>
+                      <td colSpan={9} style={{ textAlign: "center", padding: "32px 0" }}>
                         <div
                           style={{
                             display: "inline-flex",
@@ -1797,7 +1801,7 @@ export function InventoryPage() {
                     </tr>
                   ) : pagedLedger.length === 0 ? (
                     <tr>
-                      <td colSpan={8} style={{ textAlign: "center", padding: "36px 0", color: "#64748b" }}>
+                      <td colSpan={9} style={{ textAlign: "center", padding: "36px 0", color: "#64748b" }}>
                         Chưa có bút toán sổ kho nào. Các thao tác Nhập kho hoặc Xuất bán đơn hàng sẽ tự động ghi sổ tại đây.
                       </td>
                     </tr>
@@ -1832,6 +1836,21 @@ export function InventoryPage() {
                           >
                             {item.reference}
                           </Button>
+                        </td>
+                        <td>
+                          {(() => {
+                            const resolved = resolveLedgerDocument(item);
+                            return (
+                              <Button
+                                variant="secondary"
+                                disabled={!resolved.supported}
+                                title={resolved.disabledReason || "Xem và in chứng từ gốc"}
+                                onClick={() => setPrintLedgerEntry(item)}
+                              >
+                                Chứng từ
+                              </Button>
+                            );
+                          })()}
                         </td>
                       </tr>
                     ))
@@ -3043,6 +3062,19 @@ export function InventoryPage() {
         onClose={() => setShowSalesReturnModal(false)}
         onSuccess={() => {
           loadData();
+        }}
+      />
+
+      {/* MODAL XEM & IN CHỨNG TỪ SỔ KHO (Upgrade 14) */}
+      <DocumentPrintModal
+        isOpen={Boolean(printLedgerEntry)}
+        entry={printLedgerEntry}
+        tenantName={account?.tenantName}
+        printedByName={account?.name || account?.email}
+        onClose={() => setPrintLedgerEntry(null)}
+        onOpenPurchaseOrder={(poId) => {
+          setPrintLedgerEntry(null);
+          navigate(`/purchase-orders?openId=${poId}`);
         }}
       />
     </>

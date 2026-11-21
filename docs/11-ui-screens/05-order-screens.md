@@ -288,3 +288,18 @@ Giá vốn trong truy vết do backend lọc theo vai trò; trang không tự �
   - Hiển thị và in bảng tổng hợp số lượng gốc + giá trị xuất vốn theo SKU và danh sách các phiếu xuất kho / hóa đơn POS trong ngày kèm khung chữ ký (*Người lập bảng kê*, *Thủ kho*, *Chủ cửa hàng*).
 - **Che giá vốn với `Staff`:**
   - Khi đăng nhập bằng `Staff`, API trả `unitCost = null` và `totalCost = null`; cả `GoodsIssuePrintModal` và `PosDailyGoodsIssueSummaryModal` tự động ẩn cột **Đơn giá vốn** và **Thành tiền vốn** trên màn hình xem trước lẫn bản in.
+
+---
+
+## 10. Xem/In Từng Bước và In Gộp Bộ Chứng Từ Ở Truy Vết (`Upgrade 14`, `OISMS-66-U14-B`, 21/11/2026)
+
+| Thông tin | Chi tiết |
+| :--- | :--- |
+| **Source** | [`SalesInvoiceTraceModal.tsx`](../../src/frontend/admin-dashboard/src/components/salesInvoices/SalesInvoiceTraceModal.tsx), [`DocumentPrintModal.tsx`](../../src/frontend/admin-dashboard/src/components/print/DocumentPrintModal.tsx), [`PrintArea.tsx`](../../src/frontend/admin-dashboard/src/components/print/PrintArea.tsx) |
+
+- **Nút Xem/In theo từng bước:**
+  - Bước 1 (Hóa đơn bán lẻ): mở `SalesInvoiceReprintModal`.
+  - Bước 2 (Đơn hàng nguồn): mở `DocumentPrintModal` (phiếu giao hàng nếu là đơn online).
+  - Bước 3 (Phiếu xuất 02-VT theo từng kho): hiển thị nút **02-VT (<Tên kho>)** cho từng phiếu xuất của đơn hàng.
+  - Bước 4 (Phiếu nhập kho hàng trả lại): hiển thị nút **Xem/In** trên từng phiếu trả hàng.
+- **Nút "In tất cả":** Tải đồng bộ hóa đơn, phiếu giao hàng (nếu đơn online), các phiếu xuất 02-VT theo kho và các phiếu trả hàng, hiển thị trong một modal xem trước dùng `PrintArea` với ngắt trang CSS (`.doc-print-page-break`) giữa mỗi chứng từ.

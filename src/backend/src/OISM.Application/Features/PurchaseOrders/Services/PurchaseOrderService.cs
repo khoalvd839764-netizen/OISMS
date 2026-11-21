@@ -323,6 +323,7 @@ public class PurchaseOrderService : IPurchaseOrderService
 
             var po = await _context.PurchaseOrders
                 .Include(p => p.Items)
+                    .ThenInclude(i => i.SalePriceConfigs)
                 .FirstOrDefaultAsync(p => p.Id == id, ct);
 
             if (po == null)
@@ -422,6 +423,14 @@ public class PurchaseOrderService : IPurchaseOrderService
             po.Version++;
             po.UpdatedAt = now;
 
+            // Giữ cấu hình giá bán của dòng cũ (theo SKU + đơn vị) cho dòng mới khi request không gửi cấu hình của dòng đó
+            // (sửa giá mua ở PendingApproval không được làm mất cấu hình giá bán Owner đã lưu).
+            var previousConfigsByLine = po.Items
+                .GroupBy(i => (i.SkuId, i.UnitId))
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.SelectMany(i => i.SalePriceConfigs).Where(c => c.AppliedAt == null).ToList());
+
             // Xóa toàn bộ dòng cũ và chụp lại dòng mới
             foreach (var oldItem in po.Items.ToList())
             {
@@ -489,6 +498,31 @@ public class PurchaseOrderService : IPurchaseOrderService
                             PriceSource = configDto.Mode == "FIXED" ? configDto.PriceSource : null,
                             ApplyMode = configDto.ApplyMode,
                             ApplyFrom = configDto.ApplyMode == "FROM_DATE" ? configDto.ApplyFrom : null,
+                            AppliedAt = null,
+                            PriceChangeRequestId = null,
+                            CreatedAt = now
+                        });
+                    }
+                }
+
+                else if (isOwner && itemDto.SalePriceConfigs == null
+                         && previousConfigsByLine.TryGetValue((newItem.SkuId, newItem.UnitId), out var previousConfigs))
+                {
+                    foreach (var prev in previousConfigs)
+                    {
+                        newItem.SalePriceConfigs.Add(new PurchaseOrderSalePriceConfig
+                        {
+                            Id = Guid.NewGuid(),
+                            TenantId = tenantId,
+                            PurchaseOrderItemId = newItem.Id,
+                            UnitId = prev.UnitId,
+                            PriceListId = prev.PriceListId,
+                            Mode = prev.Mode,
+                            MarginPercent = prev.MarginPercent,
+                            FixedPrice = prev.FixedPrice,
+                            PriceSource = prev.PriceSource,
+                            ApplyMode = prev.ApplyMode,
+                            ApplyFrom = prev.ApplyFrom,
                             AppliedAt = null,
                             PriceChangeRequestId = null,
                             CreatedAt = now

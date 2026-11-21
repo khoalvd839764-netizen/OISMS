@@ -16,15 +16,18 @@ public class GoodsIssueService : IGoodsIssueService
     private readonly IAppDbContext _context;
     private readonly ICurrentTenantService _tenantService;
     private readonly ICostVisibilityService _costVisibilityService;
+    private readonly ICurrentUserService? _currentUserService;
 
     public GoodsIssueService(
         IAppDbContext context,
         ICurrentTenantService tenantService,
-        ICostVisibilityService? costVisibilityService = null)
+        ICostVisibilityService? costVisibilityService = null,
+        ICurrentUserService? currentUserService = null)
     {
         _context = context;
         _tenantService = tenantService;
         _costVisibilityService = costVisibilityService ?? AllowAllCostVisibilityService.Instance;
+        _currentUserService = currentUserService;
     }
 
     private Guid RequireTenantId()
@@ -152,6 +155,44 @@ public class GoodsIssueService : IGoodsIssueService
         if (!orderExists)
         {
             throw new OismException("ORDER_NOT_FOUND", $"Không tìm thấy đơn hàng với mã '{orderId}'.", 404);
+        }
+
+        var entities = await _context.GoodsIssues
+            .AsNoTracking()
+            .Include(g => g.Items)
+                .ThenInclude(i => i.Sku)
+                    .ThenInclude(s => s!.BaseUnit)
+            .Where(g => g.TenantId == tenantId && g.OrderId == orderId)
+            .OrderBy(g => g.WarehouseId)
+            .ToListAsync(ct);
+
+        return entities.Select(g => MapToDto(g, effectiveCanViewCost)).ToList();
+    }
+
+    public async Task<List<GoodsIssueDto>> GetByOrderIdForPosAsync(Guid orderId, CancellationToken ct = default)
+    {
+        var tenantId = RequireTenantId();
+        var effectiveCanViewCost = _costVisibilityService.CanViewCost;
+
+        var order = await _context.Orders
+            .AsNoTracking()
+            .FirstOrDefaultAsync(o => o.TenantId == tenantId && o.Id == orderId, ct);
+
+        if (order == null)
+        {
+            throw new OismException("GOODS_ISSUE_NOT_FOUND", $"Không tìm thấy phiếu xuất kho cho đơn hàng '{orderId}'.", 404);
+        }
+
+        // Thiếu danh tính người dùng thì coi như không có quyền rộng (fail-closed).
+        var isPrivileged = _currentUserService != null &&
+            (_currentUserService.IsInRole("Owner") || _currentUserService.IsInRole("Staff"));
+        if (!isPrivileged)
+        {
+            var currentUserId = _currentUserService?.UserId;
+            if (!currentUserId.HasValue || order.CreatedBy != currentUserId.Value)
+            {
+                throw new OismException("GOODS_ISSUE_NOT_FOUND", $"Không tìm thấy phiếu xuất kho cho đơn hàng '{orderId}'.", 404);
+            }
         }
 
         var entities = await _context.GoodsIssues
