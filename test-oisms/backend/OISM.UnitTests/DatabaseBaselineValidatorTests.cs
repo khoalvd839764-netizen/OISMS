@@ -154,9 +154,10 @@ public class DatabaseBaselineValidatorTests
             "purchase_variances",
             "user_branches",
             "goods_issues",
-            "goods_issue_items"
+            "goods_issue_items",
+            "purchase_order_sale_price_configs"
         ]);
-        DatabaseMigrationService.RequiredTables.Length.Should().Be(50);
+        DatabaseMigrationService.RequiredTables.Length.Should().Be(51);
     }
 
     [Fact]

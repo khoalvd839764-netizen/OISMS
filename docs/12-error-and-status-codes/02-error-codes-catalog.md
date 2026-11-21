@@ -78,6 +78,7 @@ Tài liệu này là **từ điển tra cứu danh mục mã lỗi toàn hệ th
 | `PRICE_VALID_FROM_CONFLICT` | `409` | Trùng mốc thời gian hiệu lực | *Đã tồn tại giá có hiệu lực cùng mốc thời gian cho mặt hàng và đơn vị này.* | Vi phạm chỉ mục duy nhất một phần `ux_sku_unit_prices_active_key` khi có 2 giá cùng mốc `valid_from`. | Điều chỉnh lại thời điểm hiệu lực của phiếu đổi giá. |
 | `PRICE_ALREADY_EFFECTIVE` | `409` | Giá đã có hiệu lực | *Không thể hủy giá đã đến thời điểm hoặc đang có hiệu lực.* | Cố gắng hủy một dòng giá trong `sku_unit_prices` mà mốc `valid_from <= now()`. | Tạo phiếu đổi giá mới để cập nhật lại giá thay vì hủy dòng giá cũ. |
 | `PRICE_LIST_NOT_FOUND` | `404` | Bảng giá không tồn tại | *Không tìm thấy bảng giá được chỉ định trong cửa hàng.* | Mã bảng giá (`price_list_code`) không tồn tại trong Tenant (chỉ hỗ trợ `retail` và `wholesale`). | Chọn bảng giá hợp lệ có trong hệ thống. |
+| `PRICE_CHANGE_PO_CONFLICT` | `409` | Xung đột giá chờ từ đơn mua | *SKU đang có đơn mua đã duyệt chờ nhập kho với cấu hình giá bán tự động (Q19).* | Tạo hoặc duyệt phiếu đổi giá tay trùng SKU × đơn vị × bảng giá với đơn mua đang chờ nhập kho mà thiếu chọn phương án xử lý xung đột (`poConflictResolution`). | Hiển thị hộp thoại chọn `KEEP_MANUAL` (hủy cấu hình đơn mua) hoặc `APPLY_PO_LATER` (giữ cấu hình đơn mua). |
 | `DIRECT_PRICE_UPDATE_NOT_ALLOWED` | `409`, `410` | Cấm cập nhật giá trực tiếp | *Hệ thống đã nâng cấp sang bảng giá theo thời gian. Mọi thay đổi giá phải thông qua phiếu đổi giá.* | Cố ý gọi API cập nhật giá cũ hoặc gửi giá khác giá hiện hành qua cập nhật SKU/đơn vị. | Sử dụng phân hệ Phiếu đổi giá (`/api/price-change-requests`) để điều chỉnh giá. |
 
 ---
@@ -112,6 +113,7 @@ Tài liệu này là **từ điển tra cứu danh mục mã lỗi toàn hệ th
 | `PURCHASE_ORDER_RETURN_REASON_REQUIRED` | `422` | Bắt buộc nhập lý do trả về | *Bắt buộc nhập lý do trả về đơn mua hàng.* | Owner trả đơn mua từ `PendingApproval` về `Draft` mà không nhập lý do. | Nhập lý do trả về để nhân viên biết nội dung cần chỉnh sửa. |
 | `PURCHASE_ORDER_VERSION_MISMATCH` | `409` | Xung đột phiên bản đơn mua | *Phiên bản đơn mua không khớp. Vui lòng tải lại trước khi duyệt.* | Đơn mua đã được tab hoặc người dùng khác cập nhật làm tăng `version`. | Tải lại chi tiết đơn mua để kiểm tra số liệu mới nhất rồi duyệt lại. |
 | `PURCHASE_ORDER_ZERO_PRICE_CONFIRM_REQUIRED` | `422` | Yêu cầu xác nhận đơn giá 0 | *Phiếu mua có dòng giá 0, cần xác nhận trước khi duyệt.* | Duyệt phiếu có giá 0 với `confirmZeroPrice = false`. | Hỏi Owner xác nhận rồi gửi lại với `confirmZeroPrice = true`. |
+| `PURCHASE_ORDER_LOSS_PRICE_CONFIRM_REQUIRED` | `422` | Yêu cầu xác nhận bán lỗ | *Đơn mua có cấu hình giá bán thấp hơn giá vốn (bán lỗ). Bắt buộc xác nhận trước khi duyệt.* | Owner duyệt đơn mua có cấu hình giá dự kiến < WAC dự kiến mà gửi `confirmLossPrice = false`. | Hiển thị hộp thoại cảnh báo bán lỗ, yêu cầu Owner xác nhận rồi gửi lại với `confirmLossPrice = true`. |
 
 ---
 

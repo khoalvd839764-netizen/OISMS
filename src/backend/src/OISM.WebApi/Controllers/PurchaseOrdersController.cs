@@ -190,7 +190,33 @@ public class PurchaseOrdersController : ControllerBase
         }
 
         var userId = RequireUserId();
-        var result = await _purchaseOrderService.ApproveAsync(id, dto?.ConfirmZeroPrice ?? false, userId, ct, dto?.Version);
+        var result = await _purchaseOrderService.ApproveAsync(id, dto?.ConfirmZeroPrice ?? false, userId, ct, dto?.Version, dto?.ConfirmLossPrice ?? false);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Owner cấu hình giá bán lẻ/sỉ cho các đơn vị bán trên các dòng đơn mua ở PendingApproval.
+    /// </summary>
+    [HttpPut("{id:guid}/sale-price-configs")]
+    [Authorize(Roles = "Owner")]
+    [ApiErrorContract(ApiErrorProfile.PurchaseOrders)]
+    public async Task<IActionResult> UpdateSalePriceConfigs(
+        Guid id,
+        [FromBody] UpdatePurchaseOrderSalePriceConfigsDto dto,
+        CancellationToken ct)
+    {
+        if (id == Guid.Empty)
+        {
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.PurchaseOrders, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã phiếu mua không được để trống.");
+        }
+
+        if (dto == null)
+        {
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.PurchaseOrders, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Dữ liệu cấu hình giá bán không được để trống.");
+        }
+
+        var userId = RequireUserId();
+        var result = await _purchaseOrderService.UpdateSalePriceConfigsAsync(id, dto, userId, ct);
         return Ok(result);
     }
 

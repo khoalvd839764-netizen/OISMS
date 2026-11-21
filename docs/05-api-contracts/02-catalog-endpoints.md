@@ -84,11 +84,12 @@
 | Method | Endpoint | Quyền (RBAC) | Mô tả & Quy tắc xử lý |
 | :---: | :--- | :---: | :--- |
 | `GET` | `/api/price-lists` | `Owner, Staff, Cashier` | Danh sách bảng giá đang bật: `retail` (giá lẻ), `wholesale` (giá sỉ). |
-| `POST` | `/api/price-change-requests` | `Owner, Staff` | Tạo phiếu đổi giá. Bắt buộc header `Idempotency-Key` hoặc `X-Request-Key`. Tạo mới trả `201`, gửi lại cùng khóa và cùng nội dung trả `200` với `isReplay = true`, khác nội dung trả `409 IDEMPOTENCY_PAYLOAD_MISMATCH`. Phiếu của `Owner` được duyệt ngay, phiếu của `Staff` ở trạng thái `Pending`. |
+| `POST` | `/api/price-change-requests` | `Owner, Staff` | Tạo phiếu đổi giá. Bắt buộc header `Idempotency-Key` hoặc `X-Request-Key`. Tạo mới trả `201`, gửi lại cùng khóa và cùng nội dung trả `200` với `isReplay = true`, khác nội dung trả `409 IDEMPOTENCY_PAYLOAD_MISMATCH`. Phiếu của `Owner` được duyệt ngay, phiếu của `Staff` ở trạng thái `Pending`. Bắt buộc `reasonType` (`SHORTAGE`, `PROMOTION`, `FROM_PURCHASE_ORDER`, `OTHER`; `OTHER` yêu cầu `reason` >= 5 ký tự). Nếu có cấu hình giá PO đang chờ áp dụng trùng SKU × đơn vị × bảng giá: bắt buộc gửi `poConflictResolution` (`KEEP_MANUAL` hoặc `APPLY_PO_LATER`), thiếu trả `409 PRICE_CHANGE_PO_CONFLICT`. |
 | `GET` | `/api/price-change-requests?status=&page=&pageSize=` | `Owner, Staff` | Danh sách phiếu, trả `{ items, totalCount, page, pageSize }`; `pageSize` tối đa 100. |
 | `GET` | `/api/price-change-requests/{id}` | `Owner, Staff` | Chi tiết phiếu. |
-| `POST` | `/api/price-change-requests/{id}/approve` | `Owner` | Duyệt phiếu `Pending`. `valid_from` = thời điểm muộn hơn giữa `requestedValidFrom` và lúc duyệt. Phiếu không còn `Pending` trả `409 INVALID_STATE_TRANSITION`. |
+| `POST` | `/api/price-change-requests/{id}/approve` | `Owner` | Duyệt phiếu `Pending`. Body `{ "poConflictResolution": "KEEP_MANUAL" | "APPLY_PO_LATER" }` (tùy chọn / bắt buộc khi có xung đột PO chờ). `valid_from` = thời điểm muộn hơn giữa `requestedValidFrom` và lúc duyệt. Phiếu không còn `Pending` trả `409 INVALID_STATE_TRANSITION`. Nếu có xung đột PO mà thiếu resolution trả `409 PRICE_CHANGE_PO_CONFLICT`. |
 | `POST` | `/api/price-change-requests/{id}/reject` | `Owner` | Từ chối phiếu `Pending`, body `{ "note": "..." }` bắt buộc. |
+| `GET` | `/api/pricing/pending-po-prices?skuId=` | `Owner, Staff` | Lấy danh sách cấu hình giá bán từ các đơn mua đã duyệt / đang nhận một phần chưa áp dụng (`Approved`, `PartiallyReceived`) của SKU (Q19). |
 | `POST` | `/api/sku-unit-prices/{id}/cancel` | `Owner` | Hủy giá chưa đến ngày áp dụng, body `{ "reason": "..." }` bắt buộc. Giá đã có hiệu lực trả `409 PRICE_ALREADY_EFFECTIVE`, đã hủy trả `409 INVALID_STATE_TRANSITION`. |
 | `GET` | `/api/sku-unit-prices/effective?skuId=&priceListCode=&at=` | `Owner, Staff, Cashier` | Giá hiệu lực của SKU theo từng đơn vị, trả một danh sách. Bỏ trống `priceListCode` là `retail`, bỏ trống `at` là hiện tại. `Cashier` gửi `at` trả `403`. |
 | `GET` | `/api/sku-unit-prices/history?skuId=&unitId=&priceListCode=` | `Owner, Staff` | Lịch sử giá, gồm dòng đã hủy và dòng tương lai; `validTo` suy ra từ dòng kế tiếp. |
@@ -98,6 +99,8 @@
 ```json
 {
   "reason": "Tăng giá theo nhà cung cấp",
+  "reasonType": "SHORTAGE",
+  "poConflictResolution": "KEEP_MANUAL",
   "requestedValidFrom": "2026-12-01T00:00:00+07:00",
   "items": [
     { "priceListCode": "retail", "skuId": "<guid>", "unitId": "<guid>", "newPrice": 150000 }

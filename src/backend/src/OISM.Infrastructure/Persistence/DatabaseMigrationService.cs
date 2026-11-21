@@ -108,7 +108,8 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         "purchase_variances",
         "user_branches",
         "goods_issues",
-        "goods_issue_items"
+        "goods_issue_items",
+        "purchase_order_sale_price_configs"
     ];
 
     public static readonly ExpectedTrigger[] ExpectedTriggers =
@@ -334,7 +335,14 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         new("fk_goods_issue_items_inventory_tx", "goods_issue_items", ["tenant_id", "inventory_transaction_id"], "inventory_transactions", ["tenant_id", "id"]),
         new("fk_goods_issue_items_order_item", "goods_issue_items", ["tenant_id", "order_item_id"], "order_items", ["tenant_id", "id"]),
         new("fk_goods_issue_items_sku_id", "goods_issue_items", ["tenant_id", "sku_id"], "skus", ["tenant_id", "id"]),
-        new("fk_goods_issue_items_unit_id", "goods_issue_items", ["tenant_id", "unit_id"], "units", ["tenant_id", "id"])
+        new("fk_goods_issue_items_unit_id", "goods_issue_items", ["tenant_id", "unit_id"], "units", ["tenant_id", "id"]),
+
+        // U12 G4: purchase_order_sale_price_configs
+        new("fk_po_sale_price_configs_tenant_id", "purchase_order_sale_price_configs", ["tenant_id"], "tenants", ["id"], OnDelete: 'c'),
+        new("fk_po_sale_price_configs_item", "purchase_order_sale_price_configs", ["tenant_id", "purchase_order_item_id"], "purchase_order_items", ["tenant_id", "id"], OnDelete: 'c'),
+        new("fk_po_sale_price_configs_unit", "purchase_order_sale_price_configs", ["tenant_id", "unit_id"], "units", ["tenant_id", "id"]),
+        new("fk_po_sale_price_configs_price_list", "purchase_order_sale_price_configs", ["tenant_id", "price_list_id"], "price_lists", ["tenant_id", "id"]),
+        new("fk_po_sale_price_configs_pcr", "purchase_order_sale_price_configs", ["tenant_id", "price_change_request_id"], "price_change_requests", ["tenant_id", "id"], OnDelete: 'n')
     ];
 
     public static readonly ExpectedConstraint[] ExpectedCriticalConstraints =
@@ -427,6 +435,7 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         new("ck_price_change_requests_created_by", 'c', "price_change_requests", ExpectedNormalizedExpression: "(((kind)::text = 'Opening'::text) OR (created_by IS NOT NULL))"),
         new("ck_price_change_requests_pending_reviewed", 'c', "price_change_requests", ExpectedNormalizedExpression: "(((status)::text = 'Pending'::text) = (reviewed_at IS NULL))"),
         new("ck_price_change_requests_reason", 'c', "price_change_requests", ExpectedNormalizedExpression: "(btrim((reason)::text) <> ''::text)"),
+        new("ck_price_change_requests_reason_type", 'c', "price_change_requests", ExpectedNormalizedExpression: "((reason_type)::text = ANY ((ARRAY['SHORTAGE'::character varying, 'PROMOTION'::character varying, 'FROM_PURCHASE_ORDER'::character varying, 'OTHER'::character varying])::text[]))"),
 
         // price_change_request_items
         new("uq_price_change_request_items_1", 'u', "price_change_request_items", Columns: ["tenant_id", "id"]),
@@ -526,7 +535,13 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         new("ck_goods_issue_items_quantity_positive", 'c', "goods_issue_items", ExpectedNormalizedExpression: "(quantity > (0)::numeric)"),
         new("ck_goods_issue_items_base_quantity_positive", 'c', "goods_issue_items", ExpectedNormalizedExpression: "(base_quantity > (0)::numeric)"),
         new("ck_goods_issue_items_factor_snapshot_positive", 'c', "goods_issue_items", ExpectedNormalizedExpression: "(factor_snapshot > (0)::numeric)"),
-        new("ck_goods_issue_items_unit_cost_nonnegative", 'c', "goods_issue_items", ExpectedNormalizedExpression: "(unit_cost >= (0)::numeric)")
+        new("ck_goods_issue_items_unit_cost_nonnegative", 'c', "goods_issue_items", ExpectedNormalizedExpression: "(unit_cost >= (0)::numeric)"),
+
+        // U12 G4: purchase_order_sale_price_configs
+        new("uq_po_sale_price_configs_1", 'u', "purchase_order_sale_price_configs", Columns: ["tenant_id", "id"]),
+        new("uq_po_sale_price_configs_item_unit_pricelist", 'u', "purchase_order_sale_price_configs", Columns: ["tenant_id", "purchase_order_item_id", "unit_id", "price_list_id"]),
+        new("ck_po_sale_price_configs_mode", 'c', "purchase_order_sale_price_configs", ExpectedNormalizedExpression: "((mode)::text = ANY ((ARRAY['KEEP'::character varying, 'WAC_MARGIN'::character varying, 'FIXED'::character varying])::text[]))"),
+        new("ck_po_sale_price_configs_apply_mode", 'c', "purchase_order_sale_price_configs", ExpectedNormalizedExpression: "((apply_mode)::text = ANY ((ARRAY['ON_RECEIPT'::character varying, 'FROM_DATE'::character varying])::text[]))")
     ];
 
 
@@ -2493,13 +2508,72 @@ END $$;
                 await goodsIssuesCmd.ExecuteNonQueryAsync(cancellationToken);
             }
 
+            const string poSalePriceConfigsStart = "-- OISMS_PO_SALE_PRICE_CONFIGS_BEGIN";
+            const string poSalePriceConfigsEnd = "-- OISMS_PO_SALE_PRICE_CONFIGS_END";
+            var poCfgStart = schema.IndexOf(poSalePriceConfigsStart, StringComparison.Ordinal);
+            var poCfgEnd = schema.IndexOf(poSalePriceConfigsEnd, StringComparison.Ordinal);
+            if (poCfgStart < 0 || poCfgEnd <= poCfgStart + poSalePriceConfigsStart.Length)
+                throw new InvalidOperationException("Không tìm thấy DDL cấu hình giá bán đơn mua (purchase_order_sale_price_configs) trong oisms_schema.sql.");
+
+            const string upgradeReasonTypeSql = @"
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'price_change_requests' AND column_name = 'reason_type'
+    ) THEN
+        ALTER TABLE public.price_change_requests ADD COLUMN reason_type varchar(30) NULL;
+        IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'price_change_request_guard' AND tgrelid = 'public.price_change_requests'::regclass) THEN
+            ALTER TABLE public.price_change_requests DISABLE TRIGGER price_change_request_guard;
+            UPDATE public.price_change_requests SET reason_type = 'OTHER' WHERE reason_type IS NULL;
+            ALTER TABLE public.price_change_requests ENABLE TRIGGER price_change_request_guard;
+        ELSE
+            UPDATE public.price_change_requests SET reason_type = 'OTHER' WHERE reason_type IS NULL;
+        END IF;
+        ALTER TABLE public.price_change_requests ALTER COLUMN reason_type SET DEFAULT 'OTHER';
+        ALTER TABLE public.price_change_requests ALTER COLUMN reason_type SET NOT NULL;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_price_change_requests_reason_type') THEN
+        ALTER TABLE public.price_change_requests ADD CONSTRAINT ck_price_change_requests_reason_type
+            CHECK (reason_type IN ('SHORTAGE', 'PROMOTION', 'FROM_PURCHASE_ORDER', 'OTHER'));
+    END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.oisms_price_change_request_guard() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+BEGIN
+  IF OLD.status <> 'Pending' OR NEW.status NOT IN ('Approved', 'Rejected') THEN
+    RAISE EXCEPTION 'Price change request can only transition from Pending to Approved or Rejected' USING ERRCODE = '23514';
+  END IF;
+
+  IF (NEW.tenant_id, NEW.id, NEW.request_key, NEW.kind, NEW.reason, NEW.reason_type, NEW.requested_valid_from, NEW.created_by, NEW.created_at)
+     IS DISTINCT FROM
+     (OLD.tenant_id, OLD.id, OLD.request_key, OLD.kind, OLD.reason, OLD.reason_type, OLD.requested_valid_from, OLD.created_by, OLD.created_at) THEN
+    RAISE EXCEPTION 'Price change request attributes other than review fields are immutable' USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END $$;
+";
+            await using (var reasonTypeCmd = new NpgsqlCommand(upgradeReasonTypeSql, connection, tx))
+            {
+                await reasonTypeCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            var poSalePriceConfigsSql = CleanDdlForConnectedDatabase(schema[(poCfgStart + poSalePriceConfigsStart.Length)..poCfgEnd]);
+            await using (var poSalePriceConfigsCmd = new NpgsqlCommand(poSalePriceConfigsSql, connection, tx))
+            {
+                await poSalePriceConfigsCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
             await tx.CommitAsync(cancellationToken);
             return new MigrationExecutionResult(
                 Success: true,
                 IsFreshInstall: false,
                 IsBaselineAdopted: false,
                 TableCount: RequiredTables.Length,
-                Message: "Nâng cấp schema v0.5 stock_transfers, shop_integrations, multi_unit, price_lists, purchase_orders, sales_invoices, stock_count_schedules, payment_accounts, sales_returns, supplier_invoices, user_branches và goods_issues thành công.");
+                Message: "Nâng cấp schema v0.5 stock_transfers, shop_integrations, multi_unit, price_lists, purchase_orders, sales_invoices, stock_count_schedules, payment_accounts, sales_returns, supplier_invoices, user_branches, goods_issues và purchase_order_sale_price_configs thành công.");
         }
         catch (Exception ex)
         {
@@ -3054,7 +3128,8 @@ WHERE table_schema = 'public';";
             "sales_returns.request_key", "sales_returns.total_refund_amount", "sales_returns.note",
             "user_branches.tenant_id", "user_branches.user_id", "user_branches.branch_id", "user_branches.created_at",
             "goods_issues.number", "goods_issues.order_id", "goods_issues.sales_invoice_id", "goods_issues.warehouse_id", "goods_issues.issued_at",
-            "goods_issue_items.goods_issue_id", "goods_issue_items.inventory_transaction_id", "goods_issue_items.order_item_id", "goods_issue_items.quantity", "goods_issue_items.base_quantity", "goods_issue_items.unit_cost"
+            "goods_issue_items.goods_issue_id", "goods_issue_items.inventory_transaction_id", "goods_issue_items.order_item_id", "goods_issue_items.quantity", "goods_issue_items.base_quantity", "goods_issue_items.unit_cost",
+            "price_change_requests.reason_type", "purchase_order_sale_price_configs.mode", "purchase_order_sale_price_configs.purchase_order_item_id", "purchase_order_sale_price_configs.price_list_id"
         ];
         foreach (var col in crucialColumns)
         {

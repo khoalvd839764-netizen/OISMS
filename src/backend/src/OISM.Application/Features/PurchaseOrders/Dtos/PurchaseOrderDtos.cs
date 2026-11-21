@@ -46,11 +46,13 @@ public class CreatePurchaseOrderItemDto
     public Guid? UnitId { get; set; }
     public decimal Quantity { get; set; }
     public decimal? UnitPrice { get; set; }
+    public List<PurchaseOrderSalePriceConfigInputDto>? SalePriceConfigs { get; set; }
 }
 
 public class ApprovePurchaseOrderRequestDto
 {
     public bool ConfirmZeroPrice { get; set; }
+    public bool ConfirmLossPrice { get; set; }
     public int? Version { get; set; }
 }
 
@@ -164,4 +166,53 @@ public class PurchaseOrderItemResponseDto
     public decimal RemainingQuantity { get; set; }
     public decimal? LineTotal => UnitPrice.HasValue ? Quantity * UnitPrice.Value : null;
     public decimal? AllocatedLineTotal => AllocatedUnitCost.HasValue ? Quantity * AllocatedUnitCost.Value : null;
+    public List<PurchaseOrderSalePriceConfigDto>? SalePriceConfigs { get; set; }
+}
+
+public class PurchaseOrderSalePriceConfigInputDto
+{
+    public Guid UnitId { get; set; }
+    public Guid PriceListId { get; set; }
+    public string Mode { get; set; } = "KEEP"; // 'KEEP', 'WAC_MARGIN', 'FIXED'
+    public decimal? MarginPercent { get; set; }
+    public decimal? FixedPrice { get; set; }
+    public string? PriceSource { get; set; } // 'SUPPLIER', 'OWNER'
+    public string ApplyMode { get; set; } = "ON_RECEIPT"; // 'ON_RECEIPT', 'FROM_DATE'
+    public DateTimeOffset? ApplyFrom { get; set; }
+}
+
+public class PurchaseOrderSalePriceConfigDto
+{
+    public Guid Id { get; set; }
+    public Guid PurchaseOrderItemId { get; set; }
+    public Guid UnitId { get; set; }
+    public string UnitName { get; set; } = string.Empty;
+    public Guid PriceListId { get; set; }
+    public string PriceListCode { get; set; } = string.Empty;
+    public string PriceListName { get; set; } = string.Empty;
+    public string Mode { get; set; } = "KEEP";
+    public decimal? MarginPercent { get; set; }
+    public decimal? FixedPrice { get; set; }
+    public string? PriceSource { get; set; }
+    public string ApplyMode { get; set; } = "ON_RECEIPT";
+    public DateTimeOffset? ApplyFrom { get; set; }
+    public DateTimeOffset? AppliedAt { get; set; }
+    public Guid? PriceChangeRequestId { get; set; }
+    public decimal CurrentPrice { get; set; }
+    public decimal CurrentUnitWac { get; set; }
+    public decimal CurrentMarginPercent { get; set; }
+    public decimal ProjectedUnitWac { get; set; }
+    public decimal ProjectedPrice { get; set; }
+    public bool IsBelowCost { get; set; }
+}
+
+public class UpdatePurchaseOrderSalePriceConfigsDto
+{
+    public List<PurchaseOrderItemSalePriceConfigUpdateDto> Items { get; set; } = new();
+}
+
+public class PurchaseOrderItemSalePriceConfigUpdateDto
+{
+    public Guid PurchaseOrderItemId { get; set; }
+    public List<PurchaseOrderSalePriceConfigInputDto> Configs { get; set; } = new();
 }

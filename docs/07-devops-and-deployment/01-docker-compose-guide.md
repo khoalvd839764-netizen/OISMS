@@ -17,7 +17,7 @@
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả kiến trúc đóng gói Docker Compose trọn bộ và hướng dẫn khởi chạy hệ thống tức thì. | `INIT-OPS-01` |
 | `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Đồng bộ với compose hiện tại: 6 service (thêm `redis`, `pgadmin`), schema 43 bảng do `init-oisms.sh` tạo, backend không tự chạy migration, seed demo chỉ ở Development. | `OISMS-46` |
 | `v1.1.1` | `2026-11-08` | Nhóm dự án OISMS | Đồng bộ hướng dẫn readiness với schema hiện hành 44 bảng sau CS-05. | `CS-05` |
-| `v1.1.2` | `2026-11-19` | Nhóm dự án OISMS | Đồng bộ hướng dẫn readiness với schema hiện hành 50 bảng sau Upgrade 13 Gói 3 (`goods_issues`, `goods_issue_items`). | `OISMS-66-L2-G3` |
+| `v1.1.3` | `2026-11-21` | Nhóm dự án OISMS | Đồng bộ hướng dẫn readiness với schema hiện hành 51 bảng sau Upgrade 12 Gói 4 (`purchase_order_sale_price_configs`). | `OISMS-66-L2-G4` |
 
 ---
 
@@ -25,7 +25,7 @@
 
 | Service | Container | Image / Build | Cổng host → container | Vai trò |
 | :--- | :--- | :--- | :---: | :--- |
-| `postgres` | `oism_postgres` | `postgres:16-alpine` | `${POSTGRES_PORT:-5432}` → `5432` | Database. Volume `postgres_data`. Lần đầu volume trống chạy `docker/postgres/init-oisms.sh` để nạp `docs/database/oisms_schema.sql` (50 bảng) và tạo tài khoản runtime. Có `healthcheck` bằng `pg_isready`. |
+| `postgres` | `oism_postgres` | `postgres:16-alpine` | `${POSTGRES_PORT:-5432}` → `5432` | Database. Volume `postgres_data`. Lần đầu volume trống chạy `docker/postgres/init-oisms.sh` để nạp `docs/database/oisms_schema.sql` (51 bảng) và tạo tài khoản runtime. Có `healthcheck` bằng `pg_isready`. |
 | `redis` | `oism_redis` | `redis:7-alpine` | `${REDIS_PORT:-6379}` → `6379` | Có sẵn nhưng code backend chưa dùng. |
 | `pgadmin` | `oism_pgadmin` | `dpage/pgadmin4:latest` | `${PGADMIN_PORT:-5050}` → `80` | Giao diện quản trị DB, chỉ dùng local. |
 | `backend` | `oism_backend` | `src/backend/Dockerfile` (SDK 8.0 → ASP.NET 8.0) | `${BACKEND_PORT:-5000}` → `8080` | Web API, SignalR hub `/hubs/notifications`, health check. Chờ `postgres` healthy. |
@@ -50,7 +50,7 @@ Hoặc dùng `scripts/start-docker.ps1`.
 | :--- | :--- |
 | `http://localhost:5000/swagger` | Swagger (chỉ khi `ASPNETCORE_ENVIRONMENT=Development`, mặc định của compose) |
 | `http://localhost:5000/health/live` | Tiến trình còn chạy |
-| `http://localhost:5000/health/ready` | Kết nối bằng tài khoản runtime, đủ 50 bảng, trigger `ledger_append_only` bật, tài khoản không có quyền quản trị. Lỗi trả `503`. `/health` là bí danh. |
+| `http://localhost:5000/health/ready` | Kết nối bằng tài khoản runtime, đủ 51 bảng, trigger `ledger_append_only` bật, tài khoản không có quyền quản trị. Lỗi trả `503`. `/health` là bí danh. |
 | `http://localhost:5173` | Admin Dashboard, đăng nhập tại `/login` |
 | `http://localhost:5174` | POS PWA |
 | `http://localhost:5050` | pgAdmin |

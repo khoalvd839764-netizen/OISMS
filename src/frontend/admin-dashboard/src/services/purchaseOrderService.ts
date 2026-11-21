@@ -10,6 +10,7 @@ import type {
   PurchaseOrderResponse,
   ReturnPurchaseOrderDto,
   UpdatePurchaseOrderDraftDto,
+  UpdatePurchaseOrderSalePriceConfigsDto,
 } from '../types/purchaseOrder';
 
 export const purchaseOrderService = {
@@ -84,12 +85,24 @@ export const purchaseOrderService = {
   async approvePurchaseOrder(
     id: string,
     confirmZeroPrice = false,
-    version?: number
+    version?: number,
+    confirmLossPrice = false
   ): Promise<PurchaseOrderResponse> {
-    const payload: ApprovePurchaseOrderDto = { confirmZeroPrice, version };
+    const payload: ApprovePurchaseOrderDto = { confirmZeroPrice, version, confirmLossPrice };
     const res = await httpClient.post<PurchaseOrderResponse>(
       `/api/purchase-orders/${id}/approve`,
       payload
+    );
+    return res.data;
+  },
+
+  async updateSalePriceConfigs(
+    id: string,
+    dto: UpdatePurchaseOrderSalePriceConfigsDto
+  ): Promise<PurchaseOrderResponse> {
+    const res = await httpClient.put<PurchaseOrderResponse>(
+      `/api/purchase-orders/${id}/sale-price-configs`,
+      dto
     );
     return res.data;
   },

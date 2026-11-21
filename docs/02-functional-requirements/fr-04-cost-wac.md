@@ -16,6 +16,7 @@
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả chi tiết công thức tính Giá vốn bình quân (WAC) và cơ chế chụp giá vốn khi xuất kho/bán hàng. | `INIT-FR-04` |
 | `v1.1.0` | `2026-11-19` | Nhóm dự án OISMS | Phân bổ phí vận chuyển và chiết khấu thương mại vào giá vốn đơn mua theo VAS 02, không đưa VAT vào giá vốn, và bỏ cơ chế ghi đè giá từ hóa đơn nhà cung cấp (`U01-B`). | `OISMS-66-L2-G1` |
+| `v1.2.0` | `2026-11-21` | Nhóm dự án OISMS | Sinh giá bán tự động khi xác nhận phiếu nhập đầu tiên từ cấu hình đơn mua (Q17-Q18), tính giá bán mới theo WAC vừa cập nhật làm tròn lên bội 1.000đ. | `OISMS-66-L2-G4` |
 
 ---
 
@@ -43,6 +44,11 @@ $$\text{NewCost} = \frac{(\text{OldStock} \times \text{OldCost}) + (\text{Import
   - Dòng cuối cùng nhận phần chênh lệch làm tròn để tổng giá trị phân bổ của các dòng khớp đúng $\sum \text{LineTotal} + \text{ShippingFee} - \text{DiscountAmount}$.
   - **Thuế VAT đầu vào (`vat_amount`):** giả định cửa hàng khấu trừ thuế nên VAT **không tính vào giá vốn** (`AllocatedUnitCost`), chỉ cộng vào tổng tiền thanh toán (`TotalAmount`) trên đơn mua.
   - **Bỏ ghi đè từ hóa đơn nhà cung cấp (`U01-B`):** giá trên đơn mua đã duyệt là giá cam kết với nhà cung cấp; hệ thống không còn bước áp giá từ hóa đơn NCC khi xác nhận phiếu nhập. Nếu đơn mua bị Đóng (`Closed`) khi chưa giao đủ, phần phí và chiết khấu gắn với lượng hàng chưa nhận không đi vào giá vốn tồn kho.
+  - **Sinh giá bán tự động từ đơn mua (Upgrade 12 Gói 4 / OISMS-66-L2-G4 / Q17-Q18):**
+    - Khi xác nhận phiếu nhập hàng ĐẦU TIÊN của dòng đơn mua, ngay sau khi tính toán và cập nhật WAC chi nhánh, trong cùng transaction, hệ thống tự động sinh phiếu đổi giá (`reason_type = FROM_PURCHASE_ORDER`) và giá bán mới (`SkuUnitPrice`) cho các cấu hình có `Mode != 'KEEP'`.
+    - Với cấu hình `Mode = 'WAC_MARGIN'`: giá bán mới được tính trực tiếp từ giá vốn WAC vừa cập nhật của đơn vị bán:
+      $$\text{NewPrice} = \text{Ceil}\left(\frac{\text{UnitWac}}{1 - \text{MarginPercent} / 100}, 1000\right)$$
+    - Giá được làm tròn LÊN bội số 1.000đ. Đợt nhập kho thứ 2 trở đi của cùng đơn mua sẽ không sinh lại giá bán. Mọi ngoại lệ trong quá trình sinh giá đều rollback toàn bộ phiếu nhập kho.
 
 **Ví dụ kiểm chứng:**
 1. **Lô nhập 1:** Tồn đầu `OldStock = 0`, `OldCost = 0`. Nhập `100` sản phẩm với giá `100,000đ` $\rightarrow$ `NewCost = 100,000đ`, `OnHand = 100`.

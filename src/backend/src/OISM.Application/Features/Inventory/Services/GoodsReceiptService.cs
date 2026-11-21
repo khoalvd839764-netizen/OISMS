@@ -326,6 +326,7 @@ public class GoodsReceiptService : IGoodsReceiptService
                 // 5. Tải phiếu mua và các dòng SAU KHÓA
                 var po = await _context.PurchaseOrders
                     .Include(p => p.Items)
+                        .ThenInclude(i => i.SalePriceConfigs)
                     .FirstOrDefaultAsync(p => p.Id == poId, ct);
 
                 if (po == null)
@@ -381,6 +382,27 @@ public class GoodsReceiptService : IGoodsReceiptService
                 var skuIds = sortedItems.Select(i => i.SkuId).Distinct().ToList();
 
                 await _sqlLockService.LockSkuStockAsync(tenantId, receipt.BranchId, skuIds, ct);
+
+                // Khóa giá theo SKU + đơn vị + bảng giá (sắp xếp tăng dần) sau khóa tồn SKU (Q25)
+                var receiptPoItemIds = receipt.Items.Select(i => i.PurchaseOrderItemId!.Value).ToHashSet();
+                var candidateConfigs = po.Items
+                    .Where(poi => receiptPoItemIds.Contains(poi.Id))
+                    .SelectMany(poi => poi.SalePriceConfigs)
+                    .Where(c => c.Mode != "KEEP" && c.AppliedAt == null)
+                    .ToList();
+
+                if (candidateConfigs.Count > 0)
+                {
+                    var priceKeys = candidateConfigs
+                        .Select(c => (poItemsById[c.PurchaseOrderItemId].SkuId, c.UnitId, c.PriceListId))
+                        .Distinct()
+                        .OrderBy(k => k.SkuId)
+                        .ThenBy(k => k.UnitId)
+                        .ThenBy(k => k.PriceListId)
+                        .ToList();
+
+                    await _sqlLockService.LockPricesAsync(tenantId, priceKeys, ct);
+                }
 
                 // 8. Tải tồn kho hiện tại cấp Chi nhánh và cấp Kho, cộng tồn, tính WAC theo allocated_unit_cost / FactorSnapshot, ghi sổ kho
                 var branchBalances = await _context.InventoryBalances
@@ -469,6 +491,89 @@ public class GoodsReceiptService : IGoodsReceiptService
                     // 9. Cộng lượng đã nhận trên dòng phiếu mua
                     poItem.ReceivedBaseQuantity += baseQuantity;
                     poItem.UpdatedAt = now;
+                }
+
+                // 9b. Sinh giá bán từ đơn mua (Upgrade 12 Gói 4 / AC-03 / Q17-Q18)
+                if (candidateConfigs.Count > 0)
+                {
+                    var skuUnits = await _context.SkuUnits
+                        .Where(su => su.TenantId == tenantId && skuIds.Contains(su.SkuId))
+                        .ToListAsync(ct);
+
+                    var pcr = new PriceChangeRequest
+                    {
+                        Id = Guid.NewGuid(),
+                        TenantId = tenantId,
+                        RequestKey = Guid.NewGuid(),
+                        Kind = "Change",
+                        Status = PriceChangeRequestStatus.Approved,
+                        ReasonType = "FROM_PURCHASE_ORDER",
+                        Reason = $"Theo đơn mua {po.Number}",
+                        RequestedValidFrom = now,
+                        CreatedBy = po.ApprovedBy ?? userId,
+                        CreatedAt = now,
+                        ReviewedBy = po.ApprovedBy ?? userId,
+                        ReviewedAt = now
+                    };
+                    _context.PriceChangeRequests.Add(pcr);
+
+                    foreach (var config in candidateConfigs)
+                    {
+                        var poItem = poItemsById[config.PurchaseOrderItemId];
+                        var skuId = poItem.SkuId;
+                        var branchBalance = branchBalances[skuId];
+
+                        var su = skuUnits.FirstOrDefault(u => u.SkuId == skuId && u.UnitId == config.UnitId);
+                        var factorToBase = su?.FactorToBase ?? 1m;
+                        var unitWac = branchBalance.AverageCost * factorToBase;
+
+                        decimal newPrice;
+                        if (config.Mode == "WAC_MARGIN")
+                        {
+                            var margin = config.MarginPercent ?? 0m;
+                            var rawPrice = unitWac / (1m - (margin / 100m));
+                            newPrice = Math.Ceiling(rawPrice / 1000m) * 1000m;
+                        }
+                        else
+                        {
+                            newPrice = config.FixedPrice ?? 0m;
+                        }
+
+                        var validFrom = config.ApplyMode == "FROM_DATE" && config.ApplyFrom.HasValue && config.ApplyFrom.Value > now
+                            ? config.ApplyFrom.Value
+                            : now;
+
+                        var pcrItem = new PriceChangeRequestItem
+                        {
+                            Id = Guid.NewGuid(),
+                            TenantId = tenantId,
+                            RequestId = pcr.Id,
+                            PriceListId = config.PriceListId,
+                            SkuId = skuId,
+                            UnitId = config.UnitId,
+                            NewPrice = newPrice,
+                            CreatedAt = now
+                        };
+                        _context.PriceChangeRequestItems.Add(pcrItem);
+
+                        var skuUnitPrice = new SkuUnitPrice
+                        {
+                            Id = Guid.NewGuid(),
+                            TenantId = tenantId,
+                            PriceListId = config.PriceListId,
+                            SkuId = skuId,
+                            UnitId = config.UnitId,
+                            Price = newPrice,
+                            ValidFrom = validFrom,
+                            SourceItemId = pcrItem.Id,
+                            CreatedAt = now
+                        };
+                        _context.SkuUnitPrices.Add(skuUnitPrice);
+
+                        config.AppliedAt = now;
+                        config.PriceChangeRequestId = pcr.Id;
+                        config.UpdatedAt = now;
+                    }
                 }
 
                 // Cập nhật trạng thái phiếu mua: đủ mọi dòng thì Received, còn lại PartiallyReceived

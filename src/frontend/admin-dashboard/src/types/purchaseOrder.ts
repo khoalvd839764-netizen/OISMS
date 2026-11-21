@@ -26,6 +26,7 @@ export interface PurchaseOrderItemResponse {
   remainingQuantity: number;
   lineTotal: number | null;
   allocatedLineTotal?: number | null;
+  salePriceConfigs?: PurchaseOrderSalePriceConfigDto[] | null;
 }
 
 export interface PurchaseOrderResponse {
@@ -73,6 +74,7 @@ export interface CreatePurchaseOrderItemDto {
   unitId?: string | null;
   quantity: number;
   unitPrice?: number | null;
+  salePriceConfigs?: PurchaseOrderSalePriceConfigInputDto[];
 }
 
 export interface CreatePurchaseOrderDto {
@@ -102,6 +104,7 @@ export interface UpdatePurchaseOrderDraftDto {
 
 export interface ApprovePurchaseOrderDto {
   confirmZeroPrice: boolean;
+  confirmLossPrice?: boolean;
   version?: number;
 }
 
@@ -151,4 +154,46 @@ export interface PagedPurchaseOrderResult {
   pageSize: number;
   totalCount: number;
   totalPages: number;
+}
+
+export interface PurchaseOrderSalePriceConfigInputDto {
+  unitId: string;
+  priceListId: string;
+  mode: 'KEEP' | 'WAC_MARGIN' | 'FIXED';
+  marginPercent?: number | null;
+  fixedPrice?: number | null;
+  priceSource?: 'SUPPLIER' | 'OWNER' | null;
+  applyMode: 'ON_RECEIPT' | 'FROM_DATE';
+  applyFrom?: string | null;
+}
+
+export interface PurchaseOrderSalePriceConfigDto {
+  id: string;
+  purchaseOrderItemId: string;
+  unitId: string;
+  unitName: string;
+  priceListId: string;
+  priceListCode: string;
+  priceListName: string;
+  mode: 'KEEP' | 'WAC_MARGIN' | 'FIXED';
+  marginPercent?: number | null;
+  fixedPrice?: number | null;
+  priceSource?: 'SUPPLIER' | 'OWNER' | null;
+  applyMode: 'ON_RECEIPT' | 'FROM_DATE';
+  applyFrom?: string | null;
+  appliedAt?: string | null;
+  priceChangeRequestId?: string | null;
+  currentPrice: number;
+  currentUnitWac: number;
+  currentMarginPercent: number;
+  projectedUnitWac: number;
+  projectedPrice: number;
+  isBelowCost: boolean;
+}
+
+export interface UpdatePurchaseOrderSalePriceConfigsDto {
+  items: {
+    purchaseOrderItemId: string;
+    configs: PurchaseOrderSalePriceConfigInputDto[];
+  }[];
 }

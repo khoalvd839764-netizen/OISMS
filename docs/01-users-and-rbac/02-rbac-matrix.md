@@ -23,6 +23,7 @@
 | `v1.6.0` | `2026-11-15` | Nhóm dự án OISMS | Bổ sung quyền `Owner`-only cho hai endpoint tổng hợp báo cáo ngày (`GET /api/reports/daily-summaries`, `POST /api/reports/daily-summaries/rebuild`); `Staff` và `Cashier` nhận `403`. | `OISMS-59-G3B` |
 | `v1.7.0` | `2026-11-19` | Nhóm dự án OISMS | Upgrade 12 Gói 1: `Staff` đề nghị mua ở `Draft` và gửi duyệt; `Owner` chốt NCC/giá/phí, duyệt, trả về, hủy; `Staff` không thấy giá trên đơn mua và phiếu nhập, thấy NCC từ khi duyệt; gỡ quyền hóa đơn NCC. | `OISMS-66-L2-G1` |
 | `v1.8.0` | `2026-11-19` | Nhóm dự án OISMS | Bổ sung phân quyền Báo cáo tồn kho theo kỳ (NXT) và Thẻ kho S12/S10 (Upgrade 13 / OISMS-66-G2): `Owner` xem đủ lượng & giá; `Staff` xem lượng, che giá (`null`); `Cashier` cấm (`403`). | `OISMS-66-G2` |
+| `v1.9.0` | `2026-11-21` | Nhóm dự án OISMS | Cấu hình giá bán trên đơn mua & sinh giá khi nhập kho (Upgrade 12 Gói 4 / OISMS-66-L2-G4): `Owner` toàn quyền cấu hình giá lẻ/sỉ trên đơn mua ở `PendingApproval`, xác nhận bán lỗ khi duyệt, tra cứu giá chờ; `Staff` bị ẩn toàn bộ cấu hình giá bán (`SalePriceConfigs = null`) và cấm sửa (`403`); `Cashier` cấm (`403`). | `OISMS-66-L2-G4` |
 
 ---
 
@@ -65,6 +66,7 @@ Các trường định danh bắt buộc bên trong Payload của JWT:
 | **Kho & Sổ cái** | Xem lịch sử Sổ cái kho (`InventoryTransaction`) & Số dư tồn kho | `FR-INV-01` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm sổ cái (Chỉ xem tồn khả dụng POS, `averageCost = null`) |
 | **Kho & Sổ cái** | Tạo, Xác nhận & Hủy nháp Phiếu nhập hàng từ Nhà cung cấp (`Goods Receipt`) | `FR-INV-02`, `OISMS-47-U01A`, `OISMS-66-L2-G1` | ✅ Toàn quyền | ✅ Tạo, xác nhận, hủy nháp (mọi trường giá & tổng tiền trả `null`) | ❌ Cấm (`403 Forbidden`) |
 | **Kho & Sổ cái** | Xem, lập, sửa và gửi duyệt Phiếu mua hàng (`Purchase Order`) | `OISMS-47-U01A`, `OISMS-66-L2-G1` | ✅ Toàn quyền (tạo thẳng `PendingApproval`, sửa NCC/giá/phí/SL, tra gợi ý giá) | ✅ Tạo/sửa/hủy/gửi `Draft` của mình (ẩn toàn bộ giá/phí/VAT; ẩn NCC khi `Draft`/`PendingApproval`) | ❌ Cấm (`403 Forbidden`) |
+| **Kho & Sổ cái** | Cấu hình giá bán dự kiến trên đơn mua (`PUT /api/purchase-orders/{id}/sale-price-configs`) | `OISMS-66-L2-G4`, `BE-12.7` | ✅ Toàn quyền cấu hình giá lẻ/sỉ trên từng đơn vị bán (lưu ở `PendingApproval`, sinh giá khi nhập kho) | ❌ Cấm (`403 Forbidden`, toàn bộ `SalePriceConfigs = null` khi xem đơn) | ❌ Cấm (`403 Forbidden`) |
 | **Kho & Sổ cái** | Duyệt (`Approve`), trả về (`Return`), đóng (`Close`) và hủy (`Cancel` từ `PendingApproval`/`Approved`) Phiếu mua hàng | `OISMS-47-U01A`, `OISMS-66-L2-G1` | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden` / `409` khi hủy ngoài `Draft`) | ❌ Cấm (`403 Forbidden`) |
 | **Kho & Sổ cái** | Hóa đơn nhà cung cấp (`U01-B` -> đã gỡ tại `Upgrade 12`) | `OISMS-66-L2-G1` | — *(Đã gỡ API `/api/supplier-invoices*`, bảng giữ chỉ đọc)* | — *(Đã gỡ API)* | ❌ Cấm |
 | **Kho & Sổ cái** | Thực hiện Chuyển kho 2 bước (Xuất đi & Xác nhận nhập) | `FR-INV-03` | ✅ Toàn quyền | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) |

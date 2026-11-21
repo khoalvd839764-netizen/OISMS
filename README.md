@@ -58,7 +58,7 @@ OISMS/
 │       ├── init-oisms.sh              # Khởi tạo DB khi volume trống
 │       └── migrations/                # Script nâng cấp DB đã có dữ liệu (chỉ thêm file mới)
 ├── docs/                              # Tài liệu: yêu cầu, kiến trúc, API, kiểm thử, deploy, sprint, báo cáo
-│   └── database/oisms_schema.sql      # Nguồn cấu trúc DB hiện hành (50 bảng)
+│   └── database/oisms_schema.sql      # Nguồn cấu trúc DB hiện hành (51 bảng)
 ├── scripts/                           # Script PowerShell/Node hỗ trợ chạy nhanh và kiểm tra
 │   ├── build-all.ps1                  # Kiểm tra build toàn bộ dự án
 │   ├── run-backend.ps1 / run-admin.ps1 / run-pos.ps1
@@ -135,7 +135,7 @@ powershell -ExecutionPolicy Bypass -File scripts\start-docker.ps1
 - **Backend API (Swagger):** `http://localhost:5000/swagger`
 - **Backend Health Check:**
   - Liveness: `http://localhost:5000/health/live`
-  - Readiness (Kiểm tra kết nối DB, đủ 50 bảng, trigger, quyền runtime): `http://localhost:5000/health/ready`
+  - Readiness (Kiểm tra kết nối DB, đủ 51 bảng, trigger, quyền runtime): `http://localhost:5000/health/ready`
 - **Admin Dashboard:** `http://localhost:5173`
 - **POS Web App:** `http://localhost:5174`
 - **App giả lập đơn sàn:** `http://localhost:5175` (dán webhook secret tạo ở màn Kết nối sàn của Admin)
@@ -150,7 +150,7 @@ powershell -ExecutionPolicy Bypass -File scripts\start-docker.ps1
    - Script khởi tạo sử dụng cơ chế truyền tham số an toàn (không nội suy chuỗi SQL), hỗ trợ mật khẩu chứa dấu nháy và ký tự đặc biệt, không ghi mật khẩu ra log, và tự động kiểm tra chặn nếu tài khoản có đặc quyền quản trị hoặc sở hữu schema/bảng.
 3. **Chờ Database Healthy & Backend Readiness:**
    - Docker Compose cấu hình `backend` và `pgadmin` chờ PostgreSQL vượt qua `healthcheck` (`pg_isready`).
-   - Backend cung cấp endpoint `/health/ready` thực hiện mở kết nối bằng tài khoản runtime `oisms_app`, kiểm tra đủ 50 bảng, trigger bảo vệ sổ cái và quyền hạn trước khi báo sẵn sàng (trả về HTTP 503 khi chưa sẵn sàng và không để lộ chuỗi kết nối hay mật khẩu).
+   - Backend cung cấp endpoint `/health/ready` thực hiện mở kết nối bằng tài khoản runtime `oisms_app`, kiểm tra đủ 51 bảng, trigger bảo vệ sổ cái và quyền hạn trước khi báo sẵn sàng (trả về HTTP 503 khi chưa sẵn sàng và không để lộ chuỗi kết nối hay mật khẩu).
 4. **Lưu ý về Volume đã có dữ liệu:**
    - Docker chỉ chạy script khởi tạo khi volume `postgres_data` hoàn toàn trống.
    - Việc đổi mật khẩu trong `.env` **không** tự động đổi mật khẩu của role trên volume đã tồn tại. Đối với volume cũ, quản trị viên sử dụng lệnh `ALTER ROLE` qua tài khoản `postgres`.
@@ -175,7 +175,7 @@ docker compose logs -f postgres
 # Theo dõi log Backend Web API
 docker compose logs -f backend
 
-# Kiểm tra kết nối và số lượng bảng (50 bảng)
+# Kiểm tra kết nối và số lượng bảng (51 bảng)
 docker compose exec -it postgres psql -U oisms_app -d oisms -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';"
 
 # Kiểm tra readiness endpoint của backend
@@ -183,7 +183,7 @@ curl http://localhost:5000/health/ready
 ```
 
 > [!NOTE]
-> Chi tiết tài liệu kiến trúc cơ sở dữ liệu, từ điển 50 bảng và quy trình cập nhật/migration dữ liệu xem tại [docs/database/README.md](docs/database/README.md).
+> Chi tiết tài liệu kiến trúc cơ sở dữ liệu, từ điển 51 bảng và quy trình cập nhật/migration dữ liệu xem tại [docs/database/README.md](docs/database/README.md).
 
 ---
 
@@ -259,7 +259,7 @@ Cách chạy local không đổi, các thay đổi cho deploy không áp dụng 
 - Vẫn dùng `docker compose up -d` với file `.env`. Không cần `.env.production`, Caddy không chạy, các cổng `5000`, `5173`, `5174`, `5175`, `5432`, `5050` vẫn mở như cũ.
 - Frontend không truyền `VITE_API_BASE_URL` thì vẫn gọi `http://localhost:5000`. Nếu tự đặt biến này thì **không** thêm đuôi `/api`, vì code tự nối `/api/...` và `/hubs/notifications`.
 - Không chạy bản production và bản local cùng lúc trên một máy với cùng project Compose: hai bản dùng chung tên container và volume, nên có thể ghi đè nhau.
-- `init-oisms.sh` kiểm tra đúng 50 bảng; database cũ thiếu bảng thì `/health/ready` trả 503 "schema is incomplete", cần chạy các script còn thiếu trong `docker/postgres/migrations/`. Volume đang có dữ liệu không bị ảnh hưởng; không cần chạy `docker compose down -v`, vì lệnh đó xóa toàn bộ dữ liệu local.
+- `init-oisms.sh` kiểm tra đúng 51 bảng; database cũ thiếu bảng thì `/health/ready` trả 503 "schema is incomplete", cần chạy các script còn thiếu trong `docker/postgres/migrations/`. Volume đang có dữ liệu không bị ảnh hưởng; không cần chạy `docker compose down -v`, vì lệnh đó xóa toàn bộ dữ liệu local.
 
 ---
 

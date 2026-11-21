@@ -99,12 +99,13 @@ stateDiagram-v2
   - `Staff` tạo đơn mua ở trạng thái `Draft` (mọi trường `supplierId`, `unitPrice`, phí gửi lên đều bị bỏ qua); chỉ được sửa, hủy hoặc bấm `Submit` (`Draft -> PendingApproval`) đối với đơn nháp do chính mình tạo. Khi đơn đã sang `PendingApproval`, `Staff` không thể sửa hay hủy (`409 INVALID_STATE_TRANSITION`).
   - `Owner` tạo đơn mua thì vào thẳng `PendingApproval`. Ở `PendingApproval`, `Owner` chọn Nhà cung cấp, ngày đặt hàng (`order_date <= hôm nay`), nhập đơn giá từng dòng, phí vận chuyển (`shipping_fee`), chiết khấu thương mại (`discount_amount`), thuế VAT (`vat_amount`), sửa số lượng hoặc bỏ dòng và lưu nhiều lần.
   - Khi `Owner` bấm `Approve` (`PendingApproval -> Approved`): bắt buộc gửi `version` (thiếu trả `400 VALIDATION_ERROR`) và kiểm tra khớp (`409 PURCHASE_ORDER_VERSION_MISMATCH`), bắt buộc có `supplier_id` và đủ `unit_price` trên mọi dòng (`422 PURCHASE_ORDER_INCOMPLETE_FOR_APPROVAL`), kiểm tra `discount_amount <= subtotal` (`422 PURCHASE_ORDER_DISCOUNT_EXCEEDS_SUBTOTAL`), xác nhận nếu có dòng giá `0`, và tính cố định `allocated_unit_cost` cho từng dòng. Từ `Approved` trở đi, giá mua và giá vốn phân bổ không bao giờ thay đổi.
+  - **Cấu hình giá bán (U12-G4 / OISMS-66):** Ở `PendingApproval`, `Owner` thiết lập cấu hình giá bán cho từng đơn vị bán (`purchase_order_sale_price_configs`) theo các chế độ `KEEP`, `WAC_MARGIN` (tính giá dự kiến = WAC dự kiến ÷ (1 - %), làm tròn lên bội 1.000đ), hoặc `FIXED`. Nếu có cấu hình có giá dự kiến nhỏ hơn WAC dự kiến thì khi Approve bắt buộc có cờ `confirmLossPrice = true` (thiếu trả `422 PURCHASE_ORDER_LOSS_PRICE_CONFIRM_REQUIRED`).
 
 ---
 
 ### 2.2. Ghi chú ngừng sử dụng Máy trạng thái Hóa đơn nhà cung cấp (`U01-B` -> Thay bởi `Upgrade 12`)
 
-Từ `Upgrade 12` (`OISMS-66-L2-G1`, ngày 19/11/2026), luồng hóa đơn nhà cung cấp và đối chiếu ba bên (`SupplierInvoice`, `PurchaseVariance`) đã được gỡ bỏ khỏi tầng API, giao diện và luồng xác nhận phiếu nhập vì trùng lặp với đơn mua hàng. Ba bảng `supplier_invoices`, `supplier_invoice_items`, `purchase_variances` vẫn được giữ trong schema (đủ 48 bảng) và thu hồi quyền `INSERT, UPDATE, DELETE` của `oisms_app` / `oisms_runtime` để lưu trữ lịch sử chỉ đọc. Trong transaction xác nhận phiếu nhập, thứ tự khóa chuẩn là: **phiếu nhập → phiếu mua → tồn SKU (sắp theo `SkuId`)**.
+Từ `Upgrade 12` (`OISMS-66-L2-G1`, ngày 19/11/2026), luồng hóa đơn nhà cung cấp và đối chiếu ba bên (`SupplierInvoice`, `PurchaseVariance`) đã được gỡ bỏ khỏi tầng API, giao diện và luồng xác nhận phiếu nhập vì trùng lặp với đơn mua hàng. Ba bảng `supplier_invoices`, `supplier_invoice_items`, `purchase_variances` vẫn được giữ trong schema (đủ 48 bảng, nay là 51 bảng) và thu hồi quyền `INSERT, UPDATE, DELETE` của `oisms_app` / `oisms_runtime` để lưu trữ lịch sử chỉ đọc. Trong transaction xác nhận phiếu nhập (`ConfirmReceiptAsync`), thứ tự khóa chuẩn là: **phiếu nhập → phiếu mua → tồn SKU (sắp theo `SkuId`) → giá bán (sắp theo `SkuId`, `UnitId`, `PriceListId`)**. Khi xác nhận phiếu nhập đầu tiên của dòng đơn mua, hệ thống tự động sinh `PriceChangeRequest` (`FROM_PURCHASE_ORDER`, `Approved`) và dòng `SkuUnitPrice` mới trong cùng giao dịch.
 
 ## 3. Máy Trạng Thái Chuyển Kho 2 Bước (`FR-INV-03`)
 
@@ -164,3 +165,23 @@ stateDiagram-v2
 - Khi chuyển sang `Confirmed`: kiểm tra lại số lượng dưới khóa giao dịch; ghi tăng `OnHand` chi nhánh và kho; ghi dòng sổ cái `IN` với `unit_cost = OrderItem.CostPrice`; tính lại WAC chi nhánh bằng `WacCalculator`; ghi nhận phương thức và thời điểm hoàn tiền.
 - Phiếu đã `Confirmed` không được phép hủy hay chỉnh sửa (Terminal State). Nếu có sai sót nghiệp vụ, xử lý qua phiếu điều chỉnh kho (`InventoryAdjustment`).
 - Phiếu `Cancelled` cũng là trạng thái kết thúc (Terminal State).
+
+---
+
+## 6. Máy Trạng Thái Phiếu Đổi Giá Bán (`PriceChangeRequest`, `FR-PROD-04`, `U04`, `U12-G4`)
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pending : Staff tạo phiếu đổi giá tay (bắt buộc reason_type)
+    [*] --> Approved : Owner tạo phiếu đổi giá tay / Sinh tự động từ đơn mua (FROM_PURCHASE_ORDER)
+    Pending --> Approved : Owner phê duyệt (Áp dụng giá mới: ghi SkuUnitPrice)
+    Pending --> Rejected : Owner từ chối (bắt buộc lý do)
+```
+
+- **Lý do bắt buộc (`reason_type`):** Mọi phiếu đổi giá tay bắt buộc có `reason_type` (`SHORTAGE`, `PROMOTION`, `FROM_PURCHASE_ORDER`, `OTHER`; `OTHER` bắt buộc nhập ghi chú chi tiết).
+- **Sinh tự động từ đơn mua:** Khi xác nhận phiếu nhập đầu tiên (`ConfirmReceiptAsync`), phiếu đổi giá được tạo thẳng ở trạng thái `Approved` với `reason_type = FROM_PURCHASE_ORDER`, Reason = "Theo đơn mua <PO_NUMBER>", ReviewedBy = người duyệt đơn mua.
+- **Xử lý xung đột giá chờ từ đơn mua (Q19):** Khi lập hoặc duyệt phiếu đổi giá tay trùng SKU × đơn vị × bảng giá với cấu hình đơn mua đang chờ áp dụng (`Approved` hoặc `PartiallyReceived`), client bắt buộc chọn hướng giải quyết `poConflictResolution`:
+  - `KEEP_MANUAL`: Hủy cấu hình giá trên đơn mua (chuyển sang `KEEP`), ưu tiên giá đổi tay.
+  - `APPLY_PO_LATER`: Giữ nguyên cấu hình trên đơn mua, khi nhập kho đơn mua sẽ áp dụng đè lên giá đổi tay.
+  - Nếu thiếu: hệ thống từ chối với mã lỗi `409 PRICE_CHANGE_PO_CONFLICT`.
+- **Thứ tự khóa giao dịch (Q25):** Khi duyệt phiếu đổi giá tay, lấy khóa `pg_advisory_xact_lock` theo SKU + đơn vị + bảng giá (sắp xếp tăng dần).

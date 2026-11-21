@@ -10,8 +10,10 @@ public sealed record InitialPriceLine(string PriceListCode, Guid SkuId, Guid Uni
 
 public sealed class CreatePriceChangeRequest
 {
+    public string ReasonType { get; set; } = "OTHER";
     public string Reason { get; set; } = string.Empty;
     public DateTimeOffset? RequestedValidFrom { get; set; }
+    public string? PoConflictResolution { get; set; } // KEEP_MANUAL or APPLY_PO_LATER
     public List<CreatePriceChangeRequestItemDto> Items { get; set; } = new();
 }
 
@@ -29,6 +31,7 @@ public sealed class PriceChangeRequestResponse
     public Guid RequestKey { get; set; }
     public string Kind { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
+    public string ReasonType { get; set; } = "OTHER";
     public string Reason { get; set; } = string.Empty;
     public DateTimeOffset? RequestedValidFrom { get; set; }
     public Guid? CreatedBy { get; set; }
@@ -93,4 +96,31 @@ public sealed class RejectPriceChangeRequestDto
 public sealed class CancelSkuUnitPriceRequestDto
 {
     public string? Reason { get; set; }
+}
+
+public sealed class ApprovePriceChangeRequestDto
+{
+    public string? PoConflictResolution { get; set; } // KEEP_MANUAL or APPLY_PO_LATER
+}
+
+public sealed class PendingPurchaseOrderSalePriceDto
+{
+    public Guid PurchaseOrderId { get; set; }
+    public string PurchaseOrderNumber { get; set; } = string.Empty;
+    public DateOnly OrderDate { get; set; }
+    public Guid PurchaseOrderItemId { get; set; }
+    public Guid SkuId { get; set; }
+    public string SkuCode { get; set; } = string.Empty;
+    public Guid UnitId { get; set; }
+    public string UnitName { get; set; } = string.Empty;
+    public Guid PriceListId { get; set; }
+    public string PriceListCode { get; set; } = string.Empty;
+    public string PriceListName { get; set; } = string.Empty;
+    public string Mode { get; set; } = "KEEP";
+    public decimal? MarginPercent { get; set; }
+    public decimal? FixedPrice { get; set; }
+    public string? PriceSource { get; set; }
+    public string ApplyMode { get; set; } = "ON_RECEIPT";
+    public DateTimeOffset? ApplyFrom { get; set; }
+    public decimal? ProjectedPrice { get; set; }
 }

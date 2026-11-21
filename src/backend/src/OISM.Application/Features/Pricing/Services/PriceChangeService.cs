@@ -66,7 +66,8 @@ public class PriceChangeService : IPriceChangeService
                 return replayDto;
             }
 
-            // 2. Kiểm tra dòng phiếu
+            // 2. Kiểm tra dòng phiếu và lý do
+            ValidateReasonAndType(request);
             ValidateRequestLines(request);
 
             // 3. Nạp danh sách bảng giá hợp lệ của tenant
@@ -115,6 +116,7 @@ public class PriceChangeService : IPriceChangeService
                 RequestKey = requestKey,
                 Kind = "Change",
                 Status = status,
+                ReasonType = request.ReasonType,
                 Reason = request.Reason.Trim(),
                 RequestedValidFrom = request.RequestedValidFrom,
                 CreatedBy = actor.UserId,
@@ -125,6 +127,14 @@ public class PriceChangeService : IPriceChangeService
             };
 
             _dbContext.PriceChangeRequests.Add(requestEntity);
+
+            if (actor.IsOwner)
+            {
+                var priceKeys = request.Items
+                    .Select(i => (i.SkuId, i.UnitId, priceListsByCode[i.PriceListCode.Trim().ToLowerInvariant()].Id))
+                    .ToList();
+                await HandlePoPriceConflictsAsync(tenantId, priceKeys, request.PoConflictResolution, now, ct);
+            }
 
             // 6. Tính mốc hiệu lực nếu Owner duyệt ngay
             var validFrom = request.RequestedValidFrom.HasValue && request.RequestedValidFrom.Value > now
@@ -210,7 +220,7 @@ public class PriceChangeService : IPriceChangeService
         });
     }
 
-    public async Task<PriceChangeRequestResponse> ApproveAsync(Guid id, Guid? reviewerId, CancellationToken ct = default)
+    public async Task<PriceChangeRequestResponse> ApproveAsync(Guid id, Guid? reviewerId, string? poConflictResolution = null, CancellationToken ct = default)
     {
         var tenantId = _currentTenantService.TenantId
             ?? throw new OismException("UNAUTHORIZED", "Chưa xác thực thông tin khách thuê.", 401);
@@ -255,8 +265,11 @@ public class PriceChangeService : IPriceChangeService
                 }
             }
 
-            // Tính valid_from theo quyết định 2 bằng đồng hồ backend
             var now = DateTimeOffset.UtcNow;
+            var priceKeys = request.Items.Select(i => (i.SkuId, i.UnitId, i.PriceListId)).ToList();
+            await HandlePoPriceConflictsAsync(tenantId, priceKeys, poConflictResolution, now, ct);
+
+            // Tính valid_from theo quyết định 2 bằng đồng hồ backend
             var validFrom = request.RequestedValidFrom.HasValue && request.RequestedValidFrom.Value > now
                 ? request.RequestedValidFrom.Value
                 : now;
@@ -590,6 +603,7 @@ public class PriceChangeService : IPriceChangeService
 
     private static bool PayloadMatches(PriceChangeRequest existing, CreatePriceChangeRequest incoming)
     {
+        if (existing.ReasonType != incoming.ReasonType.Trim().ToUpperInvariant()) return false;
         if (existing.Reason != incoming.Reason.Trim()) return false;
         if (TruncateToMicroseconds(existing.RequestedValidFrom) != TruncateToMicroseconds(incoming.RequestedValidFrom)) return false;
         if (existing.Items.Count != incoming.Items.Count) return false;
@@ -636,6 +650,7 @@ public class PriceChangeService : IPriceChangeService
             RequestKey = r.RequestKey,
             Kind = r.Kind,
             Status = r.Status,
+            ReasonType = r.ReasonType,
             Reason = r.Reason,
             RequestedValidFrom = r.RequestedValidFrom,
             CreatedBy = r.CreatedBy,
@@ -656,5 +671,182 @@ public class PriceChangeService : IPriceChangeService
                 NewPrice = i.NewPrice
             }).ToList()
         };
+    }
+
+    private static void ValidateReasonAndType(CreatePriceChangeRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.ReasonType))
+        {
+            throw new OismException("VALIDATION_ERROR", "Bắt buộc chọn loại lý do đổi giá (reason_type).", 400);
+        }
+
+        var allowedReasonTypes = new[] { "SHORTAGE", "PROMOTION", "FROM_PURCHASE_ORDER", "OTHER" };
+        var normalizedType = request.ReasonType.Trim().ToUpperInvariant();
+        if (!allowedReasonTypes.Contains(normalizedType))
+        {
+            throw new OismException("VALIDATION_ERROR", "Loại lý do đổi giá không hợp lệ. Chỉ chấp nhận: SHORTAGE, PROMOTION, FROM_PURCHASE_ORDER, OTHER.", 400);
+        }
+
+        request.ReasonType = normalizedType;
+
+        if (normalizedType == "OTHER" && string.IsNullOrWhiteSpace(request.Reason))
+        {
+            throw new OismException("VALIDATION_ERROR", "Khi chọn loại lý do 'OTHER', bắt buộc nhập ghi chú lý do chi tiết.", 400);
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Reason))
+        {
+            request.Reason = normalizedType switch
+            {
+                "SHORTAGE" => "Khan hàng",
+                "PROMOTION" => "Khuyến mãi / Giảm giá",
+                "FROM_PURCHASE_ORDER" => "Theo đơn mua",
+                _ => "Thay đổi giá bán"
+            };
+        }
+        else
+        {
+            request.Reason = request.Reason.Trim();
+            if (request.Reason.Length > MaxTextLength)
+            {
+                throw new OismException("VALIDATION_ERROR", $"Lý do đổi giá tối đa {MaxTextLength} ký tự.", 400);
+            }
+        }
+    }
+
+    private async Task HandlePoPriceConflictsAsync(
+        Guid tenantId,
+        List<(Guid SkuId, Guid UnitId, Guid PriceListId)> priceKeys,
+        string? poConflictResolution,
+        DateTimeOffset now,
+        CancellationToken ct)
+    {
+        var skuIds = priceKeys.Select(k => k.SkuId).Distinct().ToList();
+
+        var pendingPoConfigs = await _dbContext.PurchaseOrderSalePriceConfigs
+            .Include(c => c.PurchaseOrderItem)
+                .ThenInclude(poi => poi!.PurchaseOrder)
+            .Include(c => c.PriceList)
+            .Where(c => c.TenantId == tenantId &&
+                        c.AppliedAt == null &&
+                        c.Mode != "KEEP" &&
+                        skuIds.Contains(c.PurchaseOrderItem!.SkuId) &&
+                        (c.PurchaseOrderItem.PurchaseOrder!.Status == PurchaseOrderStatus.Approved ||
+                         c.PurchaseOrderItem.PurchaseOrder.Status == PurchaseOrderStatus.PartiallyReceived))
+            .ToListAsync(ct);
+
+        var matchingConfigs = pendingPoConfigs.Where(c =>
+            priceKeys.Any(k => k.SkuId == c.PurchaseOrderItem!.SkuId &&
+                               k.UnitId == c.UnitId &&
+                               k.PriceListId == c.PriceListId))
+            .ToList();
+
+        if (matchingConfigs.Count > 0)
+        {
+            var conflictingOrders = matchingConfigs.Select(c => new ConflictingPurchaseOrderInfo
+            {
+                PurchaseOrderId = c.PurchaseOrderItem!.PurchaseOrder!.Id,
+                PurchaseOrderNumber = c.PurchaseOrderItem.PurchaseOrder.Number,
+                SkuId = c.PurchaseOrderItem.SkuId,
+                UnitId = c.UnitId,
+                PriceListId = c.PriceListId,
+                PriceListCode = c.PriceList?.Code ?? string.Empty,
+                Mode = c.Mode,
+                MarginPercent = c.MarginPercent,
+                FixedPrice = c.FixedPrice
+            }).ToList();
+
+            if (string.IsNullOrWhiteSpace(poConflictResolution))
+            {
+                throw new PriceChangePoConflictException(conflictingOrders);
+            }
+
+            var normalizedResolution = poConflictResolution.Trim().ToUpperInvariant();
+            if (normalizedResolution != "KEEP_MANUAL" && normalizedResolution != "APPLY_PO_LATER")
+            {
+                throw new OismException("VALIDATION_ERROR", "Phương thức giải quyết xung đột không hợp lệ. Chỉ chấp nhận 'KEEP_MANUAL' hoặc 'APPLY_PO_LATER'.", 400);
+            }
+
+            // Khóa đơn mua xung đột theo thứ tự tăng dần của ID
+            var poIdsToLock = matchingConfigs
+                .Select(c => c.PurchaseOrderItem!.PurchaseOrder!.Id)
+                .Distinct()
+                .OrderBy(id => id)
+                .ToList();
+
+            foreach (var poId in poIdsToLock)
+            {
+                await _sqlLockService.LockPurchaseOrderAsync(tenantId, poId, ct);
+            }
+
+            if (normalizedResolution == "KEEP_MANUAL")
+            {
+                foreach (var config in matchingConfigs)
+                {
+                    config.Mode = "KEEP";
+                    config.MarginPercent = null;
+                    config.FixedPrice = null;
+                    config.PriceSource = null;
+                    config.UpdatedAt = now;
+                }
+            }
+        }
+
+        // Khóa giá theo SKU + Unit + PriceList sắp xếp tăng dần
+        await _sqlLockService.LockPricesAsync(tenantId, priceKeys, ct);
+    }
+
+    public async Task<List<PendingPurchaseOrderSalePriceDto>> GetPendingPurchaseOrderPricesAsync(Guid skuId, CancellationToken ct = default)
+    {
+        var tenantId = _currentTenantService.TenantId
+            ?? throw new OismException("UNAUTHORIZED", "Chưa xác thực thông tin khách thuê.", 401);
+
+        var configs = await _dbContext.PurchaseOrderSalePriceConfigs
+            .Include(c => c.PurchaseOrderItem)
+                .ThenInclude(poi => poi!.PurchaseOrder)
+            .Include(c => c.PurchaseOrderItem)
+                .ThenInclude(poi => poi!.Sku)
+            .Include(c => c.Unit)
+            .Include(c => c.PriceList)
+            .Where(c => c.TenantId == tenantId &&
+                        c.AppliedAt == null &&
+                        c.Mode != "KEEP" &&
+                        c.PurchaseOrderItem!.SkuId == skuId &&
+                        (c.PurchaseOrderItem.PurchaseOrder!.Status == PurchaseOrderStatus.Approved ||
+                         c.PurchaseOrderItem.PurchaseOrder.Status == PurchaseOrderStatus.PartiallyReceived))
+            .OrderByDescending(c => c.PurchaseOrderItem!.PurchaseOrder!.OrderDate)
+            .ThenBy(c => c.CreatedAt)
+            .ToListAsync(ct);
+
+        return configs.Select(c =>
+        {
+            decimal? projectedPrice = null;
+            if (c.Mode == "FIXED")
+            {
+                projectedPrice = c.FixedPrice;
+            }
+
+            return new PendingPurchaseOrderSalePriceDto
+            {
+                PurchaseOrderId = c.PurchaseOrderItem!.PurchaseOrder!.Id,
+                PurchaseOrderNumber = c.PurchaseOrderItem.PurchaseOrder.Number,
+                OrderDate = c.PurchaseOrderItem.PurchaseOrder.OrderDate,
+                PurchaseOrderItemId = c.PurchaseOrderItemId,
+                SkuId = c.PurchaseOrderItem.SkuId,
+                SkuCode = c.PurchaseOrderItem.Sku?.SKU ?? string.Empty,
+                UnitId = c.UnitId,
+                UnitName = c.Unit?.Name ?? string.Empty,
+                PriceListId = c.PriceListId,
+                PriceListCode = c.PriceList?.Code ?? string.Empty,
+                PriceListName = c.PriceList?.Name ?? string.Empty,
+                Mode = c.Mode,
+                MarginPercent = c.MarginPercent,
+                FixedPrice = c.FixedPrice,
+                PriceSource = c.PriceSource,
+                ApplyMode = c.ApplyMode,
+                ApplyFrom = c.ApplyFrom,
+                ProjectedPrice = projectedPrice
+            };
+        }).ToList();
     }
 }

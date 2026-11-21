@@ -51,6 +51,7 @@ public interface IAppDbContext
     DbSet<SkuUnitPrice> SkuUnitPrices { get; }
     DbSet<PurchaseOrder> PurchaseOrders { get; }
     DbSet<PurchaseOrderItem> PurchaseOrderItems { get; }
+    DbSet<PurchaseOrderSalePriceConfig> PurchaseOrderSalePriceConfigs { get; }
     DbSet<SupplierInvoice> SupplierInvoices { get; }
     DbSet<SupplierInvoiceItem> SupplierInvoiceItems { get; }
     DbSet<PurchaseVariance> PurchaseVariances { get; }

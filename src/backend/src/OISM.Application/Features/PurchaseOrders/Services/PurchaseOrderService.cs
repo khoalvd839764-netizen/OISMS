@@ -112,7 +112,7 @@ public class PurchaseOrderService : IPurchaseOrderService
                     throw new IdempotencyPayloadMismatchException("RequestKey đã tồn tại nhưng nội dung phiếu mua hàng không khớp.");
                 }
 
-                var replayDto = MapToResponseDto(existing, isOwner);
+                var replayDto = await MapToResponseDtoAsync(existing, isOwner, ct);
                 replayDto.IsReplay = true;
                 return replayDto;
             }
@@ -176,13 +176,17 @@ public class PurchaseOrderService : IPurchaseOrderService
                 CreatedAt = now
             };
 
+            var activePriceLists = isOwner
+                ? await _context.PriceLists.Where(p => p.TenantId == tenantId && p.IsActive).ToDictionaryAsync(p => p.Id, ct)
+                : null;
+
             foreach (var itemDto in dto.Items)
             {
                 var sku = existingSkus[itemDto.SkuId];
                 var resolvedUnit = SkuUnitResolver.ResolveForPurchase(sku, sku.SkuUnits, itemDto.UnitId);
                 SkuUnitResolver.ComputeBaseQuantity(itemDto.Quantity, resolvedUnit);
 
-                po.Items.Add(new PurchaseOrderItem
+                var poItem = new PurchaseOrderItem
                 {
                     Id = Guid.NewGuid(),
                     TenantId = tenantId,
@@ -197,7 +201,46 @@ public class PurchaseOrderService : IPurchaseOrderService
                     AllocatedUnitCost = null,
                     ReceivedBaseQuantity = 0m,
                     CreatedAt = now
-                });
+                };
+
+                if (isOwner && itemDto.SalePriceConfigs != null && itemDto.SalePriceConfigs.Count > 0 && activePriceLists != null)
+                {
+                    foreach (var configDto in itemDto.SalePriceConfigs)
+                    {
+                        var su = sku.SkuUnits.FirstOrDefault(u => u.UnitId == configDto.UnitId);
+                        if (su == null || !su.IsActive || !su.CanSell)
+                        {
+                            throw new OismException("UNIT_NOT_ALLOWED", "Đơn vị tính không thuộc SKU, đang bị khóa hoặc không cho phép bán.", 422);
+                        }
+
+                        if (!activePriceLists.ContainsKey(configDto.PriceListId))
+                        {
+                            throw new OismException("VALIDATION_ERROR", $"Bảng giá '{configDto.PriceListId}' không tồn tại hoặc không còn hiệu lực.", 400);
+                        }
+
+                        ValidateConfigDto(configDto);
+
+                        poItem.SalePriceConfigs.Add(new PurchaseOrderSalePriceConfig
+                        {
+                            Id = Guid.NewGuid(),
+                            TenantId = tenantId,
+                            PurchaseOrderItemId = poItem.Id,
+                            UnitId = configDto.UnitId,
+                            PriceListId = configDto.PriceListId,
+                            Mode = configDto.Mode,
+                            MarginPercent = configDto.Mode == "WAC_MARGIN" ? configDto.MarginPercent : null,
+                            FixedPrice = configDto.Mode == "FIXED" ? configDto.FixedPrice : null,
+                            PriceSource = configDto.Mode == "FIXED" ? configDto.PriceSource : null,
+                            ApplyMode = configDto.ApplyMode,
+                            ApplyFrom = configDto.ApplyMode == "FROM_DATE" ? configDto.ApplyFrom : null,
+                            AppliedAt = null,
+                            PriceChangeRequestId = null,
+                            CreatedAt = now
+                        });
+                    }
+                }
+
+                po.Items.Add(poItem);
             }
 
             _context.PurchaseOrders.Add(po);
@@ -222,7 +265,7 @@ public class PurchaseOrderService : IPurchaseOrderService
                         throw new IdempotencyPayloadMismatchException("RequestKey đã tồn tại nhưng nội dung phiếu mua hàng không khớp.");
                     }
 
-                    var replayDto = MapToResponseDto(reloaded, isOwner);
+                    var replayDto = await MapToResponseDtoAsync(reloaded, isOwner, ct);
                     replayDto.IsReplay = true;
                     return replayDto;
                 }
@@ -384,6 +427,10 @@ public class PurchaseOrderService : IPurchaseOrderService
             // Lưu xóa trước để tránh đụng unique constraint (tenant_id, purchase_order_id, sku_id)
             await _context.SaveChangesAsync(ct);
 
+            var activePriceListsForUpdate = isOwner
+                ? await _context.PriceLists.Where(p => p.TenantId == tenantId && p.IsActive).ToDictionaryAsync(p => p.Id, ct)
+                : null;
+
             foreach (var itemDto in dto.Items)
             {
                 var sku = existingSkus[itemDto.SkuId];
@@ -406,6 +453,44 @@ public class PurchaseOrderService : IPurchaseOrderService
                     ReceivedBaseQuantity = 0m,
                     CreatedAt = now
                 };
+
+                if (isOwner && itemDto.SalePriceConfigs != null && itemDto.SalePriceConfigs.Count > 0 && activePriceListsForUpdate != null)
+                {
+                    foreach (var configDto in itemDto.SalePriceConfigs)
+                    {
+                        var su = sku.SkuUnits.FirstOrDefault(u => u.UnitId == configDto.UnitId);
+                        if (su == null || !su.IsActive || !su.CanSell)
+                        {
+                            throw new OismException("UNIT_NOT_ALLOWED", "Đơn vị tính không thuộc SKU, đang bị khóa hoặc không cho phép bán.", 422);
+                        }
+
+                        if (!activePriceListsForUpdate.ContainsKey(configDto.PriceListId))
+                        {
+                            throw new OismException("VALIDATION_ERROR", $"Bảng giá '{configDto.PriceListId}' không tồn tại hoặc không còn hiệu lực.", 400);
+                        }
+
+                        ValidateConfigDto(configDto);
+
+                        newItem.SalePriceConfigs.Add(new PurchaseOrderSalePriceConfig
+                        {
+                            Id = Guid.NewGuid(),
+                            TenantId = tenantId,
+                            PurchaseOrderItemId = newItem.Id,
+                            UnitId = configDto.UnitId,
+                            PriceListId = configDto.PriceListId,
+                            Mode = configDto.Mode,
+                            MarginPercent = configDto.Mode == "WAC_MARGIN" ? configDto.MarginPercent : null,
+                            FixedPrice = configDto.Mode == "FIXED" ? configDto.FixedPrice : null,
+                            PriceSource = configDto.Mode == "FIXED" ? configDto.PriceSource : null,
+                            ApplyMode = configDto.ApplyMode,
+                            ApplyFrom = configDto.ApplyMode == "FROM_DATE" ? configDto.ApplyFrom : null,
+                            AppliedAt = null,
+                            PriceChangeRequestId = null,
+                            CreatedAt = now
+                        });
+                    }
+                }
+
                 _context.PurchaseOrderItems.Add(newItem);
             }
 
@@ -520,7 +605,8 @@ public class PurchaseOrderService : IPurchaseOrderService
         bool confirmZeroPrice,
         Guid userId,
         CancellationToken ct = default,
-        int? version = null)
+        int? version = null,
+        bool confirmLossPrice = false)
     {
         var tenantId = RequireTenantId();
 
@@ -533,6 +619,7 @@ public class PurchaseOrderService : IPurchaseOrderService
 
             var po = await _context.PurchaseOrders
                 .Include(p => p.Items)
+                    .ThenInclude(i => i.SalePriceConfigs)
                 .FirstOrDefaultAsync(p => p.Id == id, ct);
 
             if (po == null)
@@ -653,6 +740,80 @@ public class PurchaseOrderService : IPurchaseOrderService
 
             // Lưu allocated_unit_cost trước khi chuyển trạng thái sang Approved để thỏa mãn trigger bảo vệ
             await _context.SaveChangesAsync(ct);
+
+            // Kiểm tra cấu hình giá bán bán lỗ (AC-02 / Upgrade 12)
+            var skuIds = po.Items.Select(i => i.SkuId).Distinct().ToList();
+            var skuUnits = await _context.SkuUnits
+                .Where(su => su.TenantId == tenantId && skuIds.Contains(su.SkuId))
+                .ToListAsync(ct);
+
+            var branchBalances = await _context.InventoryBalances
+                .Where(b => b.BranchId == po.BranchId && skuIds.Contains(b.SkuId))
+                .ToDictionaryAsync(b => b.SkuId, ct);
+
+            var activePrices = await _context.SkuUnitPrices
+                .Where(p => p.TenantId == tenantId &&
+                            skuIds.Contains(p.SkuId) &&
+                            p.CancelledAt == null &&
+                            p.ValidFrom <= now)
+                .OrderByDescending(p => p.ValidFrom)
+                .ThenByDescending(p => p.Id)
+                .ToListAsync(ct);
+
+            var hasBelowCost = false;
+
+            foreach (var item in po.Items)
+            {
+                var currentOnHand = branchBalances.TryGetValue(item.SkuId, out var bal) ? bal.OnHand : 0m;
+                var currentBaseWac = bal?.AverageCost ?? 0m;
+                var incomingBaseQty = item.Quantity * item.FactorSnapshot;
+                var effectiveAllocatedCost = item.AllocatedUnitCost ?? item.UnitPrice ?? 0m;
+                var incomingBaseCost = item.FactorSnapshot > 0m ? (effectiveAllocatedCost / item.FactorSnapshot) : 0m;
+                var projectedBaseWac = CalculateProjectedWac(currentOnHand, currentBaseWac, incomingBaseQty, incomingBaseCost);
+
+                foreach (var config in item.SalePriceConfigs)
+                {
+                    var su = skuUnits.FirstOrDefault(u => u.SkuId == item.SkuId && u.UnitId == config.UnitId);
+                    var factorToBase = su?.FactorToBase ?? 1m;
+                    var projectedUnitWac = projectedBaseWac * factorToBase;
+
+                    decimal projectedPrice = 0m;
+                    if (config.Mode == "KEEP")
+                    {
+                        var latestPrice = activePrices.FirstOrDefault(p => p.SkuId == item.SkuId && p.UnitId == config.UnitId && p.PriceListId == config.PriceListId);
+                        if (latestPrice == null || latestPrice.Price <= 0m)
+                        {
+                            continue;
+                        }
+                        projectedPrice = latestPrice.Price;
+                    }
+                    else if (config.Mode == "FIXED")
+                    {
+                        projectedPrice = config.FixedPrice ?? 0m;
+                    }
+                    else if (config.Mode == "WAC_MARGIN")
+                    {
+                        var margin = config.MarginPercent ?? 0m;
+                        var raw = (1m - (margin / 100m)) != 0m
+                            ? projectedUnitWac / (1m - (margin / 100m))
+                            : 0m;
+                        projectedPrice = Math.Ceiling(raw / 1000m) * 1000m;
+                    }
+
+                    if (projectedPrice > 0m && projectedPrice < projectedUnitWac)
+                    {
+                        hasBelowCost = true;
+                        break;
+                    }
+                }
+
+                if (hasBelowCost) break;
+            }
+
+            if (hasBelowCost && !confirmLossPrice)
+            {
+                throw new PurchaseOrderLossPriceConfirmRequiredException();
+            }
 
             po.Approve(userId, now);
 
@@ -826,9 +987,15 @@ public class PurchaseOrderService : IPurchaseOrderService
             .Take(pageSize)
             .ToListAsync(ct);
 
+        var mappedOrders = new List<PurchaseOrderResponseDto>();
+        foreach (var po in orders)
+        {
+            mappedOrders.Add(await MapToResponseDtoAsync(po, isOwner, ct));
+        }
+
         return new PagedResult<PurchaseOrderResponseDto>
         {
-            Items = orders.Select(po => MapToResponseDto(po, isOwner)).ToList(),
+            Items = mappedOrders,
             PageIndex = pageIndex,
             PageSize = pageSize,
             TotalCount = totalCount
@@ -843,7 +1010,7 @@ public class PurchaseOrderService : IPurchaseOrderService
             .AsNoTracking()
             .FirstOrDefaultAsync(p => p.Id == id, ct);
 
-        return po == null ? null : MapToResponseDto(po, isOwner);
+        return po == null ? null : await MapToResponseDtoAsync(po, isOwner, ct);
     }
 
     public async Task<PurchaseOrderPriceSuggestionDto> GetPriceSuggestionAsync(
@@ -943,7 +1110,13 @@ public class PurchaseOrderService : IPurchaseOrderService
             .Include(p => p.CancelledByUser)
             .Include(p => p.Items)
                 .ThenInclude(i => i.Sku)
-                    .ThenInclude(s => s!.Product);
+                    .ThenInclude(s => s!.Product)
+            .Include(p => p.Items)
+                .ThenInclude(i => i.SalePriceConfigs)
+                    .ThenInclude(c => c.PriceList)
+            .Include(p => p.Items)
+                .ThenInclude(i => i.SalePriceConfigs)
+                    .ThenInclude(c => c.Unit);
     }
 
     private async Task<PurchaseOrderResponseDto> LoadAndMapResponseAsync(Guid id, bool isOwner, CancellationToken ct)
@@ -957,7 +1130,7 @@ public class PurchaseOrderService : IPurchaseOrderService
             throw new OismException("NOT_FOUND", $"Không tìm thấy phiếu mua hàng với ID '{id}'.", 404);
         }
 
-        return MapToResponseDto(po, isOwner);
+        return await MapToResponseDtoAsync(po, isOwner, ct);
     }
 
     private static void ValidateFees(decimal shippingFee, decimal discountAmount, decimal vatAmount)
@@ -1195,5 +1368,321 @@ public class PurchaseOrderService : IPurchaseOrderService
             IsReplay = false,
             Items = items
         };
+    }
+
+    public async Task<PurchaseOrderResponseDto> UpdateSalePriceConfigsAsync(
+        Guid id,
+        UpdatePurchaseOrderSalePriceConfigsDto dto,
+        Guid userId,
+        CancellationToken ct = default)
+    {
+        if (dto == null)
+        {
+            throw new OismException("VALIDATION_ERROR", "Dữ liệu cấu hình giá bán không được để trống.", 400);
+        }
+
+        var tenantId = RequireTenantId();
+
+        return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
+        {
+            _context.UnitOfWork.ResetTracking();
+            await using var tx = await _context.UnitOfWork.BeginTransactionAsync(ct);
+
+            await _sqlLockService.LockPurchaseOrderAsync(tenantId, id, ct);
+
+            var po = await _context.PurchaseOrders
+                .Include(p => p.Items)
+                    .ThenInclude(i => i.SalePriceConfigs)
+                .FirstOrDefaultAsync(p => p.Id == id, ct);
+
+            if (po == null)
+            {
+                throw new OismException("NOT_FOUND", $"Không tìm thấy phiếu mua hàng với ID '{id}'.", 404);
+            }
+
+            if (!po.IsPendingApproval)
+            {
+                throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', chỉ được cấu hình giá bán ở trạng thái 'PendingApproval'.", 409);
+            }
+
+            var poItemsById = po.Items.ToDictionary(i => i.Id);
+            var skuIds = po.Items.Select(i => i.SkuId).Distinct().ToList();
+            var skuUnits = await _context.SkuUnits
+                .Where(su => su.TenantId == tenantId && skuIds.Contains(su.SkuId))
+                .ToListAsync(ct);
+
+            var activePriceLists = await _context.PriceLists
+                .Where(p => p.TenantId == tenantId && p.IsActive)
+                .ToDictionaryAsync(p => p.Id, ct);
+
+            var now = DateTimeOffset.UtcNow;
+
+            foreach (var updateItem in dto.Items)
+            {
+                if (!poItemsById.TryGetValue(updateItem.PurchaseOrderItemId, out var poItem))
+                {
+                    throw new OismException("VALIDATION_ERROR", $"Dòng đơn mua '{updateItem.PurchaseOrderItemId}' không thuộc đơn mua '{po.Number}'.", 400);
+                }
+
+                foreach (var configDto in updateItem.Configs)
+                {
+                    var su = skuUnits.FirstOrDefault(u => u.SkuId == poItem.SkuId && u.UnitId == configDto.UnitId);
+                    if (su == null || !su.IsActive || !su.CanSell)
+                    {
+                        throw new OismException("UNIT_NOT_ALLOWED", "Đơn vị tính không thuộc SKU, đang bị khóa hoặc không cho phép bán.", 422);
+                    }
+
+                    if (!activePriceLists.ContainsKey(configDto.PriceListId))
+                    {
+                        throw new OismException("VALIDATION_ERROR", $"Bảng giá '{configDto.PriceListId}' không tồn tại hoặc không còn hiệu lực.", 400);
+                    }
+
+                    ValidateConfigDto(configDto);
+
+                    var existingConfig = poItem.SalePriceConfigs
+                        .FirstOrDefault(c => c.UnitId == configDto.UnitId && c.PriceListId == configDto.PriceListId);
+
+                    if (existingConfig != null)
+                    {
+                        existingConfig.Mode = configDto.Mode;
+                        existingConfig.MarginPercent = configDto.Mode == "WAC_MARGIN" ? configDto.MarginPercent : null;
+                        existingConfig.FixedPrice = configDto.Mode == "FIXED" ? configDto.FixedPrice : null;
+                        existingConfig.PriceSource = configDto.Mode == "FIXED" ? configDto.PriceSource : null;
+                        existingConfig.ApplyMode = configDto.ApplyMode;
+                        existingConfig.ApplyFrom = configDto.ApplyMode == "FROM_DATE" ? configDto.ApplyFrom : null;
+                        existingConfig.UpdatedAt = now;
+                    }
+                    else
+                    {
+                        var newConfig = new PurchaseOrderSalePriceConfig
+                        {
+                            Id = Guid.NewGuid(),
+                            TenantId = tenantId,
+                            PurchaseOrderItemId = poItem.Id,
+                            UnitId = configDto.UnitId,
+                            PriceListId = configDto.PriceListId,
+                            Mode = configDto.Mode,
+                            MarginPercent = configDto.Mode == "WAC_MARGIN" ? configDto.MarginPercent : null,
+                            FixedPrice = configDto.Mode == "FIXED" ? configDto.FixedPrice : null,
+                            PriceSource = configDto.Mode == "FIXED" ? configDto.PriceSource : null,
+                            ApplyMode = configDto.ApplyMode,
+                            ApplyFrom = configDto.ApplyMode == "FROM_DATE" ? configDto.ApplyFrom : null,
+                            AppliedAt = null,
+                            PriceChangeRequestId = null,
+                            CreatedAt = now
+                        };
+                        poItem.SalePriceConfigs.Add(newConfig);
+                        _context.PurchaseOrderSalePriceConfigs.Add(newConfig);
+                    }
+                }
+            }
+
+            po.UpdatedAt = now;
+            await _context.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+
+            return await LoadAndMapResponseAsync(po.Id, isOwner: true, ct);
+        });
+    }
+
+    private static void ValidateConfigDto(PurchaseOrderSalePriceConfigInputDto dto)
+    {
+        var allowedModes = new[] { "KEEP", "WAC_MARGIN", "FIXED" };
+        if (!allowedModes.Contains(dto.Mode))
+        {
+            throw new OismException("VALIDATION_ERROR", "Phương thức tính giá không hợp lệ. Chỉ chấp nhận KEEP, WAC_MARGIN, FIXED.", 400);
+        }
+
+        var allowedApplyModes = new[] { "ON_RECEIPT", "FROM_DATE" };
+        if (!allowedApplyModes.Contains(dto.ApplyMode))
+        {
+            throw new OismException("VALIDATION_ERROR", "Thời điểm áp dụng không hợp lệ. Chỉ chấp nhận ON_RECEIPT, FROM_DATE.", 400);
+        }
+
+        if (dto.ApplyMode == "FROM_DATE" && !dto.ApplyFrom.HasValue)
+        {
+            throw new OismException("VALIDATION_ERROR", "Bắt buộc nhập ngày áp dụng khi chọn phương thức FROM_DATE.", 400);
+        }
+
+        if (dto.Mode == "WAC_MARGIN")
+        {
+            if (!dto.MarginPercent.HasValue)
+            {
+                throw new OismException("VALIDATION_ERROR", "Bắt buộc nhập phần trăm lãi gộp khi chọn phương thức WAC + lãi.", 400);
+            }
+            if (dto.MarginPercent.Value >= 100m)
+            {
+                throw new OismException("VALIDATION_ERROR", "Phần trăm lãi gộp phải nhỏ hơn 100%.", 400);
+            }
+        }
+        else if (dto.Mode == "FIXED")
+        {
+            if (!dto.FixedPrice.HasValue || dto.FixedPrice.Value < 0m)
+            {
+                throw new OismException("VALIDATION_ERROR", "Giá mới không được để trống hoặc nhỏ hơn 0.", 400);
+            }
+            var allowedSources = new[] { "SUPPLIER", "OWNER" };
+            if (string.IsNullOrWhiteSpace(dto.PriceSource) || !allowedSources.Contains(dto.PriceSource.Trim().ToUpperInvariant()))
+            {
+                throw new OismException("VALIDATION_ERROR", "Nguồn giá mới bắt buộc là SUPPLIER hoặc OWNER.", 400);
+            }
+            dto.PriceSource = dto.PriceSource.Trim().ToUpperInvariant();
+        }
+    }
+
+    private static decimal CalculateProjectedWac(decimal currentOnHand, decimal currentAverageCost, decimal incomingBaseQty, decimal incomingBaseCost)
+    {
+        if (incomingBaseQty <= 0m)
+        {
+            return currentAverageCost;
+        }
+
+        if (currentOnHand <= 0m)
+        {
+            return decimal.Round(incomingBaseCost, 6, MidpointRounding.AwayFromZero);
+        }
+
+        var totalQty = currentOnHand + incomingBaseQty;
+        var totalCost = (currentOnHand * currentAverageCost) + (incomingBaseQty * incomingBaseCost);
+        return decimal.Round(totalCost / totalQty, 6, MidpointRounding.AwayFromZero);
+    }
+
+    private async Task<PurchaseOrderResponseDto> MapToResponseDtoAsync(PurchaseOrder po, bool isOwner, CancellationToken ct)
+    {
+        var baseDto = MapToResponseDto(po, isOwner);
+        if (!isOwner)
+        {
+            foreach (var item in baseDto.Items)
+            {
+                item.SalePriceConfigs = null;
+            }
+            return baseDto;
+        }
+
+        var skuIds = po.Items.Select(i => i.SkuId).Distinct().ToList();
+        var skuUnits = await _context.SkuUnits
+            .AsNoTracking()
+            .Include(u => u.Unit)
+            .Where(su => su.TenantId == po.TenantId && skuIds.Contains(su.SkuId) && su.IsActive && su.CanSell)
+            .ToListAsync(ct);
+
+        var priceLists = await _context.PriceLists
+            .AsNoTracking()
+            .Where(pl => pl.TenantId == po.TenantId && pl.IsActive)
+            .OrderBy(pl => pl.Code)
+            .ToListAsync(ct);
+
+        var branchBalances = await _context.InventoryBalances
+            .AsNoTracking()
+            .Where(b => b.BranchId == po.BranchId && skuIds.Contains(b.SkuId))
+            .ToDictionaryAsync(b => b.SkuId, ct);
+
+        var now = DateTimeOffset.UtcNow;
+        var activePrices = await _context.SkuUnitPrices
+            .AsNoTracking()
+            .Where(p => p.TenantId == po.TenantId &&
+                        skuIds.Contains(p.SkuId) &&
+                        p.CancelledAt == null &&
+                        p.ValidFrom <= now)
+            .OrderByDescending(p => p.ValidFrom)
+            .ThenByDescending(p => p.Id)
+            .ToListAsync(ct);
+
+        foreach (var itemDto in baseDto.Items)
+        {
+            var poItem = po.Items.FirstOrDefault(i => i.Id == itemDto.Id);
+            if (poItem == null) continue;
+
+            var currentOnHand = branchBalances.TryGetValue(poItem.SkuId, out var bal) ? bal.OnHand : 0m;
+            var currentBaseWac = bal?.AverageCost ?? 0m;
+            var incomingBaseQty = poItem.Quantity * poItem.FactorSnapshot;
+            var effectiveAllocatedCost = poItem.AllocatedUnitCost ?? poItem.UnitPrice ?? 0m;
+            var incomingBaseCost = poItem.FactorSnapshot > 0m ? (effectiveAllocatedCost / poItem.FactorSnapshot) : 0m;
+            var projectedBaseWac = CalculateProjectedWac(currentOnHand, currentBaseWac, incomingBaseQty, incomingBaseCost);
+
+            var saleUnitsForSku = skuUnits.Where(u => u.SkuId == poItem.SkuId).ToList();
+            var configsList = new List<PurchaseOrderSalePriceConfigDto>();
+
+            foreach (var su in saleUnitsForSku)
+            {
+                var factorToBase = su.FactorToBase;
+                var currentUnitWac = decimal.Round(currentBaseWac * factorToBase, 6, MidpointRounding.AwayFromZero);
+                var projectedUnitWac = decimal.Round(projectedBaseWac * factorToBase, 6, MidpointRounding.AwayFromZero);
+
+                foreach (var pl in priceLists)
+                {
+                    var existingConfig = poItem.SalePriceConfigs
+                        .FirstOrDefault(c => c.UnitId == su.UnitId && c.PriceListId == pl.Id);
+
+                    var activePriceObj = activePrices.FirstOrDefault(p =>
+                        p.SkuId == poItem.SkuId &&
+                        p.UnitId == su.UnitId &&
+                        p.PriceListId == pl.Id);
+
+                    var currentPrice = activePriceObj?.Price ?? 0m;
+                    var currentMarginPercent = currentPrice > 0m
+                        ? decimal.Round(((currentPrice - currentUnitWac) / currentPrice) * 100m, 2, MidpointRounding.AwayFromZero)
+                        : 0m;
+
+                    var mode = existingConfig?.Mode ?? "KEEP";
+                    var marginPercent = existingConfig?.MarginPercent ?? (mode == "WAC_MARGIN" ? currentMarginPercent : (decimal?)null);
+                    var fixedPrice = existingConfig?.FixedPrice;
+                    var priceSource = existingConfig?.PriceSource;
+                    var applyMode = existingConfig?.ApplyMode ?? "ON_RECEIPT";
+                    var applyFrom = existingConfig?.ApplyFrom;
+                    var appliedAt = existingConfig?.AppliedAt;
+                    var priceChangeRequestId = existingConfig?.PriceChangeRequestId;
+
+                    decimal projectedPrice;
+                    if (mode == "KEEP")
+                    {
+                        projectedPrice = currentPrice;
+                    }
+                    else if (mode == "FIXED")
+                    {
+                        projectedPrice = fixedPrice ?? 0m;
+                    }
+                    else // WAC_MARGIN
+                    {
+                        var m = marginPercent ?? currentMarginPercent;
+                        var raw = (1m - (m / 100m)) != 0m
+                            ? projectedUnitWac / (1m - (m / 100m))
+                            : 0m;
+                        projectedPrice = Math.Ceiling(raw / 1000m) * 1000m;
+                    }
+
+                    var isBelowCost = projectedPrice > 0m && projectedPrice < projectedUnitWac;
+
+                    configsList.Add(new PurchaseOrderSalePriceConfigDto
+                    {
+                        Id = existingConfig?.Id ?? Guid.Empty,
+                        PurchaseOrderItemId = poItem.Id,
+                        UnitId = su.UnitId,
+                        UnitName = su.Unit?.Name ?? string.Empty,
+                        PriceListId = pl.Id,
+                        PriceListCode = pl.Code,
+                        PriceListName = pl.Name,
+                        Mode = mode,
+                        MarginPercent = marginPercent,
+                        FixedPrice = fixedPrice,
+                        PriceSource = priceSource,
+                        ApplyMode = applyMode,
+                        ApplyFrom = applyFrom,
+                        AppliedAt = appliedAt,
+                        PriceChangeRequestId = priceChangeRequestId,
+                        CurrentPrice = currentPrice,
+                        CurrentUnitWac = currentUnitWac,
+                        CurrentMarginPercent = currentMarginPercent,
+                        ProjectedUnitWac = projectedUnitWac,
+                        ProjectedPrice = projectedPrice,
+                        IsBelowCost = isBelowCost
+                    });
+                }
+            }
+
+            itemDto.SalePriceConfigs = configsList;
+        }
+
+        return baseDto;
     }
 }

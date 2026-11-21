@@ -86,7 +86,8 @@ Từ `Upgrade 12` (`OISMS-66-L2-G1`), toàn bộ nhóm endpoint `/api/supplier-i
 | `PUT` | `/api/purchase-orders/{id}` | `Owner, Staff` | `Staff` chỉ sửa được `Draft` do chính mình tạo (đã `Submit` sang `PendingApproval` thì trả `409`). `Owner` sửa được ở `PendingApproval` và `Draft` (chọn NCC, `orderDate <= hôm nay`, sửa giá, phí, chiết khấu, VAT, số lượng, bỏ dòng). Mỗi lần lưu tăng `version`. |
 | `POST` | `/api/purchase-orders/{id}/submit` | `Owner, Staff` | Chuyển đơn từ `Draft` sang `PendingApproval`. `Staff` chỉ được gửi đơn do mình tạo. |
 | `POST` | `/api/purchase-orders/{id}/return` | `Owner` | Body `{ "reason": "bắt buộc, tối đa 500 ký tự" }`. Trả đơn từ `PendingApproval` về `Draft` cho `Staff` chỉnh sửa. Thiếu lý do trả `422 PURCHASE_ORDER_RETURN_REASON_REQUIRED`. |
-| `POST` | `/api/purchase-orders/{id}/approve` | `Owner` | Body `{ "confirmZeroPrice": false, "version": 1 }`; `version` **bắt buộc**, thiếu trả `400 VALIDATION_ERROR`. Chỉ duyệt từ `PendingApproval`. Thiếu `supplierId` hoặc còn dòng `unitPrice == null` trả `422 PURCHASE_ORDER_INCOMPLETE_FOR_APPROVAL`. Chiết khấu > tổng tiền hàng, hoặc chiết khấu sát tổng tiền hàng khiến giá vốn phân bổ dòng cuối âm sau làm tròn, trả `422 PURCHASE_ORDER_DISCOUNT_EXCEEDS_SUBTOTAL`. Lệch `version` trả `409 PURCHASE_ORDER_VERSION_MISMATCH`. Có dòng giá 0 phải gửi `confirmZeroPrice = true`. Khi duyệt, hệ thống tính và chốt cố định `allocatedUnitCost` cho từng dòng. |
+| `PUT` | `/api/purchase-orders/{id}/sale-price-configs` | `Owner` | Cấu hình giá bán lẻ/sỉ cho các đơn vị bán của dòng đơn mua ở trạng thái `PendingApproval`. Chế độ: `KEEP`, `WAC_MARGIN` (tính giá = WAC dự kiến / (1 - %)), `FIXED`. Nguồn giá: `OWNER`, `SUPPLIER`. Áp dụng: `ON_RECEIPT`, `FROM_DATE`. |
+| `POST` | `/api/purchase-orders/{id}/approve` | `Owner` | Body `{ "confirmZeroPrice": false, "confirmLossPrice": false, "version": 1 }`; `version` **bắt buộc**, thiếu trả `400 VALIDATION_ERROR`. Chỉ duyệt từ `PendingApproval`. Thiếu `supplierId` hoặc còn dòng `unitPrice == null` trả `422 PURCHASE_ORDER_INCOMPLETE_FOR_APPROVAL`. Chiết khấu > tổng tiền hàng, hoặc chiết khấu sát tổng tiền hàng khiến giá vốn phân bổ dòng cuối âm sau làm tròn, trả `422 PURCHASE_ORDER_DISCOUNT_EXCEEDS_SUBTOTAL`. Lệch `version` trả `409 PURCHASE_ORDER_VERSION_MISMATCH`. Có dòng giá 0 phải gửi `confirmZeroPrice = true`. Có cấu hình giá bán dự kiến < WAC dự kiến phải gửi `confirmLossPrice = true`, thiếu trả `422 PURCHASE_ORDER_LOSS_PRICE_CONFIRM_REQUIRED`. Khi duyệt, hệ thống tính và chốt cố định `allocatedUnitCost` cho từng dòng. |
 | `POST` | `/api/purchase-orders/{id}/close` | `Owner` | Body `{ "reason": "bắt buộc, tối đa 500 ký tự" }`. Đóng phần chưa nhận từ `Approved` hoặc `PartiallyReceived`. |
 | `POST` | `/api/purchase-orders/{id}/cancel` | `Owner, Staff` | `Staff` chỉ hủy được `Draft` của mình (`PendingApproval` trả `409`). `Owner` hủy được từ `Draft`, `PendingApproval` hoặc `Approved` chưa nhận hàng. |
 
@@ -121,6 +122,7 @@ Mỗi dòng trong `items` có:
 | `quantity`, `unitPrice`, `allocatedUnitCost`, `lineTotal`, `allocatedLineTotal` | Lượng đặt, đơn giá mua, giá vốn đơn vị sau phân bổ và thành tiền theo đơn vị mua (`null` với `Staff`) |
 | `orderedBaseQuantity`, `receivedBaseQuantity`, `remainingBaseQuantity` | Lượng đặt, đã nhận, còn lại theo đơn vị gốc |
 | `remainingQuantity` | Lượng còn lại theo đơn vị mua, làm tròn 3 chữ số lẻ, dùng để hiển thị |
+| `salePriceConfigs` | Danh sách cấu hình giá bán lẻ/sỉ theo từng đơn vị bán (`null` với `Staff`). Gồm: `id`, `unitId`, `priceListId`, `priceListCode`, `mode`, `marginPercent`, `fixedPrice`, `priceSource`, `applyMode`, `applyFrom`, `appliedAt`, `priceChangeRequestId`, `projectedPrice`, `currentUnitWac`, `isBelowCost` |
 
 **Mã lỗi** theo RFC 7807, đọc `extensions.errorCode` (JSON phẳng là `errorCode`) và `detail`:
 
@@ -135,6 +137,7 @@ Mỗi dòng trong `items` có:
 | `PURCHASE_ORDER_RETURN_REASON_REQUIRED` | `422` | Owner trả đơn mua về `Draft` mà không nhập lý do |
 | `PURCHASE_ORDER_VERSION_MISMATCH` | `409` | Phiên bản đơn mua gửi lên không khớp với `version` hiện tại trong DB |
 | `PURCHASE_ORDER_ZERO_PRICE_CONFIRM_REQUIRED` | `422` | Duyệt phiếu có giá 0 mà chưa xác nhận |
+| `PURCHASE_ORDER_LOSS_PRICE_CONFIRM_REQUIRED` | `422` | Duyệt phiếu có cấu hình giá bán dự kiến thấp hơn giá vốn WAC dự kiến mà chưa gửi `confirmLossPrice = true` |
 | `INVALID_STATE_TRANSITION` | `409` | Sai chuyển trạng thái phiếu mua hoặc phiếu nhập |
 | `IDEMPOTENCY_PAYLOAD_MISMATCH` | `409` | Cùng key nhưng khác nội dung |
 

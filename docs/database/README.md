@@ -9,7 +9,7 @@
 
 Kiểm tra lại kết nối: `Invoke-RestMethod http://localhost:5000/health/ready`.
 
-Tài liệu chuẩn chung cho Khoa (Backend 1), TV2 (Backend 2) và các thành viên tích hợp. PostgreSQL 16+, **50 bảng nghiệp vụ** (bản bàn giao gốc v0.5 có 29 bảng, 94 khóa ngoại, 86 CHECK; Sprint 3 thêm `shop_integrations`, Upgrade 05 thêm `units`, `sku_units`, `sku_unit_factor_history`, Upgrade 04 thêm `price_lists`, `price_change_requests`, `price_change_request_items`, `sku_unit_prices`, Upgrade 01-A thêm `purchase_orders`, `purchase_order_items`, Upgrade 02 thêm `sales_invoices`, Upgrade 03 thêm `stock_count_schedules`, `stock_count_periods`, `stock_count_approvals`, CS-05 thêm `payment_accounts`, Upgrade 01-B thêm `supplier_invoices`, `supplier_invoice_items`, `purchase_variances`, CS-02 thêm `user_branches`, Upgrade 13 Gói 3 thêm `goods_issues`, `goods_issue_items`), cùng UNIQUE/index và trigger. Việc gom file không thay đổi mô hình nghiệp vụ v0.5.
+Tài liệu chuẩn chung cho Khoa (Backend 1), TV2 (Backend 2) và các thành viên tích hợp. PostgreSQL 16+, **51 bảng nghiệp vụ** (bản bàn giao gốc v0.5 có 29 bảng, 94 khóa ngoại, 86 CHECK; Sprint 3 thêm `shop_integrations`, Upgrade 05 thêm `units`, `sku_units`, `sku_unit_factor_history`, Upgrade 04 thêm `price_lists`, `price_change_requests`, `price_change_request_items`, `sku_unit_prices`, Upgrade 01-A thêm `purchase_orders`, `purchase_order_items`, Upgrade 02 thêm `sales_invoices`, Upgrade 03 thêm `stock_count_schedules`, `stock_count_periods`, `stock_count_approvals`, CS-05 thêm `payment_accounts`, Upgrade 01-B thêm `supplier_invoices`, `supplier_invoice_items`, `purchase_variances`, CS-02 thêm `user_branches`, Upgrade 13 Gói 3 thêm `goods_issues`, `goods_issue_items`, Upgrade 12 Gói 4 thêm `purchase_order_sale_price_configs`), cùng UNIQUE/index và trigger. Việc gom file không thay đổi mô hình nghiệp vụ v0.5.
 
 ## Bộ file bàn giao
 
@@ -37,7 +37,7 @@ Script database duy nhất được giữ trong `scripts` là `scripts/test-data
 
 Không chạy `oisms_schema.sql` lên database đã có dữ liệu. Không sửa file migration đã có: mỗi thay đổi schema tạo file mới, đồng thời cập nhật `oisms_schema.sql`.
 
-DB đã có đủ 47 bảng của baseline U01-B chạy `docker/postgres/migrations/20261114_user_branches.sql` để lên 48 bảng (baseline 44 bảng cần chạy cả `20261112_supplier_invoices.sql` rồi tới `20261114_user_branches.sql`). DB đã có 48 bảng chạy tiếp `20261119_purchase_order_pending_approval.sql` (Upgrade 12 Gói 1, không thêm bảng) và `20261119_goods_issues.sql` (Upgrade 13 Gói 3, nâng lên **50 bảng** với `goods_issues` và `goods_issue_items`; nếu DB đã có dòng `inventory_transactions` xuất bán có `order_item_id IS NOT NULL` chưa gắn dòng phiếu xuất thì script chặn `RAISE EXCEPTION` và hướng dẫn reset + seed lại DB). Chạy file bằng tài khoản quản trị schema với `psql -v ON_ERROR_STOP=1` sau khi sao lưu.
+DB đã có đủ 47 bảng của baseline U01-B chạy `docker/postgres/migrations/20261114_user_branches.sql` để lên 48 bảng (baseline 44 bảng cần chạy cả `20261112_supplier_invoices.sql` rồi tới `20261114_user_branches.sql`). DB đã có 48 bảng chạy tiếp `20261119_purchase_order_pending_approval.sql` (Upgrade 12 Gói 1, không thêm bảng) và `20261119_goods_issues.sql` (Upgrade 13 Gói 3, nâng lên 50 bảng với `goods_issues` và `goods_issue_items`; nếu DB đã có dòng `inventory_transactions` xuất bán có `order_item_id IS NOT NULL` chưa gắn dòng phiếu xuất thì script chặn `RAISE EXCEPTION` và hướng dẫn reset + seed lại DB), sau đó chạy tiếp `20261121_purchase_order_sale_price_configs.sql` (Upgrade 12 Gói 4, nâng lên **51 bảng** với `purchase_order_sale_price_configs`). Chạy file bằng tài khoản quản trị schema với `psql -v ON_ERROR_STOP=1` sau khi sao lưu.
 
 Git Bash, Linux, macOS (chạy ở thư mục gốc repo):
 
@@ -152,7 +152,7 @@ Cơ chế khởi tạo tự động hoạt động dựa trên cơ chế entrypo
 1. Khi volume `postgres_data` còn trống, PostgreSQL chạy script initdb.
 2. Script phát hiện database `oisms` đã được tạo sẵn qua biến `POSTGRES_DB=oisms`.
 3. Script xử lý việc file `oisms_schema.sql` có chứa `CREATE DATABASE oisms` và `\connect oisms` bằng cách bóc tách an toàn phần cài đặt DDL từ `-- OISMS_SCHEMA_BEGIN`, rồi thực thi trực tiếp vào database `oisms`.
-4. Nếu bảng nghiệp vụ đã tồn tại (≥50 bảng), script bỏ qua DDL để bảo toàn dữ liệu. Nếu phát hiện số bảng thấp hơn (1–49 bảng, tức database cũ chưa nâng cấp), script báo lỗi, yêu cầu chạy migration và không tự ý ghi đè hay xóa bảng. Cuối script kiểm tra đủ 50 bảng có tên trong danh sách và đúng 1 trigger `ledger_append_only` đang bật.
+4. Nếu bảng nghiệp vụ đã tồn tại (≥51 bảng), script bỏ qua DDL để bảo toàn dữ liệu. Nếu phát hiện số bảng thấp hơn (1–50 bảng, tức database cũ chưa nâng cấp), script báo lỗi, yêu cầu chạy migration và không tự ý ghi đè hay xóa bảng. Cuối script kiểm tra đủ 51 bảng có tên trong danh sách và đúng 1 trigger `ledger_append_only` đang bật.
 5. Tạo nhóm quyền `oisms_runtime` (NOLOGIN), sau đó cấu hình tài khoản runtime backend `oisms_app`:
    - Sử dụng cơ chế truyền biến `\getenv` của psql và hàm `format('%I', ...)` / `format('%L', ...)` trong khối PL/pgSQL; tuyệt đối **không nội suy chuỗi SQL**.
    - Hỗ trợ mật khẩu có dấu nháy và ký tự đặc biệt, không bao giờ in mật khẩu ra log.
@@ -217,7 +217,7 @@ Kiểm tra trạng thái sẵn sàng của Backend qua Readiness Endpoint:
 ```powershell
 curl http://localhost:5000/health/ready
 ```
-Endpoint `/health/ready` thực hiện mở kết nối PostgreSQL bằng tài khoản runtime `oisms_app`, kiểm tra đủ 50 bảng (`DatabaseMigrationService.RequiredTables` trong Infrastructure), trigger bất biến sổ cái và quyền hạn trước khi trả về HTTP 200 `Healthy` (trả về HTTP 503 `Unhealthy` nếu thất bại, không để lộ connection string hoặc mật khẩu).
+Endpoint `/health/ready` thực hiện mở kết nối PostgreSQL bằng tài khoản runtime `oisms_app`, kiểm tra đủ 51 bảng (`DatabaseMigrationService.RequiredTables` trong Infrastructure), trigger bất biến sổ cái và quyền hạn trước khi trả về HTTP 200 `Healthy` (trả về HTTP 503 `Unhealthy` nếu thất bại, không để lộ connection string hoặc mật khẩu).
 
 ### Xem log cơ sở dữ liệu
 

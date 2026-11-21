@@ -27,4 +27,5 @@ public class PurchaseOrderItem : BaseEntity, IMustHaveTenant
     public PurchaseOrder? PurchaseOrder { get; set; }
     public ProductVariant? Sku { get; set; }
     public Unit? Unit { get; set; }
+    public ICollection<PurchaseOrderSalePriceConfig> SalePriceConfigs { get; set; } = new List<PurchaseOrderSalePriceConfig>();
 }

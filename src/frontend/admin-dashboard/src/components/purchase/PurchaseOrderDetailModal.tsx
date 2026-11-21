@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { CheckCircle2 } from 'lucide-react';
 import { Badge, Button, Input, Modal } from '../ui';
 import { purchaseOrderService } from '../../services/purchaseOrderService';
 import type { PurchaseOrderResponse, PurchaseOrderStatus } from '../../types/purchaseOrder';
 import { ClosePurchaseOrderModal } from './ClosePurchaseOrderModal';
+import { SalePriceConfigTable, type SalePriceConfigRowItem } from './SalePriceConfigTable';
 
 interface PurchaseOrderDetailModalProps {
   po: PurchaseOrderResponse;
@@ -30,6 +32,74 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [showReturnBox, setShowReturnBox] = useState(false);
   const [returnReason, setReturnReason] = useState('');
+
+  // Sale price config & loss confirmation
+  const [showLossConfirmModal, setShowLossConfirmModal] = useState(false);
+  const [lossConfirmMessage, setLossConfirmMessage] = useState<string>('');
+  const [savingConfigs, setSavingConfigs] = useState(false);
+  const [configSuccess, setConfigSuccess] = useState<string | null>(null);
+
+  const [salePriceConfigs, setSalePriceConfigs] = useState<SalePriceConfigRowItem[]>(() => {
+    return po.items.flatMap((it) =>
+      (it.salePriceConfigs || []).map((c) => ({
+        id: c.id,
+        purchaseOrderItemId: it.id,
+        skuId: it.skuId,
+        skuCode: it.skuCode,
+        productName: it.productName,
+        unitId: c.unitId,
+        unitName: c.unitName,
+        priceListId: c.priceListId,
+        priceListCode: c.priceListCode,
+        priceListName: c.priceListName,
+        mode: c.mode,
+        marginPercent: c.marginPercent,
+        fixedPrice: c.fixedPrice,
+        priceSource: c.priceSource,
+        applyMode: c.applyMode,
+        applyFrom: c.applyFrom,
+        appliedAt: c.appliedAt,
+        currentPrice: c.currentPrice,
+        currentUnitWac: c.currentUnitWac,
+        currentMarginPercent: c.currentMarginPercent,
+        projectedUnitWac: c.projectedUnitWac,
+        projectedPrice: c.projectedPrice,
+        isBelowCost: c.isBelowCost,
+      }))
+    );
+  });
+
+  useEffect(() => {
+    setSalePriceConfigs(
+      po.items.flatMap((it) =>
+        (it.salePriceConfigs || []).map((c) => ({
+          id: c.id,
+          purchaseOrderItemId: it.id,
+          skuId: it.skuId,
+          skuCode: it.skuCode,
+          productName: it.productName,
+          unitId: c.unitId,
+          unitName: c.unitName,
+          priceListId: c.priceListId,
+          priceListCode: c.priceListCode,
+          priceListName: c.priceListName,
+          mode: c.mode,
+          marginPercent: c.marginPercent,
+          fixedPrice: c.fixedPrice,
+          priceSource: c.priceSource,
+          applyMode: c.applyMode,
+          applyFrom: c.applyFrom,
+          appliedAt: c.appliedAt,
+          currentPrice: c.currentPrice,
+          currentUnitWac: c.currentUnitWac,
+          currentMarginPercent: c.currentMarginPercent,
+          projectedUnitWac: c.projectedUnitWac,
+          projectedPrice: c.projectedPrice,
+          isBelowCost: c.isBelowCost,
+        }))
+      )
+    );
+  }, [po]);
 
   const getStatusBadge = (status: PurchaseOrderStatus) => {
     switch (status) {
@@ -90,7 +160,52 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
     }
   };
 
-  const handleApprove = async () => {
+  const handleSaveConfigs = async () => {
+    setSavingConfigs(true);
+    setError(null);
+    setConfigSuccess(null);
+    try {
+      const itemsMap = new Map<string, any[]>();
+      for (const c of salePriceConfigs) {
+        const itemId = c.purchaseOrderItemId || '';
+        if (!itemId) continue;
+        if (!itemsMap.has(itemId)) {
+          itemsMap.set(itemId, []);
+        }
+        itemsMap.get(itemId)!.push({
+          unitId: c.unitId,
+          priceListId: c.priceListId,
+          mode: c.mode,
+          marginPercent: c.marginPercent,
+          fixedPrice: c.fixedPrice,
+          priceSource: c.priceSource,
+          applyMode: c.applyMode,
+          applyFrom: c.applyFrom ? new Date(c.applyFrom).toISOString() : null,
+        });
+      }
+
+      const payload = {
+        version: po.version,
+        items: Array.from(itemsMap.entries()).map(([purchaseOrderItemId, configs]) => ({
+          purchaseOrderItemId,
+          configs,
+        })),
+      };
+      await purchaseOrderService.updateSalePriceConfigs(po.id, payload);
+      setConfigSuccess('Đã lưu cấu hình giá bán thành công.');
+      onRefresh();
+    } catch (err: any) {
+      setError(
+        err?.response?.data?.detail ||
+        err?.response?.data?.message ||
+        'Không thể lưu cấu hình giá bán.'
+      );
+    } finally {
+      setSavingConfigs(false);
+    }
+  };
+
+  const handleApprove = async (confirmLoss: boolean = false) => {
     if (!po.supplierId) {
       setError('Đơn mua chưa chọn nhà cung cấp. Vui lòng bấm "Cập nhật giá & NCC" trước khi duyệt.');
       return;
@@ -113,12 +228,22 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
     setLoading(true);
     setError(null);
     try {
-      await purchaseOrderService.approvePurchaseOrder(po.id, confirmZero, po.version);
+      await purchaseOrderService.approvePurchaseOrder(po.id, confirmZero, po.version, confirmLoss);
+      setShowLossConfirmModal(false);
       onRefresh();
     } catch (err: any) {
+      const data = err?.response?.data;
+      if (data?.errorCode === 'PURCHASE_ORDER_LOSS_PRICE_CONFIRM_REQUIRED') {
+        setLossConfirmMessage(
+          data?.detail ||
+          'Đơn mua này có cấu hình giá bán thấp hơn giá vốn (bán lỗ). Bạn có chắc chắn muốn duyệt đơn với giá bán lỗ này không?'
+        );
+        setShowLossConfirmModal(true);
+        return;
+      }
       setError(
-        err?.response?.data?.detail ||
-        err?.response?.data?.message ||
+        data?.detail ||
+        data?.message ||
         'Không thể duyệt đơn mua hàng.'
       );
     } finally {
@@ -385,6 +510,74 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
             </div>
           </div>
 
+          {/* Cấu hình giá bán dự kiến khi nhập kho (Q15-Q18) */}
+          {isOwner && salePriceConfigs.length > 0 && (
+            <div
+              style={{
+                border: '1px solid #e2e8f0',
+                borderRadius: 8,
+                padding: 14,
+                background: '#ffffff',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 10,
+                  flexWrap: 'wrap',
+                  gap: 8,
+                }}
+              >
+                <div>
+                  <h4 style={{ margin: 0, fontSize: 14 }}>
+                    Cấu hình giá bán tự động khi nhập kho (Q15 – Q18)
+                  </h4>
+                  <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-muted, #64748b)' }}>
+                    Cấu hình giá bán lẻ / bán sỉ cho từng đơn vị bán của mặt hàng. Khi xác nhận phiếu nhập kho đầu tiên, hệ thống sẽ tự động sinh giá bán.
+                  </p>
+                </div>
+                {po.status === 'PendingApproval' && (
+                  <Button
+                    variant="secondary"
+                    onClick={handleSaveConfigs}
+                    disabled={savingConfigs || loading}
+                    style={{ minHeight: 32, fontSize: 12 }}
+                  >
+                    {savingConfigs ? 'Đang lưu cấu hình...' : 'Lưu cấu hình giá bán'}
+                  </Button>
+                )}
+              </div>
+
+              {configSuccess && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 12px',
+                    borderRadius: 6,
+                    background: '#f0fdf4',
+                    border: '1px solid #86efac',
+                    color: '#166534',
+                    fontSize: 12,
+                    marginBottom: 10,
+                  }}
+                >
+                  <CheckCircle2 size={14} />
+                  <span>{configSuccess}</span>
+                </div>
+              )}
+
+              <SalePriceConfigTable
+                configs={salePriceConfigs}
+                onChange={po.status === 'PendingApproval' ? setSalePriceConfigs : undefined}
+                readOnly={po.status !== 'PendingApproval'}
+              />
+            </div>
+          )}
+
           {showReturnBox && isOwner && po.status === 'PendingApproval' && (
             <div
               style={{
@@ -453,7 +646,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                 <Button variant="danger" onClick={handleCancel} disabled={loading}>
                   Hủy đơn
                 </Button>
-                <Button variant="primary" onClick={handleApprove} disabled={loading}>
+                <Button variant="primary" onClick={() => handleApprove()} disabled={loading}>
                   {loading ? 'Đang duyệt...' : 'Duyệt đơn mua'}
                 </Button>
               </>
@@ -491,6 +684,38 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
           </div>
         </div>
       </Modal>
+
+      {showLossConfirmModal && (
+        <Modal
+          title="Xác nhận duyệt đơn mua bán lỗ"
+          onClose={() => setShowLossConfirmModal(false)}
+        >
+          <div style={{ padding: '8px 12px' }}>
+            <p style={{ fontSize: '13px', color: '#b91c1c', marginBottom: '14px', lineHeight: 1.5 }}>
+              ⚠️ {lossConfirmMessage}
+            </p>
+            <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '16px' }}>
+              Nếu tiếp tục, giá bán mới sẽ được tạo thấp hơn giá vốn theo cấu hình của bạn khi xác nhận nhập kho.
+            </p>
+            <div className="modal-actions">
+              <Button
+                variant="secondary"
+                onClick={() => setShowLossConfirmModal(false)}
+                disabled={loading}
+              >
+                Hủy (để sửa lại giá)
+              </Button>
+              <Button
+                variant="danger"
+                onClick={() => handleApprove(true)}
+                disabled={loading}
+              >
+                {loading ? 'Đang duyệt...' : 'Xác nhận bán lỗ & Duyệt'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {showCloseModal && (
         <ClosePurchaseOrderModal

@@ -80,7 +80,10 @@ internal static class ApiErrorResponse
         var priceMismatch = profile is ApiErrorProfile.Orders or ApiErrorProfile.PosCheckout
             ? exception as PriceMismatchException
             : null;
-        return Result(status, CreateProblem(context, profile, code, title, status, detail, priceMismatch));
+        var poConflict = profile is ApiErrorProfile.Pricing
+            ? exception as PriceChangePoConflictException
+            : null;
+        return Result(status, CreateProblem(context, profile, code, title, status, detail, priceMismatch, poConflict));
     }
 
     public static ObjectResult Problem(HttpContext? context, ApiErrorProfile profile, string code, string title, int status, string detail) =>
@@ -90,12 +93,15 @@ internal static class ApiErrorResponse
         Problem(context, profile, code, ApiErrorTitles.Get(profile, code), status, detail);
 
     public static ProblemDetails CreateProblemDetails(
-        HttpContext context, string code, string title, int status, string detail, PriceMismatchException? priceMismatch = null) =>
-        CreateProblem(context, ApiErrorProfile.Default, code, title, status, detail, priceMismatch);
+        HttpContext context, string code, string title, int status, string detail,
+        PriceMismatchException? priceMismatch = null,
+        PriceChangePoConflictException? poConflict = null) =>
+        CreateProblem(context, ApiErrorProfile.Default, code, title, status, detail, priceMismatch, poConflict);
 
     private static ProblemDetails CreateProblem(
         HttpContext? context, ApiErrorProfile profile, string code, string title, int status, string detail,
-        PriceMismatchException? priceMismatch = null)
+        PriceMismatchException? priceMismatch = null,
+        PriceChangePoConflictException? poConflict = null)
     {
         var orderProblem = profile is ApiErrorProfile.Orders or ApiErrorProfile.OrderProcess;
         var type = profile switch
@@ -118,6 +124,10 @@ internal static class ApiErrorResponse
         if (priceMismatch is not null)
         {
             problem.Extensions["currentPrices"] = priceMismatch.CurrentPrices;
+        }
+        if (poConflict is not null)
+        {
+            problem.Extensions["conflictingPurchaseOrders"] = poConflict.ConflictingPurchaseOrders;
         }
         if (!orderProblem || priceMismatch is not null)
         {

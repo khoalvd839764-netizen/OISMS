@@ -69,9 +69,15 @@ Màn hình **Quản lý Kho & Sổ cái** là trái tim vận hành kho vận c�
   * `[Xác nhận nhập kho]`: Xác nhận nguyên tử để tăng `OnHand` $\rightarrow$ Ghi sổ cái `IN` $\rightarrow$ Tự động tính lại giá vốn bình quân theo `allocatedUnitCost / factorSnapshot`:
     $$\text{WAC}_{\text{mới}} = \frac{(\text{TồnCũ} \times \text{GiáVốnCũ}) + (\text{SốLượngNhậpGốc} \times \text{GiáVốnĐơnVịGốcSauPhânBổ})}{\text{TồnCũ} + \text{SốLượngNhậpGốc}}$$
 
-#### Màn hình Đơn mua hàng (`/purchase-orders` — `FE-12.1`)
-* **Vai trò `Staff`:** Bấm `+ Đề nghị mua hàng` chỉ chọn Chi nhánh, SKU, Đơn vị mua và Số lượng (không có ô Nhà cung cấp, không có ô giá hay phí). Khi đơn ở `Draft`, `Staff` có nút **Sửa đề nghị nháp**, **Gửi duyệt** (`Draft -> PendingApproval`) và **Hủy đơn**. Nếu đơn bị `Owner` trả về, hệ thống hiển thị rõ hộp cảnh báo **Lý do trả về từ Owner**.
+#### Màn hình Đơn mua hàng (`/purchase-orders` — `FE-12.1`, `FE-12.3`, `FE-12.4` - U12-G4)
+* **Vai trò `Staff`:** Bấm `+ Đề nghị mua hàng` chỉ chọn Chi nhánh, SKU, Đơn vị mua và Số lượng (không có ô Nhà cung cấp, không có ô giá hay phí). Khi đơn ở `Draft`, `Staff` có nút **Sửa đề nghị nháp**, **Gửi duyệt** (`Draft -> PendingApproval`) và **Hủy đơn**. Nếu đơn bị `Owner` trả về, hệ thống hiển thị rõ hộp cảnh báo **Lý do trả về từ Owner**. Staff không thấy thông tin cấu hình giá bán, giá dự kiến, margin trên đơn mua (`null`).
 * **Vai trò `Owner`:** Tạo đơn vào thẳng `PendingApproval`; chọn Nhà cung cấp, Ngày đặt hàng (`orderDate <= hôm nay`), nhập Phí vận chuyển, Chiết khấu thương mại, Thuế VAT và đơn giá từng dòng. Dưới mỗi ô đơn giá hiển thị **WAC hiện tại** (quy theo đơn vị mua) và nút **Gợi ý lần mua gần nhất** để áp nhanh. Bảng tính trực tiếp **Giá vốn sau phân bổ** của từng dòng và **Tổng thanh toán (gồm VAT)**. Ở chi tiết đơn `PendingApproval`, `Owner` có các nút: **Lưu / Sửa NCC & Giá**, **Duyệt đơn mua**, **Trả về Draft** (bắt buộc nhập lý do) và **Hủy đơn**.
+* **Bảng cấu hình giá bán lẻ/sỉ (`SalePriceConfigTable` - `FE-12.3`):** Ở trạng thái `PendingApproval`, Owner cấu hình giá bán lẻ và giá bán sỉ cho từng đơn vị bán (`canSell`) của SKU trên từng dòng đơn mua:
+  * Chế độ giá: Giữ giá cũ (`KEEP`), Lãi gộp trên WAC (`WAC_MARGIN`: $\text{Giá} = \text{WAC}_{\text{dự kiến}} \div (1 - \% \text{lãi})$, tự động làm tròn lên bội 1.000đ; margin mặc định lấy từ lãi gộp hiện tại), hoặc Giá cố định (`FIXED`, nguồn giá `OWNER` hoặc `SUPPLIER`).
+  * Chế độ áp dụng: Khi nhập kho (`ON_RECEIPT`) hoặc Từ ngày chỉ định (`FROM_DATE`).
+  * Cảnh báo bán lỗ: Tự động cảnh báo nhãn đỏ khi giá dự kiến nhỏ hơn WAC dự kiến.
+* **Xác nhận bán lỗ khi duyệt (`FE-12.4`):** Khi Owner bấm Duyệt đơn mua, nếu có bất kỳ cấu hình nào có giá dự kiến nhỏ hơn WAC, hệ thống hiển thị hộp thoại xác nhận bán lỗ (`confirmLossPrice`). Thiếu xác nhận sẽ bị chặn (`422 PURCHASE_ORDER_LOSS_PRICE_CONFIRM_REQUIRED`).
+* **Tự động sinh giá khi nhập kho:** Khi xác nhận phiếu nhập kho đầu tiên của dòng, hệ thống tự động sinh phiếu đổi giá và áp dụng giá bán mới ngay trong transaction nhập kho.
 * **Gỡ giao diện Hóa đơn nhà cung cấp (`FE-12.2`):** Đã gỡ hoàn toàn các nút `Chênh lệch chờ duyệt`, `Lịch sử hóa đơn NCC` trên trang Kho cũng như `SupplierInvoicePanel` và `PurchaseOrderInvoices` trong chi tiết phiếu nhập / đơn mua.
 
 ### 3.2. Modal Chuyển Kho 2 Bước (Stock Transfer Modal)

@@ -69,6 +69,7 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<SkuUnitPrice> SkuUnitPrices { get; set; } = null!;
     public DbSet<PurchaseOrder> PurchaseOrders { get; set; } = null!;
     public DbSet<PurchaseOrderItem> PurchaseOrderItems { get; set; } = null!;
+    public DbSet<PurchaseOrderSalePriceConfig> PurchaseOrderSalePriceConfigs { get; set; } = null!;
     public DbSet<SupplierInvoice> SupplierInvoices { get; set; } = null!;
     public DbSet<SupplierInvoiceItem> SupplierInvoiceItems { get; set; } = null!;
     public DbSet<PurchaseVariance> PurchaseVariances { get; set; } = null!;
@@ -204,6 +205,9 @@ public class AppDbContext : DbContext, IAppDbContext
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
 
         modelBuilder.Entity<PurchaseOrderItem>()
+            .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
+
+        modelBuilder.Entity<PurchaseOrderSalePriceConfig>()
             .HasQueryFilter(e => _currentTenantService.TenantId != null && e.TenantId == (_currentTenantService.TenantId ?? Guid.Empty));
 
         modelBuilder.Entity<SupplierInvoice>()
