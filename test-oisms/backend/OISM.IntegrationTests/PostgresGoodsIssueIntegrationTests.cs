@@ -156,7 +156,7 @@ public class PostgresGoodsIssueIntegrationTests : IAsyncLifetime, IClassFixture<
             }
         }
 
-        DatabaseMigrationService.RequiredTables.Length.Should().Be(50);
+        DatabaseMigrationService.RequiredTables.Length.Should().Be(51);
         DatabaseMigrationService.RequiredTables.Should().Contain(["goods_issues", "goods_issue_items"]);
 
         // 2. Tạo 1 đơn POS để có dòng OUT + phiếu xuất kho hợp lệ

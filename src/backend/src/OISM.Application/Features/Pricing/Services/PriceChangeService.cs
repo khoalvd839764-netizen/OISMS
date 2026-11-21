@@ -136,10 +136,12 @@ public class PriceChangeService : IPriceChangeService
                 await HandlePoPriceConflictsAsync(tenantId, priceKeys, request.PoConflictResolution, now, ct);
             }
 
-            // 6. Tính mốc hiệu lực nếu Owner duyệt ngay
-            var validFrom = request.RequestedValidFrom.HasValue && request.RequestedValidFrom.Value > now
+            // 6. Tính mốc hiệu lực nếu Owner duyệt ngay. Đọc lại đồng hồ sau khi chờ khóa giá/đơn mua,
+            // để giá tay không có valid_from sớm hơn giá vừa sinh từ phiếu nhập đã giữ khóa trước (Q19/Q25).
+            var priceClock = actor.IsOwner ? DateTimeOffset.UtcNow : now;
+            var validFrom = request.RequestedValidFrom.HasValue && request.RequestedValidFrom.Value > priceClock
                 ? request.RequestedValidFrom.Value
-                : now;
+                : priceClock;
 
             foreach (var item in request.Items)
             {
@@ -269,10 +271,11 @@ public class PriceChangeService : IPriceChangeService
             var priceKeys = request.Items.Select(i => (i.SkuId, i.UnitId, i.PriceListId)).ToList();
             await HandlePoPriceConflictsAsync(tenantId, priceKeys, poConflictResolution, now, ct);
 
-            // Tính valid_from theo quyết định 2 bằng đồng hồ backend
-            var validFrom = request.RequestedValidFrom.HasValue && request.RequestedValidFrom.Value > now
+            // Tính valid_from theo quyết định 2 bằng đồng hồ backend, đọc sau khi đã giữ khóa giá (Q25)
+            var priceClock = DateTimeOffset.UtcNow;
+            var validFrom = request.RequestedValidFrom.HasValue && request.RequestedValidFrom.Value > priceClock
                 ? request.RequestedValidFrom.Value
-                : now;
+                : priceClock;
 
             foreach (var item in request.Items)
             {
@@ -603,7 +606,7 @@ public class PriceChangeService : IPriceChangeService
 
     private static bool PayloadMatches(PriceChangeRequest existing, CreatePriceChangeRequest incoming)
     {
-        if (existing.ReasonType != incoming.ReasonType.Trim().ToUpperInvariant()) return false;
+        if (existing.ReasonType != (incoming.ReasonType ?? string.Empty).Trim().ToUpperInvariant()) return false;
         if (existing.Reason != incoming.Reason.Trim()) return false;
         if (TruncateToMicroseconds(existing.RequestedValidFrom) != TruncateToMicroseconds(incoming.RequestedValidFrom)) return false;
         if (existing.Items.Count != incoming.Items.Count) return false;
@@ -781,7 +784,13 @@ public class PriceChangeService : IPriceChangeService
 
             if (normalizedResolution == "KEEP_MANUAL")
             {
-                foreach (var config in matchingConfigs)
+                // Đọc lại sau khi giữ khóa đơn mua: phiếu nhập có thể đã áp cấu hình trong lúc chờ khóa.
+                var matchingIds = matchingConfigs.Select(c => c.Id).ToList();
+                var stillPending = await _dbContext.PurchaseOrderSalePriceConfigs
+                    .Where(c => matchingIds.Contains(c.Id) && c.AppliedAt == null && c.Mode != "KEEP")
+                    .Select(c => c.Id)
+                    .ToListAsync(ct);
+                foreach (var config in matchingConfigs.Where(c => stillPending.Contains(c.Id)))
                 {
                     config.Mode = "KEEP";
                     config.MarginPercent = null;

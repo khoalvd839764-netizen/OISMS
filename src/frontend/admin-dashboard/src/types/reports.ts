@@ -139,7 +139,7 @@ export interface DashboardSummary {
   netCogs: number | null;
   totalOrders: number;
   totalGrossProfit: number | null;
-  grossMarginPercentage: number;
+  grossMarginPercentage: number | null;
   skuCount: number;
   totalInventoryValue: number | null;
   lowStockCount: number;

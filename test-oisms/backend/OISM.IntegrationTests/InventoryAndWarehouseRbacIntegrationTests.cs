@@ -256,6 +256,10 @@ public class InventoryAndWarehouseRbacIntegrationTests : IClassFixture<CustomWeb
     [InlineData("Staff")]
     public async Task AC02_OwnerAndStaff_GetBalances_And_GetSkuBalanceAtBranch_ReturnsStoredAverageCost(string role)
     {
+        // Upgrade 12 G5 (Q10): chỉ Owner xem giá vốn; Staff nhận null nhưng vẫn đủ số lượng.
+        decimal? Cost(decimal value) => role == "Owner" ? value : null;
+        var cost1 = Cost(135000m);
+        var cost2 = Cost(82500m);
         var setup = await SetupTenantAndSeedBalancesAsync($"G1A_AC02_{role}");
         var token = role == "Owner" ? setup.OwnerToken : setup.StaffToken;
 
@@ -266,21 +270,21 @@ public class InventoryAndWarehouseRbacIntegrationTests : IClassFixture<CustomWeb
         var branchRes = await client.GetAsync($"/api/inventory/balances?branchId={setup.BranchId}");
         branchRes.StatusCode.Should().Be(HttpStatusCode.OK);
         var branchBalances = await branchRes.Content.ReadFromJsonAsync<PagedResult<InventoryBalanceDto>>(_jsonOptions);
-        branchBalances!.Items.Should().Contain(b => b.SkuId == setup.Sku1Id && b.AverageCost == 135000m);
-        branchBalances.Items.Should().Contain(b => b.SkuId == setup.Sku2Id && b.AverageCost == 82500m);
+        branchBalances!.Items.Should().Contain(b => b.SkuId == setup.Sku1Id && b.AverageCost == cost1);
+        branchBalances.Items.Should().Contain(b => b.SkuId == setup.Sku2Id && b.AverageCost == cost2);
 
         // 2. Cấp kho
         var whRes = await client.GetAsync($"/api/inventory/balances?branchId={setup.BranchId}&warehouseId={setup.WarehouseId}");
         whRes.StatusCode.Should().Be(HttpStatusCode.OK);
         var whBalances = await whRes.Content.ReadFromJsonAsync<PagedResult<InventoryBalanceDto>>(_jsonOptions);
-        whBalances!.Items.Should().Contain(b => b.SkuId == setup.Sku1Id && b.AverageCost == 135000m);
-        whBalances.Items.Should().Contain(b => b.SkuId == setup.Sku2Id && b.AverageCost == 82500m);
+        whBalances!.Items.Should().Contain(b => b.SkuId == setup.Sku1Id && b.AverageCost == cost1);
+        whBalances.Items.Should().Contain(b => b.SkuId == setup.Sku2Id && b.AverageCost == cost2);
 
         // 3. SKU tại chi nhánh
         var skuRes = await client.GetAsync($"/api/inventory/balances/sku/{setup.Sku1Id}/branch/{setup.BranchId}");
         skuRes.StatusCode.Should().Be(HttpStatusCode.OK);
         var skuBal = await skuRes.Content.ReadFromJsonAsync<InventoryBalanceDto>(_jsonOptions);
-        skuBal!.AverageCost.Should().Be(135000m);
+        skuBal!.AverageCost.Should().Be(Cost(135000m));
         skuBal.OnHand.Should().Be(40m);
         skuBal.Available.Should().Be(33m);
     }

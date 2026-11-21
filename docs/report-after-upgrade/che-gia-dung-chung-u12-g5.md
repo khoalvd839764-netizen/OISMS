@@ -143,3 +143,15 @@ Tệp kiểm thử: `test-oisms/backend/OISM.IntegrationTests/PostgresCostVisibi
 ## 7. Kết Luận
 
 Gói công việc `OISMS-66-L2-G5` đã hoàn thành xuất sắc toàn bộ mục tiêu đề ra, khắc phục triệt để các rủi ro bảo mật dữ liệu tài chính theo chuẩn thiết kế Upgrade 12, bảo đảm tính toàn vẹn hệ thống và vượt qua mọi tiêu chí nghiệm thu (AC-01 đến AC-08).
+
+## 8. Sửa sau nghiệm thu (21/11/2026)
+
+| # | Lỗi | Sửa |
+| --- | --- | --- |
+| 1 | Test quét AC-07 lấy route từ `EndpointDataSource` nhưng không dùng, chỉ gọi 27 URL viết tay và bỏ qua 404. Bốn URL sai đường dẫn (`/api/inventory/period-report`, `/api/inventory/skus`, `/api/orders/daily-summary`, `/api/sales-invoices/by-order/...`) nên báo cáo tồn theo kỳ, thẻ kho, truy vết sổ kho, báo cáo doanh thu, dashboard... chưa từng được quét với Staff | Viết lại `Staff_ScanAllGetEndpoints_...`: duyệt **mọi** route GET `api/*`, route mới chưa khai báo URL hoặc ngoại lệ (có lý do) thì test fail; route có tham số dùng bản ghi seed thật; không chấp nhận 404; route chỉ Owner phải trả 403. Mở rộng danh sách khóa nhạy cảm (giá trị tồn theo kỳ, WAC dự kiến, COGS...) và với đơn mua/phiếu nhập thì kiểm cả giá mua (`unitPrice`, `totalAmount`, phí, VAT) |
+| 2 | Chưa có test nội dung file Excel (AC-03) | Thêm `Staff_ExcelExports_HaveNoValueColumns_AC03`: mở file .xlsx tồn theo kỳ và thẻ kho, Staff không có cột "Giá trị/Đơn giá/Thành tiền/Giá vốn", Owner có |
+| 3 | `GET /api/reports/dashboard-summary` trả `grossMarginPercentage = 0` cho Staff (trường không cho null) | Đổi thành `decimal?`, Staff nhận `null`; cập nhật unit test, kiểu frontend và hợp đồng API |
+| 4 | Màn Đơn mua: Staff chọn trạng thái Draft/Chờ duyệt cùng một NCC thì backend trả 403 (đúng AC-06) và cả ứng dụng chuyển sang trang 403. Ngoài ra đổi bộ lọc liên tiếp thì response cũ về sau ghi đè danh sách (đang lọc "Chờ duyệt" mà hiện đơn "Đã nhận đủ") | Với Staff, khi lọc Draft/PendingApproval thì khóa ô NCC và không gửi `supplierId`; `fetchOrders` bỏ qua response của lần tải cũ |
+| 5 | `InventoryAndWarehouseRbacIntegrationTests.AC02` (OISMS-59) và `SalesInvoiceTraceIntegrationTests.AC07_OrderTrace_...` vẫn kỳ vọng Staff thấy `AverageCost`/`UnitCost` (G5 mới ghi được test đầu trong mục lỗi ngoài gói) | Cập nhật theo yêu cầu Q10: Staff nhận `null`; thêm bước Owner cùng dữ liệu vẫn thấy giá trị (135.000/82.500 và 50.000) |
+
+Route chỉ Owner (Staff phải nhận 403) được khai báo trong test: `payment-accounts`, `purchase-orders/price-suggestion`, `reports/daily-summaries`, `shop-integrations`, `users`. Ngoại lệ có lý do: hai route simulator (khóa simulator, không dùng JWT) và hai route xuất Excel (kiểm bằng test AC-03 riêng).

@@ -619,7 +619,7 @@ public class ReportService : IReportService
             NetCogs = isOwner ? netCogs : null,
             TotalOrders = totalOrders,
             TotalGrossProfit = totalGrossProfit,
-            GrossMarginPercentage = grossMargin ?? 0m,
+            GrossMarginPercentage = isOwner ? grossMargin ?? 0m : null,
             SkuCount = skuCount,
             TotalInventoryValue = totalInventoryValue,
             LowStockCount = lowStockCount,

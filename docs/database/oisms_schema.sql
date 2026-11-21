@@ -1966,6 +1966,36 @@ CREATE TABLE IF NOT EXISTS public.purchase_order_sale_price_configs (
     CONSTRAINT fk_po_sale_price_configs_pcr FOREIGN KEY (tenant_id, price_change_request_id) REFERENCES public.price_change_requests (tenant_id, id) ON DELETE SET NULL ON UPDATE NO ACTION
 );
 
+-- Nâng cấp: bảng cha (purchase_order_items, price_lists, price_change_requests) từng bị tạo lại thì khóa ngoại
+-- của bảng này mất theo CASCADE; thêm lại nếu thiếu để đường nâng cấp tự phục hồi, khớp migration 20261121.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_po_sale_price_configs_tenant_id') THEN
+        ALTER TABLE public.purchase_order_sale_price_configs ADD CONSTRAINT fk_po_sale_price_configs_tenant_id
+            FOREIGN KEY (tenant_id) REFERENCES public.tenants (id) ON DELETE CASCADE ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_po_sale_price_configs_item') THEN
+        ALTER TABLE public.purchase_order_sale_price_configs ADD CONSTRAINT fk_po_sale_price_configs_item
+            FOREIGN KEY (tenant_id, purchase_order_item_id) REFERENCES public.purchase_order_items (tenant_id, id) ON DELETE CASCADE ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_po_sale_price_configs_unit') THEN
+        ALTER TABLE public.purchase_order_sale_price_configs ADD CONSTRAINT fk_po_sale_price_configs_unit
+            FOREIGN KEY (tenant_id, unit_id) REFERENCES public.units (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_po_sale_price_configs_price_list') THEN
+        ALTER TABLE public.purchase_order_sale_price_configs ADD CONSTRAINT fk_po_sale_price_configs_price_list
+            FOREIGN KEY (tenant_id, price_list_id) REFERENCES public.price_lists (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_po_sale_price_configs_pcr') THEN
+        ALTER TABLE public.purchase_order_sale_price_configs ADD CONSTRAINT fk_po_sale_price_configs_pcr
+            FOREIGN KEY (tenant_id, price_change_request_id) REFERENCES public.price_change_requests (tenant_id, id) ON DELETE SET NULL ON UPDATE NO ACTION;
+    END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_po_sale_price_configs_tenant_item
     ON public.purchase_order_sale_price_configs (tenant_id, purchase_order_item_id);
 CREATE INDEX IF NOT EXISTS idx_po_sale_price_configs_tenant_unit

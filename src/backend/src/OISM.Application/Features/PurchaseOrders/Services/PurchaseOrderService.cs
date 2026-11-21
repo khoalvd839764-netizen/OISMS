@@ -1532,9 +1532,9 @@ public class PurchaseOrderService : IPurchaseOrderService
         }
         else if (dto.Mode == "FIXED")
         {
-            if (!dto.FixedPrice.HasValue || dto.FixedPrice.Value < 0m)
+            if (!dto.FixedPrice.HasValue || dto.FixedPrice.Value <= 0m)
             {
-                throw new OismException("VALIDATION_ERROR", "Giá mới không được để trống hoặc nhỏ hơn 0.", 400);
+                throw new OismException("VALIDATION_ERROR", "Giá mới bắt buộc lớn hơn 0.", 400);
             }
             var allowedSources = new[] { "SUPPLIER", "OWNER" };
             if (string.IsNullOrWhiteSpace(dto.PriceSource) || !allowedSources.Contains(dto.PriceSource.Trim().ToUpperInvariant()))

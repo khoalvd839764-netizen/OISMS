@@ -480,6 +480,21 @@ public class PostgresPurchaseOrderSalePriceIntegrationTests : IAsyncLifetime, IC
                 .CountAsync();
             totalPoPcr.Should().Be(1, "Chỉ sinh 1 phiếu đổi giá ở đợt nhập đầu tiên, đợt sau không sinh thêm");
         }
+
+        // API danh sách và chi tiết phiếu đổi giá phải trả đúng loại lý do đã lưu (không rơi về mặc định OTHER)
+        var listJson = await _client.GetStringAsync("/api/price-change-requests");
+        using (var listDoc = JsonDocument.Parse(listJson))
+        {
+            var listed = listDoc.RootElement.GetProperty("items").EnumerateArray()
+                .Single(e => e.GetProperty("id").GetGuid() == pcrId1);
+            listed.GetProperty("reasonType").GetString().Should().Be("FROM_PURCHASE_ORDER");
+        }
+
+        var detailJson = await _client.GetStringAsync($"/api/price-change-requests/{pcrId1}");
+        using (var detailDoc = JsonDocument.Parse(detailJson))
+        {
+            detailDoc.RootElement.GetProperty("reasonType").GetString().Should().Be("FROM_PURCHASE_ORDER");
+        }
     }
 
     // =========================================================================

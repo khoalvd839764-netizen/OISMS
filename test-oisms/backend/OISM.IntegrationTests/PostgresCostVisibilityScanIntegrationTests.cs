@@ -54,7 +54,38 @@ public class PostgresCostVisibilityScanIntegrationTests : IAsyncLifetime, IClass
         "openingValue",
         "inValue",
         "outValue",
-        "closingValue"
+        "closingValue",
+        "openingInTransitValue",
+        "closingInTransitValue",
+        "transferInValue",
+        "transferOutValue",
+        "adjustmentInValue",
+        "adjustmentOutValue",
+        "purchaseValue",
+        "returnValue",
+        "posValue",
+        "ecommerceValue",
+        "adminValue",
+        "balanceAfterValue",
+        "totalOpeningValue",
+        "totalClosingValue",
+        "totalInValue",
+        "totalOutValue",
+        "totalOpeningInTransitValue",
+        "totalClosingInTransitValue",
+        "totalGrossProfit",
+        "costOfGoodsSold",
+        "totalCostOfGoodsSold",
+        "returnCogs",
+        "netCogs",
+        "currentWac",
+        "currentBaseWac",
+        "currentUnitWac",
+        "projectedUnitWac",
+        "currentMarginPercent",
+        "marginPercent",
+        "currentTheoreticalValue",
+        "totalAllocatedCost"
     };
 
     private sealed class TestTenantService : ICurrentTenantService
@@ -332,7 +363,7 @@ public class PostgresCostVisibilityScanIntegrationTests : IAsyncLifetime, IClass
         }
     }
 
-    private static void ScanJsonElement(JsonElement element, string path, List<string> violations)
+    private static void ScanJsonElement(JsonElement element, string path, List<string> violations, bool isPurchaseDocument = false)
     {
         switch (element.ValueKind)
         {
@@ -340,118 +371,285 @@ public class PostgresCostVisibilityScanIntegrationTests : IAsyncLifetime, IClass
                 foreach (var prop in element.EnumerateObject())
                 {
                     var curPath = string.IsNullOrEmpty(path) ? prop.Name : $"{path}.{prop.Name}";
-                    if (SensitiveCostKeys.Contains(prop.Name))
+                    if (SensitiveCostKeys.Contains(prop.Name) || (isPurchaseDocument && PurchasePriceKeys.Contains(prop.Name)))
                     {
                         if (prop.Value.ValueKind != JsonValueKind.Null && prop.Value.ValueKind != JsonValueKind.Undefined)
                         {
                             violations.Add($"Endpoint payload lộ trường nhạy cảm: {curPath} = {prop.Value.GetRawText()}");
                         }
                     }
-                    ScanJsonElement(prop.Value, curPath, violations);
+                    ScanJsonElement(prop.Value, curPath, violations, isPurchaseDocument);
                 }
                 break;
             case JsonValueKind.Array:
                 int idx = 0;
                 foreach (var item in element.EnumerateArray())
                 {
-                    ScanJsonElement(item, $"{path}[{idx}]", violations);
+                    ScanJsonElement(item, $"{path}[{idx}]", violations, isPurchaseDocument);
                     idx++;
                 }
                 break;
         }
     }
 
+    /// <summary>
+    /// Trường giá mua chỉ nhạy cảm trên đơn mua và phiếu nhập (ở đơn bán, unitPrice là giá bán, Staff được xem).
+    /// </summary>
+    private static readonly HashSet<string> PurchasePriceKeys = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "unitPrice", "lineTotal", "allocatedLineTotal", "subtotal", "shippingFee", "discountAmount", "vatAmount",
+        "totalAmount", "suggestedUnitPrice", "lastAllocatedUnitCost"
+    };
+
+    /// <summary>Route GET không trả JSON nghiệp vụ hoặc không dùng JWT, kèm lý do (AC-07: ngoại lệ phải ghi lý do).</summary>
+    private static readonly Dictionary<string, string> ExcludedGetRoutes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["api/webhooks/simulator/whoami"] = "Xác thực bằng khóa simulator, không dùng JWT Staff; chỉ trả tên tenant",
+        ["api/webhooks/simulator/catalog"] = "Xác thực bằng khóa simulator, không dùng JWT Staff; chỉ trả giá bán niêm yết",
+        ["api/reports/inventory-period/export-excel"] = "Trả file .xlsx, kiểm riêng ở Staff_ExcelExports_HaveNoValueColumns_AC03",
+        ["api/reports/stock-card/export-excel"] = "Trả file .xlsx, kiểm riêng ở Staff_ExcelExports_HaveNoValueColumns_AC03",
+    };
+
+    /// <summary>Route chỉ Owner được gọi: Staff phải nhận 403.</summary>
+    private static readonly HashSet<string> OwnerOnlyGetRoutes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "api/payment-accounts",
+        "api/purchase-orders/price-suggestion",
+        "api/reports/daily-summaries",
+        "api/shop-integrations",
+        "api/shop-integrations/{id:guid}",
+        "api/users",
+        "api/users/{id:guid}",
+    };
+
+    private static string NormalizeRoute(string raw) => raw.Trim().TrimStart('/');
+
+    private async Task<Dictionary<string, string>> BuildGetRouteUrlsAsync()
+    {
+        string barcode;
+        Guid ledgerId, unitId, skuUnitId, priceChangeRequestId, userId;
+        Guid? shopIntegrationId;
+        string invoiceNumber;
+        await using (var db = CreatePostgresDbContext(_tenantId).Context)
+        {
+            var sku = await db.ProductVariants.FirstAsync(v => v.Id == _skuId);
+            barcode = sku.Barcode ?? sku.SKU;
+            // Dòng OUT bán hàng của đơn POS (có giá vốn) để quét truy vết sổ kho
+            var orderItemIds = await db.OrderItems.Where(i => i.OrderId == _orderId).Select(i => i.Id).ToListAsync();
+            ledgerId = await db.InventoryTransactions
+                .Where(t => t.OrderItemId != null && orderItemIds.Contains(t.OrderItemId.Value))
+                .Select(t => t.Id)
+                .FirstAsync();
+            var skuUnit = await db.SkuUnits.FirstAsync(u => u.SkuId == _skuId);
+            unitId = skuUnit.UnitId;
+            skuUnitId = skuUnit.Id;
+            priceChangeRequestId = await db.PriceChangeRequests.Select(r => r.Id).FirstAsync();
+            userId = await db.Users.Where(u => u.Role == "Staff").Select(u => u.Id).FirstAsync();
+            shopIntegrationId = await db.ShopIntegrations.Select(i => (Guid?)i.Id).FirstOrDefaultAsync();
+            invoiceNumber = await db.SalesInvoices.Where(i => i.Id == _invoiceId).Select(i => i.Number).FirstAsync();
+        }
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        var from = today.AddDays(-7).ToString("yyyy-MM-dd");
+        var to = today.ToString("yyyy-MM-dd");
+        var b = _branchId;
+
+        var urls = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["api/ai/models"] = "/api/ai/models",
+            ["api/ai/export-history"] = $"/api/ai/export-history?branchId={b}&skuId={_skuId}",
+            ["api/ai/reorder-recommendations"] = $"/api/ai/reorder-recommendations?branchId={b}",
+            ["api/auth/me"] = "/api/auth/me",
+            ["api/auth/password-reset/status"] = "/api/auth/password-reset/status",
+            ["api/branches"] = "/api/branches",
+            ["api/branches/{id}"] = $"/api/branches/{b}",
+            ["api/brands"] = "/api/brands",
+            ["api/categories"] = "/api/categories",
+            ["api/goods-issues"] = "/api/goods-issues",
+            ["api/goods-issues/{id:guid}"] = $"/api/goods-issues/{_goodsIssueId}",
+            ["api/goods-issues/by-order/{orderId:guid}"] = $"/api/goods-issues/by-order/{_orderId}",
+            ["api/orders/{orderId:guid}/goods-issues"] = $"/api/orders/{_orderId}/goods-issues",
+            ["api/goods-issues/by-orders"] = $"/api/goods-issues/by-orders?orderIds={_orderId}",
+            ["api/goods-issues/pos-daily-summary"] = $"/api/goods-issues/pos-daily-summary?date={to}&branchId={b}",
+            ["api/goods-issues/pos-statement"] = $"/api/goods-issues/pos-statement?date={to}&branchId={b}",
+            ["api/goods-receipts"] = "/api/goods-receipts",
+            ["api/goods-receipts/{id}"] = $"/api/goods-receipts/{_goodsReceiptId}",
+            ["api/inventory/balances"] = "/api/inventory/balances",
+            ["api/inventory/export-history"] = $"/api/inventory/export-history?branchId={b}&skuId={_skuId}",
+            ["api/inventory/balances/sku/{skuId}/branch/{branchId}"] = $"/api/inventory/balances/sku/{_skuId}/branch/{b}",
+            ["api/inventory/ledger"] = "/api/inventory/ledger",
+            ["api/inventory-transactions"] = "/api/inventory-transactions",
+            ["api/inventory/ledger/{id:guid}/trace"] = $"/api/inventory/ledger/{ledgerId}/trace",
+            ["api/orders"] = "/api/orders",
+            ["api/orders/{id:guid}"] = $"/api/orders/{_orderId}",
+            ["api/orders/{id:guid}/trace"] = $"/api/orders/{_orderId}/trace",
+            ["api/orders/{id:guid}/returnable-items"] = $"/api/orders/{_orderId}/returnable-items",
+            ["api/payment-accounts"] = "/api/payment-accounts",
+            ["api/payment-accounts/active"] = "/api/payment-accounts/active",
+            ["api/pos/search"] = $"/api/pos/search?query={_skuCode}&branchId={b}",
+            ["api/pos/barcode/{barcode}"] = $"/api/pos/barcode/{Uri.EscapeDataString(barcode)}",
+            ["api/price-lists"] = "/api/price-lists",
+            ["api/price-change-requests"] = "/api/price-change-requests",
+            ["api/price-change-requests/{id:guid}"] = $"/api/price-change-requests/{priceChangeRequestId}",
+            ["api/sku-unit-prices/effective"] = $"/api/sku-unit-prices/effective?skuId={_skuId}&priceListCode=retail",
+            ["api/sku-unit-prices/history"] = $"/api/sku-unit-prices/history?skuId={_skuId}",
+            ["api/pricing/pending-po-prices"] = $"/api/pricing/pending-po-prices?skuId={_skuId}",
+            ["api/price-change-requests/pending-po-prices"] = $"/api/price-change-requests/pending-po-prices?skuId={_skuId}",
+            ["api/products"] = "/api/products",
+            ["api/products/{id}"] = $"/api/products/{_productId}",
+            ["api/purchase-orders"] = "/api/purchase-orders",
+            ["api/purchase-orders/price-suggestion"] = $"/api/purchase-orders/price-suggestion?branchId={b}&skuId={_skuId}",
+            ["api/purchase-orders/{id:guid}"] = $"/api/purchase-orders/{_purchaseOrderId}",
+            ["api/reports/revenue-profit"] = $"/api/reports/revenue-profit?fromDate={from}&toDate={to}",
+            ["api/reports/inventory-velocity"] = $"/api/reports/inventory-velocity?fromDate={from}&toDate={to}",
+            ["api/reports/stock-alerts"] = $"/api/reports/stock-alerts?branchId={b}",
+            ["api/reports/dashboard-summary"] = "/api/reports/dashboard-summary",
+            ["api/reports/daily-summaries"] = $"/api/reports/daily-summaries?fromDate={from}&toDate={to}",
+            ["api/reports/inventory-period"] = $"/api/reports/inventory-period?fromDate={from}&toDate={to}&branchId={b}",
+            ["api/reports/stock-card"] = $"/api/reports/stock-card?skuId={_skuId}&branchId={b}&fromDate={from}&toDate={to}",
+            ["api/sales-invoices"] = "/api/sales-invoices",
+            ["api/sales-invoices/{id:guid}"] = $"/api/sales-invoices/{_invoiceId}",
+            ["api/sales-invoices/receipt"] = $"/api/sales-invoices/receipt?number={Uri.EscapeDataString(invoiceNumber)}",
+            ["api/sales-invoices/{id:guid}/receipt"] = $"/api/sales-invoices/{_invoiceId}/receipt",
+            ["api/sales-invoices/{id:guid}/trace"] = $"/api/sales-invoices/{_invoiceId}/trace",
+            ["api/sales-returns"] = "/api/sales-returns",
+            ["api/sales-returns/{id:guid}"] = $"/api/sales-returns/{_salesReturnId}",
+            ["api/search"] = $"/api/search?q={_skuCode}",
+            ["api/shop-integrations"] = "/api/shop-integrations",
+            ["api/stock-count-periods"] = "/api/stock-count-periods",
+            ["api/stock-count-schedules"] = "/api/stock-count-schedules",
+            ["api/stock-counts"] = "/api/stock-counts",
+            ["api/stock-counts/{id:guid}"] = $"/api/stock-counts/{_stockCountId}",
+            ["api/stock-transfers"] = "/api/stock-transfers",
+            ["api/stock-transfers/{id:guid}"] = $"/api/stock-transfers/{_stockTransferId}",
+            ["api/suppliers"] = "/api/suppliers",
+            ["api/suppliers/{id}"] = $"/api/suppliers/{_supplierId}",
+            ["api/units"] = "/api/units",
+            ["api/units/{id:guid}"] = $"/api/units/{unitId}",
+            ["api/products/{productId:guid}/variants/{variantId:guid}/units"] = $"/api/products/{_productId}/variants/{_skuId}/units",
+            ["api/products/{productId:guid}/variants/{variantId:guid}/units/{skuUnitId:guid}/history"] = $"/api/products/{_productId}/variants/{_skuId}/units/{skuUnitId}/history",
+            ["api/users"] = "/api/users",
+            ["api/users/{id:guid}"] = $"/api/users/{userId}",
+            ["api/warehouses"] = "/api/warehouses",
+            ["api/warehouses/{id}"] = $"/api/warehouses/{_warehouseId}",
+        };
+
+        if (shopIntegrationId.HasValue)
+        {
+            urls["api/shop-integrations/{id:guid}"] = $"/api/shop-integrations/{shopIntegrationId}";
+        }
+
+        return urls;
+    }
+
     [Fact]
     public async Task Staff_ScanAllGetEndpoints_NoSensitiveCostKeysExposed_AC07()
     {
-        // GIVEN: Đăng nhập bằng tài khoản Staff (staff@shopa.local)
+        // Dữ liệu seed phải đủ để mọi route có tham số trả về bản ghi thật (không bỏ qua 404).
+        _goodsIssueId.Should().NotBeEmpty("POS checkout phải lập phiếu xuất kho");
+        _goodsReceiptId.Should().NotBeEmpty("seed phải có phiếu nhập");
+        _salesReturnId.Should().NotBeEmpty("seed phải tạo được phiếu trả hàng");
+        _stockTransferId.Should().NotBeEmpty("seed phải tạo được phiếu chuyển kho");
+        _stockCountId.Should().NotBeEmpty("seed phải tạo được phiếu kiểm kê");
+
+        var urls = await BuildGetRouteUrlsAsync();
+
+        // Lấy danh sách route GET từ EndpointDataSource: route GET mới chưa được khai báo URL hoặc ngoại lệ thì test fail.
+        var endpointDataSource = _factory.Services.GetRequiredService<EndpointDataSource>();
+        var getRoutes = endpointDataSource.Endpoints.OfType<RouteEndpoint>()
+            .Where(e => e.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods.Contains("GET") == true)
+            .Select(e => NormalizeRoute(e.RoutePattern.RawText ?? string.Empty))
+            .Where(r => r.StartsWith("api/", StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(r => r, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        getRoutes.Should().HaveCountGreaterThan(50, "phải đọc được toàn bộ route GET của API");
+
+        var shopIntegrationRoute = "api/shop-integrations/{id:guid}";
+        var uncovered = getRoutes
+            .Where(r => !urls.ContainsKey(r) && !ExcludedGetRoutes.ContainsKey(r))
+            .Where(r => !(r.Equals(shopIntegrationRoute, StringComparison.OrdinalIgnoreCase) && !urls.ContainsKey(r)))
+            .ToList();
+        uncovered.Should().BeEmpty("mọi route GET phải được quét hoặc ghi lý do ngoại lệ: " + string.Join(", ", uncovered));
+
         var staffToken = await LoginAsAsync("staff@shopa.local", PostgresTestEnvironment.AppPassword);
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", staffToken);
 
-        // Lấy danh sách route từ EndpointDataSource
-        var endpointDataSource = _factory.Services.GetRequiredService<EndpointDataSource>();
-        var routeEndpoints = endpointDataSource.Endpoints.OfType<RouteEndpoint>().ToList();
-
-        var getEndpoints = routeEndpoints
-            .Where(e => e.Metadata.GetMetadata<HttpMethodMetadata>()?.HttpMethods.Contains("GET") == true)
-            .Select(e => e.RoutePattern.RawText ?? "")
-            .Where(r => !string.IsNullOrEmpty(r) && !r.StartsWith("swagger") && !r.StartsWith("health") && !r.StartsWith("hubs"))
-            .Distinct()
-            .ToList();
-
-        getEndpoints.Should().NotBeEmpty("Phải tìm thấy các endpoint GET từ EndpointDataSource.");
-
-        // Danh sách các URL GET cụ thể đại diện cho toàn bộ các phân hệ nghiệp vụ
-        var targetUrls = new List<string>
+        var violations = new List<string>();
+        var scanned = 0;
+        foreach (var route in getRoutes.Where(urls.ContainsKey))
         {
-            "/api/inventory/balances",
-            "/api/inventory/skus",
-            "/api/inventory/ledger",
-            $"/api/inventory/period-report?branchId={_branchId}&warehouseId={_warehouseId}&startDate=2026-01-01&endDate=2026-12-31",
-            "/api/orders",
-            $"/api/orders/{_orderId}",
-            "/api/orders/daily-summary",
-            $"/api/sales-invoices/{_invoiceId}",
-            $"/api/sales-invoices/{_invoiceId}/trace",
-            $"/api/sales-invoices/by-order/{_orderId}",
-            "/api/sales-returns",
-            $"/api/sales-returns/{_salesReturnId}",
-            "/api/stock-transfers",
-            $"/api/stock-transfers/{_stockTransferId}",
-            "/api/stock-counts",
-            $"/api/stock-counts/{_stockCountId}",
-            "/api/goods-issues",
-            $"/api/goods-issues/{_goodsIssueId}",
-            $"/api/goods-issues/by-order/{_orderId}",
-            "/api/goods-issues/pos-daily-summary",
-            "/api/purchase-orders",
-            $"/api/purchase-orders/{_purchaseOrderId}",
-            "/api/goods-receipts",
-            $"/api/goods-receipts/{_goodsReceiptId}",
-            "/api/products",
-            $"/api/products/{_productId}",
-            "/api/search?q=TEST"
-        };
-
-        var allViolations = new List<string>();
-
-        foreach (var url in targetUrls)
-        {
-            var res = await _client.GetAsync(url);
-
-            // Staff có thể bị 403 Forbidden ở các route yêu cầu Owner (như Reports), điều này hoàn toàn hợp lệ
-            if (res.StatusCode == HttpStatusCode.Forbidden || res.StatusCode == HttpStatusCode.Unauthorized)
-            {
-                continue;
-            }
-
-            if (res.StatusCode == HttpStatusCode.NotFound)
-            {
-                continue;
-            }
-
-            res.StatusCode.Should().Be(HttpStatusCode.OK, $"URL {url} phải trả về 200 OK cho Staff.");
-
+            var url = urls[route];
+            using var res = await _client.GetAsync(url);
             var content = await res.Content.ReadAsStringAsync();
-            if (string.IsNullOrWhiteSpace(content) || !content.TrimStart().StartsWith("{") && !content.TrimStart().StartsWith("["))
+
+            if (OwnerOnlyGetRoutes.Contains(route))
+            {
+                if (res.StatusCode != HttpStatusCode.Forbidden)
+                {
+                    violations.Add($"{url}: route chỉ Owner nhưng Staff nhận {(int)res.StatusCode}");
+                }
+                continue;
+            }
+
+            if (res.StatusCode != HttpStatusCode.OK)
+            {
+                violations.Add($"{url}: Staff nhận {(int)res.StatusCode}, cần 200 để quét. {content[..Math.Min(content.Length, 300)]}");
+                continue;
+            }
+
+            scanned++;
+            var trimmed = content.TrimStart();
+            if (!trimmed.StartsWith('{') && !trimmed.StartsWith('['))
             {
                 continue;
             }
 
             using var doc = JsonDocument.Parse(content);
-            var endpointViolations = new List<string>();
-            ScanJsonElement(doc.RootElement, url, endpointViolations);
-
-            if (endpointViolations.Count > 0)
-            {
-                allViolations.AddRange(endpointViolations);
-            }
+            var isPurchaseDocument = route.StartsWith("api/purchase-orders", StringComparison.OrdinalIgnoreCase)
+                || route.StartsWith("api/goods-receipts", StringComparison.OrdinalIgnoreCase);
+            ScanJsonElement(doc.RootElement, url, violations, isPurchaseDocument);
         }
 
-        // THEN: Không được có bất kỳ vi phạm nào (Staff nhận 0 trường giá vốn nhạy cảm)
-        allViolations.Should().BeEmpty(
-            "Staff tuyệt đối không được nhận bất kỳ trường tài chính nhạy cảm nào (CostPrice, TotalCost, UnitCost, WAC, GrossProfit, etc.). " +
-            "Chi tiết các vi phạm: \n" + string.Join("\n", allViolations));
+        scanned.Should().BeGreaterThan(50, "Staff phải quét được phần lớn route GET");
+        violations.Should().BeEmpty(
+            "Staff không được nhận trường giá vốn, giá mua hay giá trị tồn ở bất kỳ route GET nào. Chi tiết:\n"
+            + string.Join("\n", violations));
+    }
+
+    [Fact]
+    public async Task Staff_ExcelExports_HaveNoValueColumns_AC03()
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+        var from = today.AddDays(-7).ToString("yyyy-MM-dd");
+        var to = today.ToString("yyyy-MM-dd");
+        var exports = new[]
+        {
+            $"/api/reports/inventory-period/export-excel?fromDate={from}&toDate={to}&branchId={_branchId}",
+            $"/api/reports/stock-card/export-excel?skuId={_skuId}&branchId={_branchId}&fromDate={from}&toDate={to}",
+        };
+        var valueMarkers = new[] { "Giá trị", "Đơn giá", "Thành tiền", "Giá vốn" };
+
+        foreach (var (email, expectValues) in new[] { ("staff@shopa.local", false), ("owner@shopa.local", true) })
+        {
+            var token = await LoginAsAsync(email, PostgresTestEnvironment.AppPassword);
+            _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+            foreach (var url in exports)
+            {
+                using var res = await _client.GetAsync(url);
+                res.StatusCode.Should().Be(HttpStatusCode.OK, $"{email} xuất {url}");
+                await using var stream = await res.Content.ReadAsStreamAsync();
+                using var workbook = new ClosedXML.Excel.XLWorkbook(stream);
+                var text = string.Join("\n", workbook.Worksheets
+                    .SelectMany(ws => ws.CellsUsed())
+                    .Select(c => c.GetString()));
+
+                var hasValueColumn = valueMarkers.Any(m => text.Contains(m, StringComparison.OrdinalIgnoreCase));
+                hasValueColumn.Should().Be(expectValues, $"{email} xuất {url}: cột giá trị chỉ Owner có");
+            }
+        }
     }
 
     [Fact]

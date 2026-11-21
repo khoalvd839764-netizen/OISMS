@@ -21,11 +21,11 @@ Mục 5.1 của checklist còn **Gói 5**. Gói 1 đã đóng toàn bộ tiêu c
 
 ## Upgrade 12 — Đơn mua và cấu hình giá (feedback 19/11/2026)
 
-[Đặc tả đã chốt](./12-don-mua-va-cau-hinh-gia.md): bỏ hóa đơn NCC, thêm trạng thái `PendingApproval` cho đơn mua, ẩn giá mua và giá vốn với Staff, cấu hình giá bán (giữ giá cũ / WAC + lãi / giá mới) áp dụng khi nhập kho. **Gói 1 đã xong (19/11/2026):** đơn mua `PendingApproval`, phân bổ phí và chiết khấu vào giá vốn, che giá với Staff trên đơn mua và phiếu nhập, gỡ hóa đơn NCC ([báo cáo](../../report-after-upgrade/don-mua-pending-approval-u12.md)). Gói 4 (cấu hình giá bán) và Gói 5 (che giá dùng chung) chưa làm.
+[Đặc tả đã chốt](./12-don-mua-va-cau-hinh-gia.md): bỏ hóa đơn NCC, thêm trạng thái `PendingApproval` cho đơn mua, ẩn giá mua và giá vốn với Staff, cấu hình giá bán (giữ giá cũ / WAC + lãi / giá mới) áp dụng khi nhập kho. **Gói 1 đã xong (19/11/2026):** đơn mua `PendingApproval`, phân bổ phí và chiết khấu vào giá vốn, che giá với Staff trên đơn mua và phiếu nhập, gỡ hóa đơn NCC ([báo cáo](../../report-after-upgrade/don-mua-pending-approval-u12.md)). **Gói 4 (cấu hình giá bán khi nhập kho, lý do đổi giá, xung đột Q19) và Gói 5 (che giá dùng chung, test quét mọi route GET) xong 21/11/2026** ([báo cáo G4](../../report-after-upgrade/cau-hinh-gia-ban-u12-g4.md), [báo cáo G5](../../report-after-upgrade/che-gia-dung-chung-u12-g5.md)).
 
 ## Upgrade 13 — Tồn kho theo kỳ (feedback 19/11/2026)
 
-[Đặc tả đã chốt](./13-ton-kho-theo-ky.md): tab "Tồn theo kỳ" (ngày, tháng, khoảng tùy chọn) với đầu kỳ, nhập, xuất, cuối kỳ theo chi nhánh; thẻ kho; xuất Excel; Staff chỉ xem số lượng; phiếu xuất kho bán hàng theo mẫu 02-VT, lưu thành chứng từ gắn với từng dòng sổ `OUT` (thêm 2 bảng, lập cùng transaction checkout/confirm), bảng kê POS theo ngày, in hàng loạt đơn TMĐT. Chưa triển khai.
+[Đặc tả đã chốt](./13-ton-kho-theo-ky.md): tab "Tồn theo kỳ" (ngày, tháng, khoảng tùy chọn) với đầu kỳ, nhập, xuất, cuối kỳ theo chi nhánh; thẻ kho; xuất Excel; Staff chỉ xem số lượng; phiếu xuất kho bán hàng theo mẫu 02-VT, lưu thành chứng từ gắn với từng dòng sổ `OUT` (thêm 2 bảng, lập cùng transaction checkout/confirm), bảng kê POS theo ngày, in hàng loạt đơn TMĐT. **Đã triển khai 19–21/11/2026** ([phiếu xuất](../../report-after-upgrade/phieu-xuat-kho-u13.md)).
 
 **Phân công triển khai Upgrade 12 + 13:** [OISMS-66-lan2-phan-cong.md](./OISMS-66-lan2-phan-cong.md) (5 gói G1–G5, 3 người, lịch theo đợt).
 

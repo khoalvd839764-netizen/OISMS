@@ -145,7 +145,7 @@ public class DashboardSummaryDto
     public decimal? NetCogs { get; set; }
     public int TotalOrders { get; set; }
     public decimal? TotalGrossProfit { get; set; }
-    public decimal GrossMarginPercentage { get; set; }
+    public decimal? GrossMarginPercentage { get; set; }
     public int SkuCount { get; set; }
     public decimal? TotalInventoryValue { get; set; }
     public int LowStockCount { get; set; }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Badge, Button, EmptyState, PageTitle, Select } from '../components/ui';
@@ -26,6 +26,8 @@ export const PurchaseOrdersPage: React.FC = () => {
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>('');
+  // Staff không được lọc NCC trên đơn chưa duyệt (backend trả 403 để không suy ra NCC Owner đang chọn, G1 F-03).
+  const supplierFilterLocked = !isOwner && (statusFilter === 'Draft' || statusFilter === 'PendingApproval');
   const [branchFilter, setBranchFilter] = useState<string>('');
   const [supplierFilter, setSupplierFilter] = useState<string>('');
 
@@ -51,28 +53,34 @@ export const PurchaseOrdersPage: React.FC = () => {
     };
   }, []);
 
+  // Bỏ qua response của lần tải cũ khi người dùng đổi bộ lọc liên tiếp (response về không theo thứ tự).
+  const latestFetchRef = useRef(0);
+
   const fetchOrders = async () => {
+    const fetchId = ++latestFetchRef.current;
     setLoading(true);
     setError(null);
     try {
       const res = await purchaseOrderService.getPurchaseOrders({
         status: statusFilter || undefined,
         branchId: branchFilter || undefined,
-        supplierId: supplierFilter || undefined,
+        supplierId: supplierFilterLocked ? undefined : supplierFilter || undefined,
         pageIndex,
         pageSize,
       });
+      if (fetchId !== latestFetchRef.current) return;
       setOrders(res.items || []);
       setTotalCount(res.totalCount || 0);
       setTotalPages(res.totalPages || 1);
     } catch (err: any) {
+      if (fetchId !== latestFetchRef.current) return;
       setError(
         err?.response?.data?.detail ||
         err?.response?.data?.message ||
         'Không thể tải danh sách đơn mua hàng.'
       );
     } finally {
-      setLoading(false);
+      if (fetchId === latestFetchRef.current) setLoading(false);
     }
   };
 
@@ -197,7 +205,9 @@ export const PurchaseOrdersPage: React.FC = () => {
             Nhà cung cấp
           </label>
           <Select
-            value={supplierFilter}
+            value={supplierFilterLocked ? '' : supplierFilter}
+            disabled={supplierFilterLocked}
+            title={supplierFilterLocked ? 'Đơn chưa duyệt không lọc theo nhà cung cấp' : undefined}
             onChange={(e) => {
               setSupplierFilter(e.target.value);
               setPageIndex(1);

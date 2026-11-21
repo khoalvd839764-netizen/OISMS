@@ -133,3 +133,16 @@ Hồi quy kiểm thử:
 - **Tests:**
   - `test-oisms/backend/OISM.UnitTests/DatabaseBaselineValidatorTests.cs`
   - `test-oisms/backend/OISM.IntegrationTests/PostgresPurchaseOrderSalePriceIntegrationTests.cs`
+
+## Sửa sau nghiệm thu (21/11/2026)
+
+Kiểm thử lại trên docker local (DB reset, 51 bảng) và PostgreSQL 16 tạm. Lỗi tìm thấy và cách sửa:
+
+| # | Lỗi | Sửa |
+| --- | --- | --- |
+| 1 | `GET /api/price-change-requests` và chi tiết phiếu trả `reasonType = OTHER` cho mọi phiếu, dù DB lưu đúng `FROM_PURCHASE_ORDER`/`SHORTAGE` (`PriceQueryService` quên map) | Map `ReasonType` trong `PriceQueryService`; test `AC03_AC04_...` kiểm thêm API danh sách và chi tiết |
+| 2 | Cấu hình `FIXED` chấp nhận giá mới = 0, khi nhập kho sẽ sinh giá bán 0đ | `ValidateConfigDto` yêu cầu `fixedPrice > 0` (CHECK DB vẫn `>= 0`, chặn ở tầng ứng dụng) |
+| 3 | Q19 `KEEP_MANUAL`: cấu hình đơn mua được đọc trước khi khóa đơn mua; nếu phiếu nhập vừa áp giá trong lúc chờ khóa thì vẫn bị đổi sang `KEEP`. Mốc `valid_from` của giá tay lấy từ đồng hồ trước khi chờ khóa nên có thể sớm hơn giá vừa sinh từ phiếu nhập | Đọc lại cấu hình còn chờ sau khi giữ khóa đơn mua; tính `valid_from` của giá tay bằng đồng hồ đọc sau khi giữ khóa giá |
+| 4 | Replay phiếu đổi giá cùng `Idempotency-Key` mà thiếu `reasonType` gây lỗi 500 (null) | So khớp payload chịu được `reasonType` null |
+| 5 | Chạy **toàn bộ** integration suite: 164/468 test fail dây chuyền. `PriceListMigrationIntegrationTests` và `PurchaseOrderIntegrationTests` tạo lại bảng cha bằng `DROP ... CASCADE`, làm mất `fk_po_sale_price_configs_price_list`/`_pcr`/`_item`; đường nâng cấp của `DatabaseMigrationService` chỉ `CREATE TABLE IF NOT EXISTS` nên không thêm lại, DB test bị coi là schema drift | Khối `OISMS_PO_SALE_PRICE_CONFIGS` trong `oisms_schema.sql` thêm đoạn `DO $$` tạo lại 5 khóa ngoại nếu thiếu (giống migration `20261121`) |
+| 6 | Các assertion số bảng còn ghi 50 (`PostgresGoodsIssueIntegrationTests`, `PostgresTenantIsolationTests`; kể cả bảng `__EFMigrationsHistory` là 51 → 52) | Đổi thành 51 (và 52 khi tính `__EFMigrationsHistory`) |

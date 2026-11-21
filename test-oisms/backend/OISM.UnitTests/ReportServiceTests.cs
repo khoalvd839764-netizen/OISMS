@@ -520,7 +520,7 @@ public class ReportServiceTests
 
         // Assert 2: Staff bị ẩn lợi nhuận gộp (bảo mật giá vốn)
         staffSummary.TotalGrossProfit.Should().BeNull();
-        staffSummary.GrossMarginPercentage.Should().Be(0);
+        staffSummary.GrossMarginPercentage.Should().BeNull();
         staffSummary.TotalInventoryValue.Should().BeNull();
         staffSummary.TotalRevenue.Should().Be(500000);
     }
@@ -1135,6 +1135,6 @@ public class ReportServiceTests
         staffSummary.ReturnCogs.Should().BeNull();
         staffSummary.NetCogs.Should().BeNull();
         staffSummary.TotalGrossProfit.Should().BeNull();
-        staffSummary.GrossMarginPercentage.Should().Be(0m);
+        staffSummary.GrossMarginPercentage.Should().BeNull();
     }
 }
