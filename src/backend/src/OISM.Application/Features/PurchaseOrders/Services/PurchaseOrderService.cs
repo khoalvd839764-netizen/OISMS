@@ -330,24 +330,23 @@ public class PurchaseOrderService : IPurchaseOrderService
                 throw new OismException("NOT_FOUND", $"Không tìm thấy phiếu mua hàng với ID '{id}'.", 404);
             }
 
-            if (!isOwner)
+            if (po.IsDraft)
             {
-                if (!po.IsDraft)
-                {
-                    throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', nhân viên chỉ được sửa khi ở trạng thái 'Draft'.", 409);
-                }
-
                 if (po.CreatedBy != userId)
                 {
-                    throw new OismException("FORBIDDEN_ACCESS", "Nhân viên chỉ được chỉnh sửa đơn đề nghị mua nháp do chính mình tạo.", 403);
+                    throw new OismException("PURCHASE_ORDER_NOT_CREATOR", "Chỉ người tạo đơn mới có quyền chỉnh sửa đơn đề nghị mua nháp.", 403);
+                }
+            }
+            else if (po.IsPendingApproval)
+            {
+                if (!isOwner)
+                {
+                    throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', nhân viên chỉ được sửa khi ở trạng thái 'Draft'.", 409);
                 }
             }
             else
             {
-                if (!po.IsPendingApproval && !po.IsDraft)
-                {
-                    throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', chỉ được sửa khi ở trạng thái 'Draft' hoặc 'PendingApproval'.", 409);
-                }
+                throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', chỉ được sửa khi ở trạng thái 'Draft' hoặc 'PendingApproval'.", 409);
             }
 
             if (dto.Version.HasValue && dto.Version.Value != po.Version)
@@ -537,9 +536,9 @@ public class PurchaseOrderService : IPurchaseOrderService
                 throw new OismException("INVALID_STATE_TRANSITION", $"Phiếu mua '{po.Number}' đang ở trạng thái '{po.Status}', chỉ được gửi duyệt khi ở trạng thái 'Draft'.", 409);
             }
 
-            if (!isOwner && po.CreatedBy != userId)
+            if (po.CreatedBy != userId)
             {
-                throw new OismException("FORBIDDEN_ACCESS", "Nhân viên chỉ được gửi duyệt đơn đề nghị mua nháp do chính mình tạo.", 403);
+                throw new OismException("PURCHASE_ORDER_NOT_CREATOR", "Chỉ người tạo đơn mới có quyền gửi duyệt đơn đề nghị mua.", 403);
             }
 
             if (po.Items.Count == 0)
@@ -650,28 +649,30 @@ public class PurchaseOrderService : IPurchaseOrderService
                 throw new OismException("PURCHASE_ORDER_VERSION_MISMATCH", $"Phiên bản đơn mua không khớp (hiện tại: {po.Version}, gửi lên: {version.Value}). Vui lòng tải lại trước khi duyệt.", 409);
             }
 
-            if (po.Items.Count == 0)
+            var readiness = await EvaluateApprovalReadinessAsync(po, ct: ct);
+
+            if (readiness.Missing.Contains("ITEMS"))
             {
                 throw new OismException("PURCHASE_ORDER_INCOMPLETE_FOR_APPROVAL", "Phiếu mua hàng phải có ít nhất 1 dòng mặt hàng trước khi duyệt.", 422);
             }
 
-            if (!po.SupplierId.HasValue || po.SupplierId.Value == Guid.Empty)
+            if (readiness.Missing.Contains("SUPPLIER"))
             {
                 throw new OismException("PURCHASE_ORDER_INCOMPLETE_FOR_APPROVAL", "Đơn mua chưa chọn nhà cung cấp, không thể duyệt.", 422);
             }
 
-            var supplier = await _context.Suppliers.FirstOrDefaultAsync(s => s.Id == po.SupplierId.Value, ct);
+            var supplier = await _context.Suppliers.FirstOrDefaultAsync(s => s.Id == po.SupplierId!.Value, ct);
             if (supplier == null)
             {
-                throw new OismException("NOT_FOUND", $"Không tìm thấy Nhà cung cấp với ID '{po.SupplierId.Value}'.", 404);
+                throw new OismException("NOT_FOUND", $"Không tìm thấy Nhà cung cấp với ID '{po.SupplierId!.Value}'.", 404);
             }
 
-            if (po.OrderDate > GetTodayVietnam())
+            if (readiness.Missing.Contains("ORDER_DATE"))
             {
                 throw new OismException("VALIDATION_ERROR", "Ngày đặt hàng không được lớn hơn ngày hiện tại.", 422);
             }
 
-            if (po.Items.Any(i => !i.UnitPrice.HasValue))
+            if (readiness.Missing.Contains("UNIT_PRICE"))
             {
                 throw new OismException("PURCHASE_ORDER_INCOMPLETE_FOR_APPROVAL", "Còn dòng hàng chưa nhập đơn giá mua, không thể duyệt.", 422);
             }
@@ -681,7 +682,7 @@ public class PurchaseOrderService : IPurchaseOrderService
                 throw new OismException("VALIDATION_ERROR", "Đơn giá mua không được âm.", 422);
             }
 
-            if (po.Items.Any(i => i.UnitPrice!.Value == 0m) && !confirmZeroPrice)
+            if (readiness.HasZeroPrice && !confirmZeroPrice)
             {
                 throw new PurchaseOrderZeroPriceConfirmRequiredException();
             }
@@ -749,75 +750,8 @@ public class PurchaseOrderService : IPurchaseOrderService
             await _context.SaveChangesAsync(ct);
 
             // Kiểm tra cấu hình giá bán bán lỗ (AC-02 / Upgrade 12)
-            var skuIds = po.Items.Select(i => i.SkuId).Distinct().ToList();
-            var skuUnits = await _context.SkuUnits
-                .Where(su => su.TenantId == tenantId && skuIds.Contains(su.SkuId))
-                .ToListAsync(ct);
-
-            var branchBalances = await _context.InventoryBalances
-                .Where(b => b.BranchId == po.BranchId && skuIds.Contains(b.SkuId))
-                .ToDictionaryAsync(b => b.SkuId, ct);
-
-            var activePrices = await _context.SkuUnitPrices
-                .Where(p => p.TenantId == tenantId &&
-                            skuIds.Contains(p.SkuId) &&
-                            p.CancelledAt == null &&
-                            p.ValidFrom <= now)
-                .OrderByDescending(p => p.ValidFrom)
-                .ThenByDescending(p => p.Id)
-                .ToListAsync(ct);
-
-            var hasBelowCost = false;
-
-            foreach (var item in po.Items)
-            {
-                var currentOnHand = branchBalances.TryGetValue(item.SkuId, out var bal) ? bal.OnHand : 0m;
-                var currentBaseWac = bal?.AverageCost ?? 0m;
-                var incomingBaseQty = item.Quantity * item.FactorSnapshot;
-                var effectiveAllocatedCost = item.AllocatedUnitCost ?? item.UnitPrice ?? 0m;
-                var incomingBaseCost = item.FactorSnapshot > 0m ? (effectiveAllocatedCost / item.FactorSnapshot) : 0m;
-                var projectedBaseWac = CalculateProjectedWac(currentOnHand, currentBaseWac, incomingBaseQty, incomingBaseCost);
-
-                foreach (var config in item.SalePriceConfigs)
-                {
-                    var su = skuUnits.FirstOrDefault(u => u.SkuId == item.SkuId && u.UnitId == config.UnitId);
-                    var factorToBase = su?.FactorToBase ?? 1m;
-                    var projectedUnitWac = projectedBaseWac * factorToBase;
-
-                    decimal projectedPrice = 0m;
-                    if (config.Mode == "KEEP")
-                    {
-                        var latestPrice = activePrices.FirstOrDefault(p => p.SkuId == item.SkuId && p.UnitId == config.UnitId && p.PriceListId == config.PriceListId);
-                        if (latestPrice == null || latestPrice.Price <= 0m)
-                        {
-                            continue;
-                        }
-                        projectedPrice = latestPrice.Price;
-                    }
-                    else if (config.Mode == "FIXED")
-                    {
-                        projectedPrice = config.FixedPrice ?? 0m;
-                    }
-                    else if (config.Mode == "WAC_MARGIN")
-                    {
-                        var margin = config.MarginPercent ?? 0m;
-                        var raw = (1m - (margin / 100m)) != 0m
-                            ? projectedUnitWac / (1m - (margin / 100m))
-                            : 0m;
-                        projectedPrice = Math.Ceiling(raw / 1000m) * 1000m;
-                    }
-
-                    if (projectedPrice > 0m && projectedPrice < projectedUnitWac)
-                    {
-                        hasBelowCost = true;
-                        break;
-                    }
-                }
-
-                if (hasBelowCost) break;
-            }
-
-            if (hasBelowCost && !confirmLossPrice)
+            var readinessAfterAlloc = await EvaluateApprovalReadinessAsync(po, ct: ct);
+            if (readinessAfterAlloc.HasLossPrice && !confirmLossPrice)
             {
                 throw new PurchaseOrderLossPriceConfirmRequiredException();
             }
@@ -1525,9 +1459,9 @@ public class PurchaseOrderService : IPurchaseOrderService
             {
                 throw new OismException("VALIDATION_ERROR", "Bắt buộc nhập phần trăm lãi gộp khi chọn phương thức WAC + lãi.", 400);
             }
-            if (dto.MarginPercent.Value >= 100m)
+            if (dto.MarginPercent.Value < 0m || dto.MarginPercent.Value >= 100m)
             {
-                throw new OismException("VALIDATION_ERROR", "Phần trăm lãi gộp phải nhỏ hơn 100%.", 400);
+                throw new OismException("VALIDATION_ERROR", "Lãi gộp tính trên giá bán, phải từ 0% đến dưới 100%.", 400);
             }
         }
         else if (dto.Mode == "FIXED")
@@ -1562,11 +1496,123 @@ public class PurchaseOrderService : IPurchaseOrderService
         return decimal.Round(totalCost / totalQty, 6, MidpointRounding.AwayFromZero);
     }
 
+    private async Task<PurchaseOrderApprovalReadinessDto> EvaluateApprovalReadinessAsync(
+        PurchaseOrder po,
+        List<SkuUnit>? preloadedSkuUnits = null,
+        Dictionary<Guid, InventoryBalance>? preloadedBranchBalances = null,
+        List<SkuUnitPrice>? preloadedActivePrices = null,
+        CancellationToken ct = default)
+    {
+        var missing = new List<string>();
+        if (po.Items == null || po.Items.Count == 0)
+        {
+            missing.Add("ITEMS");
+        }
+        if (!po.SupplierId.HasValue || po.SupplierId.Value == Guid.Empty)
+        {
+            missing.Add("SUPPLIER");
+        }
+        if (po.Items != null && po.Items.Any(i => !i.UnitPrice.HasValue))
+        {
+            missing.Add("UNIT_PRICE");
+        }
+        if (po.OrderDate > GetTodayVietnam())
+        {
+            missing.Add("ORDER_DATE");
+        }
+
+        var hasZeroPrice = po.Items != null && po.Items.Any(i => i.UnitPrice.HasValue && i.UnitPrice.Value == 0m);
+
+        var skuIds = po.Items?.Select(i => i.SkuId).Distinct().ToList() ?? new List<Guid>();
+        var skuUnits = preloadedSkuUnits ?? await _context.SkuUnits
+            .AsNoTracking()
+            .Where(su => su.TenantId == po.TenantId && skuIds.Contains(su.SkuId))
+            .ToListAsync(ct);
+
+        var branchBalances = preloadedBranchBalances ?? await _context.InventoryBalances
+            .AsNoTracking()
+            .Where(b => b.BranchId == po.BranchId && skuIds.Contains(b.SkuId))
+            .ToDictionaryAsync(b => b.SkuId, ct);
+
+        var now = DateTimeOffset.UtcNow;
+        var activePrices = preloadedActivePrices ?? await _context.SkuUnitPrices
+            .AsNoTracking()
+            .Where(p => p.TenantId == po.TenantId &&
+                        skuIds.Contains(p.SkuId) &&
+                        p.CancelledAt == null &&
+                        p.ValidFrom <= now)
+            .OrderByDescending(p => p.ValidFrom)
+            .ThenByDescending(p => p.Id)
+            .ToListAsync(ct);
+
+        var hasLossPrice = false;
+        if (po.Items != null)
+        {
+            foreach (var item in po.Items)
+            {
+                var currentOnHand = branchBalances.TryGetValue(item.SkuId, out var bal) ? bal.OnHand : 0m;
+                var currentBaseWac = bal?.AverageCost ?? 0m;
+                var incomingBaseQty = item.Quantity * item.FactorSnapshot;
+                var effectiveAllocatedCost = item.AllocatedUnitCost ?? item.UnitPrice ?? 0m;
+                var incomingBaseCost = item.FactorSnapshot > 0m ? (effectiveAllocatedCost / item.FactorSnapshot) : 0m;
+                var projectedBaseWac = CalculateProjectedWac(currentOnHand, currentBaseWac, incomingBaseQty, incomingBaseCost);
+
+                foreach (var config in item.SalePriceConfigs)
+                {
+                    var su = skuUnits.FirstOrDefault(u => u.SkuId == item.SkuId && u.UnitId == config.UnitId);
+                    var factorToBase = su?.FactorToBase ?? 1m;
+                    var projectedUnitWac = projectedBaseWac * factorToBase;
+
+                    decimal projectedPrice = 0m;
+                    if (config.Mode == "KEEP")
+                    {
+                        var latestPrice = activePrices.FirstOrDefault(p => p.SkuId == item.SkuId && p.UnitId == config.UnitId && p.PriceListId == config.PriceListId);
+                        if (latestPrice == null || latestPrice.Price <= 0m)
+                        {
+                            continue;
+                        }
+                        projectedPrice = latestPrice.Price;
+                    }
+                    else if (config.Mode == "FIXED")
+                    {
+                        projectedPrice = config.FixedPrice ?? 0m;
+                    }
+                    else if (config.Mode == "WAC_MARGIN")
+                    {
+                        var margin = config.MarginPercent ?? 0m;
+                        var raw = (1m - (margin / 100m)) != 0m
+                            ? projectedUnitWac / (1m - (margin / 100m))
+                            : 0m;
+                        projectedPrice = Math.Ceiling(raw / 1000m) * 1000m;
+                    }
+
+                    if (projectedPrice > 0m && projectedPrice < projectedUnitWac)
+                    {
+                        hasLossPrice = true;
+                        break;
+                    }
+                }
+
+                if (hasLossPrice) break;
+            }
+        }
+
+        var isReady = missing.Count == 0;
+        return new PurchaseOrderApprovalReadinessDto
+        {
+            IsReady = isReady,
+            Missing = missing,
+            HasZeroPrice = hasZeroPrice,
+            HasLossPrice = hasLossPrice
+        };
+    }
+
     private async Task<PurchaseOrderResponseDto> MapToResponseDtoAsync(PurchaseOrder po, bool isOwner, CancellationToken ct)
     {
         var baseDto = MapToResponseDto(po, isOwner);
         if (!isOwner)
         {
+            baseDto.ApprovalReadiness = null;
             foreach (var item in baseDto.Items)
             {
                 item.SalePriceConfigs = null;
@@ -1602,6 +1648,8 @@ public class PurchaseOrderService : IPurchaseOrderService
             .OrderByDescending(p => p.ValidFrom)
             .ThenByDescending(p => p.Id)
             .ToListAsync(ct);
+
+        baseDto.ApprovalReadiness = await EvaluateApprovalReadinessAsync(po, skuUnits, branchBalances, activePrices, ct);
 
         foreach (var itemDto in baseDto.Items)
         {

@@ -15,23 +15,18 @@ Phần tồn kho theo kỳ (ngày, tháng, khoảng tùy chọn) chưa bàn, s�
 ### A. Staff đề nghị mua
 
 - Staff tạo đơn mua `Draft`: chi nhánh, SKU, đơn vị, số lượng. Không có NCC, không có giá.
-- Staff sửa hoặc hủy đơn nháp của mình, xong bấm **Gửi** → `PendingApproval`. Từ đây Staff không sửa được nữa.
-- Owner tự tạo đơn thì đơn vào thẳng `PendingApproval`.
+- **Chỉ người tạo mới được sửa hoặc gửi duyệt đơn nháp của mình (Q11, Q27).** Người khác (kể cả Owner) xem đơn nháp ở chế độ chỉ đọc ("Staff đang soạn — chỉ xem"), không có nút Sửa/Gửi duyệt. Owner vẫn có quyền Hủy (`Cancel`) đơn nháp của bất kỳ ai (Q11).
+- Người tạo bấm **Gửi** → `PendingApproval`. Từ đây Staff không sửa được nữa.
+- Owner tự tạo đơn thì đơn vào thẳng `PendingApproval`. Đơn do Owner tạo nếu bị Trả về thành `Draft` thì Owner là người tạo nên sửa và gửi duyệt bình thường.
 
-### B. Owner chốt đơn ở `PendingApproval` (lưu được nhiều lần)
+### B. Owner chốt đơn ở `PendingApproval` (lưu được nhiều lần & quy trình Thiết lập 3 bước Q28)
 
-- Chọn **NCC** và **ngày đặt hàng** (mặc định hôm nay, không chọn được ngày tương lai).
-- Sửa số lượng hoặc bỏ dòng nếu cần.
-- **Giá mua** từng dòng: gợi ý giá lần mua gần nhất (cùng NCC, SKU, đơn vị), hiện thêm WAC hiện tại để so.
-- **Đầu đơn:** phí vận chuyển, chiết khấu thương mại, VAT. Phí và chiết khấu tự phân bổ vào từng dòng theo tỷ lệ giá trị dòng. VAT chỉ tính vào tổng thanh toán, không vào giá vốn.
-- **Cấu hình giá bán** cho từng đơn vị bán, riêng giá lẻ và giá sỉ:
-  - *Giữ giá cũ* (mặc định).
-  - *WAC + lãi*: % lãi gộp mặc định bằng mức hiện tại, Owner sửa được; làm tròn lên 1.000đ.
-  - *Giá mới*: Owner nhập, ghi nguồn là NCC đề xuất hay Owner tự đặt.
-  - Thời điểm áp dụng: **ngay khi nhập kho** hoặc **từ ngày Owner chọn**.
-  - Giá bán thấp hơn giá vốn thì hiện cảnh báo bán lỗ, Owner phải xác nhận.
-- Kiểm tra xong, Owner bấm:
-  - **Duyệt** → `Approved`. Chốt giá vốn đơn vị sau phân bổ; từ đây giá **không bao giờ đổi**.
+- Đơn ở `PendingApproval` có checklist điều kiện duyệt trên giao diện: NCC (✓/✗), Đơn giá mua đủ mọi dòng (✓/✗), Ngày đặt hợp lệ (✓/✗), Đã xem cấu hình giá bán (✓/✗). Nút "Duyệt đơn mua" ở màn chi tiết bị khóa cho tới khi đủ điều kiện `approvalReadiness.isReady`.
+- Owner bấm **"Thiết lập đơn mua"** để mở trình hướng dẫn 3 bước:
+  - **Bước 1 — NCC & Đơn giá mua:** Chọn **NCC** và **ngày đặt hàng** (mặc định hôm nay, không chọn được ngày tương lai); nhập **đơn giá mua** từng dòng (có giá gợi ý lần mua gần nhất và WAC hiện tại); nhập phí vận chuyển, chiết khấu thương mại, VAT đầu đơn. Bấm "Tiếp" để lưu đơn mua vào CSDL rồi mới sang Bước 2.
+  - **Bước 2 — Cấu hình giá bán:** Thiết lập cấu hình giá bán cho từng đơn vị bán (giá lẻ, giá sỉ) theo *Giữ giá cũ*, *WAC + lãi*, hoặc *Giá mới*. Hỗ trợ công tắc nhập theo **Lãi gộp trên giá bán** hoặc **Cộng thêm trên giá vốn** (Q29). Bấm "Tiếp" để lưu cấu hình giá bán.
+  - **Bước 3 — Xác nhận & Duyệt:** Tóm tắt tổng tiền hàng, chi phí, VAT và giá vốn sau phân bổ từng dòng. Nếu có dòng giá 0đ hoặc có cấu hình bán lỗ thì hiển thị ô tích xác nhận trực tiếp trên màn hình; tích đủ mới bật nút "Duyệt đơn mua". Bấm Duyệt → `Approved`. Khóa phiên bản (`version`), chốt giá vốn đơn vị sau phân bổ cố định.
+- Ngoài ra, Owner có thể bấm:
   - **Trả về** (bắt buộc lý do) → `Draft` cho Staff sửa.
   - **Hủy** → `Cancelled`.
 
@@ -91,6 +86,8 @@ Owner ở PendingApproval: chọn NCC, ngày đặt hàng, giá mua, VAT, chiế
 | Q5 | Đơn do Owner tạo đi thẳng vào `PendingApproval`, nhập luôn NCC và giá. |
 | Q11 | Staff: Gửi đề nghị và Hủy `Draft` của mình, không rút lại được đơn đã gửi. Owner: Duyệt, Trả về (kèm lý do), Hủy. |
 | Q14 | Thêm **ngày đặt hàng với NCC** do Owner chọn, mặc định hôm nay, không được chọn ngày tương lai. Báo cáo mua hàng theo kỳ lọc theo ngày này. |
+| Q27 | **Quyền đơn nháp (U12-G6):** Chỉ người tạo (`CreatedBy == userId`) được sửa hoặc gửi duyệt đơn nháp `Draft`. Người khác (kể cả Owner) cố tình sửa hoặc gửi duyệt bị từ chối `403 PURCHASE_ORDER_NOT_CREATOR`. Owner xem đơn `Draft` của người khác ở chế độ chỉ đọc ("Staff đang soạn — chỉ xem"), vẫn có quyền Hủy (`Cancel`) đơn nháp của bất kỳ ai (Q11). Đơn do Owner tạo nếu bị Trả về thành `Draft` thì Owner là người tạo nên sửa và gửi duyệt bình thường. |
+| Q28 | **Thiết lập đơn mua trước khi duyệt (U12-G6):** Đơn `PendingApproval` có checklist điều kiện duyệt trên UI: NCC, giá mua đủ mọi dòng, ngày đặt hợp lệ, đã xem cấu hình giá bán. Nút "Duyệt đơn mua" ở màn chi tiết bị khóa cho tới khi `approvalReadiness.isReady`. Trình hướng dẫn 3 bước: B1 NCC & đơn giá (lưu PUT rồi mới sang B2), B2 cấu hình giá bán (lưu cấu hình), B3 xác nhận & duyệt (hiện ô tích xác nhận giá 0đ và bán lỗ trực tiếp trên màn). |
 
 ## 2. Giá mua
 
@@ -136,6 +133,7 @@ Thời điểm áp dụng: **ngay khi nhập kho** hoặc **từ ngày Owner ch�
 | — | **Không làm giá theo lô.** Mỗi SKU và đơn vị có một giá tại một thời điểm, vì hàng cũ và mới chung tồn, và trên sàn mỗi SKU chỉ có một giá. |
 
 | Q25 | Khóa đồng thời giữa đổi giá tay và sinh giá lúc nhập kho: `pg_advisory_xact_lock` theo **SKU + đơn vị + bảng giá**, lấy sau khi mở transaction. Thứ tự khóa: đơn mua → tồn SKU (sắp theo `SkuId`) → giá (sắp theo khóa giá). Luồng đến sau đọc lại trạng thái rồi mới quyết định. Có test đồng thời trên PostgreSQL thật. |
+| Q29 | **% lãi gộp và chế độ nhập cộng thêm (U12-G6):** Giữ nguyên công thức Q16 `giá = WAC ÷ (1 - %lãi gộp)`, làm tròn lên bội 1.000đ. Backend và frontend bắt buộc `0 <= marginPercent < 100`, ngoài khoảng từ chối `400 VALIDATION_ERROR`. FE hỗ trợ công tắc "Nhập theo: Lãi gộp trên giá bán | Cộng thêm trên giá vốn": ở chế độ cộng thêm người dùng nhập k (k >= 0), FE quy đổi sang lãi gộp `m = k ÷ (100 + k) × 100` để lưu vào DB, không đổi schema hay công thức backend. Dưới ô nhập luôn hiển thị dòng quy đổi trực tiếp. |
 
 Giá sinh từ đơn mua đi qua **phiếu đổi giá** (lý do "Theo đơn mua PO-xxx", gắn `SourceItemId`), được ghi trong **cùng transaction** xác nhận phiếu nhập, sau bước khóa tồn và cập nhật WAC, giữ đúng thứ tự khóa của luồng cũ.
 
@@ -211,5 +209,6 @@ Chia vào các gói giao Antigravity (xem [mục 8](#8-gói-công-việc)). Đư
 | **Gói 1** | BE-12.1 → BE-12.6, FE-12.1, FE-12.2 | CRITICAL | Song song với Gói 2, 3 |
 | Gói 4 | BE-12.7, BE-12.8, FE-12.3, FE-12.4 | CRITICAL | Sau Gói 1 |
 | Gói 5 | BE-12.9, FE-12.5 (gộp các kiểm tra quyền cục bộ của Gói 1–3 về dịch vụ dùng chung) | CRITICAL | Sau Gói 1–3 |
+| **Gói 6** | Q27, Q28, Q29: Siết quyền đơn nháp (chỉ người tạo gửi duyệt/sửa), Owner thiết lập đơn mua trước khi duyệt (checklist + 3 bước wizard), % lãi gộp và chế độ cộng thêm trên giá vốn | CRITICAL | Sau Gói 5 |
 
 Prompt giao Anti: [`skills/claude-to-antigravity/references/OISMS-66-lan2-prompts.md`](../../../skills/claude-to-antigravity/references/OISMS-66-lan2-prompts.md).

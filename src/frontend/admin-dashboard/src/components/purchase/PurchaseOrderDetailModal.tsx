@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { CheckCircle2 } from 'lucide-react';
+import { AlertCircle, Check, CheckCircle2, X } from 'lucide-react';
 import { Badge, Button, Input, Modal } from '../ui';
 import { purchaseOrderService } from '../../services/purchaseOrderService';
 import type { PurchaseOrderResponse, PurchaseOrderStatus } from '../../types/purchaseOrder';
 import { ClosePurchaseOrderModal } from './ClosePurchaseOrderModal';
 import { SalePriceConfigTable, type SalePriceConfigRowItem } from './SalePriceConfigTable';
+import { PurchaseOrderSetupWizardModal } from './PurchaseOrderSetupWizardModal';
 
 interface PurchaseOrderDetailModalProps {
   po: PurchaseOrderResponse;
@@ -32,6 +33,10 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [showReturnBox, setShowReturnBox] = useState(false);
   const [returnReason, setReturnReason] = useState('');
+
+  // Setup wizard state & session flag (Q28 / AC-04 / AC-05)
+  const [showSetupWizard, setShowSetupWizard] = useState(false);
+  const [hasViewedSalePriceConfig, setHasViewedSalePriceConfig] = useState(false);
 
   // Sale price config & loss confirmation
   const [showLossConfirmModal, setShowLossConfirmModal] = useState(false);
@@ -192,6 +197,7 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
         })),
       };
       await purchaseOrderService.updateSalePriceConfigs(po.id, payload);
+      setHasViewedSalePriceConfig(true);
       setConfigSuccess('Đã lưu cấu hình giá bán thành công.');
       onRefresh();
     } catch (err: any) {
@@ -207,11 +213,11 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
 
   const handleApprove = async (confirmLoss: boolean = false) => {
     if (!po.supplierId) {
-      setError('Đơn mua chưa chọn nhà cung cấp. Vui lòng bấm "Cập nhật giá & NCC" trước khi duyệt.');
+      setError('Đơn mua chưa chọn nhà cung cấp. Vui lòng bấm "Thiết lập đơn mua" trước khi duyệt.');
       return;
     }
     if (po.items.some((i) => i.unitPrice === null || i.unitPrice === undefined)) {
-      setError('Còn mặt hàng chưa nhập đơn giá mua. Vui lòng cập nhật đầy đủ đơn giá trước khi duyệt.');
+      setError('Còn mặt hàng chưa nhập đơn giá mua. Vui lòng bấm "Thiết lập đơn mua" để nhập đầy đủ đơn giá trước khi duyệt.');
       return;
     }
 
@@ -276,22 +282,107 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
   const totalOrderedBase = po.items.reduce((s, i) => s + (Number(i.orderedBaseQuantity) || 0), 0);
   const totalReceivedBase = po.items.reduce((s, i) => s + (Number(i.receivedBaseQuantity) || 0), 0);
 
+  // Tính các điều kiện kiểm tra checklist (AC-04)
+  const todayStr = new Date().toISOString().split('T')[0];
+  const hasSupplier = Boolean(po.supplierId);
+  const hasAllPrices = po.items.length > 0 && !po.items.some((i) => i.unitPrice === null || i.unitPrice === undefined);
+  const hasValidOrderDate = Boolean(po.orderDate && po.orderDate.split('T')[0] <= todayStr);
+  const canDirectApprove = Boolean(po.approvalReadiness?.isReady && hasViewedSalePriceConfig);
+
   return (
     <>
       <Modal wide title={`Chi tiết đơn mua hàng: ${po.number} (v${po.version})`} onClose={onClose}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {error && (
+          {/* Nhãn xem cho Owner khi đơn Draft do người khác tạo (AC-02) */}
+          {po.status === 'Draft' && isOwner && !isCreator && (
             <div
-              role="alert"
               style={{
-                padding: 12,
+                padding: '10px 14px',
                 borderRadius: 6,
-                background: '#fee2e2',
-                color: '#991b1b',
-                fontSize: 14,
+                background: '#f1f5f9',
+                border: '1px solid #cbd5e1',
+                color: '#475569',
+                fontSize: 13,
+                fontWeight: 600,
               }}
             >
-              {error}
+              Staff đang soạn — chỉ xem
+            </div>
+          )}
+
+          {/* Checklist cho Owner ở trạng thái PendingApproval (AC-04) */}
+          {isOwner && po.status === 'PendingApproval' && (
+            <div
+              style={{
+                padding: 14,
+                borderRadius: 8,
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: 8,
+                }}
+              >
+                <h4 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#0f172a' }}>
+                  Điều kiện duyệt đơn mua (Owner Checklist)
+                </h4>
+                <Button
+                  variant="primary"
+                  onClick={() => setShowSetupWizard(true)}
+                  style={{ fontSize: 13, padding: '6px 14px' }}
+                >
+                  Thiết lập đơn mua
+                </Button>
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: 8,
+                  fontSize: 13,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {hasSupplier ? <Check size={16} color="#10b981" /> : <X size={16} color="#ef4444" />}
+                  <span style={{ color: hasSupplier ? '#059669' : '#dc2626' }}>
+                    {hasSupplier ? 'Đã chọn NCC' : 'Chưa chọn NCC'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {hasAllPrices ? <Check size={16} color="#10b981" /> : <X size={16} color="#ef4444" />}
+                  <span style={{ color: hasAllPrices ? '#059669' : '#dc2626' }}>
+                    {hasAllPrices ? 'Đã nhập đủ đơn giá mọi dòng' : 'Chưa đủ đơn giá mua'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {hasValidOrderDate ? <Check size={16} color="#10b981" /> : <X size={16} color="#ef4444" />}
+                  <span style={{ color: hasValidOrderDate ? '#059669' : '#dc2626' }}>
+                    {hasValidOrderDate ? 'Ngày đặt hợp lệ' : 'Ngày đặt chưa hợp lệ'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {hasViewedSalePriceConfig ? (
+                    <Check size={16} color="#10b981" />
+                  ) : (
+                    <X size={16} color="#d97706" />
+                  )}
+                  <span style={{ color: hasViewedSalePriceConfig ? '#059669' : '#b45309' }}>
+                    {hasViewedSalePriceConfig ? 'Đã xem cấu hình giá bán' : 'Chưa xem cấu hình giá bán'}
+                  </span>
+                </div>
+              </div>
             </div>
           )}
 
@@ -611,30 +702,61 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
             </div>
           )}
 
-          {/* Actions */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
+          {/* Vị trí hiển thị lỗi: ngay trên thanh nút hành động (AC-06) */}
+          {error && (
+            <div
+              role="alert"
+              style={{
+                padding: 12,
+                borderRadius: 6,
+                background: '#fee2e2',
+                color: '#991b1b',
+                fontSize: 14,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <AlertCircle size={16} />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* Actions Footer */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <Button variant="secondary" onClick={onClose} disabled={loading}>
               Đóng
             </Button>
 
-            {po.status === 'Draft' && (isOwner || isCreator) && (
+            {/* Trạng thái Draft (AC-01 / AC-02) */}
+            {po.status === 'Draft' && (
               <>
-                <Button variant="secondary" onClick={() => onEdit(po)} disabled={loading}>
-                  Sửa đề nghị nháp
-                </Button>
-                <Button variant="danger" onClick={handleCancel} disabled={loading}>
-                  Hủy đơn
-                </Button>
-                <Button variant="primary" onClick={handleSubmitOrder} disabled={loading}>
-                  {loading ? 'Đang gửi...' : 'Gửi duyệt'}
-                </Button>
+                {isCreator && (
+                  <>
+                    <Button variant="secondary" onClick={() => onEdit(po)} disabled={loading}>
+                      Sửa đề nghị nháp
+                    </Button>
+                    <Button variant="danger" onClick={handleCancel} disabled={loading}>
+                      Hủy đơn
+                    </Button>
+                    <Button variant="primary" onClick={handleSubmitOrder} disabled={loading}>
+                      {loading ? 'Đang gửi...' : 'Gửi duyệt'}
+                    </Button>
+                  </>
+                )}
+                {!isCreator && isOwner && (
+                  <Button variant="danger" onClick={handleCancel} disabled={loading}>
+                    Hủy đơn
+                  </Button>
+                )}
               </>
             )}
 
+            {/* Trạng thái PendingApproval: Owner (AC-04 / AC-05) */}
             {po.status === 'PendingApproval' && isOwner && (
               <>
-                <Button variant="secondary" onClick={() => onEdit(po)} disabled={loading}>
-                  Lưu / Sửa NCC & Giá
+                <Button variant="primary" onClick={() => setShowSetupWizard(true)} disabled={loading}>
+                  Thiết lập đơn mua
                 </Button>
                 <Button
                   variant="secondary"
@@ -646,9 +768,24 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
                 <Button variant="danger" onClick={handleCancel} disabled={loading}>
                   Hủy đơn
                 </Button>
-                <Button variant="primary" onClick={() => handleApprove()} disabled={loading}>
-                  {loading ? 'Đang duyệt...' : 'Duyệt đơn mua'}
-                </Button>
+
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  {!canDirectApprove && (
+                    <span style={{ fontSize: 12, color: '#dc2626' }}>
+                      {!po.approvalReadiness?.isReady
+                        ? 'Cần thiết lập NCC và đơn giá trước khi duyệt'
+                        : 'Cần xem cấu hình giá bán trước khi duyệt'}
+                    </span>
+                  )}
+                  <Button
+                    variant="secondary"
+                    onClick={() => handleApprove()}
+                    disabled={loading || !canDirectApprove}
+                    title={!canDirectApprove ? 'Vui lòng hoàn tất "Thiết lập đơn mua" trước khi duyệt' : undefined}
+                  >
+                    {loading ? 'Đang duyệt...' : 'Duyệt đơn mua'}
+                  </Button>
+                </div>
               </>
             )}
 
@@ -684,6 +821,25 @@ export const PurchaseOrderDetailModal: React.FC<PurchaseOrderDetailModalProps> =
           </div>
         </div>
       </Modal>
+
+      {/* Trình hướng dẫn thiết lập đơn mua 3 bước (AC-05) */}
+      {showSetupWizard && (
+        <PurchaseOrderSetupWizardModal
+          po={po}
+          onClose={() => setShowSetupWizard(false)}
+          onRefresh={() => {
+            onRefresh();
+          }}
+          onMarkSalePriceConfigViewed={() => {
+            setHasViewedSalePriceConfig(true);
+          }}
+          onSuccessApprove={() => {
+            setShowSetupWizard(false);
+            onRefresh();
+            onClose();
+          }}
+        />
+      )}
 
       {showLossConfirmModal && (
         <Modal

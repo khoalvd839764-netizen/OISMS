@@ -66,7 +66,15 @@ export interface PurchaseOrderResponse {
   createdAt: string;
   updatedAt?: string | null;
   isReplay?: boolean;
+  approvalReadiness?: PurchaseOrderApprovalReadiness | null;
   items: PurchaseOrderItemResponse[];
+}
+
+export interface PurchaseOrderApprovalReadiness {
+  isReady: boolean;
+  missing: ('ITEMS' | 'SUPPLIER' | 'UNIT_PRICE' | 'ORDER_DATE')[];
+  hasZeroPrice: boolean;
+  hasLossPrice: boolean;
 }
 
 export interface CreatePurchaseOrderItemDto {

@@ -142,8 +142,17 @@ public class PurchaseOrderResponseDto
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? UpdatedAt { get; set; }
     public bool IsReplay { get; set; }
+    public PurchaseOrderApprovalReadinessDto? ApprovalReadiness { get; set; }
 
     public List<PurchaseOrderItemResponseDto> Items { get; set; } = new();
+}
+
+public class PurchaseOrderApprovalReadinessDto
+{
+    public bool IsReady { get; set; }
+    public List<string> Missing { get; set; } = new();
+    public bool HasZeroPrice { get; set; }
+    public bool HasLossPrice { get; set; }
 }
 
 public class PurchaseOrderItemResponseDto

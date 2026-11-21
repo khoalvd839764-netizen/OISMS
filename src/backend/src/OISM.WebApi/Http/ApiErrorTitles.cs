@@ -45,6 +45,7 @@ internal static class ApiErrorTitles
         "PURCHASE_ORDER_DISCOUNT_EXCEEDS_SUBTOTAL" => "Chiết khấu vượt tổng tiền hàng",
         "PURCHASE_ORDER_RETURN_REASON_REQUIRED" => "Bắt buộc nhập lý do trả về",
         "PURCHASE_ORDER_VERSION_MISMATCH" => "Xung đột phiên bản đơn mua",
+        "PURCHASE_ORDER_NOT_CREATOR" => "Không phải người tạo đơn mua",
         "CONCURRENCY_CONFLICT" => "Xung đột dữ liệu đồng thời",
         "FORBIDDEN_ACCESS" => "Không có quyền truy cập",
         "UNIT_NOT_ALLOWED" => "Đơn vị tính không hợp lệ",

@@ -114,6 +114,7 @@ Tài liệu này là **từ điển tra cứu danh mục mã lỗi toàn hệ th
 | `PURCHASE_ORDER_VERSION_MISMATCH` | `409` | Xung đột phiên bản đơn mua | *Phiên bản đơn mua không khớp. Vui lòng tải lại trước khi duyệt.* | Đơn mua đã được tab hoặc người dùng khác cập nhật làm tăng `version`. | Tải lại chi tiết đơn mua để kiểm tra số liệu mới nhất rồi duyệt lại. |
 | `PURCHASE_ORDER_ZERO_PRICE_CONFIRM_REQUIRED` | `422` | Yêu cầu xác nhận đơn giá 0 | *Phiếu mua có dòng giá 0, cần xác nhận trước khi duyệt.* | Duyệt phiếu có giá 0 với `confirmZeroPrice = false`. | Hỏi Owner xác nhận rồi gửi lại với `confirmZeroPrice = true`. |
 | `PURCHASE_ORDER_LOSS_PRICE_CONFIRM_REQUIRED` | `422` | Yêu cầu xác nhận bán lỗ | *Đơn mua có cấu hình giá bán thấp hơn giá vốn (bán lỗ). Bắt buộc xác nhận trước khi duyệt.* | Owner duyệt đơn mua có cấu hình giá dự kiến < WAC dự kiến mà gửi `confirmLossPrice = false`. | Hiển thị hộp thoại cảnh báo bán lỗ, yêu cầu Owner xác nhận rồi gửi lại với `confirmLossPrice = true`. |
+| `PURCHASE_ORDER_NOT_CREATOR` | `403` | Không phải người tạo đơn mua | *Chỉ người tạo đơn mới có quyền gửi duyệt hoặc chỉnh sửa đơn nháp.* | Người dùng (kể cả Owner) cố gắng gửi duyệt hoặc cập nhật đơn nháp do người khác tạo (Q11, AC-01). | Đơn nháp chỉ xem đối với người không phải người tạo; chỉ người tạo mới có quyền sửa và gửi duyệt. |
 
 ---
 
