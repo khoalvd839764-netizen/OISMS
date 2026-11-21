@@ -92,6 +92,11 @@ public class PosDailyGoodsIssueSummaryDto
     public int TotalGoodsIssues { get; set; }
     public decimal TotalQuantity { get; set; }
     public decimal TotalBaseQuantity { get; set; }
+
+    /// <summary>
+    /// Tổng tiền các hóa đơn POS trong ngày, mỗi hóa đơn tính một lần kể cả khi xuất từ nhiều kho.
+    /// </summary>
+    public decimal TotalSalesAmount { get; set; }
     public decimal? TotalCost { get; set; }
     public List<PosDailyGoodsIssueSkuDto> Items { get; set; } = new();
     public List<PosDailyGoodsIssueInvoiceDto> Invoices { get; set; } = new();
@@ -126,6 +131,9 @@ public class PosDailyGoodsIssueInvoiceDto
     public DateTimeOffset IssuedAt { get; set; }
     public decimal TotalQuantity { get; set; }
     public decimal TotalBaseQuantity { get; set; }
+    /// <summary>
+    /// Tổng tiền hóa đơn, chỉ ghi ở phiếu đầu tiên của hóa đơn; các phiếu còn lại của cùng hóa đơn là 0.
+    /// </summary>
     public decimal TotalSalesAmount { get; set; }
     public decimal? TotalCost { get; set; }
 }

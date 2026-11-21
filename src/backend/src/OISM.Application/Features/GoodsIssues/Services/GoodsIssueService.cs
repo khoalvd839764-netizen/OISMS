@@ -293,6 +293,13 @@ public class GoodsIssueService : IGoodsIssueService
             .OrderBy(s => s.SkuCode, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        // Đơn xuất từ nhiều kho có nhiều phiếu cùng một hóa đơn: tiền hóa đơn chỉ gán cho phiếu đầu tiên
+        // (theo số phiếu) để cộng cột TotalSalesAmount không bị đếm trùng.
+        var invoiceAmountOwners = issues
+            .GroupBy(g => g.SalesInvoiceId)
+            .Select(grp => grp.OrderBy(g => g.Number, StringComparer.Ordinal).First().Id)
+            .ToHashSet();
+
         var invoiceRows = issues
             .Select(g =>
             {
@@ -317,7 +324,7 @@ public class GoodsIssueService : IGoodsIssueService
                     IssuedAt = g.IssuedAt,
                     TotalQuantity = issueQty,
                     TotalBaseQuantity = issueBaseQty,
-                    TotalSalesAmount = g.SalesInvoice?.TotalAmount ?? 0m,
+                    TotalSalesAmount = invoiceAmountOwners.Contains(g.Id) ? g.SalesInvoice?.TotalAmount ?? 0m : 0m,
                     TotalCost = canViewCost
                         ? Math.Round(issueRawCost, 6, MidpointRounding.AwayFromZero)
                         : null
@@ -339,6 +346,7 @@ public class GoodsIssueService : IGoodsIssueService
             TotalGoodsIssues = issues.Count,
             TotalQuantity = allItems.Sum(i => i.Quantity),
             TotalBaseQuantity = allItems.Sum(i => i.BaseQuantity),
+            TotalSalesAmount = invoiceRows.Sum(r => r.TotalSalesAmount),
             TotalCost = canViewCost
                 ? Math.Round(totalRawCost, 6, MidpointRounding.AwayFromZero)
                 : null,

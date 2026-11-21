@@ -66,6 +66,7 @@ export interface PosDailyGoodsIssueInvoice {
   issuedAt: string;
   totalQuantity: number;
   totalBaseQuantity: number;
+  /** Tiền hóa đơn, chỉ ghi ở phiếu đầu tiên của hóa đơn; phiếu khác cùng hóa đơn là 0. */
   totalSalesAmount: number;
   totalCost: number | null;
 }
@@ -81,6 +82,8 @@ export interface PosDailyGoodsIssueSummary {
   totalGoodsIssues: number;
   totalQuantity: number;
   totalBaseQuantity: number;
+  /** Tổng tiền hóa đơn POS trong ngày, mỗi hóa đơn tính một lần. */
+  totalSalesAmount: number;
   totalCost: number | null;
   items: PosDailyGoodsIssueSku[];
   invoices: PosDailyGoodsIssueInvoice[];

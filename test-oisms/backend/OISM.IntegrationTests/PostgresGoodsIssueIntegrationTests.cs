@@ -622,6 +622,16 @@ public class PostgresGoodsIssueIntegrationTests : IAsyncLifetime, IClassFixture<
         ownerSummary.TotalCost.Should().Be(5m * unitCostWac);
         ownerSummary.Items.Should().ContainSingle(i => i.SkuId == skuId && i.TotalBaseQuantity == 5m && i.UnitCost == unitCostWac && i.TotalCost == 5m * unitCostWac);
         ownerSummary.Invoices.Should().HaveCount(2);
+        decimal expectedSalesAmount;
+        await using (var ctx = CreatePostgresDbContext(tenantId).Context)
+        {
+            var posOrderIds = new[] { pos1.OrderId, pos2.OrderId };
+            expectedSalesAmount = await ctx.SalesInvoices
+                .Where(s => posOrderIds.Contains(s.OrderId))
+                .SumAsync(s => s.TotalAmount);
+        }
+        ownerSummary.TotalSalesAmount.Should().Be(expectedSalesAmount, "Tổng tiền bảng kê = tổng hóa đơn POS trong ngày, mỗi hóa đơn một lần");
+        ownerSummary.Invoices.Sum(i => i.TotalSalesAmount).Should().Be(ownerSummary.TotalSalesAmount, "Cộng cột tiền theo phiếu không được đếm trùng hóa đơn");
 
         // 3. Staff xem phiếu xuất kho và bảng kê POS -> UnitCost và TotalCost đều là null
         _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", staffToken);

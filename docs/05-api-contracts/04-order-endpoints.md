@@ -3,7 +3,7 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-API-04` |
-| **Phiên bản (Version)** | `v1.5.0` |
+| **Phiên bản (Version)** | `v1.5.1` |
 | **Ngày hiệu lực (Effective Date)** | `2026-11-19` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-ORD-01..03`, `FR-SIM-01`, `FR-REP-01..03`, `FR-AI` (Trang 2, 3, 6) |
 | **Hợp đồng chi tiết Sprint 3** | [`../08-sprints/sprint-3/01-api-contracts-sprint-3.md`](../08-sprints/sprint-3/01-api-contracts-sprint-3.md) |
@@ -15,6 +15,7 @@
 
 | Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả thay đổi | Mã tham chiếu |
 | :---: | :---: | :--- | :--- | :--- |
+| `v1.5.1` | `2026-11-21` | Nhóm dự án OISMS | Bảng kê POS: sửa tên trường cho khớp code (`items`, `invoices`, `totalOrders`, `totalInvoices`, `totalGoodsIssues`); `totalSalesAmount` của phiếu chỉ ghi ở phiếu đầu tiên của hóa đơn, thêm `totalSalesAmount` tổng (mỗi hóa đơn một lần). | `OISMS-66-L2-G3` |
 | `v1.5.0` | `2026-11-19` | Nhóm dự án OISMS | OISMS-66-L2-G3: Bổ sung endpoints Phiếu xuất kho 02-VT (`/api/orders/{orderId}/goods-issues`, `/api/goods-issues/{id}`, `/api/goods-issues/by-orders`, `/api/goods-issues/pos-daily-summary`); che `unitCost`/`totalCost` với `Staff` và chặn `Cashier` `403`. | `OISMS-66-L2-G3` |
 | `v1.4.0` | `2026-11-15` | Nhóm dự án OISMS | OISMS-59-G3B: Bổ sung 2 API tổng hợp & đối soát báo cáo ngày cho `Owner`: `GET /api/reports/daily-summaries` và `POST /api/reports/daily-summaries/rebuild`. | `OISMS-59-G3B` |
 | `v1.3.1` | `2026-11-10` | Nhóm dự án OISMS | Thêm `GET /api/webhooks/simulator/catalog` cho app giả lập chọn sản phẩm theo secret. | `OISMS-48` |
@@ -96,7 +97,7 @@ Mỗi lần xuất bán (POS Checkout hoặc xác nhận đơn `POST /api/orders
 | `GET` | `/api/orders/{orderId}/goods-issues`<br/>*(Alias: `/api/goods-issues/by-order/{orderId}`)* | `Owner, Staff` | `FR-ORD-03`, `FR-INV-01` | Danh sách phiếu xuất kho (`GoodsIssueDetailDto[]`) của một đơn hàng, sắp theo `number` tăng dần. Đơn không thuộc tenant hiện tại trả `404 ORDER_NOT_FOUND`. Với `Owner`: trả đủ `unitCost`, `totalCost` trên từng dòng và `totalCost` của phiếu. Với `Staff`: mọi trường `unitCost`, `totalCost` đều là `null`. `Cashier` bị chặn `403 Forbidden`. |
 | `GET` | `/api/goods-issues/{id}` | `Owner, Staff` | `FR-ORD-03`, `FR-INV-01` | Chi tiết một phiếu xuất kho theo ID (`GoodsIssueDetailDto`). Không tồn tại hoặc thuộc tenant khác trả `404 GOODS_ISSUE_NOT_FOUND`. Quy tắc che giá với `Staff` như trên. |
 | `POST` | `/api/goods-issues/by-orders` | `Owner, Staff` | `FR-ORD-03` | Lấy danh sách phiếu xuất kho của nhiều đơn hàng trong một lần gọi để in hàng loạt (`body: { "orderIds": ["..."] }`, tối đa 100 đơn). Áp dụng quy tắc che giá với `Staff`. |
-| `GET` | `/api/goods-issues/pos-daily-summary?date=YYYY-MM-DD&branchId=` | `Owner, Staff` | `FR-POS-04`, `FR-INV-01` | **Bảng kê xuất bán POS theo ngày (`PosDailyGoodsIssueSummaryDto`):** Tổng hợp toàn bộ các phiếu xuất kho của đơn kênh `POS` trong ngày nghiệp vụ theo múi giờ `UTC+07:00` (`[startUtc, endUtc)`), lọc tùy chọn theo `branchId`. Trả về:<br/>- `skuLines`: tổng hợp theo SKU (`skuId`, `skuCode`, `skuName`, `baseUnitName`, `totalBaseQuantity`, `unitCost`, `totalCost`).<br/>- `vouchers`: danh sách các phiếu xuất kho và hóa đơn POS trong ngày (`goodsIssueId`, `goodsIssueNumber`, `orderId`, `orderNumber`, `salesInvoiceId`, `salesInvoiceNumber`, `warehouseId`, `warehouseName`, `issuedAt`, `issuedByName`, `totalBaseQuantity`, `totalCost`).<br/>- Tổng cộng `totalVoucherCount`, `totalOrderCount`, `totalBaseQuantity`, `totalCost`. Với `Staff`, mọi trường `unitCost` và `totalCost` trả `null`. `Cashier` nhận `403 Forbidden`. |
+| `GET` | `/api/goods-issues/pos-daily-summary?date=YYYY-MM-DD&branchId=` | `Owner, Staff` | `FR-POS-04`, `FR-INV-01` | **Bảng kê xuất bán POS theo ngày (`PosDailyGoodsIssueSummaryDto`):** Tổng hợp các phiếu xuất kho của đơn kênh `POS` trong ngày nghiệp vụ `UTC+07:00` (`[fromUtc, toUtc)`), lọc tùy chọn theo `branchId`. Trả về:<br/>- `items`: tổng hợp theo SKU (`skuId`, `skuCode`, `skuName`, `baseUnitName`, `totalQuantity`, `totalBaseQuantity`, `unitCost`, `totalCost`).<br/>- `invoices`: từng phiếu xuất kèm hóa đơn (`goodsIssueId`, `goodsIssueNumber`, `salesInvoiceId`, `salesInvoiceNumber`, `orderId`, `orderNumber`, `branchId`, `branchName`, `warehouseId`, `warehouseName`, `customerName`, `issuedByName`, `issuedAt`, `totalQuantity`, `totalBaseQuantity`, `totalSalesAmount`, `totalCost`). Hóa đơn xuất từ nhiều kho có nhiều phiếu: `totalSalesAmount` chỉ ghi ở phiếu đầu tiên (theo số phiếu), các phiếu còn lại là `0`.<br/>- Tổng cộng: `businessDate`, `branchName`, `totalOrders`, `totalInvoices`, `totalGoodsIssues`, `totalQuantity`, `totalBaseQuantity`, `totalSalesAmount` (mỗi hóa đơn tính một lần), `totalCost`. Với `Staff`, mọi trường `unitCost` và `totalCost` trả `null`. `Cashier` nhận `403 Forbidden`. |
 
 ## 1.2. Phiếu Trả Hàng & Hoàn Tiền (`CS-01`, `OISMS-58`)
 

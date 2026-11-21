@@ -47,3 +47,9 @@
 - Thẻ kho S12/S10 (`GET /api/reports/stock-card`) hiện số phiếu xuất kho (`goodsIssueNumber`) cho dòng `OUT` bán hàng, cùng với sổ cái và truy vết, theo mục Đối chiếu của đặc tả.
 - `POST`/`GET /api/goods-issues/by-orders` chặn quá 100 đơn một lần (`400 VALIDATION_ERROR`), khớp hợp đồng API đã ghi.
 - Review trên PostgreSQL 16 thật: toàn bộ integration test PASS trừ 6 test G2 (đã sửa riêng), gồm 4/4 test phiếu xuất kho, checkout POS, xác nhận đơn và test đồng thời.
+
+## 4. Sửa sau kiểm tra lại (21/11/2026)
+
+- **Bảng kê POS đếm trùng tiền hóa đơn:** đơn POS xuất từ nhiều kho có nhiều phiếu cùng một hóa đơn, trước đây mỗi phiếu đều mang nguyên `totalSalesAmount` của hóa đơn nên cộng cột bị trùng. Nay tiền hóa đơn chỉ ghi ở phiếu đầu tiên (theo số phiếu), các phiếu còn lại là `0`; thêm `totalSalesAmount` tổng của bảng kê, mỗi hóa đơn tính một lần.
+- **Hợp đồng API:** mục bảng kê trong `docs/05-api-contracts/04-order-endpoints.md` (`v1.5.1`) ghi lại đúng tên trường mà backend trả (`items`, `invoices`, `totalOrders`, `totalInvoices`, `totalGoodsIssues`), trước đó ghi `skuLines`, `vouchers`, `totalVoucherCount`.
+- **Migration và khởi tạo DB:** trên PostgreSQL 16 tạm, `init-oisms.sh` với volume trống dựng đủ 50 bảng; `20261119_purchase_order_pending_approval.sql` và `20261119_goods_issues.sql` chạy 2 lần không lỗi trên DB mới và trên DB 48 bảng của commit `553563e`; schema sau nâng cấp khớp schema cài mới (`pg_dump -s`, chỉ khác schema `hangfire` do `init-oisms.sh` tạo).
