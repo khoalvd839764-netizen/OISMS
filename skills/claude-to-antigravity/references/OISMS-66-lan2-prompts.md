@@ -201,3 +201,170 @@ npm run build admin-dashboard.
 GIỚI HẠN: không thêm dependency; chỉ commit/push theo mục "KHI LÀM XONG"; một lỗi tối đa 2 lần thử rồi BLOCKED; không nới assertion, không skip test.
 BÀN GIAO: làm theo mục "KHI LÀM XONG" (test, commit, push, comment PR), rồi trả bàn giao trong chat theo skills/claude-to-antigravity/assets/handoff.md kèm link comment PR.
 ```
+
+---
+
+# Đợt 2 và 3 (lập ngày 21/11/2026)
+
+G1, G2, G3 đã `VERIFIED` (G1: `a4416e8` + `f029c83` + `adf04ae`; G2: `cebf9f3` + `bfda870` + `d979f40` + `e0dc1ed`; G3: `0502705` + `e0dc1ed` + `01821fb`). Ba việc còn lại làm **song song**:
+
+| Việc | Người | Đụng chung |
+| --- | --- | --- |
+| G4 — Cấu hình giá bán khi nhập kho | Phúc Hữu | G5 cũng sửa DTO giá; G4 chỉ sửa Pricing, PurchaseOrders, GoodsReceiptService |
+| G5 — Che giá dùng chung toàn hệ thống | Phương Lê | Không sửa Pricing và GoodsReceiptService.ConfirmReceiptAsync (của G4) |
+| Kiểm thử chéo G1–G3 | Nam Nguyễn | Không sửa code; ghi lỗi vào comment PR |
+
+Vẫn dùng mục "Luật làm song song" và "KHI LÀM XONG" ở đầu file. File chung bổ sung cho đợt này: `src/backend/src/OISM.Application/Features/PurchaseOrders/Dtos/PurchaseOrderDtos.cs` (G4 thêm trường cấu hình giá, G5 chuyển phần che giá sang dịch vụ chung).
+
+## Gói 4 — Cấu hình giá bán khi nhập kho
+
+```text
+Đọc skills/claude-to-antigravity/references/antigravity.md rồi làm task sau.
+[Dán LUẬT LÀM SONG SONG và KHI LÀM XONG ở đầu file]
+
+TASK: OISMS-66-L2-G4 — Cấu hình giá bán trên đơn mua, sinh giá khi nhập kho, lý do đổi giá, xung đột giá | Mức: CRITICAL | Prompt 1/3
+BASELINE: branch feature/OISMS-66-ra-soat-tong-du-an-phat-trien-tinh-nang-con-thieu-lan-2, commit mới nhất khi bắt đầu (ghi bằng `git log -1 --format=%h`).
+
+MỤC TIÊU: Owner cấu hình giá bán lẻ/sỉ cho từng đơn vị bán trên dòng đơn mua (Giữ cũ / WAC + lãi / Giá mới; áp ngay khi nhập hoặc từ ngày chọn).
+Lúc xác nhận phiếu nhập ĐẦU TIÊN của dòng, trong cùng transaction, hệ thống sinh phiếu đổi giá + dòng giá. Phiếu đổi giá tay có loại lý do bắt buộc và hỏi khi trùng giá chờ từ đơn mua.
+
+NGUỒN CẦN ĐỌC:
+- docs/Upgrade-recommended/Pedding/12-don-mua-va-cau-hinh-gia.md: "Tóm tắt luồng" B, C bước 4, D; mục 4 (Q15–Q19, Q25, "Mặc định tự chọn"); mục 7 BE-12.7, BE-12.8, FE-12.3, FE-12.4
+- docs/Upgrade-recommended/Done/04-bang-gia-theo-thoi-gian.md (bảng giá theo valid_from, phiếu đổi giá, SourceItemId)
+- Mẫu: Features/Pricing/Services/PriceChangeService.cs (ApproveAsync tạo SkuUnitPrice), Domain/Entities/PriceChangeRequest.cs, SkuUnitPrice.cs,
+  Features/Inventory/Services/GoodsReceiptService.cs (ConfirmReceiptAsync: thứ tự khóa phiếu nhập → đơn mua → SKU, cập nhật WAC),
+  Features/PurchaseOrders/Services/PurchaseOrderService.cs (SaveDraft/Approve ở PendingApproval, version),
+  Infrastructure/Services/SqlLockService.cs, docker/postgres/migrations/20261119_purchase_order_pending_approval.sql,
+  FE components/purchase/*, components/pricing/CreatePriceChangeModal.tsx, PriceManagementModal.tsx
+- Test mẫu: test-oisms/backend/OISM.IntegrationTests/PostgresPurchaseOrderU12IntegrationTests.cs
+- Skill: skills/postgresql/SKILL.md, skills/csharp-pro/SKILL.md
+
+ĐƯỢC SỬA: migration mới docker/postgres/migrations/20261121_purchase_order_sale_price_configs.sql; oisms_schema.sql, DatabaseMigrationService.cs (RequiredTables 50 → 51),
+docker/postgres/init-oisms.sh, số bảng ở CLAUDE.md, README.md, docs/README.md, docs/database/README.md, docs/07-devops-and-deployment/01-docker-compose-guide.md,
+docs/13-deploy-aws/04-quy-trinh-deploy-va-cap-nhat.md; Domain (entity cấu hình mới, PriceChangeRequest.ReasonType), EF Configuration, AppDbContext/IAppDbContext;
+Features/PurchaseOrders/ (DTO + service: lưu/đọc cấu hình ở PendingApproval, kiểm tra khi Approve); GoodsReceiptService.cs (chỉ thêm bước sinh giá trong ConfirmReceiptAsync);
+Features/Pricing/ (lý do, API giá chờ theo SKU, xử lý Q19); ISqlLockService + SqlLockService (khóa giá mới); ApiErrorTitles.cs; DependencyInjection.cs;
+FE: components/purchase/* (bảng cấu hình giá bán), services/types đơn mua và pricing, components/pricing/*; test mới.
+KHÔNG ĐƯỢC SỬA: dịch vụ che giá dùng chung và DTO ngoài đơn mua/pricing (thuộc G5); GoodsIssue, Reports, OrderService, PosCheckoutService.
+
+ACCEPTANCE CRITERIA:
+- AC-01 (BE-12.7, schema): bảng purchase_order_sale_price_configs (tenant_id, purchase_order_item_id, unit_id, price_list_id, mode KEEP|WAC_MARGIN|FIXED,
+  margin_percent, fixed_price, price_source SUPPLIER|OWNER, apply_mode ON_RECEIPT|FROM_DATE, apply_from, applied_at, price_change_request_id; UNIQUE theo dòng × đơn vị × bảng giá;
+  CHECK theo mode; query filter tenant); price_change_requests.reason_type NOT NULL (dữ liệu cũ = OTHER); migration chạy 2 lần trên DB mới và DB 50 bảng; 51 bảng đồng bộ mọi nơi.
+- AC-02 (Q15, Q16, mục 4): Owner lưu/sửa cấu hình ở PendingApproval cho từng đơn vị BÁN của SKU (không tự tính theo hệ số), lẻ và sỉ riêng; mặc định KEEP.
+  Đơn chưa có giá bán hoặc WAC = 0 mà chọn WAC_MARGIN thì bắt buộc margin_percent. API trả giá dự kiến = WAC dự kiến ÷ (1 − %), làm tròn LÊN bội 1.000đ,
+  margin mặc định = lãi gộp hiện tại của SKU × đơn vị. Giá dự kiến < WAC → cờ cảnh báo; Approve phải có xác nhận bán lỗ, thiếu → 422.
+- AC-03 (Q17, Q18, Tóm tắt C bước 4): trong ConfirmReceiptAsync, sau khi cập nhật WAC chi nhánh nhận và trong cùng transaction: với mỗi cấu hình mode ≠ KEEP và applied_at NULL
+  của dòng có trong phiếu: tính giá (WAC_MARGIN dùng WAC vừa cập nhật), tạo PriceChangeRequest (Kind Change, Status Approved, reason_type FROM_PURCHASE_ORDER,
+  Reason "Theo đơn mua <số>", ReviewedBy = người duyệt đơn mua) + SkuUnitPrice valid_from = max(apply_from, lúc xác nhận); ghi applied_at, price_change_request_id.
+  Đợt nhập sau không sinh thêm. Lỗi bất kỳ → rollback cả phiếu nhập.
+- AC-04 (Q25): khóa pg_advisory_xact_lock theo SKU + đơn vị + bảng giá (sắp xếp tăng dần), lấy SAU khóa tồn SKU trong ConfirmReceiptAsync và trong duyệt phiếu đổi giá tay.
+  Thứ tự: phiếu nhập → đơn mua → tồn SKU → giá. Không đổi thứ tự khóa cũ.
+- AC-05 (Q19, BE-12.8): phiếu đổi giá tay bắt buộc reason_type (SHORTAGE | PROMOTION | FROM_PURCHASE_ORDER | OTHER, OTHER cần ghi chú) → thiếu 400.
+  API GET giá chờ theo SKU trả các cấu hình chưa áp của đơn mua Approved/PartiallyReceived. Khi Owner tạo/duyệt phiếu đổi giá tay trùng SKU × đơn vị × bảng giá đang chờ:
+  request bắt buộc chọn KEEP_MANUAL (cấu hình đơn mua chuyển KEEP) hoặc APPLY_PO_LATER (giữ cấu hình); thiếu → 409 kèm danh sách đơn mua.
+- AC-06 (Q9): Staff không thấy cấu hình giá bán, giá dự kiến, margin trên đơn mua (null). Cashier 403 như cũ.
+- AC-07 FE (FE-12.3, FE-12.4): bảng cấu hình giá bán theo dòng × đơn vị bán × lẻ/sỉ, giá dự kiến + cảnh báo bán lỗ, ngày áp dụng; hộp xác nhận bán lỗ khi duyệt;
+  phiếu đổi giá có chọn loại lý do và hộp thoại Q19 → npm run build PASS.
+
+INVARIANT: ledger chỉ INSERT; WAC qua WacCalculator; giá chỉ thêm dòng theo valid_from, không sửa dòng cũ; transaction + khóa sau khi mở transaction; tenant từ JWT; idempotency giữ nguyên.
+
+DOCS PHẢI CẬP NHẬT: fr-02-product-catalog.md hoặc file FR bảng giá hiện hành (giá sinh từ đơn mua, lý do); fr-04-cost-wac.md; 04-state-machines.md (nếu đổi trạng thái phiếu đổi giá);
+05-api-contracts (đơn mua, pricing); 12-error-and-status-codes/02-error-codes-catalog.md; 01-users-and-rbac/02-rbac-matrix.md; 11-ui-screens/03-product-screens.md, 04-inventory-screens.md;
+database docs + số bảng 51; Upgrade-recommended/Done/04-bang-gia-theo-thoi-gian.md (ghi bổ sung); báo cáo mới docs/report-after-upgrade/cau-hinh-gia-ban-u12-g4.md.
+
+GATE: dotnet build; UnitTests; test mới PostgresPurchaseOrderSalePriceIntegrationTests trên PostgreSQL thật:
+mỗi mode × apply_mode; WAC_MARGIN dùng WAC sau nhập và làm tròn lên 1.000đ; sinh giá đúng 1 lần qua 2 đợt nhập; valid_from = max; lỗi giữa chừng rollback cả phiếu nhập và giá;
+đồng thời: xác nhận nhập và duyệt phiếu đổi giá tay cùng SKU chạy song song không deadlock, kết quả đúng lựa chọn Q19; Staff null; migration 2 lần;
+IntegrationTests --filter "PurchaseOrder|GoodsReceipt|Price" PASS; npm run build admin-dashboard.
+
+GIỚI HẠN: không thêm dependency; chỉ commit/push theo mục "KHI LÀM XONG"; một lỗi tối đa 2 lần thử rồi BLOCKED; không nới assertion, không skip test.
+BÀN GIAO: làm theo mục "KHI LÀM XONG", rồi trả bàn giao trong chat theo skills/claude-to-antigravity/assets/handoff.md kèm link comment PR.
+```
+
+## Gói 5 — Che giá dùng chung toàn hệ thống
+
+```text
+Đọc skills/claude-to-antigravity/references/antigravity.md rồi làm task sau.
+[Dán LUẬT LÀM SONG SONG và KHI LÀM XONG ở đầu file]
+
+TASK: OISMS-66-L2-G5 — Dịch vụ che giá dùng chung + test quét endpoint Staff | Mức: CRITICAL (RBAC dữ liệu) | Prompt 1/3
+BASELINE: branch feature/OISMS-66-ra-soat-tong-du-an-phat-trien-tinh-nang-con-thieu-lan-2, commit mới nhất khi bắt đầu (ghi bằng `git log -1 --format=%h`).
+
+MỤC TIÊU: Giá mua, giá vốn, WAC, giá trị tồn, lãi gộp chỉ Owner thấy ở MỌI API, file xuất, bản in, sự kiện SignalR và tool AI. Gom các kiểm tra vai trò cục bộ của G1–G3
+về một dịch vụ dùng chung; có test tự quét mọi endpoint bằng tài khoản Staff.
+
+NGUỒN CẦN ĐỌC:
+- docs/Upgrade-recommended/Pedding/12-don-mua-va-cau-hinh-gia.md: Q9, Q10, Q24, "Tóm tắt luồng" E; mục 7 BE-12.9, FE-12.5
+- docs/01-users-and-rbac/02-rbac-matrix.md (Staff đang được xem giá vốn ở truy vết — phải đổi)
+- Điểm che hiện có: InventoryController.cs (`canViewCost` đang cho cả Staff), ReportsController.cs (`isOwner`), GoodsIssuesController.cs (`CanViewCost`),
+  PurchaseOrderService.cs và GoodsReceiptService.cs (che cục bộ của G1), Features/Reports (G2), Features/Orders/Dtos/OrderDtos.cs (`CostPrice`, `TotalCost` trả cho Staff)
+- Phải tự rà thêm bằng CodeGraph/grep các trường cost/Cost/AverageCost/UnitCost/Wac/GrossProfit/Margin/Value trong DTO: truy vết chứng từ (SalesInvoices trace), sổ cái,
+  trả hàng (SalesReturns), chuyển kho, kiểm kê, tìm kiếm toàn hệ thống (Features/Search), tool AI (Features/Ai/Services/Tools), payload SignalR (Features/Realtime, Hubs), Excel G2
+- Skill: skills/security-auditor/SKILL.md, skills/csharp-pro/SKILL.md
+
+ĐƯỢC SỬA: Application/Common (interface + cài đặt dịch vụ, ví dụ ICostVisibility lấy vai trò từ JWT qua dịch vụ người dùng hiện tại, không nhận từ client);
+DTO + service trả giá ở các phân hệ trên (trừ phần cấu hình giá bán và Pricing của G4); controller bỏ biến canViewCost/isOwner cục bộ khi đã chuyển;
+payload SignalR; tool AI; frontend: ẩn cột giá vốn/WAC/lãi khi giá trị null ở các trang Orders, SalesInvoices/truy vết, Inventory (tab hiện tại), SalesReturns, StockCounts, Transfers;
+test mới; docs liên quan.
+KHÔNG ĐƯỢC SỬA: Features/Pricing, GoodsReceiptService.ConfirmReceiptAsync, cấu hình giá bán trên đơn mua (G4); không đổi nghiệp vụ tính toán, chỉ đổi phần trả về.
+
+ACCEPTANCE CRITERIA:
+- AC-01: có một dịch vụ quyết định "được xem giá vốn" theo vai trò JWT (chỉ Owner). Mọi chỗ che giá dùng dịch vụ này; không còn `canViewCost = Owner || Staff`.
+- AC-02 (Q10): Staff nhận null cho CostPrice/TotalCost/UnitCost/AverageCost/WAC/giá trị tồn/lãi gộp ở: đơn hàng, truy vết chứng từ, sổ cái, tồn hiện tại, trả hàng,
+  chuyển kho, kiểm kê, tìm kiếm, phiếu xuất, báo cáo kỳ, thẻ kho, đơn mua, phiếu nhập. Số lượng và giá bán vẫn trả đủ.
+- AC-03: file Excel và bản in của Staff không có cột giá vốn/giá trị (kiểm cả nội dung file).
+- AC-04: payload SignalR không chứa giá vốn/WAC/giá trị (chỉ id, số lượng, trạng thái).
+- AC-05: tool AI trả dữ liệu đã che theo vai trò người hỏi; Staff hỏi giá vốn nhận câu trả lời "không có quyền".
+- AC-06: G1 F-03 — Staff lọc `supplierId` trên danh sách đơn mua Draft/PendingApproval không suy ra được NCC (bộ lọc bị bỏ qua hoặc 403).
+- AC-07 (test quét): test tích hợp đăng nhập Staff, gọi mọi endpoint GET (lấy danh sách route từ EndpointDataSource) với dữ liệu seed có giá vốn, duyệt JSON đệ quy:
+  mọi khóa thuộc danh sách tên nhạy cảm phải null/không có; có danh sách ngoại lệ ghi lý do (ví dụ giá bán). Owner cùng endpoint thấy giá trị khác null.
+- AC-08 FE: các trang trên ẩn cột khi giá trị null; Staff không thấy cột rỗng → npm run build PASS.
+
+INVARIANT: không đổi kết quả tính toán; tenant từ JWT; vai trò lấy từ claims đã xác thực; controller không dùng AppDbContext.
+
+DOCS PHẢI CẬP NHẬT: 01-users-and-rbac/02-rbac-matrix.md (Staff không xem giá vốn ở mọi nơi, ghi lịch sử phiên bản); 05-api-contracts (ghi trường null với Staff);
+03-non-functional-requirements/02-security-and-isolation.md; fr-13-ai-assistant.md; 11-ui-screens liên quan;
+src/backend/src/OISM.Infrastructure/Ai/Knowledge/* nếu nói Staff xem được giá vốn; báo cáo mới docs/report-after-upgrade/che-gia-dung-chung-u12-g5.md.
+
+GATE: dotnet build; UnitTests; test mới PostgresCostVisibilityScanIntegrationTests trên PostgreSQL thật (Staff 0 vi phạm, Owner thấy giá); toàn bộ IntegrationTests PASS
+(G5 đụng nhiều DTO — chạy full suite, khoảng 25 phút); npm run build admin-dashboard.
+
+GIỚI HẠN: không thêm dependency; chỉ commit/push theo mục "KHI LÀM XONG"; một lỗi tối đa 2 lần thử rồi BLOCKED; không nới assertion, không skip test.
+BÀN GIAO: làm theo mục "KHI LÀM XONG", rồi trả bàn giao trong chat theo skills/claude-to-antigravity/assets/handoff.md kèm link comment PR.
+```
+
+## Kiểm thử chéo G1–G3 — Nam Nguyễn
+
+Không sửa code. Chạy trên máy mình, ghi kết quả vào **một** comment PR theo mẫu cuối mục.
+
+```text
+Đọc skills/claude-to-antigravity/references/antigravity.md. Đây là việc KIỂM THỬ, không sửa code, không commit.
+
+TASK: OISMS-66-L2-QA — Kiểm thử chéo G1 (đơn mua), G3 (phiếu xuất kho) và hồi quy G2 | Mức: STANDARD
+BASELINE: nhánh feature/OISMS-66-ra-soat-tong-du-an-phat-trien-tinh-nang-con-thieu-lan-2, commit mới nhất (ghi hash).
+
+CHUẨN BỊ: reset DB local (docker compose down -v CHỈ khi bạn đồng ý mất dữ liệu local) → docker compose up -d --build → đăng nhập Owner, Staff, Cashier của dữ liệu seed.
+NGUỒN: docs/Upgrade-recommended/Pedding/12-don-mua-va-cau-hinh-gia.md "Tóm tắt luồng" A–F; 13-ton-kho-theo-ky.md mục 1, 5.
+
+KỊCH BẢN (ghi ĐẠT/LỖI + ảnh chụp hoặc response cho từng dòng):
+G1 đơn mua
+1. Staff tạo đơn: không có ô NCC, ô giá → Gửi → không sửa được nữa.
+2. Owner mở đơn: thấy giá gợi ý + WAC; nhập NCC, giá, phí vận chuyển, chiết khấu, VAT; Lưu nhiều lần; Trả về kèm lý do → Staff thấy lý do, sửa, gửi lại.
+3. Owner duyệt: giá vốn sau phân bổ hiện đúng (tính tay 1 ví dụ có phí + chiết khấu). Hai tab cùng duyệt một đơn: tab sau báo xung đột phiên bản.
+4. Staff nhận hàng: không thấy giá; nhập 2 đợt; tồn và WAC (xem bằng Owner) đúng công thức với giá sau phân bổ.
+5. Menu/URL hóa đơn NCC không còn; API /api/supplier-invoices trả 404.
+G3 phiếu xuất kho
+6. Bán POS 1 đơn → Admin in phiếu xuất PXK-<số hóa đơn>; Owner thấy giá vốn, Staff không.
+7. Đơn Admin/TMĐT xuất từ 2 kho → 2 phiếu -1, -2; in hàng loạt nhiều đơn một lượt.
+8. Bảng kê POS theo ngày: tổng SL khớp tab Tồn theo kỳ (xuất bán POS cùng ngày); tổng tiền = tổng hóa đơn.
+9. Cashier không vào được phiếu xuất/bảng kê.
+G2 hồi quy
+10. Tab Tồn theo kỳ: Hôm nay khớp tồn hiện tại; một phiếu chuyển kho đã gửi chưa nhận → chế độ Tất cả có cột đang chuyển và tổng khớp; Excel mở được, Staff không có cột giá trị.
+
+GIỚI HẠN: không sửa code; lỗi thì mô tả bước tái hiện, kỳ vọng, thực tế.
+BÀN GIAO: một comment PR (`gh pr comment --body-file <file>`), mẫu:
+## Kiểm thử chéo G1–G3 | commit <hash> | <ngày>
+| # | Kịch bản | Kết quả | Ghi chú/bằng chứng |
+Lỗi tìm thấy: <danh sách, mỗi lỗi: bước tái hiện, kỳ vọng → thực tế, mức P1–P3>
+```

@@ -10,14 +10,14 @@ Lập ngày 19/11/2026. Ba người (Phúc Hữu: phần nhiều code nhất; Ph
 
 | Người | Gói | Nội dung | Khi nào làm | Phụ thuộc | Trạng thái |
 | --- | --- | --- | --- | --- | --- |
-| **Phúc Hữu** | **G1** | Đơn mua `PendingApproval` (Staff đề nghị, Owner chọn NCC + giá rồi duyệt), phân bổ phí/chiết khấu vào giá vốn, bỏ hóa đơn NCC, Staff không thấy giá trên đơn mua và phiếu nhập | **Đợt 1 — bắt đầu ngay** | Không | `VERIFIED` 19/11/2026 (commit `a4416e8`, sửa sau review `f029c83`; gate PostgreSQL thật PASS, chờ CI backend) | |
-| **Nam Nguyễn** | **G2** | Tồn kho theo kỳ (đầu kỳ, nhập, xuất, cuối kỳ; ngày/tháng/khoảng), hàng đang chuyển, thẻ kho S12/S10, xuất Excel. Chỉ đọc, không đổi DB | **Đợt 1 — bắt đầu ngay** | Không | Chưa bắt đầu |
-| **Phương Lê** | **G3** | Phiếu xuất kho 02-VT lưu kèm dòng sổ `OUT` (2 bảng mới, lập cùng transaction checkout/xác nhận đơn), in phiếu, in hàng loạt, bảng kê POS theo ngày | **Đợt 1 — bắt đầu ngay** | Không | Chưa bắt đầu |
-| Phúc Hữu | G4 | Cấu hình giá bán khi nhập kho (Giữ cũ / WAC + lãi / Giá mới, áp ngay / từ ngày), lý do bắt buộc trên phiếu đổi giá, hộp thoại xung đột giá (Q19), khóa giá | **Đợt 2** — sau khi G1 `VERIFIED` | G1 | Chưa có prompt |
-| Phương Lê | G5 | Che giá dùng chung toàn hệ thống (đơn hàng `CostPrice`, truy vết, báo cáo, tìm kiếm, in, AI, SignalR) + test quét mọi endpoint bằng Staff + cập nhật RBAC | **Đợt 3** — sau khi G1, G2, G3 `VERIFIED` | G1, G2, G3 | Chưa có prompt |
-| Nam Nguyễn | Kiểm thử chéo | Sau khi xong G2: chạy lại test và thử giao diện của G1, G3 trên máy mình, ghi lỗi vào comment PR | **Đợt 2** | G1, G3 đã push | — |
+| **Phúc Hữu** | **G1** | Đơn mua `PendingApproval` (Staff đề nghị, Owner chọn NCC + giá rồi duyệt), phân bổ phí/chiết khấu vào giá vốn, bỏ hóa đơn NCC, Staff không thấy giá trên đơn mua và phiếu nhập | **Đợt 1 — bắt đầu ngay** | Không | **Xong** — `VERIFIED` 19/11/2026 (`a4416e8`, sửa sau review `f029c83`, docs `adf04ae`; CI PASS) |
+| **Nam Nguyễn** | **G2** | Tồn kho theo kỳ (đầu kỳ, nhập, xuất, cuối kỳ; ngày/tháng/khoảng), hàng đang chuyển, thẻ kho S12/S10, xuất Excel. Chỉ đọc, không đổi DB | **Đợt 1 — bắt đầu ngay** | Không | **Xong** — `VERIFIED` sau sửa (`cebf9f3`, `bfda870`, `d979f40`, `e0dc1ed`; CI PASS) |
+| **Phương Lê** | **G3** | Phiếu xuất kho 02-VT lưu kèm dòng sổ `OUT` (2 bảng mới, lập cùng transaction checkout/xác nhận đơn), in phiếu, in hàng loạt, bảng kê POS theo ngày | **Đợt 1 — bắt đầu ngay** | Không | **Xong** — `VERIFIED` (`0502705`, sửa `e0dc1ed`, `01821fb`) |
+| Phúc Hữu | G4 | Cấu hình giá bán khi nhập kho (Giữ cũ / WAC + lãi / Giá mới, áp ngay / từ ngày), lý do bắt buộc trên phiếu đổi giá, hộp thoại xung đột giá (Q19), khóa giá | **Đợt 2 — bắt đầu từ 21/11/2026**, song song với G5 và kiểm thử chéo | G1 (đã xong) | Có prompt, chưa bắt đầu |
+| Phương Lê | G5 | Che giá dùng chung toàn hệ thống (đơn hàng `CostPrice`, truy vết, báo cáo, tìm kiếm, in, AI, SignalR) + test quét mọi endpoint bằng Staff + cập nhật RBAC | **Đợt 2 — bắt đầu từ 21/11/2026**, song song với G4 và kiểm thử chéo | G1, G2, G3 (đã xong) | Có prompt, chưa bắt đầu |
+| Nam Nguyễn | Kiểm thử chéo | 10 kịch bản thử tay G1, G3 và hồi quy G2 trên máy mình, ghi kết quả vào một comment PR. Không sửa code | **Đợt 2 — bắt đầu từ 21/11/2026** | G1, G2, G3 (đã xong) | Có checklist, chưa bắt đầu |
 
-Prompt G4, G5 do Claude viết khi gói phụ thuộc xong; khi đó cập nhật bảng này.
+Prompt G4, G5 và checklist kiểm thử chéo: mục "Đợt 2 và 3" trong file prompt (lập 21/11/2026), đồng thời đăng trong comment phân công của từng người trên PR #52. G4 thêm 1 bảng (50 → 51).
 
 ## File AI của từng người phải đọc
 
@@ -73,8 +73,8 @@ Prompt G4, G5 do Claude viết khi gói phụ thuộc xong; khi đó cập nhậ
 | Chuẩn bị | Ngay | Claude commit docs, push nhánh, tạo draft PR (đã xong 19/11/2026). Mỗi người `git fetch` và checkout nhánh lần 2 trên máy mình |
 | Đợt 1 | Sau bước chuẩn bị | Phúc Hữu làm G1, Nam Nguyễn làm G2, Phương Lê làm G3, song song |
 | Review đợt 1 | Mỗi gói comment báo cáo lên PR | Claude review từng gói, gói CRITICAL chạy lại test PostgreSQL; `VERIFIED` hoặc gửi prompt sửa |
-| Đợt 2 | G1 `VERIFIED` | Phúc Hữu làm G4; Nam Nguyễn kiểm thử chéo G1, G3 |
-| Đợt 3 | G1, G2, G3 `VERIFIED` | Phương Lê làm G5 |
+| Đợt 2 | Từ 21/11/2026 (G1, G2, G3 đã `VERIFIED`) | Song song: Phúc Hữu làm G4; Phương Lê làm G5; Nam Nguyễn kiểm thử chéo G1–G3 |
+| Review đợt 2 | Mỗi việc comment báo cáo lên PR | Claude review G4, G5 (chạy lại test PostgreSQL); xử lý lỗi kiểm thử chéo |
 | Kết thúc | Mọi gói `VERIFIED` | Reset DB demo và seed lại (bắt buộc vì G3), nhóm đồng ý thì merge PR vào `develop` |
 
 ## Quy tắc khi làm
