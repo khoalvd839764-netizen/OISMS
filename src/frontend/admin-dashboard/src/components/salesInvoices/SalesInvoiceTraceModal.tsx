@@ -10,14 +10,29 @@ import {
   Layers,
   Loader2,
   Package,
+  Printer,
   RotateCcw,
   ShoppingBag,
   User,
   Warehouse,
   X,
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { goodsIssueService } from '../../services/goodsIssueService';
+import { orderService } from '../../services/orderService';
 import { salesInvoiceService } from '../../services/salesInvoiceService';
-import type { DocumentTrace } from '../../types/salesInvoices';
+import { salesReturnService } from '../../services/salesReturnService';
+import type { GoodsIssue } from '../../types/goodsIssues';
+import type { OrderDetail } from '../../types/ordersCenter';
+import type { DocumentTrace, SalesInvoiceReceipt } from '../../types/salesInvoices';
+import type { SalesReturn } from '../../types/salesReturns';
+import type { LedgerDocumentInput } from '../../utils/resolveLedgerDocument';
+import { DocumentPrintModal } from '../print/DocumentPrintModal';
+import { GoodsIssuePrintPaper } from '../print/GoodsIssuePrintPaper';
+import { LegacyOrderPrintPaper } from '../print/LegacyOrderPrintPaper';
+import { PrintArea } from '../print/PrintArea';
+import { SalesReturnPrintPaper } from '../print/SalesReturnPrintPaper';
+import { SalesInvoiceReprintModal } from './SalesInvoiceReprintModal';
 
 interface SalesInvoiceTraceModalProps {
   invoiceId: string;
@@ -33,9 +48,22 @@ export const SalesInvoiceTraceModal: React.FC<SalesInvoiceTraceModalProps> = ({
   sourceType = 'invoice',
   onClose,
 }) => {
+  const { account } = useAuth();
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [trace, setTrace] = useState<DocumentTrace | null>(null);
+  const [reprintInvoiceId, setReprintInvoiceId] = useState<string | null>(null);
+  const [printDocEntry, setPrintDocEntry] = useState<LedgerDocumentInput | null>(null);
+  const [goodsIssues, setGoodsIssues] = useState<GoodsIssue[]>([]);
+
+  // In tất cả (gộp bộ chứng từ trong 1 lần in, mỗi chứng từ sang trang mới - Q8)
+  const [bundleOpen, setBundleOpen] = useState(false);
+  const [bundleLoading, setBundleLoading] = useState(false);
+  const [bundleError, setBundleError] = useState<string | null>(null);
+  const [bundleReceipt, setBundleReceipt] = useState<SalesInvoiceReceipt | null>(null);
+  const [bundleOrder, setBundleOrder] = useState<OrderDetail | null>(null);
+  const [bundleIssues, setBundleIssues] = useState<GoodsIssue[]>([]);
+  const [bundleReturns, setBundleReturns] = useState<SalesReturn[]>([]);
 
   useEffect(() => {
     let isMounted = true;
@@ -48,6 +76,16 @@ export const SalesInvoiceTraceModal: React.FC<SalesInvoiceTraceModalProps> = ({
           : await salesInvoiceService.traceInvoiceById(invoiceId);
         if (isMounted) {
           setTrace(data);
+          if (data?.source?.id) {
+            goodsIssueService
+              .getByOrderId(data.source.id)
+              .then((issues) => {
+                if (isMounted) setGoodsIssues(issues || []);
+              })
+              .catch(() => {
+                if (isMounted) setGoodsIssues([]);
+              });
+          }
         }
       } catch (err: any) {
         if (isMounted) {
@@ -69,6 +107,42 @@ export const SalesInvoiceTraceModal: React.FC<SalesInvoiceTraceModalProps> = ({
       isMounted = false;
     };
   }, [invoiceId, sourceType]);
+
+  const handlePrintAll = async () => {
+    if (!trace) return;
+    setBundleOpen(true);
+    setBundleLoading(true);
+    setBundleError(null);
+    setBundleReceipt(null);
+    setBundleOrder(null);
+    setBundleIssues([]);
+    setBundleReturns([]);
+
+    try {
+      const salesReturnIds: string[] = ((trace as any).salesReturns || []).map((sr: any) => sr.id);
+      const [receiptRes, orderRes, issuesRes, returnsRes] = await Promise.all([
+        trace.salesInvoice?.id
+          ? salesInvoiceService.getReceiptById(trace.salesInvoice.id).catch(() => null)
+          : Promise.resolve(null),
+        trace.source?.id
+          ? orderService.getOrderById(trace.source.id).catch(() => null)
+          : Promise.resolve(null),
+        trace.source?.id
+          ? goodsIssueService.getByOrderId(trace.source.id).catch(() => [])
+          : Promise.resolve([]),
+        Promise.all(salesReturnIds.map((id) => salesReturnService.getById(id).catch(() => null))),
+      ]);
+
+      setBundleReceipt(receiptRes);
+      setBundleOrder(orderRes);
+      setBundleIssues(issuesRes || []);
+      setBundleReturns(returnsRes.filter((r): r is SalesReturn => r !== null));
+    } catch (err: any) {
+      setBundleError(err?.message || 'Không thể tải đầy đủ bộ chứng từ để in.');
+    } finally {
+      setBundleLoading(false);
+    }
+  };
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val);
@@ -92,13 +166,25 @@ export const SalesInvoiceTraceModal: React.FC<SalesInvoiceTraceModalProps> = ({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {!loading && !error && trace && (
+              <button
+                type="button"
+                onClick={handlePrintAll}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition-colors"
+              >
+                <Printer className="w-4 h-4" />
+                <span>In tất cả</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -146,8 +232,18 @@ export const SalesInvoiceTraceModal: React.FC<SalesInvoiceTraceModalProps> = ({
                         <span>Người lập: {trace.salesInvoice.issuedByName}</span>
                       </div>
                     )}
-                    <div className="pt-2 font-bold text-indigo-900 text-sm">
-                      Tổng tiền: {formatCurrency(trace.salesInvoice?.totalAmount || 0)}
+                    <div className="pt-2 font-bold text-indigo-900 text-sm flex items-center justify-between gap-2">
+                      <span>Tổng tiền: {formatCurrency(trace.salesInvoice?.totalAmount || 0)}</span>
+                      {trace.salesInvoice?.id && (
+                        <button
+                          type="button"
+                          onClick={() => setReprintInvoiceId(trace.salesInvoice!.id)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-semibold"
+                        >
+                          <Printer className="w-3 h-3" />
+                          <span>Xem/In</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -181,8 +277,27 @@ export const SalesInvoiceTraceModal: React.FC<SalesInvoiceTraceModalProps> = ({
                         <span>Người tạo: {trace.source.actorName}</span>
                       </div>
                     )}
-                    <div className="pt-2 font-semibold text-amber-900 text-xs">
-                      Trạng thái: <span className="font-bold">{trace.source?.status || 'Completed'}</span>
+                    <div className="pt-2 font-semibold text-amber-900 text-xs flex items-center justify-between gap-2">
+                      <span>
+                        Trạng thái: <span className="font-bold">{trace.source?.status || 'Completed'}</span>
+                      </span>
+                      {trace.source?.id && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPrintDocEntry({
+                              direction: 'OUT',
+                              documentType: 'Order',
+                              documentId: trace.source!.id,
+                              documentNumber: trace.source!.number,
+                            })
+                          }
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-semibold"
+                        >
+                          <Printer className="w-3 h-3" />
+                          <span>Xem/In</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -210,95 +325,127 @@ export const SalesInvoiceTraceModal: React.FC<SalesInvoiceTraceModalProps> = ({
                       <Layers className="w-3.5 h-3.5 text-slate-400" />
                       <span>Loại bút toán: Xuất bán hàng (OUT)</span>
                     </div>
-                    <div className="pt-2 font-semibold text-emerald-900 text-xs">
-                      Tồn kho đã cập nhật tự động
+                    <div className="pt-2 font-semibold text-emerald-900 text-xs space-y-1.5">
+                      <div>Tồn kho đã cập nhật tự động</div>
+                      {goodsIssues.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {goodsIssues.map((gi) => (
+                            <button
+                              key={gi.id}
+                              type="button"
+                              onClick={() =>
+                                setPrintDocEntry({
+                                  direction: 'OUT',
+                                  documentType: 'Order',
+                                  documentId: gi.orderId,
+                                  goodsIssueId: gi.id,
+                                  documentNumber: gi.number,
+                                })
+                              }
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold"
+                            >
+                              <Printer className="w-3 h-3" />
+                              <span>02-VT ({gi.warehouseName})</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Step 3 Detail Table: Dòng sổ kho OUT */}
-              <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
-                <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <FileCheck className="w-4 h-4 text-emerald-600" />
-                    <h4 className="font-bold text-sm text-slate-800">
-                      Chi Tiết Dòng Sổ Kho Xuất Hàng (Inventory Ledger - OUT)
-                    </h4>
-                  </div>
-                  <span className="text-xs text-slate-500 font-medium">
-                    (Giá vốn WAC chỉ hiển thị cho Chủ cửa hàng & Nhân viên)
-                  </span>
-                </div>
+              {(() => {
+                const hasCost = trace.lines?.some((l) => l.unitCost !== null && l.unitCost !== undefined);
+                return (
+                  <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+                    <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <FileCheck className="w-4 h-4 text-emerald-600" />
+                        <h4 className="font-bold text-sm text-slate-800">
+                          Chi Tiết Dòng Sổ Kho Xuất Hàng (Inventory Ledger - OUT)
+                        </h4>
+                      </div>
+                      {hasCost && (
+                        <span className="text-xs text-slate-500 font-medium">
+                          (Giá vốn WAC chỉ hiển thị cho Chủ cửa hàng)
+                        </span>
+                      )}
+                    </div>
 
-                {(!trace.lines || trace.lines.length === 0) ? (
-                  <div className="p-8 text-center text-slate-500 text-xs">
-                    Không tìm thấy dòng sổ kho nào được liên kết với hóa đơn này.
+                    {(!trace.lines || trace.lines.length === 0) ? (
+                      <div className="p-8 text-center text-slate-500 text-xs">
+                        Không tìm thấy dòng sổ kho nào được liên kết với hóa đơn này.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                            <tr>
+                              <th className="py-2.5 px-3">Bút toán #</th>
+                              <th className="py-2.5 px-3">Mặt hàng / SKU</th>
+                              <th className="py-2.5 px-3">Kho hàng</th>
+                              <th className="py-2.5 px-3 text-right">Lượng giao dịch</th>
+                              <th className="py-2.5 px-3 text-right">Lượng xuất gốc</th>
+                              {hasCost && <th className="py-2.5 px-3 text-right">Giá vốn (WAC)</th>}
+                              <th className="py-2.5 px-3 text-right">Tồn sau xuất</th>
+                              <th className="py-2.5 px-3 text-right">Thời gian ghi sổ</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 font-mono">
+                            {trace.lines.map((line, idx) => (
+                              <tr key={line.ledgerId || idx} className="hover:bg-slate-50/80 transition-colors">
+                                <td className="py-2.5 px-3 text-slate-700">
+                                  <span className="font-bold text-slate-900">#{line.sequenceNo}</span>
+                                  <div className="text-[10px] text-slate-400 truncate max-w-[100px]" title={line.ledgerId}>
+                                    {line.ledgerId.slice(0, 8)}...
+                                  </div>
+                                </td>
+                                <td className="py-2.5 px-3 font-sans">
+                                  <div className="flex items-center gap-1.5 font-bold font-mono text-slate-800">
+                                    <Package className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                    <span>{line.skuCode}</span>
+                                  </div>
+                                </td>
+                                <td className="py-2.5 px-3 font-sans text-slate-700">
+                                  <div className="flex items-center gap-1.5">
+                                    <Warehouse className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                    <span>{line.warehouseName}</span>
+                                  </div>
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-sans">
+                                  {line.orderItemQuantity != null ? (
+                                    <span className="font-semibold text-slate-800">
+                                      {line.orderItemQuantity.toLocaleString('vi-VN')} {line.unitName || ''}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400">-</span>
+                                  )}
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-bold text-rose-600">
+                                  -{Math.abs(line.quantity).toLocaleString('vi-VN')} (gốc)
+                                </td>
+                                {hasCost && (
+                                  <td className="py-2.5 px-3 text-right text-slate-700">
+                                    {line.unitCost != null ? formatCurrency(line.unitCost) : '—'}
+                                  </td>
+                                )}
+                                <td className="py-2.5 px-3 text-right font-semibold text-slate-900">
+                                  {line.balanceAfter.toLocaleString('vi-VN')}
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-sans text-slate-500 text-[11px]">
+                                  {new Date(line.createdAt).toLocaleString('vi-VN')}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
-                        <tr>
-                          <th className="py-2.5 px-3">Bút toán #</th>
-                          <th className="py-2.5 px-3">Mặt hàng / SKU</th>
-                          <th className="py-2.5 px-3">Kho hàng</th>
-                          <th className="py-2.5 px-3 text-right">Lượng giao dịch</th>
-                          <th className="py-2.5 px-3 text-right">Lượng xuất gốc</th>
-                          <th className="py-2.5 px-3 text-right">Giá vốn (WAC)</th>
-                          <th className="py-2.5 px-3 text-right">Tồn sau xuất</th>
-                          <th className="py-2.5 px-3 text-right">Thời gian ghi sổ</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 font-mono">
-                        {trace.lines.map((line, idx) => (
-                          <tr key={line.ledgerId || idx} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="py-2.5 px-3 text-slate-700">
-                              <span className="font-bold text-slate-900">#{line.sequenceNo}</span>
-                              <div className="text-[10px] text-slate-400 truncate max-w-[100px]" title={line.ledgerId}>
-                                {line.ledgerId.slice(0, 8)}...
-                              </div>
-                            </td>
-                            <td className="py-2.5 px-3 font-sans">
-                              <div className="flex items-center gap-1.5 font-bold font-mono text-slate-800">
-                                <Package className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                <span>{line.skuCode}</span>
-                              </div>
-                            </td>
-                            <td className="py-2.5 px-3 font-sans text-slate-700">
-                              <div className="flex items-center gap-1.5">
-                                <Warehouse className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                <span>{line.warehouseName}</span>
-                              </div>
-                            </td>
-                            <td className="py-2.5 px-3 text-right font-sans">
-                              {line.orderItemQuantity != null ? (
-                                <span className="font-semibold text-slate-800">
-                                  {line.orderItemQuantity.toLocaleString('vi-VN')} {line.unitName || ''}
-                                </span>
-                              ) : (
-                                <span className="text-slate-400">-</span>
-                              )}
-                            </td>
-                            <td className="py-2.5 px-3 text-right font-bold text-rose-600">
-                              -{Math.abs(line.quantity).toLocaleString('vi-VN')} (gốc)
-                            </td>
-                            <td className="py-2.5 px-3 text-right text-slate-700">
-                              {formatCurrency(line.unitCost)}
-                            </td>
-                            <td className="py-2.5 px-3 text-right font-semibold text-slate-900">
-                              {line.balanceAfter.toLocaleString('vi-VN')}
-                            </td>
-                            <td className="py-2.5 px-3 text-right font-sans text-slate-500 text-[11px]">
-                              {new Date(line.createdAt).toLocaleString('vi-VN')}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
+                );
+              })()}
 
               {/* Step 4: Phiếu trả hàng & Dòng sổ kho hoàn lại (IN - CS-01) */}
               {(trace as any).salesReturns && (trace as any).salesReturns.length > 0 && (
@@ -325,10 +472,27 @@ export const SalesInvoiceTraceModal: React.FC<SalesInvoiceTraceModalProps> = ({
                             Hoàn: <strong className="text-indigo-700">{formatCurrency(sr.totalRefundAmount || 0)}</strong>
                           </span>
                         </div>
-                        <div className="text-slate-500 text-[11px]">
-                          {sr.confirmedAt
-                            ? `Xác nhận lúc: ${new Date(sr.confirmedAt).toLocaleString('vi-VN')} (${sr.confirmedByName || sr.confirmedBy || 'Hệ thống'})`
-                            : `Tạo lúc: ${new Date(sr.createdAt).toLocaleString('vi-VN')}`}
+                        <div className="text-slate-500 text-[11px] flex items-center gap-2">
+                          <span>
+                            {sr.confirmedAt
+                              ? `Xác nhận lúc: ${new Date(sr.confirmedAt).toLocaleString('vi-VN')} (${sr.confirmedByName || sr.confirmedBy || 'Hệ thống'})`
+                              : `Tạo lúc: ${new Date(sr.createdAt).toLocaleString('vi-VN')}`}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setPrintDocEntry({
+                                direction: 'IN',
+                                documentType: 'SalesReturn',
+                                documentId: sr.id,
+                                documentNumber: sr.number,
+                              })
+                            }
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-semibold"
+                          >
+                            <Printer className="w-3 h-3" />
+                            <span>Xem/In</span>
+                          </button>
                         </div>
                       </div>
 
@@ -336,59 +500,64 @@ export const SalesInvoiceTraceModal: React.FC<SalesInvoiceTraceModalProps> = ({
                         <div className="p-4 text-center text-slate-400 text-xs">
                           Chưa có dòng sổ kho IN (phiếu chưa được xác nhận nhập kho).
                         </div>
-                      ) : (
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left text-xs">
-                            <thead className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
-                              <tr>
-                                <th className="py-2.5 px-3">Bút toán #</th>
-                                <th className="py-2.5 px-3">Mặt hàng / SKU</th>
-                                <th className="py-2.5 px-3">Kho hàng</th>
-                                <th className="py-2.5 px-3 text-right">Lượng nhập lại (gốc)</th>
-                                <th className="py-2.5 px-3 text-right">Giá vốn (WAC)</th>
-                                <th className="py-2.5 px-3 text-right">Tồn sau nhập</th>
-                                <th className="py-2.5 px-3 text-right">Thời gian ghi sổ</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 font-mono">
-                              {sr.lines.map((line: any, idx: number) => (
-                                <tr key={line.ledgerId || idx} className="hover:bg-slate-50/80 transition-colors">
-                                  <td className="py-2.5 px-3 text-slate-700">
-                                    <span className="font-bold text-slate-900">#{line.sequenceNo}</span>
-                                    <div className="text-[10px] text-slate-400 truncate max-w-[100px]" title={line.ledgerId}>
-                                      {line.ledgerId.slice(0, 8)}...
-                                    </div>
-                                  </td>
-                                  <td className="py-2.5 px-3 font-sans">
-                                    <div className="flex items-center gap-1.5 font-bold font-mono text-slate-800">
-                                      <Package className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                      <span>{line.skuCode}</span>
-                                    </div>
-                                  </td>
-                                  <td className="py-2.5 px-3 font-sans text-slate-700">
-                                    <div className="flex items-center gap-1.5">
-                                      <Warehouse className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                      <span>{line.warehouseName}</span>
-                                    </div>
-                                  </td>
-                                  <td className="py-2.5 px-3 text-right font-bold text-emerald-600">
-                                    +{Math.abs(line.quantity).toLocaleString('vi-VN')} (gốc)
-                                  </td>
-                                  <td className="py-2.5 px-3 text-right text-slate-700">
-                                    {formatCurrency(line.unitCost)}
-                                  </td>
-                                  <td className="py-2.5 px-3 text-right font-semibold text-slate-900">
-                                    {line.balanceAfter.toLocaleString('vi-VN')}
-                                  </td>
-                                  <td className="py-2.5 px-3 text-right font-sans text-slate-500 text-[11px]">
-                                    {new Date(line.createdAt).toLocaleString('vi-VN')}
-                                  </td>
+                      ) : (() => {
+                        const srHasCost = sr.lines.some((l: any) => l.unitCost !== null && l.unitCost !== undefined);
+                        return (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs">
+                              <thead className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                                <tr>
+                                  <th className="py-2.5 px-3">Bút toán #</th>
+                                  <th className="py-2.5 px-3">Mặt hàng / SKU</th>
+                                  <th className="py-2.5 px-3">Kho hàng</th>
+                                  <th className="py-2.5 px-3 text-right">Lượng nhập lại (gốc)</th>
+                                  {srHasCost && <th className="py-2.5 px-3 text-right">Giá vốn (WAC)</th>}
+                                  <th className="py-2.5 px-3 text-right">Tồn sau nhập</th>
+                                  <th className="py-2.5 px-3 text-right">Thời gian ghi sổ</th>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 font-mono">
+                                {sr.lines.map((line: any, idx: number) => (
+                                  <tr key={line.ledgerId || idx} className="hover:bg-slate-50/80 transition-colors">
+                                    <td className="py-2.5 px-3 text-slate-700">
+                                      <span className="font-bold text-slate-900">#{line.sequenceNo}</span>
+                                      <div className="text-[10px] text-slate-400 truncate max-w-[100px]" title={line.ledgerId}>
+                                        {line.ledgerId.slice(0, 8)}...
+                                      </div>
+                                    </td>
+                                    <td className="py-2.5 px-3 font-sans">
+                                      <div className="flex items-center gap-1.5 font-bold font-mono text-slate-800">
+                                        <Package className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                        <span>{line.skuCode}</span>
+                                      </div>
+                                    </td>
+                                    <td className="py-2.5 px-3 font-sans text-slate-700">
+                                      <div className="flex items-center gap-1.5">
+                                        <Warehouse className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                        <span>{line.warehouseName}</span>
+                                      </div>
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right font-bold text-emerald-600">
+                                      +{Math.abs(line.quantity).toLocaleString('vi-VN')} (gốc)
+                                    </td>
+                                    {srHasCost && (
+                                      <td className="py-2.5 px-3 text-right text-slate-700">
+                                        {line.unitCost != null ? formatCurrency(line.unitCost) : '—'}
+                                      </td>
+                                    )}
+                                    <td className="py-2.5 px-3 text-right font-semibold text-slate-900">
+                                      {line.balanceAfter.toLocaleString('vi-VN')}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right font-sans text-slate-500 text-[11px]">
+                                      {new Date(line.createdAt).toLocaleString('vi-VN')}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })()}
                     </div>
                   ))}
                 </div>
@@ -408,6 +577,137 @@ export const SalesInvoiceTraceModal: React.FC<SalesInvoiceTraceModalProps> = ({
           </button>
         </div>
       </div>
+
+      {reprintInvoiceId && (
+        <SalesInvoiceReprintModal
+          invoiceId={reprintInvoiceId}
+          onClose={() => setReprintInvoiceId(null)}
+        />
+      )}
+
+      <DocumentPrintModal
+        isOpen={Boolean(printDocEntry)}
+        entry={printDocEntry}
+        tenantName={account?.tenantName}
+        printedByName={account?.name || account?.email}
+        onClose={() => setPrintDocEntry(null)}
+      />
+
+      {bundleOpen && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-xs no-print-bg">
+          <style>{`
+            @media print {
+              html, body { width: auto !important; }
+              .print-container, .doc-print-wrapper {
+                width: 100% !important;
+                max-width: 190mm !important;
+                margin: 0 auto !important;
+                padding: 0 !important;
+              }
+              .doc-print-paper {
+                border: none !important;
+                box-shadow: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+              }
+              .doc-print-page-break {
+                break-after: page;
+                page-break-after: always;
+              }
+            }
+            @page { size: A4 portrait; margin: 12mm; }
+          `}</style>
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-4xl w-full overflow-hidden flex flex-col max-h-[95vh] no-print-border">
+            <div className="px-5 py-3.5 text-white flex items-center justify-between no-print bg-slate-900">
+              <div className="flex items-center gap-2 font-bold text-sm">
+                <Printer className="w-5 h-5 text-emerald-400" />
+                <span>In gộp bộ chứng từ truy vết ({invoiceNumber})</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={bundleLoading}
+                  onClick={() => window.print()}
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-xl font-bold text-xs"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>In tất cả</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setBundleOpen(false)}
+                  className="p-1 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-6 overflow-y-auto bg-slate-100/60 flex justify-center min-h-[320px]">
+              {bundleLoading ? (
+                <div className="flex flex-col items-center justify-center py-14 text-slate-600">
+                  <Loader2 className="w-8 h-8 animate-spin text-indigo-600 mb-2" />
+                  <span className="text-sm font-medium">Đang tải bộ chứng từ để in gộp...</span>
+                </div>
+              ) : bundleError ? (
+                <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-medium self-center">
+                  {bundleError}
+                </div>
+              ) : (
+                <PrintArea>
+                  <div className="doc-print-wrapper space-y-6 w-full max-w-[760px]">
+                    {(() => {
+                      const hasOrder = Boolean(bundleOrder && bundleOrder.channel !== 'POS');
+                      const hasIssues = bundleIssues.length > 0;
+                      const hasReturns = bundleReturns.length > 0;
+                      const printedBy = account?.name || account?.email;
+                      return (
+                        <>
+                          {bundleReceipt && (
+                            <LegacyOrderPrintPaper
+                              receipt={bundleReceipt}
+                              title="HÓA ĐƠN BÁN HÀNG"
+                              tenantName={account?.tenantName}
+                              printedByName={printedBy}
+                              pageBreakAfter={hasOrder || hasIssues || hasReturns}
+                            />
+                          )}
+                          {hasOrder && bundleOrder && (
+                            <LegacyOrderPrintPaper
+                              order={bundleOrder}
+                              title="PHIẾU GIAO HÀNG"
+                              tenantName={account?.tenantName}
+                              printedByName={printedBy}
+                              pageBreakAfter={hasIssues || hasReturns}
+                            />
+                          )}
+                          {bundleIssues.map((gi, idx) => (
+                            <GoodsIssuePrintPaper
+                              key={gi.id}
+                              issue={gi}
+                              tenantName={account?.tenantName}
+                              printedByName={printedBy}
+                              pageBreakAfter={idx < bundleIssues.length - 1 || hasReturns}
+                            />
+                          ))}
+                          {bundleReturns.map((sr, idx) => (
+                            <SalesReturnPrintPaper
+                              key={sr.id}
+                              salesReturn={sr}
+                              tenantName={account?.tenantName}
+                              printedByName={printedBy}
+                              pageBreakAfter={idx < bundleReturns.length - 1}
+                            />
+                          ))}
+                        </>
+                      );
+                    })()}
+                  </div>
+                </PrintArea>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

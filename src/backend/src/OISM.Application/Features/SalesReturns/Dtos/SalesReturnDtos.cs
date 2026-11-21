@@ -10,12 +10,13 @@ public class ReturnableItemDto
     public string SkuName { get; set; } = string.Empty;
     public Guid? UnitId { get; set; }
     public string UnitName { get; set; } = string.Empty;
+    public string BaseUnitName { get; set; } = string.Empty;
     public decimal FactorSnapshot { get; set; }
     public decimal SoldQuantity { get; set; }
     public decimal ReturnedQuantity { get; set; }
     public decimal ReturnableQuantity { get; set; }
     public decimal UnitPrice { get; set; }
-    public decimal OriginalUnitCost { get; set; }
+    public decimal? OriginalUnitCost { get; set; }
 }
 
 public class CreateSalesReturnDto
@@ -64,6 +65,7 @@ public class SalesReturnResponseDto
     public Guid OrderId { get; set; }
     public string OrderNumber { get; set; } = string.Empty;
     public string OrderChannel { get; set; } = string.Empty;
+    public string? CustomerName { get; set; }
     public Guid BranchId { get; set; }
     public string BranchName { get; set; } = string.Empty;
     public Guid WarehouseId { get; set; }
@@ -95,11 +97,12 @@ public class SalesReturnItemResponseDto
     public string SkuName { get; set; } = string.Empty;
     public Guid? UnitId { get; set; }
     public string UnitName { get; set; } = string.Empty;
+    public string BaseUnitName { get; set; } = string.Empty;
     public decimal FactorSnapshot { get; set; }
     public decimal Quantity { get; set; }
     public decimal BaseQuantity { get; set; }
     public decimal RefundAmount { get; set; }
-    public decimal OriginalUnitCost { get; set; }
+    public decimal? OriginalUnitCost { get; set; }
 }
 
 public class SalesReturnFilterDto

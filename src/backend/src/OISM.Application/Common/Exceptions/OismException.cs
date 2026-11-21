@@ -139,3 +139,38 @@ public class PurchaseOrderZeroPriceConfirmRequiredException : OismException
     }
 }
 
+public class PurchaseOrderLossPriceConfirmRequiredException : OismException
+{
+    public PurchaseOrderLossPriceConfirmRequiredException(string message = "Phiếu mua có cấu hình giá bán dự kiến thấp hơn giá vốn (bán lỗ), yêu cầu xác nhận rõ ràng trước khi duyệt.")
+        : base("PURCHASE_ORDER_LOSS_PRICE_CONFIRM_REQUIRED", message, 422)
+    {
+    }
+}
+
+public class ConflictingPurchaseOrderInfo
+{
+    public Guid PurchaseOrderId { get; set; }
+    public string PurchaseOrderNumber { get; set; } = string.Empty;
+    public Guid SkuId { get; set; }
+    public Guid UnitId { get; set; }
+    public Guid PriceListId { get; set; }
+    public string PriceListCode { get; set; } = string.Empty;
+    public string Mode { get; set; } = string.Empty;
+    public decimal? MarginPercent { get; set; }
+    public decimal? FixedPrice { get; set; }
+}
+
+public class PriceChangePoConflictException : OismException
+{
+    public IReadOnlyList<ConflictingPurchaseOrderInfo> ConflictingPurchaseOrders { get; }
+
+    public PriceChangePoConflictException(
+        IReadOnlyList<ConflictingPurchaseOrderInfo> conflictingPurchaseOrders,
+        string message = "Mặt hàng này đang có cấu hình giá bán chờ áp dụng trên đơn mua hàng chưa nhập kho. Vui lòng chọn cách giải quyết xung đột ('KEEP_MANUAL' hoặc 'APPLY_PO_LATER').")
+        : base("PRICE_CHANGE_PO_CONFLICT", message, 409)
+    {
+        ConflictingPurchaseOrders = conflictingPurchaseOrders;
+    }
+}
+
+

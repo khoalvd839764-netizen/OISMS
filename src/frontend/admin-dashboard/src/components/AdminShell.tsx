@@ -207,7 +207,6 @@ export function AdminShell() {
             >
               <item.icon size={19} />
               <span>{item.label}</span>
-              {item.label === "Kho & sổ kho" && <i>3</i>}
             </NavLink>
           ))}
         </nav>
@@ -441,7 +440,7 @@ export function AdminShell() {
                               key={g.id}
                               onClick={() => {
                                 setShowDropdown(false);
-                                navigate(g.url);
+                                navigate(`/inventory?receiptId=${encodeURIComponent(g.id)}`);
                               }}
                               style={{
                                 padding: "8px 14px",

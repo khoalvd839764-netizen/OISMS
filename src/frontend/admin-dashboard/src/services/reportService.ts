@@ -15,15 +15,20 @@ export const reportService = {
    * GET /api/reports/revenue-profit
    */
   async getRevenueProfit(filter: ReportFilter): Promise<RevenueProfitReport> {
-    const params: Record<string, any> = {};
-    if (filter.branchId) params.branchId = filter.branchId;
-    if (filter.channel) params.channel = filter.channel;
-    if (filter.startDate) params.startDate = filter.startDate;
-    if (filter.endDate) params.endDate = filter.endDate;
+    const search = new URLSearchParams();
+    if (filter.branchId) search.append('branchId', filter.branchId);
+    if (filter.channel) search.append('channel', filter.channel);
+    if (filter.startDate) search.append('startDate', filter.startDate);
+    if (filter.endDate) search.append('endDate', filter.endDate);
+    if (filter.skuIds && filter.skuIds.length > 0) {
+      for (const id of filter.skuIds) {
+        if (id) search.append('skuIds', id);
+      }
+    }
 
-    const response = await httpClient.get<RevenueProfitReport>('/api/reports/revenue-profit', {
-      params,
-    });
+    const query = search.toString();
+    const url = query ? `/api/reports/revenue-profit?${query}` : '/api/reports/revenue-profit';
+    const response = await httpClient.get<RevenueProfitReport>(url);
     return response.data;
   },
 

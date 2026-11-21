@@ -1,0 +1,55 @@
+{
+  "baseUrl": "http://127.0.0.1:55002",
+  "measuredAt": "2026-11-21T13:38:29.861Z",
+  "only": "checkout",
+  "results": [
+    {
+      "label": "POST /api/pos/checkout",
+      "count": 50,
+      "concurrency": 1,
+      "thresholdMs": 500,
+      "ok": 50,
+      "fail": 0,
+      "p50": 38.11,
+      "p95": 42.72,
+      "p99": 46.6,
+      "status": "ĐẠT"
+    },
+    {
+      "label": "POST /api/pos/checkout (multi-SKU)",
+      "count": 50,
+      "concurrency": 1,
+      "thresholdMs": 500,
+      "ok": 50,
+      "fail": 0,
+      "p50": 32.79,
+      "p95": 38.74,
+      "p99": 48.78,
+      "status": "ĐẠT"
+    },
+    {
+      "label": "POST /api/pos/checkout",
+      "count": 50,
+      "concurrency": 10,
+      "thresholdMs": 500,
+      "ok": 50,
+      "fail": 0,
+      "p50": 358.12,
+      "p95": 379,
+      "p99": 380.17,
+      "status": "ĐẠT"
+    },
+    {
+      "label": "POST /api/pos/checkout (multi-SKU)",
+      "count": 50,
+      "concurrency": 10,
+      "thresholdMs": 500,
+      "ok": 50,
+      "fail": 0,
+      "p50": 46.25,
+      "p95": 58.35,
+      "p99": 60.04,
+      "status": "ĐẠT"
+    }
+  ]
+}

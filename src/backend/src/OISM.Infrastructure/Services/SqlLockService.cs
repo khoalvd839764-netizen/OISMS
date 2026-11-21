@@ -244,4 +244,21 @@ public class SqlLockService : ISqlLockService
         ExecutePostgresCommandAsync(
             "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/daily_sales_summary/' || {1}::text, 0));",
             ct, tenantId.ToString(), businessDate.ToString("yyyy-MM-dd"));
+
+    public async Task LockPricesAsync(Guid tenantId, IEnumerable<(Guid SkuId, Guid UnitId, Guid PriceListId)> priceKeys, CancellationToken ct = default)
+    {
+        var sortedKeys = priceKeys
+            .Distinct()
+            .OrderBy(k => k.SkuId)
+            .ThenBy(k => k.UnitId)
+            .ThenBy(k => k.PriceListId)
+            .ToList();
+
+        foreach (var key in sortedKeys)
+        {
+            await ExecutePostgresCommandAsync(
+                "SELECT pg_advisory_xact_lock(hashtextextended({0}::text || '/price/' || {1}::text || '/' || {2}::text || '/' || {3}::text, 0));",
+                ct, tenantId.ToString(), key.SkuId.ToString(), key.UnitId.ToString(), key.PriceListId.ToString());
+        }
+    }
 }

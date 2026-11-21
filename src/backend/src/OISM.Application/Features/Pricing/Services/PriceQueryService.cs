@@ -198,6 +198,7 @@ public class PriceQueryService : IPriceQueryService
             RequestKey = r.RequestKey,
             Kind = r.Kind,
             Status = r.Status,
+            ReasonType = r.ReasonType,
             Reason = r.Reason,
             RequestedValidFrom = r.RequestedValidFrom,
             CreatedBy = r.CreatedBy,

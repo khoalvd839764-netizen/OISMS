@@ -1,0 +1,74 @@
+[
+  {
+    "group": "Nhom ghi so (OrderService, GoodsReceiptService, SalesReturnService)",
+    "covered": 1787,
+    "total": 1966,
+    "lineRatePct": 90.9,
+    "status": "ĐẠT",
+    "files": [
+      {
+        "file": "OrderService.cs",
+        "covered": 538,
+        "total": 593,
+        "lineRatePct": 90.73
+      },
+      {
+        "file": "GoodsReceiptService.cs",
+        "covered": 616,
+        "total": 657,
+        "lineRatePct": 93.76
+      },
+      {
+        "file": "SalesReturnService.cs",
+        "covered": 633,
+        "total": 716,
+        "lineRatePct": 88.41
+      }
+    ]
+  },
+  {
+    "group": "ReservationService",
+    "covered": 346,
+    "total": 374,
+    "lineRatePct": 92.51,
+    "status": "ĐẠT",
+    "files": [
+      {
+        "file": "ReservationService.cs",
+        "covered": 346,
+        "total": 374,
+        "lineRatePct": 92.51
+      }
+    ]
+  },
+  {
+    "group": "WacCalculator",
+    "covered": 16,
+    "total": 16,
+    "lineRatePct": 100.0,
+    "status": "ĐẠT",
+    "files": [
+      {
+        "file": "IWacCalculator.cs",
+        "covered": 16,
+        "total": 16,
+        "lineRatePct": 100.0
+      }
+    ]
+  },
+  {
+    "group": "RevenueProfitCalculationHelper",
+    "covered": 151,
+    "total": 169,
+    "lineRatePct": 89.35,
+    "status": "ĐẠT",
+    "files": [
+      {
+        "file": "RevenueProfitCalculationHelper.cs",
+        "covered": 151,
+        "total": 169,
+        "lineRatePct": 89.35
+      }
+    ]
+  }
+]

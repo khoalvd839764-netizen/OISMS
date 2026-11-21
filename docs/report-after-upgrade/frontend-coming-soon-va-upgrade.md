@@ -113,7 +113,7 @@ Các thay đổi sau bảng kết quả trên, cùng nhánh `feature/OISMS-46-fi
 
 - **CS-05 (đã xong 07/11/2026, phần còn lại là xác nhận tự động):** POS có VietQR, thu ngân chọn tài khoản nhận tiền (mặc định chọn sẵn) và bấm xác nhận thủ công. Tài khoản nhận tiền lấy từ `GET /api/payment-accounts/active`; Owner quản lý ở màn "Tài khoản nhận tiền". Chưa có xác nhận tự động qua webhook ngân hàng. Chi tiết: [review PR 39](./vietqr-cs05-review-pr39.md).
 - **CS-06:** in chứng từ giao hàng và in báo cáo.
-- **U01-B:** hóa đơn nhà cung cấp và chênh lệch, cần backend và GVHD chốt cách xử lý.
+- **U01-B:** đã làm 12/11/2026, sau đó bị Upgrade 12 thay thế (19/11/2026): gỡ màn hình hóa đơn NCC; màn đơn mua có luồng `PendingApproval` theo vai trò, phiếu nhập không hiện giá với Staff. Xem [báo cáo U12](./don-mua-pending-approval-u12.md).
 - **CS-02:** phân công chi nhánh, cần quyết định làm thêm backend hay bỏ khỏi yêu cầu.
 - **Tìm kiếm:** kết quả phiếu nhập chưa mở đúng phiếu.
 - **Quên mật khẩu:** đã làm ở Upgrade 10 (15/11/2026), xem [báo cáo](./quen-mat-khau-dang-nhap-sdt-u10.md). Chưa có OTP SMS.

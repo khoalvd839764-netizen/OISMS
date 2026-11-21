@@ -231,6 +231,7 @@ CREATE TABLE "price_change_requests" (
   "request_key" uuid NOT NULL,
   "kind" varchar(20) NOT NULL,
   "status" varchar(20) NOT NULL,
+  "reason_type" varchar(30) DEFAULT 'OTHER' NOT NULL,
   "reason" varchar(500) NOT NULL,
   "requested_valid_from" timestamptz,
   "created_by" uuid,
@@ -244,7 +245,8 @@ CREATE TABLE "price_change_requests" (
   CONSTRAINT "ck_price_change_requests_status" CHECK (status IN ('Pending', 'Approved', 'Rejected')),
   CONSTRAINT "ck_price_change_requests_created_by" CHECK (kind = 'Opening' OR created_by IS NOT NULL),
   CONSTRAINT "ck_price_change_requests_pending_reviewed" CHECK ((status = 'Pending') = (reviewed_at IS NULL)),
-  CONSTRAINT "ck_price_change_requests_reason" CHECK (btrim(reason) <> '')
+  CONSTRAINT "ck_price_change_requests_reason" CHECK (btrim(reason) <> ''),
+  CONSTRAINT "ck_price_change_requests_reason_type" CHECK (reason_type IN ('SHORTAGE', 'PROMOTION', 'FROM_PURCHASE_ORDER', 'OTHER'))
 );
 
 -- Chi tiết phiếu thay đổi giá (append-only)
@@ -299,36 +301,48 @@ CREATE TABLE "suppliers" (
   CONSTRAINT "uq_suppliers_1" UNIQUE ("tenant_id", "id")
 );
 
--- Phiếu mua hàng từ nhà cung cấp (U01-A)
+-- Phiếu mua hàng từ nhà cung cấp (U01-A / U12)
 CREATE TABLE "purchase_orders" (
   "id" uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
   "tenant_id" uuid NOT NULL,
   "number" varchar(50) NOT NULL,
   "request_key" uuid NOT NULL,
-  "supplier_id" uuid NOT NULL,
+  "supplier_id" uuid,
   "branch_id" uuid NOT NULL,
+  "order_date" date DEFAULT CURRENT_DATE NOT NULL,
+  "shipping_fee" numeric(20,6) DEFAULT 0 NOT NULL,
+  "discount_amount" numeric(20,6) DEFAULT 0 NOT NULL,
+  "vat_amount" numeric(20,6) DEFAULT 0 NOT NULL,
   "status" varchar(20) NOT NULL,
   "note" varchar(1000),
   "created_by" uuid NOT NULL,
   "approved_by" uuid,
   "approved_at" timestamptz,
+  "returned_by" uuid,
+  "returned_at" timestamptz,
+  "return_reason" varchar(500),
   "closed_by" uuid,
   "closed_at" timestamptz,
   "close_reason" varchar(500),
   "cancelled_by" uuid,
   "cancelled_at" timestamptz,
+  "version" integer DEFAULT 1 NOT NULL,
   "created_at" timestamptz DEFAULT now() NOT NULL,
   "updated_at" timestamptz,
   CONSTRAINT "uq_purchase_orders_1" UNIQUE ("tenant_id", "id"),
   CONSTRAINT "uq_purchase_orders_2" UNIQUE ("tenant_id", "number"),
   CONSTRAINT "uq_purchase_orders_3" UNIQUE ("tenant_id", "request_key"),
-  CONSTRAINT "ck_purchase_orders_status" CHECK (status IN ('Draft','Approved','PartiallyReceived','Received','Closed','Cancelled')),
+  CONSTRAINT "ck_purchase_orders_status" CHECK (status IN ('Draft','PendingApproval','Approved','PartiallyReceived','Received','Closed','Cancelled')),
+  CONSTRAINT "ck_purchase_orders_supplier_required" CHECK (status IN ('Draft','PendingApproval','Cancelled') OR supplier_id IS NOT NULL),
+  CONSTRAINT "ck_purchase_orders_fees_nonnegative" CHECK (shipping_fee >= 0 AND discount_amount >= 0 AND vat_amount >= 0),
   CONSTRAINT "ck_purchase_orders_approved" CHECK ((approved_at IS NULL) = (approved_by IS NULL) AND (status NOT IN ('Approved','PartiallyReceived','Received','Closed') OR approved_at IS NOT NULL)),
+  CONSTRAINT "ck_purchase_orders_returned" CHECK ((returned_at IS NULL) = (returned_by IS NULL) AND (returned_at IS NULL) = (return_reason IS NULL) AND (return_reason IS NULL OR btrim(return_reason) <> '')),
   CONSTRAINT "ck_purchase_orders_closed" CHECK ((status = 'Closed') = (closed_at IS NOT NULL) AND (closed_at IS NULL) = (closed_by IS NULL) AND (closed_at IS NULL OR btrim(close_reason) <> '')),
-  CONSTRAINT "ck_purchase_orders_cancelled" CHECK ((status = 'Cancelled') = (cancelled_at IS NOT NULL) AND (cancelled_at IS NULL) = (cancelled_by IS NULL))
+  CONSTRAINT "ck_purchase_orders_cancelled" CHECK ((status = 'Cancelled') = (cancelled_at IS NOT NULL) AND (cancelled_at IS NULL) = (cancelled_by IS NULL)),
+  CONSTRAINT "ck_purchase_orders_version_positive" CHECK (version >= 1)
 );
 
--- Chi tiết dòng hàng trong phiếu mua (U01-A)
+-- Chi tiết dòng hàng trong phiếu mua (U01-A / U12)
 CREATE TABLE "purchase_order_items" (
   "id" uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
   "tenant_id" uuid NOT NULL,
@@ -340,7 +354,8 @@ CREATE TABLE "purchase_order_items" (
   "quantity_decimal_places" smallint DEFAULT 3 NOT NULL,
   "quantity" numeric(18,3) NOT NULL,
   "ordered_base_quantity" numeric(18,3) GENERATED ALWAYS AS (quantity * factor_snapshot) STORED,
-  "unit_price" numeric(20,6) NOT NULL,
+  "unit_price" numeric(20,6),
+  "allocated_unit_cost" numeric(20,6),
   "received_base_quantity" numeric(18,3) DEFAULT 0 NOT NULL,
   "created_at" timestamptz DEFAULT now() NOT NULL,
   "updated_at" timestamptz,
@@ -349,7 +364,8 @@ CREATE TABLE "purchase_order_items" (
   CONSTRAINT "uq_purchase_order_items_3" UNIQUE ("tenant_id", "id", "sku_id"),
   CONSTRAINT "ck_purchase_order_items_factor_snapshot" CHECK (factor_snapshot > 0),
   CONSTRAINT "ck_purchase_order_items_quantity" CHECK (quantity > 0),
-  CONSTRAINT "ck_purchase_order_items_unit_price" CHECK (unit_price >= 0),
+  CONSTRAINT "ck_purchase_order_items_unit_price" CHECK (unit_price IS NULL OR unit_price >= 0),
+  CONSTRAINT "ck_purchase_order_items_allocated_unit_cost" CHECK (allocated_unit_cost IS NULL OR allocated_unit_cost >= 0),
   CONSTRAINT "ck_purchase_order_items_decimal_places" CHECK (quantity_decimal_places BETWEEN 0 AND 3),
   CONSTRAINT "ck_purchase_order_items_received_range" CHECK (received_base_quantity >= 0 AND received_base_quantity <= quantity * factor_snapshot)
 );
@@ -1096,6 +1112,7 @@ ALTER TABLE "purchase_orders" ADD CONSTRAINT "fk_purchase_orders_supplier_id" FO
 ALTER TABLE "purchase_orders" ADD CONSTRAINT "fk_purchase_orders_branch_id" FOREIGN KEY ("tenant_id", "branch_id") REFERENCES "branches" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 ALTER TABLE "purchase_orders" ADD CONSTRAINT "fk_purchase_orders_created_by" FOREIGN KEY ("tenant_id", "created_by") REFERENCES "users" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 ALTER TABLE "purchase_orders" ADD CONSTRAINT "fk_purchase_orders_approved_by" FOREIGN KEY ("tenant_id", "approved_by") REFERENCES "users" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
+ALTER TABLE "purchase_orders" ADD CONSTRAINT "fk_purchase_orders_returned_by" FOREIGN KEY ("tenant_id", "returned_by") REFERENCES "users" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 ALTER TABLE "purchase_orders" ADD CONSTRAINT "fk_purchase_orders_closed_by" FOREIGN KEY ("tenant_id", "closed_by") REFERENCES "users" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 ALTER TABLE "purchase_orders" ADD CONSTRAINT "fk_purchase_orders_cancelled_by" FOREIGN KEY ("tenant_id", "cancelled_by") REFERENCES "users" ("tenant_id", "id") ON DELETE RESTRICT ON UPDATE NO ACTION;
 
@@ -1351,19 +1368,54 @@ CREATE FUNCTION public.oisms_purchase_order_guard() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
 BEGIN
   IF OLD.status = 'Draft' THEN
-    IF NEW.status NOT IN ('Draft', 'Approved', 'Cancelled') THEN
+    IF NEW.status NOT IN ('Draft', 'PendingApproval', 'Cancelled') THEN
       RAISE EXCEPTION 'Invalid purchase order state transition from % to %', OLD.status, NEW.status USING ERRCODE = '23514';
     END IF;
-    IF (NEW.tenant_id, NEW.id, NEW.created_at) IS DISTINCT FROM (OLD.tenant_id, OLD.id, OLD.created_at) THEN
+    IF (NEW.tenant_id, NEW.id, NEW.number, NEW.request_key, NEW.created_by, NEW.created_at)
+       IS DISTINCT FROM
+       (OLD.tenant_id, OLD.id, OLD.number, OLD.request_key, OLD.created_by, OLD.created_at) THEN
       RAISE EXCEPTION 'Purchase order identity is immutable' USING ERRCODE = '23514';
     END IF;
     RETURN NEW;
   END IF;
 
-  IF (NEW.tenant_id, NEW.id, NEW.number, NEW.request_key, NEW.supplier_id, NEW.branch_id, NEW.note, NEW.created_by, NEW.created_at, NEW.approved_by, NEW.approved_at)
+  IF OLD.status = 'PendingApproval' THEN
+    IF NEW.status NOT IN ('PendingApproval', 'Draft', 'Approved', 'Cancelled') THEN
+      RAISE EXCEPTION 'Invalid purchase order state transition from % to %', OLD.status, NEW.status USING ERRCODE = '23514';
+    END IF;
+    IF (NEW.tenant_id, NEW.id, NEW.number, NEW.request_key, NEW.created_by, NEW.created_at)
+       IS DISTINCT FROM
+       (OLD.tenant_id, OLD.id, OLD.number, OLD.request_key, OLD.created_by, OLD.created_at) THEN
+      RAISE EXCEPTION 'Purchase order identity is immutable' USING ERRCODE = '23514';
+    END IF;
+    IF NEW.status = 'Draft' AND (NEW.returned_at IS NULL OR NEW.returned_by IS NULL OR NEW.return_reason IS NULL OR btrim(NEW.return_reason) = '') THEN
+      RAISE EXCEPTION 'Returning purchase order to Draft requires returned_by, returned_at, and return_reason' USING ERRCODE = '23514';
+    END IF;
+    IF NEW.status = 'Approved' THEN
+      IF NEW.supplier_id IS NULL THEN
+        RAISE EXCEPTION 'Approved purchase order requires supplier_id' USING ERRCODE = '23514';
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM public.purchase_order_items poi
+        WHERE poi.tenant_id = NEW.tenant_id AND poi.purchase_order_id = NEW.id
+      ) THEN
+        RAISE EXCEPTION 'Approved purchase order requires at least one item' USING ERRCODE = '23514';
+      END IF;
+      IF EXISTS (
+        SELECT 1 FROM public.purchase_order_items poi
+        WHERE poi.tenant_id = NEW.tenant_id AND poi.purchase_order_id = NEW.id
+          AND (poi.unit_price IS NULL OR poi.allocated_unit_cost IS NULL)
+      ) THEN
+        RAISE EXCEPTION 'Approved purchase order requires unit_price and allocated_unit_cost on all items' USING ERRCODE = '23514';
+      END IF;
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF (NEW.tenant_id, NEW.id, NEW.number, NEW.request_key, NEW.supplier_id, NEW.branch_id, NEW.order_date, NEW.shipping_fee, NEW.discount_amount, NEW.vat_amount, NEW.note, NEW.created_by, NEW.created_at, NEW.approved_by, NEW.approved_at, NEW.returned_by, NEW.returned_at, NEW.return_reason)
      IS DISTINCT FROM
-     (OLD.tenant_id, OLD.id, OLD.number, OLD.request_key, OLD.supplier_id, OLD.branch_id, OLD.note, OLD.created_by, OLD.created_at, OLD.approved_by, OLD.approved_at) THEN
-    RAISE EXCEPTION 'Purchase order header attributes are immutable outside Draft' USING ERRCODE = '23514';
+     (OLD.tenant_id, OLD.id, OLD.number, OLD.request_key, OLD.supplier_id, OLD.branch_id, OLD.order_date, OLD.shipping_fee, OLD.discount_amount, OLD.vat_amount, OLD.note, OLD.created_by, OLD.created_at, OLD.approved_by, OLD.approved_at, OLD.returned_by, OLD.returned_at, OLD.return_reason) THEN
+    RAISE EXCEPTION 'Purchase order header attributes are immutable outside Draft and PendingApproval' USING ERRCODE = '23514';
   END IF;
 
   IF OLD.status = 'Approved' THEN
@@ -1396,7 +1448,7 @@ BEGIN
     SELECT status INTO v_po_status FROM public.purchase_orders
     WHERE id = NEW.purchase_order_id AND tenant_id = NEW.tenant_id FOR UPDATE;
 
-    IF v_po_status IS DISTINCT FROM 'Draft' THEN
+    IF v_po_status IS NULL OR v_po_status NOT IN ('Draft', 'PendingApproval') THEN
       RAISE EXCEPTION 'Cannot insert purchase order item when purchase order is in state %', v_po_status USING ERRCODE = '23514';
     END IF;
     RETURN NEW;
@@ -1406,24 +1458,24 @@ BEGIN
   WHERE id = OLD.purchase_order_id AND tenant_id = OLD.tenant_id FOR UPDATE;
 
   IF TG_OP = 'DELETE' THEN
-    IF v_po_status IS DISTINCT FROM 'Draft' THEN
+    IF v_po_status IS NULL OR v_po_status NOT IN ('Draft', 'PendingApproval') THEN
       RAISE EXCEPTION 'Cannot delete purchase order item when purchase order is in state %', v_po_status USING ERRCODE = '23514';
     END IF;
     RETURN OLD;
   END IF;
 
   IF TG_OP = 'UPDATE' THEN
-    IF v_po_status = 'Draft' THEN
+    IF v_po_status IN ('Draft', 'PendingApproval') THEN
       IF (NEW.tenant_id, NEW.id, NEW.purchase_order_id, NEW.created_at) IS DISTINCT FROM (OLD.tenant_id, OLD.id, OLD.purchase_order_id, OLD.created_at) THEN
         RAISE EXCEPTION 'Purchase order item identity is immutable' USING ERRCODE = '23514';
       END IF;
       RETURN NEW;
     END IF;
 
-    IF (NEW.tenant_id, NEW.id, NEW.purchase_order_id, NEW.sku_id, NEW.unit_id, NEW.unit_name_snapshot, NEW.factor_snapshot, NEW.quantity_decimal_places, NEW.quantity, NEW.unit_price, NEW.created_at)
+    IF (NEW.tenant_id, NEW.id, NEW.purchase_order_id, NEW.sku_id, NEW.unit_id, NEW.unit_name_snapshot, NEW.factor_snapshot, NEW.quantity_decimal_places, NEW.quantity, NEW.unit_price, NEW.allocated_unit_cost, NEW.created_at)
        IS DISTINCT FROM
-       (OLD.tenant_id, OLD.id, OLD.purchase_order_id, OLD.sku_id, OLD.unit_id, OLD.unit_name_snapshot, OLD.factor_snapshot, OLD.quantity_decimal_places, OLD.quantity, OLD.unit_price, OLD.created_at) THEN
-      RAISE EXCEPTION 'Purchase order item attributes other than received_base_quantity and updated_at are immutable outside Draft' USING ERRCODE = '23514';
+       (OLD.tenant_id, OLD.id, OLD.purchase_order_id, OLD.sku_id, OLD.unit_id, OLD.unit_name_snapshot, OLD.factor_snapshot, OLD.quantity_decimal_places, OLD.quantity, OLD.unit_price, OLD.allocated_unit_cost, OLD.created_at) THEN
+      RAISE EXCEPTION 'Purchase order item attributes other than received_base_quantity and updated_at are immutable outside Draft and PendingApproval' USING ERRCODE = '23514';
     END IF;
 
     IF NEW.received_base_quantity < OLD.received_base_quantity THEN
@@ -1458,9 +1510,9 @@ BEGIN
     RAISE EXCEPTION 'Price change request can only transition from Pending to Approved or Rejected' USING ERRCODE = '23514';
   END IF;
 
-  IF (NEW.tenant_id, NEW.id, NEW.request_key, NEW.kind, NEW.reason, NEW.requested_valid_from, NEW.created_by, NEW.created_at)
+  IF (NEW.tenant_id, NEW.id, NEW.request_key, NEW.kind, NEW.reason, NEW.reason_type, NEW.requested_valid_from, NEW.created_by, NEW.created_at)
      IS DISTINCT FROM
-     (OLD.tenant_id, OLD.id, OLD.request_key, OLD.kind, OLD.reason, OLD.requested_valid_from, OLD.created_by, OLD.created_at) THEN
+     (OLD.tenant_id, OLD.id, OLD.request_key, OLD.kind, OLD.reason, OLD.reason_type, OLD.requested_valid_from, OLD.created_by, OLD.created_at) THEN
     RAISE EXCEPTION 'Price change request attributes other than review fields are immutable' USING ERRCODE = '23514';
   END IF;
 
@@ -1718,8 +1770,18 @@ CREATE OR REPLACE TRIGGER purchase_variance_no_delete BEFORE DELETE OR TRUNCATE 
     FOR EACH STATEMENT EXECUTE FUNCTION public.oisms_deny_mutation();
 
 REVOKE ALL ON public.supplier_invoices, public.supplier_invoice_items, public.purchase_variances FROM PUBLIC, oisms_runtime;
-GRANT SELECT, INSERT, UPDATE ON public.supplier_invoices, public.purchase_variances TO oisms_runtime;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.supplier_invoice_items TO oisms_runtime;
+GRANT SELECT ON public.supplier_invoices, public.supplier_invoice_items, public.purchase_variances TO oisms_runtime;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'oisms_app') THEN
+        REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.supplier_invoices, public.supplier_invoice_items, public.purchase_variances FROM oisms_app;
+        GRANT SELECT ON public.supplier_invoices, public.supplier_invoice_items, public.purchase_variances TO oisms_app;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'oisms_test_app') THEN
+        REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public.supplier_invoices, public.supplier_invoice_items, public.purchase_variances FROM oisms_test_app;
+        GRANT SELECT ON public.supplier_invoices, public.supplier_invoice_items, public.purchase_variances TO oisms_test_app;
+    END IF;
+END $$;
 -- OISMS_SUPPLIER_INVOICES_END
 
 -- OISMS_USER_BRANCHES_BEGIN
@@ -1742,5 +1804,217 @@ CREATE INDEX IF NOT EXISTS ix_user_branches_branch
 REVOKE ALL ON public.user_branches FROM PUBLIC, oisms_runtime;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_branches TO oisms_runtime;
 -- OISMS_USER_BRANCHES_END
+
+-- OISMS_GOODS_ISSUES_BEGIN
+SELECT pg_advisory_xact_lock(hashtext('oisms_goods_issues_schema_upgrade'));
+
+DO $$
+BEGIN
+    IF to_regclass('public.goods_issue_items') IS NULL THEN
+        IF EXISTS (
+            SELECT 1 FROM public.inventory_transactions
+            WHERE order_item_id IS NOT NULL
+        ) THEN
+            RAISE EXCEPTION 'Database đã có dòng bút toán xuất bán (inventory_transactions.order_item_id IS NOT NULL) trước khi nâng cấp phiếu xuất kho 02-VT (Upgrade 13 - P6/Q10). Không lập bù dữ liệu cũ; vui lòng reset database từ oisms_schema.sql và seed lại dữ liệu demo.' USING ERRCODE = '23514';
+        END IF;
+    ELSE
+        IF EXISTS (
+            SELECT 1
+            FROM public.inventory_transactions t
+            LEFT JOIN public.goods_issue_items gii
+              ON gii.tenant_id = t.tenant_id AND gii.inventory_transaction_id = t.id
+            WHERE t.order_item_id IS NOT NULL AND gii.id IS NULL
+        ) THEN
+            RAISE EXCEPTION 'Phát hiện dòng bút toán xuất bán (inventory_transactions.order_item_id IS NOT NULL) chưa có dòng phiếu xuất kho (goods_issue_items) tương ứng (Upgrade 13 - P6/Q10). Vui lòng reset database từ oisms_schema.sql và seed lại dữ liệu demo.' USING ERRCODE = '23514';
+        END IF;
+    END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS public.goods_issues (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    number varchar(64) NOT NULL,
+    order_id uuid NOT NULL,
+    sales_invoice_id uuid NOT NULL,
+    branch_id uuid NOT NULL,
+    warehouse_id uuid NOT NULL,
+    channel varchar(20) NOT NULL,
+    order_number_snapshot varchar(50) NOT NULL,
+    sales_invoice_number_snapshot varchar(50) NOT NULL,
+    branch_name_snapshot varchar(200) NOT NULL,
+    warehouse_name_snapshot varchar(200) NOT NULL,
+    customer_name_snapshot varchar(200) NULL,
+    issued_by uuid NULL,
+    issued_by_name_snapshot varchar(150) NULL,
+    issued_at timestamptz NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NULL,
+    CONSTRAINT uq_goods_issues_1 UNIQUE (tenant_id, id),
+    CONSTRAINT uq_goods_issues_2 UNIQUE (tenant_id, number),
+    CONSTRAINT uq_goods_issues_3 UNIQUE (tenant_id, order_id, warehouse_id),
+    CONSTRAINT ck_goods_issues_channel_values CHECK (channel IN ('POS', 'Admin', 'Shopee', 'TikTok', 'Lazada')),
+    CONSTRAINT fk_goods_issues_tenant_id FOREIGN KEY (tenant_id) REFERENCES public.tenants (id) ON DELETE RESTRICT ON UPDATE NO ACTION,
+    CONSTRAINT fk_goods_issues_order_branch FOREIGN KEY (tenant_id, order_id, branch_id) REFERENCES public.orders (tenant_id, id, branch_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
+    CONSTRAINT fk_goods_issues_sales_invoice FOREIGN KEY (tenant_id, sales_invoice_id) REFERENCES public.sales_invoices (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION,
+    CONSTRAINT fk_goods_issues_branch_id FOREIGN KEY (tenant_id, branch_id) REFERENCES public.branches (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION,
+    CONSTRAINT fk_goods_issues_warehouse_branch FOREIGN KEY (tenant_id, warehouse_id, branch_id) REFERENCES public.warehouses (tenant_id, id, branch_id) ON DELETE RESTRICT ON UPDATE NO ACTION,
+    CONSTRAINT fk_goods_issues_issued_by FOREIGN KEY (tenant_id, issued_by) REFERENCES public.users (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION
+);
+
+CREATE INDEX IF NOT EXISTS ix_goods_issues_order
+    ON public.goods_issues (tenant_id, order_id, warehouse_id);
+CREATE INDEX IF NOT EXISTS ix_goods_issues_sales_invoice
+    ON public.goods_issues (tenant_id, sales_invoice_id);
+CREATE INDEX IF NOT EXISTS ix_goods_issues_branch_time
+    ON public.goods_issues (tenant_id, branch_id, issued_at, id);
+
+CREATE TABLE IF NOT EXISTS public.goods_issue_items (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    goods_issue_id uuid NOT NULL,
+    inventory_transaction_id uuid NOT NULL,
+    order_item_id uuid NOT NULL,
+    sku_id uuid NOT NULL,
+    sku_code_snapshot varchar(80) NOT NULL,
+    sku_name_snapshot varchar(250) NOT NULL,
+    unit_id uuid NULL,
+    unit_name_snapshot varchar(100) NOT NULL DEFAULT '',
+    factor_snapshot numeric(18,6) NOT NULL DEFAULT 1,
+    quantity numeric(18,3) NOT NULL,
+    base_quantity numeric(18,3) NOT NULL,
+    unit_cost numeric(20,6) NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NULL,
+    CONSTRAINT uq_goods_issue_items_1 UNIQUE (tenant_id, id),
+    CONSTRAINT uq_goods_issue_items_2 UNIQUE (tenant_id, inventory_transaction_id),
+    CONSTRAINT ck_goods_issue_items_quantity_positive CHECK (quantity > 0),
+    CONSTRAINT ck_goods_issue_items_base_quantity_positive CHECK (base_quantity > 0),
+    CONSTRAINT ck_goods_issue_items_factor_snapshot_positive CHECK (factor_snapshot > 0),
+    CONSTRAINT ck_goods_issue_items_unit_cost_nonnegative CHECK (unit_cost >= 0),
+    CONSTRAINT fk_goods_issue_items_tenant_id FOREIGN KEY (tenant_id) REFERENCES public.tenants (id) ON DELETE RESTRICT ON UPDATE NO ACTION,
+    CONSTRAINT fk_goods_issue_items_goods_issue_id FOREIGN KEY (tenant_id, goods_issue_id) REFERENCES public.goods_issues (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION,
+    CONSTRAINT fk_goods_issue_items_inventory_tx FOREIGN KEY (tenant_id, inventory_transaction_id) REFERENCES public.inventory_transactions (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION,
+    CONSTRAINT fk_goods_issue_items_order_item FOREIGN KEY (tenant_id, order_item_id) REFERENCES public.order_items (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION,
+    CONSTRAINT fk_goods_issue_items_sku_id FOREIGN KEY (tenant_id, sku_id) REFERENCES public.skus (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION,
+    CONSTRAINT fk_goods_issue_items_unit_id FOREIGN KEY (tenant_id, unit_id) REFERENCES public.units (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION
+);
+
+CREATE INDEX IF NOT EXISTS ix_goods_issue_items_goods_issue
+    ON public.goods_issue_items (tenant_id, goods_issue_id);
+CREATE INDEX IF NOT EXISTS ix_goods_issue_items_order_item
+    ON public.goods_issue_items (tenant_id, order_item_id);
+
+CREATE OR REPLACE TRIGGER goods_issue_append_only BEFORE UPDATE OR DELETE OR TRUNCATE ON public.goods_issues
+    FOR EACH STATEMENT EXECUTE FUNCTION public.oisms_deny_mutation();
+CREATE OR REPLACE TRIGGER goods_issue_item_append_only BEFORE UPDATE OR DELETE OR TRUNCATE ON public.goods_issue_items
+    FOR EACH STATEMENT EXECUTE FUNCTION public.oisms_deny_mutation();
+
+REVOKE ALL ON public.goods_issues, public.goods_issue_items FROM PUBLIC, oisms_runtime;
+GRANT SELECT, INSERT ON public.goods_issues, public.goods_issue_items TO oisms_runtime;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'oisms_app') THEN
+        REVOKE UPDATE, DELETE, TRUNCATE ON public.goods_issues, public.goods_issue_items FROM oisms_app;
+        GRANT SELECT, INSERT ON public.goods_issues, public.goods_issue_items TO oisms_app;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'oisms_test_app') THEN
+        REVOKE UPDATE, DELETE, TRUNCATE ON public.goods_issues, public.goods_issue_items FROM oisms_test_app;
+        GRANT SELECT, INSERT ON public.goods_issues, public.goods_issue_items TO oisms_test_app;
+    END IF;
+END $$;
+-- OISMS_GOODS_ISSUES_END
+
+-- OISMS_PO_SALE_PRICE_CONFIGS_BEGIN
+CREATE TABLE IF NOT EXISTS public.purchase_order_sale_price_configs (
+    id uuid DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    tenant_id uuid NOT NULL,
+    purchase_order_item_id uuid NOT NULL,
+    unit_id uuid NOT NULL,
+    price_list_id uuid NOT NULL,
+    mode varchar(20) DEFAULT 'KEEP' NOT NULL,
+    margin_percent numeric(7,4) NULL,
+    fixed_price numeric(20,6) NULL,
+    price_source varchar(20) NULL,
+    apply_mode varchar(20) DEFAULT 'ON_RECEIPT' NOT NULL,
+    apply_from timestamptz NULL,
+    applied_at timestamptz NULL,
+    price_change_request_id uuid NULL,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz NULL,
+    CONSTRAINT uq_po_sale_price_configs_1 UNIQUE (tenant_id, id),
+    CONSTRAINT uq_po_sale_price_configs_item_unit_pricelist UNIQUE (tenant_id, purchase_order_item_id, unit_id, price_list_id),
+    CONSTRAINT ck_po_sale_price_configs_mode CHECK (mode IN ('KEEP', 'WAC_MARGIN', 'FIXED')),
+    CONSTRAINT ck_po_sale_price_configs_apply_mode CHECK (apply_mode IN ('ON_RECEIPT', 'FROM_DATE')),
+    CONSTRAINT ck_po_sale_price_configs_price_source CHECK (price_source IS NULL OR price_source IN ('SUPPLIER', 'OWNER')),
+    CONSTRAINT ck_po_sale_price_configs_mode_rules CHECK (
+        (mode = 'KEEP' AND margin_percent IS NULL AND fixed_price IS NULL AND price_source IS NULL) OR
+        (mode = 'WAC_MARGIN' AND margin_percent IS NOT NULL AND margin_percent < 100 AND fixed_price IS NULL AND price_source IS NULL) OR
+        (mode = 'FIXED' AND fixed_price IS NOT NULL AND fixed_price >= 0 AND price_source IS NOT NULL AND margin_percent IS NULL)
+    ),
+    CONSTRAINT ck_po_sale_price_configs_apply_rules CHECK (
+        (apply_mode = 'ON_RECEIPT' AND apply_from IS NULL) OR
+        (apply_mode = 'FROM_DATE' AND apply_from IS NOT NULL)
+    ),
+    CONSTRAINT ck_po_sale_price_configs_applied CHECK (
+        (applied_at IS NULL AND price_change_request_id IS NULL) OR
+        (applied_at IS NOT NULL AND price_change_request_id IS NOT NULL)
+    ),
+    CONSTRAINT fk_po_sale_price_configs_tenant_id FOREIGN KEY (tenant_id) REFERENCES public.tenants (id) ON DELETE CASCADE ON UPDATE NO ACTION,
+    CONSTRAINT fk_po_sale_price_configs_item FOREIGN KEY (tenant_id, purchase_order_item_id) REFERENCES public.purchase_order_items (tenant_id, id) ON DELETE CASCADE ON UPDATE NO ACTION,
+    CONSTRAINT fk_po_sale_price_configs_unit FOREIGN KEY (tenant_id, unit_id) REFERENCES public.units (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION,
+    CONSTRAINT fk_po_sale_price_configs_price_list FOREIGN KEY (tenant_id, price_list_id) REFERENCES public.price_lists (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION,
+    CONSTRAINT fk_po_sale_price_configs_pcr FOREIGN KEY (tenant_id, price_change_request_id) REFERENCES public.price_change_requests (tenant_id, id) ON DELETE SET NULL ON UPDATE NO ACTION
+);
+
+-- Nâng cấp: bảng cha (purchase_order_items, price_lists, price_change_requests) từng bị tạo lại thì khóa ngoại
+-- của bảng này mất theo CASCADE; thêm lại nếu thiếu để đường nâng cấp tự phục hồi, khớp migration 20261121.
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_po_sale_price_configs_tenant_id') THEN
+        ALTER TABLE public.purchase_order_sale_price_configs ADD CONSTRAINT fk_po_sale_price_configs_tenant_id
+            FOREIGN KEY (tenant_id) REFERENCES public.tenants (id) ON DELETE CASCADE ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_po_sale_price_configs_item') THEN
+        ALTER TABLE public.purchase_order_sale_price_configs ADD CONSTRAINT fk_po_sale_price_configs_item
+            FOREIGN KEY (tenant_id, purchase_order_item_id) REFERENCES public.purchase_order_items (tenant_id, id) ON DELETE CASCADE ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_po_sale_price_configs_unit') THEN
+        ALTER TABLE public.purchase_order_sale_price_configs ADD CONSTRAINT fk_po_sale_price_configs_unit
+            FOREIGN KEY (tenant_id, unit_id) REFERENCES public.units (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_po_sale_price_configs_price_list') THEN
+        ALTER TABLE public.purchase_order_sale_price_configs ADD CONSTRAINT fk_po_sale_price_configs_price_list
+            FOREIGN KEY (tenant_id, price_list_id) REFERENCES public.price_lists (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_po_sale_price_configs_pcr') THEN
+        ALTER TABLE public.purchase_order_sale_price_configs ADD CONSTRAINT fk_po_sale_price_configs_pcr
+            FOREIGN KEY (tenant_id, price_change_request_id) REFERENCES public.price_change_requests (tenant_id, id) ON DELETE SET NULL ON UPDATE NO ACTION;
+    END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_po_sale_price_configs_tenant_item
+    ON public.purchase_order_sale_price_configs (tenant_id, purchase_order_item_id);
+CREATE INDEX IF NOT EXISTS idx_po_sale_price_configs_tenant_unit
+    ON public.purchase_order_sale_price_configs (tenant_id, unit_id);
+CREATE INDEX IF NOT EXISTS idx_po_sale_price_configs_tenant_price_list
+    ON public.purchase_order_sale_price_configs (tenant_id, price_list_id);
+CREATE INDEX IF NOT EXISTS idx_po_sale_price_configs_tenant_pcr
+    ON public.purchase_order_sale_price_configs (tenant_id, price_change_request_id);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.purchase_order_sale_price_configs TO oisms_runtime;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'oisms_app') THEN
+        GRANT SELECT, INSERT, UPDATE, DELETE ON public.purchase_order_sale_price_configs TO oisms_app;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'oisms_test_app') THEN
+        GRANT SELECT, INSERT, UPDATE, DELETE ON public.purchase_order_sale_price_configs TO oisms_test_app;
+    END IF;
+END $$;
+-- OISMS_PO_SALE_PRICE_CONFIGS_END
 
 COMMIT;

@@ -12,6 +12,7 @@ public class PriceChangeRequest : BaseEntity, IMustHaveTenant
     public Guid RequestKey { get; set; }
     public string Kind { get; set; } = string.Empty; // 'Opening', 'Initial', 'Change'
     public string Status { get; set; } = string.Empty; // 'Pending', 'Approved', 'Rejected'
+    public string ReasonType { get; set; } = "OTHER"; // 'SHORTAGE', 'PROMOTION', 'FROM_PURCHASE_ORDER', 'OTHER'
     public string Reason { get; set; } = string.Empty;
     public DateTimeOffset? RequestedValidFrom { get; set; }
     public Guid? CreatedBy { get; set; }

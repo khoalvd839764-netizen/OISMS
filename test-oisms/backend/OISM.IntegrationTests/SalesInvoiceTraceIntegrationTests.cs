@@ -139,6 +139,8 @@ public class SalesInvoiceTraceIntegrationTests : IAsyncLifetime, IClassFixture<W
     public async Task AC01_UpgradeFromPreU02Schema_TwiceIdempotent_MatchesFreshSchemaExactly()
     {
         const string downgradeSql = @"
+DROP TABLE IF EXISTS public.goods_issue_items;
+DROP TABLE IF EXISTS public.goods_issues;
 DROP TABLE public.sales_invoices;
 ALTER TABLE public.orders DROP COLUMN confirmed_by;
 ALTER TABLE public.stock_transfers DROP COLUMN dispatched_by;
@@ -514,7 +516,12 @@ LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$ BEGIN RETURN NEW; EN
         trace.SalesInvoice!.Number.Should().Be(pos.Receipt.ReceiptNumber);
         trace.Source.ActorUserId.Should().Be(infra.CashierId);
         trace.Lines.Should().NotBeEmpty();
-        trace.Lines.Should().OnlyContain(l => l.Type == "OUT" && l.OrderItemId != null && l.UnitCost == 50_000m);
+        trace.Lines.Should().OnlyContain(l => l.Type == "OUT" && l.OrderItemId != null && l.UnitCost == null); // Upgrade 12 G5 (Q10): Staff không xem giá vốn ở truy vết
+
+        await LoginAsync("owner@shopa.local");
+        var ownerTrace = await GetTraceAsync($"/api/orders/{pos.OrderId}/trace");
+        ownerTrace.Lines.Should().OnlyContain(l => l.Type == "OUT" && l.OrderItemId != null && l.UnitCost == 50_000m);
+        await LoginAsync("staff@shopa.local");
 
         var detail = await _client.GetFromJsonAsync<JsonElement>($"/api/orders/{pos.OrderId}");
         detail.GetProperty("salesInvoiceNumber").GetString().Should().Be(pos.Receipt.ReceiptNumber);

@@ -3,12 +3,12 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-SCR-04` |
-| **Phiên bản (Version)** | `v1.1.0` |
-| **Ngày hiệu lực** | `2026-11-06` |
+| **Phiên bản (Version)** | `v1.2.0` |
+| **Ngày hiệu lực** | `2026-11-19` |
 | **Đường dẫn URL Routes** | `/admin/inventory`, `/inventory` |
 | **Quyền truy cập (RBAC)** | `Owner`, `Staff` |
-| **Source code Frontend** | [`InventoryPage.tsx`](../../src/frontend/admin-dashboard/src/pages/InventoryPage.tsx) |
-| **Controllers Backend** | [`InventoryController.cs`](../../src/backend/src/OISM.WebApi/Controllers/InventoryController.cs), [`GoodsReceiptsController.cs`](../../src/backend/src/OISM.WebApi/Controllers/GoodsReceiptsController.cs), [`StockTransfersController.cs`](../../src/backend/src/OISM.WebApi/Controllers/StockTransfersController.cs), [`StockCountsController.cs`](../../src/backend/src/OISM.WebApi/Controllers/StockCountsController.cs) |
+| **Source code Frontend** | [`InventoryPage.tsx`](../../src/frontend/admin-dashboard/src/pages/InventoryPage.tsx), [`InventoryPeriodTab.tsx`](../../src/frontend/admin-dashboard/src/components/inventory/InventoryPeriodTab.tsx), [`StockCardModal.tsx`](../../src/frontend/admin-dashboard/src/components/inventory/StockCardModal.tsx) |
+| **Controllers Backend** | [`InventoryController.cs`](../../src/backend/src/OISM.WebApi/Controllers/InventoryController.cs), [`GoodsReceiptsController.cs`](../../src/backend/src/OISM.WebApi/Controllers/GoodsReceiptsController.cs), [`StockTransfersController.cs`](../../src/backend/src/OISM.WebApi/Controllers/StockTransfersController.cs), [`StockCountsController.cs`](../../src/backend/src/OISM.WebApi/Controllers/StockCountsController.cs), [`ReportsController.cs`](../../src/backend/src/OISM.WebApi/Controllers/ReportsController.cs) |
 
 ---
 
@@ -31,9 +31,9 @@ Màn hình **Quản lý Kho & Sổ cái** là trái tim vận hành kho vận c�
 │ Quản Lý Kho & Biến Động Tồn Kho             [+ Nhập kho NCC] [ Chuyển kho ] [ Phiên kiểm kê ]  │
 ├────────────────────────────────────────────────────────────────────────────────────────────────┤
 │ CHỌN TAB NGHIỆP VỤ:                                                                            │
-│ ┌───────────────────────────────┬───────────────────────────────┐                              │
-│ │ [✓] SỐ DƯ TỒN KHO KHẢ DỤNG    │ [ ] SỔ CÁI TỒN KHO BẤT BIẾN   │                              │
-│ └───────────────────────────────┴───────────────────────────────┘                              │
+│ ┌───────────────────────────────┬───────────────────────────────┬───────────────────────────────┐ │
+│ │ [✓] SỐ DƯ TỒN KHO KHẢ DỤNG    │ [ ] SỔ CÁI TỒN KHO BẤT BIẾN   │ [ ] TỒN KHO THEO KỲ (NXT)     │ │
+│ └───────────────────────────────┴───────────────────────────────┴───────────────────────────────┘ │
 ├────────────────────────────────────────────────────────────────────────────────────────────────┤
 │ THANH TÌM KIẾM & BỘ LỌC KHO:                                                                   │
 │ [ 🔍 Tìm mã SKU, Barcode... ] [ Chi nhánh: Q.1 ▼ ] [ Kho: Kho Tổng ▼ ] [ Lọc: Dưới định mức ▼ ]│
@@ -58,29 +58,36 @@ Màn hình **Quản lý Kho & Sổ cái** là trái tim vận hành kho vận c�
 
 ## 3. Các Modal Nghiệp Vụ Kho Đặc Thù
 
-### 3.1. Modal Nhập Kho Nhà Cung Cấp (Goods Receipt Modal)
-* **Thông tin phiếu:** Chọn đơn mua đã duyệt, kho tiếp nhận thuộc chi nhánh trên đơn mua và nhập ghi chú. Nhà cung cấp lấy từ đơn mua.
-* **Bảng dòng sản phẩm:** Dòng hàng, đơn vị và giá phiếu mua điền sẵn. Nhập số lượng thực nhận và bỏ dòng chưa nhận.
+### 3.1. Modal Nhập Kho Nhà Cung Cấp (Goods Receipt Modal — `U01-A`, `Upgrade 12`)
+* **Thông tin phiếu:** Chọn đơn mua đã duyệt (`Approved` hoặc `PartiallyReceived`), kho tiếp nhận thuộc chi nhánh trên đơn mua và nhập ghi chú. Nhà cung cấp lấy cố định từ đơn mua.
+* **Bảng dòng sản phẩm & Phân quyền hiển thị giá (`Upgrade 12`):**
+  * Dòng hàng và đơn vị mua được điền sẵn từ đơn mua. Nhân viên nhập số lượng thực nhận (không vượt lượng còn lại) hoặc bỏ dòng chưa nhận.
+  * **Đối với `Owner`:** Hiển thị đầy đủ giá vốn đơn vị sau phân bổ (`allocatedUnitCost`) và tổng giá trị phiếu nhập.
+  * **Đối với `Staff` (Nhận hàng mù):** Ẩn hoàn toàn cột đơn giá nhập, thành tiền dòng và tổng giá trị phiếu nhập trên cả form lập phiếu, danh sách `Phiếu nhập đã lưu` và màn `Chi tiết phiếu nhập`.
 * **Nút bấm:**
-  * `[Lưu Nháp]`: Lưu ở trạng thái `Draft`, chưa làm thay đổi số dư tồn kho hay giá vốn.
-  * `[Xác nhận nhập kho]`: Khi đủ điều kiện, xác nhận nguyên tử để tăng `OnHand` $\rightarrow$ Ghi sổ cái `IN` $\rightarrow$ Tự động tính lại giá vốn bình quân theo công thức:
-    $$\text{WAC}_{\text{mới}} = \frac{(\text{TồnCũ} \times \text{GiáVốnCũ}) + (\text{SốLượngNhập} \times \text{ĐơnGiáNhập})}{\text{TồnCũ} + \text{SốLượngNhập}}$$
+  * `[Lưu nháp]`: Lưu ở trạng thái `Draft`, chưa làm thay đổi số dư tồn kho hay giá vốn.
+  * `[Xác nhận nhập kho]`: Xác nhận nguyên tử để tăng `OnHand` $\rightarrow$ Ghi sổ cái `IN` $\rightarrow$ Tự động tính lại giá vốn bình quân theo `allocatedUnitCost / factorSnapshot`:
+    $$\text{WAC}_{\text{mới}} = \frac{(\text{TồnCũ} \times \text{GiáVốnCũ}) + (\text{SốLượngNhậpGốc} \times \text{GiáVốnĐơnVịGốcSauPhânBổ})}{\text{TồnCũ} + \text{SốLượngNhậpGốc}}$$
 
-#### Hóa đơn nhà cung cấp và đối chiếu ba bên (U01-B)
-
-Tại **Kho & sổ kho → Phiếu nhập đã lưu → Xem phiếu**, Owner và Staff xem phần **Hóa đơn nhà cung cấp** trong chi tiết phiếu. Phiếu vừa lưu nháp cũng hiện phần này. Phiếu còn nháp hoặc đã xác nhận có liên kết phiếu mua hợp lệ và chưa có hóa đơn còn hiệu lực sẽ hiện nút **Nhập hóa đơn NCC**.
-
-Mở lại phiếu **đã nhập kho** hoặc **đã hủy** (từ Phiếu nhập đã lưu, Lịch sử hóa đơn NCC hoặc chi tiết đơn mua) hiện **chi tiết phiếu chỉ đọc**: trạng thái, đơn mua, nhà cung cấp, chi nhánh và kho nhận, người lập, người xác nhận và thời điểm, ghi chú, bảng dòng hàng (SKU, đơn vị, SL nhập, quy đổi về đơn vị gốc, đơn giá nhập, thành tiền), tổng giá trị và nút **Xem sổ kho**. Thông báo "Đã ghi sổ kho & tính lại giá vốn WAC" chỉ hiện ngay sau khi vừa bấm **Xác nhận nhập kho**.
-
-1. Form điền sẵn SKU, đơn vị mua, lượng thực nhận và giá phiếu mua. Nhập ký hiệu, số, ngày, lượng và đơn giá trước thuế trên hóa đơn, thuế GTGT và phí vận chuyển. Cách nhập nhanh: ký hiệu tự chuyển chữ in hoa và bỏ khoảng trắng; số hóa đơn chỉ nhận chữ số và giữ số 0 ở đầu; dán cả chuỗi như `1C26TAA-00001234` vào ô Ký hiệu thì tự tách ký hiệu và số. Ô tiền và số lượng tự nhóm hàng nghìn (`125.000`). Nút **0% / 5% / 8% / 10%** điền thuế GTGT theo tiền hàng trước thuế (làm tròn đồng). Nút **Điền theo phiếu mua và số thực nhận** đặt lại mọi dòng. Dưới bảng hiện ngay tiền hàng trước thuế, tổng thanh toán và mức lệch so với phiếu mua × thực nhận; dòng khác phiếu mua được tô nền. Bỏ chọn **Có trên hóa đơn** đối với dòng thực nhận mà hóa đơn chưa ghi. **Lưu nháp hóa đơn** tạo bản nháp. Nếu kết quả lưu chưa rõ, **Thử lại lưu nháp hóa đơn** gửi lại đúng nội dung và `Idempotency-Key` trong phiên của tài khoản.
-2. Hóa đơn nháp có **Sửa nháp** và **Gửi đối chiếu**. Sau khi gửi, bảng hiển thị ba cột **Phiếu mua / Thực nhận / Hóa đơn**, kèm kết quả. Dòng lệch được tô nền và có nhãn **Chênh lệch** cùng số liệu lệch. Trạng thái hiện ngay trong chi tiết hóa đơn.
-3. **Xác nhận nhập kho** bị khóa với hóa đơn còn nháp hoặc đang chờ Owner duyệt. Dòng chú thích nêu lý do bên cạnh nhóm thao tác. Nếu hóa đơn đổi trạng thái khi đang xác nhận, lỗi `GOODS_RECEIPT_INVOICE_PENDING` yêu cầu gửi đối chiếu hoặc duyệt trước khi thử lại. Khi đã duyệt chênh lệch kèm hàng, dòng có trên hóa đơn dùng giá trước thuế của hóa đơn khi nhập.
-4. Chỉ Owner thấy nút **Chênh lệch chờ duyệt** ở đầu trang. Danh sách tải qua `GET /api/supplier-invoices?pendingOnly=true`. Bấm **Xem và xử lý** để mở phiếu nhập tương ứng, sau đó **Duyệt chênh lệch** hoặc **Từ chối**. Từ chối cần lý do. Nếu từ chối chênh lệch kèm hàng, chi tiết hiện phiếu nhập đã hủy và kết quả từ chối.
-5. Owner và Staff có thể **Hủy hóa đơn** từ trạng thái nháp, đã khớp hoặc đã duyệt. Nhập lý do và xác nhận hủy. Phiếu còn đủ điều kiện có thể nhập hóa đơn mới. Cashier không truy cập trang Admin này.
-6. Owner và Staff có nút **Lịch sử hóa đơn NCC** ở đầu trang Kho: lọc theo nhà cung cấp, trạng thái, khoảng ngày hóa đơn; bảng hiện ký hiệu/số, ngày, nhà cung cấp, phiếu nhập và đơn mua, tổng hóa đơn, trạng thái, chênh lệch; **Xem phiếu nhập** mở chi tiết phiếu nhập.
-7. Chi tiết đơn mua (`/purchase-orders` → **Chi tiết**, đơn đã duyệt trở đi) có phần **Phiếu nhập và hóa đơn NCC**: mỗi dòng là một đợt nhận với trạng thái nhập, hóa đơn còn hiệu lực, trạng thái hóa đơn, tổng và chênh lệch; hóa đơn đã hủy/từ chối liệt kê bên dưới. **Xem phiếu nhập** mở `/inventory?receiptId=<id>`. Phần này chỉ đọc; nhập hóa đơn vẫn ở chi tiết phiếu nhập.
-
-Phần hóa đơn và danh sách chờ duyệt có thông báo đang tải, rỗng và lỗi. Các lỗi nghiệp vụ được đọc theo `errorCode`. Hóa đơn gắn sau khi phiếu nhập đã xác nhận chỉ bổ sung chứng từ đối chiếu.
+#### Màn hình Đơn mua hàng (`/purchase-orders` — `FE-12.1`, `FE-12.3`, `FE-12.4` - U12-G4, `U12-G6`)
+* **Vai trò `Staff`:** Bấm `+ Đề nghị mua hàng` chỉ chọn Chi nhánh, SKU, Đơn vị mua và Số lượng (không có ô Nhà cung cấp, không có ô giá hay phí). Khi đơn ở `Draft`, **chỉ người tạo mới có nút Sửa đề nghị nháp và Gửi duyệt** (`Draft -> PendingApproval`) và **Hủy đơn**. Người dùng khác (kể cả Owner) xem đơn `Draft` ở chế độ chỉ đọc với nhãn *"Staff đang soạn — chỉ xem"*. Nếu đơn bị `Owner` trả về, hệ thống hiển thị rõ hộp cảnh báo **Lý do trả về từ Owner**. Staff không thấy thông tin cấu hình giá bán, giá dự kiến, margin trên đơn mua (`null`).
+* **Vai trò `Owner`:**
+  * Xem đơn `Draft` do người khác tạo ở chế độ chỉ đọc, có nút **Hủy đơn** (Q11). Đơn do Owner tự tạo nếu bị trả về thì Owner là người tạo nên sửa và gửi duyệt bình thường.
+  * Với đơn `PendingApproval`: Đầu modal có **Checklist điều kiện duyệt (Owner Checklist)**: NCC (✓/✗), Đơn giá mua đủ mọi dòng (✓/✗), Ngày đặt hợp lệ (✓/✗), Đã xem cấu hình giá bán (✓/✗). Màn chi tiết **không có nút Duyệt**, bảng cấu hình giá bán chỉ để xem (ghi chú "Sửa ở Thiết lập đơn mua → bước Giá bán").
+  * Nút chính **"Thiết lập đơn mua"** mở Trình hướng dẫn 4 bước:
+    * **Bước 1 (Nhà cung cấp):** Chọn NCC hoặc bấm **`+ Thêm NCC`** để tạo NCC mới ngay trong bước (tự chọn NCC vừa tạo), chọn Ngày đặt hàng (`orderDate <= hôm nay`). Bấm "Tiếp tục: Nhập giá mua" (chưa lưu).
+    * **Bước 2 (Giá mua):** Nhập đơn giá từng dòng (gợi ý giá gần nhất + WAC), Phí VC, Chiết khấu, Thuế VAT, xem giá vốn dự kiến. Bấm "Lưu & tiếp tục: Giá bán" gọi PUT lưu đơn (giữ nguyên cấu hình giá bán đã có).
+    * **Bước 3 (Giá bán):** Bảng `SalePriceConfigTable` với công tắc **Nhập theo: Lãi gộp trên giá bán | Cộng thêm trên giá vốn**. Ô nhập sai (lãi gộp ≥ 100% hoặc < 0) thì khóa nút "Lưu & xem lại đơn mua".
+    * **Bước 4 (Xem lại & duyệt):** Tóm tắt NCC, ngày đặt, giá mua, giá vốn dự kiến từng dòng, tổng tiền và giá bán sẽ áp khi nhập kho. Có giá 0đ hoặc bán lỗ thì hiện ô tích xác nhận; nút "Duyệt đơn mua" chỉ bật khi tích đủ.
+    * Lưu ở bước giữa không đóng trình hướng dẫn; đóng trình hướng dẫn thì danh sách đơn mua mới được làm mới.
+  * Mọi thông báo lỗi của modal chi tiết hiển thị trực tiếp ngay trên thanh nút hành động.
+* **Bảng cấu hình giá bán lẻ/sỉ (`SalePriceConfigTable` - `FE-12.3`, `U12-G6`):** Ở trạng thái `PendingApproval`, Owner cấu hình giá bán lẻ và giá bán sỉ cho từng đơn vị bán (`canSell`) của SKU trên từng dòng đơn mua:
+  * Chế độ giá: Giữ giá cũ (`KEEP`), Lãi gộp trên WAC (`WAC_MARGIN`: $\text{Giá} = \text{WAC}_{\text{dự kiến}} \div (1 - \% \text{lãi})$, tự động làm tròn lên bội 1.000đ; bắt buộc $0 \le \text{margin} < 100\%$; hỗ trợ công tắc nhập cộng thêm trên giá vốn $m = k \div (100 + k) \times 100$), hoặc Giá cố định (`FIXED`, nguồn giá `OWNER` hoặc `SUPPLIER`).
+  * Chế độ áp dụng: Khi nhập kho (`ON_RECEIPT`) hoặc Từ ngày chỉ định (`FROM_DATE`).
+  * Cảnh báo bán lỗ: Tự động cảnh báo nhãn đỏ khi giá dự kiến nhỏ hơn WAC dự kiến.
+* **Xác nhận bán lỗ và giá 0đ khi duyệt (`FE-12.4`, `U12-G6`):** Xác nhận trực tiếp qua checkbox trên màn hình Bước 4 (Xem lại & duyệt) của Wizard trước khi duyệt đơn mua. Thiếu xác nhận sẽ không cho bấm Duyệt (ở tầng API trả `422 PURCHASE_ORDER_LOSS_PRICE_CONFIRM_REQUIRED` hoặc `PURCHASE_ORDER_ZERO_PRICE_CONFIRM_REQUIRED`).
+* **Tự động sinh giá khi nhập kho:** Khi xác nhận phiếu nhập kho đầu tiên của dòng, hệ thống tự động sinh phiếu đổi giá và áp dụng giá bán mới ngay trong transaction nhập kho.
+* **Gỡ giao diện Hóa đơn nhà cung cấp (`FE-12.2`):** Đã gỡ hoàn toàn các nút `Chênh lệch chờ duyệt`, `Lịch sử hóa đơn NCC` trên trang Kho cũng như `SupplierInvoicePanel` và `PurchaseOrderInvoices` trong chi tiết phiếu nhập / đơn mua.
 
 ### 3.2. Modal Chuyển Kho 2 Bước (Stock Transfer Modal)
 * **Bước 1 (Xuất chuyển - Dispatch):** Chọn Chi nhánh đi, Kho xuất, Chi nhánh đến, Kho nhận (Bắt buộc Kho xuất $\ne$ Kho nhận). Nhập danh sách SKU và số lượng. Hệ thống trừ `OnHand` kho xuất và đưa phiếu sang `InTransit`.
@@ -90,6 +97,29 @@ Phần hóa đơn và danh sách chờ duyệt có thông báo đang tải, rỗ
 * Nhân viên nhập danh sách số đếm thực tế (`ActualQuantity`).
 * Khi bấm `[Chốt kiểm kê]`: Hệ thống tự động so khớp tồn phần mềm tại thời điểm mở phiếu với tồn hiện tại. Nếu có giao dịch bán phát sinh làm thay đổi tồn, hệ thống từ chối và báo lỗi `STOCK_COUNT_DRIFT_DETECTED`. Nếu hợp lệ, hệ thống tự động sinh các dòng bút toán điều chỉnh cân bằng kho.
 
+### 3.4. Tab Tồn Kho Theo Kỳ (NXT) & Modal Thẻ Kho S12/S10 (`FE-13.1, FE-13.2`)
+* **Thanh công cụ lọc:**
+  * Bộ chọn mốc thời gian nhanh: `Hôm nay`, `Hôm qua`, `7 ngày qua`, `30 ngày qua`, `Tháng này`, `Tháng trước`, hoặc tùy chọn khoảng ngày `Từ ngày - Đến ngày` (giới hạn tối đa 366 ngày, không cho chọn ngày tương lai).
+  * Bộ chọn Chi nhánh: Hỗ trợ chọn từng chi nhánh cụ thể hoặc `Tất cả chi nhánh`.
+  * Bộ lọc Danh mục sản phẩm và Ô tìm kiếm SKU theo mã/tên.
+  * Nút chức năng: `[Xuất Excel]` (tải về file `.xlsx` báo cáo NXT định dạng chuẩn kế toán) và `[Làm mới]`.
+* **Bảng dữ liệu Nhập - Xuất - Tồn:**
+  * Cột thông tin: Mã SKU, Tên sản phẩm, Đơn vị tính cơ sở.
+  * Số dư đầu kỳ (Số lượng; và Thành tiền nếu là `Owner`).
+  * Nhóm Nhập kho: Tổng số lượng nhập (và Thành tiền nếu là `Owner`). Nút bấm `[+]` mở rộng chi tiết phân rã: Mua NCC, Khách trả, Chuyển đến, Kiểm kê/Điều chỉnh thừa.
+  * Nhóm Xuất kho: Tổng số lượng xuất (và Thành tiền nếu là `Owner`). Nút bấm `[+]` mở rộng chi tiết phân rã: Bán POS, Bán Shopee, Bán TikTok, Bán Lazada, Bán Admin, Chuyển đi, Kiểm kê/Điều chỉnh thiếu.
+  * Số dư cuối kỳ: Số lượng; và Thành tiền nếu là `Owner`.
+  * Cột Hàng đang chuyển (`InTransit`): Hiển thị khi xem chế độ `Tất cả chi nhánh`.
+  * Cột Thao tác: Nút `[Thẻ kho]` mở modal lịch sử chi tiết cho từng mặt hàng.
+  * Hàng Tổng cộng ở cuối bảng: Tổng hợp toàn bộ số lượng và giá trị (cho Owner).
+  * Phân quyền hiển thị: Nhân viên (`Staff`) hoàn toàn không nhìn thấy các cột Thành tiền (cột tự động ẩn trên bảng và file Excel).
+* **Modal Thẻ Kho S12/S10:**
+  * Tiêu đề chuẩn hóa: Mẫu S10-DN (khi `Owner` xem, có cột Đơn giá & Thành tiền) hoặc Mẫu S12-DN (khi `Staff` xem, chỉ có cột Số lượng).
+  * Danh sách biến động gồm: Dòng Số dư đầu kỳ, các dòng giao dịch sổ cái chi tiết (Thời gian, Mã chứng từ, Loại biến động, Nhập, Xuất, Tồn sau giao dịch), dòng Số dư cuối kỳ.
+  * Dòng Chênh lệch làm tròn WAC (`RoundDiff`): Chỉ hiển thị cho `Owner` khi kỳ báo cáo kéo dài đến ngày hiện tại để phản ánh chênh lệch giữa lũy kế giá trị sổ cái và giá trị theo đơn giá WAC hiện hành.
+  * Nút `[In Thẻ Kho]`: Mở hộp thoại in trình duyệt với CSS chuyên dụng cho in ấn kế toán.
+  * Nút `[Xuất Excel]`: Tải file `.xlsx` mẫu thẻ kho chi tiết dạng stream.
+
 ---
 
 ## 4. Bảng Hàm API Backend & Tài Liệu Tham Chiếu
@@ -98,13 +128,27 @@ Phần hóa đơn và danh sách chờ duyệt có thông báo đang tải, rỗ
 | :---: | :--- | :--- | :--- | :--- |
 | `GET` | `/api/inventory/balances` | `InventoryController.GetBalances` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#1-danh-mục-endpoints-sổ-cái-tồn-kho--phiếu-nhập-fr-inv-0102-fr-cost-01) | `NO_ACTIVE_WAREHOUSE`, `DATABASE_CONNECTION_ERROR` (Xem [`DOC-ERR-02`](../12-error-and-status-codes/02-error-codes-catalog.md)) |
 | `GET` | `/api/inventory/ledger` | `InventoryController.GetLedger` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#1-danh-mục-endpoints-sổ-cái-tồn-kho--phiếu-nhập-fr-inv-0102-fr-cost-01) | `AUTH_UNAUTHORIZED` |
-| `POST` | `/api/goods-receipts` | `GoodsReceiptsController.Create` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#1-danh-mục-endpoints-sổ-cái-tồn-kho--phiếu-nhập-fr-inv-0102-fr-cost-01) | `VALIDATION_ERROR` |
-| `GET`, `POST`, `PUT` | `/api/supplier-invoices` và các route theo ID | `SupplierInvoicesController` | [Hóa đơn NCC](../05-api-contracts/03-inventory-endpoints.md#12-hóa-đơn-nhà-cung-cấp-và-đối-chiếu-ba-bên-u01-b) | `SUPPLIER_INVOICE_DUPLICATE`, `SUPPLIER_INVOICE_INVALID_STATE`, `SUPPLIER_INVOICE_RECEIPT_MISMATCH`, `SUPPLIER_INVOICE_ALREADY_EXISTS` |
-| `POST` | `/api/goods-receipts/{id}/confirm` | `GoodsReceiptsController.Confirm` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#1-danh-mục-endpoints-sổ-cái-tồn-kho--phiếu-nhập-fr-inv-0102-fr-cost-01) | `INVALID_STATE_TRANSITION`, `LEDGER_IMMUTABLE_VIOLATION`, `GOODS_RECEIPT_INVOICE_PENDING` |
+| `POST` | `/api/goods-receipts` | `GoodsReceiptsController.Create` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#1-danh-mục-endpoints-sổ-cái-tồn-kho--phiếu-nhập-fr-inv-0102-fr-cost-01) | `VALIDATION_ERROR`, `PURCHASE_ORDER_NOT_RECEIVABLE`, `PURCHASE_ORDER_OVER_RECEIPT` |
+| `POST` | `/api/goods-receipts/{id}/confirm` | `GoodsReceiptsController.Confirm` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#1-danh-mục-endpoints-sổ-cái-tồn-kho--phiếu-nhập-fr-inv-0102-fr-cost-01) | `INVALID_STATE_TRANSITION`, `LEDGER_IMMUTABLE_VIOLATION`, `PURCHASE_ORDER_OVER_RECEIPT` |
 | `POST` | `/api/stock-transfers` | `StockTransfersController.Create` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#2-danh-mục-endpoints-chuyển-kho-2-bước--kiểm-kê-fr-inv-0304) | `SAME_WAREHOUSE_TRANSFER`, `DUPLICATE_TRANSFER_SKU` |
 | `POST` | `/api/stock-transfers/{id}/dispatch` | `StockTransfersController.Dispatch` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#2-danh-mục-endpoints-chuyển-kho-2-bước--kiểm-kê-fr-inv-0304) | `INSUFFICIENT_STOCK`, `INVALID_STATE_TRANSITION` |
 | `POST` | `/api/stock-transfers/{id}/receive` | `StockTransfersController.Receive` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#2-danh-mục-endpoints-chuyển-kho-2-bước--kiểm-kê-fr-inv-0304) | `INVALID_STATE_TRANSITION` |
 | `POST` | `/api/stock-counts` | `StockCountsController.Create` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#2-danh-mục-endpoints-chuyển-kho-2-bước--kiểm-kê-fr-inv-0304) | `VALIDATION_ERROR`, `NO_ACTIVE_WAREHOUSE` |
 | `POST` | `/api/stock-counts/{id}/confirm` | `StockCountsController.Confirm` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#2-danh-mục-endpoints-chuyển-kho-2-bước--kiểm-kê-fr-inv-0304) | `STOCK_COUNT_DRIFT_DETECTED`, `INCOMPLETE_STOCK_COUNT`, `ADJUSTMENT_COST_REQUIRED` |
+| `GET` | `/api/reports/inventory-period` | `ReportsController.GetInventoryPeriodReport` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#3-báo-cáo-tồn-kho-theo-kỳ-nxt--thẻ-kho-s12s10-upgrade-13--oisms-66-g2) | `VALIDATION_ERROR`, `AUTH_FORBIDDEN` |
+| `GET` | `/api/reports/stock-card` | `ReportsController.GetStockCardReport` | [`DOC-API-03 - 03-inventory-endpoints.md`](../05-api-contracts/03-inventory-endpoints.md#3-báo-cáo-tồn-kho-theo-kỳ-nxt--thẻ-kho-s12s10-upgrade-13--oisms-66-g2) | `VALIDATION_ERROR`, `AUTH_FORBIDDEN` |
 
 Route đầy đủ (phiếu mua, lịch/kỳ kiểm kê, `record`, `submit`, `recount`, `request-recount`, `cancel`, ngưỡng đặt hàng lại) xem [DOC-API-03](../05-api-contracts/03-inventory-endpoints.md). Màn Chuyển kho ở `/inventory/transfers`, Kiểm kê ở `/inventory/counts`, Đơn mua ở `/purchase-orders`.
+
+---
+
+## 5. Nút "Chứng từ" ở Tab Sổ Kho và Thẻ Kho (`Upgrade 14`, `OISMS-66-U14-B`, 21/11/2026)
+
+| Thành phần | Chi tiết |
+| :--- | :--- |
+| **Source** | [`InventoryPage.tsx`](../../src/frontend/admin-dashboard/src/pages/InventoryPage.tsx), [`StockCardModal.tsx`](../../src/frontend/admin-dashboard/src/components/inventory/StockCardModal.tsx), [`DocumentPrintModal.tsx`](../../src/frontend/admin-dashboard/src/components/print/DocumentPrintModal.tsx), [`resolveLedgerDocument.ts`](../../src/frontend/admin-dashboard/src/utils/resolveLedgerDocument.ts) |
+| **Mẫu in (`components/print/`)** | `GoodsReceiptPrintPaper.tsx` (01-VT, có link đơn mua), `GoodsIssuePrintPaper.tsx` (02-VT), `LegacyOrderPrintPaper.tsx` (đơn/hóa đơn cũ thiếu phiếu 02-VT), `StockTransferOutPrintPaper.tsx`, `StockTransferInPrintPaper.tsx`, `StockCountPrintPaper.tsx` (05-VT, tô nổi SKU đang bấm), `SalesReturnPrintPaper.tsx`, `InventoryAdjustmentPrintPaper.tsx` |
+
+- **Tab Sổ kho & Thẻ kho:** Mỗi dòng có nút **Chứng từ** dùng chung bộ chọn `resolveLedgerDocument(entry)`. Dòng `Unknown` bị vô hiệu với tooltip *"Không xác định được chứng từ nguồn"*.
+- **Xem trước & In (`DocumentPrintModal`):** Cô lập vùng in qua `PrintArea`; xử lý trạng thái tải và lỗi 403/404; tự động ẩn cột giá nhập/giá vốn khi API trả `null` (`Staff`); chân trang hiển thị **Ngày in (`UTC+07:00`)** và **Người in** (`PrintDocumentFooter`).
+- **API bổ sung:** `GET /api/inventory/adjustments/{id}` qua [`inventoryAdjustmentService.ts`](../../src/frontend/admin-dashboard/src/services/inventoryAdjustmentService.ts).

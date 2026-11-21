@@ -159,9 +159,9 @@ erDiagram
 | 42 | `replenishment_suggestions` | — *(chưa có entity)* | Báo cáo, AI, tích hợp sàn |
 | 43 | `shop_integrations` | `ShopIntegration` | Báo cáo, AI, tích hợp sàn |
 | 44 | `payment_accounts` | `PaymentAccount` | Bán hàng, POS, thanh toán VietQR (CS-05) |
-| 45 | `supplier_invoices` | `SupplierInvoice` | Mua hàng & nhập kho (U01-B) |
-| 46 | `supplier_invoice_items` | `SupplierInvoiceItem` | Mua hàng & nhập kho (U01-B) |
-| 47 | `purchase_variances` | `PurchaseVariance` | Mua hàng & nhập kho (U01-B) |
+| 45 | `supplier_invoices` | `SupplierInvoice` | Mua hàng & nhập kho (U01-B; chỉ đọc từ Upgrade 12) |
+| 46 | `supplier_invoice_items` | `SupplierInvoiceItem` | Mua hàng & nhập kho (U01-B; chỉ đọc từ Upgrade 12) |
+| 47 | `purchase_variances` | `PurchaseVariance` | Mua hàng & nhập kho (U01-B; chỉ đọc từ Upgrade 12) |
 | 48 | `user_branches` | `UserBranch` | Tổ chức & xác thực (CS-02) |
 
 Ghi chú:

@@ -106,7 +106,10 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         "supplier_invoices",
         "supplier_invoice_items",
         "purchase_variances",
-        "user_branches"
+        "user_branches",
+        "goods_issues",
+        "goods_issue_items",
+        "purchase_order_sale_price_configs"
     ];
 
     public static readonly ExpectedTrigger[] ExpectedTriggers =
@@ -169,7 +172,11 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         new("sales_invoices", "sales_invoice_append_only", "oisms_deny_mutation", "public", "BEFORE", false, HasUpdate: true, HasDelete: true, HasTruncate: true),
 
         // stock_count_approvals (U03)
-        new("stock_count_approvals", "stock_count_approval_append_only", "oisms_deny_mutation", "public", "BEFORE", false, HasUpdate: true, HasDelete: true, HasTruncate: true)
+        new("stock_count_approvals", "stock_count_approval_append_only", "oisms_deny_mutation", "public", "BEFORE", false, HasUpdate: true, HasDelete: true, HasTruncate: true),
+
+        // goods_issues & goods_issue_items (U13)
+        new("goods_issues", "goods_issue_append_only", "oisms_deny_mutation", "public", "BEFORE", false, HasUpdate: true, HasDelete: true, HasTruncate: true),
+        new("goods_issue_items", "goods_issue_item_append_only", "oisms_deny_mutation", "public", "BEFORE", false, HasUpdate: true, HasDelete: true, HasTruncate: true)
     ];
 
     public static readonly ExpectedForeignKey[] ExpectedForeignKeys =
@@ -271,6 +278,7 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         new("fk_purchase_orders_branch_id", "purchase_orders", ["tenant_id", "branch_id"], "branches", ["tenant_id", "id"]),
         new("fk_purchase_orders_created_by", "purchase_orders", ["tenant_id", "created_by"], "users", ["tenant_id", "id"]),
         new("fk_purchase_orders_approved_by", "purchase_orders", ["tenant_id", "approved_by"], "users", ["tenant_id", "id"]),
+        new("fk_purchase_orders_returned_by", "purchase_orders", ["tenant_id", "returned_by"], "users", ["tenant_id", "id"]),
         new("fk_purchase_orders_closed_by", "purchase_orders", ["tenant_id", "closed_by"], "users", ["tenant_id", "id"]),
         new("fk_purchase_orders_cancelled_by", "purchase_orders", ["tenant_id", "cancelled_by"], "users", ["tenant_id", "id"]),
         new("fk_purchase_order_items_tenant_id", "purchase_order_items", ["tenant_id"], "tenants", ["id"]),
@@ -313,7 +321,28 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         // CS-02: phân công chi nhánh cho nhân viên
         new("fk_user_branches_tenant", "user_branches", ["tenant_id"], "tenants", ["id"]),
         new("fk_user_branches_user", "user_branches", ["tenant_id", "user_id"], "users", ["tenant_id", "id"], OnDelete: 'c'),
-        new("fk_user_branches_branch", "user_branches", ["tenant_id", "branch_id"], "branches", ["tenant_id", "id"])
+        new("fk_user_branches_branch", "user_branches", ["tenant_id", "branch_id"], "branches", ["tenant_id", "id"]),
+
+        // U13: phiếu xuất kho 02-VT (goods_issues, goods_issue_items)
+        new("fk_goods_issues_tenant_id", "goods_issues", ["tenant_id"], "tenants", ["id"]),
+        new("fk_goods_issues_order_branch", "goods_issues", ["tenant_id", "order_id", "branch_id"], "orders", ["tenant_id", "id", "branch_id"]),
+        new("fk_goods_issues_sales_invoice", "goods_issues", ["tenant_id", "sales_invoice_id"], "sales_invoices", ["tenant_id", "id"]),
+        new("fk_goods_issues_branch_id", "goods_issues", ["tenant_id", "branch_id"], "branches", ["tenant_id", "id"]),
+        new("fk_goods_issues_warehouse_branch", "goods_issues", ["tenant_id", "warehouse_id", "branch_id"], "warehouses", ["tenant_id", "id", "branch_id"]),
+        new("fk_goods_issues_issued_by", "goods_issues", ["tenant_id", "issued_by"], "users", ["tenant_id", "id"]),
+        new("fk_goods_issue_items_tenant_id", "goods_issue_items", ["tenant_id"], "tenants", ["id"]),
+        new("fk_goods_issue_items_goods_issue_id", "goods_issue_items", ["tenant_id", "goods_issue_id"], "goods_issues", ["tenant_id", "id"]),
+        new("fk_goods_issue_items_inventory_tx", "goods_issue_items", ["tenant_id", "inventory_transaction_id"], "inventory_transactions", ["tenant_id", "id"]),
+        new("fk_goods_issue_items_order_item", "goods_issue_items", ["tenant_id", "order_item_id"], "order_items", ["tenant_id", "id"]),
+        new("fk_goods_issue_items_sku_id", "goods_issue_items", ["tenant_id", "sku_id"], "skus", ["tenant_id", "id"]),
+        new("fk_goods_issue_items_unit_id", "goods_issue_items", ["tenant_id", "unit_id"], "units", ["tenant_id", "id"]),
+
+        // U12 G4: purchase_order_sale_price_configs
+        new("fk_po_sale_price_configs_tenant_id", "purchase_order_sale_price_configs", ["tenant_id"], "tenants", ["id"], OnDelete: 'c'),
+        new("fk_po_sale_price_configs_item", "purchase_order_sale_price_configs", ["tenant_id", "purchase_order_item_id"], "purchase_order_items", ["tenant_id", "id"], OnDelete: 'c'),
+        new("fk_po_sale_price_configs_unit", "purchase_order_sale_price_configs", ["tenant_id", "unit_id"], "units", ["tenant_id", "id"]),
+        new("fk_po_sale_price_configs_price_list", "purchase_order_sale_price_configs", ["tenant_id", "price_list_id"], "price_lists", ["tenant_id", "id"]),
+        new("fk_po_sale_price_configs_pcr", "purchase_order_sale_price_configs", ["tenant_id", "price_change_request_id"], "price_change_requests", ["tenant_id", "id"], OnDelete: 'n')
     ];
 
     public static readonly ExpectedConstraint[] ExpectedCriticalConstraints =
@@ -406,6 +435,7 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         new("ck_price_change_requests_created_by", 'c', "price_change_requests", ExpectedNormalizedExpression: "(((kind)::text = 'Opening'::text) OR (created_by IS NOT NULL))"),
         new("ck_price_change_requests_pending_reviewed", 'c', "price_change_requests", ExpectedNormalizedExpression: "(((status)::text = 'Pending'::text) = (reviewed_at IS NULL))"),
         new("ck_price_change_requests_reason", 'c', "price_change_requests", ExpectedNormalizedExpression: "(btrim((reason)::text) <> ''::text)"),
+        new("ck_price_change_requests_reason_type", 'c', "price_change_requests", ExpectedNormalizedExpression: "((reason_type)::text = ANY ((ARRAY['SHORTAGE'::character varying, 'PROMOTION'::character varying, 'FROM_PURCHASE_ORDER'::character varying, 'OTHER'::character varying])::text[]))"),
 
         // price_change_request_items
         new("uq_price_change_request_items_1", 'u', "price_change_request_items", Columns: ["tenant_id", "id"]),
@@ -436,10 +466,14 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         new("uq_purchase_orders_1", 'u', "purchase_orders", Columns: ["tenant_id", "id"]),
         new("uq_purchase_orders_2", 'u', "purchase_orders", Columns: ["tenant_id", "number"]),
         new("uq_purchase_orders_3", 'u', "purchase_orders", Columns: ["tenant_id", "request_key"]),
-        new("ck_purchase_orders_status", 'c', "purchase_orders", ExpectedNormalizedExpression: "((status)::text = ANY ((ARRAY['Draft'::character varying, 'Approved'::character varying, 'PartiallyReceived'::character varying, 'Received'::character varying, 'Closed'::character varying, 'Cancelled'::character varying])::text[]))"),
+        new("ck_purchase_orders_status", 'c', "purchase_orders", ExpectedNormalizedExpression: "((status)::text = ANY ((ARRAY['Draft'::character varying, 'PendingApproval'::character varying, 'Approved'::character varying, 'PartiallyReceived'::character varying, 'Received'::character varying, 'Closed'::character varying, 'Cancelled'::character varying])::text[]))"),
+        new("ck_purchase_orders_supplier_required", 'c', "purchase_orders", ExpectedNormalizedExpression: "(((status)::text = ANY ((ARRAY['Draft'::character varying, 'PendingApproval'::character varying, 'Cancelled'::character varying])::text[])) OR (supplier_id IS NOT NULL))"),
+        new("ck_purchase_orders_fees_nonnegative", 'c', "purchase_orders", ExpectedNormalizedExpression: "((shipping_fee >= (0)::numeric) AND (discount_amount >= (0)::numeric) AND (vat_amount >= (0)::numeric))"),
         new("ck_purchase_orders_approved", 'c', "purchase_orders", ExpectedNormalizedExpression: "(((approved_at IS NULL) = (approved_by IS NULL)) AND (((status)::text <> ALL ((ARRAY['Approved'::character varying, 'PartiallyReceived'::character varying, 'Received'::character varying, 'Closed'::character varying])::text[])) OR (approved_at IS NOT NULL)))"),
+        new("ck_purchase_orders_returned", 'c', "purchase_orders", ExpectedNormalizedExpression: "(((returned_at IS NULL) = (returned_by IS NULL)) AND ((returned_at IS NULL) = (return_reason IS NULL)) AND ((return_reason IS NULL) OR (btrim((return_reason)::text) <> ''::text)))"),
         new("ck_purchase_orders_closed", 'c', "purchase_orders", ExpectedNormalizedExpression: "((((status)::text = 'Closed'::text) = (closed_at IS NOT NULL)) AND ((closed_at IS NULL) = (closed_by IS NULL)) AND ((closed_at IS NULL) OR (btrim((close_reason)::text) <> ''::text)))"),
         new("ck_purchase_orders_cancelled", 'c', "purchase_orders", ExpectedNormalizedExpression: "((((status)::text = 'Cancelled'::text) = (cancelled_at IS NOT NULL)) AND ((cancelled_at IS NULL) = (cancelled_by IS NULL)))"),
+        new("ck_purchase_orders_version_positive", 'c', "purchase_orders", ExpectedNormalizedExpression: "(version >= 1)"),
 
         // purchase_order_items
         new("uq_purchase_order_items_1", 'u', "purchase_order_items", Columns: ["tenant_id", "id"]),
@@ -447,7 +481,8 @@ public class DatabaseMigrationService : IDatabaseMigrationService
         new("uq_purchase_order_items_3", 'u', "purchase_order_items", Columns: ["tenant_id", "id", "sku_id"]),
         new("ck_purchase_order_items_factor_snapshot", 'c', "purchase_order_items", ExpectedNormalizedExpression: "(factor_snapshot > (0)::numeric)"),
         new("ck_purchase_order_items_quantity", 'c', "purchase_order_items", ExpectedNormalizedExpression: "(quantity > (0)::numeric)"),
-        new("ck_purchase_order_items_unit_price", 'c', "purchase_order_items", ExpectedNormalizedExpression: "(unit_price >= (0)::numeric)"),
+        new("ck_purchase_order_items_unit_price", 'c', "purchase_order_items", ExpectedNormalizedExpression: "((unit_price IS NULL) OR (unit_price >= (0)::numeric))"),
+        new("ck_purchase_order_items_allocated_unit_cost", 'c', "purchase_order_items", ExpectedNormalizedExpression: "((allocated_unit_cost IS NULL) OR (allocated_unit_cost >= (0)::numeric))"),
         new("ck_purchase_order_items_decimal_places", 'c', "purchase_order_items", ExpectedNormalizedExpression: "((quantity_decimal_places >= 0) AND (quantity_decimal_places <= 3))"),
         new("ck_purchase_order_items_received_range", 'c', "purchase_order_items", ExpectedNormalizedExpression: "((received_base_quantity >= (0)::numeric) AND (received_base_quantity <= (quantity * factor_snapshot)))"),
 
@@ -488,7 +523,25 @@ public class DatabaseMigrationService : IDatabaseMigrationService
 
         // CS-01: sales_returns request_key và total_refund_amount
         new("uq_sales_returns_4", 'u', "sales_returns", Columns: ["tenant_id", "request_key"]),
-        new("ck_sales_returns_total_refund_amount_nonnegative", 'c', "sales_returns", ExpectedNormalizedExpression: "(total_refund_amount >= (0)::numeric)")
+        new("ck_sales_returns_total_refund_amount_nonnegative", 'c', "sales_returns", ExpectedNormalizedExpression: "(total_refund_amount >= (0)::numeric)"),
+
+        // U13: goods_issues & goods_issue_items
+        new("uq_goods_issues_1", 'u', "goods_issues", Columns: ["tenant_id", "id"]),
+        new("uq_goods_issues_2", 'u', "goods_issues", Columns: ["tenant_id", "number"]),
+        new("uq_goods_issues_3", 'u', "goods_issues", Columns: ["tenant_id", "order_id", "warehouse_id"]),
+        new("ck_goods_issues_channel_values", 'c', "goods_issues", ExpectedNormalizedExpression: "((channel)::text = ANY ((ARRAY['POS'::character varying, 'Admin'::character varying, 'Shopee'::character varying, 'TikTok'::character varying, 'Lazada'::character varying])::text[]))"),
+        new("uq_goods_issue_items_1", 'u', "goods_issue_items", Columns: ["tenant_id", "id"]),
+        new("uq_goods_issue_items_2", 'u', "goods_issue_items", Columns: ["tenant_id", "inventory_transaction_id"]),
+        new("ck_goods_issue_items_quantity_positive", 'c', "goods_issue_items", ExpectedNormalizedExpression: "(quantity > (0)::numeric)"),
+        new("ck_goods_issue_items_base_quantity_positive", 'c', "goods_issue_items", ExpectedNormalizedExpression: "(base_quantity > (0)::numeric)"),
+        new("ck_goods_issue_items_factor_snapshot_positive", 'c', "goods_issue_items", ExpectedNormalizedExpression: "(factor_snapshot > (0)::numeric)"),
+        new("ck_goods_issue_items_unit_cost_nonnegative", 'c', "goods_issue_items", ExpectedNormalizedExpression: "(unit_cost >= (0)::numeric)"),
+
+        // U12 G4: purchase_order_sale_price_configs
+        new("uq_po_sale_price_configs_1", 'u', "purchase_order_sale_price_configs", Columns: ["tenant_id", "id"]),
+        new("uq_po_sale_price_configs_item_unit_pricelist", 'u', "purchase_order_sale_price_configs", Columns: ["tenant_id", "purchase_order_item_id", "unit_id", "price_list_id"]),
+        new("ck_po_sale_price_configs_mode", 'c', "purchase_order_sale_price_configs", ExpectedNormalizedExpression: "((mode)::text = ANY ((ARRAY['KEEP'::character varying, 'WAC_MARGIN'::character varying, 'FIXED'::character varying])::text[]))"),
+        new("ck_po_sale_price_configs_apply_mode", 'c', "purchase_order_sale_price_configs", ExpectedNormalizedExpression: "((apply_mode)::text = ANY ((ARRAY['ON_RECEIPT'::character varying, 'FROM_DATE'::character varying])::text[]))")
     ];
 
 
@@ -1452,34 +1505,88 @@ CREATE TABLE IF NOT EXISTS public.purchase_orders (
     tenant_id uuid NOT NULL,
     number varchar(50) NOT NULL,
     request_key uuid NOT NULL,
-    supplier_id uuid NOT NULL,
+    supplier_id uuid NULL,
     branch_id uuid NOT NULL,
+    order_date date NOT NULL DEFAULT CURRENT_DATE,
+    shipping_fee numeric(20,6) NOT NULL DEFAULT 0,
+    discount_amount numeric(20,6) NOT NULL DEFAULT 0,
+    vat_amount numeric(20,6) NOT NULL DEFAULT 0,
     status varchar(20) NOT NULL,
     note varchar(1000) NULL,
     created_by uuid NOT NULL,
     approved_by uuid NULL,
     approved_at timestamptz NULL,
+    returned_by uuid NULL,
+    returned_at timestamptz NULL,
+    return_reason varchar(500) NULL,
     closed_by uuid NULL,
     closed_at timestamptz NULL,
     close_reason varchar(500) NULL,
     cancelled_by uuid NULL,
     cancelled_at timestamptz NULL,
+    version integer NOT NULL DEFAULT 1,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NULL,
     CONSTRAINT uq_purchase_orders_1 UNIQUE (tenant_id, id),
     CONSTRAINT uq_purchase_orders_2 UNIQUE (tenant_id, number),
     CONSTRAINT uq_purchase_orders_3 UNIQUE (tenant_id, request_key),
-    CONSTRAINT ck_purchase_orders_status CHECK (status IN ('Draft','Approved','PartiallyReceived','Received','Closed','Cancelled')),
+    CONSTRAINT ck_purchase_orders_status CHECK (status IN ('Draft','PendingApproval','Approved','PartiallyReceived','Received','Closed','Cancelled')),
+    CONSTRAINT ck_purchase_orders_supplier_required CHECK (status IN ('Draft','PendingApproval','Cancelled') OR supplier_id IS NOT NULL),
+    CONSTRAINT ck_purchase_orders_fees_nonnegative CHECK (shipping_fee >= 0 AND discount_amount >= 0 AND vat_amount >= 0),
     CONSTRAINT ck_purchase_orders_approved CHECK ((approved_at IS NULL) = (approved_by IS NULL) AND (status NOT IN ('Approved','PartiallyReceived','Received','Closed') OR approved_at IS NOT NULL)),
+    CONSTRAINT ck_purchase_orders_returned CHECK ((returned_at IS NULL) = (returned_by IS NULL) AND (returned_at IS NULL) = (return_reason IS NULL) AND (return_reason IS NULL OR btrim(return_reason) <> '')),
     CONSTRAINT ck_purchase_orders_closed CHECK ((status = 'Closed') = (closed_at IS NOT NULL) AND (closed_at IS NULL) = (closed_by IS NULL) AND (closed_at IS NULL OR btrim(close_reason) <> '')),
-    CONSTRAINT ck_purchase_orders_cancelled CHECK ((status = 'Cancelled') = (cancelled_at IS NOT NULL) AND (cancelled_at IS NULL) = (cancelled_by IS NULL))
+    CONSTRAINT ck_purchase_orders_cancelled CHECK ((status = 'Cancelled') = (cancelled_at IS NOT NULL) AND (cancelled_at IS NULL) = (cancelled_by IS NULL)),
+    CONSTRAINT ck_purchase_orders_version_positive CHECK (version >= 1)
 );
+
+ALTER TABLE public.purchase_orders ALTER COLUMN supplier_id DROP NOT NULL;
+ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS order_date date NULL;
+UPDATE public.purchase_orders
+SET order_date = COALESCE(order_date, (created_at AT TIME ZONE 'Asia/Saigon')::date)
+WHERE order_date IS NULL;
+ALTER TABLE public.purchase_orders ALTER COLUMN order_date SET DEFAULT CURRENT_DATE;
+ALTER TABLE public.purchase_orders ALTER COLUMN order_date SET NOT NULL;
+
+ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS shipping_fee numeric(20,6) NOT NULL DEFAULT 0;
+ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS discount_amount numeric(20,6) NOT NULL DEFAULT 0;
+ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS vat_amount numeric(20,6) NOT NULL DEFAULT 0;
+ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS return_reason varchar(500) NULL;
+ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS returned_by uuid NULL;
+ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS returned_at timestamptz NULL;
+ALTER TABLE public.purchase_orders ADD COLUMN IF NOT EXISTS version integer NOT NULL DEFAULT 1;
 
 CREATE INDEX IF NOT EXISTS ix_purchase_orders_status_time
 ON public.purchase_orders (tenant_id, status, created_at, id);
 
 DO $$
 BEGIN
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_purchase_orders_status') THEN
+        ALTER TABLE public.purchase_orders DROP CONSTRAINT ck_purchase_orders_status;
+    END IF;
+    ALTER TABLE public.purchase_orders ADD CONSTRAINT ck_purchase_orders_status
+        CHECK (status IN ('Draft','PendingApproval','Approved','PartiallyReceived','Received','Closed','Cancelled'));
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_purchase_orders_supplier_required') THEN
+        ALTER TABLE public.purchase_orders ADD CONSTRAINT ck_purchase_orders_supplier_required
+            CHECK (status IN ('Draft','PendingApproval','Cancelled') OR supplier_id IS NOT NULL);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_purchase_orders_fees_nonnegative') THEN
+        ALTER TABLE public.purchase_orders ADD CONSTRAINT ck_purchase_orders_fees_nonnegative
+            CHECK (shipping_fee >= 0 AND discount_amount >= 0 AND vat_amount >= 0);
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_purchase_orders_returned') THEN
+        ALTER TABLE public.purchase_orders ADD CONSTRAINT ck_purchase_orders_returned
+            CHECK ((returned_at IS NULL) = (returned_by IS NULL) AND (returned_at IS NULL) = (return_reason IS NULL) AND (return_reason IS NULL OR btrim(return_reason) <> ''));
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_purchase_orders_version_positive') THEN
+        ALTER TABLE public.purchase_orders ADD CONSTRAINT ck_purchase_orders_version_positive
+            CHECK (version >= 1);
+    END IF;
+
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_purchase_orders_tenant_id') THEN
         ALTER TABLE public.purchase_orders ADD CONSTRAINT fk_purchase_orders_tenant_id
         FOREIGN KEY (tenant_id) REFERENCES public.tenants (id) ON DELETE RESTRICT ON UPDATE NO ACTION;
@@ -1505,6 +1612,11 @@ BEGIN
         FOREIGN KEY (tenant_id, approved_by) REFERENCES public.users (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
     END IF;
 
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_purchase_orders_returned_by') THEN
+        ALTER TABLE public.purchase_orders ADD CONSTRAINT fk_purchase_orders_returned_by
+        FOREIGN KEY (tenant_id, returned_by) REFERENCES public.users (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
+    END IF;
+
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_purchase_orders_closed_by') THEN
         ALTER TABLE public.purchase_orders ADD CONSTRAINT fk_purchase_orders_closed_by
         FOREIGN KEY (tenant_id, closed_by) REFERENCES public.users (tenant_id, id) ON DELETE RESTRICT ON UPDATE NO ACTION;
@@ -1527,7 +1639,8 @@ CREATE TABLE IF NOT EXISTS public.purchase_order_items (
     quantity_decimal_places smallint NOT NULL DEFAULT 3,
     quantity numeric(18,3) NOT NULL,
     ordered_base_quantity numeric(18,3) GENERATED ALWAYS AS (quantity * factor_snapshot) STORED,
-    unit_price numeric(20,6) NOT NULL,
+    unit_price numeric(20,6) NULL,
+    allocated_unit_cost numeric(20,6) NULL,
     received_base_quantity numeric(18,3) NOT NULL DEFAULT 0,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NULL,
@@ -1536,13 +1649,37 @@ CREATE TABLE IF NOT EXISTS public.purchase_order_items (
     CONSTRAINT uq_purchase_order_items_3 UNIQUE (tenant_id, id, sku_id),
     CONSTRAINT ck_purchase_order_items_factor_snapshot CHECK (factor_snapshot > 0),
     CONSTRAINT ck_purchase_order_items_quantity CHECK (quantity > 0),
-    CONSTRAINT ck_purchase_order_items_unit_price CHECK (unit_price >= 0),
+    CONSTRAINT ck_purchase_order_items_unit_price CHECK (unit_price IS NULL OR unit_price >= 0),
+    CONSTRAINT ck_purchase_order_items_allocated_unit_cost CHECK (allocated_unit_cost IS NULL OR allocated_unit_cost >= 0),
     CONSTRAINT ck_purchase_order_items_decimal_places CHECK (quantity_decimal_places BETWEEN 0 AND 3),
     CONSTRAINT ck_purchase_order_items_received_range CHECK (received_base_quantity >= 0 AND received_base_quantity <= quantity * factor_snapshot)
 );
 
+ALTER TABLE public.purchase_order_items ALTER COLUMN unit_price DROP NOT NULL;
+ALTER TABLE public.purchase_order_items ADD COLUMN IF NOT EXISTS allocated_unit_cost numeric(20,6) NULL;
+
+UPDATE public.purchase_order_items poi
+SET allocated_unit_cost = poi.unit_price
+FROM public.purchase_orders po
+WHERE po.tenant_id = poi.tenant_id
+  AND po.id = poi.purchase_order_id
+  AND po.status IN ('Approved', 'PartiallyReceived', 'Received', 'Closed')
+  AND poi.allocated_unit_cost IS NULL
+  AND poi.unit_price IS NOT NULL;
+
 DO $$
 BEGIN
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_purchase_order_items_unit_price') THEN
+        ALTER TABLE public.purchase_order_items DROP CONSTRAINT ck_purchase_order_items_unit_price;
+    END IF;
+    ALTER TABLE public.purchase_order_items ADD CONSTRAINT ck_purchase_order_items_unit_price
+        CHECK (unit_price IS NULL OR unit_price >= 0);
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_purchase_order_items_allocated_unit_cost') THEN
+        ALTER TABLE public.purchase_order_items ADD CONSTRAINT ck_purchase_order_items_allocated_unit_cost
+            CHECK (allocated_unit_cost IS NULL OR allocated_unit_cost >= 0);
+    END IF;
+
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_purchase_order_items_tenant_id') THEN
         ALTER TABLE public.purchase_order_items ADD CONSTRAINT fk_purchase_order_items_tenant_id
         FOREIGN KEY (tenant_id) REFERENCES public.tenants (id) ON DELETE RESTRICT ON UPDATE NO ACTION;
@@ -1590,19 +1727,54 @@ CREATE OR REPLACE FUNCTION public.oisms_purchase_order_guard() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
 BEGIN
   IF OLD.status = 'Draft' THEN
-    IF NEW.status NOT IN ('Draft', 'Approved', 'Cancelled') THEN
+    IF NEW.status NOT IN ('Draft', 'PendingApproval', 'Cancelled') THEN
       RAISE EXCEPTION 'Invalid purchase order state transition from % to %', OLD.status, NEW.status USING ERRCODE = '23514';
     END IF;
-    IF (NEW.tenant_id, NEW.id, NEW.created_at) IS DISTINCT FROM (OLD.tenant_id, OLD.id, OLD.created_at) THEN
+    IF (NEW.tenant_id, NEW.id, NEW.number, NEW.request_key, NEW.created_by, NEW.created_at)
+       IS DISTINCT FROM
+       (OLD.tenant_id, OLD.id, OLD.number, OLD.request_key, OLD.created_by, OLD.created_at) THEN
       RAISE EXCEPTION 'Purchase order identity is immutable' USING ERRCODE = '23514';
     END IF;
     RETURN NEW;
   END IF;
 
-  IF (NEW.tenant_id, NEW.id, NEW.number, NEW.request_key, NEW.supplier_id, NEW.branch_id, NEW.note, NEW.created_by, NEW.created_at, NEW.approved_by, NEW.approved_at)
+  IF OLD.status = 'PendingApproval' THEN
+    IF NEW.status NOT IN ('PendingApproval', 'Draft', 'Approved', 'Cancelled') THEN
+      RAISE EXCEPTION 'Invalid purchase order state transition from % to %', OLD.status, NEW.status USING ERRCODE = '23514';
+    END IF;
+    IF (NEW.tenant_id, NEW.id, NEW.number, NEW.request_key, NEW.created_by, NEW.created_at)
+       IS DISTINCT FROM
+       (OLD.tenant_id, OLD.id, OLD.number, OLD.request_key, OLD.created_by, OLD.created_at) THEN
+      RAISE EXCEPTION 'Purchase order identity is immutable' USING ERRCODE = '23514';
+    END IF;
+    IF NEW.status = 'Draft' AND (NEW.returned_at IS NULL OR NEW.returned_by IS NULL OR NEW.return_reason IS NULL OR btrim(NEW.return_reason) = '') THEN
+      RAISE EXCEPTION 'Returning purchase order to Draft requires returned_by, returned_at, and return_reason' USING ERRCODE = '23514';
+    END IF;
+    IF NEW.status = 'Approved' THEN
+      IF NEW.supplier_id IS NULL THEN
+        RAISE EXCEPTION 'Approved purchase order requires supplier_id' USING ERRCODE = '23514';
+      END IF;
+      IF NOT EXISTS (
+        SELECT 1 FROM public.purchase_order_items poi
+        WHERE poi.tenant_id = NEW.tenant_id AND poi.purchase_order_id = NEW.id
+      ) THEN
+        RAISE EXCEPTION 'Approved purchase order requires at least one item' USING ERRCODE = '23514';
+      END IF;
+      IF EXISTS (
+        SELECT 1 FROM public.purchase_order_items poi
+        WHERE poi.tenant_id = NEW.tenant_id AND poi.purchase_order_id = NEW.id
+          AND (poi.unit_price IS NULL OR poi.allocated_unit_cost IS NULL)
+      ) THEN
+        RAISE EXCEPTION 'Approved purchase order requires unit_price and allocated_unit_cost on all items' USING ERRCODE = '23514';
+      END IF;
+    END IF;
+    RETURN NEW;
+  END IF;
+
+  IF (NEW.tenant_id, NEW.id, NEW.number, NEW.request_key, NEW.supplier_id, NEW.branch_id, NEW.order_date, NEW.shipping_fee, NEW.discount_amount, NEW.vat_amount, NEW.note, NEW.created_by, NEW.created_at, NEW.approved_by, NEW.approved_at, NEW.returned_by, NEW.returned_at, NEW.return_reason)
      IS DISTINCT FROM
-     (OLD.tenant_id, OLD.id, OLD.number, OLD.request_key, OLD.supplier_id, OLD.branch_id, OLD.note, OLD.created_by, OLD.created_at, OLD.approved_by, OLD.approved_at) THEN
-    RAISE EXCEPTION 'Purchase order header attributes are immutable outside Draft' USING ERRCODE = '23514';
+     (OLD.tenant_id, OLD.id, OLD.number, OLD.request_key, OLD.supplier_id, OLD.branch_id, OLD.order_date, OLD.shipping_fee, OLD.discount_amount, OLD.vat_amount, OLD.note, OLD.created_by, OLD.created_at, OLD.approved_by, OLD.approved_at, OLD.returned_by, OLD.returned_at, OLD.return_reason) THEN
+    RAISE EXCEPTION 'Purchase order header attributes are immutable outside Draft and PendingApproval' USING ERRCODE = '23514';
   END IF;
 
   IF OLD.status = 'Approved' THEN
@@ -1652,7 +1824,7 @@ BEGIN
     SELECT status INTO v_po_status FROM public.purchase_orders
     WHERE id = NEW.purchase_order_id AND tenant_id = NEW.tenant_id FOR UPDATE;
 
-    IF v_po_status IS DISTINCT FROM 'Draft' THEN
+    IF v_po_status IS NULL OR v_po_status NOT IN ('Draft', 'PendingApproval') THEN
       RAISE EXCEPTION 'Cannot insert purchase order item when purchase order is in state %', v_po_status USING ERRCODE = '23514';
     END IF;
     RETURN NEW;
@@ -1662,24 +1834,24 @@ BEGIN
   WHERE id = OLD.purchase_order_id AND tenant_id = OLD.tenant_id FOR UPDATE;
 
   IF TG_OP = 'DELETE' THEN
-    IF v_po_status IS DISTINCT FROM 'Draft' THEN
+    IF v_po_status IS NULL OR v_po_status NOT IN ('Draft', 'PendingApproval') THEN
       RAISE EXCEPTION 'Cannot delete purchase order item when purchase order is in state %', v_po_status USING ERRCODE = '23514';
     END IF;
     RETURN OLD;
   END IF;
 
   IF TG_OP = 'UPDATE' THEN
-    IF v_po_status = 'Draft' THEN
+    IF v_po_status IN ('Draft', 'PendingApproval') THEN
       IF (NEW.tenant_id, NEW.id, NEW.purchase_order_id, NEW.created_at) IS DISTINCT FROM (OLD.tenant_id, OLD.id, OLD.purchase_order_id, OLD.created_at) THEN
         RAISE EXCEPTION 'Purchase order item identity is immutable' USING ERRCODE = '23514';
       END IF;
       RETURN NEW;
     END IF;
 
-    IF (NEW.tenant_id, NEW.id, NEW.purchase_order_id, NEW.sku_id, NEW.unit_id, NEW.unit_name_snapshot, NEW.factor_snapshot, NEW.quantity_decimal_places, NEW.quantity, NEW.unit_price, NEW.created_at)
+    IF (NEW.tenant_id, NEW.id, NEW.purchase_order_id, NEW.sku_id, NEW.unit_id, NEW.unit_name_snapshot, NEW.factor_snapshot, NEW.quantity_decimal_places, NEW.quantity, NEW.unit_price, NEW.allocated_unit_cost, NEW.created_at)
        IS DISTINCT FROM
-       (OLD.tenant_id, OLD.id, OLD.purchase_order_id, OLD.sku_id, OLD.unit_id, OLD.unit_name_snapshot, OLD.factor_snapshot, OLD.quantity_decimal_places, OLD.quantity, OLD.unit_price, OLD.created_at) THEN
-      RAISE EXCEPTION 'Purchase order item attributes other than received_base_quantity and updated_at are immutable outside Draft' USING ERRCODE = '23514';
+       (OLD.tenant_id, OLD.id, OLD.purchase_order_id, OLD.sku_id, OLD.unit_id, OLD.unit_name_snapshot, OLD.factor_snapshot, OLD.quantity_decimal_places, OLD.quantity, OLD.unit_price, OLD.allocated_unit_cost, OLD.created_at) THEN
+      RAISE EXCEPTION 'Purchase order item attributes other than received_base_quantity and updated_at are immutable outside Draft and PendingApproval' USING ERRCODE = '23514';
     END IF;
 
     IF NEW.received_base_quantity < OLD.received_base_quantity THEN
@@ -1695,6 +1867,25 @@ BEGIN
 
   RETURN NULL;
 END $$;
+
+UPDATE public.purchase_orders po
+SET status = 'PendingApproval',
+    updated_at = COALESCE(po.updated_at, now())
+WHERE po.status = 'Draft'
+  AND po.supplier_id IS NOT NULL
+  AND EXISTS (
+      SELECT 1
+      FROM public.purchase_order_items poi
+      WHERE poi.tenant_id = po.tenant_id
+        AND poi.purchase_order_id = po.id
+  )
+  AND NOT EXISTS (
+      SELECT 1
+      FROM public.purchase_order_items poi
+      WHERE poi.tenant_id = po.tenant_id
+        AND poi.purchase_order_id = po.id
+        AND poi.unit_price IS NULL
+  );
 
 DO $$
 BEGIN
@@ -1880,7 +2071,7 @@ BEGIN
     END IF;
 END $$;
 ";
-            await using (var salesInvoiceCmd = new NpgsqlCommand(salesInvoiceUpgradeSql, connection, tx))
+            await using (var salesInvoiceCmd = new NpgsqlCommand(CleanDdlForConnectedDatabase(salesInvoiceUpgradeSql), connection, tx))
             {
                 await salesInvoiceCmd.ExecuteNonQueryAsync(cancellationToken);
             }
@@ -2304,13 +2495,85 @@ END $$;
                 await userBranchesCmd.ExecuteNonQueryAsync(cancellationToken);
             }
 
+            const string goodsIssuesStart = "-- OISMS_GOODS_ISSUES_BEGIN";
+            const string goodsIssuesEnd = "-- OISMS_GOODS_ISSUES_END";
+            var giStart = schema.IndexOf(goodsIssuesStart, StringComparison.Ordinal);
+            var giEnd = schema.IndexOf(goodsIssuesEnd, StringComparison.Ordinal);
+            if (giStart < 0 || giEnd <= giStart + goodsIssuesStart.Length)
+                throw new InvalidOperationException("Không tìm thấy DDL phiếu xuất kho (goods_issues) trong oisms_schema.sql.");
+
+            var goodsIssuesSql = CleanDdlForConnectedDatabase(schema[(giStart + goodsIssuesStart.Length)..giEnd]);
+            await using (var goodsIssuesCmd = new NpgsqlCommand(goodsIssuesSql, connection, tx))
+            {
+                await goodsIssuesCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            const string poSalePriceConfigsStart = "-- OISMS_PO_SALE_PRICE_CONFIGS_BEGIN";
+            const string poSalePriceConfigsEnd = "-- OISMS_PO_SALE_PRICE_CONFIGS_END";
+            var poCfgStart = schema.IndexOf(poSalePriceConfigsStart, StringComparison.Ordinal);
+            var poCfgEnd = schema.IndexOf(poSalePriceConfigsEnd, StringComparison.Ordinal);
+            if (poCfgStart < 0 || poCfgEnd <= poCfgStart + poSalePriceConfigsStart.Length)
+                throw new InvalidOperationException("Không tìm thấy DDL cấu hình giá bán đơn mua (purchase_order_sale_price_configs) trong oisms_schema.sql.");
+
+            const string upgradeReasonTypeSql = @"
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'price_change_requests' AND column_name = 'reason_type'
+    ) THEN
+        ALTER TABLE public.price_change_requests ADD COLUMN reason_type varchar(30) NULL;
+        IF EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'price_change_request_guard' AND tgrelid = 'public.price_change_requests'::regclass) THEN
+            ALTER TABLE public.price_change_requests DISABLE TRIGGER price_change_request_guard;
+            UPDATE public.price_change_requests SET reason_type = 'OTHER' WHERE reason_type IS NULL;
+            ALTER TABLE public.price_change_requests ENABLE TRIGGER price_change_request_guard;
+        ELSE
+            UPDATE public.price_change_requests SET reason_type = 'OTHER' WHERE reason_type IS NULL;
+        END IF;
+        ALTER TABLE public.price_change_requests ALTER COLUMN reason_type SET DEFAULT 'OTHER';
+        ALTER TABLE public.price_change_requests ALTER COLUMN reason_type SET NOT NULL;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_price_change_requests_reason_type') THEN
+        ALTER TABLE public.price_change_requests ADD CONSTRAINT ck_price_change_requests_reason_type
+            CHECK (reason_type IN ('SHORTAGE', 'PROMOTION', 'FROM_PURCHASE_ORDER', 'OTHER'));
+    END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.oisms_price_change_request_guard() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+BEGIN
+  IF OLD.status <> 'Pending' OR NEW.status NOT IN ('Approved', 'Rejected') THEN
+    RAISE EXCEPTION 'Price change request can only transition from Pending to Approved or Rejected' USING ERRCODE = '23514';
+  END IF;
+
+  IF (NEW.tenant_id, NEW.id, NEW.request_key, NEW.kind, NEW.reason, NEW.reason_type, NEW.requested_valid_from, NEW.created_by, NEW.created_at)
+     IS DISTINCT FROM
+     (OLD.tenant_id, OLD.id, OLD.request_key, OLD.kind, OLD.reason, OLD.reason_type, OLD.requested_valid_from, OLD.created_by, OLD.created_at) THEN
+    RAISE EXCEPTION 'Price change request attributes other than review fields are immutable' USING ERRCODE = '23514';
+  END IF;
+
+  RETURN NEW;
+END $$;
+";
+            await using (var reasonTypeCmd = new NpgsqlCommand(upgradeReasonTypeSql, connection, tx))
+            {
+                await reasonTypeCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            var poSalePriceConfigsSql = CleanDdlForConnectedDatabase(schema[(poCfgStart + poSalePriceConfigsStart.Length)..poCfgEnd]);
+            await using (var poSalePriceConfigsCmd = new NpgsqlCommand(poSalePriceConfigsSql, connection, tx))
+            {
+                await poSalePriceConfigsCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
             await tx.CommitAsync(cancellationToken);
             return new MigrationExecutionResult(
                 Success: true,
                 IsFreshInstall: false,
                 IsBaselineAdopted: false,
                 TableCount: RequiredTables.Length,
-                Message: "Nâng cấp schema v0.5 stock_transfers, shop_integrations, multi_unit, price_lists, purchase_orders, sales_invoices, stock_count_schedules, payment_accounts, sales_returns, supplier_invoices và user_branches thành công.");
+                Message: "Nâng cấp schema v0.5 stock_transfers, shop_integrations, multi_unit, price_lists, purchase_orders, sales_invoices, stock_count_schedules, payment_accounts, sales_returns, supplier_invoices, user_branches, goods_issues và purchase_order_sale_price_configs thành công.");
         }
         catch (Exception ex)
         {
@@ -2851,8 +3114,10 @@ WHERE table_schema = 'public';";
             "price_lists.code", "price_change_requests.status", "price_change_requests.request_key",
             "price_change_request_items.new_price",
             "sku_unit_prices.price", "sku_unit_prices.valid_from",
-            "purchase_orders.number", "purchase_orders.request_key", "purchase_orders.status",
-            "purchase_order_items.ordered_base_quantity", "purchase_order_items.received_base_quantity", "purchase_order_items.unit_price",
+            "purchase_orders.number", "purchase_orders.request_key", "purchase_orders.status", "purchase_orders.order_date",
+            "purchase_orders.shipping_fee", "purchase_orders.discount_amount", "purchase_orders.vat_amount",
+            "purchase_orders.return_reason", "purchase_orders.returned_by", "purchase_orders.returned_at", "purchase_orders.version",
+            "purchase_order_items.ordered_base_quantity", "purchase_order_items.received_base_quantity", "purchase_order_items.unit_price", "purchase_order_items.allocated_unit_cost",
             "sales_invoices.number", "sales_invoices.order_id", "sales_invoices.branch_id", "sales_invoices.total_amount", "sales_invoices.issued_at",
             "orders.confirmed_by", "stock_transfers.dispatched_by",
             "stock_count_schedules.warehouse_id", "stock_count_schedules.period_type", "stock_count_schedules.assignee_user_id",
@@ -2861,7 +3126,10 @@ WHERE table_schema = 'public';";
             "stock_counts.count_type", "stock_counts.period_id", "stock_counts.submitted_by", "stock_counts.submitted_at",
             "stock_count_items.counted_by", "stock_count_items.counted_at", "stock_count_items.snapshot_at",
             "sales_returns.request_key", "sales_returns.total_refund_amount", "sales_returns.note",
-            "user_branches.tenant_id", "user_branches.user_id", "user_branches.branch_id", "user_branches.created_at"
+            "user_branches.tenant_id", "user_branches.user_id", "user_branches.branch_id", "user_branches.created_at",
+            "goods_issues.number", "goods_issues.order_id", "goods_issues.sales_invoice_id", "goods_issues.warehouse_id", "goods_issues.issued_at",
+            "goods_issue_items.goods_issue_id", "goods_issue_items.inventory_transaction_id", "goods_issue_items.order_item_id", "goods_issue_items.quantity", "goods_issue_items.base_quantity", "goods_issue_items.unit_cost",
+            "price_change_requests.reason_type", "purchase_order_sale_price_configs.mode", "purchase_order_sale_price_configs.purchase_order_item_id", "purchase_order_sale_price_configs.price_list_id"
         ];
         foreach (var col in crucialColumns)
         {
@@ -3084,13 +3352,13 @@ WHERE grantee = 'oisms_runtime'
             }
         }
 
-        // Kiểm tra oisms_runtime KHÔNG có quyền UPDATE hoặc DELETE hoặc TRUNCATE trên sales_invoices và stock_count_approvals
+        // Kiểm tra oisms_runtime KHÔNG có quyền UPDATE hoặc DELETE hoặc TRUNCATE trên sales_invoices, stock_count_approvals, goods_issues và goods_issue_items
         const string checkSalesInvoicePrivilegesSql = @"
 SELECT table_name, privilege_type 
 FROM information_schema.role_table_grants 
 WHERE grantee = 'oisms_runtime' 
   AND table_schema = 'public' 
-  AND table_name IN ('sales_invoices', 'stock_count_approvals') 
+  AND table_name IN ('sales_invoices', 'stock_count_approvals', 'goods_issues', 'goods_issue_items') 
   AND privilege_type IN ('UPDATE', 'DELETE', 'TRUNCATE');";
 
         await using (var cmdSalesInv = new NpgsqlCommand(checkSalesInvoicePrivilegesSql, connection, tx))

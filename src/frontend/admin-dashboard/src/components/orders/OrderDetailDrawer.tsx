@@ -314,50 +314,55 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
               </div>
 
               {/* Bảng Mặt Hàng SKU */}
-              <div>
-                <h3 className="font-semibold text-gray-700 text-sm mb-2">Danh sách mặt hàng SKU</h3>
-                <div className="border border-gray-200 rounded-lg overflow-hidden">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-gray-100 text-gray-600 font-semibold border-b border-gray-200">
-                      <tr>
-                        <th className="p-2">Sản phẩm</th>
-                        <th className="p-2 text-center">SL mua</th>
-                        <th className="p-2 text-center text-rose-600">Đã trả</th>
-                        <th className="p-2 text-right">Giá niêm yết</th>
-                        {isOwner && <th className="p-2 text-right print:hidden">Giá vốn (WAC)</th>}
-                        <th className="p-2 text-right">Tổng tiền</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {detail.items?.map((item) => (
-                        <tr key={item.id}>
-                          <td className="p-2">
-                            <div className="font-semibold text-gray-800">{item.skuCode}</div>
-                            <div className="text-gray-500">{item.skuName}</div>
-                          </td>
-                          <td className="p-2 text-center font-medium">{item.quantity}</td>
-                          <td className="p-2 text-center font-semibold text-rose-600">
-                            {returnableMap[item.id]?.returnedQuantity ?? (item as any).returnedQuantity ?? 0}
-                          </td>
-                          <td className="p-2 text-right">
-                            {item.unitPrice.toLocaleString('vi-VN')} ₫
-                          </td>
-                          {isOwner && (
-                            <td className="p-2 text-right text-gray-500 print:hidden">
-                              {item.costPrice !== null
-                                ? `${item.costPrice.toLocaleString('vi-VN')} ₫`
-                                : 'Chưa chốt'}
-                            </td>
-                          )}
-                          <td className="p-2 text-right font-semibold">
-                            {(item.quantity * item.unitPrice).toLocaleString('vi-VN')} ₫
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              {(() => {
+                const hasCost = isOwner && (detail.items?.some((i) => i.costPrice !== null && i.costPrice !== undefined) ?? false);
+                return (
+                  <div>
+                    <h3 className="font-semibold text-gray-700 text-sm mb-2">Danh sách mặt hàng SKU</h3>
+                    <div className="border border-gray-200 rounded-lg overflow-hidden">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-gray-100 text-gray-600 font-semibold border-b border-gray-200">
+                          <tr>
+                            <th className="p-2">Sản phẩm</th>
+                            <th className="p-2 text-center">SL mua</th>
+                            <th className="p-2 text-center text-rose-600">Đã trả</th>
+                            <th className="p-2 text-right">Giá niêm yết</th>
+                            {hasCost && <th className="p-2 text-right print:hidden">Giá vốn (WAC)</th>}
+                            <th className="p-2 text-right">Tổng tiền</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200">
+                          {detail.items?.map((item) => (
+                            <tr key={item.id}>
+                              <td className="p-2">
+                                <div className="font-semibold text-gray-800">{item.skuCode}</div>
+                                <div className="text-gray-500">{item.skuName}</div>
+                              </td>
+                              <td className="p-2 text-center font-medium">{item.quantity}</td>
+                              <td className="p-2 text-center font-semibold text-rose-600">
+                                {returnableMap[item.id]?.returnedQuantity ?? (item as any).returnedQuantity ?? 0}
+                              </td>
+                              <td className="p-2 text-right">
+                                {item.unitPrice.toLocaleString('vi-VN')} ₫
+                              </td>
+                              {hasCost && (
+                                <td className="p-2 text-right text-gray-500 print:hidden">
+                                  {item.costPrice !== null
+                                    ? `${item.costPrice.toLocaleString('vi-VN')} ₫`
+                                    : '—'}
+                                </td>
+                              )}
+                              <td className="p-2 text-right font-semibold">
+                                {(item.quantity * item.unitPrice).toLocaleString('vi-VN')} ₫
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Tổng cộng & WAC */}
               <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-sm space-y-1">
@@ -367,13 +372,11 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
                     {detail.totalAmount.toLocaleString('vi-VN')} ₫
                   </span>
                 </div>
-                {isOwner && (
+                {isOwner && detail.totalCogs !== null && (
                   <div className="flex justify-between text-xs print:hidden">
                     <span className="text-gray-500">Tổng giá vốn snapshot (WAC):</span>
                     <span className="font-medium text-gray-700">
-                      {detail.totalCogs !== null
-                        ? `${detail.totalCogs.toLocaleString('vi-VN')} ₫`
-                        : 'Chưa chốt giá vốn'}
+                      {detail.totalCogs.toLocaleString('vi-VN')} ₫
                     </span>
                   </div>
                 )}

@@ -32,3 +32,14 @@
 - **Ngoại lệ có chủ đích (chốt ngày 14/11/2026):** `OISM.Application` được phép tham chiếu `Microsoft.EntityFrameworkCore` để truy vấn và lưu entity qua `IAppDbContext` (do hiện có 39 file và khoảng 645 lời gọi EF; việc refactor sang repository riêng mang rủi ro cao cho luồng transaction và reservation). Tuy nhiên, `OISM.Application` **cấm tuyệt đối** các lời gọi raw SQL của EF (`ExecuteSqlRaw`, `ExecuteSqlInterpolated`, `FromSqlRaw`, `FromSqlInterpolated`, `SqlQueryRaw`).
 - **SQL đặc thù, khóa và transaction:** đặt tập trung ở `OISM.Infrastructure` sau các abstraction `ISqlLockService` và `IUnitOfWork`.
 - **Khóa tự động:** được kiểm tra bằng 5 test trong [`ArchitectureRulesTests`](../../test-oisms/backend/OISM.IntegrationTests/ArchitectureRulesTests.cs); chi tiết đối chiếu xem [01-clean-architecture.md](../04-architecture-and-design/01-clean-architecture.md#4-đối-chiếu-phụ-thuộc-bốn-tầng-14112026).
+
+## 3. Kết Quả Đo Độ Phủ Bản Final (`NFR-MAINT-02`, 21/11/2026)
+
+Đo bằng Coverlet (`XPlat Code Coverage`) trên toàn bộ `OISM.UnitTests` (**434/434 PASS**) và `OISM.IntegrationTests` (**480/480 PASS** trên PostgreSQL 16 thật), gộp line-union qua [`test-oisms/nfr/coverage/merge-coverage.py`](../../test-oisms/nfr/coverage/merge-coverage.py):
+
+- **Nhóm ghi sổ (`OrderService`, `GoodsReceiptService`, `SalesReturnService`):** `1787 / 1966` = **`90.90%`** (**ĐẠT** `>= 80%`)
+- **Giữ chỗ (`ReservationService`):** `346 / 374` = **`92.51%`** (**ĐẠT** `>= 80%`)
+- **Tính WAC (`WacCalculator` trong `IWacCalculator.cs`):** `16 / 16` = **`100.00%`** (**ĐẠT** `>= 80%`)
+- **Tính doanh thu / giá vốn (`RevenueProfitCalculationHelper`):** `151 / 169` = **`89.35%`** (**ĐẠT** `>= 80%`)
+
+Chi tiết xem [`evidence/goi-5/NFR-MAINT-02/2026-11-21-FIN-F.md`](../06-testing-and-qa/evidence/goi-5/NFR-MAINT-02/2026-11-21-FIN-F.md).

@@ -7,7 +7,7 @@ using OISM.WebApi.Http;
 namespace OISM.WebApi.Controllers;
 
 /// <summary>
-/// API Quản lý Phiếu nhập kho từ Nhà cung cấp (BE1-04, BE1-05, BE1-07, U01-A).
+/// API Quản lý Phiếu nhập kho từ Nhà cung cấp (BE1-04, BE1-05, BE1-07, U01-A, U12).
 /// Áp dụng cho vai trò Chủ shop (Owner) và Nhân viên kho (Staff).
 /// Nhân viên thu ngân (Cashier) bị từ chối truy cập (403 Forbidden).
 /// </summary>
@@ -66,7 +66,7 @@ public class GoodsReceiptsController : ControllerBase
     }
 
     /// <summary>
-    /// Xác nhận nhập kho nguyên tử (Atomic Confirm - BE1-05, U01-A).
+    /// Xác nhận nhập kho nguyên tử (Atomic Confirm - BE1-05, U01-A, U12).
     /// </summary>
     [HttpPost("{id}/confirm")]
     [ApiErrorContract(ApiErrorProfile.GoodsReceipts)]

@@ -66,6 +66,7 @@ public class StockTransferItemResponseDto
     public Guid SkuId { get; set; }
     public string SkuCode { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
+    public string BaseUnitName { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
     public decimal? UnitCost { get; set; } // Giá vốn WAC tại thời điểm xuất gửi
 }
@@ -85,10 +86,13 @@ public class StockTransferResponseDto
     public string? ToWarehouseName { get; set; }
     public string Status { get; set; } = StockTransferStatus.Draft; // 'Draft', 'InTransit', 'Received', 'Cancelled'
     public Guid CreatedBy { get; set; }
+    public string? CreatedByName { get; set; }
     public Guid? DispatchedBy { get; set; }
+    public string? DispatchedByName { get; set; }
     public DateTimeOffset? DispatchedAt { get; set; }
     public DateTimeOffset? ReceivedAt { get; set; }
     public Guid? ReceivedBy { get; set; }
+    public string? ReceivedByName { get; set; }
     public string? Note { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 

@@ -67,7 +67,12 @@ public class PurchaseOrderItemConfiguration : IEntityTypeConfiguration<PurchaseO
         builder.Property(i => i.UnitPrice)
             .HasColumnName("unit_price")
             .HasPrecision(20, 6)
-            .IsRequired();
+            .IsRequired(false);
+
+        builder.Property(i => i.AllocatedUnitCost)
+            .HasColumnName("allocated_unit_cost")
+            .HasPrecision(20, 6)
+            .IsRequired(false);
 
         builder.Property(i => i.ReceivedBaseQuantity)
             .HasColumnName("received_base_quantity")

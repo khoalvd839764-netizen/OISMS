@@ -8,10 +8,7 @@ namespace OISM.Application.Features.Ai.Services;
 
 public class AiForecastingService : IAiForecastingService
 {
-    private const int VelocityWindowDays = 30;
-    private const int NoSalesDaysUntilStockout = 999;
-
-    private static string FormatQuantity(decimal value) => value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
+    private const int VelocityWindowDays = ReorderForecastCalculator.VelocityWindowDays;
 
     private readonly IAppDbContext _context;
     private readonly ICurrentTenantService _currentTenantService;
@@ -204,18 +201,15 @@ public class AiForecastingService : IAiForecastingService
 
         // 2. Lấy dữ liệu xuất bán 30 ngày qua để tính vận tốc bán trung bình ngày (Daily Sales Velocity)
         var today = ReportTimeHelper.Today();
+        var asOf = DateOnly.FromDateTime(today);
         var exportRows = await LoadExportRowsAsync(tenantId, query.BranchId, null, today.AddDays(-(VelocityWindowDays - 1)), today, ct);
 
         // Gom nhóm theo từng chi nhánh + SKU: nhu cầu của chi nhánh này không được tính cho chi nhánh khác
-        var salesVelocity = exportRows
+        var pointsByKey = exportRows
             .GroupBy(r => (r.BranchId, r.SkuId))
             .ToDictionary(
                 g => g.Key,
-                g => new
-                {
-                    ActiveDays = g.Select(x => x.Date).Distinct().Count(),
-                    DailyVelocity = Math.Round(g.Sum(x => x.Quantity) / VelocityWindowDays, 2)
-                });
+                g => (IReadOnlyList<ReorderExportPoint>)g.Select(x => new ReorderExportPoint(x.Date, x.Quantity)).ToList());
 
         var recommendations = new List<ReorderRecommendationDto>();
 
@@ -227,85 +221,23 @@ public class AiForecastingService : IAiForecastingService
             var reserved = bal.Reserved;
             var available = onHand - reserved;
             var reorderPoint = bal.ReorderPoint;
-
-            salesVelocity.TryGetValue((bal.BranchId, skuId), out var velocityInfo);
-            var dailyVelocity = velocityInfo?.DailyVelocity ?? 0m;
-            var activeDays = velocityInfo?.ActiveDays ?? 0;
-
-            // Tính số ngày dự kiến cạn kho
-            int daysUntilStockout;
-            if (available <= 0)
-            {
-                daysUntilStockout = 0;
-            }
-            else if (dailyVelocity > 0)
-            {
-                daysUntilStockout = (int)Math.Floor(available / dailyVelocity);
-            }
-            else
-            {
-                daysUntilStockout = NoSalesDaysUntilStockout; // Chưa phát sinh xuất bán nên chưa ước tính được ngày cạn kho
-            }
-
-            // Đánh giá nhu cầu nhập lại
             var leadTime = query.LeadTimeDays;
             var safetyDays = query.SafetyStockDays;
-            var horizonDays = leadTime + safetyDays;
 
-            var needsReorder = available <= reorderPoint || (dailyVelocity > 0 && daysUntilStockout <= horizonDays);
+            var exportPoints = pointsByKey.TryGetValue((bal.BranchId, skuId), out var pts)
+                ? pts
+                : Array.Empty<ReorderExportPoint>();
 
-            decimal suggestedQuantity = 0;
-            string confidenceLevel;
-            string reason;
+            var forecast = ReorderForecastCalculator.Calculate(
+                exportPoints,
+                asOf,
+                available,
+                reorderPoint,
+                leadTime,
+                safetyDays,
+                sku?.Unit ?? "sp");
 
-            if (activeDays >= 14)
-            {
-                confidenceLevel = "High";
-            }
-            else if (activeDays >= 5)
-            {
-                confidenceLevel = "Medium";
-            }
-            else
-            {
-                confidenceLevel = "Low";
-            }
-
-            if (needsReorder)
-            {
-                var targetBuffer = Math.Max(reorderPoint, 5m);
-                var expectedDemand = Math.Ceiling(dailyVelocity * horizonDays);
-                var needed = (expectedDemand + targetBuffer) - available;
-                suggestedQuantity = Math.Max(1, needed);
-
-                if (available <= 0)
-                {
-                    reason = $"Hết hàng khả dụng (Available = {FormatQuantity(available)}). Tốc độ bán {FormatQuantity(dailyVelocity)} {sku?.Unit ?? "sp"}/ngày. Đề xuất nhập ngay để tránh gián đoạn.";
-                }
-                else if (available <= reorderPoint)
-                {
-                    reason = daysUntilStockout >= NoSalesDaysUntilStockout
-                        ? $"Tồn khả dụng ({FormatQuantity(available)}) chạm hoặc dưới ngưỡng cảnh báo an toàn ({FormatQuantity(reorderPoint)}). Chưa có dữ liệu bán để ước tính ngày cạn kho."
-                        : $"Tồn khả dụng ({FormatQuantity(available)}) chạm hoặc dưới ngưỡng cảnh báo an toàn ({FormatQuantity(reorderPoint)}). Dự kiến cạn kho trong {daysUntilStockout} ngày.";
-                }
-                else
-                {
-                    reason = $"Tốc độ bán {FormatQuantity(dailyVelocity)} {sku?.Unit ?? "sp"}/ngày. Tồn hiện tại chỉ đủ dùng {daysUntilStockout} ngày, nhỏ hơn thời gian cung ứng ({horizonDays} ngày).";
-                }
-
-                if (confidenceLevel == "Low")
-                {
-                    reason += " (Lưu ý: Dữ liệu lịch sử xuất bán còn ít, cần tích lũy thêm để tăng độ chính xác).";
-                }
-            }
-            else
-            {
-                reason = daysUntilStockout >= NoSalesDaysUntilStockout
-                    ? $"Tồn kho an toàn. Khả dụng ({FormatQuantity(available)}) cao hơn ngưỡng ReorderPoint ({FormatQuantity(reorderPoint)}). Chưa có dữ liệu bán trong {VelocityWindowDays} ngày gần nhất."
-                    : $"Tồn kho an toàn. Khả dụng ({FormatQuantity(available)}) cao hơn ngưỡng ReorderPoint ({FormatQuantity(reorderPoint)}) và đủ đáp ứng nhu cầu dự kiến {daysUntilStockout} ngày tới.";
-            }
-
-            if (!query.OnlyNeedsReorder || needsReorder)
+            if (!query.OnlyNeedsReorder || forecast.NeedsReorder)
             {
                 var skuDisplayName = !string.IsNullOrWhiteSpace(sku?.VariantName)
                     ? sku.VariantName
@@ -323,14 +255,14 @@ public class AiForecastingService : IAiForecastingService
                     ReservedQuantity = reserved,
                     AvailableQuantity = available,
                     ReorderPoint = reorderPoint,
-                    DailySalesVelocity = dailyVelocity,
-                    DaysUntilStockout = daysUntilStockout,
+                    DailySalesVelocity = forecast.DailyVelocity,
+                    DaysUntilStockout = forecast.DaysUntilStockout,
                     LeadTimeDays = leadTime,
                     SafetyStockDays = safetyDays,
-                    NeedsReorder = needsReorder,
-                    SuggestedQuantity = suggestedQuantity,
-                    ConfidenceLevel = confidenceLevel,
-                    Reason = reason
+                    NeedsReorder = forecast.NeedsReorder,
+                    SuggestedQuantity = forecast.SuggestedQuantity,
+                    ConfidenceLevel = forecast.ConfidenceLevel,
+                    Reason = forecast.Reason
                 });
             }
         }

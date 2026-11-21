@@ -46,7 +46,7 @@ public class GoodsReceiptResponseDto
     public string SupplierName { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
     public string? Note { get; set; }
-    public decimal TotalAmount { get; set; }
+    public decimal? TotalAmount { get; set; }
     public Guid CreatedBy { get; set; }
     public string? CreatedByName { get; set; }
     public DateTimeOffset? ConfirmedAt { get; set; }
@@ -67,11 +67,12 @@ public class GoodsReceiptItemResponseDto
     public string ProductName { get; set; } = string.Empty;
     public Guid? UnitId { get; set; }
     public string UnitName { get; set; } = string.Empty;
+    public string BaseUnitName { get; set; } = string.Empty;
     public decimal FactorSnapshot { get; set; }
     public decimal BaseQuantity { get; set; }
     public decimal Quantity { get; set; }
-    public decimal UnitPrice { get; set; }
-    public decimal LineTotal => Quantity * UnitPrice;
+    public decimal? UnitPrice { get; set; }
+    public decimal? LineTotal => UnitPrice.HasValue ? Quantity * UnitPrice.Value : null;
 }
 
 public class GoodsReceiptFilterDto

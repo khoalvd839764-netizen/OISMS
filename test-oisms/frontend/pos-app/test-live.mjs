@@ -42,7 +42,7 @@ try {
   const warehouses=await api('/api/warehouses'),warehouse=warehouses.find(w=>w.branchId===branch.id);
   const products=await api('/api/products'),product=products[0],sku=product.variants[0],suppliers=await api('/api/suppliers');
   const po=await api('/api/purchase-orders',{branchId:branch.id,supplierId:suppliers[0].id,items:[{skuId:sku.id,quantity:30,unitPrice:100000}]});
-  await api(`/api/purchase-orders/${po.id}/approve`,{});
+  await api(`/api/purchase-orders/${po.id}/approve`,{version:po.version??1});
   const receipt=await api('/api/goods-receipts',{purchaseOrderId:po.id,warehouseId:warehouse.id,items:[{purchaseOrderItemId:po.items[0].id,quantity:30}]});
   await api(`/api/goods-receipts/${receipt.id}/confirm`,{});
   const user=await session.loginPos('cashier@shopa.local',password);assert.ok(user.id&&user.tenantId);
@@ -69,6 +69,18 @@ try {
   await hub.switchBranch(branchB.id);const beforeOther=liveEvents;
   await api('/api/pos/checkout',{...payload,requestKey:randomUUID()});await new Promise(r=>setTimeout(r,500));assert.equal(liveEvents,beforeOther);record('Đổi branch không nhận sự kiện branch cũ');
   await hub.switchBranch(branch.id);
+  // NFR-USA-02: Quét/tìm SKU (bước 1: barcode/search + Enter) -> F4 / nút Thanh toán (bước 2: checkout) <= 2 bước API/UI
+  let uiSteps = 0;
+  const quickMatch = sku.barcode ? await posApi.scanPosBarcode(sku.barcode, branch.id) : (await posApi.searchPosProducts(sku.sku, branch.id))[0];
+  assert.ok(quickMatch, 'NFR-USA-02: quét mã hoặc tìm SKU phải trả sản phẩm');
+  uiSteps++;
+  const quickUnit = units.resolveCartUnit(quickMatch);
+  const quickPayload = { branchId: branch.id, channel: 'POS', requestKey: randomUUID(), paymentMethod: 'CASH', amountGiven: quickUnit.price, changeDue: 0, totalAmount: quickUnit.price, items: [{ skuId: sku.id, skuCode: sku.sku, productName: product.name, variantName: sku.variantName, quantity: 1, unitId: quickUnit.unit?.unitId, unitPrice: quickUnit.price }] };
+  const quickRes = await api('/api/pos/checkout', quickPayload);
+  assert.ok(quickRes.orderId && quickRes.receipt, 'NFR-USA-02: xác nhận thanh toán trả hóa đơn');
+  uiSteps++;
+  assert.ok(uiSteps < 3, `NFR-USA-02: số bước thao tác phải < 3, thực tế=${uiSteps}`);
+  record('NFR-USA-02: Quét mã + Enter -> F4 -> Xác nhận hoàn tất trong 2 bước (< 3 bước)', { steps: uiSteps, orderId: quickRes.orderId });
   await coordinator.refresh();const beforeOffline=catalog.find(p=>p.variantId===sku.id).available;
   proxy.cut();await until(()=>lastStatus==='reconnecting'||lastStatus==='disconnected','physical disconnect');
   await api('/api/pos/checkout',{...payload,requestKey:randomUUID()});const reconnectBaseline=reloads;

@@ -18,7 +18,8 @@ public class PurchaseOrderItem : BaseEntity, IMustHaveTenant
     public short QuantityDecimalPlaces { get; set; } = 3;
     public decimal Quantity { get; set; }
     public decimal OrderedBaseQuantity { get => Quantity * FactorSnapshot; private set { } }
-    public decimal UnitPrice { get; set; }
+    public decimal? UnitPrice { get; set; }
+    public decimal? AllocatedUnitCost { get; set; }
     public decimal ReceivedBaseQuantity { get; set; } = 0m;
 
     // Navigation properties
@@ -26,4 +27,5 @@ public class PurchaseOrderItem : BaseEntity, IMustHaveTenant
     public PurchaseOrder? PurchaseOrder { get; set; }
     public ProductVariant? Sku { get; set; }
     public Unit? Unit { get; set; }
+    public ICollection<PurchaseOrderSalePriceConfig> SalePriceConfigs { get; set; } = new List<PurchaseOrderSalePriceConfig>();
 }

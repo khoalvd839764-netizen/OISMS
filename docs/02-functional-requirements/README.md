@@ -50,4 +50,4 @@ Các file `fr-*.md` đặc tả yêu cầu. Xem [checklist theo từng mã](../.
 | `FR-AI-01` | Đã có API và bảng Admin | Mở lại tab Gợi ý nhập hàng cho Owner và Staff ngày 10/11/2026 trên nhánh `feature/OISMS-58-chatbot-ai`. |
 | `FR-AI-02` | Đã có API và panel Admin, mặc định tắt | Claude nghiệm thu 10/11/2026, PR #42 vào `develop`. Không có kinh phí nên API AI chỉ dùng gói miễn phí, hạn mức rất thấp (xem [fr-13](./fr-13-ai-assistant.md)). |
 
-Còn thiếu theo danh sách Coming Soon: CS-06, U01-B. CS-01 (trả hàng) đã xong (PR #41). CS-05 (VietQR) đã xong, chưa có xác nhận tự động qua webhook ngân hàng. Chi tiết: [báo cáo frontend](../report-after-upgrade/frontend-coming-soon-va-upgrade.md).
+Còn thiếu theo danh sách Coming Soon: CS-06. U01-B đã làm rồi được Upgrade 12 thay thế (19/11/2026). CS-01 (trả hàng) đã xong (PR #41). CS-05 (VietQR) đã xong, chưa có xác nhận tự động qua webhook ngân hàng. Chi tiết: [báo cáo frontend](../report-after-upgrade/frontend-coming-soon-va-upgrade.md).
