@@ -511,6 +511,7 @@ public class PostgresCostVisibilityScanIntegrationTests : IAsyncLifetime, IClass
             ["api/purchase-orders/price-suggestion"] = $"/api/purchase-orders/price-suggestion?branchId={b}&skuId={_skuId}",
             ["api/purchase-orders/{id:guid}"] = $"/api/purchase-orders/{_purchaseOrderId}",
             ["api/reports/revenue-profit"] = $"/api/reports/revenue-profit?fromDate={from}&toDate={to}",
+            ["api/reports/revenue-profit?skuIds"] = $"/api/reports/revenue-profit?fromDate={from}&toDate={to}&skuIds={_skuId}",
             ["api/reports/inventory-velocity"] = $"/api/reports/inventory-velocity?fromDate={from}&toDate={to}",
             ["api/reports/stock-alerts"] = $"/api/reports/stock-alerts?branchId={b}",
             ["api/reports/dashboard-summary"] = "/api/reports/dashboard-summary",

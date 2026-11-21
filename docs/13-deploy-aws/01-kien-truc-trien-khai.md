@@ -96,4 +96,4 @@ Không chạy bản local và bản production cùng lúc trên một máy với
 - Database chạy trong container trên cùng máy, backup phải tự làm (chưa dùng RDS hay snapshot tự động).
 - Build image ngay trên EC2, tốn RAM/CPU lúc deploy; chưa có registry (ECR) hay pipeline CD.
 - Hangfire đã bật trên bản demo từ 11/11/2026: job hết hạn giữ chỗ chạy mỗi phút, sinh kỳ kiểm kê chạy phút thứ 5 mỗi giờ. Trợ lý OISMS cũng đã bật (key gói miễn phí). Cách bật, tắt: [cấu hình backend trên production](./03-cau-hinh-moi-truong-production.md#4-cấu-hình-backend-trên-production).
-- `/health/ready` công khai qua Caddy và trả kèm tên user database đang kết nối, số bảng; chấp nhận được cho bản demo nhưng nên chặn hoặc rút gọn nếu dùng thật.
+- `/health/ready` trả kèm tên user database và số bảng. Từ 21/11/2026 (BF-026, `OISMS-66-FIN-E`) Caddyfile chặn đường này từ Internet (403), chỉ mở `/health/live`; kiểm tra readiness bằng lệnh nội bộ trong [tài liệu 04](./04-quy-trinh-deploy-va-cap-nhat.md). Bản demo chỉ có hiệu lực sau khi deploy Caddyfile mới.

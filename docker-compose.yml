@@ -5,6 +5,9 @@ services:
     image: postgres:16-alpine
     container_name: oism_postgres
     restart: always
+    # Docker mặc định chỉ cấp 64 MB /dev/shm; nhiều truy vấn song song (parallel hash join) cùng lúc sẽ lỗi
+    # "could not resize shared memory segment" và EF retry gây trễ vài giây (review FIN-J, 21/11/2026).
+    shm_size: 256mb
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?Error: POSTGRES_PASSWORD must be set in .env}"

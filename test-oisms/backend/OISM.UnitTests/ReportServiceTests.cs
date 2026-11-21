@@ -1137,4 +1137,298 @@ public class ReportServiceTests
         staffSummary.TotalGrossProfit.Should().BeNull();
         staffSummary.GrossMarginPercentage.Should().BeNull();
     }
+
+    [Fact]
+    public async Task GetRevenueProfitReport_SkuFilter_Over20DistinctSkus_ThrowsValidationError_AndDeduplicates()
+    {
+        var (context, mockTenant, _) = TestDbContextFactory.CreateInMemoryContext();
+        var reportService = new ReportService(context, mockTenant.Object);
+
+        var twentyOneDistinct = Enumerable.Range(0, 21).Select(_ => Guid.NewGuid()).ToList();
+        var actOverLimit = () => reportService.GetRevenueProfitReportAsync(new ReportFilterDto
+        {
+            SkuIds = twentyOneDistinct
+        }, isOwner: true);
+
+        var ex = await Assert.ThrowsAsync<OISM.Application.Common.Exceptions.OismException>(actOverLimit);
+        ex.ErrorCode.Should().Be("VALIDATION_ERROR");
+        ex.StatusCode.Should().Be(400);
+
+        // 20 distinct + 2 duplicates = 22 items total, should succeed after deduplication
+        var twentyWithDuplicates = twentyOneDistinct.Take(20).Concat(twentyOneDistinct.Take(2)).ToList();
+        var report = await reportService.GetRevenueProfitReportAsync(new ReportFilterDto
+        {
+            SkuIds = twentyWithDuplicates
+        }, isOwner: true);
+
+        report.TotalOrders.Should().Be(0);
+        report.SkuBreakdown.Should().NotBeNull().And.BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetRevenueProfitReport_SkuFilter_OrderWithDiscountAndReturnOnDifferentDay_AllocatesAndDeductsAccurately()
+    {
+        var (context, mockTenant, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var reportService = new ReportService(context, mockTenant.Object);
+
+        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "CN1" };
+        var product = new Product { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Sản phẩm Test" };
+        var skuA = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, ProductId = product.Id, SKU = "SKU-A" };
+        var skuB = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, ProductId = product.Id, SKU = "SKU-B" };
+        context.Branches.Add(branch);
+        context.Products.Add(product);
+        context.Skus.AddRange(skuA, skuB);
+
+        var saleTime = new DateTimeOffset(2026, 11, 10, 10, 0, 0, TimeSpan.FromHours(7));
+        var returnTime = new DateTimeOffset(2026, 11, 12, 14, 0, 0, TimeSpan.FromHours(7));
+
+        // Order has A (2 * 100,000 = 200,000) and B (1 * 100,000 = 100,000), raw = 300,000
+        // Order-level discount 30,000 -> TotalAmount = 270,000
+        // Proportional allocation: A = 180,000, B = 90,000
+        var order = new Order
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Number = "ORD-DISC-01",
+            BranchId = branch.Id,
+            Channel = "POS",
+            Status = "Completed",
+            TotalAmount = 270_000m,
+            CreatedAt = saleTime
+        };
+        var itemA = new OrderItem
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            OrderId = order.Id,
+            SkuId = skuA.Id,
+            SkuCodeSnapshot = "SKU-A",
+            SkuNameSnapshot = "Sản phẩm A",
+            UnitNameSnapshot = "Cái",
+            FactorSnapshot = 1m,
+            Quantity = 2m,
+            UnitPrice = 100_000m,
+            CostPrice = 50_000m // COGS A = 100,000
+        };
+        var itemB = new OrderItem
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            OrderId = order.Id,
+            SkuId = skuB.Id,
+            SkuCodeSnapshot = "SKU-B",
+            SkuNameSnapshot = "Sản phẩm B",
+            UnitNameSnapshot = "Hộp",
+            FactorSnapshot = 2m,
+            Quantity = 1m,
+            UnitPrice = 100_000m,
+            CostPrice = 30_000m // BaseQty = 2, COGS B = 60,000
+        };
+        order.Items.Add(itemA);
+        order.Items.Add(itemB);
+        context.Orders.Add(order);
+
+        // Return 1 of SKU A on 2026-11-12, RefundAmount = 90,000, OriginalUnitCost = 50,000
+        var salesReturn = new SalesReturn
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Number = "RT-DISC-01",
+            OrderId = order.Id,
+            BranchId = branch.Id,
+            Status = "Confirmed",
+            TotalRefundAmount = 90_000m,
+            ConfirmedAt = returnTime
+        };
+        salesReturn.Items.Add(new SalesReturnItem
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            SalesReturnId = salesReturn.Id,
+            OrderId = order.Id,
+            OrderItemId = itemA.Id,
+            OrderItem = itemA,
+            SkuId = skuA.Id,
+            Quantity = 1m,
+            RefundAmount = 90_000m,
+            OriginalUnitCost = 50_000m
+        });
+        context.SalesReturns.Add(salesReturn);
+        await context.SaveChangesAsync();
+
+        var unfiltered = await reportService.GetRevenueProfitReportAsync(new ReportFilterDto(), isOwner: true);
+        var onlyA = await reportService.GetRevenueProfitReportAsync(new ReportFilterDto { SkuIds = new List<Guid> { skuA.Id } }, isOwner: true);
+        var onlyB = await reportService.GetRevenueProfitReportAsync(new ReportFilterDto { SkuIds = new List<Guid> { skuB.Id } }, isOwner: true);
+        var both = await reportService.GetRevenueProfitReportAsync(new ReportFilterDto { SkuIds = new List<Guid> { skuA.Id, skuB.Id } }, isOwner: true);
+
+        // Filter [A]
+        onlyA.Revenue.Should().Be(180_000m);
+        onlyA.ReturnAmount.Should().Be(90_000m);
+        onlyA.NetRevenue.Should().Be(90_000m);
+        onlyA.CostOfGoodsSold.Should().Be(100_000m);
+        onlyA.ReturnCogs.Should().Be(50_000m);
+        onlyA.NetCogs.Should().Be(50_000m);
+        onlyA.GrossProfit.Should().Be(40_000m);
+        onlyA.TotalOrders.Should().Be(1);
+        onlyA.DailyTrend.Should().HaveCount(2);
+        onlyA.DailyTrend.First(d => d.Date == "2026-11-10").Revenue.Should().Be(180_000m);
+        onlyA.DailyTrend.First(d => d.Date == "2026-11-12").ReturnAmount.Should().Be(90_000m);
+
+        // Filter [B] is unaffected by A's return
+        onlyB.Revenue.Should().Be(90_000m);
+        onlyB.ReturnAmount.Should().Be(0m);
+        onlyB.NetRevenue.Should().Be(90_000m);
+        onlyB.CostOfGoodsSold.Should().Be(60_000m);
+        onlyB.ReturnCogs.Should().Be(0m);
+        onlyB.GrossProfit.Should().Be(30_000m);
+        onlyB.TotalOrders.Should().Be(1);
+
+        // Filter [A, B] matches unfiltered KPIs and counts distinct order once
+        both.Revenue.Should().Be(unfiltered.Revenue);
+        both.ReturnAmount.Should().Be(unfiltered.ReturnAmount);
+        both.NetRevenue.Should().Be(unfiltered.NetRevenue);
+        both.CostOfGoodsSold.Should().Be(unfiltered.CostOfGoodsSold);
+        both.ReturnCogs.Should().Be(unfiltered.ReturnCogs);
+        both.NetCogs.Should().Be(unfiltered.NetCogs);
+        both.GrossProfit.Should().Be(unfiltered.GrossProfit);
+        both.TotalOrders.Should().Be(1);
+
+        // SkuBreakdown sums match KPIs
+        both.SkuBreakdown.Should().NotBeNull().And.HaveCount(2);
+        both.SkuBreakdown!.Sum(x => x.Revenue).Should().Be(both.Revenue);
+        both.SkuBreakdown!.Sum(x => x.ReturnAmount).Should().Be(both.ReturnAmount);
+        both.SkuBreakdown!.Sum(x => x.NetRevenue).Should().Be(both.NetRevenue);
+        both.SkuBreakdown!.Sum(x => x.CostOfGoodsSold ?? 0m).Should().Be(both.CostOfGoodsSold);
+        both.SkuBreakdown!.Sum(x => x.ReturnCogs ?? 0m).Should().Be(both.ReturnCogs);
+        both.SkuBreakdown!.Sum(x => x.NetCogs ?? 0m).Should().Be(both.NetCogs);
+        both.SkuBreakdown!.Sum(x => x.GrossProfit ?? 0m).Should().Be(both.GrossProfit);
+
+        var breakdownB = both.SkuBreakdown!.First(x => x.SkuId == skuB.Id);
+        breakdownB.OrderCount.Should().Be(1);
+        breakdownB.QuantityByUnit.Should().ContainSingle(u => u.UnitName == "Hộp" && u.Quantity == 1m && u.BaseQuantity == 2m);
+    }
+
+    [Fact]
+    public async Task GetRevenueProfitReport_SkuFilter_StaffRole_HidesCogsAndGrossProfit_IncludingSkuBreakdown()
+    {
+        var (context, mockTenant, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var reportService = new ReportService(context, mockTenant.Object);
+
+        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "CN1" };
+        var sku = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, SKU = "SKU-STAFF" };
+        context.Branches.Add(branch);
+        context.Skus.Add(sku);
+
+        var order = new Order
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            Number = "ORD-STAFF-01",
+            BranchId = branch.Id,
+            Channel = "POS",
+            Status = "Completed",
+            TotalAmount = 100_000m,
+            CreatedAt = DateTimeOffset.UtcNow
+        };
+        order.Items.Add(new OrderItem
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenantId,
+            OrderId = order.Id,
+            SkuId = sku.Id,
+            SkuCodeSnapshot = "SKU-STAFF",
+            SkuNameSnapshot = "Sản phẩm Staff",
+            UnitNameSnapshot = "Cái",
+            FactorSnapshot = 1m,
+            Quantity = 1m,
+            UnitPrice = 100_000m,
+            CostPrice = 60_000m
+        });
+        context.Orders.Add(order);
+        await context.SaveChangesAsync();
+
+        var staffReport = await reportService.GetRevenueProfitReportAsync(new ReportFilterDto
+        {
+            SkuIds = new List<Guid> { sku.Id }
+        }, isOwner: false);
+
+        staffReport.NetRevenue.Should().Be(100_000m);
+        staffReport.CostOfGoodsSold.Should().BeNull();
+        staffReport.TotalCostOfGoodsSold.Should().BeNull();
+        staffReport.ReturnCogs.Should().BeNull();
+        staffReport.NetCogs.Should().BeNull();
+        staffReport.GrossProfit.Should().BeNull();
+        staffReport.TotalGrossProfit.Should().BeNull();
+        staffReport.GrossMarginPercentage.Should().BeNull();
+        staffReport.SkuBreakdown.Should().ContainSingle();
+        var item = staffReport.SkuBreakdown![0];
+        item.NetRevenue.Should().Be(100_000m);
+        item.CostOfGoodsSold.Should().BeNull();
+        item.ReturnCogs.Should().BeNull();
+        item.NetCogs.Should().BeNull();
+        item.GrossProfit.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetInventoryVelocityReport_DifferentBaseUnits_ReturnsNullTotals_BF027()
+    {
+        var (context, mockTenant, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var reportService = new ReportService(context, mockTenant.Object);
+
+        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "CN1" };
+        var product = new Product { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Prod BF027" };
+        var unitPiece = new Unit { Id = Guid.NewGuid(), TenantId = tenantId, Code = "cai", Name = "Cái", Symbol = "cái" };
+        var unitBox = new Unit { Id = Guid.NewGuid(), TenantId = tenantId, Code = "hop", Name = "Hộp", Symbol = "hộp" };
+        var sku1 = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, ProductId = product.Id, SKU = "SKU-U1", BaseUnitId = unitPiece.Id };
+        var sku2 = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, ProductId = product.Id, SKU = "SKU-U2", BaseUnitId = unitBox.Id };
+
+        context.Branches.Add(branch);
+        context.Products.Add(product);
+        context.Units.AddRange(unitPiece, unitBox);
+        context.Skus.AddRange(sku1, sku2);
+        context.InventoryBalances.AddRange(
+            new InventoryBalance { Id = Guid.NewGuid(), TenantId = tenantId, BranchId = branch.Id, SkuId = sku1.Id, OnHand = 48m, Reserved = 3m, AverageCost = 10_000m },
+            new InventoryBalance { Id = Guid.NewGuid(), TenantId = tenantId, BranchId = branch.Id, SkuId = sku2.Id, OnHand = 26m, Reserved = 1m, AverageCost = 20_000m }
+        );
+        await context.SaveChangesAsync();
+
+        var report = await reportService.GetInventoryVelocityReportAsync(new ReportFilterDto());
+
+        report.TotalOnHandQuantity.Should().BeNull();
+        report.TotalReservedQuantity.Should().BeNull();
+        report.TotalAvailableQuantity.Should().BeNull();
+        report.QuantityByUnit.Should().HaveCount(2);
+        report.QuantityByUnit.Should().Contain(u => u.UnitName == "Cái" && u.OnHand == 48m && u.Reserved == 3m && u.Available == 45m);
+        report.QuantityByUnit.Should().Contain(u => u.UnitName == "Hộp" && u.OnHand == 26m && u.Reserved == 1m && u.Available == 25m);
+    }
+
+    [Fact]
+    public async Task GetInventoryVelocityReport_SameBaseUnit_ReturnsSummedTotals_BF027()
+    {
+        var (context, mockTenant, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var reportService = new ReportService(context, mockTenant.Object);
+
+        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "CN1" };
+        var product = new Product { Id = Guid.NewGuid(), TenantId = tenantId, Name = "Prod BF027 Same" };
+        var unitPiece = new Unit { Id = Guid.NewGuid(), TenantId = tenantId, Code = "cai", Name = "Cái", Symbol = "cái" };
+        var sku1 = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, ProductId = product.Id, SKU = "SKU-S1", BaseUnitId = unitPiece.Id };
+        var sku2 = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, ProductId = product.Id, SKU = "SKU-S2", BaseUnitId = unitPiece.Id };
+
+        context.Branches.Add(branch);
+        context.Products.Add(product);
+        context.Units.Add(unitPiece);
+        context.Skus.AddRange(sku1, sku2);
+        context.InventoryBalances.AddRange(
+            new InventoryBalance { Id = Guid.NewGuid(), TenantId = tenantId, BranchId = branch.Id, SkuId = sku1.Id, OnHand = 30m, Reserved = 2m, AverageCost = 10_000m },
+            new InventoryBalance { Id = Guid.NewGuid(), TenantId = tenantId, BranchId = branch.Id, SkuId = sku2.Id, OnHand = 20m, Reserved = 3m, AverageCost = 20_000m }
+        );
+        await context.SaveChangesAsync();
+
+        var report = await reportService.GetInventoryVelocityReportAsync(new ReportFilterDto());
+
+        report.TotalOnHandQuantity.Should().Be(50m);
+        report.TotalReservedQuantity.Should().Be(5m);
+        report.TotalAvailableQuantity.Should().Be(45m);
+        report.QuantityByUnit.Should().ContainSingle(u => u.UnitName == "Cái" && u.OnHand == 50m);
+    }
 }

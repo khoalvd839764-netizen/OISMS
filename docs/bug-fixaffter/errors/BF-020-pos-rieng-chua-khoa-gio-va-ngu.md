@@ -2,7 +2,7 @@
 
 | Mục | Giá trị |
 | :--- | :--- |
-| **Trạng thái** | 🟡 Cần kiểm chứng lại |
+| **Trạng thái** | ✅ Đã sửa & có test hồi quy tự động (`FIN-G`) |
 | **Ưu tiên** | P1 |
 | **Khu vực** | POS riêng 5174 |
 | **Phát hiện** | 28–29/10/2026 (Tái hiện có kiểm soát) |
@@ -34,3 +34,9 @@
   * Kết nối callback `onBusyChange={setCheckoutBusy}` để khóa thao tác đổi ngữ cảnh chi nhánh/sửa giỏ hàng khi giao dịch thanh toán đang in-flight.
   * Sử dụng `currentBranchIdRef` và `cartVersionRef` truyền `checkoutBranchId` và `checkoutVersion` vào `PaymentModal`. Trong `onSuccessAndPrint`, kiểm tra đối soát: nếu `checkoutBranchId !== currentBranchIdRef.current` hoặc `checkoutVersion !== cartVersionRef.current`, tuyệt đối không xóa giỏ hàng mới và không ghi đè `printedReceipt` của ngữ cảnh mới.
 * **Kiểm thử xác thực:** Pass kịch bản `separate-pos-old-checkout`: khi request cũ của chi nhánh A trả về muộn, giỏ hàng mới trên chi nhánh B được bảo toàn 100%.
+
+## Sửa & Kiểm chứng lại (`OISMS-66-FIN-G`, 21/11/2026)
+
+- **Tái hiện trước khi sửa:** Test `BF-020 POS: checkout A chưa trả -> đóng modal -> đổi chi nhánh B, thêm hàng -> A trả thành công...` trong `test-oisms/frontend/pos-app/test-bf019-bf020.mjs` **FAIL** (`1 !== 0`) vì `PaymentModal` gọi `onSuccessAndPrint` không kiểm tra ngữ cảnh sau `await checkoutPosOrder`.
+- **Cách sửa:** `src/frontend/pos-app/src/components/pos/PaymentModal.tsx` chụp `contextSignature` (`tenantId:userId:branchId:items`) trước `await checkoutPosOrder(...)` và chỉ gọi `onSuccessAndPrint` / `onClose` / cập nhật state modal khi `contextSignatureRef.current === requestContextSignature`.
+- **Kết quả sau sửa:** PASS `test-bf019-bf020.mjs` và toàn bộ `npm test --prefix src/frontend/pos-app` (101/101 PASS). Báo cáo: `docs/report-after-upgrade/hoi-quy-pos-bf019-bf020.md`.

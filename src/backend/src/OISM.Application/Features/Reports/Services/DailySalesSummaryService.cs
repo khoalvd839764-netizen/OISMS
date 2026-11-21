@@ -100,9 +100,9 @@ public class DailySalesSummaryService : IDailySalesSummaryService
 
             foreach (var salesReturn in returns)
             {
-                var returnItems = salesReturn.Items.ToList();
+                var returnItems = salesReturn.Items;
                 var allocatedReturns = RevenueProfitCalculationHelper.AllocateReturnRevenueByItem(salesReturn);
-                var channel = salesReturn.Order?.Channel ?? "POS";
+                var channel = salesReturn.OrderChannel ?? "POS";
 
                 for (int i = 0; i < returnItems.Count; i++)
                 {

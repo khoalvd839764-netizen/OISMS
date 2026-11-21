@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { Navigate } from 'react-router-dom';
 import { reportService } from '../services/reportService';
 import { apiAdapter } from '../services/apiAdapter';
+import { SkuMultiSelect, type SkuOption } from '../components/reports/SkuMultiSelect';
 import type {
   RevenueProfitReport,
   DailySalesSummaryComparison,
@@ -124,7 +125,36 @@ export const ReportsPage: React.FC = () => {
     return 'pnl';
   };
 
+  const readSkusFromUrl = (searchStr?: string): string[] => {
+    if (typeof window !== 'undefined') {
+      const raw = searchStr !== undefined ? searchStr : window.location.search;
+      const skusParam = new URLSearchParams(raw).get('skus');
+      if (skusParam) {
+        return Array.from(new Set(skusParam.split(',').map((s) => s.trim()).filter(Boolean))).slice(0, 20);
+      }
+    }
+    return [];
+  };
+
   const [activeTab, setActiveTabState] = useState<'pnl' | 'velocity' | 'alerts'>(() => readTabFromUrl());
+  const [skuOptions, setSkuOptions] = useState<SkuOption[]>([]);
+  const [selectedSkuIds, setSelectedSkuIdsState] = useState<string[]>(() => readSkusFromUrl());
+
+  const setSelectedSkuIds = useCallback((nextIds: string[]) => {
+    const clean = Array.from(new Set(nextIds.filter(Boolean))).slice(0, 20);
+    setSelectedSkuIdsState(clean);
+    if (typeof window !== 'undefined' && window.history?.replaceState) {
+      try {
+        const url = new URL(window.location.href);
+        if (clean.length > 0) {
+          url.searchParams.set('skus', clean.join(','));
+        } else {
+          url.searchParams.delete('skus');
+        }
+        window.history.replaceState({}, '', url.toString());
+      } catch {}
+    }
+  }, []);
 
   const setActiveTab = useCallback((nextTab: 'pnl' | 'velocity' | 'alerts') => {
     setActiveTabState(nextTab);
@@ -140,6 +170,7 @@ export const ReportsPage: React.FC = () => {
   useEffect(() => {
     const syncFromUrl = () => {
       setActiveTabState(readTabFromUrl());
+      setSelectedSkuIdsState(readSkusFromUrl());
     };
     const handleNavigateEvent = (e: Event) => {
       const custom = e as CustomEvent<{ href?: string }>;
@@ -147,6 +178,7 @@ export const ReportsPage: React.FC = () => {
       const qIdx = href.indexOf('?');
       if (qIdx >= 0) {
         setActiveTabState(readTabFromUrl(href.slice(qIdx)));
+        setSelectedSkuIdsState(readSkusFromUrl(href.slice(qIdx)));
       } else {
         syncFromUrl();
       }
@@ -223,15 +255,28 @@ export const ReportsPage: React.FC = () => {
   }, [calculateDates]);
 
   useEffect(() => {
-    const loadBranches = async () => {
+    const loadMaster = async () => {
       try {
-        const brRes = await apiAdapter.getBranches();
+        const [brRes, skuRes] = await Promise.all([
+          apiAdapter.getBranches(),
+          apiAdapter.getSkus(),
+        ]);
         if (brRes.data) setBranches(brRes.data);
+        if (skuRes.data) {
+          setSkuOptions(
+            skuRes.data.map((s) => ({
+              id: s.id,
+              code: s.code,
+              name: s.name,
+              variant: s.variant,
+            }))
+          );
+        }
       } catch (err) {
-        console.warn('Lỗi nạp danh mục chi nhánh:', err);
+        console.warn('Lỗi nạp danh mục lọc báo cáo:', err);
       }
     };
-    loadBranches();
+    loadMaster();
   }, []);
 
   // Fetch report data có generation guard chống race condition (BF-009, BF-010, BF-011)
@@ -240,19 +285,21 @@ export const ReportsPage: React.FC = () => {
     setLoading(true);
     setErrorMessage(null);
 
+    const isSkuFiltered = activeTab === 'pnl' && selectedSkuIds.length > 0;
     const filter: ReportFilter = {
       branchId: selectedBranch || undefined,
       channel: selectedChannel || undefined,
       startDate: startDate ? formatVietnamDateToUtcStart(startDate) : undefined,
       endDate: endDate ? formatVietnamDateToUtcEnd(endDate) : undefined,
       topN: 10,
+      skuIds: isSkuFiltered ? selectedSkuIds : undefined,
     };
 
     try {
       if (activeTab === 'pnl') {
         setDailySummaryError(null);
         const summaryPromise =
-          startDate && endDate
+          !isSkuFiltered && startDate && endDate
             ? reportService
                 .getDailySummaries({
                   fromDate: startDate,
@@ -303,7 +350,7 @@ export const ReportsPage: React.FC = () => {
         setLoading(false);
       }
     }
-  }, [activeTab, selectedBranch, selectedChannel, startDate, endDate]);
+  }, [activeTab, selectedBranch, selectedChannel, startDate, endDate, selectedSkuIds]);
 
   useEffect(() => {
     loadReports();
@@ -394,6 +441,10 @@ export const ReportsPage: React.FC = () => {
     alerts: '3. Cảnh báo tồn kho tối thiểu',
   };
   const selectedBranchName = branches.find((b) => b.id === selectedBranch)?.name || 'Tất cả chi nhánh';
+  const selectedSkuLabels = selectedSkuIds.map((id) => {
+    const found = skuOptions.find((s) => s.id === id);
+    return found ? `${found.code}${found.name ? ` (${found.name})` : ''}` : id.slice(0, 8);
+  });
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6 print:p-0 print:max-w-none print:space-y-4">
@@ -423,6 +474,12 @@ export const ReportsPage: React.FC = () => {
           <div>
             Chi nhánh: <span className="font-semibold text-gray-900">{selectedBranchName}</span>
           </div>
+          {activeTab === 'pnl' && selectedSkuIds.length > 0 && (
+            <div data-testid="print-sku-filter">
+              SKU đang lọc ({selectedSkuIds.length}):{' '}
+              <span className="font-semibold text-gray-900">{selectedSkuLabels.join(', ')}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -552,20 +609,29 @@ export const ReportsPage: React.FC = () => {
           ))}
         </select>
 
-        {/* Kênh bán hàng (chỉ cho P&L) */}
+        {/* Kênh bán hàng & Lọc nhiều SKU (chỉ cho P&L) */}
         {activeTab === 'pnl' && (
-          <select
-            value={selectedChannel}
-            onChange={(e) => setSelectedChannel(e.target.value)}
-            className="border border-gray-300 rounded-lg px-2.5 py-1.5 bg-white focus:ring-1 focus:ring-indigo-500 outline-none"
-          >
-            <option value="">Tất cả kênh bán</option>
-            <option value="POS">Điểm bán lẻ (POS)</option>
-            <option value="Admin">Tạo đơn Admin (Thủ công)</option>
-            <option value="Shopee">Shopee</option>
-            <option value="TikTok">TikTok Shop</option>
-            <option value="Lazada">Lazada</option>
-          </select>
+          <>
+            <select
+              value={selectedChannel}
+              onChange={(e) => setSelectedChannel(e.target.value)}
+              className="border border-gray-300 rounded-lg px-2.5 py-1.5 bg-white focus:ring-1 focus:ring-indigo-500 outline-none"
+            >
+              <option value="">Tất cả kênh bán</option>
+              <option value="POS">Điểm bán lẻ (POS)</option>
+              <option value="Admin">Tạo đơn Admin (Thủ công)</option>
+              <option value="Shopee">Shopee</option>
+              <option value="TikTok">TikTok Shop</option>
+              <option value="Lazada">Lazada</option>
+            </select>
+
+            <SkuMultiSelect
+              options={skuOptions}
+              selectedIds={selectedSkuIds}
+              onChange={setSelectedSkuIds}
+              maxSelect={20}
+            />
+          </>
         )}
 
         {/* Mức cảnh báo (chỉ cho Alerts) */}
@@ -836,7 +902,75 @@ export const ReportsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Daily Sales Summary Reconciliation Section (AC-07) */}
+          {/* SkuBreakdown Table (chỉ hiện khi đang lọc SKU) */}
+          {selectedSkuIds.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden" data-testid="sku-breakdown-section">
+              <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 font-semibold text-xs text-gray-700 uppercase flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Package className="w-4 h-4 text-indigo-600" />
+                  Chi tiết doanh thu &amp; lãi gộp theo SKU đang lọc ({selectedSkuIds.length})
+                </div>
+                <span className="text-[11px] font-normal normal-case text-gray-500">
+                  Số lượng tách theo từng đơn vị, không cộng khác đơn vị
+                </span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50/70 border-b border-gray-200 text-gray-500 font-semibold">
+                      <th className="py-2.5 px-3">Mã SKU</th>
+                      <th className="py-2.5 px-3">Tên sản phẩm</th>
+                      <th className="py-2.5 px-3 text-right">Số lượng bán</th>
+                      <th className="py-2.5 px-3 text-right">Doanh thu</th>
+                      <th className="py-2.5 px-3 text-right text-rose-600">Trả hàng</th>
+                      <th className="py-2.5 px-3 text-right text-indigo-700">DT thuần</th>
+                      <th className="py-2.5 px-3 text-right">Giá vốn thuần</th>
+                      <th className="py-2.5 px-3 text-right">Lãi gộp</th>
+                      <th className="py-2.5 px-3 text-right">Số đơn</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {(pnlData?.skuBreakdown || []).length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="py-6 text-center text-gray-400">
+                          Không có giao dịch cho các SKU đã chọn trong kỳ
+                        </td>
+                      </tr>
+                    ) : (
+                      pnlData?.skuBreakdown?.map((s) => (
+                        <tr key={s.skuId} className="hover:bg-gray-50">
+                          <td className="py-2.5 px-3 font-mono font-semibold text-gray-900">{s.skuCode}</td>
+                          <td className="py-2.5 px-3 text-gray-700">{s.skuName}</td>
+                          <td className="py-2.5 px-3 text-right text-gray-700 whitespace-nowrap">
+                            {s.quantityByUnit.length === 0
+                              ? '0'
+                              : s.quantityByUnit.map((u) => formatWithUnit(u.quantity, u.unitName)).join(' · ')}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-medium">{s.revenue.toLocaleString('vi-VN')} đ</td>
+                          <td className="py-2.5 px-3 text-right text-rose-600 font-medium">
+                            {s.returnAmount > 0 ? `-${s.returnAmount.toLocaleString('vi-VN')} đ` : '0 đ'}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-bold text-indigo-700">
+                            {s.netRevenue.toLocaleString('vi-VN')} đ
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-gray-600">
+                            {formatNullableMoney(s.netCogs ?? s.costOfGoodsSold)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-bold text-emerald-600">
+                            {formatNullableMoney(s.grossProfit)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right text-gray-700">{s.orderCount}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Daily Sales Summary Reconciliation Section (AC-07) — ẩn khi đang lọc SKU (Q4) */}
+          {selectedSkuIds.length === 0 && (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden" data-testid="daily-sales-summary-section">
             <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -956,6 +1090,7 @@ export const ReportsPage: React.FC = () => {
               </table>
             </div>
           </div>
+          )}
         </div>
       ) : activeTab === 'velocity' ? (
         /* TAB 2: VẬN TỐC TỒN KHO & LUÂN CHUYỂN */

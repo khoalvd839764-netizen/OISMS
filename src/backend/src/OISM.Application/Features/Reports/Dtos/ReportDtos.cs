@@ -7,6 +7,7 @@ public class ReportFilterDto
     public DateTimeOffset? StartDate { get; set; }
     public DateTimeOffset? EndDate { get; set; }
     public int TopN { get; set; } = 10;
+    public List<Guid>? SkuIds { get; set; }
 }
 
 public class ChannelRevenueBreakdownDto
@@ -50,6 +51,29 @@ public class DailyRevenueBreakdownDto
     public int OrderCount { get; set; }
 }
 
+public class SkuSoldUnitQuantityDto
+{
+    public string UnitName { get; set; } = string.Empty;
+    public decimal Quantity { get; set; }
+    public decimal BaseQuantity { get; set; }
+}
+
+public class SkuRevenueBreakdownDto
+{
+    public Guid SkuId { get; set; }
+    public string SkuCode { get; set; } = string.Empty;
+    public string SkuName { get; set; } = string.Empty;
+    public decimal Revenue { get; set; }
+    public decimal ReturnAmount { get; set; }
+    public decimal NetRevenue { get; set; }
+    public decimal? CostOfGoodsSold { get; set; }
+    public decimal? ReturnCogs { get; set; }
+    public decimal? NetCogs { get; set; }
+    public decimal? GrossProfit { get; set; }
+    public int OrderCount { get; set; }
+    public List<SkuSoldUnitQuantityDto> QuantityByUnit { get; set; } = new();
+}
+
 public class RevenueProfitReportDto
 {
     public decimal Revenue { get; set; }
@@ -70,6 +94,7 @@ public class RevenueProfitReportDto
     public List<ChannelRevenueBreakdownDto> ByChannel { get; set; } = new();
     public List<BranchRevenueBreakdownDto> ByBranch { get; set; } = new();
     public List<DailyRevenueBreakdownDto> DailyTrend { get; set; } = new();
+    public List<SkuRevenueBreakdownDto>? SkuBreakdown { get; set; }
 }
 
 public class SkuVelocityItemDto
@@ -97,9 +122,12 @@ public class UnitQuantityDto
 public class InventoryVelocityReportDto
 {
     public decimal? TotalInventoryValue { get; set; }
-    public decimal TotalOnHandQuantity { get; set; }
-    public decimal TotalReservedQuantity { get; set; }
-    public decimal TotalAvailableQuantity { get; set; }
+    /// <summary>Tổng tồn thực tế; trả null khi các SKU trong kết quả khác đơn vị gốc (BF-027).</summary>
+    public decimal? TotalOnHandQuantity { get; set; }
+    /// <summary>Tổng giữ chỗ; trả null khi các SKU trong kết quả khác đơn vị gốc (BF-027).</summary>
+    public decimal? TotalReservedQuantity { get; set; }
+    /// <summary>Tổng khả dụng; trả null khi các SKU trong kết quả khác đơn vị gốc (BF-027).</summary>
+    public decimal? TotalAvailableQuantity { get; set; }
     /// <summary>Tồn tách theo đơn vị gốc, vì cộng gộp khác đơn vị (Cái, Kg) không có ý nghĩa.</summary>
     public List<UnitQuantityDto> QuantityByUnit { get; set; } = new();
 

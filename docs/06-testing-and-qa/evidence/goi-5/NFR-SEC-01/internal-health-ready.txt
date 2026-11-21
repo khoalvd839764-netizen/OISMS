@@ -1,0 +1,2 @@
+{"isHealthy":true,"statusCode":200,"status":"Healthy","description":"Database connection, schema completeness (51 tables), trigger immutability, and runtime permissions verified.","currentUser":"oisms_app","tablesCount":51,"missingTables":null,"triggerVerified":true,"errorType":null,"timestamp":"2026-11-21T10:05:41.7157251Z"}
+HTTP_CODE:200

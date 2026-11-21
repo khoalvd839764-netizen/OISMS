@@ -4,6 +4,7 @@ export interface ReportFilter {
   startDate?: string;
   endDate?: string;
   topN?: number;
+  skuIds?: string[];
 }
 
 export interface ChannelRevenueBreakdown {
@@ -53,6 +54,27 @@ export interface DailyRevenueBreakdown {
   orderCount: number;
 }
 
+export interface SkuSoldUnitQuantity {
+  unitName: string;
+  quantity: number;
+  baseQuantity: number;
+}
+
+export interface SkuRevenueBreakdown {
+  skuId: string;
+  skuCode: string;
+  skuName: string;
+  revenue: number;
+  returnAmount: number;
+  netRevenue: number;
+  costOfGoodsSold: number | null;
+  returnCogs: number | null;
+  netCogs: number | null;
+  grossProfit: number | null;
+  orderCount: number;
+  quantityByUnit: SkuSoldUnitQuantity[];
+}
+
 export interface RevenueProfitReport {
   /** Doanh thu gộp trước khi trừ hàng trả. */
   revenue: number;
@@ -76,6 +98,7 @@ export interface RevenueProfitReport {
   byChannel: ChannelRevenueBreakdown[];
   byBranch: BranchRevenueBreakdown[];
   dailyTrend: DailyRevenueBreakdown[];
+  skuBreakdown?: SkuRevenueBreakdown[] | null;
 }
 
 export interface SkuVelocityItem {

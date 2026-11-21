@@ -25,7 +25,7 @@
 | Mã NFR | Tên yêu cầu | Đặc tả kỹ thuật bắt buộc |
 | :---: | :--- | :--- |
 | **`NFR-TENANT-01`** | **Data Isolation** (Cô lập dữ liệu) | - Áp dụng mẫu **Shared Database, Separate Schema/Tenant ID pattern**.<br/>- Tất cả các bảng dữ liệu vận hành bắt buộc phải có cột `TenantId`.<br/>- Thực thi **EF Core Global Query Filters** tự động trên toàn bộ thực thể `ITenantEntity` để đảm bảo **0% rò rỉ dữ liệu (`Zero data leakage`)** giữa các Tenant. |
-| **`NFR-TENANT-02`** | **Scalability** (Khả năng mở rộng) | - Thiết lập Composite Index tối ưu trên `(TenantId, CreatedAt)` và `(TenantId, SKUId)` cho bảng `InventoryLedger` (`inventory_transactions`) và `Orders` (`orders` / `order_items`) nhằm duy trì tốc độ truy vấn ổn định ở quy mô hàng triệu dòng sổ cái. |
+| **`NFR-TENANT-02`** | **Scalability** (Khả năng mở rộng) | - Thiết lập Composite Index tối ưu trên `(TenantId, CreatedAt)` và `(TenantId, SKUId)` cho bảng `InventoryLedger` (`inventory_transactions`) và `Orders` (`orders` / `order_items`) nhằm duy trì tốc độ truy vấn ổn định ở quy mô hàng triệu dòng sổ cái.<br/>- **Bằng chứng local (21/11/2026 — `FIN-D`):** `EXPLAIN (ANALYZE, BUFFERS)` trên `oisms_perf` (`100.000` `order_items`, `100.025` dòng sổ cái) xác nhận sử dụng `ix_inventory_transactions_sku_history` (`0.131 ms`), `ix_orders_tenant_created_at` (`0.161 ms`), `ix_order_items_sku_orders` (`34.898 ms`): [`evidence/goi-5/NFR-TENANT-02/`](../06-testing-and-qa/evidence/goi-5/NFR-TENANT-02/2026-11-21-FIN-D.md). |
 
 ---
 
@@ -35,7 +35,7 @@
 - **Bảo mật đường truyền:** Giao tiếp API qua giao thức **HTTPS / TLS 1.3**.
 - **Quản lý phiên JWT:** Sử dụng **Access Token ngắn hạn (60 phút)** đi kèm cơ chế **Refresh Token an toàn** (có khóa dòng chống race condition khi xoay vòng token).
 
-> **Hiện thực (06/11/2026):** mật khẩu băm bằng BCrypt. Trên bản deploy AWS, HTTPS do Caddy kết thúc TLS với chứng chỉ Let's Encrypt; backend nhận HTTP trong mạng Docker nội bộ. Chi tiết: [`13-deploy-aws/`](../13-deploy-aws/README.md).
+> **Hiện thực (21/11/2026 — `FIN-E`):** mật khẩu băm bằng BCrypt. `docker/caddy/Caddyfile` đã cấu hình `tls { protocols tls1.3 }` cho mọi site (`ADMIN_DOMAIN`, `POS_DOMAIN`, `SIM_DOMAIN`) và chặn `/health/ready` ra ngoài Internet (`403`, đóng `BF-026`), chỉ mở `/health/live`. Kiểm chứng Caddy local (`*.localhost` + `openssl s_client -tls1_3` thành công, `-tls1_2` bị từ chối): [`evidence/goi-5/NFR-SEC-01/`](../06-testing-and-qa/evidence/goi-5/NFR-SEC-01/2026-11-21-FIN-E.md). **Trên bản deploy AWS:** chưa áp dụng và chưa đo (`CHƯA ĐO TRÊN DEPLOY`). Chi tiết: [`13-deploy-aws/`](../13-deploy-aws/README.md).
 
 ---
 

@@ -38,6 +38,7 @@ public class ReportsController : ControllerBase
     /// Hỗ trợ phân rã theo Kênh bán (POS, Shopee, TikTok, Lazada), Chi nhánh và biểu đồ theo ngày.
     /// </summary>
     [HttpGet("revenue-profit")]
+    [ApiErrorContract(ApiErrorProfile.Reports)]
     public async Task<IActionResult> GetRevenueProfit([FromQuery] ReportFilterDto filter, CancellationToken ct)
     {
         var result = await _reportService.GetRevenueProfitReportAsync(filter, ct);

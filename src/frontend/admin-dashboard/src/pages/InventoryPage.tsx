@@ -842,14 +842,30 @@ export function InventoryPage() {
       searchParams.delete("purchaseOrderId");
       setSearchParams(searchParams, { replace: true });
     }
-    // Mở chi tiết phiếu nhập từ màn khác (chi tiết đơn mua, lịch sử hóa đơn NCC)
+    // Mở chi tiết phiếu nhập từ màn khác hoặc tìm kiếm toàn hệ thống (BF-024: giữ receiptId trên URL để F5 vẫn mở đúng)
     const receiptParam = searchParams.get("receiptId");
     if (receiptParam) {
       openSavedReceipt(receiptParam);
-      searchParams.delete("receiptId");
-      setSearchParams(searchParams, { replace: true });
     }
   }, [searchParams]);
+
+  // BF-024: khi modal phiếu nhập chuyển từ mở sang đóng (mọi đường đóng), bỏ receiptId khỏi URL
+  // để F5 hoặc lần đổi tham số URL sau không tự mở lại phiếu cũ.
+  const receiptModalWasOpenRef = useRef(false);
+  useEffect(() => {
+    if (receiptModalWasOpenRef.current && !receiptModal) {
+      setSearchParams(
+        (prev) => {
+          if (!prev.has("receiptId")) return prev;
+          const next = new URLSearchParams(prev);
+          next.delete("receiptId");
+          return next;
+        },
+        { replace: true }
+      );
+    }
+    receiptModalWasOpenRef.current = receiptModal;
+  }, [receiptModal, setSearchParams]);
 
   // [F1] Người dùng chủ động bỏ theo dõi phiếu nháp đang chờ để tạo mới từ đầu (chứng từ cũ vẫn lưu Draft trên server)
   const handleDiscardPendingReceipt = () => {

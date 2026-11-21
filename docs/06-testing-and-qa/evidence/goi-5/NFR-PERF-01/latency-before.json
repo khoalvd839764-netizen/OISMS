@@ -1,0 +1,103 @@
+{
+  "baseUrl": "http://127.0.0.1:55002",
+  "measuredAt": "2026-11-21T11:54:04.841Z",
+  "only": "revenue-profit",
+  "results": [
+    {
+      "label": "GET /api/reports/revenue-profit (unfiltered)",
+      "count": 10,
+      "concurrency": 1,
+      "thresholdMs": 2000,
+      "ok": 10,
+      "fail": 0,
+      "p50": 1962.08,
+      "p95": 2876.27,
+      "p99": 2876.27,
+      "status": "CHƯA ĐẠT"
+    },
+    {
+      "label": "GET /api/reports/revenue-profit (30 days)",
+      "count": 10,
+      "concurrency": 1,
+      "thresholdMs": 2000,
+      "ok": 10,
+      "fail": 0,
+      "p50": 1921.97,
+      "p95": 1972.49,
+      "p99": 1972.49,
+      "status": "ĐẠT"
+    },
+    {
+      "label": "GET /api/reports/revenue-profit (1 SKU)",
+      "count": 10,
+      "concurrency": 1,
+      "thresholdMs": 2000,
+      "ok": 10,
+      "fail": 0,
+      "p50": 174.45,
+      "p95": 332.24,
+      "p99": 332.24,
+      "status": "ĐẠT"
+    },
+    {
+      "label": "GET /api/reports/revenue-profit (20 SKUs)",
+      "count": 10,
+      "concurrency": 1,
+      "thresholdMs": 2000,
+      "ok": 10,
+      "fail": 0,
+      "p50": 1753.56,
+      "p95": 1888.87,
+      "p99": 1888.87,
+      "status": "ĐẠT"
+    },
+    {
+      "label": "GET /api/reports/revenue-profit (unfiltered)",
+      "count": 10,
+      "concurrency": 10,
+      "thresholdMs": 2000,
+      "ok": 10,
+      "fail": 0,
+      "p50": 3283.79,
+      "p95": 3537.79,
+      "p99": 3537.79,
+      "status": "CHƯA ĐẠT"
+    },
+    {
+      "label": "GET /api/reports/revenue-profit (30 days)",
+      "count": 10,
+      "concurrency": 10,
+      "thresholdMs": 2000,
+      "ok": 10,
+      "fail": 0,
+      "p50": 3997.82,
+      "p95": 4203.08,
+      "p99": 4203.08,
+      "status": "CHƯA ĐẠT"
+    },
+    {
+      "label": "GET /api/reports/revenue-profit (1 SKU)",
+      "count": 10,
+      "concurrency": 10,
+      "thresholdMs": 2000,
+      "ok": 10,
+      "fail": 0,
+      "p50": 265.23,
+      "p95": 280.62,
+      "p99": 280.62,
+      "status": "ĐẠT"
+    },
+    {
+      "label": "GET /api/reports/revenue-profit (20 SKUs)",
+      "count": 10,
+      "concurrency": 10,
+      "thresholdMs": 2000,
+      "ok": 10,
+      "fail": 0,
+      "p50": 3477.52,
+      "p95": 3514.87,
+      "p99": 3514.87,
+      "status": "CHƯA ĐẠT"
+    }
+  ]
+}

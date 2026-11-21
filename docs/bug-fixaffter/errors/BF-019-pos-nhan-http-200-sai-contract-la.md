@@ -2,7 +2,7 @@
 
 | Mục | Giá trị |
 | :--- | :--- |
-| **Trạng thái** | 🟡 Đã sửa, chưa có test riêng |
+| **Trạng thái** | ✅ Đã sửa & có test hồi quy tự động (`FIN-G`) |
 | **Ưu tiên** | P2 |
 | **Khu vực** | POS |
 | **Phát hiện** | 28–29/10/2026 (Tái hiện có kiểm soát) |
@@ -39,4 +39,9 @@
 
 ## Kiểm chứng sau khi gộp POS (11/11/2026)
 
-Code chặn nằm trong `src/frontend/pos-app/src/services/posApi.ts`: HTTP 200 thiếu mã đơn hoặc mã là GUID rỗng trả `isUnknown`, giữ giỏ để đối soát. Chưa có test nào trong `test-oisms/frontend/pos-app/` cho trường hợp này, nên giữ trạng thái cần kiểm chứng.
+Code chặn nằm trong `src/frontend/pos-app/src/services/posApi.ts`: HTTP 200 thiếu mã đơn hoặc mã là GUID rỗng trả `isUnknown`, giữ giỏ để đối soát.
+
+### Kiểm chứng tự động (`OISMS-66-FIN-G`, 21/11/2026)
+
+- **File test:** `test-oisms/frontend/pos-app/test-bf019-bf020.mjs` (`BF-019 POS: HTTP 200 body rỗng / thiếu mã đơn / mã là GUID rỗng -> isUnknown, giữ giỏ và RequestKey`).
+- **Kết quả:** PASS cùng toàn bộ bộ `npm test --prefix src/frontend/pos-app` (101/101 PASS).

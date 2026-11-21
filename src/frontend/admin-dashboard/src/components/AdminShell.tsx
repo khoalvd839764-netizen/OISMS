@@ -440,7 +440,7 @@ export function AdminShell() {
                               key={g.id}
                               onClick={() => {
                                 setShowDropdown(false);
-                                navigate(g.url);
+                                navigate(`/inventory?receiptId=${encodeURIComponent(g.id)}`);
                               }}
                               style={{
                                 padding: "8px 14px",

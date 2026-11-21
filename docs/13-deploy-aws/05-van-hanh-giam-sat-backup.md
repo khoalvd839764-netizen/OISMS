@@ -33,9 +33,9 @@ Log container dùng driver `json-file` mặc định và không giới hạn kí
 | Endpoint | Ý nghĩa | Lỗi thường gặp |
 | :--- | :--- | :--- |
 | `/health/live` | Tiến trình backend còn trả lời | Không trả lời → backend chết hoặc Caddy không tới được |
-| `/health/ready` (và `/health`) | Kết nối bằng `oisms_app`, đủ 47 bảng, trigger `ledger_append_only` bật, user không có quyền quản trị | 503 `schema is incomplete` → thiếu migration; 503 `Security alert` → user runtime có quyền quá cao; 503 `timed out` → PostgreSQL không phản hồi |
+| `/health/ready` (chỉ gọi nội bộ: `dcp exec caddy wget -qO- http://backend:8080/health/ready`; qua domain trả 403 từ BF-026) | Kết nối bằng `oisms_app`, đủ 51 bảng, trigger `ledger_append_only` bật, user không có quyền quản trị | 503 `schema is incomplete` → thiếu migration; 503 `Security alert` → user runtime có quyền quá cao; 503 `timed out` → PostgreSQL không phản hồi |
 
-Có thể gắn một dịch vụ kiểm tra uptime bên ngoài (UptimeRobot, Route 53 health check, CloudWatch Synthetics) gọi `/health/ready` mỗi vài phút.
+Có thể gắn một dịch vụ kiểm tra uptime bên ngoài (UptimeRobot, Route 53 health check, CloudWatch Synthetics) gọi `https://<ADMIN_DOMAIN>/health/live` mỗi vài phút. `/health/ready` không còn mở ra Internet; script `test-oisms/nfr/uptime-probe/` cũng dùng `/health/live`.
 
 ## 3. Sao Lưu Database
 
@@ -70,7 +70,7 @@ File dump chứa dữ liệu nghiệp vụ và hash mật khẩu: không commit,
 ## 4. Tắt Và Bật Máy Để Tiết Kiệm Chi Phí
 
 - **Stop** instance (không phải Terminate): ổ EBS và Elastic IP giữ nguyên, không tính tiền giờ máy, vẫn tính tiền ổ đĩa và IPv4 công khai.
-- Bật lại: các container có `restart: always` nên tự chạy khi Docker khởi động. Kiểm tra `dcp ps` và `/health/ready`.
+- Bật lại: các container có `restart: always` nên tự chạy khi Docker khởi động. Kiểm tra `dcp ps` và `dcp exec caddy wget -qO- http://backend:8080/health/ready`.
 - Caddy gia hạn chứng chỉ khi đang chạy. Máy tắt lâu (gần 90 ngày) thì lần bật đầu Caddy sẽ xin chứng chỉ mới, cần cổng 80/443 mở và DNS đúng.
 
 ## 5. Bảo Mật Vận Hành
