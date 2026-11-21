@@ -1,5 +1,6 @@
 using ClosedXML.Excel;
 using OISM.Application.Common.Interfaces;
+using OISM.Application.Common.Services;
 using OISM.Application.Features.Reports.Dtos;
 
 namespace OISM.Infrastructure.Services;
@@ -11,9 +12,20 @@ namespace OISM.Infrastructure.Services;
 public class ClosedXmlExcelExportService : IExcelExportService
 {
     private const string FontName = "Segoe UI";
+    private readonly ICostVisibilityService _costVisibilityService;
+
+    public ClosedXmlExcelExportService(ICostVisibilityService? costVisibilityService = null)
+    {
+        _costVisibilityService = costVisibilityService ?? AllowAllCostVisibilityService.Instance;
+    }
 
     /// <inheritdoc />
-    public byte[] ExportInventoryPeriodReport(InventoryPeriodReportDto report, bool isOwner)
+    public byte[] ExportInventoryPeriodReport(InventoryPeriodReportDto report, bool? isOwner = null)
+    {
+        return ExportInventoryPeriodReportInternal(report, isOwner ?? _costVisibilityService.IsOwner);
+    }
+
+    private byte[] ExportInventoryPeriodReportInternal(InventoryPeriodReportDto report, bool isOwner)
     {
         using var workbook = new XLWorkbook();
         var ws = workbook.Worksheets.Add("Ton_Theo_Ky");
@@ -290,7 +302,12 @@ public class ClosedXmlExcelExportService : IExcelExportService
     }
 
     /// <inheritdoc />
-    public byte[] ExportStockCardReport(StockCardReportDto report, bool isOwner)
+    public byte[] ExportStockCardReport(StockCardReportDto report, bool? isOwner = null)
+    {
+        return ExportStockCardReportInternal(report, isOwner ?? _costVisibilityService.IsOwner);
+    }
+
+    private byte[] ExportStockCardReportInternal(StockCardReportDto report, bool isOwner)
     {
         using var workbook = new XLWorkbook();
         var ws = workbook.Worksheets.Add("The_Kho");

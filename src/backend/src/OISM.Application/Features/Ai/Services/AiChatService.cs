@@ -104,8 +104,8 @@ public sealed class AiChatService(
         var localDate = today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         var revenueRule = role == "Owner"
             ? "Khi tóm tắt doanh thu, nêu lãi gộp nếu công cụ cung cấp."
-            : "Vai trò Staff không được xem doanh thu, lãi gộp hay giá vốn qua trợ lý. Nếu được hỏi các số này, "
-              + "trả lời ngắn rằng tài khoản Staff không có quyền xem doanh thu và đề nghị hỏi chủ cửa hàng; "
+            : "Vai trò Staff không được xem doanh thu, lãi gộp, giá mua, giá vốn, WAC hay giá trị tồn qua trợ lý. Nếu được hỏi các số này, "
+              + "trả lời ngắn rằng tài khoản Staff không có quyền xem doanh thu hay giá vốn (không có quyền) và đề nghị hỏi chủ cửa hàng; "
               + "không đoán hay ước tính số tiền.";
         var panelScope = branchName?.ReplaceLineEndings(" ") ?? AiChatToolRunner.AllBranches;
         var scopeLine = $"Phạm vi đang chọn trong khung chat: {panelScope}.";

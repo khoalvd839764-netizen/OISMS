@@ -22,8 +22,6 @@ public class PurchaseOrdersController : ControllerBase
         _purchaseOrderService = purchaseOrderService;
     }
 
-    private bool IsOwner => User.IsInRole("Owner");
-
     /// <summary>
     /// Danh sách phiếu mua hàng có phân trang và lọc theo trạng thái, nhà cung cấp, chi nhánh.
     /// </summary>
@@ -31,7 +29,7 @@ public class PurchaseOrdersController : ControllerBase
     [Authorize(Roles = "Owner,Staff")]
     public async Task<IActionResult> GetList([FromQuery] PurchaseOrderFilterDto filter, CancellationToken ct)
     {
-        var result = await _purchaseOrderService.GetPurchaseOrdersAsync(filter, ct, IsOwner);
+        var result = await _purchaseOrderService.GetPurchaseOrdersAsync(filter, ct);
         return Ok(result);
     }
 
@@ -59,7 +57,7 @@ public class PurchaseOrdersController : ControllerBase
             return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.PurchaseOrders, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã phiếu mua không được để trống.");
         }
 
-        var po = await _purchaseOrderService.GetPurchaseOrderByIdAsync(id, ct, IsOwner);
+        var po = await _purchaseOrderService.GetPurchaseOrderByIdAsync(id, ct);
         if (po == null)
         {
             return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.PurchaseOrders, "NOT_FOUND", "Không tìm thấy dữ liệu", StatusCodes.Status404NotFound, $"Không tìm thấy phiếu mua hàng với ID '{id}'.");
@@ -97,7 +95,7 @@ public class PurchaseOrdersController : ControllerBase
         }
 
         var userId = RequireUserId();
-        var result = await _purchaseOrderService.CreateAsync(dto, requestKey, userId, ct, IsOwner);
+        var result = await _purchaseOrderService.CreateAsync(dto, requestKey, userId, ct);
         if (result.IsReplay)
         {
             return Ok(result);
@@ -128,7 +126,7 @@ public class PurchaseOrdersController : ControllerBase
         }
 
         var userId = RequireUserId();
-        var result = await _purchaseOrderService.UpdateDraftAsync(id, dto, userId, ct, IsOwner);
+        var result = await _purchaseOrderService.UpdateDraftAsync(id, dto, userId, ct);
         return Ok(result);
     }
 
@@ -148,7 +146,7 @@ public class PurchaseOrdersController : ControllerBase
         }
 
         var userId = RequireUserId();
-        var result = await _purchaseOrderService.SubmitAsync(id, userId, ct, IsOwner);
+        var result = await _purchaseOrderService.SubmitAsync(id, userId, ct);
         return Ok(result);
     }
 
@@ -255,7 +253,7 @@ public class PurchaseOrdersController : ControllerBase
         }
 
         var userId = RequireUserId();
-        var result = await _purchaseOrderService.CancelAsync(id, userId, ct, IsOwner);
+        var result = await _purchaseOrderService.CancelAsync(id, userId, ct);
         return Ok(result);
     }
 

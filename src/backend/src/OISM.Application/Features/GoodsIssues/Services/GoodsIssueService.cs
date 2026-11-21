@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
+using OISM.Application.Common.Services;
 using OISM.Application.Features.GoodsIssues.Dtos;
 using OISM.Application.Features.Inventory.Dtos;
 using OISM.Domain.Entities;
@@ -14,11 +15,16 @@ public class GoodsIssueService : IGoodsIssueService
     private const int MaxBulkOrderIds = 100;
     private readonly IAppDbContext _context;
     private readonly ICurrentTenantService _tenantService;
+    private readonly ICostVisibilityService _costVisibilityService;
 
-    public GoodsIssueService(IAppDbContext context, ICurrentTenantService tenantService)
+    public GoodsIssueService(
+        IAppDbContext context,
+        ICurrentTenantService tenantService,
+        ICostVisibilityService? costVisibilityService = null)
     {
         _context = context;
         _tenantService = tenantService;
+        _costVisibilityService = costVisibilityService ?? AllowAllCostVisibilityService.Instance;
     }
 
     private Guid RequireTenantId()
@@ -33,9 +39,10 @@ public class GoodsIssueService : IGoodsIssueService
 
     public async Task<PagedResult<GoodsIssueDto>> GetGoodsIssuesAsync(
         GoodsIssueFilterDto filter,
-        bool canViewCost,
+        bool? canViewCost = null,
         CancellationToken ct = default)
     {
+        var effectiveCanViewCost = canViewCost ?? _costVisibilityService.CanViewCost;
         var tenantId = RequireTenantId();
 
         var query = _context.GoodsIssues
@@ -102,7 +109,7 @@ public class GoodsIssueService : IGoodsIssueService
             .Take(pageSize)
             .ToListAsync(ct);
 
-        var items = entities.Select(g => MapToDto(g, canViewCost)).ToList();
+        var items = entities.Select(g => MapToDto(g, effectiveCanViewCost)).ToList();
 
         return new PagedResult<GoodsIssueDto>
         {
@@ -113,8 +120,9 @@ public class GoodsIssueService : IGoodsIssueService
         };
     }
 
-    public async Task<GoodsIssueDto> GetByIdAsync(Guid id, bool canViewCost, CancellationToken ct = default)
+    public async Task<GoodsIssueDto> GetByIdAsync(Guid id, bool? canViewCost = null, CancellationToken ct = default)
     {
+        var effectiveCanViewCost = canViewCost ?? _costVisibilityService.CanViewCost;
         var tenantId = RequireTenantId();
 
         var entity = await _context.GoodsIssues
@@ -129,11 +137,12 @@ public class GoodsIssueService : IGoodsIssueService
             throw new OismException("GOODS_ISSUE_NOT_FOUND", $"Không tìm thấy phiếu xuất kho với mã '{id}'.", 404);
         }
 
-        return MapToDto(entity, canViewCost);
+        return MapToDto(entity, effectiveCanViewCost);
     }
 
-    public async Task<List<GoodsIssueDto>> GetByOrderIdAsync(Guid orderId, bool canViewCost, CancellationToken ct = default)
+    public async Task<List<GoodsIssueDto>> GetByOrderIdAsync(Guid orderId, bool? canViewCost = null, CancellationToken ct = default)
     {
+        var effectiveCanViewCost = canViewCost ?? _costVisibilityService.CanViewCost;
         var tenantId = RequireTenantId();
 
         var orderExists = await _context.Orders
@@ -154,14 +163,15 @@ public class GoodsIssueService : IGoodsIssueService
             .OrderBy(g => g.WarehouseId)
             .ToListAsync(ct);
 
-        return entities.Select(g => MapToDto(g, canViewCost)).ToList();
+        return entities.Select(g => MapToDto(g, effectiveCanViewCost)).ToList();
     }
 
     public async Task<List<GoodsIssueDto>> GetByOrderIdsAsync(
         IReadOnlyCollection<Guid> orderIds,
-        bool canViewCost,
+        bool? canViewCost = null,
         CancellationToken ct = default)
     {
+        var effectiveCanViewCost = canViewCost ?? _costVisibilityService.CanViewCost;
         var tenantId = RequireTenantId();
 
         if (orderIds == null || orderIds.Count == 0)
@@ -191,14 +201,15 @@ public class GoodsIssueService : IGoodsIssueService
             .ThenBy(g => g.WarehouseId)
             .ToListAsync(ct);
 
-        return entities.Select(g => MapToDto(g, canViewCost)).ToList();
+        return entities.Select(g => MapToDto(g, effectiveCanViewCost)).ToList();
     }
 
     public async Task<PosDailyGoodsIssueSummaryDto> GetPosDailySummaryAsync(
         PosDailyGoodsIssueQueryDto query,
-        bool canViewCost,
+        bool? canViewCost = null,
         CancellationToken ct = default)
     {
+        var effectiveCanViewCost = canViewCost ?? _costVisibilityService.CanViewCost;
         var tenantId = RequireTenantId();
 
         var rawDate = !string.IsNullOrWhiteSpace(query.Date) ? query.Date : query.BusinessDate;
@@ -282,10 +293,10 @@ public class GoodsIssueService : IGoodsIssueService
                     BaseUnitName = baseUnitName,
                     TotalQuantity = totalQty,
                     TotalBaseQuantity = totalBaseQty,
-                    UnitCost = canViewCost
+                    UnitCost = effectiveCanViewCost
                         ? (totalBaseQty > 0m ? Math.Round(rawCost / totalBaseQty, 6, MidpointRounding.AwayFromZero) : 0m)
                         : null,
-                    TotalCost = canViewCost
+                    TotalCost = effectiveCanViewCost
                         ? Math.Round(rawCost, 6, MidpointRounding.AwayFromZero)
                         : null
                 };
@@ -325,7 +336,7 @@ public class GoodsIssueService : IGoodsIssueService
                     TotalQuantity = issueQty,
                     TotalBaseQuantity = issueBaseQty,
                     TotalSalesAmount = invoiceAmountOwners.Contains(g.Id) ? g.SalesInvoice?.TotalAmount ?? 0m : 0m,
-                    TotalCost = canViewCost
+                    TotalCost = effectiveCanViewCost
                         ? Math.Round(issueRawCost, 6, MidpointRounding.AwayFromZero)
                         : null
                 };
@@ -347,7 +358,7 @@ public class GoodsIssueService : IGoodsIssueService
             TotalQuantity = allItems.Sum(i => i.Quantity),
             TotalBaseQuantity = allItems.Sum(i => i.BaseQuantity),
             TotalSalesAmount = invoiceRows.Sum(r => r.TotalSalesAmount),
-            TotalCost = canViewCost
+            TotalCost = effectiveCanViewCost
                 ? Math.Round(totalRawCost, 6, MidpointRounding.AwayFromZero)
                 : null,
             Items = skuRows,

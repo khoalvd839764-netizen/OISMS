@@ -96,7 +96,7 @@ public class UnitQuantityDto
 
 public class InventoryVelocityReportDto
 {
-    public decimal TotalInventoryValue { get; set; }
+    public decimal? TotalInventoryValue { get; set; }
     public decimal TotalOnHandQuantity { get; set; }
     public decimal TotalReservedQuantity { get; set; }
     public decimal TotalAvailableQuantity { get; set; }

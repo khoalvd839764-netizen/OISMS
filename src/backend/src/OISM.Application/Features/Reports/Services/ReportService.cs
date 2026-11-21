@@ -3,6 +3,7 @@ using OISM.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using OISM.Application.Common.Helpers;
 using OISM.Application.Common.Interfaces;
+using OISM.Application.Common.Services;
 using OISM.Application.Features.Reports.Dtos;
 
 namespace OISM.Application.Features.Reports.Services;
@@ -13,11 +14,16 @@ public class ReportService : IReportService
 
     private readonly IAppDbContext _context;
     private readonly ICurrentTenantService _currentTenantService;
+    private readonly ICostVisibilityService _costVisibilityService;
 
-    public ReportService(IAppDbContext context, ICurrentTenantService currentTenantService)
+    public ReportService(
+        IAppDbContext context,
+        ICurrentTenantService currentTenantService,
+        ICostVisibilityService? costVisibilityService = null)
     {
         _context = context;
         _currentTenantService = currentTenantService;
+        _costVisibilityService = costVisibilityService ?? AllowAllCostVisibilityService.Instance;
     }
 
     private Guid RequireTenantId()
@@ -34,7 +40,7 @@ public class ReportService : IReportService
         RevenueProfitCalculationHelper.CalculateReturnRevenueAmount(r);
 
     public Task<RevenueProfitReportDto> GetRevenueProfitReportAsync(ReportFilterDto filter, CancellationToken ct = default)
-        => GetRevenueProfitReportAsync(filter, isOwner: true, ct);
+        => GetRevenueProfitReportAsync(filter, isOwner: _costVisibilityService.IsOwner, ct);
 
     public async Task<RevenueProfitReportDto> GetRevenueProfitReportAsync(ReportFilterDto filter, bool isOwner, CancellationToken ct = default)
     {
@@ -401,7 +407,7 @@ public class ReportService : IReportService
 
         return new InventoryVelocityReportDto
         {
-            TotalInventoryValue = totalValue,
+            TotalInventoryValue = _costVisibilityService.IsOwner ? totalValue : null,
             TotalOnHandQuantity = totalOnHand,
             TotalReservedQuantity = totalReserved,
             TotalAvailableQuantity = Math.Max(0, totalOnHand - totalReserved),
@@ -478,6 +484,9 @@ public class ReportService : IReportService
         }).ToList();
     }
 
+    public Task<DashboardSummaryDto> GetDashboardSummaryAsync(CancellationToken ct = default)
+        => GetDashboardSummaryAsync(_costVisibilityService.IsOwner, ct);
+
     public async Task<DashboardSummaryDto> GetDashboardSummaryAsync(bool isOwner, CancellationToken ct = default)
     {
         var tenantId = RequireTenantId();
@@ -511,7 +520,9 @@ public class ReportService : IReportService
         decimal netCogs = totalOrderCogs - returnCogs;
 
         decimal? totalGrossProfit = isOwner ? (netRevenue - netCogs) : null;
-        decimal grossMargin = (isOwner && netRevenue > 0) ? Math.Round(((netRevenue - netCogs) / netRevenue) * 100, 2) : 0;
+        decimal? grossMargin = (isOwner && netRevenue > 0)
+            ? Math.Round(((netRevenue - netCogs) / netRevenue) * 100, 2)
+            : (isOwner ? 0m : null);
 
         // 2. Thống kê số lượng SKU đang quản lý
         var skuCount = await _context.Skus
@@ -608,7 +619,7 @@ public class ReportService : IReportService
             NetCogs = isOwner ? netCogs : null,
             TotalOrders = totalOrders,
             TotalGrossProfit = totalGrossProfit,
-            GrossMarginPercentage = grossMargin,
+            GrossMarginPercentage = grossMargin ?? 0m,
             SkuCount = skuCount,
             TotalInventoryValue = totalInventoryValue,
             LowStockCount = lowStockCount,

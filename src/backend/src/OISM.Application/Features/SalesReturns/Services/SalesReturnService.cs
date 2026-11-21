@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
+using OISM.Application.Common.Services;
 using OISM.Application.Features.Inventory.Services;
 using OISM.Application.Features.Realtime;
 using OISM.Application.Features.SalesReturns.Dtos;
@@ -15,17 +16,20 @@ public class SalesReturnService : ISalesReturnService
     private readonly ICurrentTenantService _currentTenantService;
     private readonly IWacCalculator _wacCalculator;
     private readonly IRealtimeNotifier? _realtimeNotifier;
+    private readonly ICostVisibilityService _costVisibilityService;
 
     public SalesReturnService(
         IAppDbContext context,
         ICurrentTenantService currentTenantService,
         IWacCalculator wacCalculator,
-        IRealtimeNotifier? realtimeNotifier = null)
+        IRealtimeNotifier? realtimeNotifier = null,
+        ICostVisibilityService? costVisibilityService = null)
     {
         _context = context;
         _currentTenantService = currentTenantService;
         _wacCalculator = wacCalculator;
         _realtimeNotifier = realtimeNotifier;
+        _costVisibilityService = costVisibilityService ?? AllowAllCostVisibilityService.Instance;
     }
 
     private Guid RequireTenantId()
@@ -80,7 +84,7 @@ public class SalesReturnService : ISalesReturnService
                 ReturnedQuantity = returned,
                 ReturnableQuantity = returnable,
                 UnitPrice = item.UnitPrice,
-                OriginalUnitCost = item.CostPrice ?? 0m
+                OriginalUnitCost = _costVisibilityService.CanViewCost ? (item.CostPrice ?? 0m) : null
             });
         }
 
@@ -707,7 +711,7 @@ public class SalesReturnService : ISalesReturnService
         return MapToResponseDto(returnTicket);
     }
 
-    private static SalesReturnResponseDto MapToResponseDto(SalesReturn r)
+    private SalesReturnResponseDto MapToResponseDto(SalesReturn r)
     {
         return new SalesReturnResponseDto
         {
@@ -752,7 +756,7 @@ public class SalesReturnService : ISalesReturnService
                     Quantity = i.Quantity,
                     BaseQuantity = i.Quantity * factor,
                     RefundAmount = i.RefundAmount,
-                    OriginalUnitCost = i.OriginalUnitCost
+                    OriginalUnitCost = _costVisibilityService.CanViewCost ? i.OriginalUnitCost : null
                 };
             }).ToList()
         };

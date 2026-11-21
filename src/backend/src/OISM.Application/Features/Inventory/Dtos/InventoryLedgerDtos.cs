@@ -17,7 +17,7 @@ public class InventoryLedgerDto
     public string Type { get; set; } = string.Empty;
 
     public decimal Quantity { get; set; }
-    public decimal UnitCost { get; set; }
+    public decimal? UnitCost { get; set; }
     public decimal BalanceAfter { get; set; }
     public long SequenceNo { get; set; }
 

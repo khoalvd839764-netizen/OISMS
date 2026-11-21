@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
+using OISM.Application.Common.Services;
 using OISM.Application.Features.Inventory.Dtos;
 
 namespace OISM.Application.Features.Inventory.Services;
@@ -10,6 +11,7 @@ public interface IInventoryService
     Task<PagedResult<InventoryBalanceDto>> GetBalancesAsync(InventoryBalanceFilterDto filter, CancellationToken ct = default);
     Task<PagedResult<InventoryBalanceDto>> GetBalancesAsync(InventoryBalanceFilterDto filter, bool canViewCost, CancellationToken ct = default);
     Task<PagedResult<InventoryLedgerDto>> GetLedgerAsync(InventoryLedgerFilterDto filter, CancellationToken ct = default);
+    Task<PagedResult<InventoryLedgerDto>> GetLedgerAsync(InventoryLedgerFilterDto filter, bool canViewCost, CancellationToken ct = default);
     Task<InventoryBalanceDto?> GetSkuBalanceAtBranchAsync(Guid branchId, Guid skuId, CancellationToken ct = default);
     Task<InventoryBalanceDto?> GetSkuBalanceAtBranchAsync(Guid branchId, Guid skuId, bool canViewCost, CancellationToken ct = default);
     Task<InventoryBalanceDto> UpdateReorderPointAsync(UpdateReorderPointDto request, CancellationToken ct = default);
@@ -20,11 +22,16 @@ public class InventoryService : IInventoryService
 {
     private readonly IAppDbContext _context;
     private readonly ICurrentTenantService _currentTenantService;
+    private readonly ICostVisibilityService _costVisibilityService;
 
-    public InventoryService(IAppDbContext context, ICurrentTenantService currentTenantService)
+    public InventoryService(
+        IAppDbContext context,
+        ICurrentTenantService currentTenantService,
+        ICostVisibilityService? costVisibilityService = null)
     {
         _context = context;
         _currentTenantService = currentTenantService;
+        _costVisibilityService = costVisibilityService ?? AllowAllCostVisibilityService.Instance;
     }
 
     private Guid RequireTenantId()
@@ -38,7 +45,7 @@ public class InventoryService : IInventoryService
     }
 
     public Task<PagedResult<InventoryBalanceDto>> GetBalancesAsync(InventoryBalanceFilterDto filter, CancellationToken ct = default)
-        => GetBalancesAsync(filter, canViewCost: true, ct);
+        => GetBalancesAsync(filter, _costVisibilityService.CanViewCost, ct);
 
     public async Task<PagedResult<InventoryBalanceDto>> GetBalancesAsync(InventoryBalanceFilterDto filter, bool canViewCost, CancellationToken ct = default)
     {
@@ -184,7 +191,7 @@ public class InventoryService : IInventoryService
     }
 
     public Task<InventoryBalanceDto?> GetSkuBalanceAtBranchAsync(Guid branchId, Guid skuId, CancellationToken ct = default)
-        => GetSkuBalanceAtBranchAsync(branchId, skuId, canViewCost: true, ct);
+        => GetSkuBalanceAtBranchAsync(branchId, skuId, _costVisibilityService.CanViewCost, ct);
 
     public async Task<InventoryBalanceDto?> GetSkuBalanceAtBranchAsync(Guid branchId, Guid skuId, bool canViewCost, CancellationToken ct = default)
     {
@@ -335,7 +342,10 @@ public class InventoryService : IInventoryService
         return updatedCount;
     }
 
-    public async Task<PagedResult<InventoryLedgerDto>> GetLedgerAsync(InventoryLedgerFilterDto filter, CancellationToken ct = default)
+    public Task<PagedResult<InventoryLedgerDto>> GetLedgerAsync(InventoryLedgerFilterDto filter, CancellationToken ct = default)
+        => GetLedgerAsync(filter, _costVisibilityService.CanViewCost, ct);
+
+    public async Task<PagedResult<InventoryLedgerDto>> GetLedgerAsync(InventoryLedgerFilterDto filter, bool canViewCost, CancellationToken ct = default)
     {
         RequireTenantId();
 
@@ -487,7 +497,7 @@ public class InventoryService : IInventoryService
             ProductName = t.Sku?.Product?.Name ?? string.Empty,
             Type = t.Type,
             Quantity = t.Quantity,
-            UnitCost = t.UnitCost,
+            UnitCost = canViewCost ? t.UnitCost : null,
             BalanceAfter = t.BalanceAfter,
             SequenceNo = t.SequenceNo,
             ReceiptItemId = t.ReceiptItemId,

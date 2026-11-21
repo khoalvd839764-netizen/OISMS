@@ -2,6 +2,7 @@ using System.Data;
 using Microsoft.EntityFrameworkCore;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
+using OISM.Application.Common.Services;
 using OISM.Application.Features.Catalog.Units.Services;
 using OISM.Application.Features.Inventory.Dtos;
 using OISM.Application.Features.Realtime;
@@ -12,11 +13,11 @@ namespace OISM.Application.Features.Inventory.Services;
 
 public interface IGoodsReceiptService
 {
-    Task<GoodsReceiptResponseDto> CreateReceiptAsync(CreateGoodsReceiptDto dto, Guid userId, CancellationToken ct = default, bool isOwner = true);
-    Task<PagedResult<GoodsReceiptResponseDto>> GetReceiptsAsync(GoodsReceiptFilterDto filter, CancellationToken ct = default, bool isOwner = true);
-    Task<GoodsReceiptResponseDto?> GetReceiptByIdAsync(Guid id, CancellationToken ct = default, bool isOwner = true);
-    Task<GoodsReceiptResponseDto> ConfirmReceiptAsync(Guid id, Guid userId, CancellationToken ct = default, bool isOwner = true);
-    Task<GoodsReceiptResponseDto> CancelReceiptAsync(Guid id, Guid userId, CancellationToken ct = default, bool isOwner = true);
+    Task<GoodsReceiptResponseDto> CreateReceiptAsync(CreateGoodsReceiptDto dto, Guid userId, CancellationToken ct = default, bool? isOwner = null);
+    Task<PagedResult<GoodsReceiptResponseDto>> GetReceiptsAsync(GoodsReceiptFilterDto filter, CancellationToken ct = default, bool? isOwner = null);
+    Task<GoodsReceiptResponseDto?> GetReceiptByIdAsync(Guid id, CancellationToken ct = default, bool? isOwner = null);
+    Task<GoodsReceiptResponseDto> ConfirmReceiptAsync(Guid id, Guid userId, CancellationToken ct = default, bool? isOwner = null);
+    Task<GoodsReceiptResponseDto> CancelReceiptAsync(Guid id, Guid userId, CancellationToken ct = default, bool? isOwner = null);
 }
 
 public class GoodsReceiptService : IGoodsReceiptService
@@ -26,19 +27,22 @@ public class GoodsReceiptService : IGoodsReceiptService
     private readonly IWacCalculator _wacCalculator;
     private readonly ISqlLockService _sqlLockService;
     private readonly IRealtimeNotifier? _realtimeNotifier;
+    private readonly ICostVisibilityService _costVisibilityService;
 
     public GoodsReceiptService(
         IAppDbContext context,
         ICurrentTenantService currentTenantService,
         IWacCalculator wacCalculator,
         ISqlLockService? sqlLockService = null,
-        IRealtimeNotifier? realtimeNotifier = null)
+        IRealtimeNotifier? realtimeNotifier = null,
+        ICostVisibilityService? costVisibilityService = null)
     {
         _context = context;
         _currentTenantService = currentTenantService;
         _wacCalculator = wacCalculator;
         _sqlLockService = sqlLockService ?? context.Locks;
         _realtimeNotifier = realtimeNotifier;
+        _costVisibilityService = costVisibilityService ?? AllowAllCostVisibilityService.Instance;
     }
 
     private Guid RequireTenantId()
@@ -51,8 +55,9 @@ public class GoodsReceiptService : IGoodsReceiptService
         return tenantId.Value;
     }
 
-    public async Task<GoodsReceiptResponseDto> CreateReceiptAsync(CreateGoodsReceiptDto dto, Guid userId, CancellationToken ct = default, bool isOwner = true)
+    public async Task<GoodsReceiptResponseDto> CreateReceiptAsync(CreateGoodsReceiptDto dto, Guid userId, CancellationToken ct = default, bool? isOwnerInput = null)
     {
+        bool isOwner = isOwnerInput ?? _costVisibilityService.IsOwner;
         var tenantId = RequireTenantId();
 
         if (dto == null)
@@ -205,8 +210,9 @@ public class GoodsReceiptService : IGoodsReceiptService
     private static OismException DuplicateReceiptNumber(string number) =>
         new("VALIDATION_ERROR", $"Mã phiếu nhập '{number}' đã tồn tại trong gian hàng.", 409);
 
-    public async Task<PagedResult<GoodsReceiptResponseDto>> GetReceiptsAsync(GoodsReceiptFilterDto filter, CancellationToken ct = default, bool isOwner = true)
+    public async Task<PagedResult<GoodsReceiptResponseDto>> GetReceiptsAsync(GoodsReceiptFilterDto filter, CancellationToken ct = default, bool? isOwnerInput = null)
     {
+        bool isOwner = isOwnerInput ?? _costVisibilityService.IsOwner;
         RequireTenantId();
 
         var query = _context.GoodsReceipts
@@ -264,14 +270,16 @@ public class GoodsReceiptService : IGoodsReceiptService
         };
     }
 
-    public async Task<GoodsReceiptResponseDto?> GetReceiptByIdAsync(Guid id, CancellationToken ct = default, bool isOwner = true)
+    public async Task<GoodsReceiptResponseDto?> GetReceiptByIdAsync(Guid id, CancellationToken ct = default, bool? isOwnerInput = null)
     {
+        bool isOwner = isOwnerInput ?? _costVisibilityService.IsOwner;
         RequireTenantId();
         return await MapToResponseDtoAsync(id, isOwner, ct);
     }
 
-    public async Task<GoodsReceiptResponseDto> ConfirmReceiptAsync(Guid id, Guid userId, CancellationToken ct = default, bool isOwner = true)
+    public async Task<GoodsReceiptResponseDto> ConfirmReceiptAsync(Guid id, Guid userId, CancellationToken ct = default, bool? isOwnerInput = null)
     {
+        bool isOwner = isOwnerInput ?? _costVisibilityService.IsOwner;
         var tenantId = RequireTenantId();
 
         List<Func<Task>> pendingNotifications = new();
@@ -645,8 +653,9 @@ public class GoodsReceiptService : IGoodsReceiptService
         return result;
     }
 
-    public async Task<GoodsReceiptResponseDto> CancelReceiptAsync(Guid id, Guid userId, CancellationToken ct = default, bool isOwner = true)
+    public async Task<GoodsReceiptResponseDto> CancelReceiptAsync(Guid id, Guid userId, CancellationToken ct = default, bool? isOwnerInput = null)
     {
+        bool isOwner = isOwnerInput ?? _costVisibilityService.IsOwner;
         var tenantId = RequireTenantId();
 
         return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>

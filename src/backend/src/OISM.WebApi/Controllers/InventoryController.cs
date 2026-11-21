@@ -39,8 +39,7 @@ public class InventoryController : ControllerBase
     [Authorize(Roles = "Owner,Staff,Cashier")]
     public async Task<IActionResult> GetBalances([FromQuery] InventoryBalanceFilterDto filter, CancellationToken ct)
     {
-        var canViewCost = User.IsInRole("Owner") || User.IsInRole("Staff");
-        var result = await _inventoryService.GetBalancesAsync(filter, canViewCost, ct);
+        var result = await _inventoryService.GetBalancesAsync(filter, ct);
         return Ok(result);
     }
 
@@ -62,8 +61,7 @@ public class InventoryController : ControllerBase
     [Authorize(Roles = "Owner,Staff,Cashier")]
     public async Task<IActionResult> GetSkuBalanceAtBranch(Guid skuId, Guid branchId, CancellationToken ct)
     {
-        var canViewCost = User.IsInRole("Owner") || User.IsInRole("Staff");
-        var balance = await _inventoryService.GetSkuBalanceAtBranchAsync(branchId, skuId, canViewCost, ct);
+        var balance = await _inventoryService.GetSkuBalanceAtBranchAsync(branchId, skuId, ct);
         if (balance == null)
         {
             return NotFound(new { message = $"Không tìm thấy số dư cho SKU '{skuId}' tại chi nhánh '{branchId}'." });

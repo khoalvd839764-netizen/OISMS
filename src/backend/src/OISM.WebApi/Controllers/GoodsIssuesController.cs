@@ -21,8 +21,6 @@ public class GoodsIssuesController : ControllerBase
         _goodsIssueService = goodsIssueService;
     }
 
-    private bool CanViewCost => User.IsInRole("Owner");
-
     /// <summary>
     /// Danh sách phiếu xuất kho 02-VT có phân trang và bộ lọc.
     /// </summary>
@@ -30,7 +28,7 @@ public class GoodsIssuesController : ControllerBase
     [ApiErrorContract(ApiErrorProfile.SalesInvoices)]
     public async Task<IActionResult> GetList([FromQuery] GoodsIssueFilterDto filter, CancellationToken ct)
     {
-        var result = await _goodsIssueService.GetGoodsIssuesAsync(filter, CanViewCost, ct);
+        var result = await _goodsIssueService.GetGoodsIssuesAsync(filter, ct: ct);
         return Ok(result);
     }
 
@@ -52,7 +50,7 @@ public class GoodsIssuesController : ControllerBase
                 "Mã phiếu xuất kho không được để trống.");
         }
 
-        var result = await _goodsIssueService.GetByIdAsync(id, CanViewCost, ct);
+        var result = await _goodsIssueService.GetByIdAsync(id, ct: ct);
         return Ok(result);
     }
 
@@ -75,7 +73,7 @@ public class GoodsIssuesController : ControllerBase
                 "Mã đơn hàng không được để trống.");
         }
 
-        var result = await _goodsIssueService.GetByOrderIdAsync(orderId, CanViewCost, ct);
+        var result = await _goodsIssueService.GetByOrderIdAsync(orderId, ct: ct);
         return Ok(result);
     }
 
@@ -113,7 +111,7 @@ public class GoodsIssuesController : ControllerBase
             parsedIds.Add(guid);
         }
 
-        var result = await _goodsIssueService.GetByOrderIdsAsync(parsedIds, CanViewCost, ct);
+        var result = await _goodsIssueService.GetByOrderIdsAsync(parsedIds, ct: ct);
         return Ok(result);
     }
 
@@ -135,7 +133,7 @@ public class GoodsIssuesController : ControllerBase
                 "Danh sách mã đơn hàng không được để trống.");
         }
 
-        var result = await _goodsIssueService.GetByOrderIdsAsync(request.OrderIds, CanViewCost, ct);
+        var result = await _goodsIssueService.GetByOrderIdsAsync(request.OrderIds, ct: ct);
         return Ok(result);
     }
 
@@ -147,7 +145,7 @@ public class GoodsIssuesController : ControllerBase
     [ApiErrorContract(ApiErrorProfile.SalesInvoices)]
     public async Task<IActionResult> GetPosDailySummary([FromQuery] PosDailyGoodsIssueQueryDto query, CancellationToken ct)
     {
-        var result = await _goodsIssueService.GetPosDailySummaryAsync(query, CanViewCost, ct);
+        var result = await _goodsIssueService.GetPosDailySummaryAsync(query, ct: ct);
         return Ok(result);
     }
 }

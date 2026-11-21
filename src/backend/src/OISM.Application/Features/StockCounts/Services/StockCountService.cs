@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
+using OISM.Application.Common.Services;
 using OISM.Application.Features.Inventory.Services;
 using OISM.Application.Features.Orders.Dtos;
 using OISM.Application.Features.Realtime;
@@ -31,19 +32,22 @@ public class StockCountService : IStockCountService
     private readonly IWacCalculator _wacCalculator;
     private readonly IRealtimeNotifier? _realtimeNotifier;
     private readonly ILogger<StockCountService> _logger;
+    private readonly ICostVisibilityService _costVisibilityService;
 
     public StockCountService(
         IAppDbContext context,
         ICurrentTenantService tenantService,
         IWacCalculator wacCalculator,
         ILogger<StockCountService> logger,
-        IRealtimeNotifier? realtimeNotifier = null)
+        IRealtimeNotifier? realtimeNotifier = null,
+        ICostVisibilityService? costVisibilityService = null)
     {
         _context = context;
         _tenantService = tenantService;
         _wacCalculator = wacCalculator;
         _logger = logger;
         _realtimeNotifier = realtimeNotifier;
+        _costVisibilityService = costVisibilityService ?? AllowAllCostVisibilityService.Instance;
     }
 
     public async Task<StockCountResponseDto> CreateStockCountAsync(
@@ -1676,7 +1680,7 @@ public class StockCountService : IStockCountService
         return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
-    private static StockCountResponseDto MapToResponseDto(StockCount count, bool isReplay)
+    private StockCountResponseDto MapToResponseDto(StockCount count, bool isReplay)
     {
         return new StockCountResponseDto
         {
@@ -1709,7 +1713,7 @@ public class StockCountService : IStockCountService
                 ExpectedQuantity = i.ExpectedQuantity,
                 CountedQuantity = i.CountedQuantity,
                 BalanceSequenceAtSnapshot = i.BalanceSequenceAtSnapshot,
-                AdjustmentUnitCost = i.AdjustmentUnitCost,
+                AdjustmentUnitCost = _costVisibilityService.CanViewCost ? i.AdjustmentUnitCost : null,
                 CountedBy = i.CountedBy,
                 CountedAt = i.CountedAt,
                 SnapshotAt = i.SnapshotAt,

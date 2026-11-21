@@ -1,4 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
+using OISM.Application.Common.Interfaces;
+using OISM.Application.Common.Services;
 using OISM.Application.Features.Ai.Services;
 using OISM.Application.Features.Ai.Services.Tools;
 using OISM.Application.Features.Auth.Services;
@@ -33,6 +35,9 @@ public static class DependencyInjection
     public static IServiceCollection AddApplicationServices(this IServiceCollection services)
     {
         services.AddSingleton<IWacCalculator, WacCalculator>();
+        services.AddScoped<CostVisibilityService>();
+        services.AddScoped<ICostVisibilityService>(sp => sp.GetRequiredService<CostVisibilityService>());
+        services.AddScoped<ICostVisibility>(sp => sp.GetRequiredService<CostVisibilityService>());
         services.AddScoped<IGoodsReceiptService, GoodsReceiptService>();
         services.AddScoped<IInventoryService, InventoryService>();
         services.AddScoped<IReservationService, ReservationService>();

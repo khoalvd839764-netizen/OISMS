@@ -631,6 +631,8 @@ export function InventoryPage() {
     return filteredSkus.slice(start, start + balancePageSize);
   }, [filteredSkus, balancePage, balancePageSize, totalBalancePages]);
 
+  const hasBalanceCost = isOwner && pagedSkus.some((s) => s.averageCost !== null && s.averageCost !== undefined);
+
   const totalLedgerPages = Math.max(1, Math.ceil(filteredLedger.length / ledgerPageSize));
   const pagedLedger = useMemo(() => {
     const safePage = Math.min(ledgerPage, totalLedgerPages);
@@ -1488,15 +1490,19 @@ export function InventoryPage() {
                     <th>Tồn thực tế (OnHand)</th>
                     <th>Giữ chỗ (Reserved)</th>
                     <th>Khả dụng (Available)</th>
-                    <th>Giá vốn BQ (WAC)</th>
-                    <th>Giá trị tồn kho</th>
+                    {hasBalanceCost && (
+                      <>
+                        <th>Giá vốn BQ (WAC)</th>
+                        <th>Giá trị tồn kho</th>
+                      </>
+                    )}
                     <th>Thao tác / Ngưỡng</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading && skus.length === 0 ? (
                     <tr>
-                      <td colSpan={8} style={{ textAlign: "center", padding: "32px 0", color: "#64748b" }}>
+                      <td colSpan={hasBalanceCost ? 8 : 6} style={{ textAlign: "center", padding: "32px 0", color: "#64748b" }}>
                         <div
                           style={{
                             display: "inline-block",
@@ -1515,7 +1521,7 @@ export function InventoryPage() {
                     </tr>
                   ) : loadError && skus.length === 0 ? (
                     <tr>
-                      <td colSpan={8} style={{ textAlign: "center", padding: "36px 0", color: "#b91c1c" }}>
+                      <td colSpan={hasBalanceCost ? 8 : 6} style={{ textAlign: "center", padding: "36px 0", color: "#b91c1c" }}>
                         Không thể hiển thị bảng tồn kho do lỗi kết nối máy chủ.{" "}
                         <Button variant="secondary" onClick={loadData}>
                           Tải lại dữ liệu
@@ -1524,7 +1530,7 @@ export function InventoryPage() {
                     </tr>
                   ) : pagedSkus.length === 0 ? (
                     <tr>
-                      <td colSpan={8} style={{ textAlign: "center", padding: "36px 0", color: "#64748b" }}>
+                      <td colSpan={hasBalanceCost ? 8 : 6} style={{ textAlign: "center", padding: "36px 0", color: "#64748b" }}>
                         Chưa có dữ liệu tồn kho khớp bộ lọc. Bấm <strong>"Tạo phiếu nhập"</strong> phía trên để nhập hàng và ghi nhận số dư ban đầu.
                       </td>
                     </tr>
@@ -1576,14 +1582,18 @@ export function InventoryPage() {
                           <td>
                             <strong className={isUnder ? "text-warning" : ""}>{available}</strong>
                           </td>
-                          <td>{sku.averageCost !== null && sku.averageCost !== undefined ? `${sku.averageCost.toLocaleString("vi-VN")} ₫` : "—"}</td>
-                          <td>
-                            <strong>
-                              {sku.averageCost !== null && sku.averageCost !== undefined
-                                ? `${(sku.averageCost * sku.onHand).toLocaleString("vi-VN")} ₫`
-                                : "—"}
-                            </strong>
-                          </td>
+                          {hasBalanceCost && (
+                            <>
+                              <td>{sku.averageCost !== null && sku.averageCost !== undefined ? `${sku.averageCost.toLocaleString("vi-VN")} ₫` : "—"}</td>
+                              <td>
+                                <strong>
+                                  {sku.averageCost !== null && sku.averageCost !== undefined
+                                    ? `${(sku.averageCost * sku.onHand).toLocaleString("vi-VN")} ₫`
+                                    : "—"}
+                                </strong>
+                              </td>
+                            </>
+                          )}
                           <td>
                             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                               <Button
@@ -2878,7 +2888,7 @@ export function InventoryPage() {
                 <strong style={{ display: "block", marginBottom: "6px", color: "#0f172a" }}>
                   Số dư thực tế tại Kho đang chọn ({loadingReserveWh ? "Đang kiểm tra..." : "Đã đồng bộ"}):
                 </strong>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: isOwner && wac !== null ? "repeat(4, 1fr)" : "repeat(3, 1fr)", gap: "8px" }}>
                   <div>
                     <span style={{ fontSize: "11px", color: "#64748b", display: "block" }}>
                       Tồn thực tế (OnHand)
@@ -2899,12 +2909,14 @@ export function InventoryPage() {
                       {available}
                     </strong>
                   </div>
-                  <div>
-                    <span style={{ fontSize: "11px", color: "#64748b", display: "block" }}>
-                      Giá vốn WAC (Chi nhánh)
-                    </span>
-                    <strong>{wac !== null ? `${wac.toLocaleString("vi-VN")} ₫` : "—"}</strong>
-                  </div>
+                  {isOwner && wac !== null && (
+                    <div>
+                      <span style={{ fontSize: "11px", color: "#64748b", display: "block" }}>
+                        Giá vốn WAC (Chi nhánh)
+                      </span>
+                      <strong>{`${wac.toLocaleString("vi-VN")} ₫`}</strong>
+                    </div>
+                  )}
                 </div>
               </div>
             );

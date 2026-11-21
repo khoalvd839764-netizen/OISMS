@@ -218,87 +218,96 @@ export const SalesInvoiceTraceModal: React.FC<SalesInvoiceTraceModalProps> = ({
               </div>
 
               {/* Step 3 Detail Table: Dòng sổ kho OUT */}
-              <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
-                <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <FileCheck className="w-4 h-4 text-emerald-600" />
-                    <h4 className="font-bold text-sm text-slate-800">
-                      Chi Tiết Dòng Sổ Kho Xuất Hàng (Inventory Ledger - OUT)
-                    </h4>
-                  </div>
-                  <span className="text-xs text-slate-500 font-medium">
-                    (Giá vốn WAC chỉ hiển thị cho Chủ cửa hàng & Nhân viên)
-                  </span>
-                </div>
+              {(() => {
+                const hasCost = trace.lines?.some((l) => l.unitCost !== null && l.unitCost !== undefined);
+                return (
+                  <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+                    <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <FileCheck className="w-4 h-4 text-emerald-600" />
+                        <h4 className="font-bold text-sm text-slate-800">
+                          Chi Tiết Dòng Sổ Kho Xuất Hàng (Inventory Ledger - OUT)
+                        </h4>
+                      </div>
+                      {hasCost && (
+                        <span className="text-xs text-slate-500 font-medium">
+                          (Giá vốn WAC chỉ hiển thị cho Chủ cửa hàng)
+                        </span>
+                      )}
+                    </div>
 
-                {(!trace.lines || trace.lines.length === 0) ? (
-                  <div className="p-8 text-center text-slate-500 text-xs">
-                    Không tìm thấy dòng sổ kho nào được liên kết với hóa đơn này.
+                    {(!trace.lines || trace.lines.length === 0) ? (
+                      <div className="p-8 text-center text-slate-500 text-xs">
+                        Không tìm thấy dòng sổ kho nào được liên kết với hóa đơn này.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                            <tr>
+                              <th className="py-2.5 px-3">Bút toán #</th>
+                              <th className="py-2.5 px-3">Mặt hàng / SKU</th>
+                              <th className="py-2.5 px-3">Kho hàng</th>
+                              <th className="py-2.5 px-3 text-right">Lượng giao dịch</th>
+                              <th className="py-2.5 px-3 text-right">Lượng xuất gốc</th>
+                              {hasCost && <th className="py-2.5 px-3 text-right">Giá vốn (WAC)</th>}
+                              <th className="py-2.5 px-3 text-right">Tồn sau xuất</th>
+                              <th className="py-2.5 px-3 text-right">Thời gian ghi sổ</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 font-mono">
+                            {trace.lines.map((line, idx) => (
+                              <tr key={line.ledgerId || idx} className="hover:bg-slate-50/80 transition-colors">
+                                <td className="py-2.5 px-3 text-slate-700">
+                                  <span className="font-bold text-slate-900">#{line.sequenceNo}</span>
+                                  <div className="text-[10px] text-slate-400 truncate max-w-[100px]" title={line.ledgerId}>
+                                    {line.ledgerId.slice(0, 8)}...
+                                  </div>
+                                </td>
+                                <td className="py-2.5 px-3 font-sans">
+                                  <div className="flex items-center gap-1.5 font-bold font-mono text-slate-800">
+                                    <Package className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                    <span>{line.skuCode}</span>
+                                  </div>
+                                </td>
+                                <td className="py-2.5 px-3 font-sans text-slate-700">
+                                  <div className="flex items-center gap-1.5">
+                                    <Warehouse className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                    <span>{line.warehouseName}</span>
+                                  </div>
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-sans">
+                                  {line.orderItemQuantity != null ? (
+                                    <span className="font-semibold text-slate-800">
+                                      {line.orderItemQuantity.toLocaleString('vi-VN')} {line.unitName || ''}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400">-</span>
+                                  )}
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-bold text-rose-600">
+                                  -{Math.abs(line.quantity).toLocaleString('vi-VN')} (gốc)
+                                </td>
+                                {hasCost && (
+                                  <td className="py-2.5 px-3 text-right text-slate-700">
+                                    {line.unitCost != null ? formatCurrency(line.unitCost) : '—'}
+                                  </td>
+                                )}
+                                <td className="py-2.5 px-3 text-right font-semibold text-slate-900">
+                                  {line.balanceAfter.toLocaleString('vi-VN')}
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-sans text-slate-500 text-[11px]">
+                                  {new Date(line.createdAt).toLocaleString('vi-VN')}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
-                        <tr>
-                          <th className="py-2.5 px-3">Bút toán #</th>
-                          <th className="py-2.5 px-3">Mặt hàng / SKU</th>
-                          <th className="py-2.5 px-3">Kho hàng</th>
-                          <th className="py-2.5 px-3 text-right">Lượng giao dịch</th>
-                          <th className="py-2.5 px-3 text-right">Lượng xuất gốc</th>
-                          <th className="py-2.5 px-3 text-right">Giá vốn (WAC)</th>
-                          <th className="py-2.5 px-3 text-right">Tồn sau xuất</th>
-                          <th className="py-2.5 px-3 text-right">Thời gian ghi sổ</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 font-mono">
-                        {trace.lines.map((line, idx) => (
-                          <tr key={line.ledgerId || idx} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="py-2.5 px-3 text-slate-700">
-                              <span className="font-bold text-slate-900">#{line.sequenceNo}</span>
-                              <div className="text-[10px] text-slate-400 truncate max-w-[100px]" title={line.ledgerId}>
-                                {line.ledgerId.slice(0, 8)}...
-                              </div>
-                            </td>
-                            <td className="py-2.5 px-3 font-sans">
-                              <div className="flex items-center gap-1.5 font-bold font-mono text-slate-800">
-                                <Package className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                <span>{line.skuCode}</span>
-                              </div>
-                            </td>
-                            <td className="py-2.5 px-3 font-sans text-slate-700">
-                              <div className="flex items-center gap-1.5">
-                                <Warehouse className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                <span>{line.warehouseName}</span>
-                              </div>
-                            </td>
-                            <td className="py-2.5 px-3 text-right font-sans">
-                              {line.orderItemQuantity != null ? (
-                                <span className="font-semibold text-slate-800">
-                                  {line.orderItemQuantity.toLocaleString('vi-VN')} {line.unitName || ''}
-                                </span>
-                              ) : (
-                                <span className="text-slate-400">-</span>
-                              )}
-                            </td>
-                            <td className="py-2.5 px-3 text-right font-bold text-rose-600">
-                              -{Math.abs(line.quantity).toLocaleString('vi-VN')} (gốc)
-                            </td>
-                            <td className="py-2.5 px-3 text-right text-slate-700">
-                              {formatCurrency(line.unitCost)}
-                            </td>
-                            <td className="py-2.5 px-3 text-right font-semibold text-slate-900">
-                              {line.balanceAfter.toLocaleString('vi-VN')}
-                            </td>
-                            <td className="py-2.5 px-3 text-right font-sans text-slate-500 text-[11px]">
-                              {new Date(line.createdAt).toLocaleString('vi-VN')}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
+                );
+              })()}
 
               {/* Step 4: Phiếu trả hàng & Dòng sổ kho hoàn lại (IN - CS-01) */}
               {(trace as any).salesReturns && (trace as any).salesReturns.length > 0 && (
@@ -336,59 +345,64 @@ export const SalesInvoiceTraceModal: React.FC<SalesInvoiceTraceModalProps> = ({
                         <div className="p-4 text-center text-slate-400 text-xs">
                           Chưa có dòng sổ kho IN (phiếu chưa được xác nhận nhập kho).
                         </div>
-                      ) : (
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left text-xs">
-                            <thead className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
-                              <tr>
-                                <th className="py-2.5 px-3">Bút toán #</th>
-                                <th className="py-2.5 px-3">Mặt hàng / SKU</th>
-                                <th className="py-2.5 px-3">Kho hàng</th>
-                                <th className="py-2.5 px-3 text-right">Lượng nhập lại (gốc)</th>
-                                <th className="py-2.5 px-3 text-right">Giá vốn (WAC)</th>
-                                <th className="py-2.5 px-3 text-right">Tồn sau nhập</th>
-                                <th className="py-2.5 px-3 text-right">Thời gian ghi sổ</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 font-mono">
-                              {sr.lines.map((line: any, idx: number) => (
-                                <tr key={line.ledgerId || idx} className="hover:bg-slate-50/80 transition-colors">
-                                  <td className="py-2.5 px-3 text-slate-700">
-                                    <span className="font-bold text-slate-900">#{line.sequenceNo}</span>
-                                    <div className="text-[10px] text-slate-400 truncate max-w-[100px]" title={line.ledgerId}>
-                                      {line.ledgerId.slice(0, 8)}...
-                                    </div>
-                                  </td>
-                                  <td className="py-2.5 px-3 font-sans">
-                                    <div className="flex items-center gap-1.5 font-bold font-mono text-slate-800">
-                                      <Package className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                      <span>{line.skuCode}</span>
-                                    </div>
-                                  </td>
-                                  <td className="py-2.5 px-3 font-sans text-slate-700">
-                                    <div className="flex items-center gap-1.5">
-                                      <Warehouse className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                      <span>{line.warehouseName}</span>
-                                    </div>
-                                  </td>
-                                  <td className="py-2.5 px-3 text-right font-bold text-emerald-600">
-                                    +{Math.abs(line.quantity).toLocaleString('vi-VN')} (gốc)
-                                  </td>
-                                  <td className="py-2.5 px-3 text-right text-slate-700">
-                                    {formatCurrency(line.unitCost)}
-                                  </td>
-                                  <td className="py-2.5 px-3 text-right font-semibold text-slate-900">
-                                    {line.balanceAfter.toLocaleString('vi-VN')}
-                                  </td>
-                                  <td className="py-2.5 px-3 text-right font-sans text-slate-500 text-[11px]">
-                                    {new Date(line.createdAt).toLocaleString('vi-VN')}
-                                  </td>
+                      ) : (() => {
+                        const srHasCost = sr.lines.some((l: any) => l.unitCost !== null && l.unitCost !== undefined);
+                        return (
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-left text-xs">
+                              <thead className="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px] tracking-wider">
+                                <tr>
+                                  <th className="py-2.5 px-3">Bút toán #</th>
+                                  <th className="py-2.5 px-3">Mặt hàng / SKU</th>
+                                  <th className="py-2.5 px-3">Kho hàng</th>
+                                  <th className="py-2.5 px-3 text-right">Lượng nhập lại (gốc)</th>
+                                  {srHasCost && <th className="py-2.5 px-3 text-right">Giá vốn (WAC)</th>}
+                                  <th className="py-2.5 px-3 text-right">Tồn sau nhập</th>
+                                  <th className="py-2.5 px-3 text-right">Thời gian ghi sổ</th>
                                 </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 font-mono">
+                                {sr.lines.map((line: any, idx: number) => (
+                                  <tr key={line.ledgerId || idx} className="hover:bg-slate-50/80 transition-colors">
+                                    <td className="py-2.5 px-3 text-slate-700">
+                                      <span className="font-bold text-slate-900">#{line.sequenceNo}</span>
+                                      <div className="text-[10px] text-slate-400 truncate max-w-[100px]" title={line.ledgerId}>
+                                        {line.ledgerId.slice(0, 8)}...
+                                      </div>
+                                    </td>
+                                    <td className="py-2.5 px-3 font-sans">
+                                      <div className="flex items-center gap-1.5 font-bold font-mono text-slate-800">
+                                        <Package className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                        <span>{line.skuCode}</span>
+                                      </div>
+                                    </td>
+                                    <td className="py-2.5 px-3 font-sans text-slate-700">
+                                      <div className="flex items-center gap-1.5">
+                                        <Warehouse className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                        <span>{line.warehouseName}</span>
+                                      </div>
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right font-bold text-emerald-600">
+                                      +{Math.abs(line.quantity).toLocaleString('vi-VN')} (gốc)
+                                    </td>
+                                    {srHasCost && (
+                                      <td className="py-2.5 px-3 text-right text-slate-700">
+                                        {line.unitCost != null ? formatCurrency(line.unitCost) : '—'}
+                                      </td>
+                                    )}
+                                    <td className="py-2.5 px-3 text-right font-semibold text-slate-900">
+                                      {line.balanceAfter.toLocaleString('vi-VN')}
+                                    </td>
+                                    <td className="py-2.5 px-3 text-right font-sans text-slate-500 text-[11px]">
+                                      {new Date(line.createdAt).toLocaleString('vi-VN')}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })()}
                     </div>
                   ))}
                 </div>

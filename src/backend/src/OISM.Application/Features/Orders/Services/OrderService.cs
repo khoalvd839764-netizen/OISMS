@@ -38,13 +38,14 @@ public partial class OrderService : IOrderService, IPosCheckoutService
         ICurrentTenantService currentTenantService,
         ISkuPriceResolver skuPriceResolver,
         ILogger<OrderService>? logger = null,
-        IRealtimeNotifier? realtimeNotifier = null)
+        IRealtimeNotifier? realtimeNotifier = null,
+        ICostVisibilityService? costVisibilityService = null)
     {
         _context = context;
         _currentTenantService = currentTenantService;
         _logger = logger ?? NullLogger<OrderService>.Instance;
         _realtimeNotifier = realtimeNotifier;
-        _query = new OrderQueryService(context, currentTenantService);
+        _query = new OrderQueryService(context, currentTenantService, costVisibilityService);
         _checkout = new PosCheckoutService(context, currentTenantService, skuPriceResolver, _logger, realtimeNotifier);
         _intake = new OrderIntakeService(context, currentTenantService, skuPriceResolver, _query, _logger, realtimeNotifier);
         _marketplace = new MarketplaceOrderService(_intake);

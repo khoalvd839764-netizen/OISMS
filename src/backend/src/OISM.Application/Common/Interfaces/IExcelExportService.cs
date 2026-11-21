@@ -11,10 +11,10 @@ public interface IExcelExportService
     /// <summary>
     /// Xuất báo cáo Tồn kho theo kỳ (NXT) ra định dạng .xlsx.
     /// </summary>
-    byte[] ExportInventoryPeriodReport(InventoryPeriodReportDto report, bool isOwner);
+    byte[] ExportInventoryPeriodReport(InventoryPeriodReportDto report, bool? isOwner = null);
 
     /// <summary>
     /// Xuất Thẻ kho S12-DN (Staff) hoặc Sổ chi tiết hàng hóa S10-DN (Owner) ra định dạng .xlsx.
     /// </summary>
-    byte[] ExportStockCardReport(StockCardReportDto report, bool isOwner);
+    byte[] ExportStockCardReport(StockCardReportDto report, bool? isOwner = null);
 }

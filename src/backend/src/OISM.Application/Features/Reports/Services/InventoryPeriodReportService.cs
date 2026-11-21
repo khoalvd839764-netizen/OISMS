@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Helpers;
 using OISM.Application.Common.Interfaces;
+using OISM.Application.Common.Services;
 using OISM.Application.Features.Reports.Dtos;
 using OISM.Domain.Entities;
 
@@ -16,15 +17,28 @@ public class InventoryPeriodReportService : IInventoryPeriodReportService
     private static readonly TimeSpan SaigonOffset = TimeSpan.FromHours(7);
     private readonly IAppDbContext _context;
     private readonly ICurrentTenantService _tenantService;
+    private readonly ICostVisibilityService _costVisibilityService;
 
-    public InventoryPeriodReportService(IAppDbContext context, ICurrentTenantService tenantService)
+    public InventoryPeriodReportService(
+        IAppDbContext context,
+        ICurrentTenantService tenantService,
+        ICostVisibilityService? costVisibilityService = null)
     {
         _context = context;
         _tenantService = tenantService;
+        _costVisibilityService = costVisibilityService ?? AllowAllCostVisibilityService.Instance;
     }
 
     /// <inheritdoc />
     public async Task<InventoryPeriodReportDto> GetInventoryPeriodReportAsync(
+        InventoryPeriodFilterDto filter,
+        bool? isOwner = null,
+        CancellationToken ct = default)
+    {
+        return await GetInventoryPeriodReportInternalAsync(filter, isOwner ?? _costVisibilityService.IsOwner, ct);
+    }
+
+    private async Task<InventoryPeriodReportDto> GetInventoryPeriodReportInternalAsync(
         InventoryPeriodFilterDto filter,
         bool isOwner,
         CancellationToken ct = default)
@@ -125,6 +139,14 @@ public class InventoryPeriodReportService : IInventoryPeriodReportService
     /// <inheritdoc />
     public async Task<InventoryPeriodReportDto> GetInventoryPeriodReportForExportAsync(
         InventoryPeriodFilterDto filter,
+        bool? isOwner = null,
+        CancellationToken ct = default)
+    {
+        return await GetInventoryPeriodReportForExportInternalAsync(filter, isOwner ?? _costVisibilityService.IsOwner, ct);
+    }
+
+    private async Task<InventoryPeriodReportDto> GetInventoryPeriodReportForExportInternalAsync(
+        InventoryPeriodFilterDto filter,
         bool isOwner,
         CancellationToken ct = default)
     {
@@ -168,6 +190,14 @@ public class InventoryPeriodReportService : IInventoryPeriodReportService
 
     /// <inheritdoc />
     public async Task<StockCardReportDto> GetStockCardReportAsync(
+        StockCardFilterDto filter,
+        bool? isOwner = null,
+        CancellationToken ct = default)
+    {
+        return await GetStockCardReportInternalAsync(filter, isOwner ?? _costVisibilityService.IsOwner, ct);
+    }
+
+    private async Task<StockCardReportDto> GetStockCardReportInternalAsync(
         StockCardFilterDto filter,
         bool isOwner,
         CancellationToken ct = default)

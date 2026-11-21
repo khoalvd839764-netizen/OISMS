@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
+using OISM.Application.Common.Services;
 using OISM.Application.Features.Catalog.Units.Services;
 using OISM.Application.Features.Inventory.Dtos;
 using OISM.Application.Features.PurchaseOrders.Dtos;
@@ -20,15 +21,18 @@ public class PurchaseOrderService : IPurchaseOrderService
     private readonly IAppDbContext _context;
     private readonly ICurrentTenantService _currentTenantService;
     private readonly ISqlLockService _sqlLockService;
+    private readonly ICostVisibilityService _costVisibilityService;
 
     public PurchaseOrderService(
         IAppDbContext context,
         ICurrentTenantService currentTenantService,
-        ISqlLockService sqlLockService)
+        ISqlLockService sqlLockService,
+        ICostVisibilityService? costVisibilityService = null)
     {
         _context = context;
         _currentTenantService = currentTenantService;
         _sqlLockService = sqlLockService;
+        _costVisibilityService = costVisibilityService ?? AllowAllCostVisibilityService.Instance;
     }
 
     private Guid RequireTenantId()
@@ -52,8 +56,9 @@ public class PurchaseOrderService : IPurchaseOrderService
         Guid requestKey,
         Guid userId,
         CancellationToken ct = default,
-        bool isOwner = true)
+        bool? isOwnerInput = null)
     {
+        bool isOwner = isOwnerInput ?? _costVisibilityService.IsOwner;
         if (dto == null)
         {
             throw new OismException("VALIDATION_ERROR", "Dữ liệu phiếu mua không được để trống.", 400);
@@ -287,8 +292,9 @@ public class PurchaseOrderService : IPurchaseOrderService
         UpdatePurchaseOrderDraftDto dto,
         Guid userId,
         CancellationToken ct = default,
-        bool isOwner = true)
+        bool? isOwnerInput = null)
     {
+        bool isOwner = isOwnerInput ?? _costVisibilityService.IsOwner;
         if (dto == null)
         {
             throw new OismException("VALIDATION_ERROR", "Dữ liệu phiếu mua không được để trống.", 400);
@@ -505,8 +511,9 @@ public class PurchaseOrderService : IPurchaseOrderService
         Guid id,
         Guid userId,
         CancellationToken ct = default,
-        bool isOwner = false)
+        bool? isOwnerInput = null)
     {
+        bool isOwner = isOwnerInput ?? _costVisibilityService.IsOwner;
         var tenantId = RequireTenantId();
 
         return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
@@ -878,8 +885,9 @@ public class PurchaseOrderService : IPurchaseOrderService
         Guid id,
         Guid userId,
         CancellationToken ct = default,
-        bool isOwner = true)
+        bool? isOwnerInput = null)
     {
+        bool isOwner = isOwnerInput ?? _costVisibilityService.IsOwner;
         var tenantId = RequireTenantId();
 
         return await _context.UnitOfWork.ExecuteWithRetryAsync(async () =>
@@ -936,8 +944,9 @@ public class PurchaseOrderService : IPurchaseOrderService
     public async Task<PagedResult<PurchaseOrderResponseDto>> GetPurchaseOrdersAsync(
         PurchaseOrderFilterDto filter,
         CancellationToken ct = default,
-        bool isOwner = true)
+        bool? isOwnerInput = null)
     {
+        bool isOwner = isOwnerInput ?? _costVisibilityService.IsOwner;
         RequireTenantId();
 
         var query = LoadPurchaseOrderGraphQuery().AsNoTracking();
@@ -950,6 +959,11 @@ public class PurchaseOrderService : IPurchaseOrderService
 
         if (filter.SupplierId.HasValue)
         {
+            if (!isOwner && (filter.Status == PurchaseOrderStatus.Draft || filter.Status == PurchaseOrderStatus.PendingApproval))
+            {
+                throw new OismException("FORBIDDEN", "Nhân viên không có quyền lọc theo nhà cung cấp đối với đơn mua ở trạng thái Bản nháp hoặc Chờ duyệt.", 403);
+            }
+
             query = query.Where(p => p.SupplierId == filter.SupplierId.Value);
 
             // Staff chỉ thấy NCC từ khi đơn được duyệt: lọc theo NCC không được lộ đơn Draft/PendingApproval (Q9).
@@ -1002,8 +1016,9 @@ public class PurchaseOrderService : IPurchaseOrderService
         };
     }
 
-    public async Task<PurchaseOrderResponseDto?> GetPurchaseOrderByIdAsync(Guid id, CancellationToken ct = default, bool isOwner = true)
+    public async Task<PurchaseOrderResponseDto?> GetPurchaseOrderByIdAsync(Guid id, CancellationToken ct = default, bool? isOwnerInput = null)
     {
+        bool isOwner = isOwnerInput ?? _costVisibilityService.IsOwner;
         RequireTenantId();
 
         var po = await LoadPurchaseOrderGraphQuery()

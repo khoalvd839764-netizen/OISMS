@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
+using OISM.Application.Common.Services;
 using OISM.Application.Features.Inventory.Dtos;
 using OISM.Application.Features.Orders.Dtos;
 using OISM.Application.Features.SalesInvoices.Dtos;
@@ -12,11 +13,16 @@ public class SalesInvoiceService : ISalesInvoiceService
 {
     private readonly IAppDbContext _context;
     private readonly ICurrentTenantService _tenantService;
+    private readonly ICostVisibilityService _costVisibilityService;
 
-    public SalesInvoiceService(IAppDbContext context, ICurrentTenantService tenantService)
+    public SalesInvoiceService(
+        IAppDbContext context,
+        ICurrentTenantService tenantService,
+        ICostVisibilityService? costVisibilityService = null)
     {
         _context = context;
         _tenantService = tenantService;
+        _costVisibilityService = costVisibilityService ?? AllowAllCostVisibilityService.Instance;
     }
 
     private Guid RequireTenantId()
@@ -550,7 +556,7 @@ public class SalesInvoiceService : ISalesInvoiceService
             .Include(t => t.Sku)
             .Where(t => t.TenantId == tenantId);
 
-    private static DocumentTraceDto BuildTrace(
+    private DocumentTraceDto BuildTrace(
         string type,
         Guid? id,
         string? number,
@@ -574,7 +580,7 @@ public class SalesInvoiceService : ISalesInvoiceService
             Lines = lines.Select(t => MapLine(t)).ToList()
         };
 
-    private static DocumentTraceLineDto MapLine(
+    private DocumentTraceLineDto MapLine(
         InventoryTransaction t,
         OrderItem? orderItem = null,
         decimal? itemQuantity = null,
@@ -588,7 +594,7 @@ public class SalesInvoiceService : ISalesInvoiceService
         WarehouseId = t.WarehouseId,
         WarehouseName = t.Warehouse?.Name ?? string.Empty,
         Quantity = t.Quantity,
-        UnitCost = t.UnitCost,
+        UnitCost = _costVisibilityService.CanViewCost ? t.UnitCost : null,
         BalanceAfter = t.BalanceAfter,
         SequenceNo = t.SequenceNo,
         CreatedAt = t.CreatedAt,

@@ -23,8 +23,6 @@ public class GoodsReceiptsController : ControllerBase
         _goodsReceiptService = goodsReceiptService;
     }
 
-    private bool IsOwner => User.IsInRole("Owner");
-
     /// <summary>
     /// Lập phiếu nhập kho mới ở trạng thái Nháp (Draft) từ Phiếu mua hàng đã duyệt.
     /// </summary>
@@ -38,7 +36,7 @@ public class GoodsReceiptsController : ControllerBase
         }
 
         var userId = RequireUserId();
-        var result = await _goodsReceiptService.CreateReceiptAsync(dto, userId, ct, IsOwner);
+        var result = await _goodsReceiptService.CreateReceiptAsync(dto, userId, ct);
         return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
@@ -48,7 +46,7 @@ public class GoodsReceiptsController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetList([FromQuery] GoodsReceiptFilterDto filter, CancellationToken ct)
     {
-        var result = await _goodsReceiptService.GetReceiptsAsync(filter, ct, IsOwner);
+        var result = await _goodsReceiptService.GetReceiptsAsync(filter, ct);
         return Ok(result);
     }
 
@@ -59,7 +57,7 @@ public class GoodsReceiptsController : ControllerBase
     [ApiErrorContract(ApiErrorProfile.GoodsReceiptRead)]
     public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
     {
-        var receipt = await _goodsReceiptService.GetReceiptByIdAsync(id, ct, IsOwner);
+        var receipt = await _goodsReceiptService.GetReceiptByIdAsync(id, ct);
         if (receipt == null)
         {
             return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.GoodsReceipts, "NOT_FOUND", "Không tìm thấy dữ liệu", StatusCodes.Status404NotFound, $"Không tìm thấy Phiếu nhập kho với ID '{id}'.");
@@ -75,7 +73,7 @@ public class GoodsReceiptsController : ControllerBase
     public async Task<IActionResult> Confirm(Guid id, CancellationToken ct)
     {
         var userId = RequireUserId();
-        var result = await _goodsReceiptService.ConfirmReceiptAsync(id, userId, ct, IsOwner);
+        var result = await _goodsReceiptService.ConfirmReceiptAsync(id, userId, ct);
         return Ok(result);
     }
 
@@ -87,7 +85,7 @@ public class GoodsReceiptsController : ControllerBase
     public async Task<IActionResult> Cancel(Guid id, CancellationToken ct)
     {
         var userId = RequireUserId();
-        var result = await _goodsReceiptService.CancelReceiptAsync(id, userId, ct, IsOwner);
+        var result = await _goodsReceiptService.CancelReceiptAsync(id, userId, ct);
         return Ok(result);
     }
 

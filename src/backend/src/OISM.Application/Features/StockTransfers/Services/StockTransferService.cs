@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
+using OISM.Application.Common.Services;
 using OISM.Application.Features.Inventory.Services;
 using OISM.Application.Features.Orders.Dtos;
 using OISM.Application.Features.StockTransfers.Dtos;
@@ -27,19 +28,22 @@ public class StockTransferService : IStockTransferService
     private readonly IWacCalculator _wacCalculator;
     private readonly IRealtimeNotifier? _realtimeNotifier;
     private readonly ILogger<StockTransferService> _logger;
+    private readonly ICostVisibilityService _costVisibilityService;
 
     public StockTransferService(
         IAppDbContext context,
         ICurrentTenantService tenantService,
         IWacCalculator wacCalculator,
         ILogger<StockTransferService> logger,
-        IRealtimeNotifier? realtimeNotifier = null)
+        IRealtimeNotifier? realtimeNotifier = null,
+        ICostVisibilityService? costVisibilityService = null)
     {
         _context = context;
         _tenantService = tenantService;
         _wacCalculator = wacCalculator;
         _logger = logger;
         _realtimeNotifier = realtimeNotifier;
+        _costVisibilityService = costVisibilityService ?? AllowAllCostVisibilityService.Instance;
     }
 
     public async Task<StockTransferResponseDto> CreateTransferAsync(
@@ -936,7 +940,7 @@ public class StockTransferService : IStockTransferService
         return res;
     }
 
-    private static StockTransferResponseDto MapToResponse(StockTransfer transfer)
+    private StockTransferResponseDto MapToResponse(StockTransfer transfer)
     {
         return new StockTransferResponseDto
         {
@@ -966,7 +970,7 @@ public class StockTransferService : IStockTransferService
                 SkuCode = i.Sku?.Code ?? i.Sku?.SKU ?? string.Empty,
                 ProductName = i.Sku?.Product?.Name ?? string.Empty,
                 Quantity = i.Quantity,
-                UnitCost = i.UnitCost
+                UnitCost = _costVisibilityService.CanViewCost ? i.UnitCost : null
             }).ToList()
         };
     }

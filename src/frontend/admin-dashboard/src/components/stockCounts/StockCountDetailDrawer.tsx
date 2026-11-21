@@ -105,6 +105,7 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
   const isCounting = detail?.status === 'Draft' || detail?.status === 'Counting';
   const isPending = detail?.status === 'PendingApproval';
   const isConfirmed = detail?.status === 'Confirmed';
+  const canSeeCost = isOwner && (isCounting || (detail?.items?.some((i) => i.adjustmentUnitCost !== null && i.adjustmentUnitCost !== undefined) ?? false));
 
   // Lưu bản đếm thực tế (POST /api/stock-counts/{id}/record)
   const handleSaveCounts = async () => {
@@ -599,7 +600,7 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
                         <th className="py-2 px-3 text-right">Tồn sổ sách (gốc)</th>
                         <th className="py-2 px-3 text-right">Thực tế (gốc)</th>
                         <th className="py-2 px-3 text-right">Chênh lệch</th>
-                        <th className="py-2 px-3 text-right">Đơn giá WAC (nếu thừa)</th>
+                        {canSeeCost && <th className="py-2 px-3 text-right">Đơn giá WAC (nếu thừa)</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 font-mono">
@@ -658,30 +659,32 @@ export const StockCountDetailDrawer: React.FC<StockCountDetailDrawerProps> = ({
                                 </span>
                               )}
                             </td>
-                            <td className="py-2.5 px-3 text-right">
-                              {isSurplus && isCounting ? (
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="any"
-                                  value={costMap[item.skuId] || ''}
-                                  onChange={(e) =>
-                                    setCostMap({
-                                      ...costMap,
-                                      [item.skuId]: e.target.value,
-                                    })
-                                  }
-                                  placeholder="Đơn giá WAC"
-                                  className="w-28 text-right border border-amber-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500 outline-none bg-amber-50/40"
-                                />
-                              ) : (
-                                <span className="text-gray-500">
-                                  {item.adjustmentUnitCost
-                                    ? `${item.adjustmentUnitCost.toLocaleString('vi-VN')} đ`
-                                    : '—'}
-                                </span>
-                              )}
-                            </td>
+                            {canSeeCost && (
+                              <td className="py-2.5 px-3 text-right">
+                                {isSurplus && isCounting ? (
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="any"
+                                    value={costMap[item.skuId] || ''}
+                                    onChange={(e) =>
+                                      setCostMap({
+                                        ...costMap,
+                                        [item.skuId]: e.target.value,
+                                      })
+                                    }
+                                    placeholder="Đơn giá WAC"
+                                    className="w-28 text-right border border-amber-300 rounded px-2 py-1 text-xs focus:ring-1 focus:ring-amber-500 outline-none bg-amber-50/40"
+                                  />
+                                ) : (
+                                  <span className="text-gray-500">
+                                    {item.adjustmentUnitCost
+                                      ? `${item.adjustmentUnitCost.toLocaleString('vi-VN')} đ`
+                                      : '—'}
+                                  </span>
+                                )}
+                              </td>
+                            )}
                           </tr>
                         );
                       })}

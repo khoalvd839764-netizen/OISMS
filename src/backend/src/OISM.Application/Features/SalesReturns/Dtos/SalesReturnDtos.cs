@@ -15,7 +15,7 @@ public class ReturnableItemDto
     public decimal ReturnedQuantity { get; set; }
     public decimal ReturnableQuantity { get; set; }
     public decimal UnitPrice { get; set; }
-    public decimal OriginalUnitCost { get; set; }
+    public decimal? OriginalUnitCost { get; set; }
 }
 
 public class CreateSalesReturnDto
@@ -99,7 +99,7 @@ public class SalesReturnItemResponseDto
     public decimal Quantity { get; set; }
     public decimal BaseQuantity { get; set; }
     public decimal RefundAmount { get; set; }
-    public decimal OriginalUnitCost { get; set; }
+    public decimal? OriginalUnitCost { get; set; }
 }
 
 public class SalesReturnFilterDto

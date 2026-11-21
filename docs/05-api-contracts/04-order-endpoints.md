@@ -16,6 +16,7 @@
 | Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả thay đổi | Mã tham chiếu |
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.5.1` | `2026-11-21` | Nhóm dự án OISMS | Bảng kê POS: sửa tên trường cho khớp code (`items`, `invoices`, `totalOrders`, `totalInvoices`, `totalGoodsIssues`); `totalSalesAmount` của phiếu chỉ ghi ở phiếu đầu tiên của hóa đơn, thêm `totalSalesAmount` tổng (mỗi hóa đơn một lần). | `OISMS-66-L2-G3` |
+| `v1.6.0` | `2026-11-21` | Nhóm dự án OISMS | Dịch vụ che giá dùng chung (`ICostVisibilityService`, Upgrade 12 Gói 5 / OISMS-66-L2-G5): Chỉ duy nhất `Owner` được xem giá vốn. Với `Staff`, `totalCogs = null`, và `items[].costPrice = null`, `items[].totalCost = null` trên API chi tiết đơn hàng `/api/orders/{id}`. | `OISMS-66-L2-G5` |
 | `v1.5.0` | `2026-11-19` | Nhóm dự án OISMS | OISMS-66-L2-G3: Bổ sung endpoints Phiếu xuất kho 02-VT (`/api/orders/{orderId}/goods-issues`, `/api/goods-issues/{id}`, `/api/goods-issues/by-orders`, `/api/goods-issues/pos-daily-summary`); che `unitCost`/`totalCost` với `Staff` và chặn `Cashier` `403`. | `OISMS-66-L2-G3` |
 | `v1.4.0` | `2026-11-15` | Nhóm dự án OISMS | OISMS-59-G3B: Bổ sung 2 API tổng hợp & đối soát báo cáo ngày cho `Owner`: `GET /api/reports/daily-summaries` và `POST /api/reports/daily-summaries/rebuild`. | `OISMS-59-G3B` |
 | `v1.3.1` | `2026-11-10` | Nhóm dự án OISMS | Thêm `GET /api/webhooks/simulator/catalog` cho app giả lập chọn sản phẩm theo secret. | `OISMS-48` |
@@ -36,7 +37,7 @@
 | Method | Endpoint | Quyền (RBAC) | Mã FR | Mô tả & Quy tắc xử lý |
 | :---: | :--- | :---: | :---: | :--- |
 | `GET` | `/api/orders` | `Owner, Staff` | `FR-ORD-03` | Lấy danh sách đơn hàng hợp nhất (`Canonical Orders`), lọc theo Trạng thái, Kênh bán, Chi nhánh và Thời gian. |
-| `GET` | `/api/orders/{id}` | `Owner, Staff` | `FR-ORD-03` | Lấy chi tiết đơn hàng kèm danh sách mặt hàng, giá vốn WAC snapshot, người xác nhận (`confirmedBy`), thông tin hóa đơn (`salesInvoiceId`, `salesInvoiceNumber`), thanh toán và số lượng đã trả từng dòng (`returnedQuantity` tính từ các phiếu trả `Confirmed`). |
+| `GET` | `/api/orders/{id}` | `Owner, Staff` | `FR-ORD-03` | Lấy chi tiết đơn hàng kèm danh sách mặt hàng, giá vốn WAC snapshot, người xác nhận (`confirmedBy`), thông tin hóa đơn (`salesInvoiceId`, `salesInvoiceNumber`), thanh toán và số lượng đã trả từng dòng (`returnedQuantity` tính từ các phiếu trả `Confirmed`). Với tài khoản `Staff`, trường `totalCogs` và `items[].costPrice`, `items[].totalCost` luôn trả `null` (`OISMS-66-L2-G5`). |
 | `GET` | `/api/orders/{id}/trace` | `Owner, Staff` | `OISMS-47-U02, CS-01` | Truy vết chuỗi chứng từ: đơn hàng, hóa đơn xuất kho, dòng sổ kho `OUT` và danh sách phiếu trả hàng (`salesReturns`) kèm các dòng sổ kho `IN` (`DocumentTraceDto`). |
 | `POST` | `/api/orders` | `Owner, Staff` | `FR-ORD-01..02` | Tạo đơn hàng thủ công trên Admin và thực hiện giữ chỗ tồn kho (`Draft -> Reserved`). Bắt buộc `RequestKey` hợp lệ do client cung cấp. |
 | `POST` | `/api/orders/{id}/confirm` | `Owner, Staff` | `FR-ORD-02..03`, `FR-RSE-03`, `FR-COST-02` | Duyệt đơn hàng (`Reserved -> Confirmed`): Trừ `on_hand`, giảm `reserved`, ghi Sổ cái `OUT` và chụp `OrderItem.CostPrice`. |

@@ -12,7 +12,7 @@ public interface IInventoryPeriodReportService
     /// </summary>
     Task<InventoryPeriodReportDto> GetInventoryPeriodReportAsync(
         InventoryPeriodFilterDto filter,
-        bool isOwner,
+        bool? isOwner = null,
         CancellationToken ct = default);
 
     /// <summary>
@@ -20,7 +20,7 @@ public interface IInventoryPeriodReportService
     /// </summary>
     Task<InventoryPeriodReportDto> GetInventoryPeriodReportForExportAsync(
         InventoryPeriodFilterDto filter,
-        bool isOwner,
+        bool? isOwner = null,
         CancellationToken ct = default);
 
     /// <summary>
@@ -28,6 +28,6 @@ public interface IInventoryPeriodReportService
     /// </summary>
     Task<StockCardReportDto> GetStockCardReportAsync(
         StockCardFilterDto filter,
-        bool isOwner,
+        bool? isOwner = null,
         CancellationToken ct = default);
 }

@@ -36,11 +36,12 @@ export const SalesReturnDetailDrawer: React.FC<SalesReturnDetailDrawerProps> = (
   onOpenTrace,
 }) => {
   const { account } = useAuth();
-  const canSeeCost = account?.role === 'Owner' || account?.role === 'Staff';
+  const isOwner = account?.role === 'Owner';
 
   const [detail, setDetail] = useState<SalesReturn | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const canSeeCost = isOwner && (detail?.items?.some((it) => it.originalUnitCost !== null && it.originalUnitCost !== undefined) ?? false);
 
   // Dialog action state
   const [dialogState, setDialogState] = useState<{
@@ -274,7 +275,7 @@ export const SalesReturnDetailDrawer: React.FC<SalesReturnDetailDrawerProps> = (
                           </td>
                           {canSeeCost && (
                             <td className="p-2.5 text-right text-gray-600">
-                              {it.originalUnitCost.toLocaleString('vi-VN')} đ
+                              {it.originalUnitCost != null ? `${it.originalUnitCost.toLocaleString('vi-VN')} đ` : '—'}
                             </td>
                           )}
                         </tr>

@@ -40,8 +40,7 @@ public class ReportsController : ControllerBase
     [HttpGet("revenue-profit")]
     public async Task<IActionResult> GetRevenueProfit([FromQuery] ReportFilterDto filter, CancellationToken ct)
     {
-        var isOwner = User.IsInRole("Owner");
-        var result = await _reportService.GetRevenueProfitReportAsync(filter, isOwner, ct);
+        var result = await _reportService.GetRevenueProfitReportAsync(filter, ct);
         return Ok(result);
     }
 
@@ -75,8 +74,7 @@ public class ReportsController : ControllerBase
     [HttpGet("dashboard-summary")]
     public async Task<IActionResult> GetDashboardSummary(CancellationToken ct)
     {
-        var isOwner = User.IsInRole("Owner");
-        var result = await _reportService.GetDashboardSummaryAsync(isOwner, ct);
+        var result = await _reportService.GetDashboardSummaryAsync(ct);
         return Ok(result);
     }
 
@@ -128,8 +126,7 @@ public class ReportsController : ControllerBase
     [ApiErrorContract(ApiErrorProfile.Reports)]
     public async Task<IActionResult> GetInventoryPeriod([FromQuery] InventoryPeriodFilterDto filter, CancellationToken ct)
     {
-        var isOwner = User.IsInRole("Owner");
-        var result = await _inventoryPeriodReportService.GetInventoryPeriodReportAsync(filter, isOwner, ct);
+        var result = await _inventoryPeriodReportService.GetInventoryPeriodReportAsync(filter, ct: ct);
         return Ok(result);
     }
 
@@ -140,9 +137,8 @@ public class ReportsController : ControllerBase
     [ApiErrorContract(ApiErrorProfile.Reports)]
     public async Task<IActionResult> ExportInventoryPeriodExcel([FromQuery] InventoryPeriodFilterDto filter, CancellationToken ct)
     {
-        var isOwner = User.IsInRole("Owner");
-        var report = await _inventoryPeriodReportService.GetInventoryPeriodReportForExportAsync(filter, isOwner, ct);
-        var bytes = _excelExportService.ExportInventoryPeriodReport(report, isOwner);
+        var report = await _inventoryPeriodReportService.GetInventoryPeriodReportForExportAsync(filter, ct: ct);
+        var bytes = _excelExportService.ExportInventoryPeriodReport(report);
         var fileName = $"BaoCaoTonTheoKy_{filter.FromDate:yyyyMMdd}_{filter.ToDate:yyyyMMdd}.xlsx";
         return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
     }
@@ -154,8 +150,7 @@ public class ReportsController : ControllerBase
     [ApiErrorContract(ApiErrorProfile.Reports)]
     public async Task<IActionResult> GetStockCard([FromQuery] StockCardFilterDto filter, CancellationToken ct)
     {
-        var isOwner = User.IsInRole("Owner");
-        var result = await _inventoryPeriodReportService.GetStockCardReportAsync(filter, isOwner, ct);
+        var result = await _inventoryPeriodReportService.GetStockCardReportAsync(filter, ct: ct);
         return Ok(result);
     }
 
@@ -166,9 +161,8 @@ public class ReportsController : ControllerBase
     [ApiErrorContract(ApiErrorProfile.Reports)]
     public async Task<IActionResult> ExportStockCardExcel([FromQuery] StockCardFilterDto filter, CancellationToken ct)
     {
-        var isOwner = User.IsInRole("Owner");
-        var report = await _inventoryPeriodReportService.GetStockCardReportAsync(filter, isOwner, ct);
-        var bytes = _excelExportService.ExportStockCardReport(report, isOwner);
+        var report = await _inventoryPeriodReportService.GetStockCardReportAsync(filter, ct: ct);
+        var bytes = _excelExportService.ExportStockCardReport(report);
         var fileName = $"TheKho_{report.SkuCode}_{filter.FromDate:yyyyMMdd}_{filter.ToDate:yyyyMMdd}.xlsx";
         return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
     }
