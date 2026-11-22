@@ -12,7 +12,7 @@ File này dùng để tra cứu yêu cầu OISMS theo mã, xem tiến độ tri�
 | Mốc rà soát mã nguồn | 21/11/2026 trên nhánh `feature/OISMS-66-ra-soat-tong-du-an-phat-trien-tinh-nang-con-thieu-lan-2` |
 | Phạm vi đề bài | 30 FR, 1 mục dự báo nhập hàng, 11 NFR, 5 gói công việc và 6 nhóm hồ sơ. [Bản đối chiếu đề bài](docs/00-overview/03-de-bai-cnpm-reference.md) |
 | Tiến độ tại mốc rà soát | 30/31 mục ở phần 3 đã triển khai (29/30 FR + 1 mục dự báo; còn thiếu `FR-PROD-03` quét barcode kiểm kê, không làm theo quyết định 21/11/2026; `FR-REP-01` lọc SKU và test E2E chuyển kho/kiểm kê đã xong 21/11/2026), 8/11 NFR đã đánh dấu đạt (thêm `NFR-MAINT-02`, `NFR-PERF-01` ngày 21/11/2026) theo bằng chứng ghi ở từng mục. |
-| Kết quả kiểm thử tại mốc rà soát | 21/11/2026 (sau OISMS-66-FIN-A..J): backend unit 434/434, integration PostgreSQL toàn bộ 481/481, POS `npm test` 101/101, simulator 9/9, build Admin/POS/simulator pass. [Sổ bằng chứng](docs/06-testing-and-qa/evidence/README.md) |
+| Kết quả kiểm thử tại mốc rà soát | 21/11/2026 (sau OISMS-66-FIN-A..J): backend unit 434/434, integration PostgreSQL toàn bộ 481/481, POS `npm test` 101/101, simulator 9/9, build Admin/POS/simulator pass. [Kết quả kiểm thử tổng hợp](docs/06-testing-and-qa/05-ket-qua-kiem-thu-tong-hop.md) · [Sổ bằng chứng](docs/06-testing-and-qa/evidence/README.md) |
 
 - `[x]` Đã triển khai chức năng hoặc có bằng chứng đáp ứng tiêu chí ghi tại mục đó.
 - `[ ]` Còn thiếu chức năng, phép đo, hồ sơ hoặc bằng chứng nghiệm thu.
