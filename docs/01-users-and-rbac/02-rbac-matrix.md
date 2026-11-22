@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-USR-02` |
-| **Phiên bản (Version)** | `v1.7.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-15` |
+| **Phiên bản (Version)** | `v1.13.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-21` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-AUTH-02`, `FR-AUTH-03`, `FR-AUTH-04`, `NFR-SEC-01` (Trang 1, 4) |
 | **Phạm vi áp dụng** | Middleware Ủy quyền Backend (`[Authorize(Roles = ...)]`) & Route Guard trên Web Admin / POS |
 
@@ -27,6 +27,7 @@
 | `v1.10.0` | `2026-11-21` | Nhóm dự án OISMS | Dịch vụ che giá dùng chung (`ICostVisibilityService`) gom quyền xem giá vốn về duy nhất `Owner` (Upgrade 12 Gói 5 / OISMS-66-L2-G5). `Staff` nhận `null` ở MỌI API GET, file Excel, bản in, SignalR và AI: đơn hàng (`CostPrice`, `TotalCogs`), truy vết chứng từ (`UnitCost`), sổ cái (`UnitCost`), tồn kho (`AverageCost`), trả hàng (`OriginalUnitCost`), chuyển kho (`UnitCost`), kiểm kê (`AdjustmentUnitCost`), tìm kiếm, phiếu xuất kho 02-VT. Khóa suy diễn NCC khi lọc `supplierId` trên đơn mua Draft/PendingApproval (`403`). | `OISMS-66-L2-G5` |
 | `v1.11.0` | `2026-11-21` | Nhóm dự án OISMS | Siết quyền đơn nháp và thiết lập trước khi duyệt (Upgrade 12 Gói 6 / OISMS-66-L2-G6): Đơn nháp `Draft` chỉ người tạo (`CreatedBy == userId`) được sửa và gửi duyệt (`Submit`), người khác (kể cả `Owner`) nhận `403 PURCHASE_ORDER_NOT_CREATOR`; `Owner` xem `Draft` của người khác ở chế độ chỉ đọc và vẫn có quyền `Cancel` (`Q11`); `Owner` phải thiết lập đủ NCC, đơn giá, ngày đặt và cấu hình giá bán trước khi duyệt (`Approve`). | `OISMS-66-L2-G6` |
 | `v1.12.0` | `2026-11-21` | Nhóm dự án OISMS | In chứng từ sổ kho và POS (Upgrade 14 / OISMS-66-U14-A): `Cashier` được đọc phiếu xuất kho 02-VT của đơn do chính mình tạo qua `GET /api/pos/orders/{orderId}/goods-issues` (đơn người khác/tenant khác trả `404 GOODS_ISSUE_NOT_FOUND`, giá vốn luôn `null`). `Owner` và `Staff` đọc chi tiết phiếu điều chỉnh `GET /api/inventory/adjustments/{id}`. Ngoại lệ: `Staff` không thấy bất kỳ cột giá nhập/giá vốn nào (`null` qua `ICostVisibilityService`) trên mọi API chi tiết phục vụ in (phiếu nhập, chuyển kho, kiểm kê, trả hàng, phiếu điều chỉnh, phiếu xuất). | `OISMS-66-U14-A` |
+| `v1.13.0` | `2026-11-21` | Nhóm dự án OISMS | Báo cáo doanh thu lọc theo SKU (`FR-REP-01`, OISMS-66-FIN-A): `Staff` gọi API có `skuIds` vẫn nhận `null` ở mọi trường giá vốn/lãi gộp, kể cả `skuBreakdown`; `Cashier` `403`. Bộ chọn SKU chỉ có trên màn Báo cáo (`/reports`, chỉ `Owner`). Đã kiểm chứng bằng `PostgresReportSkuFilterIntegrationTests` và `PostgresCostVisibilityScanIntegrationTests`. | `OISMS-66-FIN-A` |
 
 ---
 
@@ -87,7 +88,7 @@ Các trường định danh bắt buộc bên trong Payload của JWT:
 | **Hóa đơn & Truy vết** | Xem, in Phiếu xuất kho 02-VT, in hàng loạt & Bảng kê xuất bán POS theo ngày (`/api/orders/{id}/goods-issues`, `/api/goods-issues*`, `/api/pos/orders/{orderId}/goods-issues`) | `OISMS-66-L2-G3`, `OISMS-66-U14-A` | ✅ Toàn quyền (có đơn giá vốn & thành tiền vốn) | ✅ Xem & in số lượng xuất (ẩn đơn giá vốn & thành tiền vốn = `null`) | 👁️ Chỉ đọc phiếu xuất của đơn do chính mình tạo qua `GET /api/pos/orders/{orderId}/goods-issues` (giá vốn = `null`; đơn khác/tenant khác `404`; route `/api/goods-issues*` cấm `403`) |
 | **Kho & Sổ cái** | Xem chi tiết Phiếu điều chỉnh cân bằng kho để in (`/api/inventory/adjustments/{id}`) | `OISMS-66-U14-A` | ✅ Toàn quyền (xem đủ `UnitCost`, `TotalCost`) | 👁️ Chỉ xem số lượng & đơn vị gốc (ẩn `UnitCost = null`, `TotalCost = null`) | ❌ Cấm (`403 Forbidden`) |
 | **Trả hàng từ khách** | Lập phiếu trả, tra cứu dòng trả được, xác nhận và hủy phiếu trả (`/api/sales-returns`, `/api/orders/{id}/returnable-items`) | `CS-01` | ✅ Toàn quyền (xem giá vốn gốc `OriginalUnitCost`) | ✅ Toàn quyền (ẩn giá vốn gốc `OriginalUnitCost = null`) | ❌ Cấm (`403 Forbidden`) |
-| **Báo cáo & AI** | Báo cáo Doanh thu thuần, Tổng giá vốn (`COGS`), Lợi nhuận gộp | `FR-REP-01` | ✅ Toàn quyền | 👁️ Chỉ xem doanh thu/hàng trả (ẩn lãi gộp & giá vốn) | ❌ Cấm (`403 Forbidden`) |
+| **Báo cáo & AI** | Báo cáo Doanh thu thuần, Tổng giá vốn (`COGS`), Lợi nhuận gộp | `FR-REP-01` | ✅ Toàn quyền (gồm lọc tối đa 20 SKU, bảng `skuBreakdown`) | 👁️ Chỉ xem doanh thu/hàng trả qua API và Tổng quan; giá vốn, lãi gộp trả `null` ở mọi cấp kể cả `skuBreakdown`. Màn Báo cáo `/reports` chỉ mở cho `Owner` | ❌ Cấm (`403 Forbidden`) |
 | **Báo cáo & AI** | Đối soát & tính lại bảng tổng hợp báo cáo ngày (`/api/reports/daily-summaries`, `/api/reports/daily-summaries/rebuild`) | `FR-REP-01`, `FR-SIM-03` | ✅ Toàn quyền | ❌ Cấm (`403 Forbidden`) | ❌ Cấm (`403 Forbidden`) |
 | **Báo cáo & AI** | Báo cáo Giá trị tồn kho, Hàng bán chạy/chậm & Cảnh báo tồn tối thiểu | `FR-REP-02..03` | ✅ Toàn quyền | ✅ Xem cảnh báo kho | ❌ Cấm (`403 Forbidden`) |
 | **Báo cáo & Kho** | Báo cáo Tồn kho theo kỳ (NXT) & Thẻ kho S12/S10 (`/api/reports/inventory-period`, `/api/reports/stock-card`, xuất Excel) | `Upgrade 13 / OISMS-66-G2` | ✅ Toàn quyền (xem số lượng & giá trị, xuất Excel S10) | 👁️ Chỉ xem số lượng (ẩn toàn bộ giá trị `null`, xuất Excel S12) | ❌ Cấm (`403 Forbidden`) |

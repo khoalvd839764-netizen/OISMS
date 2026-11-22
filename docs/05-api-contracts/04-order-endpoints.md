@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-API-04` |
-| **Phiên bản (Version)** | `v1.5.1` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-19` |
+| **Phiên bản (Version)** | `v1.7.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-21` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-ORD-01..03`, `FR-SIM-01`, `FR-REP-01..03`, `FR-AI` (Trang 2, 3, 6) |
 | **Hợp đồng chi tiết Sprint 3** | [`../08-sprints/sprint-3/01-api-contracts-sprint-3.md`](../08-sprints/sprint-3/01-api-contracts-sprint-3.md) |
 | **Phạm vi áp dụng** | Trung tâm Đơn hàng (`Orders`), Phiếu xuất kho (`GoodsIssues`), Trình giả lập Webhook (`Simulator`), Báo cáo (`Reports`) & Dự báo AI |
@@ -15,6 +15,7 @@
 
 | Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả thay đổi | Mã tham chiếu |
 | :---: | :---: | :--- | :--- | :--- |
+| `v1.7.0` | `2026-11-21` | Nhóm dự án OISMS | OISMS-66-FIN: `GET /api/reports/revenue-profit` thêm query `skuIds` (lặp, tối đa 20, vượt trả `400 VALIDATION_ERROR`) và mảng `skuBreakdown` (Staff nhận `null` ở giá vốn/lãi gộp kể cả trong `skuBreakdown`); `GET /api/reports/inventory-velocity` đổi `totalOnHandQuantity`, `totalReservedQuantity`, `totalAvailableQuantity` sang có thể `null` khi các SKU khác đơn vị gốc (BF-027). FIN-J tối ưu tải dữ liệu báo cáo, không đổi hợp đồng. | `OISMS-66-FIN-A`, `FIN-I`, `FIN-J` |
 | `v1.5.1` | `2026-11-21` | Nhóm dự án OISMS | Bảng kê POS: sửa tên trường cho khớp code (`items`, `invoices`, `totalOrders`, `totalInvoices`, `totalGoodsIssues`); `totalSalesAmount` của phiếu chỉ ghi ở phiếu đầu tiên của hóa đơn, thêm `totalSalesAmount` tổng (mỗi hóa đơn một lần). | `OISMS-66-L2-G3` |
 | `v1.6.0` | `2026-11-21` | Nhóm dự án OISMS | Dịch vụ che giá dùng chung (`ICostVisibilityService`, Upgrade 12 Gói 5 / OISMS-66-L2-G5): Chỉ duy nhất `Owner` được xem giá vốn. Với `Staff`, `totalCogs = null`, và `items[].costPrice = null`, `items[].totalCost = null` trên API chi tiết đơn hàng `/api/orders/{id}`. | `OISMS-66-L2-G5` |
 | `v1.5.0` | `2026-11-19` | Nhóm dự án OISMS | OISMS-66-L2-G3: Bổ sung endpoints Phiếu xuất kho 02-VT (`/api/orders/{orderId}/goods-issues`, `/api/goods-issues/{id}`, `/api/goods-issues/by-orders`, `/api/goods-issues/pos-daily-summary`); che `unitCost`/`totalCost` với `Staff` và chặn `Cashier` `403`. | `OISMS-66-L2-G3` |
