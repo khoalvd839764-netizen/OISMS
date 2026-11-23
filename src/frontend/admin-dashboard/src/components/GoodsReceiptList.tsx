@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useAuth } from "../context/AuthContext";
 import { apiAdapter } from "../services/apiAdapter";
 import { Badge, Button } from "./ui";
 
@@ -10,10 +11,12 @@ interface ReceiptSummary {
   status: string;
   warehouseName: string;
   supplierName: string;
-  totalAmount: number;
+  totalAmount?: number | null;
 }
 
 export function GoodsReceiptList({ tenantId, onOpen }: { tenantId?: string; onOpen: (id: string) => void }) {
+  const { account } = useAuth();
+  const isOwner = account?.role === "Owner";
   const [page, setPage] = useState(1);
   const [refresh, setRefresh] = useState(0);
   const [result, setResult] = useState<{ items: ReceiptSummary[]; pages: number; error?: string } | null>(null);
@@ -38,7 +41,15 @@ export function GoodsReceiptList({ tenantId, onOpen }: { tenantId?: string; onOp
       ) : result.items.length === 0 ? <p>Chưa có phiếu nhập.</p> : (
         <div className="table-wrap" style={{ marginTop: 16 }}>
           <table>
-            <thead><tr><th>Mã phiếu</th><th>Kho / Nhà cung cấp</th><th>Giá trị</th><th>Trạng thái</th><th>Thao tác</th></tr></thead>
+            <thead>
+              <tr>
+                <th>Mã phiếu</th>
+                <th>Kho / Nhà cung cấp</th>
+                {isOwner && <th>Giá trị</th>}
+                <th>Trạng thái</th>
+                <th>Thao tác</th>
+              </tr>
+            </thead>
             <tbody>{result.items.map((receipt) => (
               <tr key={receipt.id}>
                 <td>
@@ -50,7 +61,13 @@ export function GoodsReceiptList({ tenantId, onOpen }: { tenantId?: string; onOp
                   )}
                 </td>
                 <td>{receipt.warehouseName}<br />{receipt.supplierName}</td>
-                <td>{receipt.totalAmount.toLocaleString("vi-VN")} ₫</td>
+                {isOwner && (
+                  <td>
+                    {receipt.totalAmount != null
+                      ? `${receipt.totalAmount.toLocaleString("vi-VN")} ₫`
+                      : "—"}
+                  </td>
+                )}
                 <td>
                   <Badge
                     tone={

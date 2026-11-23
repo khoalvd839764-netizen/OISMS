@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="40" viewBox="0 0 128 40">
+  <!-- Logo dùng trong email hệ thống. Cùng dấu hiệu "brand-mark" của web Admin (màu brand #1769e0). -->
+  <path d="M10 3 H34 A4 4 0 0 1 38 7 V27 A10 10 0 0 1 28 37 H4 A4 4 0 0 1 0 33 V13 A10 10 0 0 1 10 3 Z" transform="translate(1 0)" fill="#1769e0"/>
+  <text x="20" y="27" text-anchor="middle" font-family="Noto Sans, Arial, sans-serif" font-weight="800" font-size="19" fill="#ffffff">O</text>
+  <text x="48" y="28.5" font-family="Noto Sans, Arial, sans-serif" font-weight="800" font-size="23" letter-spacing="0.6" fill="#172033">OISMS</text>
+</svg>

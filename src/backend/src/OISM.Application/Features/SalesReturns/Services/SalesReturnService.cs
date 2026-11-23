@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
+using OISM.Application.Common.Services;
 using OISM.Application.Features.Inventory.Services;
 using OISM.Application.Features.Realtime;
 using OISM.Application.Features.SalesReturns.Dtos;
@@ -15,17 +16,20 @@ public class SalesReturnService : ISalesReturnService
     private readonly ICurrentTenantService _currentTenantService;
     private readonly IWacCalculator _wacCalculator;
     private readonly IRealtimeNotifier? _realtimeNotifier;
+    private readonly ICostVisibilityService _costVisibilityService;
 
     public SalesReturnService(
         IAppDbContext context,
         ICurrentTenantService currentTenantService,
         IWacCalculator wacCalculator,
-        IRealtimeNotifier? realtimeNotifier = null)
+        IRealtimeNotifier? realtimeNotifier = null,
+        ICostVisibilityService? costVisibilityService = null)
     {
         _context = context;
         _currentTenantService = currentTenantService;
         _wacCalculator = wacCalculator;
         _realtimeNotifier = realtimeNotifier;
+        _costVisibilityService = costVisibilityService ?? AllowAllCostVisibilityService.Instance;
     }
 
     private Guid RequireTenantId()
@@ -80,7 +84,7 @@ public class SalesReturnService : ISalesReturnService
                 ReturnedQuantity = returned,
                 ReturnableQuantity = returnable,
                 UnitPrice = item.UnitPrice,
-                OriginalUnitCost = item.CostPrice ?? 0m
+                OriginalUnitCost = _costVisibilityService.CanViewCost ? (item.CostPrice ?? 0m) : null
             });
         }
 
@@ -629,6 +633,7 @@ public class SalesReturnService : ISalesReturnService
                 .ThenInclude(i => i.OrderItem)
             .Include(r => r.Items)
                 .ThenInclude(i => i.Sku)
+                    .ThenInclude(s => s!.BaseUnit)
             .Include(r => r.Creator)
             .Include(r => r.Confirmer)
             .Where(r => r.TenantId == tenantId);
@@ -695,6 +700,7 @@ public class SalesReturnService : ISalesReturnService
                 .ThenInclude(i => i.OrderItem)
             .Include(r => r.Items)
                 .ThenInclude(i => i.Sku)
+                    .ThenInclude(s => s!.BaseUnit)
             .Include(r => r.Creator)
             .Include(r => r.Confirmer)
             .FirstOrDefaultAsync(r => r.Id == id && r.TenantId == tenantId, ct);
@@ -707,7 +713,7 @@ public class SalesReturnService : ISalesReturnService
         return MapToResponseDto(returnTicket);
     }
 
-    private static SalesReturnResponseDto MapToResponseDto(SalesReturn r)
+    private SalesReturnResponseDto MapToResponseDto(SalesReturn r)
     {
         return new SalesReturnResponseDto
         {
@@ -717,6 +723,7 @@ public class SalesReturnService : ISalesReturnService
             OrderId = r.OrderId,
             OrderNumber = r.Order?.Number ?? string.Empty,
             OrderChannel = r.Order?.Channel ?? string.Empty,
+            CustomerName = r.Order?.CustomerName,
             BranchId = r.BranchId,
             BranchName = r.Branch?.Name ?? string.Empty,
             WarehouseId = r.WarehouseId,
@@ -748,11 +755,12 @@ public class SalesReturnService : ISalesReturnService
                     SkuName = i.OrderItem?.SkuNameSnapshot ?? string.Empty,
                     UnitId = i.OrderItem?.UnitId,
                     UnitName = i.OrderItem?.UnitNameSnapshot ?? string.Empty,
+                    BaseUnitName = i.Sku?.BaseUnit?.Name ?? i.Sku?.Unit ?? i.OrderItem?.UnitNameSnapshot ?? string.Empty,
                     FactorSnapshot = factor,
                     Quantity = i.Quantity,
                     BaseQuantity = i.Quantity * factor,
                     RefundAmount = i.RefundAmount,
-                    OriginalUnitCost = i.OriginalUnitCost
+                    OriginalUnitCost = _costVisibilityService.CanViewCost ? i.OriginalUnitCost : null
                 };
             }).ToList()
         };

@@ -29,9 +29,12 @@ public class AiController : ControllerBase
     [ApiErrorContract(ApiErrorProfile.Ai)]
     [ProducesResponseType(typeof(AiChatResponse), StatusCodes.Status200OK)]
     public async Task<IActionResult> Chat(
-        [FromBody] AiChatRequest? request, [FromServices] IAiChatService chatService, CancellationToken ct)
+        [FromBody] AiChatRequest? request,
+        [FromServices] IAiChatService chatService,
+        [FromServices] ICostVisibilityService costVisibilityService,
+        CancellationToken ct)
     {
-        var role = User.IsInRole("Owner") ? "Owner" : "Staff";
+        var role = costVisibilityService.IsOwner ? "Owner" : "Staff";
         return Ok(await chatService.ChatAsync(request, role, ct));
     }
 

@@ -30,19 +30,20 @@ dcp ps
 Chuyện gì xảy ra:
 
 1. Build 4 image: backend (.NET SDK → ASP.NET runtime), admin, POS và giả lập đơn sàn (Node 22 → nginx). Lần đầu mất vài phút.
-2. `postgres` khởi động với volume trống, chạy `init-oisms.sh`: nạp `oisms_schema.sql` (48 bảng, trigger `ledger_append_only`), tạo nhóm `oisms_runtime` và login `oisms_app`, kiểm tra đủ 48 bảng. Lỗi ở bước này thì container dừng; xem `dcp logs postgres`.
+2. `postgres` khởi động với volume trống, chạy `init-oisms.sh`: nạp `oisms_schema.sql` (51 bảng, trigger `ledger_append_only`), tạo nhóm `oisms_runtime` và login `oisms_app`, kiểm tra đủ 51 bảng. Lỗi ở bước này thì container dừng; xem `dcp logs postgres`.
 3. `backend` chờ `postgres` healthy rồi chạy. Production không seed demo.
 4. `caddy` xin chứng chỉ cho `ADMIN_DOMAIN`, `POS_DOMAIN` và `SIM_DOMAIN`. Xem tiến trình: `dcp logs -f caddy`.
 
 Kiểm tra:
 
 ```bash
-curl -s https://<ADMIN_DOMAIN>/health/ready
+dcp exec caddy wget -qO- http://backend:8080/health/ready
+curl -sI https://<ADMIN_DOMAIN>/health/live | head -1
 curl -sI https://<POS_DOMAIN>/ | head -1
 curl -sI https://<SIM_DOMAIN>/ | head -1
 ```
 
-`/health/ready` phải trả HTTP 200, `status: "Healthy"`, `tablesCount: 48`, `triggerVerified: true`.
+`/health/ready` (gọi nội bộ qua container `caddy`, vì Caddyfile chặn đường này từ Internet, BF-026) phải trả `status: "Healthy"`, `tablesCount: 51`, `triggerVerified: true`. `/health/live` qua domain phải trả HTTP 200. Image backend không có `curl`/`wget`, nên lệnh chạy từ container `caddy` (Alpine có `wget`) trong cùng mạng Docker.
 
 ## 2. Tạo Dữ Liệu Ban Đầu
 
@@ -73,7 +74,7 @@ git diff --name-only HEAD origin/main -- docker/postgres/migrations/ docs/databa
 git pull --ff-only
 dcp up -d --build
 dcp ps
-curl -s https://<ADMIN_DOMAIN>/health/ready
+dcp exec caddy wget -qO- http://backend:8080/health/ready
 ```
 
 `up -d --build` chỉ tạo lại container có image thay đổi. Trong lúc container backend khởi động lại sẽ có vài giây lỗi 502 từ Caddy.
@@ -87,7 +88,36 @@ dcp exec -T postgres sh -c 'psql -X -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_
   < docker/postgres/migrations/20261114_user_branches.sql
 ```
 
-DB ở baseline cũ hơn cần chạy đủ các migration còn thiếu theo thứ tự tên file (gồm cả `20261112_supplier_invoices.sql` nếu đang ở 44 bảng và `20261114_user_branches.sql`). Sau cập nhật, kiểm tra `/health/ready` trả HTTP 200 và `tablesCount: 48`.
+DB đã ở 48 bảng (sau CS-02) cần chạy thêm migration Upgrade 12 Gói 1 trước khi cập nhật backend có luồng đơn mua `PendingApproval`. Migration không thêm bảng (vẫn 48), đổi cột và CHECK của `purchase_orders`, `purchase_order_items`, chuyển đơn `Draft` cũ đủ NCC và giá sang `PendingApproval`, thu quyền ghi bảng hóa đơn NCC. Chạy lại nhiều lần không lỗi.
+
+```bash
+dcp exec -T postgres sh -c 'psql -X -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' \
+  < docker/postgres/migrations/20261119_purchase_order_pending_approval.sql
+```
+
+Tiếp theo, để nâng từ 48 bảng lên **50 bảng** với chứng từ Phiếu xuất kho 02-VT (`goods_issues`, `goods_issue_items` — Upgrade 13 Gói 3), chạy `20261119_goods_issues.sql`:
+
+```bash
+dcp exec -T postgres sh -c 'psql -X -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' \
+  < docker/postgres/migrations/20261119_goods_issues.sql
+```
+
+Tiếp theo, để nâng từ 50 bảng lên **51 bảng** với cấu hình giá bán đơn mua (`purchase_order_sale_price_configs` — Upgrade 12 Gói 4), chạy `20261121_purchase_order_sale_price_configs.sql`:
+
+```bash
+dcp exec -T postgres sh -c 'psql -X -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' \
+  < docker/postgres/migrations/20261121_purchase_order_sale_price_configs.sql
+```
+
+> **Lưu ý reset DB demo khi DB đã có dòng sổ `OUT` bán hàng cũ:** Vì nguyên tắc bất biến mỗi dòng `inventory_transactions` có `order_item_id IS NOT NULL` phải gắn đúng 1 dòng `goods_issue_items` (và không làm backfill giả tạo chứng từ lịch sử), nếu DB demo đã có giao dịch xuất bán cũ thì `20261119_goods_issues.sql` sẽ chủ động dừng với `RAISE EXCEPTION` hướng dẫn reset & seed lại DB. Với môi trường demo cần reset sạch về schema 51 bảng:
+> ```bash
+> # Sau khi đã backup file dump ở bước 1 nếu cần lưu đối chiếu:
+> dcp down -v
+> dcp up -d --build
+> ```
+> (Hoặc DROP/CREATE lại database `oisms` từ `docs/database/oisms_schema.sql` rồi tạo/seed lại dữ liệu demo). Nếu DB chưa phát sinh dòng `OUT` bán hàng (`order_item_id IS NOT NULL`), migration chạy thẳng qua và chạy lại nhiều lần không lỗi.
+
+DB ở baseline cũ hơn cần chạy đủ các migration còn thiếu theo thứ tự tên file (gồm cả `20261112_supplier_invoices.sql` nếu đang ở 44 bảng, `20261114_user_branches.sql`, `20261119_purchase_order_pending_approval.sql`, `20261119_goods_issues.sql` và `20261121_purchase_order_sale_price_configs.sql`). Sau cập nhật, kiểm tra `/health/ready` (lệnh nội bộ ở mục 1) trả `Healthy` và `tablesCount: 51`.
 
 Backend không tự nâng cấp schema, và `init-oisms.sh` không chạy lại trên volume đã có dữ liệu. Nếu chỉ rebuild, `/health/ready` sẽ trả 503 `Database schema is incomplete`.
 
@@ -112,7 +142,7 @@ done
 
 # 3. Khởi động lại
 dcp up -d
-curl -s https://<ADMIN_DOMAIN>/health/ready
+dcp exec caddy wget -qO- http://backend:8080/health/ready
 ```
 
 - Các file migration được viết để chạy lại an toàn (`IF NOT EXISTS`, kiểm tra trước khi đổi), nên chạy cả thư mục theo thứ tự là cách đơn giản nhất. Mỗi file nằm trong transaction; file lỗi tự hoàn tác phần của nó.
@@ -129,6 +159,8 @@ dcp up -d --build admin-dashboard pos-app caddy
 ```
 
 Cập nhật DNS trước, nếu không Caddy không xin được chứng chỉ cho tên mới.
+
+> **Chính sách TLS 1.3 & `/health/ready` (`OISMS-66-FIN-E`, 21/11/2026):** `docker/caddy/Caddyfile` đã đặt `tls { protocols tls1.3 }` cho cả 3 site (`ADMIN_DOMAIN`, `POS_DOMAIN`, `SIM_DOMAIN`) và chặn `/health/ready` công khai (`403`, đóng `BF-026`), chỉ mở `/health/live`. **`shm_size` cho PostgreSQL (21/11/2026):** `docker-compose.yml` đặt `shm_size: 256mb` cho service `postgres` (mặc định Docker 64 MB làm truy vấn song song lỗi `could not resize shared memory segment` khi nhiều người xem báo cáo cùng lúc). Khi deploy bản có thay đổi này, chạy `dcp up -d postgres` để tạo lại container (dữ liệu ở volume, không mất; **không** dùng `down -v`), rồi kiểm tra `dcp exec postgres df -h /dev/shm` báo 256M. **Lưu ý:** cấu hình này đã kiểm chứng trên Caddy local (`*.localhost`), **chưa áp lên bản demo AWS**. Khi bản demo còn chạy Caddyfile cũ, `https://<ADMIN_DOMAIN>/health/ready` vẫn trả 200; sau khi deploy Caddyfile mới (`dcp restart caddy`) thì trả 403 và chỉ còn kiểm tra nội bộ như mục 1.
 
 ## 4. Rollback
 
@@ -155,7 +187,9 @@ dcp up -d --build
 
 | Kiểm tra | Kỳ vọng |
 | :--- | :--- |
-| `https://<ADMIN_DOMAIN>/health/ready` | 200, `Healthy`, 48 bảng |
+| `dcp exec caddy wget -qO- http://backend:8080/health/ready` | `Healthy`, 51 bảng |
+| `https://<ADMIN_DOMAIN>/health/live` | 200 |
+| `https://<ADMIN_DOMAIN>/health/ready` | 403 (chặn công khai, BF-026) |
 | `https://<ADMIN_DOMAIN>/swagger` | Không mở được (production không có Swagger; SPA trả trang chuyển về `/admin`) |
 | `http://<ADMIN_DOMAIN>` | Chuyển hướng sang `https://` |
 | Đăng nhập Admin, mở Sản phẩm, Tồn kho | Có dữ liệu, không lỗi mạng |

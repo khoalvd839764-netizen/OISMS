@@ -80,6 +80,19 @@ Màn hình **Báo Cáo Doanh Thu & Quản Trị Lãi Gộp (P&L Reports)** là p
 
 ---
 
+## 5. Bộ Lọc Nhiều SKU Ở Tab P&L (`OISMS-66-FIN-B`, 21/11/2026)
+
+- **Bộ chọn SKU (`SkuMultiSelect`):** cho phép tìm theo mã SKU/tên sản phẩm, hiển thị chip SKU đã chọn, nút bỏ từng SKU hoặc "Bỏ lọc SKU", chặn chọn quá **20** SKU kèm thông báo.
+- **Đồng bộ URL & Chống race condition:** đồng bộ tham số `?skus=id1,id2` hai chiều trên URL (F5 giữ nguyên lựa chọn); mỗi lần đổi lựa chọn tăng `activeReqRef.current` để bỏ qua phản hồi cũ.
+- **Hiển thị khi đang lọc SKU:**
+  - Truyền `skuIds` dạng query lặp (`?skuIds=...&skuIds=...`) lên `GET /api/reports/revenue-profit`.
+  - Hiện bảng **Chi tiết doanh thu & lãi gộp theo SKU đang lọc (`skuBreakdown`)**, số lượng bán tách theo từng đơn vị (`quantityByUnit`), không cộng khác đơn vị.
+  - **Ẩn khối đối soát `daily_sales_summaries`** (vì bảng tổng hợp ngày không lưu theo SKU, Q4).
+  - Bản in (`window.print`) hiển thị danh sách SKU đang lọc ở phần tiêu đề.
+- **Khi bỏ hết SKU:** giao diện trở về nguyên trạng ban đầu và hiện lại khối đối soát `daily_sales_summaries`.
+
+---
+
 ## 5. Tab Lợi Nhuận: Khu Vực "Tổng Hợp Theo Ngày" (Cập nhật 15/11/2026)
 
 | Thành phần | Quy tắc hiển thị & Tương tác |

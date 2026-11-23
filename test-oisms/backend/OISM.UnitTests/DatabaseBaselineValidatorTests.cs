@@ -152,9 +152,12 @@ public class DatabaseBaselineValidatorTests
             "supplier_invoices",
             "supplier_invoice_items",
             "purchase_variances",
-            "user_branches"
+            "user_branches",
+            "goods_issues",
+            "goods_issue_items",
+            "purchase_order_sale_price_configs"
         ]);
-        DatabaseMigrationService.RequiredTables.Length.Should().Be(48);
+        DatabaseMigrationService.RequiredTables.Length.Should().Be(51);
     }
 
     [Fact]

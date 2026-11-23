@@ -124,7 +124,10 @@ public class PricingController : ControllerBase
     [HttpPost("api/price-change-requests/{id:guid}/approve")]
     [Authorize(Roles = "Owner")]
     [ApiErrorContract(ApiErrorProfile.Pricing)]
-    public async Task<IActionResult> ApprovePriceChangeRequest(Guid id, CancellationToken ct)
+    public async Task<IActionResult> ApprovePriceChangeRequest(
+        Guid id,
+        [FromBody] ApprovePriceChangeRequestDto? dto,
+        CancellationToken ct)
     {
         if (id == Guid.Empty)
         {
@@ -132,7 +135,7 @@ public class PricingController : ControllerBase
         }
 
         var reviewerId = User.GetUserId();
-        var result = await _priceChangeService.ApproveAsync(id, reviewerId, ct);
+        var result = await _priceChangeService.ApproveAsync(id, reviewerId, dto?.PoConflictResolution, ct);
         return Ok(result);
     }
 
@@ -221,6 +224,23 @@ public class PricingController : ControllerBase
         }
 
         var result = await _priceQueryService.GetPriceHistoryAsync(skuId, unitId, priceListCode, ct);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Tra cứu các cấu hình giá bán đang chờ áp dụng trên đơn mua hàng (Approved/PartiallyReceived) theo SKU (Upgrade 12 Gói 4 / Q19).
+    /// </summary>
+    [HttpGet("api/pricing/pending-po-prices")]
+    [HttpGet("api/price-change-requests/pending-po-prices")]
+    [Authorize(Roles = "Owner,Staff")]
+    public async Task<IActionResult> GetPendingPurchaseOrderPrices([FromQuery] Guid skuId, CancellationToken ct)
+    {
+        if (skuId == Guid.Empty)
+        {
+            return ApiErrorResponse.Problem(HttpContext, ApiErrorProfile.Pricing, "VALIDATION_ERROR", "Lỗi xác thực dữ liệu", StatusCodes.Status400BadRequest, "Mã SKU không được để trống.");
+        }
+
+        var result = await _priceChangeService.GetPendingPurchaseOrderPricesAsync(skuId, ct);
         return Ok(result);
     }
 }

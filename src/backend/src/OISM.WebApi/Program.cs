@@ -208,6 +208,7 @@ if (seedResult.ShouldSeed)
         {
             logger.LogInformation("Khởi tạo dữ liệu mẫu cho môi trường {Environment}...", app.Environment.EnvironmentName);
             await OismsDatabaseSeeder.SeedAsync(db, demoPassword!);
+            await OismsDocumentSeeder.SeedAsync(app.Services);
             logger.LogInformation("Đã khởi tạo thành công dữ liệu mẫu cho môi trường {Environment}.", app.Environment.EnvironmentName);
         }
     }

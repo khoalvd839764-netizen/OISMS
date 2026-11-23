@@ -8,6 +8,7 @@ using OISM.Application.Features.Orders.Dtos;
 using OISM.Application.Features.Pricing.Services;
 using OISM.Application.Features.Realtime;
 using OISM.Application.Features.Realtime.Dtos;
+using OISM.Application.Features.GoodsIssues.Services;
 using OISM.Application.Features.SalesInvoices.Services;
 using OISM.Domain.Common;
 using OISM.Domain.Entities;
@@ -37,13 +38,14 @@ public partial class OrderService : IOrderService, IPosCheckoutService
         ICurrentTenantService currentTenantService,
         ISkuPriceResolver skuPriceResolver,
         ILogger<OrderService>? logger = null,
-        IRealtimeNotifier? realtimeNotifier = null)
+        IRealtimeNotifier? realtimeNotifier = null,
+        ICostVisibilityService? costVisibilityService = null)
     {
         _context = context;
         _currentTenantService = currentTenantService;
         _logger = logger ?? NullLogger<OrderService>.Instance;
         _realtimeNotifier = realtimeNotifier;
-        _query = new OrderQueryService(context, currentTenantService);
+        _query = new OrderQueryService(context, currentTenantService, costVisibilityService);
         _checkout = new PosCheckoutService(context, currentTenantService, skuPriceResolver, _logger, realtimeNotifier);
         _intake = new OrderIntakeService(context, currentTenantService, skuPriceResolver, _query, _logger, realtimeNotifier);
         _marketplace = new MarketplaceOrderService(_intake);
@@ -218,6 +220,12 @@ public partial class OrderService : IOrderService, IPosCheckoutService
                 }
 
                 // 7. Chuyển Reservation sang Consumed, trừ OnHand & Reserved, ghi Sổ cái OUT
+                var orderItemsById = order.Items.ToDictionary(i => i.Id);
+                var warehousesById = await _context.Warehouses.AsNoTracking()
+                    .Where(w => w.TenantId == tenantId.Value && resWarehouseIds.Contains(w.Id))
+                    .ToDictionaryAsync(w => w.Id, ct);
+                var createdOutEntries = new List<(InventoryTransaction Transaction, OrderItem OrderItem, Warehouse? Warehouse)>();
+
                 foreach (var res in order.Reservations)
                 {
                     var whBal = whBalances.FirstOrDefault(wb => wb.WarehouseId == res.WarehouseId && wb.SkuId == res.SkuId);
@@ -266,6 +274,7 @@ public partial class OrderService : IOrderService, IPosCheckoutService
                         CreatedAt = now
                     };
                     _context.InventoryTransactions.Add(ledger);
+                    createdOutEntries.Add((ledger, orderItemsById[res.OrderItemId], warehousesById.GetValueOrDefault(res.WarehouseId)));
                 }
 
                 // 8. Cập nhật trạng thái đơn hàng sang Confirmed
@@ -280,6 +289,16 @@ public partial class OrderService : IOrderService, IPosCheckoutService
 
                 var invoice = SalesInvoiceFactory.Create(order, branch, confirmedByUser, paymentMethod, now);
                 _context.SalesInvoices.Add(invoice);
+
+                var goodsIssues = GoodsIssueFactory.CreateForSalesOut(order, invoice, branch, confirmedByUser, createdOutEntries, now);
+                foreach (var gi in goodsIssues)
+                {
+                    _context.GoodsIssues.Add(gi);
+                    foreach (var gii in gi.Items)
+                    {
+                        _context.GoodsIssueItems.Add(gii);
+                    }
+                }
 
                 await _context.SaveChangesAsync(ct);
 

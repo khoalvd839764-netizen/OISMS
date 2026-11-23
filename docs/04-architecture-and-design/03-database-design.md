@@ -3,10 +3,10 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-ARC-03` |
-| **Phiên bản (Version)** | `v1.1.3` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-15` |
+| **Phiên bản (Version)** | `v1.1.5` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-19` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-INV-01`, `NFR-TENANT-02`, `NFR-SEC-03`, `3.2.e` (Trang 2, 4, 5) |
-| **Phạm vi áp dụng** | PostgreSQL 16+ Schema (`docs/database/oisms_schema.sql` — 48 bảng) |
+| **Phạm vi áp dụng** | PostgreSQL 16+ Schema (`docs/database/oisms_schema.sql` — 50 bảng) |
 
 ---
 
@@ -19,13 +19,15 @@
 | `v1.1.1` | `2026-11-08` | Nhóm dự án OISMS | Cập nhật số bảng hiện hành lên 44 sau khi bổ sung `payment_accounts`; giữ mốc 43 bảng trong lịch sử v1.1.0. | `CS-05` |
 | `v1.1.2` | `2026-11-14` | Nhóm dự án OISMS | Cập nhật số bảng lên 48 và bổ sung bảng `user_branches` cho phân công chi nhánh nhân viên (`CS-02`). | `OISMS-59-G1B` |
 | `v1.1.3` | `2026-11-15` | Nhóm dự án OISMS | Thêm liên kết tới sơ đồ draw.io ERD logic và Data Design vật lý, ghi phân vai hai sơ đồ. | `OISMS-59` |
+| `v1.1.4` | `2026-11-19` | Nhóm dự án OISMS | Mở rộng `purchase_orders` và `purchase_order_items` cho luồng `PendingApproval` và phân bổ giá vốn (`allocated_unit_cost`), thu hồi quyền ghi trên 3 bảng `supplier_invoices*` (giữ chỉ đọc). | `OISMS-66-L2-G1` |
+| `v1.1.5` | `2026-11-19` | Nhóm dự án OISMS | Bổ sung 2 bảng `goods_issues` và `goods_issue_items` (tổng 50 bảng) cho Phiếu xuất kho 02-VT bất biến gắn 1–1 với dòng sổ cái `OUT` bán hàng. | `OISMS-66-L2-G3` |
 
 ---
 
-> **Sơ đồ draw.io (đủ 48 bảng, sinh từ `oisms_schema.sql`).** Hai sơ đồ chia vai, không vẽ trùng:
+> **Sơ đồ draw.io (sinh từ `oisms_schema.sql`).** Hai sơ đồ chia vai, không vẽ trùng:
 > - **ERD logic** [`docs/database/erd/ERD NEW.drawio`](../database/erd/ERD%20NEW.drawio): trang tổng quan và 10 trang phân hệ. Thực thể theo entity C#, quan hệ và bản số (Crow's foot), chỉ PK cùng tối đa 6 thuộc tính nghiệp vụ. Không có kiểu, cột FK, cột kỹ thuật, quan hệ người tạo/duyệt.
 > - **Data Design vật lý** [`docs/database/data-design/oisms-data-design.drawio`](../database/data-design/oisms-data-design.drawio): trang quy ước (tenant_id, khóa kép, query filter, trigger, quyền `oisms_runtime`) và 10 trang phân hệ. Bảng đủ cột và kiểu, PK/FK/UQ, mọi FK kể cả người tạo/duyệt, hộp index/CHECK/trigger theo bảng.
-> - Hai sơ đồ dùng chung 10 phân hệ: tenant–tài khoản–chi nhánh, sản phẩm & đơn vị tính, bảng giá, mua hàng–nhập kho–hóa đơn NCC, tồn kho & sổ cái, chuyển kho, kiểm kê, đơn hàng–POS–thanh toán, trả hàng, báo cáo & tích hợp sàn.
+> - Hai sơ đồ dùng chung 10 phân hệ: tenant–tài khoản–chi nhánh, sản phẩm & đơn vị tính, bảng giá, mua hàng–nhập kho–hóa đơn NCC (bảng hóa đơn chỉ đọc từ Upgrade 12), tồn kho & sổ cái, chuyển kho, kiểm kê, đơn hàng–POS–thanh toán, trả hàng, báo cáo & tích hợp sàn.
 
 ## 1. Sơ Đồ Thực Thể Liên Kết Cốt Lõi (Core Entity Relationship Diagram)
 
@@ -58,6 +60,9 @@ erDiagram
     ORDERS ||--o{ ORDER_ITEMS : "chi tiết đơn"
     ORDER_ITEMS ||--o{ RESERVATIONS : "giữ chỗ"
     ORDERS ||--o| SALES_INVOICES : "tối đa một hóa đơn bán"
+    ORDERS ||--o{ GOODS_ISSUES : "phiếu xuất kho theo kho"
+    GOODS_ISSUES ||--o{ GOODS_ISSUE_ITEMS : "chi tiết dòng phiếu xuất"
+    INVENTORY_TRANSACTIONS ||--o| GOODS_ISSUE_ITEMS : "gắn 1-1 dòng sổ OUT bán"
 
     TENANTS {
         uuid id PK
@@ -155,11 +160,32 @@ erDiagram
         uuid branch_id PK,FK
         timestamptz created_at
     }
+    GOODS_ISSUES {
+        uuid id PK
+        uuid tenant_id FK
+        uuid branch_id FK
+        uuid warehouse_id FK
+        uuid order_id FK
+        uuid sales_invoice_id FK
+        varchar number UK
+        timestamptz issued_at
+    }
+    GOODS_ISSUE_ITEMS {
+        uuid id PK
+        uuid tenant_id FK
+        uuid goods_issue_id FK
+        uuid order_item_id FK
+        uuid inventory_transaction_id FK,UK
+        uuid sku_id FK
+        numeric quantity
+        numeric base_quantity
+        numeric unit_cost
+    }
 ```
 
 ---
 
-Mỗi phiếu nhập có thể lưu nhiều hóa đơn lịch sử và tối đa một hóa đơn còn hiệu lực. Chỉ mục unique `uq_supplier_invoices_active_receipt` loại `Cancelled` và `Rejected`. Dòng hóa đơn đối chiếu với dòng phiếu nhập rồi tới dòng phiếu mua. Các khóa ngoại nghiệp vụ ghép `tenant_id`.
+Từ `Upgrade 12` (`OISMS-66-L2-G1`), `purchase_orders` hỗ trợ trạng thái `PendingApproval` (`supplier_id` và `purchase_order_items.unit_price` được `NULL` khi ở `Draft`/`PendingApproval`, bắt buộc khác `NULL` từ `Approved` trở đi), bổ sung `order_date`, `shipping_fee`, `discount_amount`, `vat_amount`, `return_reason`/`returned_by`/`returned_at`, `version` và `purchase_order_items.allocated_unit_cost`. Ba bảng `supplier_invoices`, `supplier_invoice_items`, `purchase_variances` vẫn giữ trong schema nhưng chỉ còn quyền `SELECT` đối với `oisms_runtime`/`oisms_app` để lưu trữ chứng từ lịch sử. Từ `Upgrade 13` (`OISMS-66-L2-G3`), bổ sung `goods_issues` và `goods_issue_items` (nâng tổng số bảng lên **50 bảng**), bất biến (`SELECT, INSERT`, trigger chặn `UPDATE/DELETE/TRUNCATE`), lập trong cùng transaction với dòng sổ cái `OUT` bán hàng. Các khóa ngoại nghiệp vụ ghép `tenant_id`.
 
 ## 2. Chiến Lược Đánh Chỉ Mục Quy Mô Lớn (`NFR-TENANT-02`)
 
@@ -179,8 +205,10 @@ Mỗi phiếu nhập có thể lưu nhiều hóa đơn lịch sử và tối đa
 | `sales_invoices` | `uq_sales_invoices_3` | `(tenant_id, order_id)` | Mỗi đơn có tối đa một hóa đơn bán. |
 | `sales_invoices` | `ix_sales_invoices_time` | `(tenant_id, issued_at, id)` | Phân trang hóa đơn theo thời gian xuất. |
 | `user_branches` | `pk_user_branches`, `ix_user_branches_branch` | `(tenant_id, user_id, branch_id)`, `(tenant_id, branch_id)` | Tra cứu phân công chi nhánh theo nhân viên hoặc theo chi nhánh. |
+| `goods_issues` | `uq_goods_issues_tenant_number`, `uq_goods_issues_tenant_order_warehouse` | `(tenant_id, number)`, `(tenant_id, order_id, warehouse_id)` | Số phiếu xuất 02-VT duy nhất trong tenant; mỗi kho xuất của đơn tối đa 1 phiếu. |
+| `goods_issue_items` | `uq_goods_issue_items_tenant_inventory_tx` | `(tenant_id, inventory_transaction_id)` | Mỗi dòng sổ cái `OUT` bán hàng gắn đúng một dòng phiếu xuất kho. |
 
-> **Tham chiếu chi tiết DDL:** Xem toàn bộ 48 bảng và trigger bảo vệ Sổ cái tại [`docs/database/oisms_schema.sql`](../database/oisms_schema.sql) và [`docs/database/README.md`](../database/README.md).
+> **Tham chiếu chi tiết DDL:** Xem toàn bộ 50 bảng và trigger bảo vệ Sổ cái tại [`docs/database/oisms_schema.sql`](../database/oisms_schema.sql) và [`docs/database/README.md`](../database/README.md).
 
 ## 3. Quy Tắc Thay Đổi Schema
 

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
+using OISM.Application.Common.Services;
 using OISM.Application.Features.Inventory.Dtos;
 using OISM.Application.Features.Orders.Dtos;
 using OISM.Application.Features.SalesInvoices.Dtos;
@@ -12,11 +13,16 @@ public class SalesInvoiceService : ISalesInvoiceService
 {
     private readonly IAppDbContext _context;
     private readonly ICurrentTenantService _tenantService;
+    private readonly ICostVisibilityService _costVisibilityService;
 
-    public SalesInvoiceService(IAppDbContext context, ICurrentTenantService tenantService)
+    public SalesInvoiceService(
+        IAppDbContext context,
+        ICurrentTenantService tenantService,
+        ICostVisibilityService? costVisibilityService = null)
     {
         _context = context;
         _tenantService = tenantService;
+        _costVisibilityService = costVisibilityService ?? AllowAllCostVisibilityService.Instance;
     }
 
     private Guid RequireTenantId()
@@ -314,8 +320,37 @@ public class SalesInvoiceService : ISalesInvoiceService
                 .OrderBy(t => t.SequenceNo)
                 .ToListAsync(ct);
 
+            var txIds = transactions.Select(t => t.Id).ToList();
+            var goodsIssuesByTxId = new Dictionary<Guid, (Guid Id, string Number)>();
+            if (txIds.Count > 0)
+            {
+                var issueLinks = await _context.GoodsIssueItems
+                    .AsNoTracking()
+                    .Where(gii => gii.TenantId == tenantId && txIds.Contains(gii.InventoryTransactionId))
+                    .Select(gii => new
+                    {
+                        gii.InventoryTransactionId,
+                        gii.GoodsIssueId,
+                        Number = gii.GoodsIssue != null ? gii.GoodsIssue.Number : string.Empty
+                    })
+                    .ToListAsync(ct);
+
+                foreach (var link in issueLinks)
+                {
+                    goodsIssuesByTxId[link.InventoryTransactionId] = (link.GoodsIssueId, link.Number);
+                }
+            }
+
             trace.Lines = transactions
-                .Select(t => MapLine(t, orderItemMap.GetValueOrDefault(t.OrderItemId!.Value)))
+                .Select(t =>
+                {
+                    goodsIssuesByTxId.TryGetValue(t.Id, out var gi);
+                    return MapLine(
+                        t,
+                        orderItemMap.GetValueOrDefault(t.OrderItemId!.Value),
+                        goodsIssueId: gi.Id != Guid.Empty ? gi.Id : null,
+                        goodsIssueNumber: !string.IsNullOrWhiteSpace(gi.Number) ? gi.Number : null);
+                })
                 .ToList();
         }
 
@@ -521,7 +556,7 @@ public class SalesInvoiceService : ISalesInvoiceService
             .Include(t => t.Sku)
             .Where(t => t.TenantId == tenantId);
 
-    private static DocumentTraceDto BuildTrace(
+    private DocumentTraceDto BuildTrace(
         string type,
         Guid? id,
         string? number,
@@ -545,7 +580,12 @@ public class SalesInvoiceService : ISalesInvoiceService
             Lines = lines.Select(t => MapLine(t)).ToList()
         };
 
-    private static DocumentTraceLineDto MapLine(InventoryTransaction t, OrderItem? orderItem = null, decimal? itemQuantity = null) => new()
+    private DocumentTraceLineDto MapLine(
+        InventoryTransaction t,
+        OrderItem? orderItem = null,
+        decimal? itemQuantity = null,
+        Guid? goodsIssueId = null,
+        string? goodsIssueNumber = null) => new()
     {
         LedgerId = t.Id,
         Type = t.Type,
@@ -554,13 +594,15 @@ public class SalesInvoiceService : ISalesInvoiceService
         WarehouseId = t.WarehouseId,
         WarehouseName = t.Warehouse?.Name ?? string.Empty,
         Quantity = t.Quantity,
-        UnitCost = t.UnitCost,
+        UnitCost = _costVisibilityService.CanViewCost ? t.UnitCost : null,
         BalanceAfter = t.BalanceAfter,
         SequenceNo = t.SequenceNo,
         CreatedAt = t.CreatedAt,
         OrderItemId = t.OrderItemId,
         SalesReturnItemId = t.SalesReturnItemId,
         UnitName = orderItem?.UnitNameSnapshot,
-        OrderItemQuantity = itemQuantity ?? orderItem?.Quantity
+        OrderItemQuantity = itemQuantity ?? orderItem?.Quantity,
+        GoodsIssueId = goodsIssueId,
+        GoodsIssueNumber = goodsIssueNumber
     };
 }

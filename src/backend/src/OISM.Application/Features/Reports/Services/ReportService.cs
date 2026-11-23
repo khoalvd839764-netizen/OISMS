@@ -1,8 +1,10 @@
 using OISM.Domain.Common;
 using OISM.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
+using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Helpers;
 using OISM.Application.Common.Interfaces;
+using OISM.Application.Common.Services;
 using OISM.Application.Features.Reports.Dtos;
 
 namespace OISM.Application.Features.Reports.Services;
@@ -13,11 +15,16 @@ public class ReportService : IReportService
 
     private readonly IAppDbContext _context;
     private readonly ICurrentTenantService _currentTenantService;
+    private readonly ICostVisibilityService _costVisibilityService;
 
-    public ReportService(IAppDbContext context, ICurrentTenantService currentTenantService)
+    public ReportService(
+        IAppDbContext context,
+        ICurrentTenantService currentTenantService,
+        ICostVisibilityService? costVisibilityService = null)
     {
         _context = context;
         _currentTenantService = currentTenantService;
+        _costVisibilityService = costVisibilityService ?? AllowAllCostVisibilityService.Instance;
     }
 
     private Guid RequireTenantId()
@@ -30,15 +37,27 @@ public class ReportService : IReportService
         return tenantId.Value;
     }
 
-    private static decimal ReturnRevenueAmount(SalesReturn r) =>
+    private static decimal ReturnRevenueAmount(RevenueReturnRow r) =>
         RevenueProfitCalculationHelper.CalculateReturnRevenueAmount(r);
 
     public Task<RevenueProfitReportDto> GetRevenueProfitReportAsync(ReportFilterDto filter, CancellationToken ct = default)
-        => GetRevenueProfitReportAsync(filter, isOwner: true, ct);
+        => GetRevenueProfitReportAsync(filter, isOwner: _costVisibilityService.IsOwner, ct);
+
+    public const int MaxSkuFilterCount = 20;
 
     public async Task<RevenueProfitReportDto> GetRevenueProfitReportAsync(ReportFilterDto filter, bool isOwner, CancellationToken ct = default)
     {
         var tenantId = RequireTenantId();
+
+        var skuIds = filter.SkuIds?
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToList() ?? new List<Guid>();
+
+        if (skuIds.Count > MaxSkuFilterCount)
+        {
+            throw new OismException("VALIDATION_ERROR", $"Chỉ được chọn tối đa {MaxSkuFilterCount} SKU mỗi lần lọc.", 400);
+        }
 
         DateTimeOffset? endBoundary = filter.EndDate.HasValue
             ? RevenueProfitCalculationHelper.ResolveHalfOpenEndBoundary(filter.EndDate.Value)
@@ -51,7 +70,7 @@ public class ReportService : IReportService
             endBoundary,
             filter.BranchId,
             filter.Channel,
-            includeBranch: true,
+            skuIds: skuIds,
             ct: ct);
 
         // Phiếu trả hàng đã xác nhận (Confirmed) theo ngày confirmed_at
@@ -62,10 +81,21 @@ public class ReportService : IReportService
             endBoundary,
             filter.BranchId,
             filter.Channel,
-            includeBranch: true,
+            skuIds: skuIds,
             ct: ct);
 
-        static decimal CalculateReturnCogs(SalesReturn r) =>
+        var branchNames = await RevenueProfitCalculationHelper.QueryBranchNamesAsync(
+            _context,
+            tenantId,
+            orders.Select(o => o.BranchId).Concat(returns.Select(r => r.BranchId)),
+            ct);
+
+        if (skuIds.Count > 0)
+        {
+            return await BuildSkuFilteredRevenueProfitReportAsync(orders, returns, branchNames, skuIds, isOwner, ct);
+        }
+
+        static decimal CalculateReturnCogs(RevenueReturnRow r) =>
             RevenueProfitCalculationHelper.CalculateReturnCogs(r);
 
         decimal totalRevenue = 0;
@@ -96,7 +126,7 @@ public class ReportService : IReportService
 
         // Phân rã theo Kênh bán (Channel)
         var allChannels = orders.Select(o => o.Channel)
-            .Concat(returns.Select(r => r.Order != null ? r.Order.Channel : "N/A"))
+            .Concat(returns.Select(r => r.OrderChannel ?? "N/A"))
             .Where(c => !string.IsNullOrEmpty(c))
             .Distinct()
             .ToList();
@@ -105,7 +135,7 @@ public class ReportService : IReportService
             .Select(ch =>
             {
                 var chOrders = orders.Where(o => o.Channel == ch).ToList();
-                var chReturns = returns.Where(r => (r.Order != null ? r.Order.Channel : "N/A") == ch).ToList();
+                var chReturns = returns.Where(r => (r.OrderChannel ?? "N/A") == ch).ToList();
 
                 var chRevenue = chOrders.Sum(o => o.TotalAmount);
                 var chReturnAmount = chReturns.Sum(r => ReturnRevenueAmount(r));
@@ -141,11 +171,11 @@ public class ReportService : IReportService
         var branchMap = new Dictionary<Guid, string>();
         foreach (var o in orders)
         {
-            branchMap.TryAdd(o.BranchId, o.Branch != null ? o.Branch.Name : "N/A");
+            branchMap.TryAdd(o.BranchId, branchNames.GetValueOrDefault(o.BranchId, "N/A"));
         }
         foreach (var r in returns)
         {
-            branchMap.TryAdd(r.BranchId, r.Branch != null ? r.Branch.Name : "N/A");
+            branchMap.TryAdd(r.BranchId, branchNames.GetValueOrDefault(r.BranchId, "N/A"));
         }
 
         var byBranch = branchMap
@@ -190,7 +220,7 @@ public class ReportService : IReportService
             .ToDictionary(g => g.Key, g => g.ToList());
 
         var returnGroups = returns
-            .GroupBy(r => r.ConfirmedAt!.Value.ToOffset(vnOffset).ToString("yyyy-MM-dd"))
+            .GroupBy(r => r.ConfirmedAt.ToOffset(vnOffset).ToString("yyyy-MM-dd"))
             .ToDictionary(g => g.Key, g => g.ToList());
 
         var allDates = orderGroups.Keys.Union(returnGroups.Keys).OrderBy(d => d).ToList();
@@ -198,8 +228,8 @@ public class ReportService : IReportService
         var dailyTrend = allDates
             .Select(d =>
             {
-                var dOrders = orderGroups.GetValueOrDefault(d) ?? new List<Order>();
-                var dReturns = returnGroups.GetValueOrDefault(d) ?? new List<SalesReturn>();
+                var dOrders = orderGroups.GetValueOrDefault(d) ?? new List<RevenueOrderRow>();
+                var dReturns = returnGroups.GetValueOrDefault(d) ?? new List<RevenueReturnRow>();
 
                 var dRevenue = dOrders.Sum(o => o.TotalAmount);
                 var dReturnAmount = dReturns.Sum(r => ReturnRevenueAmount(r));
@@ -248,6 +278,342 @@ public class ReportService : IReportService
             ByBranch = byBranch,
             DailyTrend = dailyTrend
         };
+    }
+
+    private sealed class SkuAccumulator
+    {
+        public string SkuCode { get; set; } = string.Empty;
+        public string SkuName { get; set; } = string.Empty;
+        public decimal Revenue { get; set; }
+        public decimal ReturnAmount { get; set; }
+        public decimal OrderCogs { get; set; }
+        public decimal ReturnCogs { get; set; }
+        public HashSet<Guid> OrderIds { get; } = new();
+        public Dictionary<string, (decimal Quantity, decimal BaseQuantity)> UnitQuantities { get; } = new(StringComparer.Ordinal);
+    }
+
+    private sealed class BucketAccumulator
+    {
+        public string Label { get; set; } = string.Empty;
+        public decimal Revenue { get; set; }
+        public decimal ReturnAmount { get; set; }
+        public decimal OrderCogs { get; set; }
+        public decimal ReturnCogs { get; set; }
+        public HashSet<Guid> OrderIds { get; } = new();
+    }
+
+    private async Task<RevenueProfitReportDto> BuildSkuFilteredRevenueProfitReportAsync(
+        List<RevenueOrderRow> orders,
+        List<RevenueReturnRow> returns,
+        Dictionary<Guid, string> branchNames,
+        List<Guid> skuIds,
+        bool isOwner,
+        CancellationToken ct)
+    {
+        var skuSet = skuIds.ToHashSet();
+        decimal totalRevenue = 0m;
+        decimal totalOrderCogs = 0m;
+        decimal totalReturnAmount = 0m;
+        decimal totalReturnCogs = 0m;
+        decimal totalItemsSold = 0m;
+
+        var channelBuckets = new Dictionary<string, BucketAccumulator>(StringComparer.Ordinal);
+        var branchBuckets = new Dictionary<Guid, BucketAccumulator>();
+        var dailyBuckets = new Dictionary<string, BucketAccumulator>(StringComparer.Ordinal);
+        var skuBuckets = new Dictionary<Guid, SkuAccumulator>();
+
+        foreach (var order in orders)
+        {
+            var orderItems = order.Items;
+            var allocatedRevenues = RevenueProfitCalculationHelper.AllocateOrderRevenueByItem(order);
+            var dateKey = RevenueProfitCalculationHelper.GetOrderBusinessDate(order).ToString("yyyy-MM-dd");
+            var branchName = branchNames.GetValueOrDefault(order.BranchId, "N/A");
+
+            for (int i = 0; i < orderItems.Count; i++)
+            {
+                var item = orderItems[i];
+                if (!skuSet.Contains(item.SkuId))
+                {
+                    continue;
+                }
+
+                var lineRevenue = allocatedRevenues[i];
+                var lineCogs = RevenueProfitCalculationHelper.CalculateOrderItemCogs(item);
+                var unitName = string.IsNullOrWhiteSpace(item.UnitNameSnapshot) ? UnknownUnitName : item.UnitNameSnapshot;
+
+                totalRevenue += lineRevenue;
+                totalOrderCogs += lineCogs;
+                totalItemsSold += item.BaseQuantity;
+
+                if (!string.IsNullOrEmpty(order.Channel))
+                {
+                    var ch = GetOrCreateBucket(channelBuckets, order.Channel, order.Channel);
+                    ch.Revenue += lineRevenue;
+                    ch.OrderCogs += lineCogs;
+                    ch.OrderIds.Add(order.Id);
+                }
+
+                var br = GetOrCreateBucket(branchBuckets, order.BranchId, branchName);
+                br.Revenue += lineRevenue;
+                br.OrderCogs += lineCogs;
+                br.OrderIds.Add(order.Id);
+
+                var dy = GetOrCreateBucket(dailyBuckets, dateKey, dateKey);
+                dy.Revenue += lineRevenue;
+                dy.OrderCogs += lineCogs;
+                dy.OrderIds.Add(order.Id);
+
+                if (!skuBuckets.TryGetValue(item.SkuId, out var sb))
+                {
+                    sb = new SkuAccumulator
+                    {
+                        SkuCode = item.SkuCodeSnapshot,
+                        SkuName = item.SkuNameSnapshot
+                    };
+                    skuBuckets[item.SkuId] = sb;
+                }
+                else
+                {
+                    if (string.IsNullOrWhiteSpace(sb.SkuCode) && !string.IsNullOrWhiteSpace(item.SkuCodeSnapshot))
+                        sb.SkuCode = item.SkuCodeSnapshot;
+                    if (string.IsNullOrWhiteSpace(sb.SkuName) && !string.IsNullOrWhiteSpace(item.SkuNameSnapshot))
+                        sb.SkuName = item.SkuNameSnapshot;
+                }
+
+                sb.Revenue += lineRevenue;
+                sb.OrderCogs += lineCogs;
+                sb.OrderIds.Add(order.Id);
+                sb.UnitQuantities.TryGetValue(unitName, out var prevQty);
+                sb.UnitQuantities[unitName] = (prevQty.Quantity + item.Quantity, prevQty.BaseQuantity + item.BaseQuantity);
+            }
+        }
+
+        foreach (var salesReturn in returns)
+        {
+            var returnItems = salesReturn.Items;
+            var allocatedReturns = RevenueProfitCalculationHelper.AllocateReturnRevenueByItem(salesReturn);
+            var channel = salesReturn.OrderChannel ?? "N/A";
+            var dateKey = RevenueProfitCalculationHelper.GetReturnBusinessDate(salesReturn).ToString("yyyy-MM-dd");
+            var branchName = branchNames.GetValueOrDefault(salesReturn.BranchId, "N/A");
+
+            for (int i = 0; i < returnItems.Count; i++)
+            {
+                var item = returnItems[i];
+                if (!skuSet.Contains(item.SkuId))
+                {
+                    continue;
+                }
+
+                var lineReturn = allocatedReturns[i];
+                var lineReturnCogs = RevenueProfitCalculationHelper.CalculateReturnItemCogs(item);
+
+                totalReturnAmount += lineReturn;
+                totalReturnCogs += lineReturnCogs;
+
+                if (!string.IsNullOrEmpty(channel))
+                {
+                    var ch = GetOrCreateBucket(channelBuckets, channel, channel);
+                    ch.ReturnAmount += lineReturn;
+                    ch.ReturnCogs += lineReturnCogs;
+                }
+
+                var br = GetOrCreateBucket(branchBuckets, salesReturn.BranchId, branchName);
+                br.ReturnAmount += lineReturn;
+                br.ReturnCogs += lineReturnCogs;
+
+                var dy = GetOrCreateBucket(dailyBuckets, dateKey, dateKey);
+                dy.ReturnAmount += lineReturn;
+                dy.ReturnCogs += lineReturnCogs;
+
+                if (!skuBuckets.TryGetValue(item.SkuId, out var sb))
+                {
+                    sb = new SkuAccumulator
+                    {
+                        SkuCode = item.OrderItemSkuCodeSnapshot ?? string.Empty,
+                        SkuName = item.OrderItemSkuNameSnapshot ?? string.Empty
+                    };
+                    skuBuckets[item.SkuId] = sb;
+                }
+
+                sb.ReturnAmount += lineReturn;
+                sb.ReturnCogs += lineReturnCogs;
+            }
+        }
+
+        var missingMetaIds = skuBuckets
+            .Where(kv => string.IsNullOrWhiteSpace(kv.Value.SkuCode) || string.IsNullOrWhiteSpace(kv.Value.SkuName))
+            .Select(kv => kv.Key)
+            .ToList();
+
+        if (missingMetaIds.Count > 0)
+        {
+            var skuMeta = await _context.Skus
+                .AsNoTracking()
+                .Include(s => s.Product)
+                .Where(s => missingMetaIds.Contains(s.Id))
+                .Select(s => new { s.Id, s.SKU, ProductName = s.Product != null ? s.Product.Name : string.Empty })
+                .ToListAsync(ct);
+
+            foreach (var m in skuMeta)
+            {
+                if (skuBuckets.TryGetValue(m.Id, out var sb))
+                {
+                    if (string.IsNullOrWhiteSpace(sb.SkuCode)) sb.SkuCode = m.SKU;
+                    if (string.IsNullOrWhiteSpace(sb.SkuName)) sb.SkuName = m.ProductName;
+                }
+            }
+        }
+
+        var netRevenue = totalRevenue - totalReturnAmount;
+        var netCogs = totalOrderCogs - totalReturnCogs;
+        decimal? grossProfit = isOwner ? (netRevenue - netCogs) : null;
+        decimal? margin = (isOwner && netRevenue > 0 && grossProfit.HasValue)
+            ? Math.Round((grossProfit.Value / netRevenue) * 100, 2)
+            : null;
+
+        var byChannel = channelBuckets.Values
+            .Select(b =>
+            {
+                var bNetRev = b.Revenue - b.ReturnAmount;
+                var bNetCogs = b.OrderCogs - b.ReturnCogs;
+                var bProfit = isOwner ? (bNetRev - bNetCogs) : (decimal?)null;
+                var bMargin = (isOwner && bNetRev > 0 && bProfit.HasValue)
+                    ? Math.Round((bProfit.Value / bNetRev) * 100, 2)
+                    : (decimal?)null;
+
+                return new ChannelRevenueBreakdownDto
+                {
+                    Channel = b.Label,
+                    Revenue = b.Revenue,
+                    ReturnAmount = b.ReturnAmount,
+                    NetRevenue = bNetRev,
+                    CostOfGoodsSold = isOwner ? b.OrderCogs : null,
+                    ReturnCogs = isOwner ? b.ReturnCogs : null,
+                    NetCogs = isOwner ? bNetCogs : null,
+                    GrossProfit = bProfit,
+                    GrossMarginPercentage = bMargin,
+                    OrderCount = b.OrderIds.Count
+                };
+            })
+            .OrderByDescending(c => c.NetRevenue)
+            .ToList();
+
+        var byBranch = branchBuckets
+            .Select(kv =>
+            {
+                var b = kv.Value;
+                var bNetRev = b.Revenue - b.ReturnAmount;
+                var bNetCogs = b.OrderCogs - b.ReturnCogs;
+                var bProfit = isOwner ? (bNetRev - bNetCogs) : (decimal?)null;
+
+                return new BranchRevenueBreakdownDto
+                {
+                    BranchId = kv.Key,
+                    BranchName = b.Label,
+                    Revenue = b.Revenue,
+                    ReturnAmount = b.ReturnAmount,
+                    NetRevenue = bNetRev,
+                    CostOfGoodsSold = isOwner ? b.OrderCogs : null,
+                    ReturnCogs = isOwner ? b.ReturnCogs : null,
+                    NetCogs = isOwner ? bNetCogs : null,
+                    GrossProfit = bProfit,
+                    OrderCount = b.OrderIds.Count
+                };
+            })
+            .OrderByDescending(b => b.NetRevenue)
+            .ToList();
+
+        var dailyTrend = dailyBuckets.Values
+            .Select(b =>
+            {
+                var bNetRev = b.Revenue - b.ReturnAmount;
+                var bNetCogs = b.OrderCogs - b.ReturnCogs;
+                var bProfit = isOwner ? (bNetRev - bNetCogs) : (decimal?)null;
+
+                return new DailyRevenueBreakdownDto
+                {
+                    Date = b.Label,
+                    Revenue = b.Revenue,
+                    ReturnAmount = b.ReturnAmount,
+                    NetRevenue = bNetRev,
+                    CostOfGoodsSold = isOwner ? b.OrderCogs : null,
+                    ReturnCogs = isOwner ? b.ReturnCogs : null,
+                    NetCogs = isOwner ? bNetCogs : null,
+                    GrossProfit = bProfit,
+                    OrderCount = b.OrderIds.Count
+                };
+            })
+            .OrderBy(d => d.Date)
+            .ToList();
+
+        var skuBreakdown = skuBuckets
+            .Select(kv =>
+            {
+                var sb = kv.Value;
+                var sNetRev = sb.Revenue - sb.ReturnAmount;
+                var sNetCogs = sb.OrderCogs - sb.ReturnCogs;
+                var sProfit = isOwner ? (sNetRev - sNetCogs) : (decimal?)null;
+
+                return new SkuRevenueBreakdownDto
+                {
+                    SkuId = kv.Key,
+                    SkuCode = sb.SkuCode,
+                    SkuName = sb.SkuName,
+                    Revenue = sb.Revenue,
+                    ReturnAmount = sb.ReturnAmount,
+                    NetRevenue = sNetRev,
+                    CostOfGoodsSold = isOwner ? sb.OrderCogs : null,
+                    ReturnCogs = isOwner ? sb.ReturnCogs : null,
+                    NetCogs = isOwner ? sNetCogs : null,
+                    GrossProfit = sProfit,
+                    OrderCount = sb.OrderIds.Count,
+                    QuantityByUnit = sb.UnitQuantities
+                        .Select(u => new SkuSoldUnitQuantityDto
+                        {
+                            UnitName = u.Key,
+                            Quantity = u.Value.Quantity,
+                            BaseQuantity = u.Value.BaseQuantity
+                        })
+                        .OrderBy(u => u.UnitName, StringComparer.Ordinal)
+                        .ToList()
+                };
+            })
+            .OrderByDescending(s => s.NetRevenue)
+            .ThenBy(s => s.SkuCode, StringComparer.Ordinal)
+            .ToList();
+
+        return new RevenueProfitReportDto
+        {
+            Revenue = totalRevenue,
+            TotalRevenue = totalRevenue,
+            ReturnAmount = totalReturnAmount,
+            NetRevenue = netRevenue,
+            TotalNetRevenue = netRevenue,
+            CostOfGoodsSold = isOwner ? totalOrderCogs : null,
+            TotalCostOfGoodsSold = isOwner ? netCogs : null,
+            ReturnCogs = isOwner ? totalReturnCogs : null,
+            NetCogs = isOwner ? netCogs : null,
+            GrossProfit = grossProfit,
+            TotalGrossProfit = grossProfit,
+            GrossMarginPercentage = margin,
+            TotalOrders = orders.Count,
+            TotalItemsSold = totalItemsSold,
+            ByChannel = byChannel,
+            ByBranch = byBranch,
+            DailyTrend = dailyTrend,
+            SkuBreakdown = skuBreakdown
+        };
+    }
+
+    private static BucketAccumulator GetOrCreateBucket<TKey>(Dictionary<TKey, BucketAccumulator> dict, TKey key, string label)
+        where TKey : notnull
+    {
+        if (!dict.TryGetValue(key, out var bucket))
+        {
+            bucket = new BucketAccumulator { Label = label };
+            dict[key] = bucket;
+        }
+        return bucket;
     }
 
     public async Task<InventoryVelocityReportDto> GetInventoryVelocityReportAsync(ReportFilterDto filter, CancellationToken ct = default)
@@ -399,12 +765,14 @@ public class ReportService : IReportService
             })
             .ToList();
 
+        var hasMultipleUnits = quantityByUnit.Count > 1;
+
         return new InventoryVelocityReportDto
         {
-            TotalInventoryValue = totalValue,
-            TotalOnHandQuantity = totalOnHand,
-            TotalReservedQuantity = totalReserved,
-            TotalAvailableQuantity = Math.Max(0, totalOnHand - totalReserved),
+            TotalInventoryValue = _costVisibilityService.IsOwner ? totalValue : null,
+            TotalOnHandQuantity = hasMultipleUnits ? null : totalOnHand,
+            TotalReservedQuantity = hasMultipleUnits ? null : totalReserved,
+            TotalAvailableQuantity = hasMultipleUnits ? null : Math.Max(0, totalOnHand - totalReserved),
             QuantityByUnit = quantityByUnit,
             BestSellers = bestSellers,
             SlowMovingItems = slowMoving
@@ -478,6 +846,9 @@ public class ReportService : IReportService
         }).ToList();
     }
 
+    public Task<DashboardSummaryDto> GetDashboardSummaryAsync(CancellationToken ct = default)
+        => GetDashboardSummaryAsync(_costVisibilityService.IsOwner, ct);
+
     public async Task<DashboardSummaryDto> GetDashboardSummaryAsync(bool isOwner, CancellationToken ct = default)
     {
         var tenantId = RequireTenantId();
@@ -497,7 +868,7 @@ public class ReportService : IReportService
             endUtcExclusive: null,
             ct: ct);
 
-        static decimal CalculateReturnCogs(SalesReturn r) =>
+        static decimal CalculateReturnCogs(RevenueReturnRow r) =>
             RevenueProfitCalculationHelper.CalculateReturnCogs(r);
 
         decimal totalRevenue = revenueOrders.Sum(o => o.TotalAmount);
@@ -511,7 +882,9 @@ public class ReportService : IReportService
         decimal netCogs = totalOrderCogs - returnCogs;
 
         decimal? totalGrossProfit = isOwner ? (netRevenue - netCogs) : null;
-        decimal grossMargin = (isOwner && netRevenue > 0) ? Math.Round(((netRevenue - netCogs) / netRevenue) * 100, 2) : 0;
+        decimal? grossMargin = (isOwner && netRevenue > 0)
+            ? Math.Round(((netRevenue - netCogs) / netRevenue) * 100, 2)
+            : (isOwner ? 0m : null);
 
         // 2. Thống kê số lượng SKU đang quản lý
         var skuCount = await _context.Skus
@@ -565,7 +938,7 @@ public class ReportService : IReportService
 
         var recentReturnGroups = returns
             .Where(r => r.ConfirmedAt >= trendStart)
-            .GroupBy(r => ReportTimeHelper.ToLocalDate(r.ConfirmedAt!.Value).ToString("yyyy-MM-dd"))
+            .GroupBy(r => ReportTimeHelper.ToLocalDate(r.ConfirmedAt).ToString("yyyy-MM-dd"))
             .ToDictionary(g => g.Key, g => g.ToList());
 
         var recentDates = recentOrderGroups.Keys.Union(recentReturnGroups.Keys).OrderBy(d => d).ToList();
@@ -573,8 +946,8 @@ public class ReportService : IReportService
         var recentTrend = recentDates
             .Select(date =>
             {
-                var dOrders = recentOrderGroups.GetValueOrDefault(date) ?? new List<Order>();
-                var dReturns = recentReturnGroups.GetValueOrDefault(date) ?? new List<SalesReturn>();
+                var dOrders = recentOrderGroups.GetValueOrDefault(date) ?? new List<RevenueOrderRow>();
+                var dReturns = recentReturnGroups.GetValueOrDefault(date) ?? new List<RevenueReturnRow>();
 
                 var rev = dOrders.Sum(o => o.TotalAmount);
                 var retAmt = dReturns.Sum(r => ReturnRevenueAmount(r));
@@ -608,7 +981,7 @@ public class ReportService : IReportService
             NetCogs = isOwner ? netCogs : null,
             TotalOrders = totalOrders,
             TotalGrossProfit = totalGrossProfit,
-            GrossMarginPercentage = grossMargin,
+            GrossMarginPercentage = isOwner ? grossMargin ?? 0m : null,
             SkuCount = skuCount,
             TotalInventoryValue = totalInventoryValue,
             LowStockCount = lowStockCount,

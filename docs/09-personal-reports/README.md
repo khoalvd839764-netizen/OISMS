@@ -10,6 +10,18 @@
 
 ---
 
+## Báo Cáo Tổng Kết Final (`./Final/`) — Chuẩn Bị Nghiệm Thu (23/11/2026)
+
+* **Báo cáo tổng kết gửi GVHD (ThS. Nguyễn Văn Chiến):** [`01-bao-cao-tong-ket-oisms.md`](./Final/01-bao-cao-tong-ket-oisms.md)
+* **Báo cáo cá nhân thành viên (kèm GitHub PR/Commit, Full Project Solutions, Q&A & Ma trận Role):**
+  - Lê Võ Đăng Khoa: [`02-bao-cao-le-vo-dang-khoa.md`](./Final/02-bao-cao-le-vo-dang-khoa.md)
+  - Phùng Minh Nhựt: [`03-bao-cao-phung-minh-nhut.md`](./Final/03-bao-cao-phung-minh-nhut.md)
+  - Phúc Hữu (Đỗ Hữu Phúc): [`04-bao-cao-phuc-huu.md`](./Final/04-bao-cao-phuc-huu.md)
+  - Phương Lê: [`05-bao-cao-phuong-le.md`](./Final/05-bao-cao-phuong-le.md)
+  - Nam Nguyễn: [`06-bao-cao-nam-nguyen.md`](./Final/06-bao-cao-nam-nguyen.md)
+
+---
+
 ## Danh mục Thư mục Thành viên
 
 | STT | Thành viên | Vai trò phụ trách | Thư mục báo cáo | Báo cáo Sprint 2 |

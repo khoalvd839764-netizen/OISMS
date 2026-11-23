@@ -3,10 +3,10 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-SEQ-02` |
-| **Phiên bản (Version)** | `v1.1.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-06` |
+| **Phiên bản (Version)** | `v1.2.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-19` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-RSE-01..03`, `NFR-PERF-02`, `3.2.e` (Trang 2, 3, 4, 5) |
-| **Phạm vi áp dụng** | `ReservationService.cs`, `POST /api/inventory/reserve` & Webhook Ingestion |
+| **Phạm vi áp dụng** | `ReservationService.cs`, `OrderService.ConfirmOrderAsync`, `POST /api/inventory/reserve` & Webhook Ingestion |
 
 ---
 
@@ -15,8 +15,8 @@
 | Phiên bản | Ngày cập nhật | Tác giả / Vai trò | Mô tả thay đổi | Mã tham chiếu |
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Thiết kế Sequence Diagram cho cơ chế khóa CSDL chống bán vượt và bảo vệ Idempotency khi giữ chỗ. | `INIT-SEQ-02` |
-
 | `v1.1.0` | `2026-11-06` | Nhóm dự án OISMS | Đồng bộ khóa advisory theo (Tenant, Branch, SKU) và theo RequestKey; thời hạn giữ chỗ mặc định 15 phút do `DurationMinutes`. | `OISMS-46` |
+| `v1.2.0` | `2026-11-19` | Nhóm dự án OISMS | Bổ sung luồng xác nhận đơn online (`Reserved -> Confirmed`): tiêu thụ giữ chỗ, ghi sổ `OUT`, lập `SalesInvoice` và lập Phiếu xuất kho 02-VT (`GoodsIssue` + `GoodsIssueItem` theo từng kho xuất) trong cùng transaction. | `OISMS-66-L2-G3` |
 ---
 
 ## Sơ Đồ Trình Tự Giữ Chỗ Chịu Tải Cao (Flash Sale 50 Concurrent Requests)
@@ -52,4 +52,28 @@ sequenceDiagram
             Svc-->>Client: HTTP 200 OK (Trả về ReservationId & Available mới)
         end
     end
+```
+
+## Sơ Đồ Trình Tự Xác Nhận Đơn Hàng Online & Lập Phiếu Xuất Kho 02-VT (`Reserved -> Confirmed`)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Staff as Nhân viên / Owner
+    participant Admin as Admin Dashboard
+    participant API as OrdersController (/api/orders/{id}/confirm)
+    participant Svc as OrderService
+    participant DB as PostgreSQL (ACID Transaction)
+
+    Staff->>Admin: Bấm Xác nhận đơn hàng đang Reserved
+    Admin->>API: POST /api/orders/{id}/confirm
+    API->>Svc: ConfirmOrderAsync(orderId)
+    Svc->>DB: BEGIN TRANSACTION + Khóa tồn kho theo thứ tự chuẩn (không thêm khóa mới)
+    Svc->>DB: 1. Chuyển Reservations từ Active -> Consumed, giảm Reserved và trừ OnHand
+    Svc->>DB: 2. Chụp OrderItem.CostPrice = WAC hiện tại, chuyển Order -> Confirmed
+    Svc->>DB: 3. INSERT InventoryTransaction (Type = OUT, Quantity = BaseQuantity, UnitCost = WAC, OrderItemId)
+    Svc->>DB: 4. INSERT SalesInvoice (số INV-...)
+    Svc->>DB: 5. Nhóm dòng OUT theo WarehouseId tăng dần -> INSERT GoodsIssue (PXK-<số HĐ> hoặc PXK-<số HĐ>-1, -2...) & GoodsIssueItem (1-1 với dòng OUT)
+    Svc->>DB: COMMIT TRANSACTION, phát SignalR sau commit
+    API-->>Admin: HTTP 200 OK (OrderDto kèm thông tin hóa đơn và phiếu xuất kho)
 ```

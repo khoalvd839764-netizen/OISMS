@@ -39,8 +39,8 @@ Chi tiết từng lỗi nằm trong thư mục [`errors/`](./errors/), mỗi l�
 | [x] | [BF-016](./errors/BF-016-dong-bo-realtime-ton-kho-chua-noi.md) | P2 | Realtime | Không join nhóm chi nhánh, không cập nhật tồn | Đã sửa |
 | [x] | [BF-017](./errors/BF-017-link-thong-bao-canh-bao-khong-mo.md) | P2 | Báo cáo | Link `?tab=alerts` mở sai tab | Đã sửa |
 | [x] | [BF-018](./errors/BF-018-bao-cao-khong-loc-duoc-rieng-don.md) | P2 | Báo cáo | Thiếu bộ lọc kênh Admin | Đã sửa |
-| [~] | [BF-019](./errors/BF-019-pos-nhan-http-200-sai-contract-la.md) | P2 | POS | HTTP 200 thiếu mã đơn bị coi là thành công | Code chặn đã có trong `pos-app/src/services/posApi.ts` (thiếu mã đơn hoặc GUID rỗng trả `isUnknown`); chưa có test riêng cho trường hợp này |
-| [~] | [BF-020](./errors/BF-020-pos-rieng-chua-khoa-gio-va-ngu.md) | P1 | POS riêng | Checkout cũ xóa giỏ mới khi đổi chi nhánh | Bản sửa cũ không còn; POS mới có cơ chế pending riêng, cần kiểm chứng lại |
+| [x] | [BF-019](./errors/BF-019-pos-nhan-http-200-sai-contract-la.md) | P2 | POS | HTTP 200 thiếu mã đơn bị coi là thành công | Có test hồi quy `test-bf019-bf020.mjs` (FIN-G, 21/11/2026), `npm test` POS PASS 101/101 |
+| [x] | [BF-020](./errors/BF-020-pos-rieng-chua-khoa-gio-va-ngu.md) | P1 | POS riêng | Checkout cũ xóa giỏ mới khi đổi chi nhánh | Test tái hiện FAIL rồi sửa `PaymentModal.tsx` (FIN-G, 21/11/2026), PASS |
 
 ### A2. Phát hiện sau nghiệm thu, 04–06/11/2026 (BF-021..027)
 
@@ -49,10 +49,10 @@ Chi tiết từng lỗi nằm trong thư mục [`errors/`](./errors/), mỗi l�
 | [ ] | [BF-021](./errors/BF-021-bao-cao-lai-gop-lo-cho-staff.md) | P1 | Backend/Báo cáo | `revenue-profit` trả giá vốn, lãi gộp cho Staff | Chưa sửa |
 | [x] | [BF-022](./errors/BF-022-ton-kho-lo-gia-von-cho-cashier.md) | P1 | Backend/Tồn kho | `inventory/balances` trả `averageCost` cho Cashier | Đã sửa 14/11/2026 (OISMS-59-G1A): Cashier nhận `averageCost = null` |
 | [x] | [BF-023](./errors/BF-023-staff-duoc-tao-sua-kho.md) | P2 | Backend/Tổ chức | Staff được tạo, sửa, bật/tắt kho | Đã sửa 14/11/2026 (OISMS-59-G1A): ghi kho chỉ Owner, Staff `403` |
-| [ ] | [BF-024](./errors/BF-024-tim-kiem-phieu-nhap-khong-mo-dung-phieu.md) | P2 | Admin/Tìm kiếm | Kết quả phiếu nhập không mở đúng phiếu | Chưa sửa |
+| [x] | [BF-024](./errors/BF-024-tim-kiem-phieu-nhap-khong-mo-dung-phieu.md) | P2 | Admin/Tìm kiếm | Kết quả phiếu nhập không mở đúng phiếu | Đã sửa 21/11/2026 (FIN-I, FIN-I-fix1): mở đúng phiếu, F5 giữ phiếu, đóng thì bỏ `receiptId` |
 | [ ] | [BF-025](./errors/BF-025-integration-test-crlf-tren-windows.md) | P2 | Test | Test AC01 fail trên Windows do CRLF | Chưa sửa |
-| [ ] | [BF-026](./errors/BF-026-health-ready-lo-thong-tin-db.md) | P3 | Deploy | `/health/ready` công khai trả tên user DB | Chưa sửa |
-| [ ] | [BF-027](./errors/BF-027-tong-so-luong-bao-cao-cong-khac-don-vi.md) | P3 | Backend/Báo cáo | `total*Quantity` cộng gộp khác đơn vị | Chưa sửa |
+| [x] | [BF-026](./errors/BF-026-health-ready-lo-thong-tin-db.md) | P3 | Deploy | `/health/ready` công khai trả tên user DB | Đã sửa 21/11/2026 (FIN-E): Caddy trả 403, chỉ mở `/health/live`; cần deploy Caddyfile mới lên bản demo |
+| [x] | [BF-027](./errors/BF-027-tong-so-luong-bao-cao-cong-khac-don-vi.md) | P3 | Backend/Báo cáo | `total*Quantity` cộng gộp khác đơn vị | Đã sửa 21/11/2026 (FIN-I): trả `null` khi khác đơn vị gốc |
 
 ### A3. Rà soát lại Clean Architecture, 06/11/2026 (BF-028..035)
 
@@ -105,7 +105,8 @@ Không phải lỗi: đây là chức năng chưa làm xong, đang có nhãn Com
 | [x] | Upgrade 05 | Nhiều đơn vị tính: `units`, `sku_units`, `BaseQuantity = Quantity × FactorSnapshot`, WAC theo đơn vị gốc | ✅ | ✅ | [frontend-coming-soon-va-upgrade.md](../report-after-upgrade/frontend-coming-soon-va-upgrade.md) |
 | [x] | Upgrade 04 | Bảng giá theo thời gian, phiếu đổi giá, đóng API sửa giá trực tiếp | ✅ | ✅ | [bang-gia-theo-thoi-gian.md](../report-after-upgrade/bang-gia-theo-thoi-gian.md) |
 | [x] | Upgrade 01-A | Phiếu mua hàng, phiếu nhập bắt buộc gắn phiếu mua đã duyệt, chặn nhập vượt | ✅ | ✅ | [mua-hang-nhap-kho.md](../report-after-upgrade/mua-hang-nhap-kho.md) |
-| [x] | Upgrade 01-B | Hóa đơn nhà cung cấp (`supplier_invoices`) và chứng từ chênh lệch (`purchase_variances`) | ✅ | ✅ | Nhóm tự chốt 12/11/2026, nghiệm thu PostgreSQL thật. [Báo cáo](../report-after-upgrade/hoa-don-nha-cung-cap-u01b.md) |
+| [x] | Upgrade 01-B | Hóa đơn nhà cung cấp (`supplier_invoices`) và chứng từ chênh lệch (`purchase_variances`) | ✅ | ✅ | Nhóm tự chốt 12/11/2026, nghiệm thu PostgreSQL thật. [Báo cáo](../report-after-upgrade/hoa-don-nha-cung-cap-u01b.md). **Thay bởi Upgrade 12 từ 19/11/2026:** đã gỡ API và màn hình, bảng giữ chỉ đọc |
+| [x] | Upgrade 12 — Gói 1 | Đơn mua `PendingApproval` (Staff đề nghị, Owner chốt NCC/giá/phí rồi duyệt), phân bổ phí và chiết khấu vào giá vốn theo VAS 02, VAT ngoài giá vốn, che giá với Staff trên đơn mua và phiếu nhập, gỡ hóa đơn NCC | ✅ | ✅ | Nghiệm thu PostgreSQL thật 19/11/2026. [don-mua-pending-approval-u12.md](../report-after-upgrade/don-mua-pending-approval-u12.md) |
 | [x] | Upgrade 02 | Hóa đơn bán, in lại, truy vết đến dòng sổ `OUT` | ✅ | ✅ | [hoa-don-truy-vet-xuat-kho.md](../report-after-upgrade/hoa-don-truy-vet-xuat-kho.md) |
 | [x] | Upgrade 03 | Lịch kiểm kê, kỳ kiểm kê, duyệt chênh lệch (`PendingApproval`) | ✅ | ✅ | [lich-kiem-ke-duyet-chenh-lech.md](../report-after-upgrade/lich-kiem-ke-duyet-chenh-lech.md) |
 
@@ -122,7 +123,8 @@ Lưu ý: kỳ kiểm kê chỉ tự sinh khi bật Hangfire (`Hangfire:Enabled=t
 - [x] Upgrade 01-B: cách xử lý chênh lệch hóa đơn nhà cung cấp. Nhóm chốt 12/11/2026, xem [đặc tả 01](../Upgrade-recommended/Done/01-mua-hang-nhap-kho-gia-von.md#quyết-định-01-b-chốt-12112026); báo GVHD khi nghiệm thu.
 - [ ] Màn Handoff: bỏ đặc tả [07-handoff-screens.md](../11-ui-screens/07-handoff-screens.md) hay làm lại.
 - [ ] Đơn vị mặc định cho phép 3 chữ số lẻ, nên POS nhận cả số lẻ với "Cái": có cấm hay không.
-- [ ] Kiểm chứng lại BF-019, BF-020 trên `pos-app` hiện tại. *(BF-003, BF-015 đã kiểm chứng 11/11/2026 bằng `npm test` POS 89/89.)*
+- [ ] Mã cửa hàng (`TenantCode`) không được lưu: `RegisterTenantValidator` bắt buộc 3–30 ký tự (Admin tự sinh từ tên cửa hàng nếu để trống), nhưng `Tenant.Code` là `[NotMapped]` và bảng `tenants` không có cột `code`. Mã chỉ có trong phản hồi 201 của `POST /api/auth/register-tenant`; sau đó `tenantCode` trong hồ sơ đăng nhập và `/api/auth/me` luôn rỗng. Hành vi này khớp [vòng đời tenant v1.1.0](../01-users-and-rbac/03-tenant-lifecycle.md). Cần chọn: lưu cột `code` (migration mới, `oisms_schema.sql`, cấu hình EF, ràng buộc duy nhất) hay bỏ trường khỏi form và DTO. *(Ghi 23/11/2026 khi vẽ sơ đồ 3.7.)*
+- [x] Kiểm chứng lại BF-019, BF-020 trên `pos-app` hiện tại (FIN-G, 21/11/2026). *(BF-003, BF-015 đã kiểm chứng 11/11/2026 bằng `npm test` POS 89/89.)*
 
 ---
 

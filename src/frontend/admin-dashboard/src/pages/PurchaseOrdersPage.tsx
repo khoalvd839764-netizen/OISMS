@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Badge, Button, EmptyState, PageTitle, Select } from '../components/ui';
@@ -13,6 +13,7 @@ import { PurchaseOrderDetailModal } from '../components/purchase/PurchaseOrderDe
 
 export const PurchaseOrdersPage: React.FC = () => {
   const { account } = useAuth();
+  const isOwner = account?.role === 'Owner';
   const navigate = useNavigate();
 
   const [orders, setOrders] = useState<PurchaseOrderResponse[]>([]);
@@ -25,6 +26,8 @@ export const PurchaseOrdersPage: React.FC = () => {
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>('');
+  // Staff không được lọc NCC trên đơn chưa duyệt (backend trả 403 để không suy ra NCC Owner đang chọn, G1 F-03).
+  const supplierFilterLocked = !isOwner && (statusFilter === 'Draft' || statusFilter === 'PendingApproval');
   const [branchFilter, setBranchFilter] = useState<string>('');
   const [supplierFilter, setSupplierFilter] = useState<string>('');
 
@@ -50,28 +53,34 @@ export const PurchaseOrdersPage: React.FC = () => {
     };
   }, []);
 
+  // Bỏ qua response của lần tải cũ khi người dùng đổi bộ lọc liên tiếp (response về không theo thứ tự).
+  const latestFetchRef = useRef(0);
+
   const fetchOrders = async () => {
+    const fetchId = ++latestFetchRef.current;
     setLoading(true);
     setError(null);
     try {
       const res = await purchaseOrderService.getPurchaseOrders({
         status: statusFilter || undefined,
         branchId: branchFilter || undefined,
-        supplierId: supplierFilter || undefined,
+        supplierId: supplierFilterLocked ? undefined : supplierFilter || undefined,
         pageIndex,
         pageSize,
       });
+      if (fetchId !== latestFetchRef.current) return;
       setOrders(res.items || []);
       setTotalCount(res.totalCount || 0);
       setTotalPages(res.totalPages || 1);
     } catch (err: any) {
+      if (fetchId !== latestFetchRef.current) return;
       setError(
         err?.response?.data?.detail ||
         err?.response?.data?.message ||
         'Không thể tải danh sách đơn mua hàng.'
       );
     } finally {
-      setLoading(false);
+      if (fetchId === latestFetchRef.current) setLoading(false);
     }
   };
 
@@ -82,9 +91,11 @@ export const PurchaseOrdersPage: React.FC = () => {
   const getStatusBadge = (status: PurchaseOrderStatus) => {
     switch (status) {
       case 'Draft':
-        return <Badge tone="warning">Bản nháp</Badge>;
+        return <Badge tone="warning">Đề nghị mua (Draft)</Badge>;
+      case 'PendingApproval':
+        return <Badge tone="warning">Chờ duyệt giá (PendingApproval)</Badge>;
       case 'Approved':
-        return <Badge tone="info">Đã duyệt</Badge>;
+        return <Badge tone="info">Đã duyệt (Approved)</Badge>;
       case 'PartiallyReceived':
         return <Badge tone="warning">Đã nhận một phần</Badge>;
       case 'Received':
@@ -107,7 +118,11 @@ export const PurchaseOrdersPage: React.FC = () => {
       <PageTitle
         eyebrow="Quản lý Mua hàng"
         title="Đơn mua hàng từ Nhà cung cấp"
-        description="Lập kế hoạch mua hàng, duyệt giá nhập đối chiếu WAC, và quản lý tiến độ nhận hàng từ Nhà cung cấp."
+        description={
+          isOwner
+            ? 'Tiếp nhận đề nghị mua, chốt nhà cung cấp, giá mua & phân bổ chi phí mua hàng theo VAS 02, và theo dõi tiến độ nhập kho.'
+            : 'Lập đề nghị mua hàng theo chi nhánh và SKU, gửi chờ duyệt và theo dõi tiến độ nhận hàng nhập kho.'
+        }
         actions={
           <div style={{ display: 'flex', gap: 12 }}>
             <Button
@@ -123,7 +138,7 @@ export const PurchaseOrdersPage: React.FC = () => {
                 setShowCreateModal(true);
               }}
             >
-              + Tạo đơn mua hàng
+              {isOwner ? '+ Tạo đơn mua hàng' : '+ Đề nghị mua hàng'}
             </Button>
           </div>
         }
@@ -143,7 +158,7 @@ export const PurchaseOrdersPage: React.FC = () => {
           border: '1px solid var(--border, #e2e8f0)',
         }}
       >
-        <div style={{ minWidth: 160 }}>
+        <div style={{ minWidth: 180 }}>
           <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
             Trạng thái
           </label>
@@ -155,7 +170,8 @@ export const PurchaseOrdersPage: React.FC = () => {
             }}
           >
             <option value="">-- Tất cả trạng thái --</option>
-            <option value="Draft">Bản nháp (Draft)</option>
+            <option value="Draft">Đề nghị mua (Draft)</option>
+            <option value="PendingApproval">Chờ duyệt giá (PendingApproval)</option>
             <option value="Approved">Đã duyệt (Approved)</option>
             <option value="PartiallyReceived">Đã nhận một phần</option>
             <option value="Received">Đã nhận đủ (Received)</option>
@@ -189,7 +205,9 @@ export const PurchaseOrdersPage: React.FC = () => {
             Nhà cung cấp
           </label>
           <Select
-            value={supplierFilter}
+            value={supplierFilterLocked ? '' : supplierFilter}
+            disabled={supplierFilterLocked}
+            title={supplierFilterLocked ? 'Đơn chưa duyệt không lọc theo nhà cung cấp' : undefined}
             onChange={(e) => {
               setSupplierFilter(e.target.value);
               setPageIndex(1);
@@ -235,7 +253,7 @@ export const PurchaseOrdersPage: React.FC = () => {
       ) : orders.length === 0 ? (
         <EmptyState
           title="Không tìm thấy đơn mua hàng"
-          description="Chưa có đơn mua nào phù hợp với bộ lọc hiện tại. Bấm '+ Tạo đơn mua hàng' để lập đơn mới."
+          description="Chưa có đơn mua nào phù hợp với bộ lọc hiện tại. Bấm nút tạo ở góc phải để lập đơn mới."
         />
       ) : (
         <div className="table-wrap">
@@ -245,10 +263,10 @@ export const PurchaseOrdersPage: React.FC = () => {
                 <th>Mã đơn mua</th>
                 <th>Nhà cung cấp</th>
                 <th>Chi nhánh</th>
+                <th>Ngày đặt</th>
                 <th>Số mặt hàng</th>
-                <th>Tổng giá trị</th>
+                {isOwner && <th>Tổng thanh toán</th>}
                 <th>Trạng thái</th>
-                <th>Ngày tạo</th>
                 <th style={{ textAlign: 'center' }}>Thao tác</th>
               </tr>
             </thead>
@@ -257,15 +275,30 @@ export const PurchaseOrdersPage: React.FC = () => {
                 <tr key={po.id}>
                   <td>
                     <strong>{po.number}</strong>
+                    {po.returnReason && po.status === 'Draft' && (
+                      <div style={{ fontSize: 11, color: '#d97706', marginTop: 2 }}>
+                        Đã trả về: {po.returnReason}
+                      </div>
+                    )}
                   </td>
-                  <td>{po.supplierName}</td>
+                  <td>{po.supplierName || <span style={{ color: '#94a3b8' }}>Chưa chọn NCC</span>}</td>
                   <td>{po.branchName}</td>
-                  <td>{po.items?.length || 0} SKU</td>
                   <td>
-                    <strong>{po.totalAmount.toLocaleString('vi-VN')} ₫</strong>
+                    {po.orderDate
+                      ? new Date(po.orderDate).toLocaleDateString('vi-VN')
+                      : new Date(po.createdAt).toLocaleDateString('vi-VN')}
                   </td>
+                  <td>{po.items?.length || 0} SKU</td>
+                  {isOwner && (
+                    <td>
+                      <strong>
+                        {po.totalAmount != null
+                          ? `${po.totalAmount.toLocaleString('vi-VN')} ₫`
+                          : '—'}
+                      </strong>
+                    </td>
+                  )}
                   <td>{getStatusBadge(po.status)}</td>
-                  <td>{new Date(po.createdAt).toLocaleDateString('vi-VN')}</td>
                   <td style={{ textAlign: 'center' }}>
                     <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
                       <Button
@@ -332,6 +365,7 @@ export const PurchaseOrdersPage: React.FC = () => {
       {showCreateModal && (
         <CreatePurchaseOrderModal
           initialPo={poToEdit}
+          userRole={account?.role}
           onClose={() => {
             setShowCreateModal(false);
             setPoToEdit(null);
@@ -348,6 +382,7 @@ export const PurchaseOrdersPage: React.FC = () => {
         <PurchaseOrderDetailModal
           po={selectedPo}
           userRole={account?.role}
+          currentUserId={account?.id}
           onClose={() => setSelectedPo(null)}
           onRefresh={() => {
             setSelectedPo(null);
@@ -361,10 +396,6 @@ export const PurchaseOrdersPage: React.FC = () => {
           onCreateReceipt={(po) => {
             setSelectedPo(null);
             handleCreateReceipt(po);
-          }}
-          onOpenReceipt={(receiptId) => {
-            setSelectedPo(null);
-            navigate(`/inventory?receiptId=${receiptId}`);
           }}
         />
       )}

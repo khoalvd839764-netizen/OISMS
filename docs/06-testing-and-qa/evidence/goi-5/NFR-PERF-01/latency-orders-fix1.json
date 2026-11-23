@@ -1,0 +1,31 @@
+{
+  "baseUrl": "http://localhost:55002",
+  "measuredAt": "2026-11-21T11:47:32.546Z",
+  "only": "POST /api/orders",
+  "results": [
+    {
+      "label": "POST /api/orders (Admin)",
+      "count": 30,
+      "concurrency": 1,
+      "thresholdMs": 500,
+      "ok": 30,
+      "fail": 0,
+      "p50": 38.02,
+      "p95": 43.87,
+      "p99": 636.12,
+      "status": "ĐẠT"
+    },
+    {
+      "label": "POST /api/orders (Admin)",
+      "count": 30,
+      "concurrency": 10,
+      "thresholdMs": 500,
+      "ok": 30,
+      "fail": 0,
+      "p50": 274.15,
+      "p95": 370.42,
+      "p99": 389.26,
+      "status": "ĐẠT"
+    }
+  ]
+}

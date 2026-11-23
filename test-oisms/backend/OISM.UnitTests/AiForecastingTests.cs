@@ -372,4 +372,90 @@ public class AiForecastingTests
         result.DailyRecords.Should().ContainSingle();
         result.DailyRecords[0].Date.Should().Be(new DateOnly(2026, 10, 10));
     }
+
+    [Fact]
+    public async Task GetReorderRecommendationsAsync_MatchesPureCalculator_OnSameDataset()
+    {
+        var (context, tenantMock, tenantId) = TestDbContextFactory.CreateInMemoryContext();
+        var branch = new Branch { Id = Guid.NewGuid(), TenantId = tenantId, Name = "CN Trung tâm" };
+        var skuFast = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, SKU = "SKU-FAST", Unit = "cái", IsActive = true };
+        var skuSlow = new ProductVariant { Id = Guid.NewGuid(), TenantId = tenantId, SKU = "SKU-SLOW", Unit = "hộp", IsActive = true };
+
+        context.Branches.Add(branch);
+        context.Skus.AddRange(skuFast, skuSlow);
+        context.InventoryBalances.AddRange(
+            new InventoryBalance
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                BranchId = branch.Id,
+                SkuId = skuFast.Id,
+                OnHand = 25m,
+                Reserved = 5m,
+                ReorderPoint = 10m
+            },
+            new InventoryBalance
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                BranchId = branch.Id,
+                SkuId = skuSlow.Id,
+                OnHand = 50m,
+                Reserved = 0m,
+                ReorderPoint = 5m
+            });
+
+        var asOfDate = DateOnly.FromDateTime(OISM.Application.Common.Helpers.ReportTimeHelper.Today());
+        var fastPoints = new List<ReorderExportPoint>();
+        for (int i = 0; i < 15; i++)
+        {
+            var day = asOfDate.AddDays(-i);
+            var utcStart = OISM.Application.Common.Helpers.ReportTimeHelper.StartOfDayUtc(day.ToDateTime(TimeOnly.MinValue)).AddHours(10);
+            context.InventoryTransactions.Add(new InventoryTransaction
+            {
+                Id = Guid.NewGuid(),
+                TenantId = tenantId,
+                BranchId = branch.Id,
+                SkuId = skuFast.Id,
+                Type = "OUT",
+                Quantity = 4m,
+                CreatedAt = utcStart
+            });
+            fastPoints.Add(new ReorderExportPoint(day, 4m));
+        }
+
+        await context.SaveChangesAsync();
+
+        var service = new AiForecastingService(context, tenantMock.Object);
+        var query = new ReorderRecommendationQueryDto
+        {
+            BranchId = branch.Id,
+            LeadTimeDays = 7,
+            SafetyStockDays = 3,
+            OnlyNeedsReorder = false
+        };
+
+        var response = await service.GetReorderRecommendationsAsync(query);
+
+        ReorderForecastCalculator.FormulaVersion.Should().Be("reorder-v1");
+        response.Recommendations.Should().HaveCount(2);
+
+        var fastRec = response.Recommendations.First(r => r.SkuId == skuFast.Id);
+        var expectedFast = ReorderForecastCalculator.Calculate(fastPoints, asOfDate, 20m, 10m, 7, 3, "cái");
+        fastRec.DailySalesVelocity.Should().Be(expectedFast.DailyVelocity);
+        fastRec.DaysUntilStockout.Should().Be(expectedFast.DaysUntilStockout);
+        fastRec.NeedsReorder.Should().Be(expectedFast.NeedsReorder);
+        fastRec.SuggestedQuantity.Should().Be(expectedFast.SuggestedQuantity);
+        fastRec.ConfidenceLevel.Should().Be(expectedFast.ConfidenceLevel);
+        fastRec.Reason.Should().Be(expectedFast.Reason);
+
+        var slowRec = response.Recommendations.First(r => r.SkuId == skuSlow.Id);
+        var expectedSlow = ReorderForecastCalculator.Calculate(Array.Empty<ReorderExportPoint>(), asOfDate, 50m, 5m, 7, 3, "hộp");
+        slowRec.DailySalesVelocity.Should().Be(expectedSlow.DailyVelocity);
+        slowRec.DaysUntilStockout.Should().Be(expectedSlow.DaysUntilStockout);
+        slowRec.NeedsReorder.Should().Be(expectedSlow.NeedsReorder);
+        slowRec.SuggestedQuantity.Should().Be(expectedSlow.SuggestedQuantity);
+        slowRec.ConfidenceLevel.Should().Be(expectedSlow.ConfidenceLevel);
+        slowRec.Reason.Should().Be(expectedSlow.Reason);
+    }
 }

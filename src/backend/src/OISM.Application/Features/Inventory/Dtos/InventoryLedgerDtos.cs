@@ -17,7 +17,7 @@ public class InventoryLedgerDto
     public string Type { get; set; } = string.Empty;
 
     public decimal Quantity { get; set; }
-    public decimal UnitCost { get; set; }
+    public decimal? UnitCost { get; set; }
     public decimal BalanceAfter { get; set; }
     public long SequenceNo { get; set; }
 
@@ -27,6 +27,8 @@ public class InventoryLedgerDto
     public string? DocumentNumber { get; set; }
     public Guid? SalesInvoiceId { get; set; }
     public string? SalesInvoiceNumber { get; set; }
+    public Guid? GoodsIssueId { get; set; }
+    public string? GoodsIssueNumber { get; set; }
     public Guid ReferenceId { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }

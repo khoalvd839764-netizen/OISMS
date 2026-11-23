@@ -36,3 +36,14 @@
 
 - **Thao tác thực thi:** Gửi đồng thời hoặc liên tiếp nhiều request có cùng `Idempotency-Key` / `RequestKey` hoặc cùng cặp `(OrderId, OrderItemId, WarehouseId, SkuId, Quantity)`.
 - **Kết quả mong đợi:** Hệ thống chỉ tăng `Reserved` đúng **1 lần duy nhất**, các lần gọi lặp trả về lại đúng `ReservationId` ban đầu với mã `HTTP 200 OK`.
+
+---
+
+## Kết quả kiểm thử bản final (11/2026)
+
+### FIN-D — Chạy lại Kịch bản 1 (`NFR-PERF-02`, 50 request tranh 1 đơn vị)
+
+- **Lệnh:** `dotnet test test-oisms/backend/OISM.IntegrationTests/OISM.IntegrationTests.csproj -p:UseAppHost=false --filter "FullyQualifiedName~AC06_ConcurrencyStressTest_50CreateOrders"`
+- **Môi trường:** PostgreSQL 16 local (`oism_postgres`, DB cô lập `oisms_test_*`), ngày 2026-11-21.
+- **Kết quả:** **PASS 1/1** (1 thành công, 49 từ chối `409 Conflict`, `available = 0`).
+- **Bằng chứng:** [`evidence/goi-5/NFR-PERF-02/2026-11-21-FIN-D.md`](./evidence/goi-5/NFR-PERF-02/2026-11-21-FIN-D.md)

@@ -20,5 +20,5 @@
 
 ## Bằng chứng nghiệm thu
 
-- [ ] Mỗi phép đo có phiên bản code, môi trường, cách chạy, dữ liệu thử, kết quả thô và trạng thái đạt/chưa đạt. Dùng dữ liệu thử riêng cho các kịch bản tạo đơn.
-- [ ] Đính kèm log, báo cáo coverage hoặc bản ghi thao tác tương ứng và cập nhật RTM theo phạm vi đã kiểm chứng. [Đặc tả hiệu năng](../../03-non-functional-requirements/01-performance-and-load.md) · [Kịch bản tải](../../06-testing-and-qa/03-concurrency-stress-test.md) · [Script seed báo cáo](../../../test-oisms/api-python/seed_revenue_perf.py)
+- [x] Mỗi phép đo có phiên bản code, môi trường, cách chạy, dữ liệu thử, kết quả thô và trạng thái đạt/chưa đạt (`NFR-PERF-01`, `NFR-PERF-02`, `NFR-TENANT-02`, `NFR-SEC-01`, `NFR-USA-01`, `NFR-USA-02`, `NFR-MAINT-02` tại `docs/06-testing-and-qa/evidence/goi-5/`).
+- [x] Đính kèm log, báo cáo coverage hoặc bản ghi thao tác tương ứng tại `docs/06-testing-and-qa/evidence/goi-5/` (chờ reviewer cập nhật RTM theo phạm vi đã kiểm chứng). [Đặc tả hiệu năng](../../03-non-functional-requirements/01-performance-and-load.md) · [Kịch bản tải](../../06-testing-and-qa/03-concurrency-stress-test.md) · [Script seed báo cáo](../../../test-oisms/api-python/seed_revenue_perf.py)

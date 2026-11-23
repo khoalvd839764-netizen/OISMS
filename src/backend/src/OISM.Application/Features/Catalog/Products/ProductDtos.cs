@@ -72,7 +72,7 @@ public class ProductVariantResponse
     public string? Barcode { get; set; }
     public decimal? RetailPrice { get; set; }
     public decimal? WholesalePrice { get; set; }
-    public decimal CostPrice { get; set; }
+    public decimal? CostPrice { get; set; }
     public string? Color { get; set; }
     public string? Size { get; set; }
     public Dictionary<string, object>? Attributes { get; set; }

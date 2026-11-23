@@ -36,6 +36,12 @@ public class PriceChangeRequestConfiguration : IEntityTypeConfiguration<PriceCha
             .HasMaxLength(20)
             .IsRequired();
 
+        builder.Property(r => r.ReasonType)
+            .HasColumnName("reason_type")
+            .HasMaxLength(30)
+            .HasDefaultValue("OTHER")
+            .IsRequired();
+
         builder.Property(r => r.Reason)
             .HasColumnName("reason")
             .HasMaxLength(500)

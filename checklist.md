@@ -7,12 +7,12 @@ File này dùng để tra cứu yêu cầu OISMS theo mã, xem tiến độ tri�
 | Thông tin | Chi tiết |
 | --- | --- |
 | Mã tài liệu | `DOC-CHK-S2` |
-| Phiên bản | `v1.8.0` |
-| Ngày cập nhật | 14/11/2026 (Asia/Saigon) |
-| Mốc rà soát mã nguồn | 12/11/2026 trên nhánh `feature/OISMS-58-nghiem-thu-sprint-5` |
+| Phiên bản | `v1.11.0` |
+| Ngày cập nhật | 23/11/2026 (Asia/Saigon) |
+| Mốc rà soát mã nguồn | 21/11/2026 trên nhánh `feature/OISMS-66-ra-soat-tong-du-an-phat-trien-tinh-nang-con-thieu-lan-2` |
 | Phạm vi đề bài | 30 FR, 1 mục dự báo nhập hàng, 11 NFR, 5 gói công việc và 6 nhóm hồ sơ. [Bản đối chiếu đề bài](docs/00-overview/03-de-bai-cnpm-reference.md) |
-| Tiến độ tại mốc rà soát | 22/31 mục chức năng đã triển khai, 4/11 NFR đã đánh dấu đạt theo bằng chứng ghi ở từng mục. |
-| Kết quả kiểm thử tại mốc rà soát | Backend unit 380/380, integration PostgreSQL chọn lọc 7/7, POS 10/10 file và simulator 1/1 file đều pass. Mốc integration toàn bộ 372/372 pass ngày 07/11/2026. [RTM và kết quả](docs/06-testing-and-qa/01-requirements-matrix-rtm.md) |
+| Tiến độ tại mốc rà soát | 30/31 mục ở phần 3 đã triển khai (29/30 FR + 1 mục dự báo; còn thiếu `FR-PROD-03` quét barcode kiểm kê, không làm theo quyết định 21/11/2026; `FR-REP-01` lọc SKU và test E2E chuyển kho/kiểm kê đã xong 21/11/2026), **9/11 NFR** đã đánh dấu đạt (`NFR-SEC-01` đạt trên Caddy local; server AWS là phần mở rộng thêm, không gắn điều kiện nghiệm thu) theo bằng chứng ghi ở từng mục. |
+| Kết quả kiểm thử tại mốc rà soát | 21/11/2026 (sau OISMS-66-FIN-A..J): backend unit 434/434, integration PostgreSQL toàn bộ 481/481, POS `npm test` 101/101, simulator 9/9, build Admin/POS/simulator pass. [Kết quả kiểm thử tổng hợp](docs/06-testing-and-qa/05-ket-qua-kiem-thu-tong-hop.md) · [Sổ bằng chứng](docs/06-testing-and-qa/evidence/README.md) |
 
 - `[x]` Đã triển khai chức năng hoặc có bằng chứng đáp ứng tiêu chí ghi tại mục đó.
 - `[ ]` Còn thiếu chức năng, phép đo, hồ sơ hoặc bằng chứng nghiệm thu.
@@ -37,6 +37,9 @@ Hồ sơ theo sprint và các lỗi chi tiết có tại [báo cáo BE1 Sprint 3
 | `v1.7.1` | `2026-11-12` | Rà soát tài liệu | Cập nhật dấu tick theo phạm vi năm gói công việc trong đề bài. | `DOC-CHK-S2` |
 | `v1.7.2` | `2026-11-12` | Rà soát tài liệu | Liên kết kế hoạch Gói 5 và các tiêu chí còn mở của Gói 1–4. | `DOC-CHK-S2` |
 | `v1.8.0` | `2026-11-14` | Rà soát nghiệm thu | Đóng tiêu chí mở của Gói 1: `FR-AUTH-03` (che giá vốn với Cashier, ghi kho chỉ Owner), CS-02 (phân công chi nhánh, bảng `user_branches`), `NFR-MAINT-01` (test kiến trúc). | `OISMS-59-G1` |
+| `v1.9.0` | `2026-11-21` | Rà soát mã nguồn | Đồng bộ tiến độ mục 3 & 4 theo code hiện tại (`29/31` mục 3, `6/11` NFR) và đóng `FR-AUTH-02` (đã hỗ trợ đăng nhập Email hoặc SĐT theo Upgrade 10). | `OISMS-66` |
+| `v1.10.0` | `2026-11-21` | Rà soát nghiệm thu (OISMS-66-FIN) | Cập nhật theo kết quả FIN-A..J đã VERIFIED: đóng `FR-REP-01` (lọc SKU), CS-08 (đánh giá dự báo), E2E chuyển kho/kiểm kê, hồi quy BF-019/020, `NFR-MAINT-02` (coverage) và `NFR-PERF-01` (đo local, giới hạn ca 10 quầy cùng 1 SKU); ghi `FR-PROD-03` quét ở kiểm kê là không làm; tiến độ `30/31` mục 3, `8/11` NFR. | `DOC-CHK-S2` |
+| `v1.11.0` | `2026-11-23` | Đồng bộ Final | Đồng bộ các dòng Hiện trạng còn cũ (`FR-REP-01`, `NFR-MAINT-02`), cập nhật `NFR-SEC-01` thành `[x]` (đạt local, tách bạch server AWS mở rộng khỏi điều kiện nghiệm thu → `9/11` NFR), và liên kết bộ báo cáo Final tại `docs/09-personal-reports/Final/`. | `DOC-FINAL-SYNC` |
 
 ## 3. Yêu cầu chức năng (Functional Requirements)
 
@@ -48,9 +51,9 @@ Hồ sơ theo sprint và các lỗi chi tiết có tại [báo cáo BE1 Sprint 3
   - **Hiện trạng.** API tạo Tenant và tài khoản Owner trong một giao dịch. Owner tạo chi nhánh và kho qua luồng quản lý tổ chức.
   - **Dẫn chứng.** [AuthService](src/backend/src/OISM.Application/Features/Auth/Services/AuthService.cs#L74)
 
-- [ ] **`FR-AUTH-02` — Đăng nhập và đăng xuất.** Đăng nhập bằng email hoặc SĐT và mật khẩu, có đăng xuất. JWT mang định danh tenant, người dùng và vai trò.
-  - **Hiện trạng.** Đã có đăng nhập bằng email, JWT, làm mới token, đăng xuất và kiểm tra trạng thái Tenant/User. API và hai màn hình đăng nhập hiện nhận email. Còn thiếu đăng nhập bằng SĐT.
-  - **Dẫn chứng.** [AuthService](src/backend/src/OISM.Application/Features/Auth/Services/AuthService.cs#L144) · [Auth Admin](src/frontend/admin-dashboard/src/pages/AuthPage.tsx#L163) · [Auth POS](src/frontend/pos-app/src/pages/LoginPage.tsx#L21)
+- [x] **`FR-AUTH-02` — Đăng nhập và đăng xuất.** Đăng nhập bằng email hoặc SĐT và mật khẩu, có đăng xuất. JWT mang định danh tenant, người dùng và vai trò.
+  - **Hiện trạng.** Đã có đăng nhập bằng email hoặc SĐT (`FindUserByIdentifierAsync`), JWT, làm mới token xoay vòng, đăng xuất và kiểm tra trạng thái Tenant/User trên cả Admin và POS (hoàn tất từ Upgrade 10, 15/11/2026).
+  - **Dẫn chứng.** [AuthService](src/backend/src/OISM.Application/Features/Auth/Services/AuthService.cs#L154) · [AuthController](src/backend/src/OISM.WebApi/Controllers/AuthController.cs#L54) · [Auth Admin](src/frontend/admin-dashboard/src/pages/AuthPage.tsx#L163) · [PosAuthContext](src/frontend/pos-app/src/context/PosAuthContext.tsx#L8)
 
 - [x] **`FR-AUTH-03` — RBAC theo API và màn hình.** Phân quyền trên API và giao diện. Owner có toàn quyền, Staff quản lý kho và đơn, Cashier chỉ dùng POS.
   - **Hiện trạng.** Có ba vai trò và định tuyến POS riêng. Từ 14/11/2026 API số dư tồn trả `averageCost = null` cho Cashier; ghi kho chỉ Owner; xóa danh mục, thương hiệu, sản phẩm chỉ Owner (đã chốt). Cashier được phân công chi nhánh chỉ thấy và checkout tại chi nhánh đó.
@@ -74,6 +77,7 @@ Hồ sơ theo sprint và các lỗi chi tiết có tại [báo cáo BE1 Sprint 3
 
 - [ ] **`FR-PROD-03` — Mã vạch.** Sinh hoặc nhập mã vạch EAN-13/Code128 để quét tại POS và khi kiểm kê.
   - **Hiện trạng.** Có sinh EAN-13, nhập EAN-13/Code128 và quét tại POS. Màn kiểm kê hiện chọn SKU và nhập số đếm, chưa có luồng quét barcode.
+  - **Quyết định 21/11/2026.** Không làm quét barcode ở màn kiểm kê vì nhóm không có thiết bị quét để triển khai và kiểm chứng. Mục giữ `[ ]` và ghi là giới hạn đã biết khi nghiệm thu.
   - **Dẫn chứng.** [Catalog POS](src/frontend/pos-app/src/components/pos/ProductCatalog.tsx) · [Phiếu kiểm kê](src/frontend/admin-dashboard/src/components/stockCounts/StockCountDetailDrawer.tsx)
 
 - [x] **`FR-PROD-04` — Giá bán lẻ và bán sỉ theo SKU.** Thiết lập giá bán lẻ và bán sỉ theo SKU, lưu riêng với giá vốn.
@@ -100,7 +104,7 @@ Hồ sơ theo sprint và các lỗi chi tiết có tại [báo cáo BE1 Sprint 3
   - **Hiện trạng.** Admin có kiểm kê theo lịch và đột xuất. Integration test sinh bút toán chênh lệch pass ngày 12/11/2026.
   - **Dẫn chứng.** [Giao diện kiểm kê](src/frontend/admin-dashboard/src/components/stockCounts/StockCountDetailDrawer.tsx) · [Test PostgreSQL](test-oisms/backend/OISM.IntegrationTests/StockCountIntegrationTests.cs)
 
-- [ ] **Kiểm thử E2E chuyển kho và kiểm kê.** Chưa có biên bản cho toàn luồng UI trên bản hiện tại. [Kế hoạch kiểm thử](docs/06-testing-and-qa/02-unit-and-integration-test.md)
+- [x] **Kiểm thử E2E chuyển kho và kiểm kê.** Có biên bản toàn luồng UI ngày 21/11/2026 (FIN-H, 8/8 bước, 12 ảnh): [biên bản](docs/06-testing-and-qa/evidence/e2e-kho/README.md). [Kế hoạch kiểm thử](docs/06-testing-and-qa/02-unit-and-integration-test.md)
 
 ### 3.4. Giá vốn bình quân (`FR-COST`) — Đăng Khoa
 
@@ -186,8 +190,8 @@ Hồ sơ theo sprint và các lỗi chi tiết có tại [báo cáo BE1 Sprint 3
 
 [Đặc tả](docs/02-functional-requirements/fr-11-reports-analytics.md)
 
-- [ ] **`FR-REP-01` — Doanh thu thuần, COGS và lãi gộp.** Tính doanh thu thuần, COGS và lãi gộp bằng doanh thu trừ COGS. Lọc theo thời gian, chi nhánh, kênh và SKU.
-  - **Hiện trạng.** Có số liệu đơn `Confirmed` / `Completed`, khấu trừ hàng trả và lọc thời gian, chi nhánh, kênh. Còn thiếu lọc doanh thu/COGS theo SKU.
+- [x] **`FR-REP-01` — Doanh thu thuần, COGS và lãi gộp.** Tính doanh thu thuần, COGS và lãi gộp bằng doanh thu trừ COGS. Lọc theo thời gian, chi nhánh, kênh và SKU. *(21/11/2026: lọc tối đa 20 SKU + `skuBreakdown`, FIN-A/FIN-B; [bằng chứng](docs/06-testing-and-qa/evidence/FR-REP-01/2026-11-21-FIN-A.md).)*
+  - **Hiện trạng.** Đã có đủ số liệu đơn `Confirmed` / `Completed`, khấu trừ hàng trả, phân bổ chiết khấu theo dòng và lọc thời gian, chi nhánh, kênh, tối đa 20 SKU (`skuBreakdown`).
   - **Dẫn chứng.** [ReportService](src/backend/src/OISM.Application/Features/Reports/Services/ReportService.cs) · [Bộ lọc API](src/backend/src/OISM.Application/Features/Reports/Dtos/ReportDtos.cs#L3)
 
 - [x] **`FR-REP-02` — Giá trị tồn và tốc độ luân chuyển.** Hiển thị giá trị tồn theo giá vốn, hàng bán chạy và hàng luân chuyển chậm.
@@ -212,8 +216,8 @@ Hồ sơ theo sprint và các lỗi chi tiết có tại [báo cáo BE1 Sprint 3
 
 [Đặc tả](docs/03-non-functional-requirements/01-performance-and-load.md)
 
-- [ ] **`NFR-PERF-01` — Thời gian phản hồi.** POS tìm SKU/quét barcode `p95 < 200 ms`. Tạo đơn/giao dịch ghi `< 500 ms`. Báo cáo tổng hợp `< 2 giây` với dưới `100.000` bản ghi.
-  - **Hiện trạng.** Có phép đo POS Sprint 3 và báo cáo Sprint 5 ghi nhận thử tải 5.000 đơn local. Chưa có kết quả đo đủ cả ba ngưỡng cho bản hiện tại.
+- [x] **`NFR-PERF-01` — Thời gian phản hồi.** POS tìm SKU/quét barcode `p95 < 200 ms`. Tạo đơn/giao dịch ghi `< 500 ms`. Báo cáo tổng hợp `< 2 giây` với dưới `100.000` bản ghi. *(21/11/2026, đo local trên 100.000 dòng sau FIN-J và `shm_size: 256mb`: tìm SKU/barcode p95 ≤ 25 ms, tạo đơn Admin ≤ 231 ms, checkout POS 10 quầy SKU khác nhau ≤ 58 ms, báo cáo 8/8 ca ≤ 1,2 s. Giới hạn đã biết: 10 quầy cùng bán 1 SKU cùng lúc p95 379–577 ms do xếp hàng qua khóa chống bán âm. Chưa đo trên bản demo. [Bằng chứng](docs/06-testing-and-qa/evidence/goi-5/NFR-PERF-01/2026-11-21-shm256.md) · [Checkout nhiều SKU](docs/06-testing-and-qa/evidence/goi-5/NFR-PERF-01/2026-11-21-checkout-multisku.md).)*
+  - **Hiện trạng.** Đã đo đủ ba ngưỡng trên bản hiện tại bằng `test-oisms/nfr/measure-latency.mjs` (DB riêng `oisms_perf`, 50.000 đơn / 100.000 dòng). Tối ưu tải dữ liệu báo cáo ở FIN-J; tăng `/dev/shm` PostgreSQL để tránh lỗi truy vấn song song.
   - **Dẫn chứng.** [Đặc tả hiệu năng](docs/03-non-functional-requirements/01-performance-and-load.md) · [Script dữ liệu thử tải](test-oisms/api-python/seed_revenue_perf.py)
 
 - [x] **`NFR-PERF-02` — 50 đơn đồng thời tranh 1 đơn vị tồn cuối.** Dùng khóa dòng hoặc kiểm tra phiên bản để xử lý 50 đơn online đồng thời tranh một đơn vị tồn cuối. Tồn khả dụng không được âm.
@@ -236,8 +240,8 @@ Hồ sơ theo sprint và các lỗi chi tiết có tại [báo cáo BE1 Sprint 3
 
 [Đặc tả](docs/03-non-functional-requirements/03-reliability-and-acid.md)
 
-- [ ] **`NFR-SEC-01` — Mã hóa và xác thực.** Băm mật khẩu bằng BCrypt hoặc Argon2, dùng HTTPS/TLS 1.3 và JWT 60 phút kèm refresh token an toàn.
-  - **Hiện trạng.** Có BCrypt, JWT 60 phút, refresh token xoay vòng và HTTPS qua Caddy. Tài liệu triển khai ghi hỗ trợ TLS 1.2/1.3. Chưa có kết quả xác nhận TLS 1.3 trên bản deploy.
+- [x] **`NFR-SEC-01` — Mã hóa và xác thực.** Băm mật khẩu bằng BCrypt hoặc Argon2, dùng HTTPS/TLS 1.3 và JWT 60 phút kèm refresh token an toàn. *(21/11/2026, FIN-E: Caddyfile chỉ TLS 1.3, kiểm chứng thành công trên Caddy local, `-tls1_2` bị từ chối; server AWS là hạng mục mở rộng thêm, không gắn điều kiện nghiệm thu.)*
+  - **Hiện trạng.** Có BCrypt, JWT 60 phút, refresh token xoay vòng và HTTPS/TLS 1.3 qua Caddy đã kiểm chứng trên local.
   - **Dẫn chứng.** [Hiện trạng bảo mật](docs/03-non-functional-requirements/README.md#hiện-trạng-đáp-ứng-đối-chiếu-12112026) · [Caddyfile](docker/caddy/Caddyfile)
 
 - [x] **`NFR-SEC-02` — Giao dịch nguyên tử.** Chuỗi tạo đơn, giữ chỗ và trừ tồn chạy nguyên tử và hoàn tác toàn bộ khi gặp lỗi.
@@ -252,11 +256,11 @@ Hồ sơ theo sprint và các lỗi chi tiết có tại [báo cáo BE1 Sprint 3
 
 [Đặc tả](docs/03-non-functional-requirements/04-usability-and-pwa.md)
 
-- [ ] **`NFR-USA-01` — Uptime 99,5% từ 07:00 đến 22:00.** Uptime đạt 99,5% trong khung 07:00–22:00.
+- [ ] **`NFR-USA-01` — Uptime 99,5% từ 07:00 đến 22:00.** Uptime đạt 99,5% trong khung 07:00–22:00. *(21/11/2026, FIN-E: có script `test-oisms/nfr/uptime-probe/`, mới chạy thử 5 lần trên local; chưa đo thu thập log liên tục khung 07:00–22:00.)*
   - **Hiện trạng.** Có chính sách khởi động lại container. Chưa có số đo uptime theo khung giờ đề bài.
   - **Dẫn chứng.** [Hiện trạng triển khai](docs/03-non-functional-requirements/README.md#hiện-trạng-đáp-ứng-đối-chiếu-12112026)
 
-- [ ] **`NFR-USA-02` — Thao tác và thiết bị POS.** Thanh toán dưới ba lần bấm hoặc bằng quét barcode và Enter. Giao diện đáp ứng desktop, tablet và máy POS cầm tay.
+- [ ] **`NFR-USA-02` — Thao tác và thiết bị POS.** Thanh toán dưới ba lần bấm hoặc bằng quét barcode và Enter. Giao diện đáp ứng desktop, tablet và máy POS cầm tay. *(21/11/2026, FIN-E: kịch bản thanh toán 2 bước trong `test:live` PASS 8/8; chưa chụp 3 kích thước và chưa thử máy cầm tay.)*
   - **Hiện trạng.** Có quét barcode + Enter để thêm hàng, F4 để thanh toán và giao diện responsive. Chưa có kết quả nghiệm thu toàn luồng thanh toán dưới 3 lần bấm hoặc theo chuỗi quét/phím trên các thiết bị yêu cầu.
   - **Dẫn chứng.** [Catalog POS](src/frontend/pos-app/src/components/pos/ProductCatalog.tsx#L43) · [Phím tắt](src/frontend/pos-app/src/pages/PosPage.tsx#L94)
 
@@ -268,8 +272,8 @@ Hồ sơ theo sprint và các lỗi chi tiết có tại [báo cáo BE1 Sprint 3
   - **Hiện trạng.** Có bốn project Domain, Application, Infrastructure và Web API. Application dùng EF Core qua `IAppDbContext` là ngoại lệ có chủ đích (chốt 14/11/2026); SQL, lock và transaction ở Infrastructure. `ArchitectureRulesTests` khóa quy tắc phụ thuộc, 5/5 PASS.
   - **Dẫn chứng.** [Đặc tả phân tầng](docs/03-non-functional-requirements/05-maintainability-testing.md) · [Đối chiếu bốn tầng](docs/report-after-upgrade/doi-chieu-kien-truc-nfr-maint-01.md) · [ArchitectureRulesTests](test-oisms/backend/OISM.IntegrationTests/ArchitectureRulesTests.cs)
 
-- [ ] **`NFR-MAINT-02` — Coverage tối thiểu 80% cho Ledger, Anti-Oversell Reserve và COGS.** Coverage Unit và Integration tối thiểu 80% cho Ledger, Anti-Oversell Reserve và COGS.
-  - **Hiện trạng.** Mốc Sprint 2 ghi nhận 92,49–94,83% cho nhóm Inventory. Chưa đo lại coverage unit và integration của đủ ba module trên bản hiện tại.
+- [x] **`NFR-MAINT-02` — Coverage tối thiểu 80% cho Ledger, Anti-Oversell Reserve và COGS.** Coverage Unit và Integration tối thiểu 80% cho Ledger, Anti-Oversell Reserve và COGS. *(21/11/2026, FIN-F: Ledger 90,90%, Reserve 92,51%, WAC 100%, COGS 89,35%; [bằng chứng](docs/06-testing-and-qa/evidence/goi-5/NFR-MAINT-02/2026-11-21-FIN-F.md).)*
+  - **Hiện trạng.** Đã đo lại toàn bộ trên bản hiện tại (Unit 434/434 + Integration PostgreSQL) ngày 21/11/2026: cả 4 nhóm cốt lõi đều đạt từ 89,35% đến 100% (vượt ngưỡng ≥ 80%).
   - **Dẫn chứng.** [Đặc tả coverage](docs/03-non-functional-requirements/05-maintainability-testing.md) · [RTM](docs/06-testing-and-qa/01-requirements-matrix-rtm.md)
 
 ## 5. Gói công việc và hồ sơ bàn giao
@@ -282,7 +286,7 @@ Dấu tick ở mục này theo các đầu việc được liệt kê cho từng
 - [x] **Gói 2 — Catalog và sổ cái.** Có sản phẩm, SKU, mã vạch, bảng giá, phiếu nhập, chuyển kho và WAC. [API catalog](docs/05-api-contracts/02-catalog-endpoints.md) · [Test chuyển kho](test-oisms/backend/OISM.IntegrationTests/StockTransferIntegrationTests.cs)
 - [x] **Gói 3 — Đơn hàng và chống bán vượt.** Đã triển khai mô hình đơn chung, chuyển trạng thái, khóa giữ chỗ, giả lập webhook và Hangfire hết hạn. Đóng các tiêu chí còn lại ngày 15/11/2026: ranh giới giao dịch theo kênh và job tổng hợp báo cáo ngày ([Gói 3](docs/Upgrade-recommended/Done/goi-3-vong-doi-don-hang-va-hangfire.md)). [Test vòng đời đơn](test-oisms/backend/OISM.IntegrationTests/OnlineOrderLifecycleIntegrationTests.cs) · [Test 50 webhook](test-oisms/backend/OISM.IntegrationTests/WebhookIntegrationTests.cs#L1773)
 - [x] **Gói 4 — Frontend và realtime.** Đã triển khai Admin, PWA POS, checkout nguyên tử, in qua trình duyệt và SignalR. Đóng các tiêu chí còn lại ngày 15/11/2026: tự in sau checkout, phiếu giao hàng, in báo cáo, thông báo đơn mới theo chi nhánh trên POS ([Gói 4](docs/Upgrade-recommended/Done/goi-4-in-chung-tu-va-thong-bao-pos.md)). [Test checkout POS](test-oisms/backend/OISM.IntegrationTests/PosCheckoutIntegrationTests.cs) · [SignalR POS](src/frontend/pos-app/src/services/realtimeService.ts#L63)
-- [ ] **Gói 5 — Báo cáo, AI, test và triển khai.** Có báo cáo, gợi ý nhập hàng, Docker, CI và bộ kiểm thử. Hồ sơ bàn giao ở mục 5.2 còn hạng mục chưa đạt. Lọc theo SKU, đánh giá dự báo và các phép đo NFR còn mở ở mục 3.9, 4 và 6.1. [RTM](docs/06-testing-and-qa/01-requirements-matrix-rtm.md) · [Báo cáo nghiệm thu Sprint 5](docs/08-sprints/sprint-5/BAO_CAO_TONG_KET_NGHIEM_THU_SPRINT_5.md)
+- [ ] **Gói 5 — Báo cáo, AI, test và triển khai.** Có báo cáo, gợi ý nhập hàng, Docker, CI và bộ kiểm thử. Hồ sơ bàn giao ở mục 5.2 còn hạng mục chưa đạt. Ngày 21/11/2026 đã xong lọc theo SKU, đánh giá dự báo, đo hiệu năng, TLS 1.3 local và coverage (OISMS-66-FIN-A..J); còn mở `NFR-USA-01` (uptime dài giờ), `NFR-USA-02` (máy POS cầm tay) và hồ sơ mục 5.2. [RTM](docs/06-testing-and-qa/01-requirements-matrix-rtm.md) · [Báo cáo nghiệm thu Sprint 5](docs/08-sprints/sprint-5/BAO_CAO_TONG_KET_NGHIEM_THU_SPRINT_5.md) · [Báo cáo Final](docs/09-personal-reports/Final/01-bao-cao-tong-ket-oisms.md)
 
 ### 5.2. Sáu nhóm hồ sơ nghiệm thu
 
@@ -300,19 +304,21 @@ Dấu tick ở mục này theo các đầu việc được liệt kê cho từng
 - [x] **CS-01 / Upgrade 08 — Trả hàng từ khách.** Có phiếu trả liên kết đơn gốc, hoàn kho theo giá vốn lúc bán, tính lại WAC và khấu trừ doanh thu. [Đặc tả](docs/Upgrade-recommended/Done/08-tra-hang-cs01.md) · [API](src/backend/src/OISM.WebApi/Controllers/SalesReturnsController.cs) · [Màn hình Admin](src/frontend/admin-dashboard/src/pages/SalesReturnsPage.tsx)
 - [x] **CS-02 — Nhân viên và phân công chi nhánh.** Có danh sách, tạo, sửa, khóa, gán vai trò Staff/Cashier và phân công nhiều chi nhánh (bảng `user_branches`, 14/11/2026). Chưa lọc dữ liệu Admin theo chi nhánh. [Báo cáo CS-02](docs/report-after-upgrade/phan-cong-chi-nhanh-cs02.md) [API nhân viên](src/backend/src/OISM.WebApi/Controllers/UsersController.cs) · [Ma trận quyền](docs/01-users-and-rbac/02-rbac-matrix.md)
 - [x] **CS-03 — Cấu hình ngưỡng tồn thấp.** Có API và UI lưu ngưỡng theo SKU và chi nhánh. [API tồn kho](src/backend/src/OISM.WebApi/Controllers/InventoryController.cs#L120) · [Màn hình Kho](src/frontend/admin-dashboard/src/pages/InventoryPage.tsx)
-- [x] **CS-04 — Tìm kiếm toàn hệ thống.** Có ô tìm kiếm và API. Điều hướng kết quả phiếu nhập còn được theo dõi ở BF-024. [API tìm kiếm](src/backend/src/OISM.WebApi/Controllers/SearchController.cs) · [BF-024](docs/bug-fixaffter/errors/BF-024-tim-kiem-phieu-nhap-khong-mo-dung-phieu.md)
+- [x] **CS-04 — Tìm kiếm toàn hệ thống.** Có ô tìm kiếm và API. Điều hướng kết quả phiếu nhập đã sửa ở BF-024 (21/11/2026). [API tìm kiếm](src/backend/src/OISM.WebApi/Controllers/SearchController.cs) · [BF-024](docs/bug-fixaffter/errors/BF-024-tim-kiem-phieu-nhap-khong-mo-dung-phieu.md)
 - [x] **CS-05 / Upgrade 07 — VietQR ở POS.** Owner quản lý tài khoản nhận tiền, thu ngân xác nhận đã nhận tiền, giao dịch lưu thông tin người nhận. [Đặc tả](docs/Upgrade-recommended/Done/07-thanh-toan-qr-vietqr.md) · [Nghiệm thu VietQR](docs/report-after-upgrade/vietqr-cs05-review-pr39.md)
 - [ ] **Upgrade 07, giai đoạn C — Xác nhận chuyển khoản tự động.** Webhook ngân hàng đang tạm gác. [Kế hoạch VietQR](docs/Upgrade-recommended/Done/07-thanh-toan-qr-vietqr.md)
 - [x] **CS-06 — In chứng từ giao hàng và in báo cáo.** Đã làm 15/11/2026 (Gói 4): phiếu giao hàng, in báo cáo theo tab, cô lập vùng in; còn bản in mẫu trên trình duyệt. Đã có in biên nhận POS và in lại hóa đơn bán. [Chi tiết đơn](src/frontend/admin-dashboard/src/components/orders/OrderDetailDrawer.tsx#L247) · [Báo cáo Admin](src/frontend/admin-dashboard/src/pages/ReportsPage.tsx) · [Bàn giao hóa đơn](docs/report-after-upgrade/hoa-don-truy-vet-xuat-kho.md)
 - [x] **CS-07 — Tổng quan từ dữ liệu thật.** KPI, biểu đồ và đơn gần đây lấy từ backend. Số liệu hiện theo phạm vi lũy kế của API. [Màn Tổng quan](src/frontend/admin-dashboard/src/pages/DashboardPage.tsx) · [ReportService](src/backend/src/OISM.Application/Features/Reports/Services/ReportService.cs)
-- [ ] **CS-08 — Đánh giá dự báo.** API và tab gợi ý đã triển khai theo `FR-AI-01`. Còn thiếu kết quả đối chiếu dự báo với dữ liệu thực tế và tiêu chí chất lượng. [Đặc tả dự báo](docs/02-functional-requirements/fr-12-ai-forecasting.md) · [Test công thức](test-oisms/backend/OISM.UnitTests/AiForecastingTests.cs)
+- [x] **CS-08 — Đánh giá dự báo.** API và tab gợi ý đã triển khai theo `FR-AI-01`. Backtest 21/11/2026 (FIN-C + fix1) trên dữ liệu tổng hợp: WAPE 7,70%, recall 100% (7/7) ở nhóm đủ dữ liệu, đạt ngưỡng Q6; chưa đối chiếu dữ liệu bán thật. [Bằng chứng](docs/06-testing-and-qa/evidence/FR-AI-01/2026-11-21-FIN-C-fix1.md). [Đặc tả dự báo](docs/02-functional-requirements/fr-12-ai-forecasting.md) · [Test công thức](test-oisms/backend/OISM.UnitTests/AiForecastingTests.cs)
 - [x] **`FR-AI-02` / Upgrade 09 — Trợ lý OISMS.** Có API và panel hỏi đáp chỉ đọc cho Owner/Staff. Mặc định tắt ở local và đã bật trên bản demo AWS theo báo cáo Sprint 5. [Đặc tả trợ lý](docs/02-functional-requirements/fr-13-ai-assistant.md) · [API](src/backend/src/OISM.WebApi/Controllers/AiController.cs#L26) · [Unit test](test-oisms/backend/OISM.UnitTests/AiChatServiceTests.cs)
 - [x] **Upgrade 10 — Quên mật khẩu và đăng nhập bằng SĐT.** Xong 15/11/2026: đăng nhập email hoặc SĐT, quên mật khẩu qua link email (token tự ký, không thêm bảng), Owner đặt lại hộ Staff/Cashier. Chưa làm OTP SMS. [Kế hoạch](docs/Upgrade-recommended/Done/10-quen-mat-khau-dang-nhap-sdt.md) · [Báo cáo](docs/report-after-upgrade/quen-mat-khau-dang-nhap-sdt-u10.md)
 
 ### 6.2. Nâng cấp nghiệp vụ và kiến trúc
 
 - [x] **Upgrade 01-A — Phiếu mua và nhập kho.** Có duyệt phiếu mua, gắn phiếu nhập, chặn nhập vượt và lấy giá từ phiếu mua. [Báo cáo](docs/report-after-upgrade/mua-hang-nhap-kho.md) · [Integration test](test-oisms/backend/OISM.IntegrationTests/PurchaseOrderIntegrationTests.cs)
-- [x] **Upgrade 01-B — Hóa đơn nhà cung cấp và chênh lệch.** Có hóa đơn NCC gắn phiếu nhập, đối chiếu ba bên, chênh lệch Owner duyệt; hóa đơn kèm hàng đã duyệt quyết định giá nhập, hóa đơn đến sau chỉ lưu bằng chứng. Không gồm công nợ, thanh toán NCC. Nghiệm thu 12/11/2026 trên PostgreSQL thật, chưa chạy trên bản demo AWS. [Đặc tả](docs/Upgrade-recommended/Done/01-mua-hang-nhap-kho-gia-von.md) · [Báo cáo](docs/report-after-upgrade/hoa-don-nha-cung-cap-u01b.md)
+- [x] **Upgrade 01-B — Hóa đơn nhà cung cấp và chênh lệch.** Có hóa đơn NCC gắn phiếu nhập, đối chiếu ba bên, chênh lệch Owner duyệt; hóa đơn kèm hàng đã duyệt quyết định giá nhập, hóa đơn đến sau chỉ lưu bằng chứng. Không gồm công nợ, thanh toán NCC. Nghiệm thu 12/11/2026 trên PostgreSQL thật, chưa chạy trên bản demo AWS. [Đặc tả](docs/Upgrade-recommended/Done/01-mua-hang-nhap-kho-gia-von.md) · [Báo cáo](docs/report-after-upgrade/hoa-don-nha-cung-cap-u01b.md) **Thay bởi Upgrade 12 từ 19/11/2026:** đã gỡ API và màn hình hóa đơn NCC, bảng giữ chỉ đọc.
+- [x] **Upgrade 12 Gói 1 — Đơn mua `PendingApproval` và phân bổ phí.** Staff đề nghị mua không có giá, Owner chọn NCC, giá, phí, chiết khấu, VAT rồi duyệt (bắt buộc `version`); phí và chiết khấu phân bổ vào giá vốn theo VAS 02, VAT ngoài giá vốn; Staff không thấy giá trên đơn mua và phiếu nhập. Nghiệm thu 19/11/2026 trên PostgreSQL thật, chưa chạy trên bản demo AWS. [Báo cáo](docs/report-after-upgrade/don-mua-pending-approval-u12.md) · [Integration test](test-oisms/backend/OISM.IntegrationTests/PostgresPurchaseOrderU12IntegrationTests.cs)
+- [x] **Upgrade 14 — In chứng từ từ sổ kho, truy vết và POS.** Thu ngân in phiếu xuất kho 02-VT của đơn mình (giá vốn `null`); mỗi dòng Sổ kho và Thẻ kho có nút Chứng từ mở mẫu in theo nguồn; truy vết có Xem/In và In tất cả; Staff không thấy giá trên API in; seed chứng từ demo qua service thật. Nghiệm thu 21/11/2026 trên PostgreSQL thật và Docker local; chưa chụp bản in trên trình duyệt, chưa chạy trên bản demo AWS. [Nghiệm thu](docs/report-after-upgrade/nghiem-thu-in-chung-tu-u14.md) · [Integration test](test-oisms/backend/OISM.IntegrationTests/PostgresU14PrintDocumentApiIntegrationTests.cs)
 - [x] **Upgrade 02 — Truy vết xuất kho.** Có chứng từ nguồn cho dòng OUT, hóa đơn bán, màn xem và in lại. [Báo cáo](docs/report-after-upgrade/hoa-don-truy-vet-xuat-kho.md) · [Integration test](test-oisms/backend/OISM.IntegrationTests/SalesInvoiceTraceIntegrationTests.cs)
 - [x] **Upgrade 03 — Lịch kiểm kê và duyệt chênh lệch.** Có lịch giữa tháng, cuối tháng, kiểm kê đột xuất và duyệt chênh lệch. Hangfire sinh kỳ tự động khi bật. [Báo cáo](docs/report-after-upgrade/lich-kiem-ke-duyet-chenh-lech.md) · [Integration test](test-oisms/backend/OISM.IntegrationTests/StockCountU03IntegrationTests.cs)
 - [x] **Upgrade 04 — Bảng giá theo hiệu lực.** Có phiếu đổi giá, phê duyệt, lịch sử và snapshot giá vào dòng đơn. [Báo cáo](docs/report-after-upgrade/bang-gia-theo-thoi-gian.md) · [RTM bảng giá](docs/06-testing-and-qa/01-requirements-matrix-rtm.md#2-truy-vết-upgrade-04--bảng-giá-theo-thời-gian-oisms-47-u04)
@@ -325,6 +331,6 @@ Dấu tick ở mục này theo các đầu việc được liệt kê cho từng
 - [x] **CI tự động.** Có build và test backend với PostgreSQL, build các ứng dụng frontend và chạy test POS/simulator. [GitHub Actions](.github/workflows/ci.yml)
 - [x] **Gộp POS về một ứng dụng.** `pos-app` phục vụ giao diện quầy. Admin `/pos` chuyển hướng. [Báo cáo tách POS](docs/report-after-upgrade/tach-pos-khoi-admin-2026-11-08.md) · [Điều hướng Admin](src/frontend/admin-dashboard/src/App.tsx#L32)
 - [x] **Tác vụ nền trên bản demo AWS.** Báo cáo ghi Hangfire đã bật ngày 11/11/2026, có job hết hạn giữ chỗ và sinh kỳ kiểm kê. [Hiện trạng Hangfire](docs/02-functional-requirements/fr-10-background-hangfire.md) · [Tài liệu triển khai](docs/13-deploy-aws/README.md)
-- [ ] **Hồi quy POS BF-019 và BF-020.** Cần kiểm thử riêng phản hồi HTTP 200 sai hợp đồng và checkout cũ khi đổi chi nhánh. [BF-019](docs/bug-fixaffter/errors/BF-019-pos-nhan-http-200-sai-contract-la.md) · [BF-020](docs/bug-fixaffter/errors/BF-020-pos-rieng-chua-khoa-gio-va-ngu.md)
+- [x] **Hồi quy POS BF-019 và BF-020.** Có test `test-bf019-bf020.mjs` trong `npm test` POS; BF-020 tái hiện FAIL rồi sửa `PaymentModal.tsx` (FIN-G, 21/11/2026). [BF-019](docs/bug-fixaffter/errors/BF-019-pos-nhan-http-200-sai-contract-la.md) · [BF-020](docs/bug-fixaffter/errors/BF-020-pos-rieng-chua-khoa-gio-va-ngu.md)
 
 [Toàn bộ lỗi và bằng chứng sửa lỗi](docs/bug-fixaffter/CHECKLIST.md) · [Danh mục tài liệu dự án](docs/README.md)

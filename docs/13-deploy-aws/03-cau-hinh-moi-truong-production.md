@@ -112,7 +112,7 @@ docker compose --env-file .env.production -f docker-compose.yml -f docker-compos
 - Site có tên miền thật nên Caddy tự bật HTTPS: xin chứng chỉ Let's Encrypt, chuyển HTTP sang HTTPS, gia hạn trước khi hết hạn.
 - `reverse_proxy` tự xử lý WebSocket cho SignalR và tự thêm `X-Forwarded-For`, `X-Forwarded-Proto`.
 
-Muốn thêm header bảo mật hoặc chặn `/health/ready` khỏi Internet thì sửa file này rồi `docker compose ... restart caddy`.
+File này đã chặn `/health/ready` khỏi Internet (403) và chỉ cho TLS 1.3 (BF-026, `OISMS-66-FIN-E`). Muốn thêm header bảo mật thì sửa file này rồi `docker compose ... restart caddy`.
 
 ## 4. Cấu Hình Backend Trên Production
 
@@ -139,7 +139,7 @@ Bản demo đã bật Hangfire từ 11/11/2026 theo đúng các bước dưới 
      psql -U postgres -d oisms -v ON_ERROR_STOP=1 < docker/postgres/migrations/20261108_hangfire_schema.sql
    ```
 4. Đặt `HANGFIRE_ENABLED=true` trong `.env.production`, rồi tạo lại container `backend` (chỉ đổi biến môi trường thì không cần build lại): `docker compose --env-file .env.production -f docker-compose.yml -f docker-compose.prod.yml up -d backend`.
-5. Kiểm tra log backend có `Starting Hangfire Server ... Schema: hangfire`, `/health/ready` trả 200, và `SELECT statename, count(*) FROM hangfire.job GROUP BY 1;` chỉ có `Succeeded` sau 1–2 phút.
+5. Kiểm tra log backend có `Starting Hangfire Server ... Schema: hangfire`, `dcp exec caddy wget -qO- http://backend:8080/health/ready` trả `Healthy`, và `SELECT statename, count(*) FROM hangfire.job GROUP BY 1;` chỉ có `Succeeded` sau 1–2 phút.
 
 Tắt lại: đặt `HANGFIRE_ENABLED=false` rồi khởi động lại `backend`; schema `hangfire` để nguyên không ảnh hưởng.
 

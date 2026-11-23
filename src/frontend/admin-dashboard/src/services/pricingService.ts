@@ -5,6 +5,7 @@ import type {
   PriceChangeRequestResponse,
   EffectivePrice,
   PriceHistoryItem,
+  PendingPurchaseOrderSalePrice,
 } from '../types/pricing';
 
 export const pricingService = {
@@ -68,9 +69,13 @@ export const pricingService = {
   /**
    * Duyệt phiếu đổi giá (Chỉ dành cho Owner)
    */
-  async approveRequest(id: string): Promise<PriceChangeRequestResponse> {
+  async approveRequest(
+    id: string,
+    poConflictResolution?: 'KEEP_MANUAL' | 'APPLY_PO_LATER' | null
+  ): Promise<PriceChangeRequestResponse> {
     const res = await httpClient.post<PriceChangeRequestResponse>(
-      `/api/price-change-requests/${id}/approve`
+      `/api/price-change-requests/${id}/approve`,
+      poConflictResolution ? { poConflictResolution } : {}
     );
     return res.data;
   },
@@ -124,6 +129,17 @@ export const pricingService = {
     if (unitId) params.unitId = unitId;
     if (priceListCode) params.priceListCode = priceListCode;
     const res = await httpClient.get<PriceHistoryItem[]>('/api/sku-unit-prices/history', { params });
+    return res.data;
+  },
+
+  /**
+   * Tra cứu các cấu hình giá bán đang chờ áp dụng trên đơn mua hàng theo SKU (Q19)
+   */
+  async getPendingPurchaseOrderPrices(skuId: string): Promise<PendingPurchaseOrderSalePrice[]> {
+    const res = await httpClient.get<PendingPurchaseOrderSalePrice[]>(
+      '/api/pricing/pending-po-prices',
+      { params: { skuId } }
+    );
     return res.data;
   },
 };

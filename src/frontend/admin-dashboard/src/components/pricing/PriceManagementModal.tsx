@@ -11,7 +11,7 @@ import { Badge, Button, Input, Modal, Select } from '../ui';
 import { pricingService } from '../../services/pricingService';
 import { useAuth } from '../../context/AuthContext';
 import type { Sku } from '../../types/domain';
-import type { PriceChangeRequestResponse, PriceHistoryItem } from '../../types/pricing';
+import type { ConflictingPurchaseOrderInfo, PriceChangeRequestResponse, PriceHistoryItem } from '../../types/pricing';
 
 interface PriceManagementModalProps {
   isOpen: boolean;
@@ -45,6 +45,10 @@ export const PriceManagementModal: React.FC<PriceManagementModalProps> = ({
   const [rejectModalId, setRejectModalId] = useState<string | null>(null);
   const [rejectNote, setRejectNote] = useState<string>('');
   const [actionError, setActionError] = useState<string | null>(null);
+
+  // Q19 Xung đột giá chờ từ đơn mua khi duyệt phiếu
+  const [conflictApprovalId, setConflictApprovalId] = useState<string | null>(null);
+  const [conflictOrders, setConflictOrders] = useState<ConflictingPurchaseOrderInfo[] | null>(null);
 
   // Tab 2: Lịch sử giá & Lịch giá tương lai theo SKU
   const [selectedSkuId, setSelectedSkuId] = useState<string>(initialSku?.id || allSkus[0]?.id || '');
@@ -109,16 +113,25 @@ export const PriceManagementModal: React.FC<PriceManagementModalProps> = ({
     }
   };
 
-  const handleApprove = async (id: string) => {
+  const handleApprove = async (id: string, resolution?: 'KEEP_MANUAL' | 'APPLY_PO_LATER' | null) => {
     if (processingId) return;
     setActionError(null);
     setProcessingId(id);
     try {
-      await pricingService.approveRequest(id);
+      await pricingService.approveRequest(id, resolution);
+      setConflictApprovalId(null);
+      setConflictOrders(null);
       await loadRequests();
       onDataChanged?.();
     } catch (err: any) {
-      setActionError(err?.response?.data?.detail || err?.response?.data?.message || 'Không thể phê duyệt phiếu đổi giá.');
+      const data = err?.response?.data;
+      if (data?.errorCode === 'PRICE_CHANGE_PO_CONFLICT') {
+        const conflicting: ConflictingPurchaseOrderInfo[] = data?.conflictingPurchaseOrders || [];
+        setConflictApprovalId(id);
+        setConflictOrders(conflicting);
+        return;
+      }
+      setActionError(data?.detail || data?.message || 'Không thể phê duyệt phiếu đổi giá.');
     } finally {
       setProcessingId(null);
     }
@@ -289,7 +302,20 @@ export const PriceManagementModal: React.FC<PriceManagementModalProps> = ({
                               </button>
                             </td>
                             <td>
-                              <strong>{r.reason}</strong>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                                {r.reasonType && (
+                                  <Badge tone={r.reasonType === 'FROM_PURCHASE_ORDER' ? 'info' : 'neutral'}>
+                                    {r.reasonType === 'SHORTAGE'
+                                      ? 'Khan hàng'
+                                      : r.reasonType === 'PROMOTION'
+                                      ? 'Khuyến mãi'
+                                      : r.reasonType === 'FROM_PURCHASE_ORDER'
+                                      ? 'Đơn mua'
+                                      : 'Khác'}
+                                  </Badge>
+                                )}
+                                <strong>{r.reason}</strong>
+                              </div>
                               <span style={{ display: 'block', fontSize: '10px', color: '#64748b' }}>
                                 ID: {r.id.slice(0, 8)}... · {r.items.length} mặt hàng
                               </span>
@@ -574,6 +600,66 @@ export const PriceManagementModal: React.FC<PriceManagementModalProps> = ({
               </Button>
               <Button variant="danger" onClick={handleCancelScheduled} disabled={Boolean(processingId)}>
                 {processingId ? 'Đang hủy...' : 'Xác nhận hủy giá'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Modal xử lý xung đột giá chờ từ đơn mua (Q19) khi duyệt */}
+      {conflictApprovalId && conflictOrders && conflictOrders.length > 0 && (
+        <Modal
+          title="Xung đột giá chờ từ đơn mua (Q19)"
+          onClose={() => {
+            setConflictApprovalId(null);
+            setConflictOrders(null);
+          }}
+        >
+          <div style={{ padding: '8px 12px' }}>
+            <p style={{ fontSize: '13px', color: '#334155', marginBottom: '10px' }}>
+              Phiếu đổi giá này xung đột với cấu hình giá bán của các đơn mua đã duyệt chờ nhập kho:
+            </p>
+            <ul style={{ maxHeight: 180, overflowY: 'auto', marginBottom: 16, paddingLeft: 20 }}>
+              {conflictOrders.map((po) => (
+                <li key={`${po.purchaseOrderId}-${po.priceListId}`} style={{ marginBottom: 8, fontSize: '12px' }}>
+                  <strong>Đơn mua: {po.purchaseOrderNumber}</strong>
+                  <br />
+                  <small style={{ color: '#64748b' }}>
+                    {po.priceListCode === 'wholesale' ? 'Bán sỉ' : 'Bán lẻ'} ·{' '}
+                    {po.mode === 'WAC_MARGIN'
+                      ? `WAC + ${po.marginPercent}%`
+                      : `Giá cố định ${(po.fixedPrice ?? 0).toLocaleString('vi-VN')} ₫`}
+                  </small>
+                </li>
+              ))}
+            </ul>
+            <p style={{ fontSize: '12px', color: '#64748b', marginBottom: '14px' }}>
+              Vui lòng chọn cách xử lý xung đột để hoàn tất duyệt phiếu:
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <Button
+                variant="primary"
+                onClick={() => handleApprove(conflictApprovalId, 'KEEP_MANUAL')}
+                disabled={Boolean(processingId)}
+              >
+                Giữ giá vừa đặt (Hủy cấu hình đổi giá của đơn mua trên)
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => handleApprove(conflictApprovalId, 'APPLY_PO_LATER')}
+                disabled={Boolean(processingId)}
+              >
+                Cập nhật theo đơn mua khi nhập kho (Áp dụng giá này tạm thời, khi nhập đơn mua sẽ ghi đè)
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setConflictApprovalId(null);
+                  setConflictOrders(null);
+                }}
+                disabled={Boolean(processingId)}
+              >
+                Hủy bỏ
               </Button>
             </div>
           </div>

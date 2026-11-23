@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Interfaces;
+using OISM.Application.Common.Services;
 using OISM.Application.Features.Inventory.Services;
 using OISM.Application.Features.Orders.Dtos;
 using OISM.Application.Features.StockTransfers.Dtos;
@@ -27,19 +28,22 @@ public class StockTransferService : IStockTransferService
     private readonly IWacCalculator _wacCalculator;
     private readonly IRealtimeNotifier? _realtimeNotifier;
     private readonly ILogger<StockTransferService> _logger;
+    private readonly ICostVisibilityService _costVisibilityService;
 
     public StockTransferService(
         IAppDbContext context,
         ICurrentTenantService tenantService,
         IWacCalculator wacCalculator,
         ILogger<StockTransferService> logger,
-        IRealtimeNotifier? realtimeNotifier = null)
+        IRealtimeNotifier? realtimeNotifier = null,
+        ICostVisibilityService? costVisibilityService = null)
     {
         _context = context;
         _tenantService = tenantService;
         _wacCalculator = wacCalculator;
         _logger = logger;
         _realtimeNotifier = realtimeNotifier;
+        _costVisibilityService = costVisibilityService ?? AllowAllCostVisibilityService.Instance;
     }
 
     public async Task<StockTransferResponseDto> CreateTransferAsync(
@@ -806,10 +810,15 @@ public class StockTransferService : IStockTransferService
             .Include(t => t.Items)
                 .ThenInclude(i => i.Sku)
                     .ThenInclude(s => s!.Product)
+            .Include(t => t.Items)
+                .ThenInclude(i => i.Sku)
+                    .ThenInclude(s => s!.BaseUnit)
             .AsNoTracking()
             .FirstOrDefaultAsync(t => t.TenantId == tenantId && t.Id == transferId, ct);
 
-        return transfer == null ? null : MapToResponse(transfer);
+        if (transfer == null) return null;
+        var userNames = await LoadUserNamesAsync(tenantId!.Value, new[] { transfer }, ct);
+        return MapToResponse(transfer, userNames);
     }
 
     public async Task<PagedResultDto<StockTransferResponseDto>> GetTransfersAsync(StockTransferFilterRequestDto filter, CancellationToken ct = default)
@@ -828,6 +837,9 @@ public class StockTransferService : IStockTransferService
             .Include(t => t.Items)
                 .ThenInclude(i => i.Sku)
                     .ThenInclude(s => s!.Product)
+            .Include(t => t.Items)
+                .ThenInclude(i => i.Sku)
+                    .ThenInclude(s => s!.BaseUnit)
             .AsNoTracking()
             .Where(t => t.TenantId == tenantId);
 
@@ -858,9 +870,10 @@ public class StockTransferService : IStockTransferService
             .Take(pageSize)
             .ToListAsync(ct);
 
+        var userNames = await LoadUserNamesAsync(tenantId!.Value, items, ct);
         return new PagedResultDto<StockTransferResponseDto>
         {
-            Items = items.Select(MapToResponse).ToList(),
+            Items = items.Select(t => MapToResponse(t, userNames)).ToList(),
             TotalCount = totalCount,
             PageNumber = pageNumber,
             PageSize = pageSize
@@ -923,6 +936,9 @@ public class StockTransferService : IStockTransferService
             .Include(t => t.Items)
                 .ThenInclude(i => i.Sku)
                     .ThenInclude(s => s!.Product)
+            .Include(t => t.Items)
+                .ThenInclude(i => i.Sku)
+                    .ThenInclude(s => s!.BaseUnit)
             .AsNoTracking()
             .FirstOrDefaultAsync(t => t.TenantId == tenantId && t.Id == transferId, ct);
 
@@ -931,13 +947,40 @@ public class StockTransferService : IStockTransferService
             throw new OismException("NOT_FOUND", "Không tìm thấy phiếu chuyển kho.", 404);
         }
 
-        var res = MapToResponse(transfer);
+        var userNames = await LoadUserNamesAsync(tenantId, new[] { transfer }, ct);
+        var res = MapToResponse(transfer, userNames);
         res.IsReplay = isReplay;
         return res;
     }
 
-    private static StockTransferResponseDto MapToResponse(StockTransfer transfer)
+    private async Task<Dictionary<Guid, string>> LoadUserNamesAsync(
+        Guid tenantId,
+        IEnumerable<StockTransfer> transfers,
+        CancellationToken ct)
     {
+        var userIds = transfers
+            .SelectMany(t => new Guid?[] { t.CreatedBy, t.DispatchedBy, t.ReceivedBy })
+            .Where(id => id.HasValue && id.Value != Guid.Empty)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToList();
+
+        if (userIds.Count == 0)
+        {
+            return new Dictionary<Guid, string>();
+        }
+
+        return await _context.Users
+            .AsNoTracking()
+            .Where(u => u.TenantId == tenantId && userIds.Contains(u.Id))
+            .ToDictionaryAsync(u => u.Id, u => u.DisplayName, ct);
+    }
+
+    private StockTransferResponseDto MapToResponse(StockTransfer transfer, IReadOnlyDictionary<Guid, string>? userNames = null)
+    {
+        string? ResolveName(Guid? id, string? fallback) =>
+            id.HasValue && userNames != null && userNames.TryGetValue(id.Value, out var name) ? name : fallback;
+
         return new StockTransferResponseDto
         {
             Id = transfer.Id,
@@ -953,10 +996,13 @@ public class StockTransferService : IStockTransferService
             ToWarehouseName = transfer.ToWarehouse?.Name,
             Status = transfer.Status,
             CreatedBy = transfer.CreatedBy,
+            CreatedByName = ResolveName(transfer.CreatedBy, transfer.CreatedByUser?.DisplayName),
             DispatchedBy = transfer.DispatchedBy,
+            DispatchedByName = ResolveName(transfer.DispatchedBy, transfer.DispatchedByUser?.DisplayName),
             DispatchedAt = transfer.DispatchedAt,
             ReceivedAt = transfer.ReceivedAt,
             ReceivedBy = transfer.ReceivedBy,
+            ReceivedByName = ResolveName(transfer.ReceivedBy, transfer.ReceivedByUser?.DisplayName),
             Note = transfer.Note,
             CreatedAt = transfer.CreatedAt,
             Items = transfer.Items.Select(i => new StockTransferItemResponseDto
@@ -965,8 +1011,9 @@ public class StockTransferService : IStockTransferService
                 SkuId = i.SkuId,
                 SkuCode = i.Sku?.Code ?? i.Sku?.SKU ?? string.Empty,
                 ProductName = i.Sku?.Product?.Name ?? string.Empty,
+                BaseUnitName = i.Sku?.BaseUnit?.Name ?? i.Sku?.Unit ?? string.Empty,
                 Quantity = i.Quantity,
-                UnitCost = i.UnitCost
+                UnitCost = _costVisibilityService.CanViewCost ? i.UnitCost : null
             }).ToList()
         };
     }

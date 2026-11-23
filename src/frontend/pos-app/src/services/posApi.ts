@@ -187,6 +187,7 @@ export async function scanPosBarcode(barcode: string, branchId?: string): Promis
 export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{
   success: boolean;
   message: string;
+  orderId?: string;
   orderNumber?: string;
   receiptNumber?: string;
   receipt?: any;
@@ -232,9 +233,16 @@ export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{
       try { mapServerReceipt(data.receipt, ''); }
       catch { return { success: false, isUnknown: true, message: 'Snapshot hóa đơn từ máy chủ không hợp lệ. Giữ nguyên yêu cầu để đối soát/thử lại.' }; }
       const receiptNumber = data.receipt.receiptNumber;
+      const resolvedOrderId =
+        typeof data.orderId === 'string' && data.orderId.trim()
+          ? data.orderId.trim()
+          : typeof data.receipt?.orderId === 'string' && data.receipt.orderId.trim()
+            ? data.receipt.orderId.trim()
+            : undefined;
       return {
         success: true,
         message: 'Thanh toán đơn hàng thành công!',
+        orderId: resolvedOrderId,
         orderNumber: serverOrderNumber,
         receiptNumber,
         receipt: data?.receipt,
@@ -271,4 +279,35 @@ export async function checkoutPosOrder(request: PosCheckoutRequest): Promise<{
       message: `Không thể kết nối đến máy chủ để thực hiện thanh toán (${err.message || 'Lỗi mạng'}). Giỏ hàng được giữ nguyên.`,
     };
   }
+}
+
+export class PosGoodsIssueFetchError extends Error {
+  status?: number;
+  constructor(message: string, status?: number) {
+    super(message);
+    this.name = 'PosGoodsIssueFetchError';
+    this.status = status;
+  }
+}
+
+export async function getPosOrderGoodsIssues(orderId: string): Promise<import('../types/pos').PosGoodsIssue[]> {
+  const res = await authenticatedFetch(`${API_BASE_URL}/api/pos/orders/${encodeURIComponent(orderId)}/goods-issues`, {
+    method: 'GET',
+    headers: getHeaders(),
+  });
+
+  if (res.status === 404) {
+    throw new PosGoodsIssueFetchError('Không tìm thấy phiếu xuất kho của đơn này', 404);
+  }
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new PosGoodsIssueFetchError(
+      err.detail || err.message || `Không thể tải phiếu xuất kho (HTTP ${res.status}).`,
+      res.status
+    );
+  }
+
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
 }
