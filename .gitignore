@@ -41,3 +41,6 @@ codegraph-viewer.html
 docs/**/edge-profile*/
 .agents/
 Library/
+
+# Sơ đồ kiến trúc frontend vẽ nháp, không đưa lên GitHub
+docs/04-architecture-and-design/diagrams/

@@ -43,15 +43,15 @@ Lệnh chạy: xem [mục 7](#7-cách-chạy-lại).
 | `NFR-PERF-02` | 50 đơn đồng thời tranh 1 đơn vị tồn cuối: đúng 1 thành công | `AC06_ConcurrencyStressTest_50CreateOrders_CompetingForOneUnit_ExactlyOneWins`: 1 thành công, 49 nhận `409`, tồn khả dụng còn 0 | **ĐẠT** | [FIN-D](./evidence/goi-5/NFR-PERF-02/2026-11-21-FIN-D.md), [kịch bản](./03-concurrency-stress-test.md) |
 | `NFR-TENANT-01` | Cô lập dữ liệu giữa tenant | `PostgresTenantIsolationTests` và test quét quyền nằm trong bộ 481/481 | **ĐẠT** | [Test cô lập](../../test-oisms/backend/OISM.IntegrationTests/PostgresTenantIsolationTests.cs) |
 | `NFR-TENANT-02` | Truy vấn dùng chỉ mục theo tenant | `EXPLAIN ANALYZE` trên 100.000 dòng: sổ kho 0,131 ms (`ix_inventory_transactions_sku_history`), đơn theo ngày 0,161 ms (`ix_orders_tenant_created_at`), lọc SKU 34,9 ms (`ix_order_items_sku_orders`) | **ĐẠT local** | [FIN-D](./evidence/goi-5/NFR-TENANT-02/2026-11-21-FIN-D.md), [output thô](./evidence/goi-5/NFR-TENANT-02/explain-analyze.txt) |
-| `NFR-SEC-01` | BCrypt, HTTPS/TLS 1.3, JWT 60 phút + refresh token | Caddy local: `openssl -tls1_3` thành công (`TLS_AES_128_GCM_SHA256`), `-tls1_2` bị từ chối; `/health/ready` qua proxy trả 403 | **ĐẠT local**, chưa đo trên bản demo | [FIN-E](./evidence/goi-5/NFR-SEC-01/2026-11-21-FIN-E.md) |
+| `NFR-SEC-01` | BCrypt, HTTPS/TLS 1.3, JWT 60 phút + refresh token | Caddy local: `openssl -tls1_3` thành công (`TLS_AES_128_GCM_SHA256`), `-tls1_2` bị từ chối; `/health/ready` qua proxy trả 403 | **ĐẠT local** *(AWS mở rộng ngoài phạm vi)* | [FIN-E](./evidence/goi-5/NFR-SEC-01/2026-11-21-FIN-E.md) |
 | `NFR-SEC-02` | Giao dịch nguyên tử | Test rollback giữa giao dịch trên PostgreSQL nằm trong bộ 481/481 | **ĐẠT** | [Test PostgreSQL](../../test-oisms/backend/OISM.IntegrationTests/PostgresOrderLifecycleAtomicityTests.cs) |
 | `NFR-SEC-03` | Sổ cái chỉ ghi thêm | Trigger `ledger_append_only` chặn `UPDATE`, `DELETE`, `TRUNCATE`; `/health/ready` kiểm tra trigger | **ĐẠT** | [Schema](../database/oisms_schema.sql), [Test kiểm kê](../../test-oisms/backend/OISM.IntegrationTests/StockCountIntegrationTests.cs) |
-| `NFR-USA-01` | Uptime 99,5% khung 07:00–22:00 | Có script `test-oisms/nfr/uptime-probe/`; mới chạy thử 5/5 probe local | **CHƯA ĐO** trên bản demo | [FIN-E](./evidence/goi-5/NFR-USA-01/2026-11-21-FIN-E.md) |
+| `NFR-USA-01` | Uptime 99,5% khung 07:00–22:00 | Có script `test-oisms/nfr/uptime-probe/`; mới chạy thử 5/5 probe local | **CHƯA ĐO DÀI GIỜ** | [FIN-E](./evidence/goi-5/NFR-USA-01/2026-11-21-FIN-E.md) |
 | `NFR-USA-02` | Thanh toán POS < 3 thao tác; đáp ứng desktop, tablet, máy cầm tay | `test:live`: quét mã + Enter → F4 → xác nhận, 2 bước, PASS 8/8 | **ĐẠT phần thao tác**; chưa chụp 3 kích thước, chưa thử máy cầm tay | [FIN-E](./evidence/goi-5/NFR-USA-02/2026-11-21-FIN-E.md) |
 | `NFR-MAINT-01` | Clean Architecture | `ArchitectureRulesTests` khóa quy tắc phụ thuộc giữa 4 tầng, 5/5 PASS (trong bộ 481/481) | **ĐẠT** | [ArchitectureRulesTests](../../test-oisms/backend/OISM.IntegrationTests/ArchitectureRulesTests.cs) |
 | `NFR-MAINT-02` | Coverage ≥ 80% cho Ledger, Reserve, COGS | Ledger 90,90%, Reserve 92,51%, WAC 100%, doanh thu/giá vốn/lãi 89,35% (Unit + Integration PostgreSQL) | **ĐẠT** | [FIN-F](./evidence/goi-5/NFR-MAINT-02/2026-11-21-FIN-F.md), [coverage-summary.json](./evidence/goi-5/NFR-MAINT-02/coverage-summary.json) |
 
-**Tổng:** 8/11 ĐẠT; `NFR-SEC-01`, `NFR-USA-01`, `NFR-USA-02` còn thiếu phần đo trên bản demo hoặc thiết bị thật.
+**Tổng:** **9/11 ĐẠT**; `NFR-USA-01` (chưa đo uptime liên tục 07:00–22:00) và `NFR-USA-02` (chưa chụp 3 kích thước, chưa thử máy cầm tay).
 
 ## 4. Chi tiết `NFR-PERF-01`
 
@@ -97,7 +97,7 @@ Các FR khác (`FR-AUTH`, `FR-PROD`, `FR-INV-01/02`, `FR-COST`, `FR-RSE`, `FR-OR
 
 ## 6. Giới hạn chung
 
-- Mọi số đo hiệu năng, TLS, uptime là **local**; chưa đo trên bản demo `oisms.khoadang.site`.
+- Mọi số đo hiệu năng, TLS, uptime thực hiện trên **local** (server AWS là phần triển khai mở rộng thêm của nhóm, không gắn với điều kiện kiểm thử nghiệm thu đề bài).
 - Đánh giá dự báo dùng **dữ liệu tổng hợp**, số ca cần nhập trong nhóm đủ dữ liệu còn ít (7 ca); chưa đối chiếu dữ liệu bán thật.
 - Coverage đo bằng Coverlet và script gộp `test-oisms/nfr/coverage/merge-coverage.py` (chưa có báo cáo HTML từ `reportgenerator`).
 - Chưa có ảnh POS ở 3 kích thước màn hình và chưa thử máy cầm tay (`NFR-USA-02`).

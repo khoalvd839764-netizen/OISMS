@@ -36,18 +36,18 @@ Các file `fr-*.md` đặc tả yêu cầu. Xem [checklist theo từng mã](../.
 | Mã | Hiện trạng | Ghi chú |
 | :--- | :--- | :--- |
 | `FR-AUTH-01..02` | Đã có | Đăng ký tạo Tenant và Owner. Owner tạo chi nhánh/kho qua màn tổ chức. Đăng nhập bằng email hoặc SĐT; quên mật khẩu qua link email và Owner đặt lại hộ nhân viên (Upgrade 10, 15/11/2026). Chưa có OTP SMS. |
-| `FR-AUTH-03` | Đã có, còn lệch | Xem [lệch RBAC](../01-users-and-rbac/02-rbac-matrix.md#21-lệch-giữa-yêu-cầu-và-code-hiện-tại-đối-chiếu-06112026). |
-| `FR-AUTH-04` | Đã có | Phân công người dùng vào chi nhánh (phần của CS-02) chưa có. |
-| `FR-PROD-01..04` | Đã có các luồng chính | Quét barcode đã có tại POS, còn thiếu tại màn kiểm kê. Giá theo bảng giá và phiếu đổi giá (Upgrade 04), có nhiều đơn vị tính (Upgrade 05). |
-| `FR-INV-01..04` | Đã có | Phiếu mua → phiếu nhập (Upgrade 01-A), lịch/kỳ kiểm kê, duyệt chênh lệch (Upgrade 03). Trả hàng (`Return`, CS-01): backend đã hoàn thành API, ghi sổ cái IN, tính lại WAC, khấu trừ doanh thu/giá vốn thuần và truy vết chuỗi chứng từ (09/11/2026). |
-| `FR-COST-01..02` | Đã có | WAC theo đơn vị gốc, chụp `CostPrice` khi Confirm/POS. |
+| `FR-AUTH-03` | Đã có, đã chốt | Đã đóng lệch RBAC (14/11/2026): che giá vốn `averageCost = null` với Cashier/Staff, ghi kho chỉ Owner, xóa catalog chỉ Owner. Xem [ma trận RBAC](../01-users-and-rbac/02-rbac-matrix.md#21-lệch-giữa-yêu-cầu-và-code-hiện-tại-đối-chiếu-06112026). |
+| `FR-AUTH-04` | Đã có | Đã có phân công nhiều chi nhánh cho nhân viên (`user_branches`, CS-02, 14/11/2026). |
+| `FR-PROD-01..04` | Đã có các luồng chính | Quét barcode đã có tại POS; phần quét barcode ở màn kiểm kê không làm theo quyết định 21/11/2026 (thiếu thiết bị). Giá theo bảng giá và phiếu đổi giá (Upgrade 04), có nhiều đơn vị tính (Upgrade 05). |
+| `FR-INV-01..04` | Đã có | Phiếu mua → phiếu nhập (Upgrade 01-A, Upgrade 12), lịch/kỳ kiểm kê, duyệt chênh lệch (Upgrade 03). Trả hàng (`Return`, CS-01): hoàn thành API & UI, ghi sổ cái IN, tính lại WAC, khấu trừ doanh thu/giá vốn thuần. |
+| `FR-COST-01..02` | Đã có | WAC theo đơn vị gốc (phân bổ phí theo VAS 02, tách VAT), chụp `CostPrice` khi Confirm/POS. |
 | `FR-RSE-01..03` | Đã có | Khóa `pg_advisory_xact_lock` + `FOR UPDATE`. |
-| `FR-ORD-01..03` | Đã có mô hình đa kênh và xử lý đơn | Đơn Admin/webhook bắt đầu ở `Reserved`. Có hóa đơn bán và truy vết (Upgrade 02). In phiếu giao hàng còn Coming soon. |
-| `FR-POS-01..04` | Đã có checkout và in biên nhận thủ công | Một ứng dụng `pos-app` (5174), Admin `/pos` chuyển hướng. Thu ngân bấm **In** ở bản xem trước để mở hộp thoại in của trình duyệt. |
-| `FR-SIM-01..02` | Simulator đã có, thông báo POS còn thiếu | Simulator gửi 1–200 đơn đồng thời. Admin nhận thông báo đơn mới. POS nhận `StockLevelChanged` và tải lại tồn khi kết nối lại, chưa có popup/âm thanh đơn mới. |
-| `FR-SIM-03` | Đã có job hết hạn và sinh kỳ kiểm kê | Chưa có job tổng hợp báo cáo hằng ngày. [Đặc tả Hangfire](./fr-10-background-hangfire.md) |
-| `FR-REP-01..03` | Đã có báo cáo và cảnh báo tồn | Báo cáo theo ngày nghiệp vụ `UTC+07:00`, trừ hàng trả, giá vốn và lãi gộp chỉ Owner xem. Còn thiếu lọc doanh thu theo SKU. |
-| `FR-AI-01` | Đã có API và bảng Admin | Mở lại tab Gợi ý nhập hàng cho Owner và Staff ngày 10/11/2026 trên nhánh `feature/OISMS-58-chatbot-ai`. |
-| `FR-AI-02` | Đã có API và panel Admin, mặc định tắt | Claude nghiệm thu 10/11/2026, PR #42 vào `develop`. Không có kinh phí nên API AI chỉ dùng gói miễn phí, hạn mức rất thấp (xem [fr-13](./fr-13-ai-assistant.md)). |
+| `FR-ORD-01..03` | Đã có mô hình đa kênh và xử lý đơn | Đơn Admin/webhook bắt đầu ở `Reserved`. Có hóa đơn bán và truy vết (Upgrade 02). Đã có in phiếu giao hàng A4/80 mm (Gói 4, 15/11/2026). |
+| `FR-POS-01..04` | Đã có checkout và tự động in biên nhận | Một ứng dụng `pos-app` (5174), Admin `/pos` chuyển hướng. Tự mở hộp thoại in biên nhận sau checkout thành công (Gói 4, 15/11/2026) và in phiếu xuất kho `02-VT` (Upgrade 14, 21/11/2026). |
+| `FR-SIM-01..02` | Đã có | Simulator gửi 1–200 đơn đồng thời. Admin nhận thông báo đơn mới. POS nhận `BranchOrderCreated` theo chi nhánh kèm toast/âm thanh (Gói 4, 15/11/2026). |
+| `FR-SIM-03` | Đã có đủ 3 nhóm job | Có job hết hạn giữ chỗ, job sinh kỳ kiểm kê và job tổng hợp báo cáo hằng ngày `oisms-daily-sales-summary` (15/11/2026). [Đặc tả Hangfire](./fr-10-background-hangfire.md) |
+| `FR-REP-01..03` | Đã có đầy đủ báo cáo và cảnh báo tồn | Báo cáo theo ngày nghiệp vụ `UTC+07:00`, trừ hàng trả, phân bổ chiết khấu, giá vốn/lãi gộp chỉ Owner xem. Đã có lọc tối đa 20 SKU + `skuBreakdown` (21/11/2026). |
+| `FR-AI-01` | Đã có API và bảng Admin | Đã đánh giá backtest (21/11/2026): WAPE `7,70%`, Recall `100%` (7/7) trên dữ liệu tổng hợp. |
+| `FR-AI-02` | Đã có API và panel Admin, mặc định tắt ở local | Claude nghiệm thu 10/11/2026, PR #42 vào `develop` (bật trên bản demo). API AI dùng gói miễn phí hạn mức thấp (xem [fr-13](./fr-13-ai-assistant.md)). |
 
-Còn thiếu theo danh sách Coming Soon: CS-06. U01-B đã làm rồi được Upgrade 12 thay thế (19/11/2026). CS-01 (trả hàng) đã xong (PR #41). CS-05 (VietQR) đã xong, chưa có xác nhận tự động qua webhook ngân hàng. Chi tiết: [báo cáo frontend](../report-after-upgrade/frontend-coming-soon-va-upgrade.md).
+Trạng thái Coming Soon & Upgrade (cập nhật 23/11/2026): `CS-01..CS-08` đã hoàn thành (`CS-05` VietQR thủ công xong, webhook ngân hàng tự động tạm gác). `U01-B` đã được thay thế bởi `Upgrade 12` (19/11/2026); `Upgrade 13` (tồn kho theo kỳ) và `Upgrade 14` (in chứng từ `02-VT`) đã hoàn thành (21/11/2026). Chi tiết: [checklist.md](../../checklist.md).

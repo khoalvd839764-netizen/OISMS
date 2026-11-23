@@ -123,6 +123,7 @@ Lưu ý: kỳ kiểm kê chỉ tự sinh khi bật Hangfire (`Hangfire:Enabled=t
 - [x] Upgrade 01-B: cách xử lý chênh lệch hóa đơn nhà cung cấp. Nhóm chốt 12/11/2026, xem [đặc tả 01](../Upgrade-recommended/Done/01-mua-hang-nhap-kho-gia-von.md#quyết-định-01-b-chốt-12112026); báo GVHD khi nghiệm thu.
 - [ ] Màn Handoff: bỏ đặc tả [07-handoff-screens.md](../11-ui-screens/07-handoff-screens.md) hay làm lại.
 - [ ] Đơn vị mặc định cho phép 3 chữ số lẻ, nên POS nhận cả số lẻ với "Cái": có cấm hay không.
+- [ ] Mã cửa hàng (`TenantCode`) không được lưu: `RegisterTenantValidator` bắt buộc 3–30 ký tự (Admin tự sinh từ tên cửa hàng nếu để trống), nhưng `Tenant.Code` là `[NotMapped]` và bảng `tenants` không có cột `code`. Mã chỉ có trong phản hồi 201 của `POST /api/auth/register-tenant`; sau đó `tenantCode` trong hồ sơ đăng nhập và `/api/auth/me` luôn rỗng. Hành vi này khớp [vòng đời tenant v1.1.0](../01-users-and-rbac/03-tenant-lifecycle.md). Cần chọn: lưu cột `code` (migration mới, `oisms_schema.sql`, cấu hình EF, ràng buộc duy nhất) hay bỏ trường khỏi form và DTO. *(Ghi 23/11/2026 khi vẽ sơ đồ 3.7.)*
 - [x] Kiểm chứng lại BF-019, BF-020 trên `pos-app` hiện tại (FIN-G, 21/11/2026). *(BF-003, BF-015 đã kiểm chứng 11/11/2026 bằng `npm test` POS 89/89.)*
 
 ---
