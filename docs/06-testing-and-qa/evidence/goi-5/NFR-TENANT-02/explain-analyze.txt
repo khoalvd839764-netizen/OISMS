@@ -1,0 +1,59 @@
+       table_name       | approx_rows | total_size 
+------------------------+-------------+------------
+ inventory_transactions |      100025 | 141 MB
+ order_items            |      100000 | 115 MB
+ orders                 |       50000 | 77 MB
+ skus                   |          25 | 128 kB
+ inventory_balances     |          25 | 72 kB
+(5 rows)
+
+                                                                                                                          QUERY PLAN                                                                                                                           
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.42..56.74 rows=50 width=46) (actual time=0.037..0.084 rows=50 loops=1)
+   Buffers: shared hit=46 read=3
+   ->  Index Scan Backward using ix_inventory_transactions_sku_history on inventory_transactions  (cost=0.42..4295.50 rows=3813 width=46) (actual time=0.036..0.081 rows=50 loops=1)
+         Index Cond: ((tenant_id = '88888888-0000-0000-0000-000000000001'::uuid) AND (branch_id = '88888888-0000-0000-0001-000000000001'::uuid) AND (sku_id = '88888888-0000-0000-0006-000000000001'::uuid) AND (created_at >= (now() - '30 days'::interval)))
+         Buffers: shared hit=46 read=3
+ Planning:
+   Buffers: shared hit=64 read=2 dirtied=2
+ Planning Time: 0.566 ms
+ Execution Time: 0.131 ms
+(9 rows)
+
+                                                                         QUERY PLAN                                                                         
+------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit  (cost=0.29..22.14 rows=50 width=59) (actual time=0.028..0.148 rows=50 loops=1)
+   Buffers: shared hit=38 read=2
+   ->  Index Scan Backward using ix_orders_tenant_created_at on orders  (cost=0.29..5112.00 rows=11698 width=59) (actual time=0.028..0.145 rows=50 loops=1)
+         Index Cond: ((tenant_id = '88888888-0000-0000-0000-000000000001'::uuid) AND (created_at >= (now() - '7 days'::interval)))
+         Buffers: shared hit=38 read=2
+ Planning:
+   Buffers: shared hit=41 read=2 dirtied=4
+ Planning Time: 0.407 ms
+ Execution Time: 0.161 ms
+(9 rows)
+
+                                                                                         QUERY PLAN                                                                                          
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Hash Semi Join  (cost=5016.42..8820.81 rows=3890 width=49) (actual time=18.653..34.680 rows=4000 loops=1)
+   Hash Cond: (o.id = oi.order_id)
+   Buffers: shared hit=4529 read=2025
+   ->  Seq Scan on orders o  (cost=0.00..3625.00 rows=50000 width=49) (actual time=2.709..15.320 rows=50000 loops=1)
+         Filter: (((status)::text = ANY ('{Confirmed,Completed}'::text[])) AND (tenant_id = '88888888-0000-0000-0000-000000000001'::uuid) AND (created_at >= (now() - '30 days'::interval)))
+         Buffers: shared hit=2500
+   ->  Hash  (cost=4967.79..4967.79 rows=3890 width=16) (actual time=15.894..15.896 rows=4000 loops=1)
+         Buckets: 4096  Batches: 1  Memory Usage: 220kB
+         Buffers: shared hit=2029 read=2025
+         ->  Bitmap Heap Scan on order_items oi  (cost=424.29..4967.79 rows=3890 width=16) (actual time=12.040..15.398 rows=4000 loops=1)
+               Recheck Cond: ((tenant_id = '88888888-0000-0000-0000-000000000001'::uuid) AND (sku_id = ANY ('{88888888-0000-0000-0006-000000000001}'::uuid[])))
+               Heap Blocks: exact=4000
+               Buffers: shared hit=2029 read=2025
+               ->  Bitmap Index Scan on ix_order_items_sku_orders  (cost=0.00..423.32 rows=3890 width=0) (actual time=1.372..1.372 rows=8000 loops=1)
+                     Index Cond: ((tenant_id = '88888888-0000-0000-0000-000000000001'::uuid) AND (sku_id = ANY ('{88888888-0000-0000-0006-000000000001}'::uuid[])))
+                     Buffers: shared read=54
+ Planning:
+   Buffers: shared hit=105
+ Planning Time: 0.894 ms
+ Execution Time: 34.898 ms
+(20 rows)
+

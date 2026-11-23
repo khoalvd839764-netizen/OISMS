@@ -62,10 +62,12 @@ public static class PurchaseOrderSeed
             TenantId = tenantId,
             BranchId = branchId,
             SupplierId = supplierId,
+            OrderDate = DateOnly.FromDateTime(now.ToOffset(TimeSpan.FromHours(7)).DateTime),
             Number = $"PO-{now:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..6].ToUpperInvariant()}",
-            Status = "Draft",
+            Status = "PendingApproval",
             Note = "Seeded approved PO for integration test",
             RequestKey = Guid.NewGuid(),
+            Version = 1,
             CreatedBy = userId,
             CreatedAt = now,
             UpdatedAt = now
@@ -106,6 +108,7 @@ public static class PurchaseOrderSeed
                 Quantity = line.OrderedQuantity,
                 ReceivedBaseQuantity = 0m,
                 UnitPrice = line.UnitPrice,
+                AllocatedUnitCost = line.UnitPrice,
                 CreatedAt = now,
                 UpdatedAt = now
             };
@@ -113,7 +116,7 @@ public static class PurchaseOrderSeed
             poItems.Add(poItem);
         }
 
-        // Bước 1: Lưu PO ở trạng thái Draft kèm các dòng (thỏa mãn trg_purchase_order_item_guard)
+        // Bước 1: Lưu PO ở trạng thái PendingApproval kèm các dòng đã có unit_price & allocated_unit_cost (thỏa mãn trg_purchase_order_item_guard)
         context.PurchaseOrders.Add(po);
         context.PurchaseOrderItems.AddRange(poItems);
         await context.SaveChangesAsync();
@@ -122,6 +125,7 @@ public static class PurchaseOrderSeed
         po.Status = "Approved";
         po.ApprovedBy = userId;
         po.ApprovedAt = DateTimeOffset.UtcNow;
+        po.Version = 2;
         po.UpdatedAt = DateTimeOffset.UtcNow;
         await context.SaveChangesAsync();
 
@@ -261,9 +265,21 @@ public static class PurchaseOrderSeed
         }
 
         var po = JsonSerializer.Deserialize<PurchaseOrderResponseDto>(createBody, JsonOptions)!;
+        if (po.Status == "Draft")
+        {
+            var submitRes = await client.PostAsync($"/api/purchase-orders/{po.Id}/submit", null);
+            var submitBody = await submitRes.Content.ReadAsStringAsync();
+            if (!submitRes.IsSuccessStatusCode)
+            {
+                throw new InvalidOperationException($"Failed to submit PO via API ({(int)submitRes.StatusCode}): {submitBody}");
+            }
+            po = JsonSerializer.Deserialize<PurchaseOrderResponseDto>(submitBody, JsonOptions)!;
+        }
+
         var approveReq = new ApprovePurchaseOrderRequestDto
         {
-            ConfirmZeroPrice = items.Any(i => i.UnitPrice == 0m)
+            ConfirmZeroPrice = items.Any(i => i.UnitPrice == 0m),
+            Version = po.Version
         };
         var approveRes = await client.PostAsJsonAsync($"/api/purchase-orders/{po.Id}/approve", approveReq);
         var approveBody = await approveRes.Content.ReadAsStringAsync();

@@ -1,4 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
+using OISM.Application.Common.Interfaces;
+using OISM.Application.Common.Services;
 using OISM.Application.Features.Ai.Services;
 using OISM.Application.Features.Ai.Services.Tools;
 using OISM.Application.Features.Auth.Services;
@@ -17,7 +19,6 @@ using OISM.Application.Features.SalesInvoices.Services;
 using OISM.Application.Features.Simulator.Services;
 using OISM.Application.Features.StockCounts.Services;
 using OISM.Application.Features.StockTransfers.Services;
-using OISM.Application.Features.SupplierInvoices;
 using OISM.Application.Features.Suppliers.Services;
 using OISM.Application.Features.Search.Services;
 using OISM.Application.Features.Users.Services;
@@ -34,12 +35,16 @@ public static class DependencyInjection
     public static IServiceCollection AddApplicationServices(this IServiceCollection services)
     {
         services.AddSingleton<IWacCalculator, WacCalculator>();
+        services.AddScoped<CostVisibilityService>();
+        services.AddScoped<ICostVisibilityService>(sp => sp.GetRequiredService<CostVisibilityService>());
+        services.AddScoped<ICostVisibility>(sp => sp.GetRequiredService<CostVisibilityService>());
         services.AddScoped<IGoodsReceiptService, GoodsReceiptService>();
         services.AddScoped<IInventoryService, InventoryService>();
         services.AddScoped<IReservationService, ReservationService>();
         services.AddScoped<IPosCheckoutService, PosCheckoutService>();
         services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<IReportService, ReportService>();
+        services.AddScoped<IInventoryPeriodReportService, InventoryPeriodReportService>();
         services.AddScoped<OISM.Application.Features.Auth.PasswordReset.IPasswordResetService, OISM.Application.Features.Auth.PasswordReset.PasswordResetService>();
         services.AddScoped<OISM.Application.Features.Auth.Welcome.IOwnerWelcomeNotifier, OISM.Application.Features.Auth.Welcome.OwnerWelcomeNotifier>();
         services.AddScoped<IDailySalesSummaryService, DailySalesSummaryService>();
@@ -81,10 +86,12 @@ public static class DependencyInjection
 
         // Purchase Order services
         services.AddScoped<IPurchaseOrderService, PurchaseOrderService>();
-        services.AddScoped<SupplierInvoiceService>();
 
         // Sales Invoice services
         services.AddScoped<ISalesInvoiceService, SalesInvoiceService>();
+
+        // Goods Issue services (U13 - Phiếu xuất kho 02-VT)
+        services.AddScoped<OISM.Application.Features.GoodsIssues.Services.IGoodsIssueService, OISM.Application.Features.GoodsIssues.Services.GoodsIssueService>();
 
         // Payment Accounts services (CS-05 VietQR)
         services.AddScoped<OISM.Application.Features.PaymentAccounts.Services.IPaymentAccountService, OISM.Application.Features.PaymentAccounts.Services.PaymentAccountService>();

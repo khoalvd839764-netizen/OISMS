@@ -103,7 +103,7 @@ public class DocumentTraceLineDto
     public Guid WarehouseId { get; set; }
     public string WarehouseName { get; set; } = string.Empty;
     public decimal Quantity { get; set; }
-    public decimal UnitCost { get; set; }
+    public decimal? UnitCost { get; set; }
     public decimal BalanceAfter { get; set; }
     public long SequenceNo { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
@@ -111,4 +111,6 @@ public class DocumentTraceLineDto
     public Guid? SalesReturnItemId { get; set; }
     public string? UnitName { get; set; }
     public decimal? OrderItemQuantity { get; set; }
+    public Guid? GoodsIssueId { get; set; }
+    public string? GoodsIssueNumber { get; set; }
 }

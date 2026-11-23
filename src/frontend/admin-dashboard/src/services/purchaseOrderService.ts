@@ -1,18 +1,24 @@
 import { httpClient } from './httpClient';
 import type {
+  ApprovePurchaseOrderDto,
+  ClosePurchaseOrderDto,
   CreatePurchaseOrderDto,
   PagedPurchaseOrderResult,
   PurchaseOrderFilter,
+  PurchaseOrderPriceSuggestion,
+  PurchaseOrderPriceSuggestionQuery,
   PurchaseOrderResponse,
+  ReturnPurchaseOrderDto,
   UpdatePurchaseOrderDraftDto,
+  UpdatePurchaseOrderSalePriceConfigsDto,
 } from '../types/purchaseOrder';
 
 export const purchaseOrderService = {
   async getPurchaseOrders(filter?: PurchaseOrderFilter): Promise<PagedPurchaseOrderResult> {
-    const params: Record<string, any> = {};
-    if (filter?.status) params.status = filter.status;
-    if (filter?.supplierId) params.supplierId = filter.supplierId;
-    if (filter?.branchId) params.branchId = filter.branchId;
+    const params: Record<string, string | number> = {};
+    if (filter?.status && filter.status !== 'all') params.status = filter.status;
+    if (filter?.supplierId && filter.supplierId !== 'all') params.supplierId = filter.supplierId;
+    if (filter?.branchId && filter.branchId !== 'all') params.branchId = filter.branchId;
     if (filter?.pageIndex) params.pageIndex = filter.pageIndex;
     if (filter?.pageSize) params.pageSize = filter.pageSize;
 
@@ -25,19 +31,36 @@ export const purchaseOrderService = {
     return res.data;
   },
 
+  async getPriceSuggestion(
+    query: PurchaseOrderPriceSuggestionQuery
+  ): Promise<PurchaseOrderPriceSuggestion> {
+    const params: Record<string, string> = {
+      branchId: query.branchId,
+      skuId: query.skuId,
+    };
+    if (query.supplierId) params.supplierId = query.supplierId;
+    if (query.unitId) params.unitId = query.unitId;
+
+    const res = await httpClient.get<PurchaseOrderPriceSuggestion>(
+      '/api/purchase-orders/price-suggestion',
+      { params }
+    );
+    return res.data;
+  },
+
   async createPurchaseOrder(
     dto: CreatePurchaseOrderDto,
     idempotencyKey: string
-  ): Promise<PurchaseOrderResponse> {
+  ): Promise<{ data: PurchaseOrderResponse; status: number }> {
     const res = await httpClient.post<PurchaseOrderResponse>('/api/purchase-orders', dto, {
       headers: {
         'Idempotency-Key': idempotencyKey,
       },
     });
-    return res.data;
+    return { data: res.data, status: res.status };
   },
 
-  async updatePurchaseOrder(
+  async updateDraftPurchaseOrder(
     id: string,
     dto: UpdatePurchaseOrderDraftDto
   ): Promise<PurchaseOrderResponse> {
@@ -45,13 +68,41 @@ export const purchaseOrderService = {
     return res.data;
   },
 
+  async submitPurchaseOrder(id: string): Promise<PurchaseOrderResponse> {
+    const res = await httpClient.post<PurchaseOrderResponse>(`/api/purchase-orders/${id}/submit`);
+    return res.data;
+  },
+
+  async returnPurchaseOrder(id: string, reason: string): Promise<PurchaseOrderResponse> {
+    const payload: ReturnPurchaseOrderDto = { reason };
+    const res = await httpClient.post<PurchaseOrderResponse>(
+      `/api/purchase-orders/${id}/return`,
+      payload
+    );
+    return res.data;
+  },
+
   async approvePurchaseOrder(
     id: string,
-    confirmZeroPrice = false
+    confirmZeroPrice = false,
+    version?: number,
+    confirmLossPrice = false
   ): Promise<PurchaseOrderResponse> {
+    const payload: ApprovePurchaseOrderDto = { confirmZeroPrice, version, confirmLossPrice };
     const res = await httpClient.post<PurchaseOrderResponse>(
       `/api/purchase-orders/${id}/approve`,
-      { confirmZeroPrice }
+      payload
+    );
+    return res.data;
+  },
+
+  async updateSalePriceConfigs(
+    id: string,
+    dto: UpdatePurchaseOrderSalePriceConfigsDto
+  ): Promise<PurchaseOrderResponse> {
+    const res = await httpClient.put<PurchaseOrderResponse>(
+      `/api/purchase-orders/${id}/sale-price-configs`,
+      dto
     );
     return res.data;
   },
@@ -60,9 +111,10 @@ export const purchaseOrderService = {
     id: string,
     reason: string
   ): Promise<PurchaseOrderResponse> {
+    const payload: ClosePurchaseOrderDto = { reason };
     const res = await httpClient.post<PurchaseOrderResponse>(
       `/api/purchase-orders/${id}/close`,
-      { reason }
+      payload
     );
     return res.data;
   },

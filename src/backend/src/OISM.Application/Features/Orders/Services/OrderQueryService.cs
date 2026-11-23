@@ -9,7 +9,10 @@ using static OISM.Domain.Common.OrderLimits;
 
 namespace OISM.Application.Features.Orders.Services;
 
-internal sealed class OrderQueryService(IAppDbContext context, ICurrentTenantService currentTenantService)
+internal sealed class OrderQueryService(
+    IAppDbContext context,
+    ICurrentTenantService currentTenantService,
+    ICostVisibilityService? costVisibilityService = null)
 {
     internal async Task<OrderResponseDto> MapToOrderResponseDtoAsync(Order order, CancellationToken ct)
     {
@@ -33,8 +36,10 @@ internal sealed class OrderQueryService(IAppDbContext context, ICurrentTenantSer
             .Select(g => new { OrderItemId = g.Key, TotalReturned = g.Sum(i => i.Quantity) })
             .ToDictionaryAsync(x => x.OrderItemId, x => x.TotalReturned, ct);
 
+        var canViewCost = costVisibilityService?.CanViewCost ?? true;
+
         decimal? totalCogs = null;
-        if (order.Items != null && order.Items.Count > 0 && order.Items.All(i => i.CostPrice.HasValue))
+        if (canViewCost && order.Items != null && order.Items.Count > 0 && order.Items.All(i => i.CostPrice.HasValue))
         {
             totalCogs = Math.Round(order.Items.Sum(i => i.BaseQuantity * i.CostPrice!.Value), 6, MidpointRounding.AwayFromZero);
             if (totalCogs > MaxMoneyAmount)
@@ -80,7 +85,7 @@ internal sealed class OrderQueryService(IAppDbContext context, ICurrentTenantSer
                 Quantity = i.Quantity,
                 ReturnedQuantity = returnedQuantities.GetValueOrDefault(i.Id, 0m),
                 UnitPrice = i.UnitPrice,
-                CostPrice = i.CostPrice
+                CostPrice = canViewCost ? i.CostPrice : null
             }).ToList() ?? new List<OrderItemResponseDto>(),
             Payment = order.Payment != null ? new PaymentResponseDto
             {
@@ -248,8 +253,9 @@ internal sealed class OrderQueryService(IAppDbContext context, ICurrentTenantSer
         return detail;
     }
 
-    private static OrderDetailDto MapToDetailDto(Order order, string? branchName = null)
+    private OrderDetailDto MapToDetailDto(Order order, string? branchName = null)
     {
+        var canViewCost = costVisibilityService?.CanViewCost ?? true;
         return new OrderDetailDto
         {
             Id = order.Id,
@@ -283,7 +289,7 @@ internal sealed class OrderQueryService(IAppDbContext context, ICurrentTenantSer
                 BaseQuantity = i.BaseQuantity,
                 Quantity = i.Quantity,
                 UnitPrice = i.UnitPrice,
-                CostPrice = i.CostPrice
+                CostPrice = canViewCost ? i.CostPrice : null
             }).ToList() ?? new List<OrderItemDto>()
         };
     }

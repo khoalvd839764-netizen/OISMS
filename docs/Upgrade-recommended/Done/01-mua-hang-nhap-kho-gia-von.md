@@ -1,6 +1,8 @@
 # 01. Mua hàng, nhập kho và giá vốn
 
-> Trạng thái ngày 12/11/2026. Giai đoạn 01-A đã triển khai phiếu mua, phiếu nhập gắn phiếu mua và cập nhật WAC. Giai đoạn 01-B đã triển khai ngày 12/11/2026: hóa đơn nhà cung cấp, đối chiếu ba bên và chênh lệch có duyệt ([báo cáo 01-B](../../report-after-upgrade/hoa-don-nha-cung-cap-u01b.md)). Yêu cầu phiếu nhập phải có phiếu mua được GVHD ghi nhận ngày 01/11/2026. [Báo cáo triển khai 01-A](../../report-after-upgrade/mua-hang-nhap-kho.md) · [Quyết định 01-B](#quyết-định-01-b-chốt-12112026)
+> **Cập nhật 19/11/2026 (Upgrade 12 — `OISMS-66-L2-G1`):** Phần **U01-B (Hóa đơn nhà cung cấp và đối chiếu ba bên)** đã bị **thay thế bởi [Upgrade 12 — Đơn mua, ẩn giá với Staff và cấu hình giá bán khi nhập kho](../Pedding/12-don-mua-va-cau-hinh-gia.md)**. Cụ thể: gỡ bỏ API `/api/supplier-invoices*`, màn hình hóa đơn NCC và bước ghi đè giá hóa đơn khi xác nhận phiếu nhập; giữ 3 bảng `supplier_invoices`, `supplier_invoice_items`, `purchase_variances` ở chế độ chỉ đọc (`SELECT`); bổ sung trạng thái `PendingApproval`, phân bổ phí vận chuyển & chiết khấu thương mại vào `allocated_unit_cost` trên dòng đơn mua lúc duyệt, và ẩn toàn bộ giá mua/giá vốn với `Staff`. Xem báo cáo triển khai tại [`docs/report-after-upgrade/don-mua-pending-approval-u12.md`](../../report-after-upgrade/don-mua-pending-approval-u12.md).
+>
+> Trạng thái cũ ngày 12/11/2026: Giai đoạn 01-A đã triển khai phiếu mua, phiếu nhập gắn phiếu mua và cập nhật WAC. Giai đoạn 01-B đã triển khai ngày 12/11/2026: hóa đơn nhà cung cấp, đối chiếu ba bên và chênh lệch có duyệt ([báo cáo 01-B](../../report-after-upgrade/hoa-don-nha-cung-cap-u01b.md)). Yêu cầu phiếu nhập phải có phiếu mua được GVHD ghi nhận ngày 01/11/2026. [Báo cáo triển khai 01-A](../../report-after-upgrade/mua-hang-nhap-kho.md) · [Quyết định 01-B](#quyết-định-01-b-chốt-12112026)
 
 ## Quyết định 01-B (chốt 12/11/2026)
 

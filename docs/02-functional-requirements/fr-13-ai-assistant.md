@@ -9,7 +9,7 @@ Owner và Staff hỏi bằng tiếng Việt trong Admin để tìm hướng dẫ
 | Phạm vi | Dữ liệu và quyền |
 | :--- | :--- |
 | Nhập/xuất kho | Tổng theo ngày nghiệp vụ, chi nhánh và đơn vị gốc, tách chuyển kho và trả hàng. |
-| Doanh thu | **Chỉ Owner.** Doanh thu thuần sau trả hàng, số đơn, phân theo ngày và kênh, lãi gộp. Staff không có tool doanh thu; hỏi doanh thu thì trợ lý trả lời không có quyền (chốt 10/11/2026). |
+| Doanh thu & Giá vốn | **Chỉ Owner.** Doanh thu thuần sau trả hàng, số đơn, phân theo ngày và kênh, lãi gộp, giá mua, giá vốn (WAC), giá trị tồn. Staff không có tool doanh thu; hỏi doanh thu, lãi gộp, giá mua hay giá vốn thì trợ lý trả lời không có quyền xem theo dịch vụ che giá dùng chung `ICostVisibilityService` (OISMS-66-L2-G5). |
 | Tồn thấp | SKU hết hàng (kể cả chưa đặt ngưỡng) hoặc chạm/dưới ngưỡng đặt lại, tồn khả dụng và mức cảnh báo (theo FR-REP-03). |
 | Gợi ý nhập | Tối đa 20 gợi ý ưu tiên theo ngày cạn hàng dự kiến, dùng dữ liệu FR-AI-01. |
 | Hướng dẫn | Các thao tác trên Admin theo vai trò được xác thực. |

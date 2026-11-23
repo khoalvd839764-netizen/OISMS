@@ -9,8 +9,9 @@
 
 > **Yêu cầu từ đề bài:** Xem [docs/00-overview/03-de-bai-cnpm-reference.md](docs/00-overview/03-de-bai-cnpm-reference.md) để tra cứu FR/NFR, sản phẩm bàn giao, các điểm cần làm rõ và checklist nghiệm thu từ PDF đề bài. Đối chiếu tài liệu này khi thiết kế hoặc đánh giá phạm vi dự án.
 
-> **Cập nhật ngày:** 18/11/2026  
-> **Trạng thái:** Sprint 5 đã nghiệm thu ([báo cáo tổng kết Sprint 5](docs/08-sprints/sprint-5/BAO_CAO_TONG_KET_NGHIEM_THU_SPRINT_5.md), [Sprint 4](docs/08-sprints/sprint-4/BAO_CAO_TONG_KET_NGHIEM_THU_SPRINT_4.md)). Sprint 6 đã vào `develop` ([báo cáo trong PR #50](https://github.com/khoalvd839764-netizen/OISMS/pull/50)). Đã có Upgrade 01 đến 06, 10, 11; Coming Soon CS-01 đến CS-07; gợi ý nhập hàng CS-08 và Trợ lý OISMS (`FR-AI-02`). Còn mở: Gói 5 (lọc doanh thu theo SKU, đánh giá dự báo, đo NFR, hồ sơ bàn giao) và quét mã vạch ở màn kiểm kê. Chi tiết ở [mục Hiện trạng](#hiện-trạng-chức-năng-18112026).
+> **Phiên bản:** Final (nghiệm thu cuối kỳ)  
+> **Cập nhật ngày:** 23/11/2026, số liệu kiểm thử chốt 21/11/2026  
+> **Trạng thái:** Đáp ứng **30/31 FR** và **9/11 NFR** của đề bài. Còn lại: quét mã vạch ở màn kiểm kê (`FR-PROD-03`), đo uptime dài giờ (`NFR-USA-01`) và thử trên máy POS cầm tay (`NFR-USA-02`). Chi tiết ở [mục Nghiệm thu Final](#nghiệm-thu-final-23112026) và [báo cáo tổng kết](docs/09-personal-reports/Final/01-bao-cao-tong-ket-oisms.md).
 
 ---
 
@@ -58,7 +59,7 @@ OISMS/
 │       ├── init-oisms.sh              # Khởi tạo DB khi volume trống
 │       └── migrations/                # Script nâng cấp DB đã có dữ liệu (chỉ thêm file mới)
 ├── docs/                              # Tài liệu: yêu cầu, kiến trúc, API, kiểm thử, deploy, sprint, báo cáo
-│   └── database/oisms_schema.sql      # Nguồn cấu trúc DB hiện hành (48 bảng)
+│   └── database/oisms_schema.sql      # Nguồn cấu trúc DB hiện hành (51 bảng)
 ├── scripts/                           # Script PowerShell/Node hỗ trợ chạy nhanh và kiểm tra
 │   ├── build-all.ps1                  # Kiểm tra build toàn bộ dự án
 │   ├── run-backend.ps1 / run-admin.ps1 / run-pos.ps1
@@ -135,7 +136,7 @@ powershell -ExecutionPolicy Bypass -File scripts\start-docker.ps1
 - **Backend API (Swagger):** `http://localhost:5000/swagger`
 - **Backend Health Check:**
   - Liveness: `http://localhost:5000/health/live`
-  - Readiness (Kiểm tra kết nối DB, đủ 48 bảng, trigger, quyền runtime): `http://localhost:5000/health/ready`
+  - Readiness (Kiểm tra kết nối DB, đủ 51 bảng, trigger, quyền runtime): `http://localhost:5000/health/ready`
 - **Admin Dashboard:** `http://localhost:5173`
 - **POS Web App:** `http://localhost:5174`
 - **App giả lập đơn sàn:** `http://localhost:5175` (dán webhook secret tạo ở màn Kết nối sàn của Admin)
@@ -143,14 +144,14 @@ powershell -ExecutionPolicy Bypass -File scripts\start-docker.ps1
 - **PostgreSQL 16:** `localhost:5432` (Database: `oisms`)
 
 #### Cơ chế tự động hóa Database & Healthcheck trong Docker Compose
-1. **Khởi tạo lần đầu tự động:** Khi volume `postgres_data` trống, PostgreSQL thực thi script `docker/postgres/init-oisms.sh` cùng file schema bàn giao `docs/database/oisms_schema.sql`, tự động tạo đủ 48 bảng, ràng buộc, trigger sổ cái và nhóm quyền `oisms_runtime`.
+1. **Khởi tạo lần đầu tự động:** Khi volume `postgres_data` trống, PostgreSQL thực thi script `docker/postgres/init-oisms.sh` cùng file schema bàn giao `docs/database/oisms_schema.sql`, tự động tạo đủ 51 bảng, ràng buộc, trigger sổ cái và nhóm quyền `oisms_runtime`.
 2. **Tách biệt tài khoản (Least Privilege) & Bảo mật:**
    - **Admin / DBA (`postgres`)**: Dùng cho migration, backup/restore. Bắt buộc cung cấp qua `POSTGRES_PASSWORD`.
    - **Runtime Backend (`oisms_app`)**: Thuộc nhóm `oisms_runtime`, chỉ có quyền đọc/ghi nghiệp vụ, bị trigger chặn sửa/xóa sổ cái `inventory_transactions`. Bắt buộc cung cấp qua `OISMS_APP_PASSWORD`.
    - Script khởi tạo sử dụng cơ chế truyền tham số an toàn (không nội suy chuỗi SQL), hỗ trợ mật khẩu chứa dấu nháy và ký tự đặc biệt, không ghi mật khẩu ra log, và tự động kiểm tra chặn nếu tài khoản có đặc quyền quản trị hoặc sở hữu schema/bảng.
 3. **Chờ Database Healthy & Backend Readiness:**
    - Docker Compose cấu hình `backend` và `pgadmin` chờ PostgreSQL vượt qua `healthcheck` (`pg_isready`).
-   - Backend cung cấp endpoint `/health/ready` thực hiện mở kết nối bằng tài khoản runtime `oisms_app`, kiểm tra đủ 48 bảng, trigger bảo vệ sổ cái và quyền hạn trước khi báo sẵn sàng (trả về HTTP 503 khi chưa sẵn sàng và không để lộ chuỗi kết nối hay mật khẩu).
+   - Backend cung cấp endpoint `/health/ready` thực hiện mở kết nối bằng tài khoản runtime `oisms_app`, kiểm tra đủ 51 bảng, trigger bảo vệ sổ cái và quyền hạn trước khi báo sẵn sàng (trả về HTTP 503 khi chưa sẵn sàng và không để lộ chuỗi kết nối hay mật khẩu).
 4. **Lưu ý về Volume đã có dữ liệu:**
    - Docker chỉ chạy script khởi tạo khi volume `postgres_data` hoàn toàn trống.
    - Việc đổi mật khẩu trong `.env` **không** tự động đổi mật khẩu của role trên volume đã tồn tại. Đối với volume cũ, quản trị viên sử dụng lệnh `ALTER ROLE` qua tài khoản `postgres`.
@@ -175,7 +176,7 @@ docker compose logs -f postgres
 # Theo dõi log Backend Web API
 docker compose logs -f backend
 
-# Kiểm tra kết nối và số lượng bảng (48 bảng)
+# Kiểm tra kết nối và số lượng bảng (51 bảng)
 docker compose exec -it postgres psql -U oisms_app -d oisms -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';"
 
 # Kiểm tra readiness endpoint của backend
@@ -183,7 +184,7 @@ curl http://localhost:5000/health/ready
 ```
 
 > [!NOTE]
-> Chi tiết tài liệu kiến trúc cơ sở dữ liệu, từ điển 48 bảng và quy trình cập nhật/migration dữ liệu xem tại [docs/database/README.md](docs/database/README.md).
+> Chi tiết tài liệu kiến trúc cơ sở dữ liệu, từ điển 51 bảng và quy trình cập nhật/migration dữ liệu xem tại [docs/database/README.md](docs/database/README.md).
 
 ---
 
@@ -249,7 +250,12 @@ docker compose --env-file .env.production -f docker-compose.yml -f docker-compos
 - Production luôn chặn seed dữ liệu demo. Database mới trống, tài khoản đầu tiên tạo qua `POST /api/auth/register-tenant`.
 - Frontend nhúng URL API lúc build, nên đổi domain thì phải chạy lại lệnh build ở trên.
 - Production không bật `/swagger`.
-- `init-oisms.sh` chỉ chạy khi volume database trống. Khi cập nhật hệ thống đang có dữ liệu, backup rồi chạy thủ công script trong `docker/postgres/migrations/` trước khi cập nhật backend. Từ bản 44 bảng lên 48 bảng cần chạy lần lượt `20261112_supplier_invoices.sql` và `20261114_user_branches.sql`.
+- `init-oisms.sh` chỉ chạy khi volume database trống. Khi cập nhật hệ thống đang có dữ liệu, backup rồi chạy thủ công script trong `docker/postgres/migrations/` trước khi cập nhật backend. Các script cần chạy theo thứ tự:
+
+  | Nâng từ | Lên | Script, chạy lần lượt |
+  | :---: | :---: | :--- |
+  | 44 bảng | 48 bảng | `20261112_supplier_invoices.sql`, `20261114_user_branches.sql` |
+  | 48 bảng | 51 bảng (Final) | `20261119_goods_issues.sql`, `20261119_purchase_order_pending_approval.sql`, `20261121_purchase_order_sale_price_configs.sql` |
 - Không commit `.env.production`. Dữ liệu nằm trên ổ của EC2, nên cần tự backup (`pg_dump`).
 
 ### Lưu ý khi chạy local
@@ -259,26 +265,70 @@ Cách chạy local không đổi, các thay đổi cho deploy không áp dụng 
 - Vẫn dùng `docker compose up -d` với file `.env`. Không cần `.env.production`, Caddy không chạy, các cổng `5000`, `5173`, `5174`, `5175`, `5432`, `5050` vẫn mở như cũ.
 - Frontend không truyền `VITE_API_BASE_URL` thì vẫn gọi `http://localhost:5000`. Nếu tự đặt biến này thì **không** thêm đuôi `/api`, vì code tự nối `/api/...` và `/hubs/notifications`.
 - Không chạy bản production và bản local cùng lúc trên một máy với cùng project Compose: hai bản dùng chung tên container và volume, nên có thể ghi đè nhau.
-- `init-oisms.sh` kiểm tra đúng 48 bảng; database cũ thiếu bảng thì `/health/ready` trả 503 "schema is incomplete", cần chạy các script còn thiếu trong `docker/postgres/migrations/`. Volume đang có dữ liệu không bị ảnh hưởng; không cần chạy `docker compose down -v`, vì lệnh đó xóa toàn bộ dữ liệu local.
+- `init-oisms.sh` kiểm tra đúng 51 bảng; database cũ thiếu bảng thì `/health/ready` trả 503 "schema is incomplete", cần chạy các script còn thiếu trong `docker/postgres/migrations/`. Volume đang có dữ liệu không bị ảnh hưởng; không cần chạy `docker compose down -v`, vì lệnh đó xóa toàn bộ dữ liệu local.
 
 ---
 
-## Hiện trạng chức năng (18/11/2026)
+## Nghiệm thu Final (23/11/2026)
+
+Số liệu chốt ngày 21/11/2026 trên máy local (Docker, PostgreSQL 16). Bản demo AWS là phần làm thêm, không dùng làm môi trường nghiệm thu. Đối chiếu từng yêu cầu với nguyên văn đề bài: [báo cáo tổng kết](docs/09-personal-reports/Final/01-bao-cao-tong-ket-oisms.md).
+
+### Mức độ đáp ứng đề bài
+
+| Nhóm yêu cầu | Kết quả | Còn lại |
+| :--- | :---: | :--- |
+| Yêu cầu chức năng (30 FR + `FR-AI-01`) | **30 / 31** | `FR-PROD-03`: chưa quét mã vạch ở màn kiểm kê, vì không có thiết bị quét để kiểm chứng |
+| Yêu cầu phi chức năng (11 NFR) | **9 / 11** | `NFR-USA-01`: đã có script nhưng chưa đo uptime dài giờ khung 07:00–22:00. `NFR-USA-02`: chưa thử trên máy POS cầm tay |
+| Gói công việc | **4 / 5** | Gói 5: đo uptime dài giờ, thử máy POS cầm tay |
+
+### Kiểm thử tự động
+
+| Bộ kiểm thử | Môi trường | Kết quả |
+| :--- | :--- | :---: |
+| Backend unit (`OISM.UnitTests`) | EF Core InMemory | **434 / 434 PASS** |
+| Backend integration (`OISM.IntegrationTests`) | PostgreSQL 16 thật, DB cô lập mỗi lần chạy | **481 / 481 PASS** |
+| POS (`npm test`) | Node | **101 / 101 PASS** |
+| POS E2E (`npm run test:live`) | Docker | **8 / 8 PASS** |
+| App giả lập sàn (`npm test`) | Node | **9 / 9 PASS** |
+| Build 3 frontend, lint POS | Vite, oxlint | **PASS** |
+
+### Chỉ số chính
+
+| Yêu cầu | Ngưỡng đề bài | Kết quả đo |
+| :--- | :--- | :--- |
+| `NFR-PERF-01` tìm SKU, quét mã vạch | p95 < 200 ms | 24,92 ms; 10,05 ms |
+| `NFR-PERF-01` tạo đơn | < 500 ms | 230,94 ms (Admin); 53–58 ms (POS checkout khác SKU) |
+| `NFR-PERF-01` báo cáo doanh thu | < 2 s trên 100.000 bản ghi | ≤ 1,16 s (8 kịch bản lọc) |
+| `NFR-PERF-02` chống bán vượt | 50 đơn tranh 1 SKU cuối | 1 thành công, 49 nhận `409`, tồn khả dụng = 0 |
+| `NFR-MAINT-02` độ phủ test lõi | ≥ 80% | Sổ cái 90,90%, giữ chỗ 92,51%, WAC 100%, doanh thu/COGS 89,35% |
+| `FR-AI-01` gợi ý nhập hàng | — | Backtest 8 SKU × 90 ngày: WAPE 7,70%, recall 100% |
+
+Giới hạn đã biết: 10 quầy POS thanh toán **cùng một SKU** có p95 379–577 ms, vì các giao dịch phải xếp hàng qua khóa chống bán âm. Đây là đánh đổi có chủ đích để giữ `NFR-PERF-02`.
+
+### Chức năng theo nhóm
 
 | Nhóm | Đã có | Còn thiếu / lưu ý |
 | :--- | :--- | :--- |
-| Nền tảng | Multi-tenant, JWT, RBAC 3 vai trò (`Owner`, `Staff`, `Cashier`), che giá vốn theo vai trò, sổ cái append-only, WAC, giữ chỗ chống bán vượt, idempotency | — |
+| Nền tảng | Multi-tenant, JWT 60 phút + refresh token, RBAC 3 vai trò (`Owner`, `Staff`, `Cashier`), che giá vốn và giá nhập theo vai trò, sổ cái append-only, WAC, giữ chỗ chống bán vượt, idempotency, TLS 1.3 qua Caddy | — |
 | Tài khoản | Đăng nhập bằng email hoặc số điện thoại, quên mật khẩu qua link email, Owner đặt lại mật khẩu hộ nhân viên (U10), mail chào mừng Chủ shop (U11) | Chưa có OTP SMS. Tính năng mail cần cấu hình SMTP |
-| Vận hành kho | Phiếu mua → phiếu nhập (U01-A), hóa đơn nhà cung cấp và duyệt chênh lệch (U01-B), chuyển kho 2 bước, kiểm kê theo lịch và duyệt chênh lệch (U03), đa đơn vị tính (U05), bảng giá theo thời gian (U04) | Chưa quét mã vạch ở màn kiểm kê (Gói 2). Chưa có công nợ nhà cung cấp |
-| Bán hàng | Đơn đa kênh, POS riêng `pos-app` có VietQR (CS-05) và tự in biên nhận, phiếu giao hàng A4/80mm (CS-06), POS báo đơn online mới theo chi nhánh, hóa đơn bán và truy vết xuất kho (U02), trả hàng (CS-01), webhook sàn và app giả lập | Xác nhận thanh toán QR tự động qua ngân hàng chưa làm |
-| Quản trị | Nhân viên và phân công chi nhánh (CS-02), ngưỡng cảnh báo tồn (CS-03), tìm kiếm toàn hệ thống (CS-04), KPI Tổng quan (CS-07), gợi ý nhập hàng (CS-08), tài khoản nhận tiền, in báo cáo, đối soát báo cáo ngày | Chưa lọc dữ liệu Admin theo chi nhánh được gán. Chưa lọc doanh thu theo SKU. CS-08 chưa có bằng chứng đánh giá độ chính xác |
-| AI | Trợ lý OISMS (`POST /api/ai/chat`) cho Owner, Staff, chỉ đọc, trả lời theo tài liệu | Mặc định tắt khi chạy local; bản demo AWS đã bật từ 11/11/2026. Hạn mức gói miễn phí rất thấp |
-| Tác vụ nền | Hết hạn giữ chỗ (mỗi phút), sinh kỳ kiểm kê (phút thứ 5 mỗi giờ), tổng hợp báo cáo ngày (00:30 UTC+07) | Hangfire mặc định tắt khi chạy local; bản demo AWS đã bật từ 11/11/2026 |
-| Hồ sơ và chất lượng | Unit, integration trên PostgreSQL thật, test POS và app giả lập chạy trong CI | Còn đo NFR và hồ sơ bàn giao (Gói 5). Còn 5 lỗi chưa xử lý trong [checklist lỗi](docs/bug-fixaffter/CHECKLIST.md) |
+| Mua hàng, nhập kho | Đơn mua `PendingApproval`: Staff đề nghị, Owner chốt giá và phí, phân bổ phí vào giá vốn theo VAS 02 (U12, thay hóa đơn NCC của U01-B), cấu hình giá bán theo đơn mua và sinh giá khi nhập kho, đa đơn vị tính (U05), bảng giá theo hiệu lực (U04) | Chưa có công nợ nhà cung cấp |
+| Vận hành kho | Chuyển kho 2 bước, kiểm kê theo lịch và duyệt chênh lệch (U03), phiếu xuất kho 02-VT, báo cáo tồn kho theo kỳ, thẻ kho S12/S10 và xuất Excel (U13) | Chưa quét mã vạch ở màn kiểm kê |
+| Bán hàng | Đơn đa kênh, POS riêng `pos-app` có VietQR (CS-05), in biên nhận, phiếu giao hàng, in chứng từ từ sổ kho, truy vết và POS (CS-06, U14), POS báo đơn online mới theo chi nhánh, truy vết xuất kho (U02), trả hàng (CS-01), webhook sàn và app giả lập | Chưa xác nhận thanh toán QR tự động qua ngân hàng |
+| Quản trị, báo cáo | Nhân viên và phân công chi nhánh (CS-02), ngưỡng cảnh báo tồn (CS-03), tìm kiếm toàn hệ thống (CS-04), KPI Tổng quan (CS-07), gợi ý nhập hàng (CS-08), báo cáo doanh thu lọc theo thời gian, chi nhánh, kênh và tối đa 20 SKU, bảng kê POS theo ngày | — |
+| AI | Trợ lý OISMS (`POST /api/ai/chat`) cho Owner và Staff, chỉ đọc, trả lời theo tài liệu | Mặc định tắt khi chạy local, bản demo AWS đã bật. Chỉ dùng gói miễn phí, hạn mức rất thấp |
+| Tác vụ nền | Hết hạn giữ chỗ (mỗi phút), sinh kỳ kiểm kê (phút thứ 5 mỗi giờ), tổng hợp báo cáo ngày (00:30 UTC+07) | Hangfire mặc định tắt khi chạy local, bản demo AWS đã bật |
 
-Kiểm thử gần nhất (CI ngày 18/11/2026, commit `944be79`): unit backend 428/428 PASS, integration trên PostgreSQL 456/456 PASS, `npm test` POS 94/94 PASS, app giả lập 9/9 PASS.
+### Tài liệu nghiệm thu
 
-Tài liệu nên đọc: [docs/README.md](docs/README.md), [công việc còn mở](docs/Upgrade-recommended/Pedding/README.md), [checklist lỗi và Coming Soon](docs/bug-fixaffter/CHECKLIST.md), [RTM](docs/06-testing-and-qa/01-requirements-matrix-rtm.md).
+| Tài liệu | Đường dẫn |
+| :--- | :--- |
+| Báo cáo tổng kết và báo cáo cá nhân Final | [docs/09-personal-reports/Final/](docs/09-personal-reports/Final/01-bao-cao-tong-ket-oisms.md) |
+| Kết quả kiểm thử tổng hợp theo đề bài | [docs/06-testing-and-qa/05-ket-qua-kiem-thu-tong-hop.md](docs/06-testing-and-qa/05-ket-qua-kiem-thu-tong-hop.md) |
+| Ma trận truy vết yêu cầu (RTM) | [docs/06-testing-and-qa/01-requirements-matrix-rtm.md](docs/06-testing-and-qa/01-requirements-matrix-rtm.md) |
+| Đề bài gốc và checklist nghiệm thu | [docs/00-overview/03-de-bai-cnpm-reference.md](docs/00-overview/03-de-bai-cnpm-reference.md), [checklist.md](checklist.md) |
+| Báo cáo nghiệm thu các sprint | [Sprint 4](docs/08-sprints/sprint-4/BAO_CAO_TONG_KET_NGHIEM_THU_SPRINT_4.md), [Sprint 5](docs/08-sprints/sprint-5/BAO_CAO_TONG_KET_NGHIEM_THU_SPRINT_5.md) |
+| Lỗi và Coming Soon | [docs/bug-fixaffter/CHECKLIST.md](docs/bug-fixaffter/CHECKLIST.md) |
+| Mục lục tài liệu | [docs/README.md](docs/README.md) |
 
 ---
 

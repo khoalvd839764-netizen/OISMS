@@ -1,12 +1,18 @@
-# API, SignalR và health đi vào backend; còn lại là file tĩnh của frontend
+# API, SignalR và health/live đi vào backend; /health/ready chỉ dùng nội bộ (BF-026)
 (backend_routes) {
-	@backend path /api/* /hubs/* /health /health/*
+	handle /health/ready {
+		respond 403
+	}
+	@backend path /api/* /hubs/* /health/live
 	handle @backend {
 		reverse_proxy backend:8080
 	}
 }
 
 {$ADMIN_DOMAIN} {
+	tls {
+		protocols tls1.3
+	}
 	encode gzip
 	import backend_routes
 	handle {
@@ -15,6 +21,9 @@
 }
 
 {$POS_DOMAIN} {
+	tls {
+		protocols tls1.3
+	}
 	encode gzip
 	import backend_routes
 	handle {
@@ -22,9 +31,18 @@
 	}
 }
 
-# Giả lập đơn sàn: chỉ mở đường webhook, không mở các API khác trên domain này
+# Giả lập đơn sàn: chỉ mở đường webhook, không mở các API khác hoặc /health/ready
 {$SIM_DOMAIN} {
+	tls {
+		protocols tls1.3
+	}
 	encode gzip
+	handle /health/ready {
+		respond 403
+	}
+	handle /health/live {
+		reverse_proxy backend:8080
+	}
 	handle /api/webhooks/* {
 		reverse_proxy backend:8080
 	}

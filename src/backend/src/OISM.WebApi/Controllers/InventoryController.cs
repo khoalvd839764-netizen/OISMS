@@ -39,8 +39,7 @@ public class InventoryController : ControllerBase
     [Authorize(Roles = "Owner,Staff,Cashier")]
     public async Task<IActionResult> GetBalances([FromQuery] InventoryBalanceFilterDto filter, CancellationToken ct)
     {
-        var canViewCost = User.IsInRole("Owner") || User.IsInRole("Staff");
-        var result = await _inventoryService.GetBalancesAsync(filter, canViewCost, ct);
+        var result = await _inventoryService.GetBalancesAsync(filter, ct);
         return Ok(result);
     }
 
@@ -62,8 +61,7 @@ public class InventoryController : ControllerBase
     [Authorize(Roles = "Owner,Staff,Cashier")]
     public async Task<IActionResult> GetSkuBalanceAtBranch(Guid skuId, Guid branchId, CancellationToken ct)
     {
-        var canViewCost = User.IsInRole("Owner") || User.IsInRole("Staff");
-        var balance = await _inventoryService.GetSkuBalanceAtBranchAsync(branchId, skuId, canViewCost, ct);
+        var balance = await _inventoryService.GetSkuBalanceAtBranchAsync(branchId, skuId, ct);
         if (balance == null)
         {
             return NotFound(new { message = $"Không tìm thấy số dư cho SKU '{skuId}' tại chi nhánh '{branchId}'." });
@@ -167,5 +165,28 @@ public class InventoryController : ControllerBase
 
         var trace = await _salesInvoiceService.TraceByLedgerIdAsync(id, ct);
         return Ok(trace);
+    }
+
+    /// <summary>
+    /// Xem chi tiết một phiếu điều chỉnh cân bằng kho theo ID (Upgrade 14 - Q9).
+    /// </summary>
+    [HttpGet("adjustments/{id:guid}")]
+    [Authorize(Roles = "Owner,Staff")]
+    [ApiErrorContract(ApiErrorProfile.InventoryTrace)]
+    public async Task<IActionResult> GetAdjustmentById(Guid id, CancellationToken ct)
+    {
+        if (id == Guid.Empty)
+        {
+            return ApiErrorResponse.Problem(
+                HttpContext,
+                ApiErrorProfile.InventoryTrace,
+                "VALIDATION_ERROR",
+                "Lỗi xác thực dữ liệu",
+                StatusCodes.Status400BadRequest,
+                "Mã phiếu điều chỉnh không được để trống.");
+        }
+
+        var result = await _inventoryService.GetAdjustmentByIdAsync(id, ct);
+        return Ok(result);
     }
 }

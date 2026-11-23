@@ -17,3 +17,4 @@
 | **2** | `DOC-QA-02` | [`02-unit-and-integration-test.md`](./02-unit-and-integration-test.md) | `v1.2.0` | Cấu trúc bộ test (unit, integration trên PostgreSQL thật, test POS), lệnh chạy và coverage (mốc Sprint 2). |
 | **3** | `DOC-QA-03` | [`03-concurrency-stress-test.md`](./03-concurrency-stress-test.md) | `v1.0.0` | Kịch bản kiểm thử chịu tải đồng thời Flash Sale (`50 reqs / 1 SKU`) và kiểm thử Idempotency. |
 | **4** | `DOC-QA-04` | [`04-acceptance-criteria-dod.md`](./04-acceptance-criteria-dod.md) | `v1.0.0` | Bộ tiêu chuẩn nghiệm thu kỹ thuật bắt buộc (Definition of Done) cho toàn dự án. |
+| **5** | `DOC-TEST-RESULT-FINAL` | [`05-ket-qua-kiem-thu-tong-hop.md`](./05-ket-qua-kiem-thu-tong-hop.md) | `v1.0.0` | Kết quả kiểm thử tổng hợp theo 11 NFR và các FR của đề bài (21/11/2026), link tới bằng chứng gốc trong `evidence/`. |

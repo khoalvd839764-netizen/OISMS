@@ -93,4 +93,9 @@ public interface ISqlLockService
     /// Khóa tổng hợp báo cáo theo ngày bằng advisory lock ({tenant}/daily_sales_summary/{yyyy-MM-dd}) để tuần tự hóa thao tác xóa và ghi lại theo tenant/ngày.
     /// </summary>
     Task LockDailySalesSummaryAsync(Guid tenantId, DateOnly businessDate, CancellationToken ct = default);
+
+    /// <summary>
+    /// Khóa đồng thời mức giá (pg_advisory_xact_lock) theo SKU + Đơn vị + Bảng giá sắp xếp tăng dần (Upgrade 12 Q25).
+    /// </summary>
+    Task LockPricesAsync(Guid tenantId, IEnumerable<(Guid SkuId, Guid UnitId, Guid PriceListId)> priceKeys, CancellationToken ct = default);
 }

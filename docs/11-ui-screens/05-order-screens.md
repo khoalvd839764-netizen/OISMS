@@ -266,3 +266,40 @@ Giá vốn trong truy vết do backend lọc theo vai trò; trang không tự �
 - Trong `OrderDetailDrawer`, nút **In chứng từ** đã bỏ `ComingSoonBadge` và mở `ShippingSlipPrintModal`.
 - **Điều kiện bật nút:** Chỉ bật khi `channel !== 'POS'` và `status` là `Confirmed` hoặc `Completed`; các trường hợp khác bị vô hiệu hóa kèm `title` nêu lý do.
 - **Nội dung mẫu in (`ShippingSlipPrintModal`):** Chọn khổ **A4** hoặc **80mm**; hiển thị tên khách, SĐT, địa chỉ giao hàng, dòng hàng (số lượng + tên đơn vị), đơn giá, thành tiền và tổng thu (COD); **không render giá vốn (`costPrice`/`totalCogs`) với mọi vai trò**.
+
+---
+
+## 9. In Phiếu Xuất Kho 02-VT, In Hàng Loạt & Bảng Kê Xuất Bán POS Theo Ngày (`Upgrade 13`, `OISMS-66-L2-G3`, 19/11/2026)
+
+| Thông tin | Chi tiết |
+| :--- | :--- |
+| **Route** | `/orders`, `/admin/orders` |
+| **Quyền** | `Owner`, `Staff` (`Cashier` nhận `403 Forbidden`) |
+| **Source** | [`OrdersPage.tsx`](../../src/frontend/admin-dashboard/src/pages/OrdersPage.tsx), [`GoodsIssuePrintModal.tsx`](../../src/frontend/admin-dashboard/src/components/orders/GoodsIssuePrintModal.tsx), [`PosDailyGoodsIssueSummaryModal.tsx`](../../src/frontend/admin-dashboard/src/components/orders/PosDailyGoodsIssueSummaryModal.tsx), [`goodsIssueService.ts`](../../src/frontend/admin-dashboard/src/services/goodsIssueService.ts), [`goodsIssues.ts`](../../src/frontend/admin-dashboard/src/types/goodsIssues.ts) |
+| **API** | `GET /api/orders/{orderId}/goods-issues`, `GET /api/goods-issues/{id}`, `POST /api/goods-issues/by-orders`, `GET /api/goods-issues/pos-daily-summary` |
+
+- **In phiếu xuất kho đơn lẻ (`GoodsIssuePrintModal`):**
+  - Với mọi đơn hàng đã ở trạng thái `Confirmed` hoặc `Completed`, trên dòng đơn trong bảng và trong `OrderDetailDrawer` có nút **In phiếu xuất kho** (không tự bật hộp thoại in khi bấm xác nhận đơn).
+  - Hiển thị biểu mẫu **Phiếu xuất kho — Mẫu số 02-VT** (Thông tư 200/2014/TT-BTC / 133/2016/TT-BTC): số phiếu `PXK-<số hóa đơn>` (hoặc `PXK-<số hóa đơn>-1`, `-2`... khi đơn xuất từ nhiều kho), tên chi nhánh, tên kho xuất, người nhận hàng, lý do xuất kho, bảng dòng hàng (STT, Tên/quy cách hàng hóa, Mã SKU, ĐVT, SL theo chứng từ, Thực xuất, Đơn giá vốn, Thành tiền vốn) và 3 khung chữ ký (*Người lập phiếu*, *Thủ kho*, *Người nhận hàng*).
+- **In phiếu xuất kho hàng loạt:**
+  - Bảng danh sách đơn trên `OrdersPage.tsx` có cột checkbox cho các đơn đã `Confirmed`/`Completed`. Khi chọn $\ge 1$ đơn, thanh công cụ hiện nút **In phiếu xuất kho hàng loạt (N đơn)**, tải toàn bộ phiếu xuất của các đơn đã chọn qua `POST /api/goods-issues/by-orders` và ghép các tờ phiếu 02-VT (ngắt trang CSS `page-break-after: always`) để in một lượt qua `window.print()`.
+- **Bảng kê xuất bán POS theo ngày (`PosDailyGoodsIssueSummaryModal`):**
+  - Nút **Bảng kê xuất bán POS theo ngày** trên header `OrdersPage.tsx` mở modal chọn Ngày nghiệp vụ (`UTC+07:00`) và Chi nhánh.
+  - Hiển thị và in bảng tổng hợp số lượng gốc + giá trị xuất vốn theo SKU và danh sách các phiếu xuất kho / hóa đơn POS trong ngày kèm khung chữ ký (*Người lập bảng kê*, *Thủ kho*, *Chủ cửa hàng*).
+- **Che giá vốn với `Staff`:**
+  - Khi đăng nhập bằng `Staff`, API trả `unitCost = null` và `totalCost = null`; cả `GoodsIssuePrintModal` và `PosDailyGoodsIssueSummaryModal` tự động ẩn cột **Đơn giá vốn** và **Thành tiền vốn** trên màn hình xem trước lẫn bản in.
+
+---
+
+## 10. Xem/In Từng Bước và In Gộp Bộ Chứng Từ Ở Truy Vết (`Upgrade 14`, `OISMS-66-U14-B`, 21/11/2026)
+
+| Thông tin | Chi tiết |
+| :--- | :--- |
+| **Source** | [`SalesInvoiceTraceModal.tsx`](../../src/frontend/admin-dashboard/src/components/salesInvoices/SalesInvoiceTraceModal.tsx), [`DocumentPrintModal.tsx`](../../src/frontend/admin-dashboard/src/components/print/DocumentPrintModal.tsx), [`PrintArea.tsx`](../../src/frontend/admin-dashboard/src/components/print/PrintArea.tsx) |
+
+- **Nút Xem/In theo từng bước:**
+  - Bước 1 (Hóa đơn bán lẻ): mở `SalesInvoiceReprintModal`.
+  - Bước 2 (Đơn hàng nguồn): mở `DocumentPrintModal` (phiếu giao hàng nếu là đơn online).
+  - Bước 3 (Phiếu xuất 02-VT theo từng kho): hiển thị nút **02-VT (<Tên kho>)** cho từng phiếu xuất của đơn hàng.
+  - Bước 4 (Phiếu nhập kho hàng trả lại): hiển thị nút **Xem/In** trên từng phiếu trả hàng.
+- **Nút "In tất cả":** Tải đồng bộ hóa đơn, phiếu giao hàng (nếu đơn online), các phiếu xuất 02-VT theo kho và các phiếu trả hàng, hiển thị trong một modal xem trước dùng `PrintArea` với ngắt trang CSS (`.doc-print-page-break`) giữa mỗi chứng từ.

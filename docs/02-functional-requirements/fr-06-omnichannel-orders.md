@@ -3,8 +3,8 @@
 | Thông tin kiểm soát tài liệu | Chi tiết |
 | :--- | :--- |
 | **Mã tài liệu (Document ID)** | `DOC-FR-06` |
-| **Phiên bản (Version)** | `v1.1.0` |
-| **Ngày hiệu lực (Effective Date)** | `2026-11-15` |
+| **Phiên bản (Version)** | `v1.2.0` |
+| **Ngày hiệu lực (Effective Date)** | `2026-11-19` |
 | **Nguồn truy vết (Source Traceability)** | `De bai CNPM.pdf` — Mục `FR-ORD-01..03` (Trang 2) |
 | **Gói công việc (Task Package)** | Task Package 3 — Centralized Order Hub & Anti-Oversell Engine |
 
@@ -16,6 +16,7 @@
 | :---: | :---: | :--- | :--- | :--- |
 | `v1.0.0` | `2026-10-22` | Nhóm dự án OISMS | Đặc tả chi tiết mô hình đơn hàng hợp nhất (`Canonical Order Model`), máy trạng thái và quy trình xử lý đơn. | `INIT-FR-06` |
 | `v1.1.0` | `2026-11-15` | Nhóm dự án OISMS | Làm rõ `Draft` chỉ là trạng thái khởi tạo trong giao dịch (không lưu với đơn online) và bổ sung luồng giữ chỗ kỹ thuật POS qua `POST /api/inventory/reserve`. | `OISMS-59-G3A` |
+| `v1.2.0` | `2026-11-19` | Nhóm dự án OISMS | Lập chứng từ Phiếu xuất kho 02-VT (`goods_issues`, `goods_issue_items`) trong cùng transaction xác nhận đơn, hỗ trợ in đơn lẻ, in hàng loạt và bảng kê POS theo ngày. | `OISMS-66-L2-G3` |
 
 ---
 
@@ -40,3 +41,16 @@
 
 - Nút **In chứng từ** trong `OrderDetailDrawer` mở `ShippingSlipPrintModal` (chọn khổ **A4** hoặc **80mm**), hiển thị thông tin người nhận (tên, SĐT, địa chỉ giao), dòng hàng (số lượng + tên đơn vị), đơn giá, thành tiền và tổng thu (COD); **không render giá vốn (`costPrice` / `totalCogs`) với mọi vai trò**.
 - **Điều kiện bật nút:** Chỉ bật với đơn kênh khác `POS` (`Admin`, `Shopee`, `TikTok`, `Lazada`) ở trạng thái `Confirmed` hoặc `Completed`. Đơn `POS` dùng chức năng in lại hóa đơn bán hàng; đơn `Reserved` / `Cancelled` bị vô hiệu hóa kèm `title` giải thích lý do.
+
+---
+
+## 4. Phiếu Xuất Kho 02-VT & In Hàng Loạt (`Upgrade 13`, `OISMS-66-L2-G3`)
+
+- **Lập nguyên tử trong cùng transaction:** Khi xác nhận đơn (`POST /api/orders/{id}/confirm`), ngay sau khi ghi dòng sổ cái `OUT` và lập `SalesInvoice`, hệ thống lập chứng từ **Phiếu xuất kho (`goods_issues`, `goods_issue_items`)** trong cùng database transaction mà không thêm khóa mới hay đổi thứ tự khóa.
+- **Đánh số theo kho xuất (`P5`, `Q13`):**
+  - Đơn xuất từ 1 kho: tạo 1 phiếu mang số `PXK-<số hóa đơn>` (ví dụ `PXK-INV-20261119-103000-123`).
+  - Đơn xuất từ nhiều kho: nhóm các dòng sổ `OUT` theo `WarehouseId` tăng dần (`OrderBy(g => g.Key)`), mỗi kho tạo 1 phiếu mang số `PXK-<số hóa đơn>-1`, `PXK-<số hóa đơn>-2`, ... kèm `warehouse_name_snapshot`.
+- **Liên kết 1–1 với dòng sổ cái `OUT`:** Mỗi dòng `goods_issue_items` gắn 1–1 với dòng `inventory_transactions` (`UNIQUE (tenant_id, inventory_transaction_id)`), lưu `quantity` (theo đơn vị dòng đơn), `base_quantity` (theo đơn vị gốc) và `unit_cost = unit_cost` của dòng sổ cái.
+- **In phiếu 02-VT, in hàng loạt và che giá theo vai trò:**
+  - Màn Đơn hàng (`OrdersPage.tsx`) không tự bật hộp thoại in khi xác nhận đơn; người dùng bấm nút **In phiếu xuất kho** trên từng đơn `Confirmed`/`Completed` hoặc tích chọn nhiều đơn đã xác nhận để bấm **In phiếu xuất kho hàng loạt** (`GoodsIssuePrintModal` — Mẫu số `02-VT`, chữ ký *Người lập phiếu*, *Thủ kho*, *Người nhận hàng*).
+  - `Owner` xem và in đầy đủ cột **Đơn giá vốn** và **Thành tiền vốn**; `Staff` nhận `unitCost = null`, `totalCost = null` từ API và bản in ẩn 2 cột giá trị vốn; `Cashier` bị chặn `403 Forbidden`.

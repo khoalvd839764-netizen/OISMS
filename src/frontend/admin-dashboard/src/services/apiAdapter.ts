@@ -548,12 +548,14 @@ export const apiAdapter = {
   async getLedger(filter?: {
     branchId?: string;
     warehouseId?: string;
+    skuId?: string;
     type?: string;
   }): Promise<ApiResult<LedgerEntry[]>> {
     try {
       const result = await fetchAllPages<any>("/api/inventory/ledger", {
         branchId: filter?.branchId && filter.branchId !== "all" ? filter.branchId : undefined,
         warehouseId: filter?.warehouseId && filter.warehouseId !== "all" ? filter.warehouseId : undefined,
+        skuId: filter?.skuId || undefined,
         type: filter?.type && filter.type !== "all" ? filter.type : undefined,
       });
 
@@ -587,6 +589,11 @@ export const apiAdapter = {
         unitCost: Number(l.unitCost) || 0,
         balanceAfter: Number(l.balanceAfter) || 0,
         reference: l.documentNumber || l.referenceId || "—",
+        documentType: l.documentType || "Unknown",
+        documentId: l.documentId ?? undefined,
+        documentNumber: l.documentNumber ?? undefined,
+        goodsIssueId: l.goodsIssueId ?? undefined,
+        salesInvoiceId: l.salesInvoiceId ?? undefined,
       }));
 
       return { data: list, meta: result.meta };

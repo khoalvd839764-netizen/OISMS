@@ -80,7 +80,9 @@ public class ExceptionHandlingMiddleware
         context.Response.StatusCode = statusCode;
 
         var problemDetails = ApiErrorResponse.CreateProblemDetails(
-            context, errorCode, title, statusCode, detail, exception as PriceMismatchException);
+            context, errorCode, title, statusCode, detail,
+            exception as PriceMismatchException,
+            exception as PriceChangePoConflictException);
 
         var json = JsonSerializer.Serialize(problemDetails, new JsonSerializerOptions
         {

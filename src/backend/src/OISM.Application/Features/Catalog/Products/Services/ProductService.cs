@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using OISM.Application.Common.Exceptions;
 using OISM.Application.Common.Helpers;
 using OISM.Application.Common.Interfaces;
+using OISM.Application.Common.Services;
 using OISM.Application.Features.Catalog.Units;
 using OISM.Application.Features.Catalog.Units.Services;
 using OISM.Application.Features.Pricing.Dtos;
@@ -21,6 +22,7 @@ public class ProductService : IProductService
     private readonly IUnitService _unitService;
     private readonly IPriceChangeService _priceChangeService;
     private readonly ISkuPriceResolver _skuPriceResolver;
+    private readonly ICostVisibilityService _costVisibilityService;
 
     public ProductService(
         IAppDbContext context,
@@ -28,7 +30,8 @@ public class ProductService : IProductService
         ICurrentTenantService currentTenantService,
         IUnitService unitService,
         IPriceChangeService priceChangeService,
-        ISkuPriceResolver? skuPriceResolver = null)
+        ISkuPriceResolver? skuPriceResolver = null,
+        ICostVisibilityService? costVisibilityService = null)
     {
         _context = context;
         _lockService = lockService;
@@ -36,6 +39,7 @@ public class ProductService : IProductService
         _unitService = unitService;
         _priceChangeService = priceChangeService;
         _skuPriceResolver = skuPriceResolver ?? new SkuPriceResolver(context);
+        _costVisibilityService = costVisibilityService ?? AllowAllCostVisibilityService.Instance;
     }
 
     public async Task<List<ProductResponse>> GetProductsAsync(string? search, Guid? categoryId, Guid? brandId, CancellationToken ct = default)
@@ -931,7 +935,7 @@ public class ProductService : IProductService
         return list[0];
     }
 
-    private static ProductVariantResponse MapVariantToResponseCore(
+    private ProductVariantResponse MapVariantToResponseCore(
         ProductVariant v,
         IReadOnlyDictionary<SkuUnitPriceKey, ResolvedPrice> retailPrices,
         IReadOnlyDictionary<SkuUnitPriceKey, ResolvedPrice> wholesalePrices)
@@ -955,7 +959,7 @@ public class ProductService : IProductService
             Barcode = v.Barcode,
             RetailPrice = retailPrice,
             WholesalePrice = wholesalePrice,
-            CostPrice = v.CostPrice,
+            CostPrice = _costVisibilityService.CanViewCost ? v.CostPrice : null,
             Color = v.Color,
             Size = v.Size,
             Attributes = SkuAttributeHelper.ExtractAttributes(v.AttributesJson),

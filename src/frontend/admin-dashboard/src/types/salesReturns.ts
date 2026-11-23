@@ -54,11 +54,12 @@ export interface SalesReturnItem {
   skuName: string;
   unitId?: string | null;
   unitName: string;
+  baseUnitName?: string;
   factorSnapshot: number;
   quantity: number;
   baseQuantity: number;
   refundAmount: number;
-  originalUnitCost: number;
+  originalUnitCost: number | null;
 }
 
 export interface SalesReturn {
@@ -68,6 +69,7 @@ export interface SalesReturn {
   orderId: string;
   orderNumber: string;
   orderChannel: string;
+  customerName?: string | null;
   branchId: string;
   branchName: string;
   warehouseId: string;

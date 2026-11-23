@@ -6,12 +6,12 @@
 
 ## Việc cần làm
 
-- [ ] Chọn tập lịch sử theo SKU và chi nhánh, chuẩn hóa về đơn vị gốc. Ghi khoảng ngày, độ phủ dữ liệu và các kỳ thiếu hàng hoặc thiếu lịch sử bán.
-- [ ] Chốt khoảng dự báo, thước đo và ngưỡng chấp nhận trước khi xem kết quả. Có thể dùng sai số tuyệt đối trung bình cho lượng bán dự báo và tỷ lệ gợi ý nhập phù hợp cho các SKU có đủ dữ liệu.
-- [ ] Chạy đối chiếu trên dữ liệu lịch sử theo mốc thời gian. Ở mỗi mốc, chỉ dùng dữ liệu đã có tại thời điểm dự báo rồi so với lượng bán quan sát trong khoảng sau đó. Báo riêng SKU không bán, bán gián đoạn và các ngày hết hàng vì số bán quan sát có thể thấp hơn nhu cầu.
-- [ ] Lưu cách chạy, đầu vào, tham số, kết quả theo nhóm SKU và ví dụ có sai số lớn. Ghi rõ quy tắc nào nên giữ hoặc điều chỉnh dựa trên kết quả.
+- [x] Chọn tập lịch sử theo SKU và chi nhánh, chuẩn hóa về đơn vị gốc. Ghi khoảng ngày, độ phủ dữ liệu và các kỳ thiếu hàng hoặc thiếu lịch sử bán (`test-oisms/forecast-eval/seed-eval.sql`, tenant `FORECAST-EVAL`, 90 ngày).
+- [x] Chốt khoảng dự báo, thước đo và ngưỡng chấp nhận trước khi xem kết quả (`H = 10`, `WAPE ≤ 35%`, `Recall ≥ 80%` cho SKU ≥ 10 ngày bán/30 ngày).
+- [x] Chạy đối chiếu trên dữ liệu lịch sử theo mốc thời gian (`Oism.ForecastEval`, chỉ đọc, mốc `t` mỗi 7 ngày, tách riêng bán gián đoạn, không bán và kỳ hết hàng).
+- [x] Lưu cách chạy, đầu vào, tham số, kết quả theo nhóm SKU và ví dụ có sai số lớn (`docs/06-testing-and-qa/evidence/FR-AI-01/report.md`, `results.json`).
 
 ## Bằng chứng nghiệm thu
 
-- [ ] Có báo cáo tái lập được, ghi rõ phiên bản công thức, dữ liệu, thước đo, ngưỡng đã thống nhất và kết quả so với ngưỡng.
+- [x] Có báo cáo tái lập được, ghi rõ phiên bản công thức (`reorder-v1`), dữ liệu, thước đo, ngưỡng đã thống nhất và kết quả so với ngưỡng (`docs/report-after-upgrade/danh-gia-du-bao-nhap-hang-cs08.md`).
 - [ ] Có minh họa gợi ý trên UI khớp kết quả API, gồm SKU có đủ lịch sử và SKU có ít dữ liệu. Kết quả được liên kết vào CS-08 và RTM.

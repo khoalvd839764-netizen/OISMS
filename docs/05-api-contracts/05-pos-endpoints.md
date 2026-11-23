@@ -66,3 +66,15 @@ Tài khoản của tenant khác luôn trả `404 PAYMENT_ACCOUNT_NOT_FOUND`. Thi
 - **Nguồn giá ở client:** giá theo đơn vị phải lấy từ `/api/pos/search`, `/api/pos/barcode/{barcode}` hoặc `/api/sku-unit-prices/effective`; `salePrice` trong `/api/products` có thể rỗng. Client không tự nhân giá theo hệ số. Logic giỏ nằm ở `posCartUnits.ts` (một bản trong `pos-app`, một bản trong `admin-dashboard`).
 - **Idempotency:** gửi `requestKey` (GUID) trong body; nếu kèm header `Idempotency-Key` hoặc `X-Request-Key` thì phải trùng `requestKey`, không thì `400 VALIDATION_ERROR`. Khi kết quả chưa rõ (mất mạng), client retry giữ nguyên key.
 - **Realtime (`OISMS-59-G4`):** Sau khi checkout POS commit thành công (không phải replay `RequestKey`), server phát `OrderCreated` (`channel = "POS"`) vào nhóm `tenant_{tenantId}` (không phát `BranchOrderCreated`). Khi POS kết nối SignalR và gọi `JoinBranchGroup(branchId)` để nhận `BranchOrderCreated` (từ đơn online) và `StockLevelChanged`, `Cashier` bị từ chối bằng `HubException` nếu chi nhánh nằm ngoài danh sách được phân công (`user_branches` khác rỗng).
+
+---
+
+## 4. Lấy phiếu xuất kho 02-VT của đơn hàng trên POS (Upgrade 14 — U14-A)
+
+- **Endpoint:** `GET /api/pos/orders/{orderId}/goods-issues`
+- **Quyền:** `[Authorize(Roles = "Owner,Staff,Cashier")]`
+- **Hành vi:**
+  - `Cashier` chỉ đọc được phiếu xuất kho của đơn hàng do chính mình tạo (`Order.CreatedBy == currentUserId`) trong cùng Tenant (JWT). Đơn của Cashier khác hoặc Tenant khác trả `404 Not Found` với `errorCode = "GOODS_ISSUE_NOT_FOUND"` (không tiết lộ sự tồn tại của đơn).
+  - `Owner` và `Staff` đọc được mọi đơn trong Tenant.
+  - **Che giá vốn (`ICostVisibilityService`):** `Cashier` và `Staff` luôn nhận `totalCost = null`, `items[].unitCost = null`, `items[].totalCost = null`. Chỉ `Owner` nhận đủ giá vốn.
+- **Response (`200 OK`):** Mảng `GoodsIssueDto[]` (sắp theo `WarehouseId`), mỗi phần tử gồm `id`, `number`, `orderId`, `orderNumber`, `salesInvoiceId`, `salesInvoiceNumber`, `branchName`, `warehouseName`, `channel`, `reason`, `customerName`, `issuedByName`, `issuedAt`, `totalQuantity`, `totalBaseQuantity`, `totalCost`, `items[]` (`skuCode`, `skuName`, `unitName`, `baseUnitName`, `factorSnapshot`, `quantity`, `baseQuantity`, `unitCost`, `totalCost`).

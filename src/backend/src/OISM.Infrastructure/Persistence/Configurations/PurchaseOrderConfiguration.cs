@@ -40,10 +40,32 @@ public class PurchaseOrderConfiguration : IEntityTypeConfiguration<PurchaseOrder
 
         builder.Property(p => p.SupplierId)
             .HasColumnName("supplier_id")
-            .IsRequired();
+            .IsRequired(false);
 
         builder.Property(p => p.BranchId)
             .HasColumnName("branch_id")
+            .IsRequired();
+
+        builder.Property(p => p.OrderDate)
+            .HasColumnName("order_date")
+            .IsRequired();
+
+        builder.Property(p => p.ShippingFee)
+            .HasColumnName("shipping_fee")
+            .HasPrecision(20, 6)
+            .HasDefaultValue(0m)
+            .IsRequired();
+
+        builder.Property(p => p.DiscountAmount)
+            .HasColumnName("discount_amount")
+            .HasPrecision(20, 6)
+            .HasDefaultValue(0m)
+            .IsRequired();
+
+        builder.Property(p => p.VatAmount)
+            .HasColumnName("vat_amount")
+            .HasPrecision(20, 6)
+            .HasDefaultValue(0m)
             .IsRequired();
 
         builder.Property(p => p.Status)
@@ -68,6 +90,19 @@ public class PurchaseOrderConfiguration : IEntityTypeConfiguration<PurchaseOrder
             .HasColumnName("approved_at")
             .IsRequired(false);
 
+        builder.Property(p => p.ReturnedBy)
+            .HasColumnName("returned_by")
+            .IsRequired(false);
+
+        builder.Property(p => p.ReturnedAt)
+            .HasColumnName("returned_at")
+            .IsRequired(false);
+
+        builder.Property(p => p.ReturnReason)
+            .HasColumnName("return_reason")
+            .HasMaxLength(500)
+            .IsRequired(false);
+
         builder.Property(p => p.ClosedBy)
             .HasColumnName("closed_by")
             .IsRequired(false);
@@ -88,6 +123,11 @@ public class PurchaseOrderConfiguration : IEntityTypeConfiguration<PurchaseOrder
         builder.Property(p => p.CancelledAt)
             .HasColumnName("cancelled_at")
             .IsRequired(false);
+
+        builder.Property(p => p.Version)
+            .HasColumnName("version")
+            .HasDefaultValue(1)
+            .IsRequired();
 
         builder.Property(p => p.CreatedAt)
             .HasColumnName("created_at")
@@ -125,6 +165,12 @@ public class PurchaseOrderConfiguration : IEntityTypeConfiguration<PurchaseOrder
         builder.HasOne(p => p.ApprovedByUser)
             .WithMany()
             .HasForeignKey(p => new { p.TenantId, p.ApprovedBy })
+            .HasPrincipalKey(u => new { u.TenantId, u.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(p => p.ReturnedByUser)
+            .WithMany()
+            .HasForeignKey(p => new { p.TenantId, p.ReturnedBy })
             .HasPrincipalKey(u => new { u.TenantId, u.Id })
             .OnDelete(DeleteBehavior.Restrict);
 

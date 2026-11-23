@@ -99,6 +99,11 @@ export interface LedgerEntry {
   unitCost?: number;
   balanceAfter: number;
   reference: string;
+  documentType?: string;
+  documentId?: string;
+  documentNumber?: string;
+  goodsIssueId?: string;
+  salesInvoiceId?: string;
 }
 
 export interface PagedMeta {

@@ -83,7 +83,11 @@ Khi bấm nút **`[+ Thêm Sản Phẩm Mới]`**, một Modal xuất hiện v�
 
 ## 6. Cập Nhật Form Giá (04/11/2026)
 
-* **Phiếu đổi giá:** một bảng gồm các đơn vị được phép bán và hai cột giá bán lẻ, giá bán sỉ. Ô để trống giữ nguyên giá hiện tại; mỗi phiếu có thể đổi nhiều giá. Bắt buộc nhập lý do.
+* **Phiếu đổi giá:** một bảng gồm các đơn vị được phép bán và hai cột giá bán lẻ, giá bán sỉ. Ô để trống giữ nguyên giá hiện tại; mỗi phiếu có thể đổi nhiều giá.
+* **Loại lý do bắt buộc (`reason_type` - U12-G4):** Bắt buộc chọn loại lý do đổi giá (`SHORTAGE`: Khan hiếm hàng, `PROMOTION`: Khuyến mãi / kích cầu, `FROM_PURCHASE_ORDER`: Theo giá đơn mua, `OTHER`: Khác). Khi chọn `OTHER`, bắt buộc nhập giải trình chi tiết.
+* **Cảnh báo và giải quyết xung đột giá đơn mua (Q19 - U12-G4):** Khi tạo hoặc duyệt phiếu đổi giá trùng với SKU và đơn vị đang có cấu hình giá chờ áp dụng từ đơn mua đã duyệt / nhận một phần, giao diện hiển thị hộp thoại cảnh báo và yêu cầu Owner lựa chọn:
+  * `KEEP_MANUAL`: Hủy cấu hình giá trên đơn mua (chuyển sang Giữ giá cũ `KEEP`), ưu tiên giá đổi tay.
+  * `APPLY_PO_LATER`: Giữ cấu hình giá trên đơn mua (khi nhập kho đơn mua sẽ áp dụng đè lên giá đổi tay).
 * **Đơn vị quy đổi chưa có giá:** có nút dùng giá gợi ý theo hệ số. Giá chỉ được điền khi người dùng bấm, và server vẫn là nơi quyết định giá hiệu lực.
 * **Ô nhập số:** cho phép xóa hết, không tự chèn số 0, tự nhóm hàng nghìn và giữ đúng vị trí con trỏ.
 * **Tạo SKU:** form không điền sẵn 0 cho giá; phải nhập cả giá bán lẻ và giá bán sỉ.

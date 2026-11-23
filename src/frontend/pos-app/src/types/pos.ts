@@ -86,6 +86,7 @@ export interface PosCheckoutRequest {
 }
 
 export interface ReceiptData {
+  orderId?: string;
   receiptNumber: string;
   orderNumber?: string;
   createdAt: string;
@@ -116,6 +117,39 @@ export interface ReceiptData {
   receiverAccountName?: string;
   transferReference?: string;
   paymentAccountId?: string;
+}
+
+export interface PosGoodsIssueItem {
+  id: string;
+  skuId: string;
+  skuCode: string;
+  skuName: string;
+  unitName: string;
+  baseUnitName: string;
+  factorSnapshot: number;
+  quantity: number;
+  baseQuantity: number;
+}
+
+export interface PosGoodsIssue {
+  id: string;
+  number: string;
+  orderId: string;
+  orderNumber: string;
+  salesInvoiceId: string;
+  salesInvoiceNumber: string;
+  branchId: string;
+  branchName: string;
+  warehouseId: string;
+  warehouseName: string;
+  channel: string;
+  reason: string;
+  customerName?: string | null;
+  issuedByName?: string | null;
+  issuedAt: string;
+  totalQuantity: number;
+  totalBaseQuantity: number;
+  items: PosGoodsIssueItem[];
 }
 
 export interface PosUser {

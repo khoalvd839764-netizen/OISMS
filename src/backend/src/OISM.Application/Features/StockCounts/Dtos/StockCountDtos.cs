@@ -79,12 +79,14 @@ public class StockCountItemResponseDto
     public Guid SkuId { get; set; }
     public string SkuCode { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
+    public string BaseUnitName { get; set; } = string.Empty;
     public decimal ExpectedQuantity { get; set; }
     public decimal? CountedQuantity { get; set; }
     public decimal? DifferenceQuantity => CountedQuantity.HasValue ? CountedQuantity.Value - ExpectedQuantity : null;
     public long BalanceSequenceAtSnapshot { get; set; }
     public decimal? AdjustmentUnitCost { get; set; }
     public Guid? CountedBy { get; set; }
+    public string? CountedByName { get; set; }
     public DateTimeOffset? CountedAt { get; set; }
     public DateTimeOffset? SnapshotAt { get; set; }
     public bool IsDrifted { get; set; }
@@ -104,14 +106,18 @@ public class StockCountResponseDto
     public string? AdHocReason { get; set; }
     public Guid? PeriodId { get; set; }
     public Guid? SubmittedBy { get; set; }
+    public string? SubmittedByName { get; set; }
     public DateTimeOffset? SubmittedAt { get; set; }
     public Guid CreatedBy { get; set; }
+    public string? CreatedByName { get; set; }
     public Guid? ConfirmedBy { get; set; }
+    public string? ConfirmedByName { get; set; }
     public DateTimeOffset? ConfirmedAt { get; set; }
     public string? Note { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 
     public Guid? GeneratedAdjustmentId { get; set; }
+    public string? GeneratedAdjustmentNumber { get; set; }
     public bool IsReplay { get; set; }
     public List<StockCountItemResponseDto> Items { get; set; } = new();
     public List<StockCountApprovalResponseDto>? Approvals { get; set; }

@@ -124,11 +124,14 @@ Mọi luồng lấy giá qua **một resolver dùng chung**, không đọc trự
 
 ## Quan hệ với phiếu mua
 
-Phiếu mua chỉ quyết định giá mua và WAC, **không tự đổi giá bán**. Giá mua lấy theo quy trình ở [tài liệu 01](../Done/01-mua-hang-nhap-kho-gia-von.md).
-
-Sau khi có Upgrade 01, có thể thêm cảnh báo: sau khi xác nhận nhập kho, nếu giá bán thấp hơn WAC hoặc dưới ngưỡng lãi thì hiện nút tạo phiếu đổi giá đã điền sẵn SKU và đơn vị. Giá mới vẫn do người dùng nhập, phiếu vẫn qua bước duyệt, và cảnh báo không chặn nhập kho.
-
-Khi so sánh phải quy về đơn vị gốc, vì WAC tính theo đơn vị gốc. Ví dụ bao 25 kg bán 350.000đ tương đương 14.000đ/kg, nên so 14.000đ với WAC/kg. Phần này không bắt buộc cho bản đầu.
+> **Cập nhật 21/11/2026 (OISMS-66 / U12-G4):** Bổ sung cơ chế cấu hình giá bán trực tiếp trên dòng đơn mua (`purchase_order_sale_price_configs`) và tự động sinh phiếu đổi giá khi nhập kho:
+> 1. **Cấu hình trên đơn mua:** Owner có thể chọn chế độ giá cho từng đơn vị bán (`KEEP`, `WAC_MARGIN`, `FIXED`), nguồn giá (`OWNER`, `SUPPLIER`), và chế độ áp dụng (`ON_RECEIPT`, `FROM_DATE`). Khi phê duyệt đơn mua, nếu giá dự kiến nhỏ hơn WAC thì bắt buộc có cờ xác nhận bán lỗ (`confirmLossPrice = true`).
+> 2. **Tự động sinh phiếu khi xác nhận nhập kho:** Tại phiếu nhập kho đầu tiên (`ConfirmReceiptAsync`), trong cùng transaction và sau khi cập nhật WAC, hệ thống tự động sinh `PriceChangeRequest` (Kind = `Change`, Status = `Approved`, `reason_type = FROM_PURCHASE_ORDER`, Reason = "Theo đơn mua <PO_NUMBER>") và các dòng `sku_unit_prices` với `valid_from = max(apply_from, confirmed_at)`. Các lần nhập sau của dòng không sinh thêm giá.
+> 3. **Loại lý do bắt buộc trên phiếu đổi giá (`reason_type`):** Mọi phiếu đổi giá tay bắt buộc có `reason_type` (`SHORTAGE`, `PROMOTION`, `FROM_PURCHASE_ORDER`, `OTHER`; `OTHER` bắt buộc nhập ghi chú chi tiết tối thiểu 5 ký tự).
+> 4. **Xử lý xung đột giá chờ từ đơn mua (Q19):** Khi lập hoặc duyệt phiếu đổi giá tay trùng SKU × đơn vị × bảng giá với cấu hình đơn mua đang chờ áp dụng (`Approved` hoặc `PartiallyReceived`), client bắt buộc chọn hướng giải quyết `poConflictResolution`:
+>    - `KEEP_MANUAL`: Hủy cấu hình giá trên đơn mua (chuyển sang `KEEP`), ưu tiên giá đổi tay.
+>    - `APPLY_PO_LATER`: Giữ nguyên cấu hình trên đơn mua, khi nhập kho đơn mua sẽ áp dụng đè lên giá đổi tay.
+>    - Nếu không gửi hướng giải quyết: hệ thống trả về mã lỗi `409 PRICE_CHANGE_PO_CONFLICT` kèm danh sách đơn mua xung đột.
 
 ## Thay đổi cần làm
 

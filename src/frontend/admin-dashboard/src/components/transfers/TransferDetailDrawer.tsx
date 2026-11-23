@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import type { StockTransfer } from '../../types/stockTransfer';
 import { TRANSFER_STATUS_LABEL } from '../../types/stockTransfer';
 import { stockTransferService } from '../../services/stockTransferService';
+import { useAuth } from '../../context/AuthContext';
 
 interface TransferDetailDrawerProps {
   transferId: string | null;
@@ -14,6 +15,8 @@ export const TransferDetailDrawer: React.FC<TransferDetailDrawerProps> = ({
   onClose,
   onRefresh,
 }) => {
+  const { account } = useAuth();
+  const isOwner = account?.role === 'Owner';
   const [detail, setDetail] = useState<StockTransfer | null>(null);
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -197,29 +200,40 @@ export const TransferDetailDrawer: React.FC<TransferDetailDrawerProps> = ({
               )}
 
               {/* Danh sách mặt hàng SKU */}
-              <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-2">Danh sách mặt hàng điều chuyển</h3>
-                <div className="border border-gray-200 rounded-lg overflow-hidden">
-                  <table className="w-full text-xs text-left">
-                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-600">
-                      <tr>
-                        <th className="p-2">Mã SKU</th>
-                        <th className="p-2">Tên sản phẩm</th>
-                        <th className="p-2 text-right">Số lượng chuyển (theo đơn vị gốc)</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {detail.items.map((item, idx) => (
-                        <tr key={item.id || idx}>
-                          <td className="p-2 font-medium text-gray-800">{item.skuCode}</td>
-                          <td className="p-2 text-gray-500">{item.productName || item.skuName || '-'}</td>
-                          <td className="p-2 text-right font-bold text-gray-900">{item.quantity}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              {(() => {
+                const hasCost = isOwner && (detail.items?.some((i) => i.unitCost !== null && i.unitCost !== undefined) ?? false);
+                return (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2">Danh sách mặt hàng điều chuyển</h3>
+                    <div className="border border-gray-200 rounded-lg overflow-hidden">
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-gray-50 border-b border-gray-200 text-gray-600">
+                          <tr>
+                            <th className="p-2">Mã SKU</th>
+                            <th className="p-2">Tên sản phẩm</th>
+                            <th className="p-2 text-right">Số lượng chuyển (theo đơn vị gốc)</th>
+                            {hasCost && <th className="p-2 text-right">Đơn giá vốn</th>}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {detail.items.map((item, idx) => (
+                            <tr key={item.id || idx}>
+                              <td className="p-2 font-medium text-gray-800">{item.skuCode}</td>
+                              <td className="p-2 text-gray-500">{item.productName || item.skuName || '-'}</td>
+                              <td className="p-2 text-right font-bold text-gray-900">{item.quantity}</td>
+                              {hasCost && (
+                                <td className="p-2 text-right text-gray-600">
+                                  {item.unitCost != null ? `${item.unitCost.toLocaleString('vi-VN')} ₫` : '—'}
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
             </>
           ) : null}
         </div>

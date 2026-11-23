@@ -21,12 +21,14 @@ export interface StockCountItem {
   skuId: string;
   skuCode: string;
   productName: string;
+  baseUnitName?: string;
   expectedQuantity: number;
   countedQuantity?: number | null;
   differenceQuantity?: number | null;
   balanceSequenceAtSnapshot: number;
   adjustmentUnitCost?: number | null;
   countedBy?: string | null;
+  countedByName?: string | null;
   isDrifted?: boolean;
 }
 
@@ -53,13 +55,17 @@ export interface StockCount {
   adHocReason?: string;
   periodId?: string;
   submittedBy?: string;
+  submittedByName?: string | null;
   submittedAt?: string;
   createdBy: string;
+  createdByName?: string | null;
   confirmedBy?: string;
+  confirmedByName?: string | null;
   confirmedAt?: string;
   note?: string;
   createdAt: string;
   generatedAdjustmentId?: string;
+  generatedAdjustmentNumber?: string | null;
   isReplay?: boolean;
   items: StockCountItem[];
   approvals?: StockCountApproval[];

@@ -1,0 +1,12 @@
+{
+  "healthUrl": "http://localhost:5000/health/live",
+  "posUrl": "http://localhost:5174/",
+  "intervalSec": 2,
+  "totalProbes": 5,
+  "totalOk": 5,
+  "overallUptimePct": 100,
+  "peakWindow": "07:00-22:00 Asia/Ho_Chi_Minh",
+  "peakProbes": 5,
+  "peakOk": 5,
+  "peakUptimePct": 100
+}

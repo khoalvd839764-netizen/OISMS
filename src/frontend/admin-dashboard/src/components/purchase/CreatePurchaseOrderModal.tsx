@@ -5,7 +5,9 @@ import { purchaseOrderService } from '../../services/purchaseOrderService';
 import { apiAdapter } from '../../services/apiAdapter';
 import type {
   CreatePurchaseOrderDto,
+  PurchaseOrderPriceSuggestion,
   PurchaseOrderResponse,
+  UpdatePurchaseOrderDraftDto,
 } from '../../types/purchaseOrder';
 
 interface VariantOption {
@@ -36,21 +38,28 @@ interface OrderLine {
   productId: string;
   unitId: string;
   quantity: number;
-  unitPrice: number;
+  unitPrice: number | null;
 }
 
 interface CreatePurchaseOrderModalProps {
   initialPo?: PurchaseOrderResponse | null;
+  userRole?: string;
   onClose: () => void;
   onSuccess: (po: PurchaseOrderResponse) => void;
 }
 
 export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> = ({
   initialPo,
+  userRole,
   onClose,
   onSuccess,
 }) => {
-  const isEdit = Boolean(initialPo && initialPo.status === 'Draft');
+  const isOwner = userRole === 'Owner';
+  const isEdit = Boolean(
+    initialPo && (initialPo.status === 'Draft' || (isOwner && initialPo.status === 'PendingApproval'))
+  );
+
+  const todayStr = new Date().toISOString().split('T')[0];
 
   const [branches, setBranches] = useState<Array<{ id: string; name: string }>>([]);
   const [suppliers, setSuppliers] = useState<Array<{ id: string; name: string }>>([]);
@@ -58,6 +67,10 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
 
   const [branchId, setBranchId] = useState(initialPo?.branchId || '');
   const [supplierId, setSupplierId] = useState(initialPo?.supplierId || '');
+  const [orderDate, setOrderDate] = useState(initialPo?.orderDate || todayStr);
+  const [shippingFee, setShippingFee] = useState<number>(initialPo?.shippingFee ?? 0);
+  const [discountAmount, setDiscountAmount] = useState<number>(initialPo?.discountAmount ?? 0);
+  const [vatAmount, setVatAmount] = useState<number>(initialPo?.vatAmount ?? 0);
   const [number, setNumber] = useState(initialPo?.number || '');
   const [note, setNote] = useState(initialPo?.note || '');
 
@@ -68,12 +81,13 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
         productId: '',
         unitId: it.unitId || '',
         quantity: it.quantity,
-        unitPrice: it.unitPrice,
+        unitPrice: isOwner ? (it.unitPrice ?? null) : null,
       }));
     }
-    return [{ skuId: '', productId: '', unitId: '', quantity: 1, unitPrice: 0 }];
+    return [{ skuId: '', productId: '', unitId: '', quantity: 1, unitPrice: null }];
   });
 
+  const [suggestions, setSuggestions] = useState<Record<string, PurchaseOrderPriceSuggestion>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -104,12 +118,11 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
       }
       if (suppliersRes.data) {
         setSuppliers(suppliersRes.data);
-        if (!supplierId && suppliersRes.data.length === 1) {
+        if (isOwner && !supplierId && suppliersRes.data.length === 1) {
           setSupplierId(suppliersRes.data[0].id);
         }
       }
       if (skusRes.data) {
-        // getSkus trả danh sách SKU phẳng; bỏ dòng sản phẩm chưa có biến thể
         const flat: VariantOption[] = skusRes.data
           .filter((sku) => sku.isActive !== false && sku.id !== sku.productId)
           .map((sku) => {
@@ -146,7 +159,6 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
           });
         setVariantOptions(flat);
 
-        // Khôi phục dòng khi sửa bản nháp
         if (initialPo) {
           setLines((current) =>
             current.map((l) => {
@@ -165,6 +177,35 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
     };
   }, []);
 
+  // Tải giá gợi ý và WAC cho từng dòng khi Owner chọn chi nhánh, NCC, SKU, đơn vị
+  useEffect(() => {
+    if (!isOwner || !branchId) return;
+    let active = true;
+
+    lines.forEach((line) => {
+      if (!line.skuId) return;
+      const key = `${branchId}:${supplierId || 'none'}:${line.skuId}:${line.unitId || 'base'}`;
+      if (suggestions[key]) return;
+
+      purchaseOrderService
+        .getPriceSuggestion({
+          branchId,
+          supplierId: supplierId || undefined,
+          skuId: line.skuId,
+          unitId: line.unitId || undefined,
+        })
+        .then((res) => {
+          if (!active) return;
+          setSuggestions((prev) => ({ ...prev, [key]: res }));
+        })
+        .catch(() => {});
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [isOwner, branchId, supplierId, lines]);
+
   const handleAddLine = () => {
     if (variantOptions.length === 0) {
       setError('Chưa có SKU đang hoạt động. Vui lòng tạo sản phẩm trước khi lập đơn mua.');
@@ -175,10 +216,9 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
       return;
     }
     setError(null);
-    setLines([...lines, { skuId: '', productId: '', unitId: '', quantity: 1, unitPrice: 0 }]);
+    setLines([...lines, { skuId: '', productId: '', unitId: '', quantity: 1, unitPrice: null }]);
   };
 
-  // Tạo nhanh nhà cung cấp ngay trên form và chọn luôn
   const handleQuickCreateSupplier = async () => {
     const name = newSupplierName.trim();
     if (!name) {
@@ -233,16 +273,52 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
     );
   };
 
-  const handlePriceChange = (index: number, price: number) => {
+  const handlePriceChange = (index: number, price: number | null) => {
     setLines((prev) =>
-      prev.map((l, i) => (i === index ? { ...l, unitPrice: Math.max(0, price) } : l))
+      prev.map((l, i) =>
+        i === index ? { ...l, unitPrice: price === null ? null : Math.max(0, price) } : l
+      )
     );
   };
 
-  const totalAmount = lines.reduce(
+  const subtotal = lines.reduce(
     (sum, l) => sum + (Number(l.quantity) || 0) * (Number(l.unitPrice) || 0),
     0
   );
+  const netAllocatedCost = Math.max(0, subtotal + (Number(shippingFee) || 0) - (Number(discountAmount) || 0));
+  const totalPayable = netAllocatedCost + (Number(vatAmount) || 0);
+
+  const computePreviewAllocatedUnitCost = (line: OrderLine, idx: number): number | null => {
+    if (!isOwner || line.unitPrice === null || line.quantity <= 0) return null;
+    if (discountAmount > subtotal) return null;
+
+    const netAdj = (Number(shippingFee) || 0) - (Number(discountAmount) || 0);
+    const totalQty = lines.reduce((s, l) => s + (Number(l.quantity) || 0), 0);
+
+    let running = 0;
+    for (let i = 0; i < lines.length; i++) {
+      const cur = lines[i];
+      const q = Number(cur.quantity) || 0;
+      const p = Number(cur.unitPrice) || 0;
+      const lineTotal = q * p;
+      if (i < lines.length - 1) {
+        const rawAlloc =
+          subtotal > 0
+            ? lineTotal + (netAdj * lineTotal) / subtotal
+            : totalQty > 0
+            ? ((Number(shippingFee) || 0) * q) / totalQty
+            : 0;
+        const unitCost = q > 0 ? Math.round((rawAlloc / q) * 1e6) / 1e6 : 0;
+        if (i === idx) return unitCost;
+        running += Math.round(unitCost * q * 1e6) / 1e6;
+      } else {
+        const lastTotal = netAllocatedCost - running;
+        const lastUnitCost = q > 0 ? Math.round((lastTotal / q) * 1e6) / 1e6 : 0;
+        if (i === idx) return lastUnitCost;
+      }
+    }
+    return null;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -250,8 +326,8 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
       setError('Vui lòng chọn chi nhánh tiếp nhận.');
       return;
     }
-    if (!supplierId) {
-      setError('Vui lòng chọn nhà cung cấp.');
+    if (isOwner && orderDate && orderDate > todayStr) {
+      setError('Ngày đặt hàng không được lớn hơn ngày hiện tại.');
       return;
     }
     if (lines.length === 0) {
@@ -259,7 +335,6 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
       return;
     }
 
-    // Kiểm tra trùng SKU
     const skuSet = new Set<string>();
     for (const l of lines) {
       if (!l.skuId) {
@@ -281,28 +356,46 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
     setLoading(true);
     setError(null);
 
-    const dto: CreatePurchaseOrderDto = {
-      branchId,
-      supplierId,
-      number: number.trim() || null,
-      note: note.trim() || null,
-      items: lines.map((l) => ({
-        skuId: l.skuId,
-        unitId: l.unitId || null,
-        quantity: Number(l.quantity),
-        unitPrice: Number(l.unitPrice),
-      })),
-    };
+    const itemsPayload = lines.map((l) => ({
+      skuId: l.skuId,
+      unitId: l.unitId || null,
+      quantity: Number(l.quantity),
+      unitPrice: isOwner && l.unitPrice !== null ? Number(l.unitPrice) : null,
+    }));
 
     try {
       let result: PurchaseOrderResponse;
       if (isEdit && initialPo) {
-        result = await purchaseOrderService.updatePurchaseOrder(initialPo.id, dto);
+        const updateDto: UpdatePurchaseOrderDraftDto = {
+          branchId,
+          supplierId: isOwner ? supplierId || null : null,
+          orderDate: isOwner ? orderDate : undefined,
+          shippingFee: isOwner ? Number(shippingFee) || 0 : undefined,
+          discountAmount: isOwner ? Number(discountAmount) || 0 : undefined,
+          vatAmount: isOwner ? Number(vatAmount) || 0 : undefined,
+          version: initialPo.version,
+          number: number.trim() || null,
+          note: note.trim() || null,
+          items: itemsPayload,
+        };
+        result = await purchaseOrderService.updateDraftPurchaseOrder(initialPo.id, updateDto);
       } else {
-        result = await purchaseOrderService.createPurchaseOrder(
-          dto,
+        const createDto: CreatePurchaseOrderDto = {
+          branchId,
+          supplierId: isOwner ? supplierId || null : null,
+          orderDate: isOwner ? orderDate : undefined,
+          shippingFee: isOwner ? Number(shippingFee) || 0 : undefined,
+          discountAmount: isOwner ? Number(discountAmount) || 0 : undefined,
+          vatAmount: isOwner ? Number(vatAmount) || 0 : undefined,
+          number: number.trim() || null,
+          note: note.trim() || null,
+          items: itemsPayload,
+        };
+        const created = await purchaseOrderService.createPurchaseOrder(
+          createDto,
           idempotencyKeyRef.current
         );
+        result = created.data;
       }
       onSuccess(result);
     } catch (err: any) {
@@ -319,13 +412,24 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
   return (
     <Modal
       wide
-      title={isEdit ? `Sửa bản nháp đơn mua: ${initialPo?.number}` : 'Tạo đơn mua hàng (PO)'}
+      title={
+        isEdit
+          ? `Cập nhật đơn mua: ${initialPo?.number} (${initialPo?.status})`
+          : isOwner
+          ? 'Tạo đơn mua hàng (Vào thẳng Chờ duyệt giá)'
+          : 'Tạo đề nghị mua hàng (Draft)'
+      }
       onClose={onClose}
     >
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: 20 }}>
         {loadError && (
           <div role="alert" style={{ padding: 12, borderRadius: 6, background: '#fee2e2', color: '#991b1b', fontSize: 14 }}>
             {loadError}
+          </div>
+        )}
+        {initialPo?.returnReason && (
+          <div style={{ padding: 12, borderRadius: 6, background: '#fef3c7', color: '#92400e', fontSize: 13 }}>
+            <strong>Lý do trả về từ Owner:</strong> {initialPo.returnReason}
           </div>
         )}
         {!loadError && variantOptions.length === 0 && (
@@ -348,7 +452,7 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
           </div>
         )}
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isOwner ? '1fr 1fr 1fr' : '1fr 1fr', gap: 16 }}>
           <div>
             <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
               Chi nhánh đặt hàng <span style={{ color: '#ef4444' }}>*</span>
@@ -368,63 +472,92 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
             </Select>
           </div>
 
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <label style={{ fontWeight: 600 }}>
-                Nhà cung cấp <span style={{ color: '#ef4444' }}>*</span>
-              </label>
-              <button
-                type="button"
-                onClick={() => setQuickSupplierOpen((open) => !open)}
-                style={{ background: 'none', border: 'none', color: '#1769e0', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-              >
-                {quickSupplierOpen ? 'Đóng' : '+ Thêm nhà cung cấp'}
-              </button>
-            </div>
-            {quickSupplierOpen ? (
-              <div className="inline-input">
-                <Input
-                  value={newSupplierName}
-                  onChange={(e) => setNewSupplierName(e.target.value)}
-                  placeholder="Tên nhà cung cấp mới"
-                  maxLength={150}
-                  disabled={savingSupplier}
-                />
-                <Button type="button" variant="secondary" onClick={handleQuickCreateSupplier} disabled={savingSupplier}>
-                  {savingSupplier ? 'Đang lưu...' : 'Lưu'}
-                </Button>
+          {isOwner && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <label style={{ fontWeight: 600 }}>Nhà cung cấp</label>
+                <button
+                  type="button"
+                  onClick={() => setQuickSupplierOpen((open) => !open)}
+                  style={{ background: 'none', border: 'none', color: '#1769e0', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  {quickSupplierOpen ? 'Đóng' : '+ Thêm NCC'}
+                </button>
               </div>
-            ) : (
-              <Select
-                value={supplierId}
-                onChange={(e) => setSupplierId(e.target.value)}
+              {quickSupplierOpen ? (
+                <div className="inline-input">
+                  <Input
+                    value={newSupplierName}
+                    onChange={(e) => setNewSupplierName(e.target.value)}
+                    placeholder="Tên nhà cung cấp mới"
+                    maxLength={150}
+                    disabled={savingSupplier}
+                  />
+                  <Button type="button" variant="secondary" onClick={handleQuickCreateSupplier} disabled={savingSupplier}>
+                    {savingSupplier ? 'Đang lưu...' : 'Lưu'}
+                  </Button>
+                </div>
+              ) : (
+                <Select
+                  value={supplierId}
+                  onChange={(e) => setSupplierId(e.target.value)}
+                  disabled={loading}
+                >
+                  <option value="">-- Chọn nhà cung cấp (bắt buộc khi duyệt) --</option>
+                  {suppliers.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </div>
+          )}
+
+          {isOwner ? (
+            <div>
+              <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
+                Ngày đặt hàng với NCC
+              </label>
+              <Input
+                type="date"
+                max={todayStr}
+                value={orderDate}
+                onChange={(e) => setOrderDate(e.target.value)}
                 disabled={loading}
-                required
-              >
-                <option value="">-- Chọn nhà cung cấp --</option>
-                {suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </Select>
-            )}
-          </div>
+              />
+            </div>
+          ) : (
+            <div>
+              <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
+                Mã đơn mua (Tùy chọn)
+              </label>
+              <Input
+                value={number}
+                onChange={(e) => setNumber(e.target.value)}
+                placeholder="Để trống tự sinh PO-yyyyMMdd-XXXXXX"
+                maxLength={50}
+                disabled={loading}
+              />
+            </div>
+          )}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <div>
-            <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
-              Mã đơn mua (Tùy chọn)
-            </label>
-            <Input
-              value={number}
-              onChange={(e) => setNumber(e.target.value)}
-              placeholder="Để trống hệ thống sẽ tự sinh PO-yyyyMMdd-XXXXXX"
-              maxLength={50}
-              disabled={loading}
-            />
-          </div>
+        <div style={{ display: 'grid', gridTemplateColumns: isOwner ? '1fr 2fr' : '1fr', gap: 16 }}>
+          {isOwner && (
+            <div>
+              <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
+                Mã đơn mua (Tùy chọn)
+              </label>
+              <Input
+                value={number}
+                onChange={(e) => setNumber(e.target.value)}
+                placeholder="Để trống tự sinh PO-yyyyMMdd-XXXXXX"
+                maxLength={50}
+                disabled={loading}
+              />
+            </div>
+          )}
 
           <div>
             <label style={{ display: 'block', fontWeight: 600, marginBottom: 6 }}>
@@ -433,12 +566,66 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
             <Input
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Ghi chú điều khoản giao hàng, chiết khấu..."
+              placeholder="Ghi chú nhu cầu đặt hàng, điều khoản giao nhận..."
               maxLength={1000}
               disabled={loading}
             />
           </div>
         </div>
+
+        {isOwner && (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr 1fr',
+              gap: 16,
+              padding: 12,
+              background: '#f8fafc',
+              borderRadius: 8,
+              border: '1px solid #e2e8f0',
+            }}
+          >
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
+                Phí vận chuyển (+ vào giá vốn)
+              </label>
+              <NumberField
+                aria-label="Phí vận chuyển"
+                value={shippingFee}
+                decimals={2}
+                suffix="₫"
+                onChange={(val) => setShippingFee(Math.max(0, val ?? 0))}
+                disabled={loading}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
+                Chiết khấu thương mại (− khỏi giá vốn)
+              </label>
+              <NumberField
+                aria-label="Chiết khấu thương mại"
+                value={discountAmount}
+                decimals={2}
+                suffix="₫"
+                onChange={(val) => setDiscountAmount(Math.max(0, val ?? 0))}
+                disabled={loading}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>
+                Thuế VAT đầu vào (không vào giá vốn)
+              </label>
+              <NumberField
+                aria-label="Thuế VAT"
+                value={vatAmount}
+                decimals={2}
+                suffix="₫"
+                onChange={(val) => setVatAmount(Math.max(0, val ?? 0))}
+                disabled={loading}
+              />
+            </div>
+          </div>
+        )}
 
         <div>
           <div
@@ -462,15 +649,16 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
             </Button>
           </div>
 
-          <div className="table-wrap" style={{ maxHeight: 280, overflowY: 'auto' }}>
+          <div className="table-wrap" style={{ maxHeight: 320, overflowY: 'auto' }}>
             <table style={{ width: '100%', fontSize: 13 }}>
               <thead>
                 <tr>
-                  <th style={{ width: '35%' }}>Mặt hàng (SKU)</th>
-                  <th style={{ width: '20%' }}>Đơn vị mua</th>
-                  <th style={{ width: '15%' }}>Số lượng</th>
-                  <th style={{ width: '18%' }}>Đơn giá mua (VNĐ)</th>
-                  <th style={{ width: '12%' }}>Thao tác</th>
+                  <th style={{ width: isOwner ? '28%' : '45%' }}>Mặt hàng (SKU)</th>
+                  <th style={{ width: isOwner ? '16%' : '25%' }}>Đơn vị mua</th>
+                  <th style={{ width: '14%' }}>Số lượng</th>
+                  {isOwner && <th style={{ width: '20%' }}>Đơn giá mua (VNĐ)</th>}
+                  {isOwner && <th style={{ width: '14%' }}>Giá vốn sau phân bổ</th>}
+                  <th style={{ width: '8%' }}>Thao tác</th>
                 </tr>
               </thead>
               <tbody>
@@ -479,6 +667,9 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
                     (v) => v.variantId === line.skuId
                   );
                   const availableUnits = currentVariant?.units || [];
+                  const sugKey = `${branchId}:${supplierId || 'none'}:${line.skuId}:${line.unitId || 'base'}`;
+                  const sug = suggestions[sugKey];
+                  const previewAlloc = computePreviewAllocatedUnitCost(line, idx);
 
                   return (
                     <tr key={idx}>
@@ -521,17 +712,55 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
                           disabled={loading}
                         />
                       </td>
-                      <td>
-                        <NumberField
-                          aria-label="Đơn giá mua"
-                          value={line.unitPrice || null}
-                          decimals={2}
-                          suffix="₫"
-                          onChange={(value) => handlePriceChange(idx, value ?? 0)}
-                          placeholder="Đơn giá"
-                          disabled={loading}
-                        />
-                      </td>
+                      {isOwner && (
+                        <td>
+                          <NumberField
+                            aria-label="Đơn giá mua"
+                            value={line.unitPrice}
+                            decimals={2}
+                            suffix="₫"
+                            onChange={(value) => handlePriceChange(idx, value)}
+                            placeholder="Chưa nhập giá"
+                            disabled={loading}
+                          />
+                          {sug && (
+                            <div style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
+                              <div>
+                                WAC hiện tại: <strong>{sug.currentUnitWac.toLocaleString('vi-VN')} ₫</strong>
+                              </div>
+                              {sug.suggestedUnitPrice != null ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handlePriceChange(idx, sug.suggestedUnitPrice!)}
+                                  style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    padding: 0,
+                                    color: '#0284c7',
+                                    cursor: 'pointer',
+                                    fontSize: 11,
+                                    textDecoration: 'underline',
+                                  }}
+                                >
+                                  Gợi ý lần mua gần nhất ({sug.lastPurchaseOrderNumber}):{' '}
+                                  {sug.suggestedUnitPrice.toLocaleString('vi-VN')} ₫
+                                </button>
+                              ) : (
+                                <span>Chưa có lịch sử giá NCC này</span>
+                              )}
+                            </div>
+                          )}
+                        </td>
+                      )}
+                      {isOwner && (
+                        <td>
+                          {previewAlloc != null ? (
+                            <strong>{previewAlloc.toLocaleString('vi-VN')} ₫</strong>
+                          ) : (
+                            <span style={{ color: '#94a3b8' }}>—</span>
+                          )}
+                        </td>
+                      )}
                       <td style={{ textAlign: 'center' }}>
                         <Button
                           type="button"
@@ -550,27 +779,33 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
             </table>
           </div>
 
-          <p style={{ margin: '8px 0 0', fontSize: 12, color: '#64748b' }}>
-            Cần mua theo thùng, bao...? Cấu hình đơn vị quy đổi của SKU ở trang Sản phẩm, rồi chọn tại cột Đơn vị mua.
-          </p>
-
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              alignItems: 'center',
-              marginTop: 12,
-              padding: '8px 12px',
-              background: 'var(--surface-subtle, #f8fafc)',
-              borderRadius: 6,
-              fontSize: 14,
-            }}
-          >
-            <span>Tổng giá trị đơn mua: </span>
-            <strong style={{ marginLeft: 8, fontSize: 16, color: '#0284c7' }}>
-              {totalAmount.toLocaleString('vi-VN')} ₫
-            </strong>
-          </div>
+          {isOwner && (
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 12,
+                marginTop: 12,
+                padding: '10px 14px',
+                background: 'var(--surface-subtle, #f8fafc)',
+                borderRadius: 6,
+                fontSize: 13,
+              }}
+            >
+              <div>
+                Tiền hàng: <strong>{subtotal.toLocaleString('vi-VN')} ₫</strong> · Giá vốn phân bổ:{' '}
+                <strong>{netAllocatedCost.toLocaleString('vi-VN')} ₫</strong>
+              </div>
+              <div>
+                Tổng thanh toán (gồm VAT):{' '}
+                <strong style={{ marginLeft: 6, fontSize: 16, color: '#0284c7' }}>
+                  {totalPayable.toLocaleString('vi-VN')} ₫
+                </strong>
+              </div>
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 8 }}>
@@ -578,7 +813,13 @@ export const CreatePurchaseOrderModal: React.FC<CreatePurchaseOrderModalProps> =
             Hủy
           </Button>
           <Button type="submit" disabled={loading}>
-            {loading ? 'Đang lưu...' : isEdit ? 'Cập nhật bản nháp' : 'Tạo đơn mua (Draft)'}
+            {loading
+              ? 'Đang lưu...'
+              : isEdit
+              ? 'Lưu thay đổi'
+              : isOwner
+              ? 'Lưu đơn chờ duyệt'
+              : 'Lưu đề nghị mua (Draft)'}
           </Button>
         </div>
       </form>

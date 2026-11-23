@@ -83,6 +83,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     email: currentUser?.email || '',
     tenantName: currentUser?.tenantName || tenantName,
   };
+  // [BF-020] Snapshot ngữ cảnh (tenant, user, chi nhánh, giỏ hàng) để phản hồi checkout muộn không xóa giỏ/ghi đè hóa đơn của ngữ cảnh mới.
+  const contextSignature = `${activeUser.tenantId || ''}:${activeUser.id || ''}:${branchId}:${items.map((i) => `${i.variantId}:${i.unitId || ''}:${i.quantity}:${i.retailPrice}`).join('|')}`;
+  const contextSignatureRef = useRef(contextSignature);
+  contextSignatureRef.current = contextSignature;
 
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'BANK_TRANSFER_QR'>('CASH');
   const [customerName, setCustomerName] = useState('');
@@ -306,41 +310,54 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
     }
 
 
+    const requestContextSignature = contextSignatureRef.current;
+    const requestBranchId = branchId;
+    const requestUser = activeUser;
+
     try {
       const result = await checkoutPosOrder(checkoutRequest);
+      const isSameContext = contextSignatureRef.current === requestContextSignature;
 
       // [BF-019] Chỉ xác nhận thành công khi server trả về mã đơn hàng hợp lệ
       if (result.success && result.orderNumber) {
-        clearPendingCheckout(activeUser, branchId);
-        clearPosQrIntent(activeUser, branchId);
-        setPendingAttempt(null);
-        onSuccessAndPrint(mapServerReceipt(result.receipt, tenantName || 'CỬA HÀNG OISMS'));
-        onClose();
+        clearPendingCheckout(requestUser, requestBranchId);
+        clearPosQrIntent(requestUser, requestBranchId);
+        if (isSameContext) {
+          setPendingAttempt(null);
+          onSuccessAndPrint(mapServerReceipt(result.receipt, tenantName || 'CỬA HÀNG OISMS', result.orderId));
+          onClose();
+        }
       } else if (result.errorCode !== 'BRANCH_NOT_ASSIGNED' && (result.isAuthExpired || result.isUnknown || isRetryActive)) {
         // Kết quả chưa rõ: giữ nguyên RequestKey và payload để thử lại, không sinh khóa mới.
-        updatePendingCheckoutStatus('unknown', result.message, result.errorCode, activeUser, branchId);
-        setPendingAttempt(getPendingCheckout(activeUser, branchId));
-        setApiNotice({ type: 'warning', text: result.message, details: checkoutRequest });
+        updatePendingCheckoutStatus('unknown', result.message, result.errorCode, requestUser, requestBranchId);
+        if (isSameContext) {
+          setPendingAttempt(getPendingCheckout(requestUser, requestBranchId));
+          setApiNotice({ type: 'warning', text: result.message, details: checkoutRequest });
+        }
       } else {
         // Lỗi chắc chắn (400, 403, 404, 409...): đơn không được tạo, xóa pending để lần sau dùng khóa mới.
-        if (result.errorCode === 'PRICE_MISMATCH' && result.currentPrices?.length) {
-          setPriceUpdates(result.currentPrices);
+        clearPendingCheckout(requestUser, requestBranchId);
+        if (isSameContext) {
+          if (result.errorCode === 'PRICE_MISMATCH' && result.currentPrices?.length) {
+            setPriceUpdates(result.currentPrices);
+          }
+          setPendingAttempt(null);
+          setApiNotice({
+            type: result.isPendingBackend ? 'warning' : 'error',
+            text: result.message || 'Thanh toán không thành công. Giỏ hàng được bảo lưu.',
+            details: checkoutRequest,
+          });
         }
-        clearPendingCheckout(activeUser, branchId);
-        setPendingAttempt(null);
-        setApiNotice({
-          type: result.isPendingBackend ? 'warning' : 'error',
-          text: result.message || 'Thanh toán không thành công. Giỏ hàng được bảo lưu.',
-          details: checkoutRequest,
-        });
       }
     } catch (err: any) {
-      updatePendingCheckoutStatus('unknown', err?.message, undefined, activeUser, branchId);
-      setPendingAttempt(getPendingCheckout(activeUser, branchId));
-      setApiNotice({
-        type: 'error',
-        text: `Lỗi gọi API: ${err?.message || 'không rõ'}. Kết quả giao dịch chưa xác định, mã yêu cầu được giữ nguyên để thử lại.`,
-      });
+      updatePendingCheckoutStatus('unknown', err?.message, undefined, requestUser, requestBranchId);
+      if (contextSignatureRef.current === requestContextSignature) {
+        setPendingAttempt(getPendingCheckout(requestUser, requestBranchId));
+        setApiNotice({
+          type: 'error',
+          text: `Lỗi gọi API: ${err?.message || 'không rõ'}. Kết quả giao dịch chưa xác định, mã yêu cầu được giữ nguyên để thử lại.`,
+        });
+      }
     } finally {
       submittingRef.current = false;
       setIsSubmitting(false);

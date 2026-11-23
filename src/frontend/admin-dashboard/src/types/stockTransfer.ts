@@ -14,8 +14,9 @@ export interface StockTransferItem {
   skuCode: string;
   skuName?: string;
   productName?: string;
+  baseUnitName?: string;
   quantity: number;
-  unitCost?: number;
+  unitCost?: number | null;
 }
 
 export interface StockTransfer {
@@ -32,6 +33,12 @@ export interface StockTransfer {
   toWarehouseId: string;
   toWarehouseName?: string;
   status: TransferStatus;
+  createdBy?: string;
+  createdByName?: string | null;
+  dispatchedBy?: string | null;
+  dispatchedByName?: string | null;
+  receivedBy?: string | null;
+  receivedByName?: string | null;
   note?: string;
   items: StockTransferItem[];
   createdAt: string;

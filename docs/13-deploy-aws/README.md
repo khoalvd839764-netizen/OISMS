@@ -15,7 +15,7 @@
 | :--- | :--- |
 | Admin Dashboard (kèm POS tích hợp tại `/pos`) | [https://oisms.khoadang.site](https://oisms.khoadang.site) |
 | POS PWA riêng | [https://pos.oisms.khoadang.site](https://pos.oisms.khoadang.site) |
-| Kiểm tra sẵn sàng | `https://oisms.khoadang.site/health/ready` |
+| Kiểm tra còn sống | `https://oisms.khoadang.site/health/live` (`/health/ready` chỉ gọi nội bộ từ máy chủ, xem [tài liệu 04](./04-quy-trinh-deploy-va-cap-nhat.md)) |
 
 Toàn bộ hệ thống chạy trên **một máy EC2** bằng Docker Compose, có **Caddy** đứng trước làm reverse proxy và tự cấp chứng chỉ HTTPS. Máy có thể được tắt khi không demo để tiết kiệm chi phí, nên link có lúc không truy cập được.
 

@@ -76,7 +76,7 @@ public class PostgresTenantIsolationTests : IAsyncLifetime
         var result = await readinessService.CheckReadinessAsync();
 
         result.IsHealthy.Should().BeTrue("Database phải sẵn sàng và tài khoản runtime oisms_app phải có đủ quyền");
-        result.TablesCount.Should().Be(48, "PostgreSQL schema có chính xác 48 bảng sau CS-02 (thêm user_branches)");
+        result.TablesCount.Should().Be(51, "PostgreSQL schema có chính xác 51 bảng sau U12 G4 (thêm purchase_order_sale_price_configs)");
         result.TriggerVerified.Should().BeTrue("Trigger ledger_append_only phải được kích hoạt");
         result.CurrentUser.Should().Be(PostgresTestEnvironment.AppUser);
     }
@@ -439,7 +439,7 @@ public class PostgresTenantIsolationTests : IAsyncLifetime
         var result = await migrationService.InitializeOrBaselineDatabaseAsync(PostgresTestEnvironment.AdminDatabaseConnectionString);
 
         result.Success.Should().BeTrue();
-        result.TableCount.Should().Be(48);
+        result.TableCount.Should().Be(51);
         result.IsBaselineAdopted.Should().BeTrue();
 
         // 2. Chạy lại lần nữa: Phải an toàn và không thực hiện thao tác thừa
@@ -475,7 +475,7 @@ public class PostgresTenantIsolationTests : IAsyncLifetime
 
             result.Success.Should().BeTrue(because: $"{result.Message} - {string.Join(" | ", result.Errors ?? Array.Empty<string>())}");
             result.IsFreshInstall.Should().BeTrue();
-            result.TableCount.Should().Be(48);
+            result.TableCount.Should().Be(51);
             result.Errors.Should().BeNull();
 
             // 3. Xác minh bảng, trigger và __EFMigrationsHistory
@@ -485,7 +485,7 @@ public class PostgresTenantIsolationTests : IAsyncLifetime
             await using (var checkCmd = new NpgsqlCommand("SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE';", freshConn))
             {
                 var tableCount = Convert.ToInt32(await checkCmd.ExecuteScalarAsync());
-                tableCount.Should().Be(49, "48 bảng nghiệp vụ + 1 bảng __EFMigrationsHistory = 49 bảng");
+                tableCount.Should().Be(52, "51 bảng nghiệp vụ + 1 bảng __EFMigrationsHistory = 52 bảng");
             }
 
             await using (var historyCmd = new NpgsqlCommand("SELECT count(*) FROM \"__EFMigrationsHistory\" WHERE \"MigrationId\" = @mid;", freshConn))
