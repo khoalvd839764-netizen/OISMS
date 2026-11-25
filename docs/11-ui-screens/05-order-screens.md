@@ -18,11 +18,12 @@
 Trung tâm **Đơn hàng Đa kênh (Omnichannel Order Hub)** là nơi hội tụ toàn bộ đơn hàng phát sinh từ mọi điểm chạm bán lẻ của doanh nghiệp:
 * Hợp nhất đơn hàng từ các kênh: Bán lẻ tại quầy (`POS`), Đặt hàng thủ công tại tổng bộ (`Admin`), và các sàn Thương mại điện tử (`Shopee`, `TikTok Shop`, `Lazada`).
 * Quản lý vòng đời trạng thái đơn hàng nghiêm ngặt theo máy trạng thái hữu hạn (Finite State Machine):
-  $$\text{Draft} \longrightarrow \text{Reserved (Giữ chỗ 15p)} \longrightarrow \text{Confirmed (Duyệt/Trừ kho)} \longrightarrow \text{Shipped} \longrightarrow \text{Completed}$$
+  $$\text{Draft} \longrightarrow \text{Reserved (Giữ chỗ 15p)} \longrightarrow \text{Confirmed (Duyệt/Trừ kho)} \longrightarrow \text{Completed}$$
   $$\text{Draft / Reserved} \longrightarrow \text{Cancelled (Hoàn tồn khả dụng)}$$
 * Duyệt đơn và Hoàn tất đơn nguyên tử:
   * Khi bấm **`Duyệt đơn (Confirm)`**: Trừ `OnHand`, giảm `Reserved`, ghi Sổ cái `OUT`, và chụp giá vốn bình quân hiện hành vào `OrderItem.CostPrice`.
   * Khi bấm **`Hoàn tất (Complete)`**: Ghi nhận khách đã nhận hàng thành công. Tuyệt đối **không trừ tồn kho hay ghi sổ cái lần thứ hai**.
+* Không có trạng thái trung gian (`Processing`, `Shipped`) và không có nút "Xử lý / Đóng gói": drawer đơn `Reserved` có **Duyệt đơn** và **Hủy đơn**, đơn `Confirmed` chỉ có **Hoàn tất đơn**; bộ lọc trạng thái chỉ có 5 giá trị theo [state machine](../04-architecture-and-design/04-state-machines.md) ([BF-037](../bug-fixaffter/errors/BF-037-admin-hien-trang-thai-don-processing.md)).
 
 ---
 

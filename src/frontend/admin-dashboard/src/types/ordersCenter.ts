@@ -3,11 +3,11 @@
 // Khớp OrderDtos.cs: OrderSummaryDto, OrderDetailDto, OrderFilterDto, PagedResultDto.
 // Lưu ý tsconfig: không dùng enum (erasableSyntaxOnly); import kiểu phải là `import type`.
 
+// Khớp OISM.Domain.Common.OrderStatus và CHECK của orders.status (5 giá trị, không có Processing; BF-037).
 export type OrderStatus =
   | 'Draft'
   | 'Reserved'
   | 'Confirmed'
-  | 'Processing' // TODO: xác nhận với backend, DTO chỉ nhắc Draft/Reserved/Confirmed/Completed/Cancelled
   | 'Completed'
   | 'Cancelled';
 
@@ -15,7 +15,7 @@ export type OrderStatus =
 export type OrderChannel = 'POS' | 'Admin' | 'Shopee' | 'TikTok' | 'Lazada';
 
 export const ORDER_STATUSES: readonly OrderStatus[] = [
-  'Draft', 'Reserved', 'Confirmed', 'Processing', 'Completed', 'Cancelled',
+  'Draft', 'Reserved', 'Confirmed', 'Completed', 'Cancelled',
 ];
 
 export const ORDER_CHANNELS: readonly OrderChannel[] = [
@@ -26,19 +26,18 @@ export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   Draft: 'Nháp',
   Reserved: 'Đã giữ chỗ',
   Confirmed: 'Đã duyệt',
-  Processing: 'Đang xử lý',
   Completed: 'Hoàn tất',
   Cancelled: 'Đã hủy',
 };
 
-export type OrderAction = 'confirm' | 'cancel' | 'process' | 'complete';
+export type OrderAction = 'confirm' | 'cancel' | 'complete';
 
-// Nút nào hiện ở trạng thái nào. TODO: đối chiếu với state machine của backend.
+// Nút nào hiện ở trạng thái nào, theo docs/04-architecture-and-design/04-state-machines.md:
+// Reserved -> Confirmed | Cancelled, Confirmed -> Completed.
 export const ORDER_ACTIONS: Record<OrderStatus, readonly OrderAction[]> = {
   Draft: [],
   Reserved: ['confirm', 'cancel'],
-  Confirmed: ['process', 'complete'],
-  Processing: ['complete'],
+  Confirmed: ['complete'],
   Completed: [],
   Cancelled: [],
 };
