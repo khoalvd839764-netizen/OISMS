@@ -45,13 +45,6 @@ export const orderService = {
   },
 
   /**
-   * Đóng gói / Xử lý đơn hàng
-   */
-  async processOrder(id: string): Promise<void> {
-    await httpClient.post(`/api/orders/${id}/process`);
-  },
-
-  /**
    * Hoàn tất đơn hàng
    */
   async completeOrder(id: string): Promise<void> {

@@ -566,7 +566,7 @@ export function OrdersPage() {
       {/* Khu vực In Phiếu Xuất Kho 02-VT & Chọn nhiều đơn in hàng loạt (Upgrade 13 - FE-13.3) */}
       {(() => {
         const confirmedOrders = orders.filter(
-          (o) => o.status === "Confirmed" || o.status === "Completed" || o.status === "Processing"
+          (o) => o.status === "Confirmed" || o.status === "Completed"
         );
         if (confirmedOrders.length === 0) return null;
 
