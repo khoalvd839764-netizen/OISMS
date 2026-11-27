@@ -1,10 +1,14 @@
 import { ArrowRight, Check, Eye, EyeOff, LockKeyhole, Mail, Monitor, Phone, ShieldCheck, Store, User, AlertCircle } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { ReactLenis } from "lenis/react";
+import "lenis/dist/lenis.css";
 import { Link, useNavigate } from "react-router-dom";
 import { Button, Input } from "../components/ui";
 import { openPosLoginFromAdmin, POS_LOGIN_URL } from "../services/posNavigation";
 import { useAuth } from "../context/AuthContext";
 import { usePasswordResetEnabled } from "../services/passwordResetService";
+import SoftAurora from "../components/effects/SoftAurora";
+import { gsap, MOTION_OK, useGSAP } from "../components/effects/gsap";
 
 export function AuthPage() {
   const [register, setRegister] = useState(false);
@@ -22,6 +26,40 @@ export function AuthPage() {
   const { login, registerTenant } = useAuth();
   const passwordResetEnabled = usePasswordResetEnabled();
   const navigate = useNavigate();
+  const pageRef = useRef<HTMLElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // Mở đầu: khối giới thiệu và form xuất hiện lần lượt (chỉ khi không bật giảm chuyển động).
+  useGSAP(
+    () => {
+      const mm = gsap.matchMedia();
+      mm.add(MOTION_OK, () => {
+        gsap
+          .timeline({ defaults: { ease: "power3.out", duration: 0.6 } })
+          .from(".auth-logo, .auth-story-copy > *, .auth-story > small", { autoAlpha: 0, y: 18, stagger: 0.07 })
+          .from(".auth-form", { autoAlpha: 0, y: 24, duration: 0.5 }, 0.15)
+          .from(".auth-story-copy li", { autoAlpha: 0, x: -12, stagger: 0.08, duration: 0.4 }, "-=0.2");
+      });
+      return () => mm.revert();
+    },
+    { scope: pageRef },
+  );
+
+  // Khi chuyển Đăng nhập ⇄ Đăng ký: các trường mới trượt vào nhẹ.
+  const firstRender = useRef(true);
+  useGSAP(
+    () => {
+      if (firstRender.current) { firstRender.current = false; return; }
+      const mm = gsap.matchMedia();
+      mm.add(MOTION_OK, () => {
+        gsap.from(formRef.current?.children ?? [], {
+          autoAlpha: 0, y: 10, duration: 0.3, stagger: 0.025, ease: "power2.out", clearProps: "opacity,visibility,transform",
+        });
+      });
+      return () => mm.revert();
+    },
+    { scope: formRef, dependencies: [register], revertOnUpdate: true },
+  );
 
   useEffect(() => {
     document.title = register
@@ -88,13 +126,15 @@ export function AuthPage() {
   };
 
   return (
-    <main className="auth-page">
+    <main className="auth-page" ref={pageRef}>
+      {/* Lenis chỉ bật ở trang đăng nhập/đăng ký (form đăng ký dài hơn màn hình nhỏ). */}
+      <ReactLenis root options={{ lerp: 0.12, anchors: true }} />
       <section className="auth-story">
         <div className="auth-logo">
           <div className="brand-mark">O</div>
           <strong>OISM</strong>
         </div>
-        <div>
+        <div className="auth-story-copy">
           <span className="auth-kicker">VẬN HÀNH ĐA KÊNH</span>
           <h1>Một nguồn dữ liệu tin cậy cho bán hàng và tồn kho.</h1>
           <p>Quản lý đơn hàng, kho, giá vốn WAC và điểm bán POS trong cùng một hệ thống phân quyền đa khách thuê (SaaS Multi-tenant).</p>
@@ -105,10 +145,21 @@ export function AuthPage() {
           </ul>
         </div>
         <small>Phiên bản OISM Web Admin · React 19 & ASP.NET Core 8</small>
+        <SoftAurora
+          className="auth-aurora"
+          // Inline để thắng class `relative h-full w-full` của component (CSS Admin nằm trong @layer).
+          style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none" }}
+          color1="#8fbcf6"
+          color2="#1769e0"
+          speed={0.4}
+          brightness={0.9}
+          opacity={0.7}
+          clickPulse={false}
+        />
       </section>
 
       <section className="auth-form-wrap">
-        <form className="auth-form" onSubmit={handleSubmit}>
+        <form className="auth-form" onSubmit={handleSubmit} ref={formRef}>
           <div className="auth-mobile-logo">
             <div className="brand-mark">O</div>
             <strong>OISM</strong>

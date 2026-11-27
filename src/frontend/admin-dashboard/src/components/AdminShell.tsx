@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { gsap, MOTION_OK, useGSAP } from "./effects/gsap";
 import {
   Boxes,
   ChartNoAxesCombined,
@@ -47,6 +48,29 @@ export function AdminShell() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout, networkError, setNetworkError } = useAuth();
+
+  // Hiệu ứng vào trang khi đổi route: ngắn, chỉ transform/opacity, xóa style inline khi xong
+  // để không giữ transform trên tổ tiên của modal (position: fixed).
+  const mainRef = useRef<HTMLElement>(null);
+  useGSAP(
+    () => {
+      const mm = gsap.matchMedia();
+      mm.add(MOTION_OK, () => {
+        const blocks = Array.from(mainRef.current?.children ?? []).slice(0, 6);
+        if (blocks.length === 0) return;
+        gsap.from(blocks, {
+          autoAlpha: 0,
+          y: 14,
+          duration: 0.35,
+          ease: "power2.out",
+          stagger: 0.05,
+          clearProps: "opacity,visibility,transform",
+        });
+      });
+      return () => mm.revert();
+    },
+    { scope: mainRef, dependencies: [location.pathname], revertOnUpdate: true },
+  );
 
   // Tìm kiếm toàn hệ thống đa thực thể (CS-04)
   const [searchQuery, setSearchQuery] = useState("");
@@ -508,7 +532,7 @@ export function AdminShell() {
           </div>
         </header>
 
-        <main className="main-content">
+        <main className="main-content" ref={mainRef}>
           <Outlet />
         </main>
       </div>

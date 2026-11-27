@@ -56,6 +56,9 @@ export function DashboardPage() {
     ? Math.max(...trendData.map((d) => d.revenue), 1)
     : 1;
 
+  const kpiReady = !loading && !loadError && !!summary;
+  const formatVnd = (n: number) => `${n.toLocaleString("vi-VN")} ₫`;
+
   return (
     <>
       <PageTitle
@@ -124,6 +127,7 @@ export function DashboardPage() {
                 : `Lũy kế từ ${summary.totalOrders} đơn đã xác nhận hoặc hoàn tất`
               : "Đang tải..."
           }
+          countTo={kpiReady ? { value: summary.netRevenue ?? summary.totalRevenue ?? 0, format: formatVnd } : undefined}
           icon={<WalletCards size={19} />}
         />
         <StatCard
@@ -136,6 +140,7 @@ export function DashboardPage() {
               : `${summary?.totalOrders ?? 0} đơn`
           }
           change={loadError ? "Lỗi tải số liệu" : "Lũy kế, gồm mọi kênh bán"}
+          countTo={kpiReady ? { value: summary.totalOrders ?? 0, format: (n) => `${n} đơn` } : undefined}
           icon={<ShoppingCart size={19} />}
         />
         <StatCard
@@ -154,6 +159,7 @@ export function DashboardPage() {
               ? `Giá trị tồn: ${summary.totalInventoryValue.toLocaleString("vi-VN")} ₫`
               : "SKU đang hoạt động"
           }
+          countTo={kpiReady ? { value: summary.skuCount ?? 0, format: (n) => `${n} SKU` } : undefined}
           icon={<PackageCheck size={19} />}
         />
         <StatCard
@@ -177,6 +183,11 @@ export function DashboardPage() {
               : summary
               ? `Lũy kế · Tỷ suất biên: ${Number(summary.grossMarginPercentage || 0).toFixed(1)}%`
               : "Đang tải..."
+          }
+          countTo={
+            kpiReady && isOwner && summary.totalGrossProfit !== null && summary.totalGrossProfit !== undefined
+              ? { value: summary.totalGrossProfit, format: formatVnd }
+              : undefined
           }
           icon={<TrendingUp size={19} />}
         />

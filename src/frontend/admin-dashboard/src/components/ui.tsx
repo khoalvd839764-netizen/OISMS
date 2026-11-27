@@ -1,5 +1,7 @@
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, CSSProperties, InputHTMLAttributes, ReactNode } from "react";
 import { X } from "lucide-react";
+import SpotlightCard from "./effects/SpotlightCard";
+import { CountUp } from "./effects/CountUp";
 
 export function ComingSoonBadge() {
   return <span className="coming-soon-badge">Coming soon</span>;
@@ -34,8 +36,37 @@ export function PageTitle({ eyebrow, title, description, actions }: { eyebrow?: 
   );
 }
 
-export function StatCard({ label, value, change, icon }: { label: string; value: string; change: string; icon: ReactNode }) {
-  return <div className="stat-card"><div className="stat-head"><span>{label}</span><span className="stat-icon">{icon}</span></div><strong>{value}</strong><small>{change}</small></div>;
+export function StatCard({ label, value, change, icon, countTo }: {
+  label: string;
+  value: string;
+  change: string;
+  icon: ReactNode;
+  /** Khi có số liệu thật: đếm từ giá trị cũ tới `value`, hiển thị bằng `format`. */
+  countTo?: { value: number; format: (n: number) => string };
+}) {
+  return (
+    <SpotlightCard
+      className="stat-card"
+      theme="light"
+      spotlightColor="#1769e0"
+      intensity={0.5}
+      spotlightSize={220}
+      borderGlow={0.9}
+      // Giữ kích thước/màu của .stat-card: class p-8, rounded-3xl của component thắng CSS trong @layer components.
+      style={{
+        padding: "17px 18px",
+        borderRadius: "var(--radius)",
+        border: 0,
+        "--spotlight-card-surface": "var(--surface)",
+        "--spotlight-card-border": "var(--line)",
+        "--spotlight-card-shadow": "var(--shadow)",
+      } as CSSProperties}
+    >
+      <div className="stat-head"><span>{label}</span><span className="stat-icon">{icon}</span></div>
+      <strong>{countTo ? <CountUp value={countTo.value} format={countTo.format} /> : value}</strong>
+      <small>{change}</small>
+    </SpotlightCard>
+  );
 }
 
 export function Modal({ title, children, onClose, wide = false }: { title: string; children: ReactNode; onClose: () => void; wide?: boolean }) {
