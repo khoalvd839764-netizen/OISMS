@@ -1,7 +1,7 @@
 import type { SkuUnit } from "./units";
 
 export type Role = "Owner" | "Staff" | "Cashier";
-export type OrderStatus = "Draft" | "Pending" | "Reserved" | "Confirmed" | "Completed" | "Cancelled";
+export type OrderStatus = "Draft" | "Reserved" | "Confirmed" | "Completed" | "Cancelled";
 
 export interface Session {
   userId: string;

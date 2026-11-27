@@ -150,7 +150,7 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
 
   if (!orderId) return null;
 
-  const handleAction = async (action: 'confirm' | 'process' | 'complete') => {
+  const handleAction = async (action: 'confirm' | 'complete') => {
     // Identity guard: verify detail is loaded and strictly matches current orderId (B01-F04)
     if (!detail || detail.id !== orderId || loading || actionLoading) return;
     const targetOrderId = detail.id;
@@ -159,7 +159,6 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
     setError(null);
     try {
       if (action === 'confirm') await orderService.confirmOrder(targetOrderId);
-      if (action === 'process') await orderService.processOrder(targetOrderId);
       if (action === 'complete') await orderService.completeOrder(targetOrderId);
 
       // B01-F04: Kiểm tra sequence và identity sau mutation trước khi gọi getOrderById
@@ -477,15 +476,6 @@ export const OrderDetailDrawer: React.FC<OrderDetailDrawerProps> = ({
                 className="px-4 py-2 text-xs font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50"
               >
                 Duyệt đơn (Trừ kho)
-              </button>
-            )}
-            {actions.includes('process') && (
-              <button
-                disabled={actionLoading}
-                onClick={() => handleAction('process')}
-                className="px-4 py-2 text-xs font-semibold text-white bg-purple-600 rounded-md hover:bg-purple-700 disabled:opacity-50"
-              >
-                Xử lý / Đóng gói
               </button>
             )}
             {actions.includes('complete') && (

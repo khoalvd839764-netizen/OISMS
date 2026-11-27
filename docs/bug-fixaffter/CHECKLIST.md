@@ -9,7 +9,7 @@ Chi tiết từng lỗi nằm trong thư mục [`errors/`](./errors/), mỗi l�
 
 | Nhóm | Đã xong | Cần kiểm chứng / một phần | Chưa làm |
 | :--- | :---: | :---: | :---: |
-| Lỗi `BF-001..036` | 27 | 2 | 7 |
+| Lỗi `BF-001..037` | 28 | 2 | 7 |
 | Coming Soon `CS-01..08` + Quên mật khẩu | 4 | 3 | 2 |
 | Upgrade (GVHD) | 6 | 0 | 1 |
 
@@ -74,6 +74,12 @@ Chia thành nhiều đợt fix, xem [mục E](#e-kế-hoạch-hoàn-thiện-clea
 | | Mã | Ưu tiên | Khu vực | Lỗi | Trạng thái |
 | :---: | :--- | :---: | :--- | :--- | :--- |
 | [x] | [BF-036](./errors/BF-036-dang-nhap-loi-khi-con-token-tenant-khac.md) | P1 | Backend/Auth, Admin | Đăng nhập, refresh trả 500 khi request còn mang token của tenant khác | Đã sửa, có integration test PostgreSQL |
+
+### A5. Phát hiện khi rà báo cáo SRS, 25/11/2026 (BF-037)
+
+| | Mã | Ưu tiên | Khu vực | Lỗi | Trạng thái |
+| :---: | :--- | :---: | :--- | :--- | :--- |
+| [x] | [BF-037](./errors/BF-037-admin-hien-trang-thai-don-processing.md) | P3 | Admin/Đơn hàng | Bộ lọc có trạng thái `Processing` không tồn tại, nút "Xử lý / Đóng gói" không có tác dụng | Đã sửa frontend, build Admin PASS |
 
 ---
 

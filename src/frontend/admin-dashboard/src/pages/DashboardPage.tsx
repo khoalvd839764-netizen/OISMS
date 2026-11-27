@@ -380,7 +380,6 @@ export function DashboardPage() {
 export function OrderBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; tone: "success" | "warning" | "danger" | "info" | "neutral" }> = {
     Draft: { label: "Nháp", tone: "neutral" },
-    Pending: { label: "Đang giữ chỗ", tone: "warning" },
     Reserved: { label: "Đang giữ chỗ", tone: "warning" },
     Confirmed: { label: "Đã xác nhận", tone: "info" },
     Completed: { label: "Hoàn tất", tone: "success" },
